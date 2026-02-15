@@ -1,0 +1,142 @@
+{
+  "brand_identity": {
+    "name": "PagoFlow",
+    "logo_text": "PagoFlow",
+    "tone": "Professional, Secure, Efficient, Tech-Forward",
+    "archetype": "Swiss & High-Contrast (Modified for Fintech Trust)",
+    "description": "A robust B2B payment quotation platform integrating Venezuelan and International banking protocols."
+  },
+  "typography": {
+    "primary_font": "Manrope",
+    "secondary_font": "Inter",
+    "mono_font": "JetBrains Mono",
+    "google_fonts_url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap",
+    "styles": {
+      "h1": "font-manrope text-4xl font-bold tracking-tight text-slate-900",
+      "h2": "font-manrope text-3xl font-semibold tracking-tight text-slate-900",
+      "h3": "font-manrope text-2xl font-semibold tracking-tight text-slate-800",
+      "h4": "font-manrope text-xl font-medium text-slate-800",
+      "body": "font-inter text-base text-slate-600 leading-relaxed",
+      "small": "font-inter text-sm text-slate-500",
+      "label": "font-inter text-sm font-medium text-slate-700 uppercase tracking-wide",
+      "data_mono": "font-mono text-sm text-slate-700"
+    }
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "primary": {
+        "DEFAULT": "#0f172a",
+        "foreground": "#f8fafc",
+        "hover": "#1e293b",
+        "active": "#334155"
+      },
+      "secondary": {
+        "DEFAULT": "#f1f5f9",
+        "foreground": "#0f172a",
+        "hover": "#e2e8f0"
+      },
+      "accent": {
+        "DEFAULT": "#0284c7",
+        "foreground": "#ffffff",
+        "hover": "#0369a1"
+      },
+      "destructive": {
+        "DEFAULT": "#ef4444",
+        "foreground": "#ffffff"
+      },
+      "success": {
+        "DEFAULT": "#10b981",
+        "foreground": "#ffffff"
+      },
+      "background": "#f8fafc",
+      "surface": "#ffffff",
+      "border": "#e2e8f0",
+      "input": "#e2e8f0",
+      "ring": "#0f172a"
+    },
+    "gradients": {
+      "login_overlay": "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(2, 132, 199, 0.8) 100%)",
+      "card_highlight": "linear-gradient(to right, rgba(2, 132, 199, 0.05), transparent)"
+    }
+  },
+  "layout": {
+    "spacing_scale": "generous",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "border_radius": "rounded-lg",
+    "shadows": {
+      "card": "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)",
+      "dropdown": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+      "modal": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
+    },
+    "structure": {
+      "dashboard": "Sidebar + Topbar + Content Area",
+      "auth": "Split Screen (Image Left/Right + Form)",
+      "wizard": "Centered Step-by-Step Container"
+    }
+  },
+  "components": {
+    "Button": {
+      "default": "rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background",
+      "variants": {
+        "default": "bg-primary text-primary-foreground hover:bg-primary/90",
+        "outline": "border border-input hover:bg-accent hover:text-accent-foreground",
+        "ghost": "hover:bg-accent hover:text-accent-foreground",
+        "link": "underline-offset-4 hover:underline text-primary"
+      }
+    },
+    "Card": {
+      "style": "bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden",
+      "header": "px-6 py-4 border-b border-slate-100 bg-slate-50/50",
+      "body": "p-6"
+    },
+    "Table": {
+      "style": "w-full text-sm text-left",
+      "header": "bg-slate-50 text-slate-500 font-medium uppercase tracking-wider border-b",
+      "row": "border-b border-slate-100 hover:bg-slate-50/50 transition-colors",
+      "cell": "px-4 py-3"
+    },
+    "Input": {
+      "style": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    }
+  },
+  "image_urls": {
+    "auth_background": "https://images.unsplash.com/photo-1747455917568-d89241cd1423?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMG1vZGVybiUyMGNvcnBvcmF0ZSUyMGFyY2hpdGVjdHVyZSUyMGJsdWUlMjB3aGl0ZXxlbnwwfHx8fDE3NzExOTkyMTV8MA&ixlib=rb-4.1.0&q=85",
+    "pos_terminal": "https://images.unsplash.com/photo-1764795850459-3e73e5013ae8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85",
+    "card_reader": "https://images.unsplash.com/photo-1764194790132-6db2d7869e1a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85",
+    "generic_device": "https://images.unsplash.com/photo-1764611907608-2618966a8387?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85"
+  },
+  "instructions_to_main_agent": [
+    "Implement a 'Light Mode' first philosophy. Dark mode is optional/secondary.",
+    "Use 'Manrope' for all Headings (h1-h4) and 'Inter' for body text. Import them via Google Fonts in index.html or CSS.",
+    "Authentication: Use Google OAuth flow. The login page should split screen with the 'auth_background' image on one side with a blue overlay.",
+    "Dashboard: Create a sidebar navigation with clear iconography (Lucide React).",
+    "Forms: For the Quotation Engine (Motor de Cotización), use a 'Stepper' pattern (Step 1: Client, Step 2: Services, Step 3: Hardware, Step 4: Review).",
+    "Tables: Since tables are complex (Banks, Services), implement columns with text wrapping logic and sticky headers.",
+    "PDF Export: Use a 'Preview' modal before generating the final PDF. The preview should look exactly like the paper document.",
+    "Currency: Display dual prices (USD/Bs) clearly. Use a pill or badge for currency labels.",
+    "Graphs: Use Recharts for the Dashboard summary (e.g., Quotes per Month).",
+    "Icons: Use 'lucide-react' for all UI icons.",
+    "Use 'sonner' for all toast notifications (success/error).",
+    "Ensure all interactive elements have 'data-testid' attributes."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use generic centered layouts or simplistic gradients.",
+    "Avoid 'AI slop' aesthetics; focus on crisp, professional borders and whitespace.",
+    "Use 2-3x more spacing than typical defaults (p-6, p-8).",
+    "Interactive elements must have clear hover/active states.",
+    "No generic 'robot' emojis.",
+    "Components must use named exports.",
+    "Use existing Shadcn components from /src/components/ui/ whenever possible, customizing them via className."
+  ],
+  "accessibility": {
+    "contrast": "Ensure WCAG AA compliance (4.5:1 for normal text).",
+    "focus_states": "Visible focus rings on all interactive elements.",
+    "aria_labels": "Required for all icon-only buttons."
+  },
+  "motion": {
+    "page_transition": "opacity: 0 -> 1, duration: 0.3s ease-out",
+    "hover_lift": "transform: translateY(-1px), transition: all 0.2s ease",
+    "modal_enter": "scale: 0.95 -> 1, opacity: 0 -> 1, duration: 0.2s ease-out"
+  }
+}
