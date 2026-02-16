@@ -134,6 +134,7 @@ class QuoteItem(BaseModel):
 
 class QuoteCreate(BaseModel):
     client_id: str
+    quote_type: Optional[str] = "VPOS"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     notes: Optional[str] = None
@@ -142,6 +143,7 @@ class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
     quote_number: str
     client_id: str
+    quote_type: str = "VPOS"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     subtotal_usd: float
