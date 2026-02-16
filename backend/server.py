@@ -475,6 +475,92 @@ async def delete_service(service_id: str, authorization: Optional[str] = Header(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"message": "Service deleted successfully"}
 
+@api_router.post("/services/import")
+async def import_services(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    
+    content = await file.read()
+    imported_count = 0
+    
+    try:
+        if file.filename.endswith('.csv'):
+            decoded = content.decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded))
+            
+            for row in reader:
+                service = Service(
+                    category='General',
+                    name=row.get('Nombre', row.get('nombre', row.get('name', ''))).strip(),
+                    setup_cost_conventional=float(row.get('Setup Convencional', row.get('setup_cost_conventional', 0)) or 0),
+                    monthly_cost_conventional=float(row.get('Mensual Convencional', row.get('monthly_cost_conventional', 0)) or 0),
+                    setup_cost_outsourcing=float(row.get('Setup Outsourcing', row.get('setup_cost_outsourcing', 0)) or 0),
+                    monthly_cost_outsourcing=float(row.get('Mensual Outsourcing', row.get('monthly_cost_outsourcing', 0)) or 0),
+                    description=row.get('Descripción', row.get('descripcion', row.get('description', ''))).strip()
+                )
+                if service.name:
+                    doc = service.model_dump()
+                    doc['created_at'] = doc['created_at'].isoformat()
+                    await db.services.insert_one(doc)
+                    imported_count += 1
+        else:
+            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
+    
+    return {"message": f"{imported_count} servicios importados exitosamente"}
+
+@api_router.get("/services/export/pdf")
+async def export_services_pdf(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    services = await db.services.find({}, {"_id": 0}).to_list(1000)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title = Paragraph("Catálogo de Servicios - Cotizador Merchant Server", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 20))
+    
+    data = [['Servicio', 'Setup Conv.', 'Mensual Conv.', 'Setup Out.', 'Mensual Out.']]
+    for s in services:
+        data.append([
+            s['name'][:40],
+            f"${s.get('setup_cost_conventional', 0):.2f}",
+            f"${s.get('monthly_cost_conventional', 0):.2f}",
+            f"${s.get('setup_cost_outsourcing', 0):.2f}",
+            f"${s.get('monthly_cost_outsourcing', 0):.2f}"
+        ])
+    
+    table = Table(data, colWidths=[2.5*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1.1*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=servicios.pdf"}
+    )
+
 # ==================== EXCHANGE RATE ENDPOINTS ====================
 
 @api_router.get("/exchange-rate/current")
