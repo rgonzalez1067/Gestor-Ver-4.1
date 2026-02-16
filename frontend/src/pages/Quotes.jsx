@@ -132,8 +132,8 @@ export const Quotes = () => {
         item_id: s.service_id,
         item_name: s.name,
         quantity: s.quantity,
-        unit_price_usd: s.setup_cost + s.monthly_cost,
-        total_usd: (s.setup_cost + s.monthly_cost) * s.quantity
+        unit_price_usd: (s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0),
+        total_usd: ((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity
       }));
 
       const hardwareItems = Object.values(selectedItems.hardware).map((h) => ({
@@ -197,7 +197,7 @@ export const Quotes = () => {
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
   const totalServicesUSD = Object.values(selectedItems.services).reduce(
-    (sum, s) => sum + (s.setup_cost + s.monthly_cost) * s.quantity, 0
+    (sum, s) => sum + ((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity, 0
   );
   const totalHardwareUSD = Object.values(selectedItems.hardware).reduce(
     (sum, h) => sum + h.price_usd * h.quantity, 0
