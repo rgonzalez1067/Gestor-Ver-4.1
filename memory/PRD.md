@@ -24,8 +24,10 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] CRUD Clientes (con campo `segment`: Pymes/Corporativo/Mixto)
 - [x] CRUD Bancos (Venezuela, EE.UU., Fintechs)
 - [x] CRUD Hardware
-- [x] CRUD Servicios (4 campos de precio: Convencional y Outsourcing)
-- [x] CRUD Cotizaciones con cálculo automático
+- [x] CRUD Servicios (4 campos de precio, SIN categoría)
+- [x] Importación de servicios desde CSV
+- [x] Exportación de servicios a PDF
+- [x] CRUD Cotizaciones con tipo (VPOS/GATEWAY/MPOS/LINK)
 - [x] Tasa de cambio BCV (consulta y actualización)
 - [x] Endpoint para poblar bancos (/api/banks/seed)
 - [x] Upload/descarga/eliminación de logo de empresa (GET público para login)
@@ -34,12 +36,14 @@ El usuario solicitó una aplicación de cotizaciones con:
 ### Frontend (React)
 - [x] Login con Google OAuth + opción para crear cuenta
 - [x] Logo de empresa visible en pantalla de Login
+- [x] Colores de marca (verde #1B7D4E y azul #00447C) en toda la UI
 - [x] Dashboard con estadísticas y últimas cotizaciones
 - [x] Gestión de Clientes con campo Segmento
 - [x] Gestión de Bancos (grid de tarjetas)
 - [x] Gestión de Hardware
-- [x] Gestión de Servicios (tablas por categoría con 4 precios)
-- [x] Wizard de creación de cotizaciones (4 pasos)
+- [x] Gestión de Servicios SIN categoría + importar/exportar
+- [x] Wizard de creación de cotizaciones (5 pasos: Tipo → Cliente → Servicios → Hardware → Revisión)
+- [x] Tipos de cotización: VPOS, Payment Gateway, MPOS, Link de Pago
 - [x] Configuración (upload logo + seed bancos)
 - [x] Tasa de cambio (visualización y actualización)
 - [x] Loading screens con fondo blanco y texto negro
