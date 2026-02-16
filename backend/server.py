@@ -148,7 +148,7 @@ class Quote(BaseModel):
     exchange_rate: float
     total_bs: float
     notes: Optional[str] = None
-    status: str = "draft"
+    quote_status: str = "draft"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ExchangeRate(BaseModel):
