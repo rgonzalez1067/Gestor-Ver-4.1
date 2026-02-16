@@ -28,11 +28,12 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] CRUD Cotizaciones con cálculo automático
 - [x] Tasa de cambio BCV (consulta y actualización)
 - [x] Endpoint para poblar bancos (/api/banks/seed)
-- [x] Upload/descarga/eliminación de logo de empresa
+- [x] Upload/descarga/eliminación de logo de empresa (GET público para login)
 - [x] Generación de PDF para cotizaciones
 
 ### Frontend (React)
-- [x] Login con Google OAuth
+- [x] Login con Google OAuth + opción para crear cuenta
+- [x] Logo de empresa visible en pantalla de Login
 - [x] Dashboard con estadísticas y últimas cotizaciones
 - [x] Gestión de Clientes con campo Segmento
 - [x] Gestión de Bancos (grid de tarjetas)
@@ -42,6 +43,7 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] Configuración (upload logo + seed bancos)
 - [x] Tasa de cambio (visualización y actualización)
 - [x] Loading screens con fondo blanco y texto negro
+- [x] Todos los fondos de pantalla en blanco
 - [x] Branding: "Cotizador Merchant Server"
 
 ## Modelos de Datos
