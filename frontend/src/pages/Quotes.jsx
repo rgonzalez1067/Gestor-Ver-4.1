@@ -6,11 +6,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, FileText, Download, ChevronRight, ChevronLeft, Monitor, Globe, Smartphone, Link } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-const WIZARD_STEPS = ['Cliente', 'Servicios', 'Hardware', 'Revisión'];
+const QUOTE_TYPES = [
+  { id: 'VPOS', name: 'Cajas Registradoras (VPOS)', icon: Monitor, description: 'Puntos de venta físicos y cajas registradoras' },
+  { id: 'GATEWAY', name: 'Ecommerce (Payment Gateway)', icon: Globe, description: 'Pasarela de pagos para comercio electrónico' },
+  { id: 'MPOS', name: 'Tablet o Teléfonos Android (MPOS)', icon: Smartphone, description: 'Soluciones móviles de pago' },
+  { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de pago para cobros rápidos' }
+];
+
+const WIZARD_STEPS = ['Tipo', 'Cliente', 'Servicios', 'Hardware', 'Revisión'];
 
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
@@ -21,6 +28,7 @@ export const Quotes = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [quoteData, setQuoteData] = useState({
+    quote_type: '',
     client_id: '',
     services: [],
     hardware: [],
@@ -59,6 +67,7 @@ export const Quotes = () => {
     setWizardOpen(true);
     setCurrentStep(0);
     setQuoteData({
+      quote_type: '',
       client_id: '',
       services: [],
       hardware: [],
@@ -68,7 +77,11 @@ export const Quotes = () => {
   };
 
   const nextStep = () => {
-    if (currentStep === 0 && !quoteData.client_id) {
+    if (currentStep === 0 && !quoteData.quote_type) {
+      toast.error('Seleccione un tipo de cotización');
+      return;
+    }
+    if (currentStep === 1 && !quoteData.client_id) {
       toast.error('Seleccione un cliente');
       return;
     }
@@ -147,6 +160,7 @@ export const Quotes = () => {
 
       const payload = {
         client_id: quoteData.client_id,
+        quote_type: quoteData.quote_type,
         services: serviceItems,
         hardware: hardwareItems,
         notes: quoteData.notes
@@ -181,13 +195,18 @@ export const Quotes = () => {
     }
   };
 
+  const getQuoteTypeName = (typeId) => {
+    const type = QUOTE_TYPES.find(t => t.id === typeId);
+    return type ? type.name : typeId;
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
             <p className="mt-4 text-slate-900">Cargando cotizaciones...</p>
           </div>
         </div>
@@ -221,7 +240,7 @@ export const Quotes = () => {
             <Button
               onClick={openWizard}
               data-testid="create-quote-button"
-              className="bg-sky-600 hover:bg-sky-700 text-white"
+              className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
             >
               <Plus size={20} className="mr-2" />
               Nueva Cotización
@@ -234,6 +253,9 @@ export const Quotes = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Número
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Tipo
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Cliente
@@ -260,10 +282,15 @@ export const Quotes = () => {
                       <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">
                         {quote.quote_number}
                       </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className="px-2 py-1 text-xs font-medium bg-brand-blue-50 text-brand-blue-600 rounded">
+                          {getQuoteTypeName(quote.quote_type)}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-sm text-slate-900">
                         {client?.fantasy_name || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-sm font-mono text-right text-emerald-600 font-semibold">
+                      <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">
                         ${quote.total_usd.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-sm font-mono text-right text-slate-700">
@@ -279,7 +306,7 @@ export const Quotes = () => {
                             variant="outline"
                             data-testid={`download-quote-${quote.quote_id}`}
                             onClick={() => downloadPDF(quote.quote_id)}
-                            className="text-sky-600 hover:text-sky-700"
+                            className="text-brand-blue-600 hover:text-brand-blue-700"
                           >
                             <Download size={16} className="mr-1" />
                             PDF
@@ -314,15 +341,15 @@ export const Quotes = () => {
                     <div key={step} className="flex items-center">
                       <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 font-semibold ${
                         index === currentStep
-                          ? 'border-sky-600 bg-sky-600 text-white'
+                          ? 'border-brand-blue-600 bg-brand-blue-600 text-white'
                           : index < currentStep
-                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          ? 'border-brand-green-600 bg-brand-green-600 text-white'
                           : 'border-slate-300 text-slate-400'
                       }`}>
                         {index + 1}
                       </div>
                       <span className={`ml-2 font-medium ${
-                        index === currentStep ? 'text-sky-600' : index < currentStep ? 'text-emerald-600' : 'text-slate-400'
+                        index === currentStep ? 'text-brand-blue-600' : index < currentStep ? 'text-brand-green-600' : 'text-slate-400'
                       }`}>
                         {step}
                       </span>
@@ -335,14 +362,55 @@ export const Quotes = () => {
               </div>
 
               <div className="min-h-[400px]">
+                {/* Step 0: Tipo de Cotización */}
                 {currentStep === 0 && (
                   <div>
-                    <Label htmlFor="client">Seleccione el Cliente</Label>
+                    <Label className="text-lg font-semibold mb-4 block">¿Qué tipo de cotización desea crear?</Label>
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      {QUOTE_TYPES.map((type) => {
+                        const Icon = type.icon;
+                        const isSelected = quoteData.quote_type === type.id;
+                        return (
+                          <div
+                            key={type.id}
+                            onClick={() => setQuoteData({ ...quoteData, quote_type: type.id })}
+                            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-brand-green-600 bg-brand-green-50'
+                                : 'border-slate-200 hover:border-brand-blue-300 hover:bg-slate-50'
+                            }`}
+                            data-testid={`quote-type-${type.id}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`p-3 rounded-lg ${isSelected ? 'bg-brand-green-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                <Icon size={28} />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-slate-900">{type.name}</h3>
+                                <p className="text-sm text-slate-500 mt-1">{type.description}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 1: Selección de Cliente */}
+                {currentStep === 1 && (
+                  <div>
+                    <div className="mb-4 p-4 bg-brand-blue-50 rounded-lg">
+                      <p className="text-brand-blue-700 font-medium">
+                        Tipo seleccionado: {getQuoteTypeName(quoteData.quote_type)}
+                      </p>
+                    </div>
+                    <Label htmlFor="client" className="text-lg font-semibold">Seleccione el Cliente</Label>
                     <Select
                       value={quoteData.client_id}
                       onValueChange={(value) => setQuoteData({ ...quoteData, client_id: value })}
                     >
-                      <SelectTrigger data-testid="select-client">
+                      <SelectTrigger data-testid="select-client" className="mt-3">
                         <SelectValue placeholder="Seleccione un cliente" />
                       </SelectTrigger>
                       <SelectContent>
@@ -353,34 +421,42 @@ export const Quotes = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {clients.length === 0 && (
+                      <p className="text-amber-600 mt-4 text-sm">
+                        No hay clientes registrados. Por favor, cree un cliente primero.
+                      </p>
+                    )}
                   </div>
                 )}
 
-                {currentStep === 1 && (
+                {/* Step 2: Servicios */}
+                {currentStep === 2 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Seleccione Servicios</h3>
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    <Label className="text-lg font-semibold mb-4 block">Seleccione los Servicios</Label>
+                    <div className="space-y-3 mt-4 max-h-[350px] overflow-y-auto">
                       {services.map((service) => {
                         const isSelected = !!selectedItems.services[service.service_id];
                         return (
                           <div
                             key={service.service_id}
-                            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                              isSelected ? 'border-sky-600 bg-sky-50' : 'border-slate-200 hover:border-sky-300'
-                            }`}
                             onClick={() => toggleService(service)}
+                            className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-brand-green-600 bg-brand-green-50'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
                           >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div>
                                 <p className="font-medium text-slate-900">{service.name}</p>
-                                <p className="text-sm text-slate-500">{service.category}</p>
+                                <p className="text-sm text-slate-500">{service.description}</p>
                               </div>
                               <div className="text-right">
-                                <p className="font-semibold text-slate-900">
+                                <p className="font-semibold text-brand-blue-600">
                                   ${((service.setup_cost_conventional || 0) + (service.monthly_cost_conventional || 0)).toFixed(2)}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                  Setup: ${service.setup_cost_conventional || 0} + Mensual: ${service.monthly_cost_conventional || 0}
+                                  Setup + Mensual
                                 </p>
                               </div>
                             </div>
@@ -405,25 +481,32 @@ export const Quotes = () => {
                   </div>
                 )}
 
-                {currentStep === 2 && (
+                {/* Step 3: Hardware */}
+                {currentStep === 3 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Seleccione Hardware</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto">
+                    <Label className="text-lg font-semibold mb-4 block">Seleccione el Hardware</Label>
+                    <div className="space-y-3 mt-4 max-h-[350px] overflow-y-auto">
                       {hardware.map((hw) => {
                         const isSelected = !!selectedItems.hardware[hw.hardware_id];
                         return (
                           <div
                             key={hw.hardware_id}
-                            className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                              isSelected ? 'border-sky-600 bg-sky-50' : 'border-slate-200 hover:border-sky-300'
-                            }`}
                             onClick={() => toggleHardware(hw)}
+                            className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-brand-green-600 bg-brand-green-50'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
                           >
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="font-medium text-slate-900">{hw.name}</p>
-                              <span className="text-xs px-2 py-1 bg-slate-100 rounded">{hw.type}</span>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-slate-900">{hw.name}</p>
+                                <p className="text-sm text-slate-500">{hw.type}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-brand-green-600">${hw.price_usd.toFixed(2)}</p>
+                              </div>
                             </div>
-                            <p className="text-sm font-semibold text-emerald-600">${hw.price_usd.toFixed(2)}</p>
                             {isSelected && (
                               <div className="mt-3 pt-3 border-t">
                                 <Label htmlFor={`qty-hw-${hw.hardware_id}`} className="text-xs">Cantidad</Label>
@@ -445,68 +528,79 @@ export const Quotes = () => {
                   </div>
                 )}
 
-                {currentStep === 3 && (
+                {/* Step 4: Revisión */}
+                {currentStep === 4 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Revisión de Cotización</h3>
+                    <Label className="text-lg font-semibold mb-4 block">Resumen de la Cotización</Label>
                     
-                    {selectedClient && (
-                      <div className="mb-6 p-4 bg-slate-50 rounded-lg border">
-                        <p className="text-sm text-slate-600 mb-1">Cliente:</p>
-                        <p className="font-semibold text-slate-900">{selectedClient.fantasy_name}</p>
-                        <p className="text-sm text-slate-600">{selectedClient.rif}</p>
+                    <div className="bg-slate-50 rounded-lg p-4 mb-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-slate-500">Tipo</p>
+                          <p className="font-medium">{getQuoteTypeName(quoteData.quote_type)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-slate-500">Cliente</p>
+                          <p className="font-medium">{selectedClient?.fantasy_name}</p>
+                        </div>
                       </div>
-                    )}
+                    </div>
 
                     {Object.keys(selectedItems.services).length > 0 && (
                       <div className="mb-4">
-                        <h4 className="font-semibold mb-2">Servicios</h4>
-                        <div className="space-y-2">
-                          {Object.values(selectedItems.services).map((s) => (
-                            <div key={s.service_id} className="flex justify-between text-sm p-2 bg-slate-50 rounded">
-                              <span>{s.name} x {s.quantity}</span>
-                              <span className="font-semibold">${(((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity).toFixed(2)}</span>
-                            </div>
-                          ))}
+                        <h4 className="font-semibold text-brand-blue-600 mb-2">Servicios</h4>
+                        {Object.values(selectedItems.services).map((s) => (
+                          <div key={s.service_id} className="flex justify-between py-2 border-b">
+                            <span>{s.name} x{s.quantity}</span>
+                            <span className="font-mono">${(((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between py-2 font-semibold">
+                          <span>Subtotal Servicios</span>
+                          <span className="text-brand-blue-600">${totalServicesUSD.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
 
                     {Object.keys(selectedItems.hardware).length > 0 && (
                       <div className="mb-4">
-                        <h4 className="font-semibold mb-2">Hardware</h4>
-                        <div className="space-y-2">
-                          {Object.values(selectedItems.hardware).map((h) => (
-                            <div key={h.hardware_id} className="flex justify-between text-sm p-2 bg-slate-50 rounded">
-                              <span>{h.name} x {h.quantity}</span>
-                              <span className="font-semibold">${(h.price_usd * h.quantity).toFixed(2)}</span>
-                            </div>
-                          ))}
+                        <h4 className="font-semibold text-brand-green-600 mb-2">Hardware</h4>
+                        {Object.values(selectedItems.hardware).map((h) => (
+                          <div key={h.hardware_id} className="flex justify-between py-2 border-b">
+                            <span>{h.name} x{h.quantity}</span>
+                            <span className="font-mono">${(h.price_usd * h.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between py-2 font-semibold">
+                          <span>Subtotal Hardware</span>
+                          <span className="text-brand-green-600">${totalHardwareUSD.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="border-t pt-4 mb-4">
-                      <div className="flex justify-between text-lg font-bold">
-                        <span>Total (USD)</span>
-                        <span className="text-emerald-600">${grandTotal.toFixed(2)}</span>
+                    <div className="bg-slate-900 text-white rounded-lg p-4 mt-4">
+                      <div className="flex justify-between text-xl font-bold">
+                        <span>TOTAL</span>
+                        <span>${grandTotal.toFixed(2)} USD</span>
                       </div>
                     </div>
 
-                    <div>
-                      <Label htmlFor="notes">Notas (Opcional)</Label>
+                    <div className="mt-4">
+                      <Label htmlFor="notes">Notas adicionales</Label>
                       <Textarea
                         id="notes"
                         value={quoteData.notes}
                         onChange={(e) => setQuoteData({ ...quoteData, notes: e.target.value })}
+                        placeholder="Observaciones o notas para la cotización..."
                         rows={3}
-                        placeholder="Agregue notas adicionales para esta cotización..."
+                        className="mt-2"
                       />
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-between pt-6 border-t">
+              <div className="flex justify-between pt-4 border-t">
                 <Button
                   variant="outline"
                   onClick={prevStep}
@@ -515,22 +609,19 @@ export const Quotes = () => {
                   <ChevronLeft size={16} className="mr-1" />
                   Anterior
                 </Button>
-                
+
                 {currentStep < WIZARD_STEPS.length - 1 ? (
-                  <Button
-                    onClick={nextStep}
-                    className="bg-sky-600 hover:bg-sky-700 text-white"
-                  >
+                  <Button onClick={nextStep} className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
                     Siguiente
                     <ChevronRight size={16} className="ml-1" />
                   </Button>
                 ) : (
                   <Button
                     onClick={handleSubmitQuote}
+                    className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     data-testid="submit-quote-button"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   >
-                    Generar Cotización
+                    Crear Cotización
                   </Button>
                 )}
               </div>
