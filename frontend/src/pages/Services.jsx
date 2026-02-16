@@ -26,8 +26,10 @@ export const Services = () => {
   const [formData, setFormData] = useState({
     category: SERVICE_CATEGORIES[0],
     name: '',
-    setup_cost: '',
-    monthly_cost: '',
+    setup_cost_conventional: '',
+    monthly_cost_conventional: '',
+    setup_cost_outsourcing: '',
+    monthly_cost_outsourcing: '',
     description: ''
   });
 
@@ -52,8 +54,10 @@ export const Services = () => {
     try {
       const payload = {
         ...formData,
-        setup_cost: parseFloat(formData.setup_cost),
-        monthly_cost: parseFloat(formData.monthly_cost)
+        setup_cost_conventional: parseFloat(formData.setup_cost_conventional),
+        monthly_cost_conventional: parseFloat(formData.monthly_cost_conventional),
+        setup_cost_outsourcing: parseFloat(formData.setup_cost_outsourcing),
+        monthly_cost_outsourcing: parseFloat(formData.monthly_cost_outsourcing)
       };
 
       if (editingService) {
@@ -90,8 +94,10 @@ export const Services = () => {
     setFormData({
       category: service.category,
       name: service.name,
-      setup_cost: service.setup_cost.toString(),
-      monthly_cost: service.monthly_cost.toString(),
+      setup_cost_conventional: service.setup_cost_conventional?.toString() || '0',
+      monthly_cost_conventional: service.monthly_cost_conventional?.toString() || '0',
+      setup_cost_outsourcing: service.setup_cost_outsourcing?.toString() || '0',
+      monthly_cost_outsourcing: service.monthly_cost_outsourcing?.toString() || '0',
       description: service.description || ''
     });
     setDialogOpen(true);
@@ -101,8 +107,10 @@ export const Services = () => {
     setFormData({
       category: SERVICE_CATEGORIES[0],
       name: '',
-      setup_cost: '',
-      monthly_cost: '',
+      setup_cost_conventional: '',
+      monthly_cost_conventional: '',
+      setup_cost_outsourcing: '',
+      monthly_cost_outsourcing: '',
       description: ''
     });
     setEditingService(null);
