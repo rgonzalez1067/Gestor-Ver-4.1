@@ -105,10 +105,13 @@ export const Clients = () => {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+        <div className="flex-1 flex items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <p className="mt-4 text-slate-900">Cargando clientes...</p>
+          </div>
         </div>
       </div>
     );
@@ -157,6 +160,22 @@ export const Clients = () => {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="segment">Segmento</Label>
+                      <Select
+                        value={formData.segment}
+                        onValueChange={(value) => setFormData({ ...formData, segment: value })}
+                      >
+                        <SelectTrigger data-testid="client-segment-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SEGMENT_OPTIONS.map((seg) => (
+                            <SelectItem key={seg} value={seg}>{seg}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <Label htmlFor="legal_name">Nombre Jurídico</Label>
                       <Input
                         id="legal_name"
@@ -166,7 +185,7 @@ export const Clients = () => {
                         required
                       />
                     </div>
-                    <div className="col-span-2">
+                    <div>
                       <Label htmlFor="fantasy_name">Nombre de Fantasía</Label>
                       <Input
                         id="fantasy_name"
