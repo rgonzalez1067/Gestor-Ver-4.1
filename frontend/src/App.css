@@ -1,5 +1,5 @@
 .login-split-image {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(2, 132, 199, 0.8) 100%);
+  background: linear-gradient(135deg, #00447C 0%, #1B7D4E 100%);
   background-size: cover;
   background-position: center;
 }
@@ -18,20 +18,34 @@
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(2, 132, 199, 0.1);
-  color: #0284c7;
+  background-color: rgba(27, 125, 78, 0.1);
+  color: #1B7D4E;
 }
 
 .sidebar-nav-item.active {
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: rgba(27, 125, 78, 0.15);
+  color: #1B7D4E;
+  font-weight: 600;
 }
 
 .btn-primary {
+  background-color: #1B7D4E;
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
+  background-color: #165f3d;
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 4px 6px -1px rgba(27, 125, 78, 0.2);
+}
+
+.btn-secondary {
+  background-color: #00447C;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #003460;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 68, 124, 0.2);
 }
