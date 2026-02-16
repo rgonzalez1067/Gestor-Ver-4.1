@@ -183,10 +183,13 @@ export const Quotes = () => {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+        <div className="flex-1 flex items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <p className="mt-4 text-slate-900">Cargando cotizaciones...</p>
+          </div>
         </div>
       </div>
     );
