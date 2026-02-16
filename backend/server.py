@@ -63,6 +63,10 @@ class Client(BaseModel):
 class BankProduct(BaseModel):
     product_name: str
     description: Optional[str] = None
+    vpos_available: bool = False
+    gateway_available: bool = False
+    mpos_available: bool = False
+    link_available: bool = False
 
 class BankCreate(BaseModel):
     name: str
