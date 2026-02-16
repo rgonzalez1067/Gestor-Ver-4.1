@@ -111,7 +111,7 @@ export const Hardware = () => {
         <Sidebar />
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
             <p className="mt-4 text-slate-900">Cargando hardware...</p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export const Hardware = () => {
               <DialogTrigger asChild>
                 <Button
                   data-testid="add-hardware-button"
-                  className="bg-sky-600 hover:bg-sky-700 text-white"
+                  className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                 >
                   <Plus size={20} className="mr-2" />
                   Nuevo Hardware
@@ -236,7 +236,7 @@ export const Hardware = () => {
                     <Button
                       type="submit"
                       data-testid="save-hardware-button"
-                      className="bg-sky-600 hover:bg-sky-700 text-white"
+                      className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     >
                       {editingHardware ? 'Actualizar' : 'Guardar'}
                     </Button>
@@ -297,7 +297,7 @@ export const Hardware = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-600">Bs/USD:</span>
-                    <span className="text-lg font-semibold text-sky-600">
+                    <span className="text-lg font-semibold text-brand-blue-600">
                       ${hardware.price_bs_usd.toFixed(2)}
                     </span>
                   </div>

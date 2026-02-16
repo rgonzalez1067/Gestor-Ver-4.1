@@ -46,7 +46,7 @@ export const ExchangeRate = () => {
         <Sidebar />
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
             <p className="mt-4 text-slate-900">Cargando tasa de cambio...</p>
           </div>
         </div>
@@ -89,7 +89,7 @@ export const ExchangeRate = () => {
                 onClick={handleUpdate}
                 disabled={updating}
                 data-testid="update-rate-button"
-                className="bg-sky-600 hover:bg-sky-700 text-white"
+                className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
               >
                 {updating ? (
                   <>

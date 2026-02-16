@@ -122,7 +122,7 @@ export const Banks = () => {
         <Sidebar />
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
             <p className="mt-4 text-slate-900">Cargando bancos...</p>
           </div>
         </div>
@@ -148,7 +148,7 @@ export const Banks = () => {
               <DialogTrigger asChild>
                 <Button
                   data-testid="add-bank-button"
-                  className="bg-sky-600 hover:bg-sky-700 text-white"
+                  className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                 >
                   <Plus size={20} className="mr-2" />
                   Nuevo Banco
@@ -273,7 +273,7 @@ export const Banks = () => {
                     <Button
                       type="submit"
                       data-testid="save-bank-button"
-                      className="bg-sky-600 hover:bg-sky-700 text-white"
+                      className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     >
                       {editingBank ? 'Actualizar' : 'Guardar'}
                     </Button>
