@@ -144,7 +144,7 @@ export const Services = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-white">
       <Sidebar />
       
       <main className="flex-1 p-8" data-testid="services-page">
