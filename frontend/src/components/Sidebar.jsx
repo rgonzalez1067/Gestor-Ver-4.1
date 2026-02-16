@@ -7,6 +7,7 @@ import {
   Briefcase, 
   FileText,
   TrendingUp,
+  Settings,
   LogOut
 } from 'lucide-react';
 import api from '../utils/api';
@@ -18,7 +19,8 @@ const menuItems = [
   { path: '/hardware', icon: Package, label: 'Hardware' },
   { path: '/services', icon: Briefcase, label: 'Servicios' },
   { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
-  { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
+  { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
+  { path: '/settings', icon: Settings, label: 'Configuración' }
 ];
 
 export const Sidebar = () => {
@@ -40,8 +42,8 @@ export const Sidebar = () => {
   return (
     <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col">
       <div className="p-6 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-900 font-manrope">PagoFlow</h1>
-        <p className="text-sm text-slate-500 mt-1">Sistema de Cotizaciones</p>
+        <h1 className="text-xl font-bold text-slate-900 font-manrope">Cotizador</h1>
+        <p className="text-sm text-slate-500 mt-1">Merchant Server</p>
       </div>
 
       <nav className="flex-1 p-4">
