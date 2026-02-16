@@ -9,6 +9,7 @@ import Hardware from './pages/Hardware';
 import Services from './pages/Services';
 import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
+import Settings from './pages/Settings';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -55,6 +56,11 @@ function AppRouter() {
       <Route path="/exchange-rate" element={
         <ProtectedRoute>
           <ExchangeRate />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute>
+          <Settings />
         </ProtectedRoute>
       } />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
