@@ -718,6 +718,126 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
         headers={"Content-Disposition": f"attachment; filename=quote_{quote['quote_number']}.pdf"}
     )
 
+# ==================== CONFIGURATION ENDPOINTS ====================
+
+@api_router.post("/config/logo")
+async def upload_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
+    
+    file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+    logo_path = UPLOADS_DIR / f"logo.{file_extension}"
+    
+    # Remove existing logo if exists
+    for existing_logo in UPLOADS_DIR.glob("logo.*"):
+        existing_logo.unlink()
+    
+    with open(logo_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"message": "Logo subido exitosamente", "filename": f"logo.{file_extension}"}
+
+@api_router.get("/config/logo")
+async def get_logo():
+    for logo_file in UPLOADS_DIR.glob("logo.*"):
+        return FileResponse(logo_file, media_type="image/png")
+    raise HTTPException(status_code=404, detail="No hay logo configurado")
+
+@api_router.delete("/config/logo")
+async def delete_logo(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    for existing_logo in UPLOADS_DIR.glob("logo.*"):
+        existing_logo.unlink()
+        return {"message": "Logo eliminado exitosamente"}
+    
+    raise HTTPException(status_code=404, detail="No hay logo para eliminar")
+
+# ==================== SEED BANKS ENDPOINT ====================
+
+@api_router.post("/banks/seed")
+async def seed_banks(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    # Lista de bancos de Venezuela
+    venezuela_banks = [
+        "Banco de Venezuela",
+        "Banco Mercantil",
+        "Banesco Banco Universal",
+        "BBVA Provincial",
+        "Banco Exterior",
+        "Banco Nacional de Crédito (BNC)",
+        "Banco del Tesoro",
+        "Banco Bicentenario",
+        "Banco Occidental de Descuento (BOD)",
+        "Banco Sofitasa",
+        "Banco Plaza",
+        "Banco Activo",
+        "Banco del Caribe",
+        "Banco Fondo Común (BFC)",
+        "Banco Agrícola de Venezuela",
+        "Bancrecer",
+        "Banplus",
+        "100% Banco",
+        "Bancamiga",
+        "Mi Banco",
+        "Bancaribe"
+    ]
+    
+    # Lista de bancos de Estados Unidos
+    usa_banks = [
+        "Bank of America",
+        "Banesco USA",
+        "Wells Fargo",
+        "Citi Bank",
+        "US Bank",
+        "Chase",
+        "Amerant"
+    ]
+    
+    # Fintechs
+    fintechs = [
+        {"name": "Cashea", "country": "Venezuela"},
+        {"name": "Lysto", "country": "Venezuela"},
+        {"name": "Crixto", "country": "Venezuela"}
+    ]
+    
+    inserted_count = 0
+    
+    # Insert Venezuela banks
+    for bank_name in venezuela_banks:
+        existing = await db.banks.find_one({"name": bank_name})
+        if not existing:
+            bank = Bank(name=bank_name, type="Banco", country="Venezuela", products=[])
+            doc = bank.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.banks.insert_one(doc)
+            inserted_count += 1
+    
+    # Insert USA banks
+    for bank_name in usa_banks:
+        existing = await db.banks.find_one({"name": bank_name})
+        if not existing:
+            bank = Bank(name=bank_name, type="Banco", country="Estados Unidos", products=[])
+            doc = bank.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.banks.insert_one(doc)
+            inserted_count += 1
+    
+    # Insert Fintechs
+    for fintech in fintechs:
+        existing = await db.banks.find_one({"name": fintech["name"]})
+        if not existing:
+            bank = Bank(name=fintech["name"], type="Fintech", country=fintech["country"], products=[])
+            doc = bank.model_dump()
+            doc['created_at'] = doc['created_at'].isoformat()
+            await db.banks.insert_one(doc)
+            inserted_count += 1
+    
+    return {"message": f"Base de datos poblada exitosamente. {inserted_count} bancos agregados."}
+
 app.include_router(api_router)
 
 app.add_middleware(
