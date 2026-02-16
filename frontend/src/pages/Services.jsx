@@ -131,10 +131,13 @@ export const Services = () => {
 
   if (loading) {
     return (
-      <div className="flex">
+      <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+        <div className="flex-1 flex items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+            <p className="mt-4 text-slate-900">Cargando servicios...</p>
+          </div>
         </div>
       </div>
     );
@@ -199,30 +202,63 @@ export const Services = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="setup_cost">Costo Setup (USD)</Label>
-                      <Input
-                        id="setup_cost"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.setup_cost}
-                        onChange={(e) => setFormData({ ...formData, setup_cost: e.target.value })}
-                        required
-                      />
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold text-sm text-slate-700 mb-3">Modelo Convencional</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="setup_cost_conventional">Costo Setup (USD)</Label>
+                        <Input
+                          id="setup_cost_conventional"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.setup_cost_conventional}
+                          onChange={(e) => setFormData({ ...formData, setup_cost_conventional: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="monthly_cost_conventional">Costo Mensual (USD)</Label>
+                        <Input
+                          id="monthly_cost_conventional"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.monthly_cost_conventional}
+                          onChange={(e) => setFormData({ ...formData, monthly_cost_conventional: e.target.value })}
+                          required
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="monthly_cost">Costo Mensual (USD)</Label>
-                      <Input
-                        id="monthly_cost"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.monthly_cost}
-                        onChange={(e) => setFormData({ ...formData, monthly_cost: e.target.value })}
-                        required
-                      />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold text-sm text-slate-700 mb-3">Modelo Outsourcing</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="setup_cost_outsourcing">Costo Setup (USD)</Label>
+                        <Input
+                          id="setup_cost_outsourcing"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.setup_cost_outsourcing}
+                          onChange={(e) => setFormData({ ...formData, setup_cost_outsourcing: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="monthly_cost_outsourcing">Costo Mensual (USD)</Label>
+                        <Input
+                          id="monthly_cost_outsourcing"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.monthly_cost_outsourcing}
+                          onChange={(e) => setFormData({ ...formData, monthly_cost_outsourcing: e.target.value })}
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
 
