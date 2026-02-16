@@ -32,7 +32,8 @@ export const Login = () => {
       >
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 to-sky-700/80"></div>
         <div className="relative z-10 flex flex-col justify-center p-12 text-white">
-          <h1 className="text-5xl font-bold font-manrope mb-4">PagoFlow</h1>
+          <h1 className="text-4xl font-bold font-manrope mb-2">Cotizador</h1>
+          <h2 className="text-2xl font-semibold font-manrope mb-4">Merchant Server</h2>
           <p className="text-xl text-slate-100 leading-relaxed max-w-md">
             Sistema integral de cotizaciones para plataformas de medios de pago.
             Gestione bancos, hardware y genere cotizaciones profesionales.
