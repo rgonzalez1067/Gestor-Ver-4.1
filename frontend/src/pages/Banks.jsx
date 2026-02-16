@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Pencil, Trash2, Package } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Plus, Pencil, Trash2, Package, Upload, Download, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+
+const COMPONENT_TYPES = [
+  { id: 'vpos_available', name: 'VPOS', icon: Monitor, description: 'Cajas Registradoras' },
+  { id: 'gateway_available', name: 'Payment Gateway', icon: Globe, description: 'Ecommerce' },
+  { id: 'mpos_available', name: 'MPOS', icon: Smartphone, description: 'Tablet/Android' },
+  { id: 'link_available', name: 'Link de Pago', icon: Link, description: 'Links de cobro' }
+];
 
 export const Banks = () => {
   const [banks, setBanks] = useState([]);
@@ -20,7 +28,15 @@ export const Banks = () => {
     country: 'Venezuela',
     products: []
   });
-  const [newProduct, setNewProduct] = useState({ product_name: '', description: '' });
+  const [newProduct, setNewProduct] = useState({ 
+    product_name: '', 
+    description: '',
+    vpos_available: false,
+    gateway_available: false,
+    mpos_available: false,
+    link_available: false
+  });
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchBanks();
@@ -79,7 +95,14 @@ export const Banks = () => {
       ...formData,
       products: [...formData.products, { ...newProduct }]
     });
-    setNewProduct({ product_name: '', description: '' });
+    setNewProduct({ 
+      product_name: '', 
+      description: '',
+      vpos_available: false,
+      gateway_available: false,
+      mpos_available: false,
+      link_available: false
+    });
   };
 
   const removeProduct = (index) => {
@@ -107,13 +130,87 @@ export const Banks = () => {
       country: 'Venezuela',
       products: []
     });
-    setNewProduct({ product_name: '', description: '' });
+    setNewProduct({ 
+      product_name: '', 
+      description: '',
+      vpos_available: false,
+      gateway_available: false,
+      mpos_available: false,
+      link_available: false
+    });
     setEditingBank(null);
   };
 
   const handleDialogClose = (open) => {
     setDialogOpen(open);
     if (!open) resetForm();
+  };
+
+  const handleFileImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await api.post('/banks/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Bancos importados exitosamente');
+      fetchBanks();
+    } catch (error) {
+      console.error('Error importing banks:', error);
+      toast.error('Error al importar bancos. Verifique el formato del archivo.');
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Nombre', 'Tipo', 'País', 'Productos'];
+    const csvContent = [
+      headers.join(','),
+      ...banks.map(b => [
+        `"${b.name}"`,
+        `"${b.type}"`,
+        `"${b.country}"`,
+        `"${(b.products || []).map(p => p.product_name).join('; ')}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'bancos.csv';
+    link.click();
+    toast.success('Archivo CSV descargado');
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const response = await api.get('/banks/export/pdf', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bancos.pdf';
+      link.click();
+      toast.success('PDF descargado exitosamente');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Error al exportar a PDF');
+    }
+  };
+
+  const getComponentBadges = (product) => {
+    const badges = [];
+    if (product.vpos_available) badges.push({ name: 'VPOS', color: 'bg-blue-100 text-blue-700' });
+    if (product.gateway_available) badges.push({ name: 'Gateway', color: 'bg-green-100 text-green-700' });
+    if (product.mpos_available) badges.push({ name: 'MPOS', color: 'bg-purple-100 text-purple-700' });
+    if (product.link_available) badges.push({ name: 'Link', color: 'bg-amber-100 text-amber-700' });
+    return badges;
   };
 
   if (loading) {
@@ -144,143 +241,221 @@ export const Banks = () => {
               <p className="text-slate-600">Gestione bancos y sus productos asociados</p>
             </div>
             
-            <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-              <DialogTrigger asChild>
-                <Button
-                  data-testid="add-bank-button"
-                  className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                >
-                  <Plus size={20} className="mr-2" />
-                  Nuevo Banco
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="font-manrope text-2xl">
-                    {editingBank ? 'Editar Banco' : 'Nuevo Banco'}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <Label htmlFor="name">Nombre</Label>
-                      <Input
-                        id="name"
-                        data-testid="bank-name-input"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="type">Tipo</Label>
-                      <Select
-                        value={formData.type}
-                        onValueChange={(value) => setFormData({ ...formData, type: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Banco">Banco</SelectItem>
-                          <SelectItem value="Fintech">Fintech</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="country">País</Label>
-                      <Select
-                        value={formData.country}
-                        onValueChange={(value) => setFormData({ ...formData, country: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Venezuela">Venezuela</SelectItem>
-                          <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                      <Package size={20} />
-                      Productos Asociados
-                    </h3>
-                    
-                    <div className="space-y-2 mb-4">
-                      {formData.products.map((product, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border"
-                        >
-                          <div>
-                            <p className="font-medium">{product.product_name}</p>
-                            {product.description && (
-                              <p className="text-sm text-slate-500">{product.description}</p>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => removeProduct(index)}
-                            className="text-red-600"
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
+            <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileImport}
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
+              >
+                <Upload size={18} className="mr-2" />
+                Importar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportToCSV}
+                className="border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
+              >
+                <FileSpreadsheet size={18} className="mr-2" />
+                Excel/CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportToPDF}
+                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
+              >
+                <FileText size={18} className="mr-2" />
+                PDF
+              </Button>
+              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+                <DialogTrigger asChild>
+                  <Button
+                    data-testid="add-bank-button"
+                    className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
+                  >
+                    <Plus size={20} className="mr-2" />
+                    Nuevo Banco
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="font-manrope text-2xl">
+                      {editingBank ? 'Editar Banco' : 'Nuevo Banco'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
+                        <Label htmlFor="name">Nombre</Label>
                         <Input
-                          placeholder="Nombre del producto"
-                          value={newProduct.product_name}
-                          onChange={(e) => setNewProduct({ ...newProduct, product_name: e.target.value })}
+                          id="name"
+                          data-testid="bank-name-input"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          required
                         />
                       </div>
+                      <div>
+                        <Label htmlFor="type">Tipo</Label>
+                        <Select
+                          value={formData.type}
+                          onValueChange={(value) => setFormData({ ...formData, type: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Banco">Banco</SelectItem>
+                            <SelectItem value="Fintech">Fintech</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="country">País</Label>
+                        <Select
+                          value={formData.country}
+                          onValueChange={(value) => setFormData({ ...formData, country: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Venezuela">Venezuela</SelectItem>
+                            <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                        <Package size={20} />
+                        Productos Asociados
+                      </h3>
+                      
+                      <div className="space-y-3 mb-4">
+                        {formData.products.map((product, index) => {
+                          const badges = getComponentBadges(product);
+                          return (
+                            <div
+                              key={index}
+                              className="p-3 bg-slate-50 rounded-lg border"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium">{product.product_name}</p>
+                                  {product.description && (
+                                    <p className="text-sm text-slate-500">{product.description}</p>
+                                  )}
+                                  {badges.length > 0 && (
+                                    <div className="flex gap-1 mt-2 flex-wrap">
+                                      {badges.map((badge, i) => (
+                                        <span key={i} className={`px-2 py-0.5 text-xs font-medium rounded ${badge.color}`}>
+                                          {badge.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => removeProduct(index)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="bg-brand-blue-50 rounded-lg p-4 border border-brand-blue-200">
+                        <p className="text-sm font-medium text-brand-blue-700 mb-3">Agregar nuevo producto</p>
+                        <div className="grid grid-cols-1 gap-3">
+                          <Input
+                            placeholder="Nombre del producto"
+                            value={newProduct.product_name}
+                            onChange={(e) => setNewProduct({ ...newProduct, product_name: e.target.value })}
+                          />
+                          <Input
+                            placeholder="Descripción (opcional)"
+                            value={newProduct.description}
+                            onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                          />
+                          
+                          <div className="border-t pt-3 mt-2">
+                            <p className="text-sm font-medium text-slate-700 mb-3">¿En qué componentes está disponible este producto?</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {COMPONENT_TYPES.map((comp) => {
+                                const Icon = comp.icon;
+                                return (
+                                  <label
+                                    key={comp.id}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                      newProduct[comp.id]
+                                        ? 'border-brand-green-600 bg-brand-green-50'
+                                        : 'border-slate-200 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      checked={newProduct[comp.id]}
+                                      onCheckedChange={(checked) => 
+                                        setNewProduct({ ...newProduct, [comp.id]: checked })
+                                      }
+                                    />
+                                    <Icon size={18} className={newProduct[comp.id] ? 'text-brand-green-600' : 'text-slate-400'} />
+                                    <div>
+                                      <p className="text-sm font-medium">{comp.name}</p>
+                                      <p className="text-xs text-slate-500">{comp.description}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={addProduct}
+                            className="w-full mt-2 border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
+                          >
+                            <Plus size={16} className="mr-1" />
+                            Agregar Producto
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3">
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={addProduct}
-                        className="w-full"
+                        onClick={() => handleDialogClose(false)}
                       >
-                        <Plus size={16} className="mr-1" />
-                        Agregar
+                        Cancelar
                       </Button>
-                      <div className="col-span-3">
-                        <Input
-                          placeholder="Descripción (opcional)"
-                          value={newProduct.description}
-                          onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                        />
-                      </div>
+                      <Button
+                        type="submit"
+                        data-testid="save-bank-button"
+                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
+                      >
+                        {editingBank ? 'Actualizar' : 'Guardar'}
+                      </Button>
                     </div>
-                  </div>
-
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDialogClose(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      data-testid="save-bank-button"
-                      className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                    >
-                      {editingBank ? 'Actualizar' : 'Guardar'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -298,7 +473,7 @@ export const Banks = () => {
                       <span className="inline-block px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700 rounded">
                         {bank.type}
                       </span>
-                      <span className="inline-block px-2 py-1 text-xs font-medium bg-sky-100 text-sky-700 rounded">
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-brand-blue-50 text-brand-blue-600 rounded">
                         {bank.country}
                       </span>
                     </div>
@@ -329,12 +504,24 @@ export const Banks = () => {
                     Productos: {bank.products?.length || 0}
                   </p>
                   {bank.products && bank.products.length > 0 && (
-                    <ul className="space-y-1">
-                      {bank.products.slice(0, 3).map((product, index) => (
-                        <li key={index} className="text-sm text-slate-600">
-                          • {product.product_name}
-                        </li>
-                      ))}
+                    <ul className="space-y-2">
+                      {bank.products.slice(0, 3).map((product, index) => {
+                        const badges = getComponentBadges(product);
+                        return (
+                          <li key={index} className="text-sm">
+                            <span className="text-slate-700 font-medium">• {product.product_name}</span>
+                            {badges.length > 0 && (
+                              <div className="flex gap-1 mt-1 ml-3 flex-wrap">
+                                {badges.map((badge, i) => (
+                                  <span key={i} className={`px-1.5 py-0.5 text-xs font-medium rounded ${badge.color}`}>
+                                    {badge.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                       {bank.products.length > 3 && (
                         <li className="text-sm text-slate-500 italic">
                           +{bank.products.length - 3} más...
