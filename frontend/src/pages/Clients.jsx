@@ -4,9 +4,12 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+
+const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Mixto'];
 
 export const Clients = () => {
   const [clients, setClients] = useState([]);
@@ -17,6 +20,7 @@ export const Clients = () => {
     rif: '',
     legal_name: '',
     fantasy_name: '',
+    segment: 'Pymes',
     contact1: { name: '', phone: '', email: '' },
     contact2: { name: '', phone: '', email: '' }
   });
@@ -75,6 +79,7 @@ export const Clients = () => {
       rif: client.rif,
       legal_name: client.legal_name,
       fantasy_name: client.fantasy_name,
+      segment: client.segment || 'Pymes',
       contact1: client.contact1,
       contact2: client.contact2
     });
@@ -86,6 +91,7 @@ export const Clients = () => {
       rif: '',
       legal_name: '',
       fantasy_name: '',
+      segment: 'Pymes',
       contact1: { name: '', phone: '', email: '' },
       contact2: { name: '', phone: '', email: '' }
     });
