@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Response, status
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Response, status, UploadFile, File
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,7 +8,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Literal
 import uuid
 from datetime import datetime, timezone, timedelta
 import httpx
@@ -17,6 +18,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
 import io
+import shutil
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,7 +27,11 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="PagoFlow API")
+app = FastAPI(title="Cotizador Merchant Server API")
+
+# Create uploads directory for logo
+UPLOADS_DIR = ROOT_DIR / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
 api_router = APIRouter(prefix="/api")
 
 # ==================== MODELS ====================
@@ -39,6 +45,7 @@ class ClientCreate(BaseModel):
     rif: str
     legal_name: str
     fantasy_name: str
+    segment: Literal["Pymes", "Corporativo", "Mixto"]
     contact1: Contact
     contact2: Contact
 
@@ -47,6 +54,7 @@ class Client(BaseModel):
     rif: str
     legal_name: str
     fantasy_name: str
+    segment: Literal["Pymes", "Corporativo", "Mixto"]
     contact1: Contact
     contact2: Contact
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -98,16 +106,20 @@ class Hardware(BaseModel):
 class ServiceCreate(BaseModel):
     category: str
     name: str
-    setup_cost: float
-    monthly_cost: float
+    setup_cost_conventional: float
+    monthly_cost_conventional: float
+    setup_cost_outsourcing: float
+    monthly_cost_outsourcing: float
     description: Optional[str] = None
 
 class Service(BaseModel):
     service_id: str = Field(default_factory=lambda: f"srv_{uuid.uuid4().hex[:12]}")
     category: str
     name: str
-    setup_cost: float
-    monthly_cost: float
+    setup_cost_conventional: float
+    monthly_cost_conventional: float
+    setup_cost_outsourcing: float
+    monthly_cost_outsourcing: float
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
