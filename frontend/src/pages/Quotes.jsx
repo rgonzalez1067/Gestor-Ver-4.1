@@ -377,10 +377,10 @@ export const Quotes = () => {
                               </div>
                               <div className="text-right">
                                 <p className="font-semibold text-slate-900">
-                                  ${(service.setup_cost + service.monthly_cost).toFixed(2)}
+                                  ${((service.setup_cost_conventional || 0) + (service.monthly_cost_conventional || 0)).toFixed(2)}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                  Setup: ${service.setup_cost} + Mensual: ${service.monthly_cost}
+                                  Setup: ${service.setup_cost_conventional || 0} + Mensual: ${service.monthly_cost_conventional || 0}
                                 </p>
                               </div>
                             </div>
@@ -464,7 +464,7 @@ export const Quotes = () => {
                           {Object.values(selectedItems.services).map((s) => (
                             <div key={s.service_id} className="flex justify-between text-sm p-2 bg-slate-50 rounded">
                               <span>{s.name} x {s.quantity}</span>
-                              <span className="font-semibold">${((s.setup_cost + s.monthly_cost) * s.quantity).toFixed(2)}</span>
+                              <span className="font-semibold">${(((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
