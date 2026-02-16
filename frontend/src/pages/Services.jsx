@@ -311,15 +311,23 @@ export const Services = () => {
                         <th className="px-6 py-3 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
                           Servicio
                         </th>
-                        <th className="px-6 py-3 text-right text-sm font-medium text-slate-700 uppercase tracking-wider">
-                          Setup
+                        <th className="px-6 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider" colSpan={2}>
+                          Convencional
                         </th>
-                        <th className="px-6 py-3 text-right text-sm font-medium text-slate-700 uppercase tracking-wider">
-                          Mensual
+                        <th className="px-6 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider" colSpan={2}>
+                          Outsourcing
                         </th>
                         <th className="px-6 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                           Acciones
                         </th>
+                      </tr>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th></th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Setup</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Mensual</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Setup</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Mensual</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -331,11 +339,17 @@ export const Services = () => {
                               <p className="text-sm text-slate-500 mt-1">{service.description}</p>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right font-mono text-slate-700">
-                            ${service.setup_cost.toFixed(2)}
+                          <td className="px-3 py-4 text-right font-mono text-slate-700 text-sm">
+                            ${(service.setup_cost_conventional || 0).toFixed(2)}
                           </td>
-                          <td className="px-6 py-4 text-right font-mono text-slate-700">
-                            ${service.monthly_cost.toFixed(2)}
+                          <td className="px-3 py-4 text-right font-mono text-slate-700 text-sm">
+                            ${(service.monthly_cost_conventional || 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-4 text-right font-mono text-emerald-700 text-sm">
+                            ${(service.setup_cost_outsourcing || 0).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-4 text-right font-mono text-emerald-700 text-sm">
+                            ${(service.monthly_cost_outsourcing || 0).toFixed(2)}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
