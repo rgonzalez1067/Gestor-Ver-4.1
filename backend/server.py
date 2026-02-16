@@ -653,6 +653,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     quote = Quote(
         quote_number=quote_number,
         client_id=quote_data.client_id,
+        quote_type=quote_data.quote_type or "VPOS",
         services=quote_data.services,
         hardware=quote_data.hardware,
         subtotal_usd=subtotal_usd,
