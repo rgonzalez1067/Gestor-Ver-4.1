@@ -318,6 +318,9 @@ export const Clients = () => {
                     Nombre de Fantasía
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Segmento
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Contacto Principal
                   </th>
                   <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
@@ -336,6 +339,15 @@ export const Clients = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {client.fantasy_name}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
+                        client.segment === 'Corporativo' ? 'bg-purple-100 text-purple-700' :
+                        client.segment === 'Pymes' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        {client.segment || 'N/A'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       <div>
