@@ -105,6 +105,11 @@ export const Quotes = () => {
       return;
     }
     
+    // Cargar medios de pago filtrados al avanzar del paso 0
+    if (currentStep === 0 && quoteData.quote_type) {
+      fetchMediosPagoByCompatibility(quoteData.quote_type);
+    }
+    
     if (quoteData.quote_type === 'VPOS') {
       if (currentStep === 1 && quoteData.cantidad_cajas < 1) {
         toast.error('Ingrese la cantidad de cajas');
