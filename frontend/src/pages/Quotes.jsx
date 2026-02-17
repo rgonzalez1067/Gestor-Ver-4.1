@@ -223,7 +223,7 @@ export const Quotes = () => {
     if (!bank || !medioPago) return;
 
     // Verificar si ya existe esta combinación
-    const exists = quoteData.medios_pago_items.some(
+    const exists = quoteData.additional_items.some(
       item => item.bank_id === selectedBankId && item.medio_pago_name === selectedMedioPagoId
     );
     
@@ -236,6 +236,7 @@ export const Quotes = () => {
     const prices = findServicePrice(medioPago.product_name);
 
     const newItem = {
+      id: `${selectedBankId}_${selectedMedioPagoId}`,
       bank_id: selectedBankId,
       bank_name: bank.name,
       medio_pago_name: medioPago.product_name,
@@ -244,12 +245,13 @@ export const Quotes = () => {
       cantidad_bancos: quoteData.cantidad_bancos,
       tarifa_setup: prices.setup_cost,
       tarifa_recurrente: prices.monthly_cost,
-      application_type: prices.application_type
+      application_type: prices.application_type,
+      isDefault: false
     };
 
     setQuoteData({
       ...quoteData,
-      medios_pago_items: [...quoteData.medios_pago_items, newItem]
+      additional_items: [...quoteData.additional_items, newItem]
     });
 
     setSelectedBankId('');
@@ -259,25 +261,57 @@ export const Quotes = () => {
     toast.success('Medio de pago agregado');
   };
 
-  const removeMedioPagoItem = (index) => {
+  const removeAdditionalItem = (index) => {
     setQuoteData({
       ...quoteData,
-      medios_pago_items: quoteData.medios_pago_items.filter((_, i) => i !== index)
+      additional_items: quoteData.additional_items.filter((_, i) => i !== index)
     });
   };
 
-  const updateItemField = (index, field, value) => {
-    const updatedItems = [...quoteData.medios_pago_items];
+  // Actualizar campo en setup_items
+  const updateSetupItem = (index, field, value) => {
+    const updatedItems = [...quoteData.setup_items];
     updatedItems[index] = {
       ...updatedItems[index],
       [field]: parseFloat(value) || 0
     };
-    setQuoteData({ ...quoteData, medios_pago_items: updatedItems });
+    setQuoteData({ ...quoteData, setup_items: updatedItems });
   };
 
-  // Calcular total por fila según el modelo: Tarifa * Cajas * Bancos
-  const calcularTotalFila = (item) => {
+  // Actualizar campo en recurring_items
+  const updateRecurringItem = (index, field, value) => {
+    const updatedItems = [...quoteData.recurring_items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: parseFloat(value) || 0
+    };
+    setQuoteData({ ...quoteData, recurring_items: updatedItems });
+  };
+
+  // Actualizar campo en additional_items
+  const updateAdditionalItem = (index, field, value) => {
+    const updatedItems = [...quoteData.additional_items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: parseFloat(value) || 0
+    };
+    setQuoteData({ ...quoteData, additional_items: updatedItems });
+  };
+
+  // Calcular total por fila: Tarifa * Cajas * Bancos
+  const calcularTotal = (item) => {
     const cajas = item.cantidad_cajas || 1;
+    const bancos = item.cantidad_bancos || 1;
+    const tarifa = item.tarifa || item.tarifa_setup || 0;
+    return tarifa * cajas * bancos;
+  };
+
+  const calcularTotalRecurrente = (item) => {
+    const cajas = item.cantidad_cajas || 1;
+    const bancos = item.cantidad_bancos || 1;
+    const tarifa = item.tarifa || item.tarifa_recurrente || 0;
+    return tarifa * cajas * bancos;
+  };
     const bancos = item.cantidad_bancos || 1;
     return item.tarifa_setup * cajas * bancos;
   };
