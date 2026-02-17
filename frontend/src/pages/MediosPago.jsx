@@ -342,10 +342,10 @@ export const MediosPago = () => {
                       </Button>
                       <Button
                         type="submit"
-                        data-testid="save-service-button"
+                        data-testid="save-medio-pago-button"
                         className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                       >
-                        {editingService ? 'Actualizar' : 'Guardar'}
+                        {editingMedioPago ? 'Actualizar' : 'Guardar'}
                       </Button>
                     </div>
                   </form>
@@ -359,7 +359,7 @@ export const MediosPago = () => {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Servicio
+                    Medio de Pago
                   </th>
                   <th className="px-6 py-3 text-center text-sm font-medium text-brand-blue-600 uppercase tracking-wider" colSpan={2}>
                     Convencional
@@ -381,22 +381,22 @@ export const MediosPago = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {services.map((service) => (
-                  <tr key={service.service_id} className="hover:bg-slate-50 transition-colors">
+                {mediosPago.map((medioPago) => (
+                  <tr key={medioPago.service_id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-slate-900">{service.name}</p>
-                      {service.description && (
-                        <p className="text-sm text-slate-500 mt-1">{service.description}</p>
+                      <p className="font-medium text-slate-900">{medioPago.name}</p>
+                      {medioPago.description && (
+                        <p className="text-sm text-slate-500 mt-1">{medioPago.description}</p>
                       )}
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-brand-blue-600 text-sm">
-                      ${(service.setup_cost_conventional || 0).toFixed(2)}
+                      ${(medioPago.setup_cost_conventional || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-brand-blue-600 text-sm">
-                      ${(service.monthly_cost_conventional || 0).toFixed(2)}
+                      ${(medioPago.monthly_cost_conventional || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-brand-green-600 text-sm">
-                      ${(service.setup_cost_outsourcing || 0).toFixed(2)}
+                      ${(medioPago.setup_cost_outsourcing || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-brand-green-600 text-sm">
                       ${(service.monthly_cost_outsourcing || 0).toFixed(2)}
