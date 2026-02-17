@@ -112,6 +112,10 @@ class ServiceCreate(BaseModel):
     category: str
     name: str
     application_type: Literal["setup", "recurring", "both"] = "both"
+    vpos_enabled: bool = True
+    gateway_enabled: bool = True
+    mpos_enabled: bool = True
+    link_enabled: bool = True
     setup_cost_conventional: float = 0
     monthly_cost_conventional: float = 0
     setup_cost_outsourcing: float = 0
@@ -123,6 +127,10 @@ class Service(BaseModel):
     category: str
     name: str
     application_type: str = "both"
+    vpos_enabled: bool = True
+    gateway_enabled: bool = True
+    mpos_enabled: bool = True
+    link_enabled: bool = True
     setup_cost_conventional: float = 0
     monthly_cost_conventional: float = 0
     setup_cost_outsourcing: float = 0
