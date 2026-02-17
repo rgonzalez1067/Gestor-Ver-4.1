@@ -57,7 +57,6 @@ export const Quotes = () => {
     descuento: 0,
     notes: ''
   });
-  });
   
   // Estado para agregar nuevo medio de pago
   const [selectedBankId, setSelectedBankId] = useState('');
