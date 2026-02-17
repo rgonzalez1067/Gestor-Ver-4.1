@@ -261,7 +261,7 @@ export const Banks = () => {
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
                 Bancos y Entidades
               </h1>
-              <p className="text-slate-600">Gestione bancos y sus productos asociados</p>
+              <p className="text-slate-600">Gestione bancos y sus medios de pago asociados</p>
             </div>
             
             <div className="flex gap-2">
