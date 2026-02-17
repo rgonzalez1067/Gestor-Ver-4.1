@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -14,6 +14,13 @@ const APPLICATION_TYPES = [
   { id: 'setup', name: 'Solo Setup', icon: Settings2, description: 'Solo gastos de implementación inicial' },
   { id: 'recurring', name: 'Solo Costos Recurrentes', icon: RefreshCw, description: 'Solo cargos mensuales/periódicos' },
   { id: 'both', name: 'Ambos', icon: Layers, description: 'Aplica a Setup y Costos Recurrentes' }
+];
+
+const PRODUCT_TYPES = [
+  { id: 'vpos_enabled', name: 'VPOS', icon: Monitor, description: 'Cajas Registradoras' },
+  { id: 'gateway_enabled', name: 'Payment Gateway', icon: Globe, description: 'Ecommerce' },
+  { id: 'mpos_enabled', name: 'MPOS', icon: Smartphone, description: 'Tablet/Android' },
+  { id: 'link_enabled', name: 'Link de Pago', icon: Link, description: 'Links de cobro' }
 ];
 
 export const MediosPago = () => {
@@ -24,6 +31,10 @@ export const MediosPago = () => {
   const [formData, setFormData] = useState({
     name: '',
     application_type: '',
+    vpos_enabled: true,
+    gateway_enabled: true,
+    mpos_enabled: true,
+    link_enabled: true,
     setup_cost_conventional: '',
     monthly_cost_conventional: '',
     setup_cost_outsourcing: '',
@@ -53,6 +64,11 @@ export const MediosPago = () => {
     
     if (!formData.application_type) {
       toast.error('Seleccione el tipo de aplicación');
+      return;
+    }
+
+    if (!formData.vpos_enabled && !formData.gateway_enabled && !formData.mpos_enabled && !formData.link_enabled) {
+      toast.error('Seleccione al menos un tipo de producto');
       return;
     }
     
@@ -100,6 +116,10 @@ export const MediosPago = () => {
     setFormData({
       name: medioPago.name,
       application_type: medioPago.application_type || 'both',
+      vpos_enabled: medioPago.vpos_enabled !== false,
+      gateway_enabled: medioPago.gateway_enabled !== false,
+      mpos_enabled: medioPago.mpos_enabled !== false,
+      link_enabled: medioPago.link_enabled !== false,
       setup_cost_conventional: medioPago.setup_cost_conventional?.toString() || '0',
       monthly_cost_conventional: medioPago.monthly_cost_conventional?.toString() || '0',
       setup_cost_outsourcing: medioPago.setup_cost_outsourcing?.toString() || '0',
@@ -113,6 +133,10 @@ export const MediosPago = () => {
     setFormData({
       name: '',
       application_type: '',
+      vpos_enabled: true,
+      gateway_enabled: true,
+      mpos_enabled: true,
+      link_enabled: true,
       setup_cost_conventional: '',
       monthly_cost_conventional: '',
       setup_cost_outsourcing: '',
@@ -151,12 +175,16 @@ export const MediosPago = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Nombre', 'Tipo Aplicación', 'Setup Convencional', 'Mensual Convencional', 'Setup Outsourcing', 'Mensual Outsourcing', 'Descripción'];
+    const headers = ['Nombre', 'Tipo Aplicación', 'VPOS', 'Gateway', 'MPOS', 'Link', 'Setup Conv.', 'Mensual Conv.', 'Setup Outs.', 'Mensual Outs.', 'Descripción'];
     const csvContent = [
       headers.join(','),
       ...mediosPago.map(s => [
         `"${s.name}"`,
         `"${s.application_type || 'both'}"`,
+        s.vpos_enabled !== false ? 'Sí' : 'No',
+        s.gateway_enabled !== false ? 'Sí' : 'No',
+        s.mpos_enabled !== false ? 'Sí' : 'No',
+        s.link_enabled !== false ? 'Sí' : 'No',
         s.setup_cost_conventional || 0,
         s.monthly_cost_conventional || 0,
         s.setup_cost_outsourcing || 0,
@@ -191,12 +219,21 @@ export const MediosPago = () => {
   const getApplicationTypeBadge = (type) => {
     switch(type) {
       case 'setup':
-        return <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded">Solo Setup</span>;
+        return <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Setup</span>;
       case 'recurring':
-        return <span className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded">Solo Recurrente</span>;
+        return <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">Recurrente</span>;
       default:
-        return <span className="px-2 py-1 text-xs font-medium bg-brand-green-50 text-brand-green-600 rounded">Ambos</span>;
+        return <span className="px-2 py-0.5 text-xs font-medium bg-brand-green-50 text-brand-green-600 rounded">Ambos</span>;
     }
+  };
+
+  const getProductBadges = (medioPago) => {
+    const badges = [];
+    if (medioPago.vpos_enabled !== false) badges.push({ name: 'VPOS', color: 'bg-blue-100 text-blue-700' });
+    if (medioPago.gateway_enabled !== false) badges.push({ name: 'Gateway', color: 'bg-green-100 text-green-700' });
+    if (medioPago.mpos_enabled !== false) badges.push({ name: 'MPOS', color: 'bg-purple-100 text-purple-700' });
+    if (medioPago.link_enabled !== false) badges.push({ name: 'Link', color: 'bg-amber-100 text-amber-700' });
+    return badges;
   };
 
   const showSetupFields = formData.application_type === 'setup' || formData.application_type === 'both';
@@ -241,7 +278,6 @@ export const MediosPago = () => {
               <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
-                data-testid="import-medios-pago-button"
                 className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
               >
                 <Upload size={18} className="mr-2" />
@@ -250,7 +286,6 @@ export const MediosPago = () => {
               <Button
                 variant="outline"
                 onClick={exportToCSV}
-                data-testid="export-csv-button"
                 className="border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
               >
                 <FileSpreadsheet size={18} className="mr-2" />
@@ -259,7 +294,6 @@ export const MediosPago = () => {
               <Button
                 variant="outline"
                 onClick={exportToPDF}
-                data-testid="export-pdf-button"
                 className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
               >
                 <FileText size={18} className="mr-2" />
@@ -275,7 +309,7 @@ export const MediosPago = () => {
                     Nuevo Medio de Pago
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="font-manrope text-2xl">
                       {editingMedioPago ? 'Editar Medio de Pago / Servicio' : 'Nuevo Medio de Pago / Servicio'}
@@ -294,14 +328,53 @@ export const MediosPago = () => {
                       />
                     </div>
 
+                    {/* Compatibilidad con Productos */}
                     <div className="border-t pt-4">
-                      <Label className="text-base font-semibold text-slate-900 mb-3 block">
+                      <Label className="text-base font-semibold text-slate-900 mb-2 block">
+                        Compatibilidad con Productos <span className="text-red-500">*</span>
+                      </Label>
+                      <p className="text-sm text-slate-500 mb-4">
+                        Seleccione en qué tipos de cotización estará disponible este concepto
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {PRODUCT_TYPES.map((type) => {
+                          const Icon = type.icon;
+                          const isChecked = formData[type.id];
+                          return (
+                            <label
+                              key={type.id}
+                              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                isChecked
+                                  ? 'border-brand-green-600 bg-brand-green-50'
+                                  : 'border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={(checked) => 
+                                  setFormData({ ...formData, [type.id]: checked })
+                                }
+                              />
+                              <Icon size={18} className={isChecked ? 'text-brand-green-600' : 'text-slate-400'} />
+                              <div>
+                                <p className="text-sm font-medium">{type.name}</p>
+                                <p className="text-xs text-slate-500">{type.description}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Tipo de Aplicación */}
+                    <div className="border-t pt-4">
+                      <Label className="text-base font-semibold text-slate-900 mb-2 block">
                         ¿A qué aplica este concepto? <span className="text-red-500">*</span>
                       </Label>
                       <p className="text-sm text-slate-500 mb-4">
-                        Seleccione dónde debe aparecer este concepto en las cotizaciones
+                        Seleccione dónde debe aparecer en las cotizaciones
                       </p>
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-1 gap-2">
                         {APPLICATION_TYPES.map((type) => {
                           const Icon = type.icon;
                           const isSelected = formData.application_type === type.id;
@@ -309,24 +382,24 @@ export const MediosPago = () => {
                             <div
                               key={type.id}
                               onClick={() => setFormData({ ...formData, application_type: type.id })}
-                              className={`p-4 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-4 ${
+                              className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-3 ${
                                 isSelected
-                                  ? 'border-brand-green-600 bg-brand-green-50'
+                                  ? 'border-brand-blue-600 bg-brand-blue-50'
                                   : 'border-slate-200 hover:border-slate-300'
                               }`}
                               data-testid={`application-type-${type.id}`}
                             >
-                              <div className={`p-2 rounded-lg ${isSelected ? 'bg-brand-green-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                <Icon size={20} />
+                              <div className={`p-2 rounded-lg ${isSelected ? 'bg-brand-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <Icon size={18} />
                               </div>
                               <div className="flex-1">
-                                <p className="font-medium text-slate-900">{type.name}</p>
-                                <p className="text-sm text-slate-500">{type.description}</p>
+                                <p className="font-medium text-slate-900 text-sm">{type.name}</p>
+                                <p className="text-xs text-slate-500">{type.description}</p>
                               </div>
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                isSelected ? 'border-brand-green-600 bg-brand-green-600' : 'border-slate-300'
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                isSelected ? 'border-brand-blue-600 bg-brand-blue-600' : 'border-slate-300'
                               }`}>
-                                {isSelected && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
                               </div>
                             </div>
                           );
@@ -414,12 +487,12 @@ export const MediosPago = () => {
                         id="description"
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        rows={3}
+                        rows={2}
                         placeholder="Información adicional sobre este medio de pago..."
                       />
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-2">
+                    <div className="flex justify-end gap-3 pt-2 border-t">
                       <Button
                         type="button"
                         variant="outline"
@@ -446,79 +519,95 @@ export const MediosPago = () => {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Medio de Pago / Servicio
                   </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Aplica a
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Productos
                   </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-brand-blue-600 uppercase tracking-wider" colSpan={2}>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-brand-blue-600 uppercase tracking-wider" colSpan={2}>
                     Setup
                   </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-brand-green-600 uppercase tracking-wider" colSpan={2}>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-brand-green-600 uppercase tracking-wider" colSpan={2}>
                     Recurrente
                   </th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th></th>
                   <th></th>
-                  <th className="px-2 py-2 text-right text-xs font-medium text-slate-600">Conv.</th>
-                  <th className="px-2 py-2 text-right text-xs font-medium text-slate-600">Outs.</th>
-                  <th className="px-2 py-2 text-right text-xs font-medium text-slate-600">Conv.</th>
-                  <th className="px-2 py-2 text-right text-xs font-medium text-slate-600">Outs.</th>
+                  <th></th>
+                  <th className="px-2 py-1 text-right text-xs font-medium text-slate-500">Conv.</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium text-slate-500">Outs.</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium text-slate-500">Conv.</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium text-slate-500">Outs.</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mediosPago.map((medioPago) => (
-                  <tr key={medioPago.service_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-slate-900">{medioPago.name}</p>
-                      {medioPago.description && (
-                        <p className="text-sm text-slate-500 mt-1">{medioPago.description}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      {getApplicationTypeBadge(medioPago.application_type)}
-                    </td>
-                    <td className="px-2 py-4 text-right font-mono text-brand-blue-600 text-sm">
-                      {medioPago.application_type !== 'recurring' ? `$${(medioPago.setup_cost_conventional || 0).toFixed(2)}` : '-'}
-                    </td>
-                    <td className="px-2 py-4 text-right font-mono text-brand-blue-600 text-sm">
-                      {medioPago.application_type !== 'recurring' ? `$${(medioPago.setup_cost_outsourcing || 0).toFixed(2)}` : '-'}
-                    </td>
-                    <td className="px-2 py-4 text-right font-mono text-brand-green-600 text-sm">
-                      {medioPago.application_type !== 'setup' ? `$${(medioPago.monthly_cost_conventional || 0).toFixed(2)}` : '-'}
-                    </td>
-                    <td className="px-2 py-4 text-right font-mono text-brand-green-600 text-sm">
-                      {medioPago.application_type !== 'setup' ? `$${(medioPago.monthly_cost_outsourcing || 0).toFixed(2)}` : '-'}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          data-testid={`edit-medio-pago-${medioPago.service_id}`}
-                          onClick={() => openEditDialog(medioPago)}
-                        >
-                          <Pencil size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          data-testid={`delete-medio-pago-${medioPago.service_id}`}
-                          onClick={() => handleDelete(medioPago.service_id)}
-                          className="text-red-600 hover:text-red-700 hover:border-red-300"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {mediosPago.map((medioPago) => {
+                  const productBadges = getProductBadges(medioPago);
+                  return (
+                    <tr key={medioPago.service_id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">{medioPago.name}</p>
+                        {medioPago.description && (
+                          <p className="text-xs text-slate-500 mt-1 truncate max-w-xs">{medioPago.description}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {productBadges.map((badge, i) => (
+                            <span key={i} className={`px-1.5 py-0.5 text-xs font-medium rounded ${badge.color}`}>
+                              {badge.name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {getApplicationTypeBadge(medioPago.application_type)}
+                      </td>
+                      <td className="px-2 py-3 text-right font-mono text-brand-blue-600 text-sm">
+                        {medioPago.application_type !== 'recurring' ? `$${(medioPago.setup_cost_conventional || 0).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-2 py-3 text-right font-mono text-brand-blue-600 text-sm">
+                        {medioPago.application_type !== 'recurring' ? `$${(medioPago.setup_cost_outsourcing || 0).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-2 py-3 text-right font-mono text-brand-green-600 text-sm">
+                        {medioPago.application_type !== 'setup' ? `$${(medioPago.monthly_cost_conventional || 0).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-2 py-3 text-right font-mono text-brand-green-600 text-sm">
+                        {medioPago.application_type !== 'setup' ? `$${(medioPago.monthly_cost_outsourcing || 0).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`edit-medio-pago-${medioPago.service_id}`}
+                            onClick={() => openEditDialog(medioPago)}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`delete-medio-pago-${medioPago.service_id}`}
+                            onClick={() => handleDelete(medioPago.service_id)}
+                            className="text-red-600 hover:text-red-700 hover:border-red-300"
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
             {mediosPago.length === 0 && (
