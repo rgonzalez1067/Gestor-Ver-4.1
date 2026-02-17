@@ -396,6 +396,7 @@ export const Clients = () => {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
