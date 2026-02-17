@@ -399,23 +399,23 @@ export const MediosPago = () => {
                       ${(medioPago.setup_cost_outsourcing || 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-brand-green-600 text-sm">
-                      ${(service.monthly_cost_outsourcing || 0).toFixed(2)}
+                      ${(medioPago.monthly_cost_outsourcing || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          data-testid={`edit-service-${service.service_id}`}
-                          onClick={() => openEditDialog(service)}
+                          data-testid={`edit-medio-pago-${medioPago.service_id}`}
+                          onClick={() => openEditDialog(medioPago)}
                         >
                           <Pencil size={16} />
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          data-testid={`delete-service-${service.service_id}`}
-                          onClick={() => handleDelete(service.service_id)}
+                          data-testid={`delete-medio-pago-${medioPago.service_id}`}
+                          onClick={() => handleDelete(medioPago.service_id)}
                           className="text-red-600 hover:text-red-700 hover:border-red-300"
                         >
                           <Trash2 size={16} />
@@ -426,10 +426,10 @@ export const MediosPago = () => {
                 ))}
               </tbody>
             </table>
-            {services.length === 0 && (
+            {mediosPago.length === 0 && (
               <div className="text-center py-12 text-slate-500">
-                <p>No hay servicios registrados</p>
-                <p className="text-sm mt-1">Agregue su primer servicio usando el botón superior</p>
+                <p>No hay medios de pago registrados</p>
+                <p className="text-sm mt-1">Agregue su primer medio de pago usando el botón superior</p>
               </div>
             )}
           </div>
@@ -439,4 +439,4 @@ export const MediosPago = () => {
   );
 };
 
-export default Services;
+export default MediosPago;
