@@ -360,7 +360,7 @@ export const Banks = () => {
                     <div className="border-t pt-4">
                       <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
                         <Package size={20} />
-                        Productos Asociados
+                        Medios de Pago Asociados
                       </h3>
                       
                       <div className="space-y-3 mb-4">
