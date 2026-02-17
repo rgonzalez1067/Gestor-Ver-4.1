@@ -633,11 +633,16 @@ export const Quotes = () => {
                       </thead>
                       <tbody>
                         {quoteData.medios_pago_items.map((item, index) => (
-                          <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                          <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${item.isDefault ? 'border-l-4 border-l-cyan-500' : ''}`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
-                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
-                              <div className="text-xs text-slate-500">{item.bank_name}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
+                                {item.isDefault && (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
+                                )}
+                              </div>
+                              {item.bank_name !== '-' && <div className="text-xs text-slate-500">{item.bank_name}</div>}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
@@ -671,9 +676,11 @@ export const Quotes = () => {
                               ${calcularTotalFila(item).toFixed(2)}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Button size="sm" variant="outline" onClick={() => removeMedioPagoItem(index)} className="text-red-600 h-7 w-7 p-0">
-                                <Trash2 size={14} />
-                              </Button>
+                              {!item.isDefault && (
+                                <Button size="sm" variant="outline" onClick={() => removeMedioPagoItem(index)} className="text-red-600 h-7 w-7 p-0">
+                                  <Trash2 size={14} />
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
