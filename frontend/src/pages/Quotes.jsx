@@ -389,7 +389,7 @@ export const Quotes = () => {
                   Parámetros de la Cotización
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Tipo de Cotización <span className="text-red-500">*</span>
@@ -434,6 +434,25 @@ export const Quotes = () => {
 
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                      Modelo de Precios <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      value={quoteData.pricing_model} 
+                      onValueChange={(value) => setQuoteData({ ...quoteData, pricing_model: value, medios_pago_items: [] })}
+                    >
+                      <SelectTrigger data-testid="select-pricing-model">
+                        <SelectValue placeholder="Seleccione modelo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRICING_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>{model.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Cajas (VTID) <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -465,7 +484,7 @@ export const Quotes = () => {
                   <div className="mt-4 p-3 bg-brand-green-50 border border-brand-green-200 rounded-lg flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-brand-green-600" />
                     <span className="text-sm text-brand-green-700 font-medium">
-                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name} • {quoteData.cantidad_cajas} cajas • {quoteData.cantidad_bancos} bancos
+                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name} • {getPricingModelName(quoteData.pricing_model)} • {quoteData.cantidad_cajas} cajas • {quoteData.cantidad_bancos} bancos
                     </span>
                   </div>
                 )}
