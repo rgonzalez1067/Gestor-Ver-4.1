@@ -22,7 +22,8 @@ El usuario solicitó una aplicación de cotizaciones con:
 ### Backend (FastAPI)
 - [x] Autenticación via Emergent Google OAuth
 - [x] CRUD Clientes (con campo `segment`: Pymes/Corporativo/Mixto)
-- [x] CRUD Bancos (Venezuela, EE.UU., Fintechs)
+- [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con productos y disponibilidad por componente
+- [x] Importación/Exportación de Bancos (CSV/PDF)
 - [x] CRUD Hardware
 - [x] CRUD Servicios (4 campos de precio, SIN categoría)
 - [x] Importación de servicios desde CSV
@@ -39,9 +40,10 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] Colores de marca (verde #1B7D4E y azul #00447C) en toda la UI
 - [x] Dashboard con estadísticas y últimas cotizaciones
 - [x] Gestión de Clientes con campo Segmento
-- [x] Gestión de Bancos (grid de tarjetas)
+- [x] Gestión de Bancos con productos y disponibilidad por componente (VPOS, Gateway, MPOS, Link)
+- [x] Importar/Exportar Bancos (CSV/PDF)
 - [x] Gestión de Hardware
-- [x] Gestión de Servicios SIN categoría + importar/exportar
+- [x] Gestión de Servicios SIN categoría + importar/exportar (CSV/PDF)
 - [x] Wizard de creación de cotizaciones (5 pasos: Tipo → Cliente → Servicios → Hardware → Revisión)
 - [x] Tipos de cotización: VPOS, Payment Gateway, MPOS, Link de Pago
 - [x] Configuración (upload logo + seed bancos)
@@ -49,6 +51,18 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] Loading screens con fondo blanco y texto negro
 - [x] Todos los fondos de pantalla en blanco
 - [x] Branding: "Cotizador Merchant Server"
+
+## Modelo de Datos - Productos de Banco
+```json
+{
+  "product_name": "string",
+  "description": "string",
+  "vpos_available": "boolean",
+  "gateway_available": "boolean",
+  "mpos_available": "boolean",
+  "link_available": "boolean"
+}
+```
 
 ## Modelos de Datos
 
