@@ -58,9 +58,8 @@ export const Quotes = () => {
     cantidad_cajas: 1,
     cantidad_bancos: 1,
     setup_items: [],              // Items exclusivos de Setup
-    recurring_basic_items: [],    // Bloque 1: Recurrentes Básicos
-    recurring_other_items: [],    // Bloque 2: Otros Recurrentes
-    recurring_complement_items: [], // Complementos vinculados a Setup
+    recurring_basic_items: [],    // Recurrentes Básicos (incluye complementos de adicionales)
+    recurring_other_items: [],    // Otros Recurrentes
     additional_items: [],         // Items adicionales (medios de pago de bancos)
     descuento: 0,
     notes: ''
