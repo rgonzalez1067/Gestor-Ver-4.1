@@ -17,6 +17,11 @@ const QUOTE_TYPES = [
   { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro' }
 ];
 
+const PRICING_MODELS = [
+  { id: 'conventional', name: 'Modelo Convencional', description: 'Precios estándar' },
+  { id: 'outsourcing', name: 'Modelo Outsourcing', description: 'Precios para tercerización' }
+];
+
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
