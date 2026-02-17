@@ -6,7 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import Banks from './pages/Banks';
 import Hardware from './pages/Hardware';
-import Services from './pages/Services';
+import MediosPago from './pages/MediosPago';
 import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
@@ -43,9 +43,9 @@ function AppRouter() {
           <Hardware />
         </ProtectedRoute>
       } />
-      <Route path="/services" element={
+      <Route path="/medios-pago" element={
         <ProtectedRoute>
-          <Services />
+          <MediosPago />
         </ProtectedRoute>
       } />
       <Route path="/quotes" element={
