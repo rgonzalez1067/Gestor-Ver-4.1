@@ -413,7 +413,7 @@ export const Quotes = () => {
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
-  const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.pricing_model && quoteData.cantidad_cajas >= 1;
+  const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.pricing_model && (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '');
 
   if (loading) {
     return (
