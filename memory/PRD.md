@@ -26,34 +26,28 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con productos y disponibilidad por componente
 - [x] Importación/Exportación de Bancos (CSV/PDF)
 - [x] CRUD Hardware
-- [x] CRUD Medios de Pago (antes "Servicios") - 4 campos de precio
+- [x] CRUD Medios de Pago con campo `application_type`:
+  - Solo Setup: gastos de implementación inicial
+  - Solo Costos Recurrentes: cargos mensuales/periódicos  
+  - Ambos: aplica a ambos tipos de cotización
 - [x] Importación/Exportación de Medios de Pago (CSV/PDF)
 - [x] CRUD Cotizaciones con tipo (VPOS/GATEWAY/MPOS/LINK)
 - [x] Flujo especial VPOS: Cantidad de Cajas → Cliente → Medios de Pago con banco
 - [x] Tasa de cambio BCV (consulta y actualización)
-- [x] Endpoint para poblar bancos (/api/banks/seed)
 - [x] Upload/descarga/eliminación de logo de empresa
 - [x] Generación de PDF para cotizaciones
 
 ### Frontend (React)
 - [x] Login con Google OAuth + opción para crear cuenta
 - [x] Logo de empresa visible en pantalla de Login
-- [x] Colores de marca (verde #1B7D4E y azul #00447C) en toda la UI
-- [x] Dashboard con estadísticas y últimas cotizaciones
-- [x] Gestión de Clientes con Importar/Exportar
-- [x] Gestión de Bancos con productos y disponibilidad por componente
-- [x] Gestión de Hardware
-- [x] Gestión de **Medios de Pago** (renombrado de "Servicios") + importar/exportar
-- [x] Wizard de cotizaciones con flujo especial VPOS:
-  - Paso 1: Tipo de cotización
-  - Paso 2 (VPOS): Cantidad de Cajas
-  - Paso 3: Selección de Cliente
-  - Paso 4: Medios de Pago + Banco + Cantidad (pre-llenada)
-  - Botones: [+ Nuevo Medio de Pago] y [Finalizar Cotización]
+- [x] Colores de marca (verde #1B7D4E y azul #00447C)
+- [x] Gestión de Medios de Pago / Servicios con:
+  - Campo "Tipo de Aplicación" obligatorio antes de ingresar costos
+  - Campos de costo condicionales según tipo seleccionado
+  - Badge visual indicando el tipo de aplicación en la tabla
+- [x] Wizard de cotizaciones con flujo especial VPOS
 - [x] Configuración (upload logo + seed bancos)
-- [x] Tasa de cambio (visualización y actualización)
 - [x] Fondos blancos en toda la aplicación
-- [x] Branding: "Cotizador Merchant Server"
 
 ## Modelo de Datos - Productos de Banco
 ```json
