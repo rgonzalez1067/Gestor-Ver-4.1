@@ -137,21 +137,34 @@ export const Quotes = () => {
     }
   };
 
-  // Inicializar conceptos base cuando se completan los parámetros
-  const initializeDefaultConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
-    return DEFAULT_CONCEPTS.map((concept) => {
+  // Inicializar conceptos de Setup cuando se completan los parámetros
+  const initializeSetupConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+    return SETUP_CONCEPTS.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
       return {
-        bank_id: 'default',
-        bank_name: '-',
+        id: `setup_${concept.name}`,
         medio_pago_name: concept.name,
-        description: '',
         cantidad_cajas: cantidadCajas,
         cantidad_bancos: cantidadBancos,
-        tarifa_setup: prices.setup_cost,
-        tarifa_recurrente: prices.monthly_cost,
-        application_type: prices.application_type,
-        isDefault: true
+        tarifa: prices.setup_cost,
+        isDefault: true,
+        type: 'setup'
+      };
+    });
+  };
+
+  // Inicializar conceptos de Recurrente cuando se completan los parámetros
+  const initializeRecurringConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+    return RECURRING_CONCEPTS.map((concept) => {
+      const prices = findServicePriceWithModel(concept.name, pricingModel);
+      return {
+        id: `recurring_${concept.name}`,
+        medio_pago_name: concept.name,
+        cantidad_cajas: cantidadCajas,
+        cantidad_bancos: cantidadBancos,
+        tarifa: prices.monthly_cost,
+        isDefault: true,
+        type: 'recurring'
       };
     });
   };
@@ -187,7 +200,9 @@ export const Quotes = () => {
       pricing_model: '',
       cantidad_cajas: 1,
       cantidad_bancos: 1,
-      medios_pago_items: [],
+      setup_items: [],
+      recurring_items: [],
+      additional_items: [],
       descuento: 0,
       notes: ''
     });
