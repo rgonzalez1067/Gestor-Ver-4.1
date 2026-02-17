@@ -4,7 +4,7 @@ import {
   Users, 
   Building2, 
   Package, 
-  Briefcase, 
+  CreditCard, 
   FileText,
   TrendingUp,
   Settings,
@@ -17,7 +17,7 @@ const menuItems = [
   { path: '/clients', icon: Users, label: 'Clientes' },
   { path: '/banks', icon: Building2, label: 'Bancos' },
   { path: '/hardware', icon: Package, label: 'Hardware' },
-  { path: '/services', icon: Briefcase, label: 'Servicios' },
+  { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
   { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
   { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
   { path: '/settings', icon: Settings, label: 'Configuración' }
