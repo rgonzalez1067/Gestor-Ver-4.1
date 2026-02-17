@@ -927,9 +927,9 @@ export const Quotes = () => {
                     </table>
                   </div>
 
-                  {/* Encabezado Costos Recurrentes */}
+                  {/* BLOQUE 1: Recurrentes Básicos */}
                   <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-center py-2 font-semibold mt-4">
-                    Costos Recurrentes - Mensuales
+                    Costos Recurrentes - Básicos
                   </div>
                   
                   <div className="overflow-x-auto">
@@ -941,18 +941,17 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
-                          <th className="px-3 py-2 text-center font-semibold text-brand-green-600 border border-slate-300 w-32 bg-green-50">Total Mensual USD</th>
+                          <th className="px-3 py-2 text-center font-semibold text-brand-green-600 border border-slate-300 w-32 bg-green-50">Total USD</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Conceptos base de Recurrente */}
-                        {quoteData.recurring_items.map((item, index) => (
-                          <tr key={`recurring-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-green-500`}>
+                        {(quoteData.recurring_basic_items || []).map((item, index) => (
+                          <tr key={`rec-basic-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-green-500`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Base</span>
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Básico</span>
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
@@ -960,7 +959,7 @@ export const Quotes = () => {
                                 type="number"
                                 min="1"
                                 value={item.cantidad_cajas}
-                                onChange={(e) => updateRecurringItem(index, 'cantidad_cajas', e.target.value)}
+                                onChange={(e) => updateRecurringBasicItem(index, 'cantidad_cajas', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -969,7 +968,7 @@ export const Quotes = () => {
                                 type="number"
                                 min="1"
                                 value={item.cantidad_bancos}
-                                onChange={(e) => updateRecurringItem(index, 'cantidad_bancos', e.target.value)}
+                                onChange={(e) => updateRecurringBasicItem(index, 'cantidad_bancos', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -979,7 +978,7 @@ export const Quotes = () => {
                                 min="0"
                                 step="0.01"
                                 value={item.tarifa}
-                                onChange={(e) => updateRecurringItem(index, 'tarifa', e.target.value)}
+                                onChange={(e) => updateRecurringBasicItem(index, 'tarifa', e.target.value)}
                                 className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
@@ -988,44 +987,196 @@ export const Quotes = () => {
                             </td>
                           </tr>
                         ))}
-                        {/* Items adicionales con Recurrente */}
-                        {quoteData.additional_items.filter(i => i.tarifa_recurrente > 0).map((item, index) => (
-                          <tr key={`add-rec-${index}`} className="bg-white">
-                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{quoteData.recurring_items.length + index + 1}</td>
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-green-50">
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Básicos:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300">${subtotalRecurringBasic.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* BLOQUE 2: Otros Recurrentes */}
+                  <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white text-center py-2 font-semibold mt-4">
+                    Otros Recurrentes
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
+                          <th className="px-3 py-2 text-center font-semibold text-teal-600 border border-slate-300 w-32 bg-teal-50">Total USD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(quoteData.recurring_other_items || []).map((item, index) => (
+                          <tr key={`rec-other-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-teal-500`}>
+                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
-                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
-                              <div className="text-xs text-slate-500">{item.bank_name}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded">Otro</span>
+                              </div>
                             </td>
-                            <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_cajas}</td>
-                            <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_bancos}</td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_cajas}
+                                onChange={(e) => updateRecurringOtherItem(index, 'cantidad_cajas', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_bancos}
+                                onChange={(e) => updateRecurringOtherItem(index, 'cantidad_bancos', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={item.tarifa_recurrente}
-                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'tarifa_recurrente', e.target.value)}
+                                value={item.tarifa}
+                                onChange={(e) => updateRecurringOtherItem(index, 'tarifa', e.target.value)}
                                 className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
-                            <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
-                              ${((item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
+                            <td className="px-3 py-2 text-right border border-slate-300 bg-teal-50 font-mono font-semibold text-teal-600">
+                              ${calcularTotal(item).toFixed(2)}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
+                        <tr className="bg-teal-50">
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Otros:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-teal-600 border border-slate-300">${subtotalRecurringOther.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Botón Complementar Recurrentes */}
+                  {quoteData.recurring_complement_items.length === 0 && (
+                    <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-purple-800">Complementar Cotización de Recurrentes</p>
+                          <p className="text-sm text-purple-600">Agregar conceptos de mantenimiento vinculados a Setup</p>
+                        </div>
+                        <Button
+                          onClick={addRecurringComplements}
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                          data-testid="add-complements-btn"
+                        >
+                          <Plus size={16} className="mr-2" />
+                          Complementar Recurrentes
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BLOQUE 3: Complementos (vinculados a Setup) */}
+                  {quoteData.recurring_complement_items.length > 0 && (
+                    <>
+                      <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white text-center py-2 font-semibold mt-4">
+                        Complementos - Vinculados a Setup
+                      </div>
+                      
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
+                              <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
+                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
+                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
+                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
+                              <th className="px-3 py-2 text-center font-semibold text-purple-600 border border-slate-300 w-32 bg-purple-50">Total USD</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quoteData.recurring_complement_items.map((item, index) => (
+                              <tr key={`rec-comp-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-purple-500`}>
+                                <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
+                                <td className="px-3 py-2 border border-slate-300">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
+                                    <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Complemento</span>
+                                  </div>
+                                  <div className="text-xs text-slate-500">Vinculado a: {item.linkedTo}</div>
+                                </td>
+                                <td className="px-3 py-2 text-center border border-slate-300">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.cantidad_cajas}
+                                    onChange={(e) => updateRecurringComplementItem(index, 'cantidad_cajas', e.target.value)}
+                                    className="w-16 h-7 text-center text-sm mx-auto"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center border border-slate-300">
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.cantidad_bancos}
+                                    onChange={(e) => updateRecurringComplementItem(index, 'cantidad_bancos', e.target.value)}
+                                    className="w-16 h-7 text-center text-sm mx-auto"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center border border-slate-300">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.tarifa}
+                                    onChange={(e) => updateRecurringComplementItem(index, 'tarifa', e.target.value)}
+                                    className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-right border border-slate-300 bg-purple-50 font-mono font-semibold text-purple-600">
+                                  ${calcularTotal(item).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-purple-50">
+                              <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Complementos:</td>
+                              <td className="px-3 py-2 text-right font-mono font-bold text-purple-600 border border-slate-300">${subtotalRecurringComplement.toFixed(2)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Resumen Total Recurrentes */}
+                  <div className="overflow-x-auto mt-4">
+                    <table className="w-full border-collapse text-sm">
+                      <tfoot>
                         <tr className="bg-slate-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Mensual:</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300 bg-green-50">${subtotalRecurrente.toFixed(2)}</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">SUBTOTAL RECURRENTES:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300 bg-green-50 w-32">${subtotalRecurrente.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-amber-50">
                           <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento ({quoteData.descuento}%):</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoRecurrente.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300 w-32">-${montoDescuentoRecurrente.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-green-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Recurrente Neto:</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg">${totalNetoRecurrente.toFixed(2)}</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">TOTAL RECURRENTE NETO:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg w-32">${totalNetoRecurrente.toFixed(2)}</td>
                         </tr>
                       </tfoot>
                     </table>
