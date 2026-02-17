@@ -149,6 +149,10 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Filas: Subtotal, Descuento (%), Total Neto
   - Total General (Setup + Recurrente) en footer negro
 - [x] Precios cargados automáticamente desde catálogo de Medios de Pago
+- [x] **Selector de Modelo de Precios:**
+  - Modelo Convencional (Conv): setup_cost_conventional, monthly_cost_conventional
+  - Modelo Outsourcing (Outs): setup_cost_outsourcing, monthly_cost_outsourcing
+  - Campo obligatorio antes de agregar medios de pago
 
 ## Backlog / Tareas Futuras
 - [ ] Módulo de reportes estadísticos
