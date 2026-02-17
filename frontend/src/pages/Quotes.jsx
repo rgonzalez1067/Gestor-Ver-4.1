@@ -657,7 +657,6 @@ export const Quotes = () => {
                           setup_items: setupItems,
                           recurring_basic_items: recurringBasicItems,
                           recurring_other_items: recurringOtherItems,
-                          recurring_complement_items: [],
                           additional_items: []
                         });
                       }}
