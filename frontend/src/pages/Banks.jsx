@@ -110,7 +110,7 @@ export const Banks = () => {
 
   const addProduct = () => {
     if (!newProduct.product_name) {
-      toast.error('El nombre del producto es requerido');
+      toast.error('Seleccione un medio de pago');
       return;
     }
     setFormData({
@@ -120,6 +120,7 @@ export const Banks = () => {
     setNewProduct({ 
       product_name: '', 
       description: '',
+      service_id: '',
       vpos_available: false,
       gateway_available: false,
       mpos_available: false,
