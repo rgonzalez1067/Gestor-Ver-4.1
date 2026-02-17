@@ -34,6 +34,7 @@ export const Quotes = () => {
   const [quoteData, setQuoteData] = useState({
     quote_type: '',
     client_id: '',
+    pricing_model: '', // 'conventional' o 'outsourcing'
     cantidad_cajas: 1,
     cantidad_bancos: 1,
     medios_pago_items: [],
