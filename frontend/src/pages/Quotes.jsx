@@ -168,19 +168,60 @@ export const Quotes = () => {
     });
   };
 
-  // Inicializar conceptos de Recurrente cuando se completan los parámetros
-  const initializeRecurringConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
-    return RECURRING_CONCEPTS.map((concept) => {
+  // BLOQUE 1: Inicializar Recurrentes Básicos
+  const initializeRecurringBasicConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+    return RECURRING_BASIC_CONCEPTS.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
       return {
-        id: `recurring_${concept.name}`,
+        id: `recurring_basic_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
         cantidad_bancos: cantidadBancos,
         tarifa: prices.monthly_cost,
         isDefault: true,
-        type: 'recurring'
+        type: 'recurring_basic'
       };
+    });
+  };
+
+  // BLOQUE 2: Inicializar Otros Recurrentes
+  const initializeRecurringOtherConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+    return RECURRING_OTHER_CONCEPTS.map((concept) => {
+      const prices = findServicePriceWithModel(concept.name, pricingModel);
+      return {
+        id: `recurring_other_${concept.name}`,
+        medio_pago_name: concept.name,
+        cantidad_cajas: cantidadCajas,
+        cantidad_bancos: cantidadBancos,
+        tarifa: prices.monthly_cost,
+        isDefault: true,
+        type: 'recurring_other'
+      };
+    });
+  };
+
+  // Función para agregar complementos de recurrentes (vinculados a Setup)
+  const addRecurringComplements = () => {
+    const cajas = quoteData.cantidad_cajas || 1;
+    const bancos = quoteData.cantidad_bancos || 1;
+    
+    const complements = RECURRING_COMPLEMENT_CONCEPTS.map((concept) => {
+      const prices = findServicePriceWithModel(concept.name, quoteData.pricing_model);
+      return {
+        id: `recurring_complement_${concept.name}`,
+        medio_pago_name: concept.name,
+        linkedTo: concept.linkedTo,
+        cantidad_cajas: cajas,
+        cantidad_bancos: bancos,
+        tarifa: prices.monthly_cost,
+        isDefault: false,
+        type: 'recurring_complement'
+      };
+    });
+
+    setQuoteData({
+      ...quoteData,
+      recurring_complement_items: complements
     });
   };
 
@@ -216,7 +257,9 @@ export const Quotes = () => {
       cantidad_cajas: 1,
       cantidad_bancos: 1,
       setup_items: [],
-      recurring_items: [],
+      recurring_basic_items: [],
+      recurring_other_items: [],
+      recurring_complement_items: [],
       additional_items: [],
       descuento: 0,
       notes: ''
