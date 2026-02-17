@@ -125,6 +125,7 @@ export const Quotes = () => {
     setQuoteData({
       quote_type: '',
       client_id: '',
+      pricing_model: '',
       cantidad_cajas: 1,
       cantidad_bancos: 1,
       medios_pago_items: [],
