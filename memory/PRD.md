@@ -133,18 +133,22 @@ El usuario solicitó una aplicación de cotizaciones con:
 ## Testing Status
 - Backend: 70/70 tests pasados (100%)
 - Frontend: Login, OAuth, flujo de cotización verificado
-- Flujo de cotización optimizado: Implementado y probado
+- Matriz de costos: Implementada y verificada
 
 ## Funcionalidades Completadas (Diciembre 2025)
 - [x] Filtrado de medios de pago por compatibilidad en cotizaciones
 - [x] Checkboxes de compatibilidad en formulario de Medios de Pago
 - [x] Backend acepta parámetro ?compatibility=vpos|gateway|mpos|link
 - [x] Selección de Medios de Pago desde BD en pantalla de Bancos
-- [x] Flujo de cotización rediseñado con:
-  - Parámetros iniciales obligatorios (Tipo → Cliente → Cantidad)
-  - Selección jerárquica (Banco → Medio de Pago filtrado)
-  - Matriz de resumen con costos editables
-  - Botón Finalizar condicional
+- [x] Flujo de cotización rediseñado con parámetros iniciales
+- [x] Selección jerárquica (Banco → Medio de Pago filtrado)
+- [x] **Matriz de Costos Profesional:**
+  - Sección Set Up (header cyan): N°, Concepto, Cajas VTID, Bancos/Entes, Tarifa Setup, Total Setup
+  - Sección Recurrente (header verde): N°, Concepto, Cajas, Bancos, Tarifa Mensual, Total Mensual
+  - Fórmula: Total = Tarifa × Cajas × Bancos
+  - Filas: Subtotal, Descuento (%), Total Neto
+  - Total General (Setup + Recurrente) en footer negro
+- [x] Precios cargados automáticamente desde catálogo de Medios de Pago
 
 ## Backlog / Tareas Futuras
 - [ ] Módulo de reportes estadísticos
