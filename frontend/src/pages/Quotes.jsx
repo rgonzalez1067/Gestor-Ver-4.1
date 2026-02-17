@@ -286,8 +286,13 @@ export const Quotes = () => {
     return type ? type.name : typeId;
   };
 
+  const getPricingModelName = (modelId) => {
+    const model = PRICING_MODELS.find(m => m.id === modelId);
+    return model ? model.name : modelId;
+  };
+
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
-  const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.cantidad_cajas >= 1;
+  const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.pricing_model && quoteData.cantidad_cajas >= 1;
 
   if (loading) {
     return (
