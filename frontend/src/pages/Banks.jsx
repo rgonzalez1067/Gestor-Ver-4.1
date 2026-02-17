@@ -403,58 +403,74 @@ export const Banks = () => {
                       </div>
 
                       <div className="bg-brand-blue-50 rounded-lg p-4 border border-brand-blue-200">
-                        <p className="text-sm font-medium text-brand-blue-700 mb-3">Agregar nuevo producto</p>
+                        <p className="text-sm font-medium text-brand-blue-700 mb-3">Agregar Medio de Pago</p>
                         <div className="grid grid-cols-1 gap-3">
-                          <Input
-                            placeholder="Nombre del producto"
-                            value={newProduct.product_name}
-                            onChange={(e) => setNewProduct({ ...newProduct, product_name: e.target.value })}
-                          />
-                          <Input
-                            placeholder="Descripción (opcional)"
-                            value={newProduct.description}
-                            onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                          />
-                          
-                          <div className="border-t pt-3 mt-2">
-                            <p className="text-sm font-medium text-slate-700 mb-3">¿En qué componentes está disponible este producto?</p>
-                            <div className="grid grid-cols-2 gap-3">
-                              {COMPONENT_TYPES.map((comp) => {
-                                const Icon = comp.icon;
-                                return (
-                                  <label
-                                    key={comp.id}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                                      newProduct[comp.id]
-                                        ? 'border-brand-green-600 bg-brand-green-50'
-                                        : 'border-slate-200 hover:border-slate-300'
-                                    }`}
-                                  >
-                                    <Checkbox
-                                      checked={newProduct[comp.id]}
-                                      onCheckedChange={(checked) => 
-                                        setNewProduct({ ...newProduct, [comp.id]: checked })
-                                      }
-                                    />
-                                    <Icon size={18} className={newProduct[comp.id] ? 'text-brand-green-600' : 'text-slate-400'} />
-                                    <div>
-                                      <p className="text-sm font-medium">{comp.name}</p>
-                                      <p className="text-xs text-slate-500">{comp.description}</p>
-                                    </div>
-                                  </label>
-                                );
-                              })}
-                            </div>
+                          <div>
+                            <Label className="text-sm text-slate-700">Seleccionar Medio de Pago</Label>
+                            <Select
+                              value={newProduct.service_id}
+                              onValueChange={handleMedioPagoSelect}
+                            >
+                              <SelectTrigger data-testid="select-medio-pago-bank">
+                                <SelectValue placeholder="Seleccione un medio de pago..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {mediosPago.map((medio) => (
+                                  <SelectItem key={medio.service_id} value={medio.service_id}>
+                                    {medio.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
+                          
+                          {newProduct.service_id && newProduct.description && (
+                            <div className="bg-white rounded-lg p-3 border border-slate-200">
+                              <p className="text-xs font-medium text-slate-500 mb-1">Descripción</p>
+                              <p className="text-sm text-slate-700">{newProduct.description}</p>
+                            </div>
+                          )}
+                          
+                          {newProduct.service_id && (
+                            <div className="border-t pt-3 mt-2">
+                              <p className="text-sm font-medium text-slate-700 mb-3">Compatibilidad del Medio de Pago (heredada)</p>
+                              <div className="grid grid-cols-2 gap-3">
+                                {COMPONENT_TYPES.map((comp) => {
+                                  const Icon = comp.icon;
+                                  const isEnabled = newProduct[comp.id];
+                                  return (
+                                    <div
+                                      key={comp.id}
+                                      className={`flex items-center gap-3 p-3 rounded-lg border ${
+                                        isEnabled
+                                          ? 'border-brand-green-600 bg-brand-green-50'
+                                          : 'border-slate-200 bg-slate-50 opacity-50'
+                                      }`}
+                                    >
+                                      <Icon size={18} className={isEnabled ? 'text-brand-green-600' : 'text-slate-400'} />
+                                      <div>
+                                        <p className="text-sm font-medium">{comp.name}</p>
+                                        <p className="text-xs text-slate-500">{comp.description}</p>
+                                      </div>
+                                      {isEnabled && (
+                                        <span className="ml-auto text-brand-green-600 text-xs font-medium">✓</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           
                           <Button
                             type="button"
                             variant="outline"
                             onClick={addProduct}
-                            className="w-full mt-2 border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
+                            disabled={!newProduct.service_id}
+                            className="w-full mt-2 border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50 disabled:opacity-50"
                           >
                             <Plus size={16} className="mr-1" />
-                            Agregar Producto
+                            Agregar Medio de Pago
                           </Button>
                         </div>
                       </div>
