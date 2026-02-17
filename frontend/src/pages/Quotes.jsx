@@ -488,7 +488,11 @@ export const Quotes = () => {
                     </Label>
                     <Select 
                       value={quoteData.pricing_model} 
-                      onValueChange={(value) => setQuoteData({ ...quoteData, pricing_model: value, medios_pago_items: [] })}
+                      onValueChange={(value) => {
+                        // Al seleccionar modelo, inicializar con conceptos base
+                        const defaultItems = initializeDefaultConcepts(value, quoteData.cantidad_cajas, quoteData.cantidad_bancos);
+                        setQuoteData({ ...quoteData, pricing_model: value, medios_pago_items: defaultItems });
+                      }}
                     >
                       <SelectTrigger data-testid="select-pricing-model">
                         <SelectValue placeholder="Seleccione modelo..." />
