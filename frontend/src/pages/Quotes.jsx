@@ -30,15 +30,24 @@ const SETUP_CONCEPTS = [
   { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true, type: 'setup' }
 ];
 
-// Conceptos de Costos Recurrentes (Mantenimiento) - Solo aparecen en recurrentes
-// Los conceptos base (Suscripción MP y Hospedaje) van al final del listado
-const RECURRING_CONCEPTS = [
-  // Conceptos adicionales primero (vinculados a Setup)
-  { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring', linkedToSetup: true },
-  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring', linkedToSetup: true },
-  // Conceptos base al final (cierre del detalle)
-  { name: 'Suscripción Medio de Pago / Banco en MServer por PDV', isDefault: true, type: 'recurring', isClosing: true },
-  { name: 'Hospedaje MServer', isDefault: true, type: 'recurring', isClosing: true }
+// BLOQUE 1: Recurrentes Básicos (obligatorios)
+const RECURRING_BASIC_CONCEPTS = [
+  { name: 'Derecho de uso de plataforma MServer por PDV', isDefault: true, type: 'recurring_basic' },
+  { name: 'Derecho de uso de plataforma MServer por PDV / Banco', isDefault: true, type: 'recurring_basic' }
+];
+
+// BLOQUE 2: Otros Recurrentes
+const RECURRING_OTHER_CONCEPTS = [
+  { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring_other' },
+  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other' }
+];
+
+// Conceptos Complementarios (vinculados a Setup - se agregan con botón)
+const RECURRING_COMPLEMENT_CONCEPTS = [
+  { name: 'Mantenimiento PDV/Banco', linkedTo: 'Suscripción PDV/Banco', type: 'recurring_complement' },
+  { name: 'Mantenimiento dispositivo (Pinpad o POS)', linkedTo: 'Configuración dispositivo (Pinpad o POS)', type: 'recurring_complement' },
+  { name: 'Mantenimiento PDV en MServer', linkedTo: 'Configuración PDV en MServer', type: 'recurring_complement' },
+  { name: 'Mantenimiento Medio de Pago / Banco en MServer, por PDV', linkedTo: 'Configuración Medio de Pago / Banco en MServer, por PDV', type: 'recurring_complement' }
 ];
 
 export const Quotes = () => {
