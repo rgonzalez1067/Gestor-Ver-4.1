@@ -22,16 +22,17 @@ El usuario solicitó una aplicación de cotizaciones con:
 ### Backend (FastAPI)
 - [x] Autenticación via Emergent Google OAuth
 - [x] CRUD Clientes (con campo `segment`: Pymes/Corporativo/Mixto)
+- [x] Importación/Exportación de Clientes (CSV/PDF)
 - [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con productos y disponibilidad por componente
 - [x] Importación/Exportación de Bancos (CSV/PDF)
 - [x] CRUD Hardware
-- [x] CRUD Servicios (4 campos de precio, SIN categoría)
-- [x] Importación de servicios desde CSV
-- [x] Exportación de servicios a PDF
+- [x] CRUD Medios de Pago (antes "Servicios") - 4 campos de precio
+- [x] Importación/Exportación de Medios de Pago (CSV/PDF)
 - [x] CRUD Cotizaciones con tipo (VPOS/GATEWAY/MPOS/LINK)
+- [x] Flujo especial VPOS: Cantidad de Cajas → Cliente → Medios de Pago con banco
 - [x] Tasa de cambio BCV (consulta y actualización)
 - [x] Endpoint para poblar bancos (/api/banks/seed)
-- [x] Upload/descarga/eliminación de logo de empresa (GET público para login)
+- [x] Upload/descarga/eliminación de logo de empresa
 - [x] Generación de PDF para cotizaciones
 
 ### Frontend (React)
@@ -39,17 +40,19 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] Logo de empresa visible en pantalla de Login
 - [x] Colores de marca (verde #1B7D4E y azul #00447C) en toda la UI
 - [x] Dashboard con estadísticas y últimas cotizaciones
-- [x] Gestión de Clientes con campo Segmento
-- [x] Gestión de Bancos con productos y disponibilidad por componente (VPOS, Gateway, MPOS, Link)
-- [x] Importar/Exportar Bancos (CSV/PDF)
+- [x] Gestión de Clientes con Importar/Exportar
+- [x] Gestión de Bancos con productos y disponibilidad por componente
 - [x] Gestión de Hardware
-- [x] Gestión de Servicios SIN categoría + importar/exportar (CSV/PDF)
-- [x] Wizard de creación de cotizaciones (5 pasos: Tipo → Cliente → Servicios → Hardware → Revisión)
-- [x] Tipos de cotización: VPOS, Payment Gateway, MPOS, Link de Pago
+- [x] Gestión de **Medios de Pago** (renombrado de "Servicios") + importar/exportar
+- [x] Wizard de cotizaciones con flujo especial VPOS:
+  - Paso 1: Tipo de cotización
+  - Paso 2 (VPOS): Cantidad de Cajas
+  - Paso 3: Selección de Cliente
+  - Paso 4: Medios de Pago + Banco + Cantidad (pre-llenada)
+  - Botones: [+ Nuevo Medio de Pago] y [Finalizar Cotización]
 - [x] Configuración (upload logo + seed bancos)
 - [x] Tasa de cambio (visualización y actualización)
-- [x] Loading screens con fondo blanco y texto negro
-- [x] Todos los fondos de pantalla en blanco
+- [x] Fondos blancos en toda la aplicación
 - [x] Branding: "Cotizador Merchant Server"
 
 ## Modelo de Datos - Productos de Banco
