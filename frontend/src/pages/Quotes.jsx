@@ -331,19 +331,47 @@ export const Quotes = () => {
     const updatedItems = [...quoteData.setup_items];
     updatedItems[index] = {
       ...updatedItems[index],
-      [field]: parseFloat(value) || 0
+      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
+        ? (value === '' ? '' : parseFloat(value)) 
+        : value
     };
     setQuoteData({ ...quoteData, setup_items: updatedItems });
   };
 
-  // Actualizar campo en recurring_items
-  const updateRecurringItem = (index, field, value) => {
-    const updatedItems = [...quoteData.recurring_items];
+  // Actualizar campo en recurring_basic_items
+  const updateRecurringBasicItem = (index, field, value) => {
+    const updatedItems = [...quoteData.recurring_basic_items];
     updatedItems[index] = {
       ...updatedItems[index],
-      [field]: parseFloat(value) || 0
+      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
+        ? (value === '' ? '' : parseFloat(value)) 
+        : value
     };
-    setQuoteData({ ...quoteData, recurring_items: updatedItems });
+    setQuoteData({ ...quoteData, recurring_basic_items: updatedItems });
+  };
+
+  // Actualizar campo en recurring_other_items
+  const updateRecurringOtherItem = (index, field, value) => {
+    const updatedItems = [...quoteData.recurring_other_items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
+        ? (value === '' ? '' : parseFloat(value)) 
+        : value
+    };
+    setQuoteData({ ...quoteData, recurring_other_items: updatedItems });
+  };
+
+  // Actualizar campo en recurring_complement_items
+  const updateRecurringComplementItem = (index, field, value) => {
+    const updatedItems = [...quoteData.recurring_complement_items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
+        ? (value === '' ? '' : parseFloat(value)) 
+        : value
+    };
+    setQuoteData({ ...quoteData, recurring_complement_items: updatedItems });
   };
 
   // Actualizar campo en additional_items
