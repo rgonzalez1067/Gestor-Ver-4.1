@@ -154,14 +154,16 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Modelo Outsourcing (Outs): setup_cost_outsourcing, monthly_cost_outsourcing
   - Campo obligatorio antes de agregar medios de pago
 - [x] **Conceptos Base por Defecto (Diciembre 2025):**
-  - 4 conceptos se cargan automáticamente al seleccionar modelo de precios:
+  - **Setup EXCLUSIVO (4 conceptos)** - NO aparecen en recurrentes:
     1. Suscripción PDV/Banco
     2. Configuración dispositivo (Pinpad o POS)
     3. Configuración PDV en MServer
     4. Configuración Medio de Pago / Banco en MServer, por PDV
-  - Marcados con badge "Base" y borde lateral distintivo
+  - **Recurrentes EXCLUSIVO (2 conceptos)** - NO aparecen en setup:
+    1. Suscripción Medio de Pago / Banco en MServer por PDV
+    2. Hospedaje MServer
   - Campos Cajas y Bancos editables por fila para ajustes excepcionales
-  - Conceptos base no pueden eliminarse (sin botón de eliminar)
+  - Items adicionales (de bancos) pueden tener ambos costos
 - [x] **Dashboard Mejorado (Diciembre 2025):**
   - Agregados indicadores: Medios de Pago, Hardware
   - 6 tarjetas de estadísticas en total
