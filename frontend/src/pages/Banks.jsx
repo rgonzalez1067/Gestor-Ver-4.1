@@ -19,6 +19,7 @@ const COMPONENT_TYPES = [
 
 export const Banks = () => {
   const [banks, setBanks] = useState([]);
+  const [mediosPago, setMediosPago] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBank, setEditingBank] = useState(null);
@@ -31,6 +32,7 @@ export const Banks = () => {
   const [newProduct, setNewProduct] = useState({ 
     product_name: '', 
     description: '',
+    service_id: '',
     vpos_available: false,
     gateway_available: false,
     mpos_available: false,
@@ -39,16 +41,20 @@ export const Banks = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchBanks();
+    fetchData();
   }, []);
 
-  const fetchBanks = async () => {
+  const fetchData = async () => {
     try {
-      const response = await api.get('/banks');
-      setBanks(response.data);
+      const [banksRes, mediosPagoRes] = await Promise.all([
+        api.get('/banks'),
+        api.get('/services')
+      ]);
+      setBanks(banksRes.data);
+      setMediosPago(mediosPagoRes.data);
     } catch (error) {
-      console.error('Error fetching banks:', error);
-      toast.error('Error al cargar bancos');
+      console.error('Error fetching data:', error);
+      toast.error('Error al cargar datos');
     } finally {
       setLoading(false);
     }
