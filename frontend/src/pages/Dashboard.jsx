@@ -23,21 +23,39 @@ export const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes, servicesRes, hardwareRes, rateRes] = await Promise.all([
-        api.get('/quotes'),
-        api.get('/clients'),
-        api.get('/banks'),
-        api.get('/services'),
-        api.get('/hardware'),
-        api.get('/exchange-rate/current')
-      ]);
+      // Hacer llamadas independientes para que un error no afecte a las demás
+      let quotesCount = 0, clientsCount = 0, banksCount = 0, servicesCount = 0, hardwareCount = 0, exchangeRate = 0;
 
-      // Contar registros correctamente
-      const quotesCount = Array.isArray(quotesRes.data) ? quotesRes.data.length : 0;
-      const clientsCount = Array.isArray(clientsRes.data) ? clientsRes.data.length : 0;
-      const banksCount = Array.isArray(banksRes.data) ? banksRes.data.length : 0;
-      const servicesCount = Array.isArray(servicesRes.data) ? servicesRes.data.length : 0;
-      const hardwareCount = Array.isArray(hardwareRes.data) ? hardwareRes.data.length : 0;
+      try {
+        const quotesRes = await api.get('/quotes');
+        quotesCount = Array.isArray(quotesRes.data) ? quotesRes.data.length : 0;
+        setRecentQuotes(Array.isArray(quotesRes.data) ? quotesRes.data.slice(0, 5) : []);
+      } catch (e) { console.error('Error loading quotes:', e); }
+
+      try {
+        const clientsRes = await api.get('/clients');
+        clientsCount = Array.isArray(clientsRes.data) ? clientsRes.data.length : 0;
+      } catch (e) { console.error('Error loading clients:', e); }
+
+      try {
+        const banksRes = await api.get('/banks');
+        banksCount = Array.isArray(banksRes.data) ? banksRes.data.length : 0;
+      } catch (e) { console.error('Error loading banks:', e); }
+
+      try {
+        const servicesRes = await api.get('/services');
+        servicesCount = Array.isArray(servicesRes.data) ? servicesRes.data.length : 0;
+      } catch (e) { console.error('Error loading services:', e); }
+
+      try {
+        const hardwareRes = await api.get('/hardware');
+        hardwareCount = Array.isArray(hardwareRes.data) ? hardwareRes.data.length : 0;
+      } catch (e) { console.error('Error loading hardware:', e); }
+
+      try {
+        const rateRes = await api.get('/exchange-rate/current');
+        exchangeRate = rateRes.data?.rate || 0;
+      } catch (e) { console.error('Error loading exchange rate:', e); }
 
       setStats({
         totalQuotes: quotesCount,
@@ -45,10 +63,8 @@ export const Dashboard = () => {
         totalBanks: banksCount,
         totalMediosPago: servicesCount,
         totalHardware: hardwareCount,
-        exchangeRate: rateRes.data?.rate || 0
+        exchangeRate: exchangeRate
       });
-
-      setRecentQuotes(Array.isArray(quotesRes.data) ? quotesRes.data.slice(0, 5) : []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Error al cargar datos del dashboard');
