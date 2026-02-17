@@ -131,14 +131,20 @@ El usuario solicitó una aplicación de cotizaciones con:
 - Cashea, Lysto, Crixto
 
 ## Testing Status
-- Backend: 54/54 tests pasados (100%)
-- Frontend: Login, OAuth, rutas protegidas, responsive funcionando
-- Filtro de compatibilidad: Implementado y probado
+- Backend: 70/70 tests pasados (100%)
+- Frontend: Login, OAuth, flujo de cotización verificado
+- Flujo de cotización optimizado: Implementado y probado
 
 ## Funcionalidades Completadas (Diciembre 2025)
 - [x] Filtrado de medios de pago por compatibilidad en cotizaciones
 - [x] Checkboxes de compatibilidad en formulario de Medios de Pago
 - [x] Backend acepta parámetro ?compatibility=vpos|gateway|mpos|link
+- [x] Selección de Medios de Pago desde BD en pantalla de Bancos
+- [x] Flujo de cotización rediseñado con:
+  - Parámetros iniciales obligatorios (Tipo → Cliente → Cantidad)
+  - Selección jerárquica (Banco → Medio de Pago filtrado)
+  - Matriz de resumen con costos editables
+  - Botón Finalizar condicional
 
 ## Backlog / Tareas Futuras
 - [ ] Módulo de reportes estadísticos
