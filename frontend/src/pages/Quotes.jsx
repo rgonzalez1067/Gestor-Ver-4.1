@@ -128,6 +128,48 @@ export const Quotes = () => {
     }
   };
 
+  // Inicializar conceptos base cuando se completan los parámetros
+  const initializeDefaultConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+    return DEFAULT_CONCEPTS.map((concept) => {
+      const prices = findServicePriceWithModel(concept.name, pricingModel);
+      return {
+        bank_id: 'default',
+        bank_name: '-',
+        medio_pago_name: concept.name,
+        description: '',
+        cantidad_cajas: cantidadCajas,
+        cantidad_bancos: cantidadBancos,
+        tarifa_setup: prices.setup_cost,
+        tarifa_recurrente: prices.monthly_cost,
+        application_type: prices.application_type,
+        isDefault: true
+      };
+    });
+  };
+
+  // Versión de findServicePrice que acepta modelo como parámetro (para inicialización)
+  const findServicePriceWithModel = (productName, pricingModel) => {
+    const service = serviceCatalog.find(s => 
+      s.name.toLowerCase() === productName.toLowerCase() ||
+      s.name.toLowerCase().includes(productName.toLowerCase()) ||
+      productName.toLowerCase().includes(s.name.toLowerCase())
+    );
+    
+    if (service) {
+      const isOutsourcing = pricingModel === 'outsourcing';
+      return {
+        setup_cost: isOutsourcing 
+          ? (service.setup_cost_outsourcing || 0) 
+          : (service.setup_cost_conventional || 0),
+        monthly_cost: isOutsourcing 
+          ? (service.monthly_cost_outsourcing || 0) 
+          : (service.monthly_cost_conventional || 0),
+        application_type: service.application_type || 'both'
+      };
+    }
+    return { setup_cost: 0, monthly_cost: 0, application_type: 'both' };
+  };
+
   const openWizard = () => {
     setWizardOpen(true);
     setQuoteData({
