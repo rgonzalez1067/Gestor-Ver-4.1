@@ -22,12 +22,18 @@ const PRICING_MODELS = [
   { id: 'outsourcing', name: 'Modelo Outsourcing', description: 'Precios para tercerización' }
 ];
 
-// Conceptos base que aparecen por defecto en cada cotización
-const DEFAULT_CONCEPTS = [
-  { name: 'Suscripción PDV/Banco', isDefault: true },
-  { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true },
-  { name: 'Configuración PDV en MServer', isDefault: true },
-  { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true }
+// Conceptos EXCLUSIVOS de Setup (Inversión Inicial) - NO aparecen en recurrentes
+const SETUP_CONCEPTS = [
+  { name: 'Suscripción PDV/Banco', isDefault: true, type: 'setup' },
+  { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true, type: 'setup' },
+  { name: 'Configuración PDV en MServer', isDefault: true, type: 'setup' },
+  { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true, type: 'setup' }
+];
+
+// Conceptos de Costos Recurrentes (Mantenimiento) - Solo aparecen en recurrentes
+const RECURRING_CONCEPTS = [
+  { name: 'Suscripción Medio de Pago / Banco en MServer por PDV', isDefault: true, type: 'recurring' },
+  { name: 'Hospedaje MServer', isDefault: true, type: 'recurring' }
 ];
 
 export const Quotes = () => {
