@@ -327,6 +327,96 @@ async def delete_client(client_id: str, authorization: Optional[str] = Header(No
         raise HTTPException(status_code=404, detail="Client not found")
     return {"message": "Client deleted successfully"}
 
+@api_router.post("/clients/import")
+async def import_clients(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    
+    content = await file.read()
+    imported_count = 0
+    
+    try:
+        if file.filename.endswith('.csv'):
+            decoded = content.decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded))
+            
+            for row in reader:
+                client = Client(
+                    rif=row.get('RIF', row.get('rif', '')).strip(),
+                    legal_name=row.get('Nombre Jurídico', row.get('legal_name', '')).strip(),
+                    fantasy_name=row.get('Nombre Fantasía', row.get('fantasy_name', '')).strip(),
+                    segment=row.get('Segmento', row.get('segment', 'Pymes')).strip() or 'Pymes',
+                    contact1=Contact(
+                        name=row.get('Contacto1 Nombre', '').strip(),
+                        phone=row.get('Contacto1 Teléfono', '').strip(),
+                        email=row.get('Contacto1 Email', '').strip()
+                    ),
+                    contact2=Contact(name='', phone='', email='')
+                )
+                if client.rif and client.legal_name:
+                    doc = client.model_dump()
+                    doc['created_at'] = doc['created_at'].isoformat()
+                    await db.clients.insert_one(doc)
+                    imported_count += 1
+        else:
+            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
+    
+    return {"message": f"{imported_count} clientes importados exitosamente"}
+
+@api_router.get("/clients/export/pdf")
+async def export_clients_pdf(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title = Paragraph("Clientes - Cotizador Merchant Server", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 20))
+    
+    data = [['RIF', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Contacto']]
+    for c in clients:
+        contact_name = c.get('contact1', {}).get('name', 'N/A') if isinstance(c.get('contact1'), dict) else 'N/A'
+        data.append([
+            c['rif'][:15],
+            c['legal_name'][:25],
+            c['fantasy_name'][:20],
+            c.get('segment', 'N/A'),
+            contact_name[:20]
+        ])
+    
+    table = Table(data, colWidths=[1.2*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=clientes.pdf"}
+    )
+
 # ==================== BANKS ENDPOINTS ====================
 
 @api_router.post("/banks", response_model=Bank)
