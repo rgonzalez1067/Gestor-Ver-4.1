@@ -23,29 +23,27 @@ El usuario solicitó una aplicación de cotizaciones con:
 - [x] Autenticación via Emergent Google OAuth
 - [x] CRUD Clientes (con campo `segment`: Pymes/Corporativo/Mixto)
 - [x] Importación/Exportación de Clientes (CSV/PDF)
-- [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con productos y disponibilidad por componente
+- [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con medios de pago asociados
 - [x] Importación/Exportación de Bancos (CSV/PDF)
 - [x] CRUD Hardware
-- [x] CRUD Medios de Pago con campo `application_type`:
-  - Solo Setup: gastos de implementación inicial
-  - Solo Costos Recurrentes: cargos mensuales/periódicos  
-  - Ambos: aplica a ambos tipos de cotización
+- [x] CRUD Medios de Pago con compatibilidad por tipo de cotización
 - [x] Importación/Exportación de Medios de Pago (CSV/PDF)
-- [x] CRUD Cotizaciones con tipo (VPOS/GATEWAY/MPOS/LINK)
-- [x] Flujo especial VPOS: Cantidad de Cajas → Cliente → Medios de Pago con banco
+- [x] CRUD Cotizaciones con flujo optimizado
 - [x] Tasa de cambio BCV (consulta y actualización)
 - [x] Upload/descarga/eliminación de logo de empresa
 - [x] Generación de PDF para cotizaciones
+- [x] Filtro de servicios por compatibilidad (?compatibility=vpos|gateway|mpos|link)
 
 ### Frontend (React)
-- [x] Login con Google OAuth + opción para crear cuenta
+- [x] Login con Google OAuth
 - [x] Logo de empresa visible en pantalla de Login
 - [x] Colores de marca (verde #1B7D4E y azul #00447C)
-- [x] Gestión de Medios de Pago / Servicios con:
-  - Campo "Tipo de Aplicación" obligatorio antes de ingresar costos
-  - Campos de costo condicionales según tipo seleccionado
-  - Badge visual indicando el tipo de aplicación en la tabla
-- [x] Wizard de cotizaciones con flujo especial VPOS
+- [x] Gestión de Bancos con selección de Medios de Pago desde BD
+- [x] **Flujo de Cotización Optimizado (Diciembre 2025):**
+  - Sección 1: Parámetros Iniciales (Tipo, Cliente, Cantidad Cajas)
+  - Sección 2: Selección jerárquica Banco → Medio de Pago (filtrado)
+  - Sección 3: Matriz de Resumen con columnas editables (Costo Setup, Costo Recurrente)
+  - Botón Finalizar visible solo cuando hay items en la matriz
 - [x] Configuración (upload logo + seed bancos)
 - [x] Fondos blancos en toda la aplicación
 
