@@ -687,12 +687,12 @@ export const Quotes = () => {
                 </div>
               )}
 
-              {/* SECCIÓN 3: Matriz de Resumen - Set Up */}
-              {isHeaderComplete && quoteData.medios_pago_items.length > 0 && (
+              {/* SECCIÓN 3: Matriz de Resumen - Set Up (EXCLUSIVO) */}
+              {isHeaderComplete && quoteData.setup_items.length > 0 && (
                 <div className="bg-white rounded-lg border mt-4 overflow-hidden">
                   {/* Encabezado Set Up */}
                   <div className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-center py-2 font-semibold">
-                    Set Up - Puesta en Marcha
+                    Set Up - Puesta en Marcha (Inversión Inicial)
                   </div>
                   
                   <div className="overflow-x-auto">
@@ -703,30 +703,27 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Set-up<br/>(USD/VTID/Banco)</th>
-                          <th className="px-3 py-2 text-center font-semibold text-brand-blue-600 border border-slate-300 w-32 bg-blue-50">Total Set-Up USD</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">Acc.</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Set-up<br/>(USD)</th>
+                          <th className="px-3 py-2 text-center font-semibold text-brand-blue-600 border border-slate-300 w-32 bg-blue-50">Total USD</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {quoteData.medios_pago_items.map((item, index) => (
-                          <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${item.isDefault ? 'border-l-4 border-l-cyan-500' : ''}`}>
+                        {/* Conceptos base de Setup */}
+                        {quoteData.setup_items.map((item, index) => (
+                          <tr key={`setup-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-cyan-500`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                {item.isDefault && (
-                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
-                                )}
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
                               </div>
-                              {item.bank_name !== '-' && <div className="text-xs text-slate-500">{item.bank_name}</div>}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
                                 type="number"
                                 min="1"
                                 value={item.cantidad_cajas}
-                                onChange={(e) => updateItemField(index, 'cantidad_cajas', e.target.value)}
+                                onChange={(e) => updateSetupItem(index, 'cantidad_cajas', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -735,7 +732,48 @@ export const Quotes = () => {
                                 type="number"
                                 min="1"
                                 value={item.cantidad_bancos}
-                                onChange={(e) => updateItemField(index, 'cantidad_bancos', e.target.value)}
+                                onChange={(e) => updateSetupItem(index, 'cantidad_bancos', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.tarifa}
+                                onChange={(e) => updateSetupItem(index, 'tarifa', e.target.value)}
+                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
+                              ${calcularTotal(item).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Items adicionales con Setup */}
+                        {quoteData.additional_items.filter(i => i.tarifa_setup > 0).map((item, index) => (
+                          <tr key={`add-setup-${index}`} className="bg-white">
+                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{quoteData.setup_items.length + index + 1}</td>
+                            <td className="px-3 py-2 border border-slate-300">
+                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
+                              <div className="text-xs text-slate-500">{item.bank_name}</div>
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_cajas}
+                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'cantidad_cajas', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_bancos}
+                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'cantidad_bancos', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -745,28 +783,20 @@ export const Quotes = () => {
                                 min="0"
                                 step="0.01"
                                 value={item.tarifa_setup}
-                                onChange={(e) => updateItemField(index, 'tarifa_setup', e.target.value)}
+                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'tarifa_setup', e.target.value)}
                                 className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
-                              ${calcularTotalFila(item).toFixed(2)}
-                            </td>
-                            <td className="px-3 py-2 text-center border border-slate-300">
-                              {!item.isDefault && (
-                                <Button size="sm" variant="outline" onClick={() => removeMedioPagoItem(index)} className="text-red-600 h-7 w-7 p-0">
-                                  <Trash2 size={14} />
-                                </Button>
-                              )}
+                              ${((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="bg-slate-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal:</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Setup:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-blue-600 border border-slate-300 bg-blue-50">${subtotalSetup.toFixed(2)}</td>
-                          <td className="border border-slate-300"></td>
                         </tr>
                         <tr className="bg-amber-50">
                           <td colSpan={4} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento:</td>
@@ -785,12 +815,10 @@ export const Quotes = () => {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoSetup.toFixed(2)}</td>
-                          <td className="border border-slate-300"></td>
                         </tr>
-                        <tr className="bg-green-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Costos de Arranque (VTID) Neto:</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg">${totalNetoSetup.toFixed(2)}</td>
-                          <td className="border border-slate-300"></td>
+                        <tr className="bg-cyan-100">
+                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Setup Neto:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-cyan-700 border border-slate-300 text-lg">${totalNetoSetup.toFixed(2)}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -809,22 +837,61 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD/VTID/Banco)</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
                           <th className="px-3 py-2 text-center font-semibold text-brand-green-600 border border-slate-300 w-32 bg-green-50">Total Mensual USD</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {quoteData.medios_pago_items.map((item, index) => (
-                          <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${item.isDefault ? 'border-l-4 border-l-green-500' : ''}`}>
+                        {/* Conceptos base de Recurrente */}
+                        {quoteData.recurring_items.map((item, index) => (
+                          <tr key={`recurring-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-green-500`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                {item.isDefault && (
-                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Base</span>
-                                )}
+                                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Base</span>
                               </div>
-                              {item.bank_name !== '-' && <div className="text-xs text-slate-500">{item.bank_name}</div>}
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_cajas}
+                                onChange={(e) => updateRecurringItem(index, 'cantidad_cajas', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_bancos}
+                                onChange={(e) => updateRecurringItem(index, 'cantidad_bancos', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.tarifa}
+                                onChange={(e) => updateRecurringItem(index, 'tarifa', e.target.value)}
+                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
+                              ${calcularTotal(item).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Items adicionales con Recurrente */}
+                        {quoteData.additional_items.filter(i => i.tarifa_recurrente > 0).map((item, index) => (
+                          <tr key={`add-rec-${index}`} className="bg-white">
+                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{quoteData.recurring_items.length + index + 1}</td>
+                            <td className="px-3 py-2 border border-slate-300">
+                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
+                              <div className="text-xs text-slate-500">{item.bank_name}</div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_cajas}</td>
                             <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_bancos}</td>
@@ -834,12 +901,12 @@ export const Quotes = () => {
                                 min="0"
                                 step="0.01"
                                 value={item.tarifa_recurrente}
-                                onChange={(e) => updateItemField(index, 'tarifa_recurrente', e.target.value)}
+                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'tarifa_recurrente', e.target.value)}
                                 className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
-                              ${calcularTotalRecurrenteFila(item).toFixed(2)}
+                              ${((item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
                             </td>
                           </tr>
                         ))}
@@ -854,7 +921,7 @@ export const Quotes = () => {
                           <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoRecurrente.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-green-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Costos Recurrentes Neto:</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Recurrente Neto:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg">${totalNetoRecurrente.toFixed(2)}</td>
                         </tr>
                       </tfoot>
@@ -896,7 +963,7 @@ export const Quotes = () => {
               )}
 
               {/* Mensaje cuando no hay items */}
-              {isHeaderComplete && quoteData.medios_pago_items.length === 0 && (
+              {isHeaderComplete && quoteData.setup_items.length === 0 && (
                 <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg mt-4 border-2 border-dashed">
                   <CreditCard size={40} className="mx-auto mb-3 text-slate-300" />
                   <p className="font-medium">No hay medios de pago agregados</p>
