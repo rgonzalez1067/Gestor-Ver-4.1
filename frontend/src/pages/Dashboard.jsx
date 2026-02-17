@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -10,6 +10,8 @@ export const Dashboard = () => {
     totalQuotes: 0,
     totalClients: 0,
     totalBanks: 0,
+    totalMediosPago: 0,
+    totalHardware: 0,
     exchangeRate: 0
   });
   const [recentQuotes, setRecentQuotes] = useState([]);
@@ -21,21 +23,32 @@ export const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes, rateRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, servicesRes, hardwareRes, rateRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
         api.get('/banks'),
+        api.get('/services'),
+        api.get('/hardware'),
         api.get('/exchange-rate/current')
       ]);
 
+      // Contar registros correctamente
+      const quotesCount = Array.isArray(quotesRes.data) ? quotesRes.data.length : 0;
+      const clientsCount = Array.isArray(clientsRes.data) ? clientsRes.data.length : 0;
+      const banksCount = Array.isArray(banksRes.data) ? banksRes.data.length : 0;
+      const servicesCount = Array.isArray(servicesRes.data) ? servicesRes.data.length : 0;
+      const hardwareCount = Array.isArray(hardwareRes.data) ? hardwareRes.data.length : 0;
+
       setStats({
-        totalQuotes: quotesRes.data.length,
-        totalClients: clientsRes.data.length,
-        totalBanks: banksRes.data.length,
-        exchangeRate: rateRes.data.rate
+        totalQuotes: quotesCount,
+        totalClients: clientsCount,
+        totalBanks: banksCount,
+        totalMediosPago: servicesCount,
+        totalHardware: hardwareCount,
+        exchangeRate: rateRes.data?.rate || 0
       });
 
-      setRecentQuotes(quotesRes.data.slice(0, 5));
+      setRecentQuotes(Array.isArray(quotesRes.data) ? quotesRes.data.slice(0, 5) : []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error('Error al cargar datos del dashboard');
@@ -62,6 +75,18 @@ export const Dashboard = () => {
       value: stats.totalBanks,
       icon: Building2,
       color: 'bg-purple-100 text-purple-700'
+    },
+    {
+      title: 'Medios de Pago',
+      value: stats.totalMediosPago,
+      icon: CreditCard,
+      color: 'bg-rose-100 text-rose-700'
+    },
+    {
+      title: 'Hardware',
+      value: stats.totalHardware,
+      icon: Package,
+      color: 'bg-orange-100 text-orange-700'
     },
     {
       title: 'Tasa BCV',
