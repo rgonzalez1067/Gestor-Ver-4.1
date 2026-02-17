@@ -104,6 +104,67 @@ export const Clients = () => {
     if (!open) resetForm();
   };
 
+  const handleFileImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await api.post('/clients/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Clientes importados exitosamente');
+      fetchClients();
+    } catch (error) {
+      console.error('Error importing clients:', error);
+      toast.error('Error al importar. Verifique el formato del archivo.');
+    }
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const exportToCSV = () => {
+    const headers = ['RIF', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Contacto1 Nombre', 'Contacto1 Teléfono', 'Contacto1 Email'];
+    const csvContent = [
+      headers.join(','),
+      ...clients.map(c => [
+        `"${c.rif}"`,
+        `"${c.legal_name}"`,
+        `"${c.fantasy_name}"`,
+        `"${c.segment || ''}"`,
+        `"${c.contact1?.name || ''}"`,
+        `"${c.contact1?.phone || ''}"`,
+        `"${c.contact1?.email || ''}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'clientes.csv';
+    link.click();
+    toast.success('Archivo CSV descargado');
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const response = await api.get('/clients/export/pdf', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'clientes.pdf';
+      link.click();
+      toast.success('PDF descargado exitosamente');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Error al exportar a PDF');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen">
@@ -132,6 +193,38 @@ export const Clients = () => {
               <p className="text-slate-600">Gestione la información de sus clientes</p>
             </div>
             
+            <div className="flex gap-2">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileImport}
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
+              >
+                <Upload size={18} className="mr-2" />
+                Importar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportToCSV}
+                className="border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
+              >
+                <FileSpreadsheet size={18} className="mr-2" />
+                Excel/CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={exportToPDF}
+                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
+              >
+                <FileText size={18} className="mr-2" />
+                PDF
+              </Button>
             <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
               <DialogTrigger asChild>
                 <Button
