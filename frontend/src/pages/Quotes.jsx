@@ -433,8 +433,15 @@ export const Quotes = () => {
           unit_price_usd: item.tarifa,
           total_usd: calcularTotal(item)
         })),
-        ...quoteData.recurring_items.map(item => ({
-          item_type: 'recurring',
+        ...quoteData.recurring_basic_items.map(item => ({
+          item_type: 'recurring_basic',
+          item_name: item.medio_pago_name,
+          quantity: item.cantidad_cajas * item.cantidad_bancos,
+          unit_price_usd: item.tarifa,
+          total_usd: calcularTotal(item)
+        })),
+        ...quoteData.recurring_other_items.map(item => ({
+          item_type: 'recurring_other',
           item_name: item.medio_pago_name,
           quantity: item.cantidad_cajas * item.cantidad_bancos,
           unit_price_usd: item.tarifa,
@@ -1063,16 +1070,16 @@ export const Quotes = () => {
                     </table>
                   </div>
 
-                  {/* Botón Complementar Recurrentes */}
-                  {quoteData.recurring_complement_items.length === 0 && (
+                  {/* Botón Complementar Recurrentes - Solo visible si hay items adicionales */}
+                  {quoteData.additional_items.length > 0 && (
                     <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-purple-800">Complementar Cotización de Recurrentes</p>
-                          <p className="text-sm text-purple-600">Agregar conceptos de mantenimiento vinculados a Setup</p>
+                          <p className="text-sm text-purple-600">Agregar conceptos de mantenimiento para los medios de pago adicionales</p>
                         </div>
                         <Button
-                          onClick={addRecurringComplements}
+                          onClick={addRecurringComplementsFromAdditional}
                           className="bg-purple-600 hover:bg-purple-700 text-white"
                           data-testid="add-complements-btn"
                         >
@@ -1081,81 +1088,6 @@ export const Quotes = () => {
                         </Button>
                       </div>
                     </div>
-                  )}
-
-                  {/* BLOQUE 3: Complementos (vinculados a Setup) */}
-                  {quoteData.recurring_complement_items.length > 0 && (
-                    <>
-                      <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white text-center py-2 font-semibold mt-4">
-                        Complementos - Vinculados a Setup
-                      </div>
-                      
-                      <div className="overflow-x-auto">
-                        <table className="w-full border-collapse text-sm">
-                          <thead>
-                            <tr className="bg-slate-100">
-                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
-                              <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
-                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
-                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
-                              <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
-                              <th className="px-3 py-2 text-center font-semibold text-purple-600 border border-slate-300 w-32 bg-purple-50">Total USD</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {quoteData.recurring_complement_items.map((item, index) => (
-                              <tr key={`rec-comp-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-purple-500`}>
-                                <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
-                                <td className="px-3 py-2 border border-slate-300">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                    <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Complemento</span>
-                                  </div>
-                                  <div className="text-xs text-slate-500">Vinculado a: {item.linkedTo}</div>
-                                </td>
-                                <td className="px-3 py-2 text-center border border-slate-300">
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    value={item.cantidad_cajas}
-                                    onChange={(e) => updateRecurringComplementItem(index, 'cantidad_cajas', e.target.value)}
-                                    className="w-16 h-7 text-center text-sm mx-auto"
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-center border border-slate-300">
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    value={item.cantidad_bancos}
-                                    onChange={(e) => updateRecurringComplementItem(index, 'cantidad_bancos', e.target.value)}
-                                    className="w-16 h-7 text-center text-sm mx-auto"
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-center border border-slate-300">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={item.tarifa}
-                                    onChange={(e) => updateRecurringComplementItem(index, 'tarifa', e.target.value)}
-                                    className="w-20 h-7 text-right text-sm mx-auto font-mono"
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-right border border-slate-300 bg-purple-50 font-mono font-semibold text-purple-600">
-                                  ${calcularTotal(item).toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-purple-50">
-                              <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Complementos:</td>
-                              <td className="px-3 py-2 text-right font-mono font-bold text-purple-600 border border-slate-300">${subtotalRecurringComplement.toFixed(2)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </>
                   )}
 
                   {/* Resumen Total Recurrentes */}
