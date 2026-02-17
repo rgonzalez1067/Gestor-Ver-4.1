@@ -47,16 +47,14 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, mediosPagoRes, banksRes, hardwareRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, hardwareRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
-        api.get('/services'),
         api.get('/banks'),
         api.get('/hardware')
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
-      setMediosPago(mediosPagoRes.data);
       setBanks(banksRes.data);
       setHardware(hardwareRes.data);
     } catch (error) {
@@ -64,6 +62,16 @@ export const Quotes = () => {
       toast.error('Error al cargar datos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMediosPagoByCompatibility = async (quoteType) => {
+    try {
+      const response = await api.get(`/services?compatibility=${quoteType}`);
+      setMediosPago(response.data);
+    } catch (error) {
+      console.error('Error fetching medios de pago:', error);
+      setMediosPago([]);
     }
   };
 

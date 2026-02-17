@@ -636,9 +636,25 @@ async def create_service(service_data: ServiceCreate, authorization: Optional[st
     return service
 
 @api_router.get("/services", response_model=List[Service])
-async def get_services(authorization: Optional[str] = Header(None)):
+async def get_services(
+    authorization: Optional[str] = Header(None),
+    compatibility: Optional[str] = None
+):
     await get_current_user(authorization)
-    services = await db.services.find({}, {"_id": 0}).to_list(1000)
+    
+    query = {}
+    if compatibility:
+        compatibility_lower = compatibility.lower()
+        if compatibility_lower == 'vpos':
+            query['vpos_enabled'] = True
+        elif compatibility_lower == 'gateway':
+            query['gateway_enabled'] = True
+        elif compatibility_lower == 'mpos':
+            query['mpos_enabled'] = True
+        elif compatibility_lower == 'link':
+            query['link_enabled'] = True
+    
+    services = await db.services.find(query, {"_id": 0}).to_list(1000)
     for srv in services:
         if isinstance(srv['created_at'], str):
             srv['created_at'] = datetime.fromisoformat(srv['created_at'])
