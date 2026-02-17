@@ -541,7 +541,7 @@ export const Banks = () => {
 
                 <div className="border-t pt-4">
                   <p className="text-sm font-medium text-slate-700 mb-2">
-                    Productos: {bank.products?.length || 0}
+                    Medios de Pago: {bank.products?.length || 0}
                   </p>
                   {bank.products && bank.products.length > 0 && (
                     <ul className="space-y-2">
