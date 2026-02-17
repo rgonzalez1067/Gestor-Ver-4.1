@@ -50,10 +50,10 @@ export const Hardware = () => {
 
       if (editingHardware) {
         await api.put(`/hardware/${editingHardware.hardware_id}`, payload);
-        toast.success('Hardware actualizado exitosamente');
+        toast.success('Dispositivo actualizado exitosamente');
       } else {
         await api.post('/hardware', payload);
-        toast.success('Hardware creado exitosamente');
+        toast.success('Dispositivo creado exitosamente');
       }
       setDialogOpen(false);
       resetForm();
