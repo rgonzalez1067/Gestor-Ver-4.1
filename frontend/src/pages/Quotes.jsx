@@ -31,9 +31,14 @@ const SETUP_CONCEPTS = [
 ];
 
 // Conceptos de Costos Recurrentes (Mantenimiento) - Solo aparecen en recurrentes
+// Los conceptos base (Suscripción MP y Hospedaje) van al final del listado
 const RECURRING_CONCEPTS = [
-  { name: 'Suscripción Medio de Pago / Banco en MServer por PDV', isDefault: true, type: 'recurring' },
-  { name: 'Hospedaje MServer', isDefault: true, type: 'recurring' }
+  // Conceptos adicionales primero (vinculados a Setup)
+  { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring', linkedToSetup: true },
+  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring', linkedToSetup: true },
+  // Conceptos base al final (cierre del detalle)
+  { name: 'Suscripción Medio de Pago / Banco en MServer por PDV', isDefault: true, type: 'recurring', isClosing: true },
+  { name: 'Hospedaje MServer', isDefault: true, type: 'recurring', isClosing: true }
 ];
 
 export const Quotes = () => {
