@@ -370,7 +370,7 @@ export const Quotes = () => {
       const payload = {
         client_id: quoteData.client_id,
         quote_type: quoteData.quote_type,
-        services: serviceItems,
+        services: allItems,
         hardware: [],
         notes: quoteData.notes
       };
