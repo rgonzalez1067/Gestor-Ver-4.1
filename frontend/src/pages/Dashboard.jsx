@@ -83,7 +83,7 @@ export const Dashboard = () => {
       color: 'bg-rose-100 text-rose-700'
     },
     {
-      title: 'Hardware',
+      title: 'Dispositivos',
       value: stats.totalHardware,
       icon: Package,
       color: 'bg-orange-100 text-orange-700'
