@@ -559,9 +559,16 @@ export const Quotes = () => {
                     <Select 
                       value={quoteData.pricing_model} 
                       onValueChange={(value) => {
-                        // Al seleccionar modelo, inicializar con conceptos base
-                        const defaultItems = initializeDefaultConcepts(value, quoteData.cantidad_cajas, quoteData.cantidad_bancos);
-                        setQuoteData({ ...quoteData, pricing_model: value, medios_pago_items: defaultItems });
+                        // Al seleccionar modelo, inicializar con conceptos de Setup y Recurrente
+                        const setupItems = initializeSetupConcepts(value, quoteData.cantidad_cajas, quoteData.cantidad_bancos);
+                        const recurringItems = initializeRecurringConcepts(value, quoteData.cantidad_cajas, quoteData.cantidad_bancos);
+                        setQuoteData({ 
+                          ...quoteData, 
+                          pricing_model: value, 
+                          setup_items: setupItems,
+                          recurring_items: recurringItems,
+                          additional_items: []
+                        });
                       }}
                     >
                       <SelectTrigger data-testid="select-pricing-model">
