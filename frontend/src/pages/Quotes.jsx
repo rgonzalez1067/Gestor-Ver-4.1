@@ -614,18 +614,21 @@ export const Quotes = () => {
                     <Select 
                       value={quoteData.pricing_model} 
                       onValueChange={(value) => {
-                        // Al seleccionar modelo, inicializar con conceptos de Setup y Recurrente
+                        // Al seleccionar modelo, inicializar todos los conceptos
                         const cajas = quoteData.cantidad_cajas || 1;
                         const bancos = quoteData.cantidad_bancos || 1;
                         const setupItems = initializeSetupConcepts(value, cajas, bancos);
-                        const recurringItems = initializeRecurringConcepts(value, cajas, bancos);
+                        const recurringBasicItems = initializeRecurringBasicConcepts(value, cajas, bancos);
+                        const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos);
                         setQuoteData({ 
                           ...quoteData, 
                           pricing_model: value, 
                           cantidad_cajas: cajas,
                           cantidad_bancos: bancos,
                           setup_items: setupItems,
-                          recurring_items: recurringItems,
+                          recurring_basic_items: recurringBasicItems,
+                          recurring_other_items: recurringOtherItems,
+                          recurring_complement_items: [],
                           additional_items: []
                         });
                       }}
