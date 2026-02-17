@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, ChevronRight, ChevronLeft, Monitor, Globe, Smartphone, Link } from 'lucide-react';
+import { Plus, FileText, Download, ChevronRight, ChevronLeft, Monitor, Globe, Smartphone, Link, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -17,12 +17,11 @@ const QUOTE_TYPES = [
   { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de pago para cobros rápidos' }
 ];
 
-const WIZARD_STEPS = ['Tipo', 'Cliente', 'Servicios', 'Hardware', 'Revisión'];
-
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
-  const [services, setServices] = useState([]);
+  const [mediosPago, setMediosPago] = useState([]);
+  const [banks, setBanks] = useState([]);
   const [hardware, setHardware] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -30,13 +29,16 @@ export const Quotes = () => {
   const [quoteData, setQuoteData] = useState({
     quote_type: '',
     client_id: '',
-    services: [],
+    cantidad_cajas: 1,
+    medios_pago_items: [],
     hardware: [],
     notes: ''
   });
-  const [selectedItems, setSelectedItems] = useState({
-    services: {},
-    hardware: {}
+  const [selectedHardware, setSelectedHardware] = useState({});
+  const [newMedioPago, setNewMedioPago] = useState({
+    medio_pago_id: '',
+    bank_id: '',
+    cantidad: 1
   });
 
   useEffect(() => {
@@ -45,15 +47,17 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, servicesRes, hardwareRes] = await Promise.all([
+      const [quotesRes, clientsRes, mediosPagoRes, banksRes, hardwareRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
         api.get('/services'),
+        api.get('/banks'),
         api.get('/hardware')
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
-      setServices(servicesRes.data);
+      setMediosPago(mediosPagoRes.data);
+      setBanks(banksRes.data);
       setHardware(hardwareRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -63,29 +67,53 @@ export const Quotes = () => {
     }
   };
 
+  const getWizardSteps = () => {
+    if (quoteData.quote_type === 'VPOS') {
+      return ['Tipo', 'Cantidad Cajas', 'Cliente', 'Medios de Pago', 'Revisión'];
+    }
+    return ['Tipo', 'Cliente', 'Medios de Pago', 'Hardware', 'Revisión'];
+  };
+
   const openWizard = () => {
     setWizardOpen(true);
     setCurrentStep(0);
     setQuoteData({
       quote_type: '',
       client_id: '',
-      services: [],
+      cantidad_cajas: 1,
+      medios_pago_items: [],
       hardware: [],
       notes: ''
     });
-    setSelectedItems({ services: {}, hardware: {} });
+    setSelectedHardware({});
+    setNewMedioPago({ medio_pago_id: '', bank_id: '', cantidad: 1 });
   };
 
   const nextStep = () => {
+    const steps = getWizardSteps();
+    
     if (currentStep === 0 && !quoteData.quote_type) {
       toast.error('Seleccione un tipo de cotización');
       return;
     }
-    if (currentStep === 1 && !quoteData.client_id) {
-      toast.error('Seleccione un cliente');
-      return;
+    
+    if (quoteData.quote_type === 'VPOS') {
+      if (currentStep === 1 && quoteData.cantidad_cajas < 1) {
+        toast.error('Ingrese la cantidad de cajas');
+        return;
+      }
+      if (currentStep === 2 && !quoteData.client_id) {
+        toast.error('Seleccione un cliente');
+        return;
+      }
+    } else {
+      if (currentStep === 1 && !quoteData.client_id) {
+        toast.error('Seleccione un cliente');
+        return;
+      }
     }
-    if (currentStep < WIZARD_STEPS.length - 1) {
+    
+    if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -96,60 +124,77 @@ export const Quotes = () => {
     }
   };
 
-  const toggleService = (service) => {
-    const key = service.service_id;
-    if (selectedItems.services[key]) {
-      const { [key]: removed, ...rest } = selectedItems.services;
-      setSelectedItems({ ...selectedItems, services: rest });
-    } else {
-      setSelectedItems({
-        ...selectedItems,
-        services: {
-          ...selectedItems.services,
-          [key]: { ...service, quantity: 1 }
-        }
-      });
+  const addMedioPagoItem = () => {
+    if (!newMedioPago.medio_pago_id || !newMedioPago.bank_id) {
+      toast.error('Seleccione un medio de pago y un banco');
+      return;
     }
+    
+    const medioPago = mediosPago.find(m => m.service_id === newMedioPago.medio_pago_id);
+    const bank = banks.find(b => b.bank_id === newMedioPago.bank_id);
+    
+    setQuoteData({
+      ...quoteData,
+      medios_pago_items: [
+        ...quoteData.medios_pago_items,
+        {
+          ...newMedioPago,
+          medio_pago_name: medioPago?.name,
+          bank_name: bank?.name,
+          precio: (medioPago?.setup_cost_conventional || 0) + (medioPago?.monthly_cost_conventional || 0)
+        }
+      ]
+    });
+    
+    setNewMedioPago({
+      medio_pago_id: '',
+      bank_id: '',
+      cantidad: quoteData.cantidad_cajas
+    });
+  };
+
+  const removeMedioPagoItem = (index) => {
+    setQuoteData({
+      ...quoteData,
+      medios_pago_items: quoteData.medios_pago_items.filter((_, i) => i !== index)
+    });
   };
 
   const toggleHardware = (hw) => {
     const key = hw.hardware_id;
-    if (selectedItems.hardware[key]) {
-      const { [key]: removed, ...rest } = selectedItems.hardware;
-      setSelectedItems({ ...selectedItems, hardware: rest });
+    if (selectedHardware[key]) {
+      const { [key]: removed, ...rest } = selectedHardware;
+      setSelectedHardware(rest);
     } else {
-      setSelectedItems({
-        ...selectedItems,
-        hardware: {
-          ...selectedItems.hardware,
-          [key]: { ...hw, quantity: 1 }
-        }
+      setSelectedHardware({
+        ...selectedHardware,
+        [key]: { ...hw, quantity: 1 }
       });
     }
   };
 
-  const updateQuantity = (type, id, quantity) => {
-    setSelectedItems({
-      ...selectedItems,
-      [type]: {
-        ...selectedItems[type],
-        [id]: { ...selectedItems[type][id], quantity: parseInt(quantity) || 1 }
-      }
+  const updateHardwareQuantity = (id, quantity) => {
+    setSelectedHardware({
+      ...selectedHardware,
+      [id]: { ...selectedHardware[id], quantity: parseInt(quantity) || 1 }
     });
   };
 
   const handleSubmitQuote = async () => {
     try {
-      const serviceItems = Object.values(selectedItems.services).map((s) => ({
-        item_type: 'service',
-        item_id: s.service_id,
-        item_name: s.name,
-        quantity: s.quantity,
-        unit_price_usd: (s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0),
-        total_usd: ((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity
-      }));
+      const serviceItems = quoteData.medios_pago_items.map((item) => {
+        const medioPago = mediosPago.find(m => m.service_id === item.medio_pago_id);
+        return {
+          item_type: 'service',
+          item_id: item.medio_pago_id,
+          item_name: `${item.medio_pago_name} - ${item.bank_name}`,
+          quantity: item.cantidad,
+          unit_price_usd: (medioPago?.setup_cost_conventional || 0) + (medioPago?.monthly_cost_conventional || 0),
+          total_usd: ((medioPago?.setup_cost_conventional || 0) + (medioPago?.monthly_cost_conventional || 0)) * item.cantidad
+        };
+      });
 
-      const hardwareItems = Object.values(selectedItems.hardware).map((h) => ({
+      const hardwareItems = Object.values(selectedHardware).map((h) => ({
         item_type: 'hardware',
         item_id: h.hardware_id,
         item_name: h.name,
@@ -215,13 +260,130 @@ export const Quotes = () => {
   }
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
-  const totalServicesUSD = Object.values(selectedItems.services).reduce(
-    (sum, s) => sum + ((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity, 0
+  const totalMediosPagoUSD = quoteData.medios_pago_items.reduce(
+    (sum, item) => sum + (item.precio || 0) * item.cantidad, 0
   );
-  const totalHardwareUSD = Object.values(selectedItems.hardware).reduce(
+  const totalHardwareUSD = Object.values(selectedHardware).reduce(
     (sum, h) => sum + h.price_usd * h.quantity, 0
   );
-  const grandTotal = totalServicesUSD + totalHardwareUSD;
+  const grandTotal = totalMediosPagoUSD + totalHardwareUSD;
+
+  const WIZARD_STEPS = getWizardSteps();
+
+  const renderVPOSCantidadCajas = () => (
+    <div>
+      <Label className="text-lg font-semibold mb-4 block">¿Cuántas cajas registradoras necesita?</Label>
+      <div className="max-w-xs mt-4">
+        <Input
+          type="number"
+          min="1"
+          value={quoteData.cantidad_cajas}
+          onChange={(e) => {
+            const cantidad = parseInt(e.target.value) || 1;
+            setQuoteData({ ...quoteData, cantidad_cajas: cantidad });
+            setNewMedioPago({ ...newMedioPago, cantidad: cantidad });
+          }}
+          className="text-2xl text-center h-16"
+          data-testid="cantidad-cajas-input"
+        />
+        <p className="text-sm text-slate-500 mt-2 text-center">
+          Esta cantidad se usará por defecto en cada medio de pago
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderMediosPagoVPOS = () => (
+    <div>
+      <Label className="text-lg font-semibold mb-4 block">Configurar Medios de Pago</Label>
+      
+      {quoteData.medios_pago_items.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <p className="text-sm font-medium text-slate-600 mb-2">Medios de pago agregados:</p>
+          {quoteData.medios_pago_items.map((item, index) => (
+            <div key={index} className="flex items-center justify-between p-3 bg-brand-green-50 border border-brand-green-200 rounded-lg">
+              <div>
+                <p className="font-medium text-slate-900">{item.medio_pago_name}</p>
+                <p className="text-sm text-slate-600">{item.bank_name} • {item.cantidad} cajas</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-brand-green-600 font-semibold">
+                  ${((item.precio || 0) * item.cantidad).toFixed(2)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => removeMedioPagoItem(index)}
+                  className="text-red-600"
+                >
+                  <Trash2 size={16} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <div className="bg-slate-50 rounded-lg p-4 border">
+        <p className="text-sm font-medium text-slate-700 mb-3">Agregar medio de pago</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label>Medio de Pago</Label>
+            <Select
+              value={newMedioPago.medio_pago_id}
+              onValueChange={(value) => setNewMedioPago({ ...newMedioPago, medio_pago_id: value })}
+            >
+              <SelectTrigger data-testid="select-medio-pago">
+                <SelectValue placeholder="Seleccione..." />
+              </SelectTrigger>
+              <SelectContent>
+                {mediosPago.map((mp) => (
+                  <SelectItem key={mp.service_id} value={mp.service_id}>
+                    {mp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Banco</Label>
+            <Select
+              value={newMedioPago.bank_id}
+              onValueChange={(value) => setNewMedioPago({ ...newMedioPago, bank_id: value })}
+            >
+              <SelectTrigger data-testid="select-banco">
+                <SelectValue placeholder="Seleccione..." />
+              </SelectTrigger>
+              <SelectContent>
+                {banks.map((bank) => (
+                  <SelectItem key={bank.bank_id} value={bank.bank_id}>
+                    {bank.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Cantidad de Cajas</Label>
+            <Input
+              type="number"
+              min="1"
+              value={newMedioPago.cantidad}
+              onChange={(e) => setNewMedioPago({ ...newMedioPago, cantidad: parseInt(e.target.value) || 1 })}
+            />
+          </div>
+        </div>
+        <Button
+          onClick={addMedioPagoItem}
+          className="mt-4 bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
+          data-testid="add-medio-pago-button"
+        >
+          <Plus size={16} className="mr-2" />
+          Nuevo Medio de Pago
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen bg-white">
@@ -336,10 +498,10 @@ export const Quotes = () => {
               </DialogHeader>
 
               <div className="mb-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   {WIZARD_STEPS.map((step, index) => (
                     <div key={step} className="flex items-center">
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 font-semibold ${
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 font-semibold text-sm ${
                         index === currentStep
                           ? 'border-brand-blue-600 bg-brand-blue-600 text-white'
                           : index < currentStep
@@ -348,13 +510,13 @@ export const Quotes = () => {
                       }`}>
                         {index + 1}
                       </div>
-                      <span className={`ml-2 font-medium ${
+                      <span className={`ml-2 font-medium text-sm ${
                         index === currentStep ? 'text-brand-blue-600' : index < currentStep ? 'text-brand-green-600' : 'text-slate-400'
                       }`}>
                         {step}
                       </span>
                       {index < WIZARD_STEPS.length - 1 && (
-                        <ChevronRight className="mx-4 text-slate-300" size={20} />
+                        <ChevronRight className="mx-2 text-slate-300" size={16} />
                       )}
                     </div>
                   ))}
@@ -397,12 +559,17 @@ export const Quotes = () => {
                   </div>
                 )}
 
-                {/* Step 1: Selección de Cliente */}
-                {currentStep === 1 && (
+                {/* VPOS: Step 1 - Cantidad de Cajas */}
+                {quoteData.quote_type === 'VPOS' && currentStep === 1 && renderVPOSCantidadCajas()}
+
+                {/* VPOS: Step 2 - Cliente / Others: Step 1 - Cliente */}
+                {((quoteData.quote_type === 'VPOS' && currentStep === 2) || 
+                  (quoteData.quote_type !== 'VPOS' && currentStep === 1)) && (
                   <div>
                     <div className="mb-4 p-4 bg-brand-blue-50 rounded-lg">
                       <p className="text-brand-blue-700 font-medium">
-                        Tipo seleccionado: {getQuoteTypeName(quoteData.quote_type)}
+                        Tipo: {getQuoteTypeName(quoteData.quote_type)}
+                        {quoteData.quote_type === 'VPOS' && ` • ${quoteData.cantidad_cajas} cajas`}
                       </p>
                     </div>
                     <Label htmlFor="client" className="text-lg font-semibold">Seleccione el Cliente</Label>
@@ -421,73 +588,20 @@ export const Quotes = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {clients.length === 0 && (
-                      <p className="text-amber-600 mt-4 text-sm">
-                        No hay clientes registrados. Por favor, cree un cliente primero.
-                      </p>
-                    )}
                   </div>
                 )}
 
-                {/* Step 2: Servicios */}
-                {currentStep === 2 && (
-                  <div>
-                    <Label className="text-lg font-semibold mb-4 block">Seleccione los Servicios</Label>
-                    <div className="space-y-3 mt-4 max-h-[350px] overflow-y-auto">
-                      {services.map((service) => {
-                        const isSelected = !!selectedItems.services[service.service_id];
-                        return (
-                          <div
-                            key={service.service_id}
-                            onClick={() => toggleService(service)}
-                            className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                              isSelected
-                                ? 'border-brand-green-600 bg-brand-green-50'
-                                : 'border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-slate-900">{service.name}</p>
-                                <p className="text-sm text-slate-500">{service.description}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-brand-blue-600">
-                                  ${((service.setup_cost_conventional || 0) + (service.monthly_cost_conventional || 0)).toFixed(2)}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  Setup + Mensual
-                                </p>
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <div className="mt-3 pt-3 border-t">
-                                <Label htmlFor={`qty-${service.service_id}`} className="text-xs">Cantidad</Label>
-                                <Input
-                                  id={`qty-${service.service_id}`}
-                                  type="number"
-                                  min="1"
-                                  value={selectedItems.services[service.service_id].quantity}
-                                  onChange={(e) => updateQuantity('services', service.service_id, e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="mt-1 w-24"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* VPOS: Step 3 - Medios de Pago / Others: Step 2 - Medios de Pago */}
+                {((quoteData.quote_type === 'VPOS' && currentStep === 3) || 
+                  (quoteData.quote_type !== 'VPOS' && currentStep === 2)) && renderMediosPagoVPOS()}
 
-                {/* Step 3: Hardware */}
-                {currentStep === 3 && (
+                {/* Others: Step 3 - Hardware (no VPOS) */}
+                {quoteData.quote_type !== 'VPOS' && currentStep === 3 && (
                   <div>
                     <Label className="text-lg font-semibold mb-4 block">Seleccione el Hardware</Label>
                     <div className="space-y-3 mt-4 max-h-[350px] overflow-y-auto">
                       {hardware.map((hw) => {
-                        const isSelected = !!selectedItems.hardware[hw.hardware_id];
+                        const isSelected = !!selectedHardware[hw.hardware_id];
                         return (
                           <div
                             key={hw.hardware_id}
@@ -509,13 +623,12 @@ export const Quotes = () => {
                             </div>
                             {isSelected && (
                               <div className="mt-3 pt-3 border-t">
-                                <Label htmlFor={`qty-hw-${hw.hardware_id}`} className="text-xs">Cantidad</Label>
+                                <Label className="text-xs">Cantidad</Label>
                                 <Input
-                                  id={`qty-hw-${hw.hardware_id}`}
                                   type="number"
                                   min="1"
-                                  value={selectedItems.hardware[hw.hardware_id].quantity}
-                                  onChange={(e) => updateQuantity('hardware', hw.hardware_id, e.target.value)}
+                                  value={selectedHardware[hw.hardware_id].quantity}
+                                  onChange={(e) => updateHardwareQuantity(hw.hardware_id, e.target.value)}
                                   onClick={(e) => e.stopPropagation()}
                                   className="mt-1 w-24"
                                 />
@@ -528,8 +641,9 @@ export const Quotes = () => {
                   </div>
                 )}
 
-                {/* Step 4: Revisión */}
-                {currentStep === 4 && (
+                {/* Revisión Final */}
+                {((quoteData.quote_type === 'VPOS' && currentStep === 4) || 
+                  (quoteData.quote_type !== 'VPOS' && currentStep === 4)) && (
                   <div>
                     <Label className="text-lg font-semibold mb-4 block">Resumen de la Cotización</Label>
                     
@@ -543,29 +657,35 @@ export const Quotes = () => {
                           <p className="text-sm text-slate-500">Cliente</p>
                           <p className="font-medium">{selectedClient?.fantasy_name}</p>
                         </div>
+                        {quoteData.quote_type === 'VPOS' && (
+                          <div>
+                            <p className="text-sm text-slate-500">Cantidad de Cajas</p>
+                            <p className="font-medium">{quoteData.cantidad_cajas}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {Object.keys(selectedItems.services).length > 0 && (
+                    {quoteData.medios_pago_items.length > 0 && (
                       <div className="mb-4">
-                        <h4 className="font-semibold text-brand-blue-600 mb-2">Servicios</h4>
-                        {Object.values(selectedItems.services).map((s) => (
-                          <div key={s.service_id} className="flex justify-between py-2 border-b">
-                            <span>{s.name} x{s.quantity}</span>
-                            <span className="font-mono">${(((s.setup_cost_conventional || 0) + (s.monthly_cost_conventional || 0)) * s.quantity).toFixed(2)}</span>
+                        <h4 className="font-semibold text-brand-blue-600 mb-2">Medios de Pago</h4>
+                        {quoteData.medios_pago_items.map((item, index) => (
+                          <div key={index} className="flex justify-between py-2 border-b">
+                            <span>{item.medio_pago_name} - {item.bank_name} x{item.cantidad}</span>
+                            <span className="font-mono">${((item.precio || 0) * item.cantidad).toFixed(2)}</span>
                           </div>
                         ))}
                         <div className="flex justify-between py-2 font-semibold">
-                          <span>Subtotal Servicios</span>
-                          <span className="text-brand-blue-600">${totalServicesUSD.toFixed(2)}</span>
+                          <span>Subtotal Medios de Pago</span>
+                          <span className="text-brand-blue-600">${totalMediosPagoUSD.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
 
-                    {Object.keys(selectedItems.hardware).length > 0 && (
+                    {Object.keys(selectedHardware).length > 0 && (
                       <div className="mb-4">
                         <h4 className="font-semibold text-brand-green-600 mb-2">Hardware</h4>
-                        {Object.values(selectedItems.hardware).map((h) => (
+                        {Object.values(selectedHardware).map((h) => (
                           <div key={h.hardware_id} className="flex justify-between py-2 border-b">
                             <span>{h.name} x{h.quantity}</span>
                             <span className="font-mono">${(h.price_usd * h.quantity).toFixed(2)}</span>
@@ -621,7 +741,7 @@ export const Quotes = () => {
                     className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     data-testid="submit-quote-button"
                   >
-                    Crear Cotización
+                    Finalizar Cotización
                   </Button>
                 )}
               </div>
