@@ -312,23 +312,19 @@ export const Quotes = () => {
     const tarifa = item.tarifa || item.tarifa_recurrente || 0;
     return tarifa * cajas * bancos;
   };
-    const bancos = item.cantidad_bancos || 1;
-    return item.tarifa_setup * cajas * bancos;
-  };
 
-  const calcularTotalRecurrenteFila = (item) => {
-    const cajas = item.cantidad_cajas || 1;
-    const bancos = item.cantidad_bancos || 1;
-    return item.tarifa_recurrente * cajas * bancos;
-  };
+  // Calcular subtotales SETUP (conceptos base + adicionales con tarifa_setup)
+  const subtotalSetup = [
+    ...quoteData.setup_items.reduce((sum, item) => sum + calcularTotal(item), 0),
+    ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).reduce((sum, item) => sum + (item.tarifa_setup * item.cantidad_cajas * item.cantidad_bancos), 0)
+  ].reduce((a, b) => a + b, 0) || 
+    quoteData.setup_items.reduce((sum, item) => sum + calcularTotal(item), 0) +
+    quoteData.additional_items.reduce((sum, item) => sum + (item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1), 0);
 
-  // Calcular subtotales
-  const subtotalSetup = quoteData.medios_pago_items.reduce(
-    (sum, item) => sum + calcularTotalFila(item), 0
-  );
-  const subtotalRecurrente = quoteData.medios_pago_items.reduce(
-    (sum, item) => sum + calcularTotalRecurrenteFila(item), 0
-  );
+  // Calcular subtotales RECURRENTE (conceptos recurrentes + adicionales con tarifa_recurrente)
+  const subtotalRecurrente = 
+    quoteData.recurring_items.reduce((sum, item) => sum + calcularTotal(item), 0) +
+    quoteData.additional_items.reduce((sum, item) => sum + (item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1), 0);
 
   // Calcular descuento
   const montoDescuentoSetup = subtotalSetup * (quoteData.descuento / 100);
@@ -340,20 +336,36 @@ export const Quotes = () => {
   const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
   const handleSubmitQuote = async () => {
-    if (quoteData.medios_pago_items.length === 0) {
-      toast.error('Agregue al menos un medio de pago');
+    if (quoteData.setup_items.length === 0 && quoteData.recurring_items.length === 0) {
+      toast.error('No hay items en la cotización');
       return;
     }
 
     try {
-      const serviceItems = quoteData.medios_pago_items.map((item) => ({
-        item_type: 'service',
-        item_id: `${item.bank_id}_${item.medio_pago_name}`,
-        item_name: `${item.medio_pago_name} - ${item.bank_name}`,
-        quantity: item.cantidad_cajas * item.cantidad_bancos,
-        unit_price_usd: item.tarifa_setup + item.tarifa_recurrente,
-        total_usd: calcularTotalFila(item) + calcularTotalRecurrenteFila(item)
-      }));
+      const allItems = [
+        ...quoteData.setup_items.map(item => ({
+          item_type: 'setup',
+          item_name: item.medio_pago_name,
+          quantity: item.cantidad_cajas * item.cantidad_bancos,
+          unit_price_usd: item.tarifa,
+          total_usd: calcularTotal(item)
+        })),
+        ...quoteData.recurring_items.map(item => ({
+          item_type: 'recurring',
+          item_name: item.medio_pago_name,
+          quantity: item.cantidad_cajas * item.cantidad_bancos,
+          unit_price_usd: item.tarifa,
+          total_usd: calcularTotal(item)
+        })),
+        ...quoteData.additional_items.map(item => ({
+          item_type: 'additional',
+          item_name: `${item.medio_pago_name} - ${item.bank_name}`,
+          quantity: item.cantidad_cajas * item.cantidad_bancos,
+          unit_price_usd: (item.tarifa_setup || 0) + (item.tarifa_recurrente || 0),
+          total_usd: (item.tarifa_setup || 0) * item.cantidad_cajas * item.cantidad_bancos + 
+                     (item.tarifa_recurrente || 0) * item.cantidad_cajas * item.cantidad_bancos
+        }))
+      ];
 
       const payload = {
         client_id: quoteData.client_id,
