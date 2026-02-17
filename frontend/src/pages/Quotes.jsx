@@ -21,6 +21,7 @@ export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
   const [banks, setBanks] = useState([]);
+  const [serviceCatalog, setServiceCatalog] = useState([]); // Catálogo de precios
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   
@@ -29,7 +30,9 @@ export const Quotes = () => {
     quote_type: '',
     client_id: '',
     cantidad_cajas: 1,
+    cantidad_bancos: 1,
     medios_pago_items: [],
+    descuento: 0,
     notes: ''
   });
   
@@ -44,20 +47,41 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, servicesRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
-        api.get('/banks')
+        api.get('/banks'),
+        api.get('/services') // Cargar catálogo de precios
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
       setBanks(banksRes.data);
+      setServiceCatalog(servicesRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Error al cargar datos');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Buscar precio en el catálogo de servicios
+  const findServicePrice = (productName) => {
+    // Buscar coincidencia exacta o parcial en el catálogo
+    const service = serviceCatalog.find(s => 
+      s.name.toLowerCase() === productName.toLowerCase() ||
+      s.name.toLowerCase().includes(productName.toLowerCase()) ||
+      productName.toLowerCase().includes(s.name.toLowerCase())
+    );
+    
+    if (service) {
+      return {
+        setup_cost: service.setup_cost_conventional || 0,
+        monthly_cost: service.monthly_cost_conventional || 0,
+        application_type: service.application_type || 'both'
+      };
+    }
+    return { setup_cost: 0, monthly_cost: 0, application_type: 'both' };
   };
 
   // Obtener los medios de pago asociados al banco seleccionado
@@ -67,7 +91,6 @@ export const Quotes = () => {
     
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank && bank.products) {
-      // Filtrar productos del banco según el tipo de cotización
       const compatibilityField = getCompatibilityField(quoteData.quote_type);
       const filteredProducts = bank.products.filter(p => p[compatibilityField] !== false);
       setAvailableMediosPago(filteredProducts);
@@ -76,7 +99,6 @@ export const Quotes = () => {
     }
   };
 
-  // Mapear tipo de cotización a campo de compatibilidad
   const getCompatibilityField = (quoteType) => {
     switch (quoteType) {
       case 'VPOS': return 'vpos_available';
@@ -93,7 +115,9 @@ export const Quotes = () => {
       quote_type: '',
       client_id: '',
       cantidad_cajas: 1,
+      cantidad_bancos: 1,
       medios_pago_items: [],
+      descuento: 0,
       notes: ''
     });
     setSelectedBankId('');
@@ -122,15 +146,19 @@ export const Quotes = () => {
       return;
     }
 
+    // Buscar precios en el catálogo
+    const prices = findServicePrice(medioPago.product_name);
+
     const newItem = {
       bank_id: selectedBankId,
       bank_name: bank.name,
       medio_pago_name: medioPago.product_name,
       description: medioPago.description || '',
-      cantidad: quoteData.cantidad_cajas,
-      // Costos por defecto (se pueden ajustar según la lógica de negocio)
-      setup_cost: 0,
-      monthly_cost: 0
+      cantidad_cajas: quoteData.cantidad_cajas,
+      cantidad_bancos: quoteData.cantidad_bancos,
+      tarifa_setup: prices.setup_cost,
+      tarifa_recurrente: prices.monthly_cost,
+      application_type: prices.application_type
     };
 
     setQuoteData({
@@ -138,7 +166,6 @@ export const Quotes = () => {
       medios_pago_items: [...quoteData.medios_pago_items, newItem]
     });
 
-    // Limpiar selección
     setSelectedBankId('');
     setSelectedMedioPagoId('');
     setAvailableMediosPago([]);
@@ -153,7 +180,7 @@ export const Quotes = () => {
     });
   };
 
-  const updateItemCost = (index, field, value) => {
+  const updateItemField = (index, field, value) => {
     const updatedItems = [...quoteData.medios_pago_items];
     updatedItems[index] = {
       ...updatedItems[index],
@@ -161,6 +188,36 @@ export const Quotes = () => {
     };
     setQuoteData({ ...quoteData, medios_pago_items: updatedItems });
   };
+
+  // Calcular total por fila según el modelo: Tarifa * Cajas * Bancos
+  const calcularTotalFila = (item) => {
+    const cajas = item.cantidad_cajas || 1;
+    const bancos = item.cantidad_bancos || 1;
+    return item.tarifa_setup * cajas * bancos;
+  };
+
+  const calcularTotalRecurrenteFila = (item) => {
+    const cajas = item.cantidad_cajas || 1;
+    const bancos = item.cantidad_bancos || 1;
+    return item.tarifa_recurrente * cajas * bancos;
+  };
+
+  // Calcular subtotales
+  const subtotalSetup = quoteData.medios_pago_items.reduce(
+    (sum, item) => sum + calcularTotalFila(item), 0
+  );
+  const subtotalRecurrente = quoteData.medios_pago_items.reduce(
+    (sum, item) => sum + calcularTotalRecurrenteFila(item), 0
+  );
+
+  // Calcular descuento
+  const montoDescuentoSetup = subtotalSetup * (quoteData.descuento / 100);
+  const montoDescuentoRecurrente = subtotalRecurrente * (quoteData.descuento / 100);
+
+  // Totales netos
+  const totalNetoSetup = subtotalSetup - montoDescuentoSetup;
+  const totalNetoRecurrente = subtotalRecurrente - montoDescuentoRecurrente;
+  const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
   const handleSubmitQuote = async () => {
     if (quoteData.medios_pago_items.length === 0) {
@@ -173,9 +230,9 @@ export const Quotes = () => {
         item_type: 'service',
         item_id: `${item.bank_id}_${item.medio_pago_name}`,
         item_name: `${item.medio_pago_name} - ${item.bank_name}`,
-        quantity: item.cantidad,
-        unit_price_usd: item.setup_cost + item.monthly_cost,
-        total_usd: (item.setup_cost + item.monthly_cost) * item.cantidad
+        quantity: item.cantidad_cajas * item.cantidad_bancos,
+        unit_price_usd: item.tarifa_setup + item.tarifa_recurrente,
+        total_usd: calcularTotalFila(item) + calcularTotalRecurrenteFila(item)
       }));
 
       const payload = {
@@ -218,17 +275,6 @@ export const Quotes = () => {
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
-  
-  // Calcular totales
-  const totalSetup = quoteData.medios_pago_items.reduce(
-    (sum, item) => sum + (item.setup_cost * item.cantidad), 0
-  );
-  const totalRecurrente = quoteData.medios_pago_items.reduce(
-    (sum, item) => sum + (item.monthly_cost * item.cantidad), 0
-  );
-  const grandTotal = totalSetup + totalRecurrente;
-
-  // Validar si el formulario de cabecera está completo
   const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.cantidad_cajas >= 1;
 
   if (loading) {
@@ -253,17 +299,11 @@ export const Quotes = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
-                Cotizaciones
-              </h1>
+              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizaciones</h1>
               <p className="text-slate-600">Genere cotizaciones profesionales para sus clientes</p>
             </div>
             
-            <Button
-              onClick={openWizard}
-              data-testid="create-quote-button"
-              className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-            >
+            <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
               <Plus size={20} className="mr-2" />
               Nueva Cotización
             </Button>
@@ -274,20 +314,20 @@ export const Quotes = () => {
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">Número</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">Tipo</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">Cliente</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase tracking-wider">Total USD</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase tracking-wider">Total Bs</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">Acciones</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
+                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
+                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total Bs</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
+                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {quotes.map((quote) => {
                   const client = clients.find(c => c.client_id === quote.client_id);
                   return (
-                    <tr key={quote.quote_id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={quote.quote_id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
                       <td className="px-6 py-4 text-sm">
                         <span className="px-2 py-1 text-xs font-medium bg-brand-blue-50 text-brand-blue-600 rounded">
@@ -301,8 +341,7 @@ export const Quotes = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center">
                           <Button size="sm" variant="outline" onClick={() => downloadPDF(quote.quote_id)} className="text-brand-blue-600">
-                            <Download size={16} className="mr-1" />
-                            PDF
+                            <Download size={16} className="mr-1" />PDF
                           </Button>
                         </div>
                       </td>
@@ -321,7 +360,7 @@ export const Quotes = () => {
 
           {/* Dialog de Nueva Cotización */}
           <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-            <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-manrope text-2xl">Nueva Cotización</DialogTitle>
               </DialogHeader>
@@ -333,8 +372,7 @@ export const Quotes = () => {
                   Parámetros de la Cotización
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Tipo de Cotización */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Tipo de Cotización <span className="text-red-500">*</span>
@@ -353,23 +391,17 @@ export const Quotes = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {QUOTE_TYPES.map((type) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.name}
-                          </SelectItem>
+                          <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Cliente */}
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Cliente <span className="text-red-500">*</span>
                     </Label>
-                    <Select
-                      value={quoteData.client_id}
-                      onValueChange={(value) => setQuoteData({ ...quoteData, client_id: value })}
-                    >
+                    <Select value={quoteData.client_id} onValueChange={(value) => setQuoteData({ ...quoteData, client_id: value })}>
                       <SelectTrigger data-testid="select-client">
                         <SelectValue placeholder="Buscar cliente..." />
                       </SelectTrigger>
@@ -383,10 +415,9 @@ export const Quotes = () => {
                     </Select>
                   </div>
 
-                  {/* Cantidad de Cajas */}
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                      Cantidad de Cajas <span className="text-red-500">*</span>
+                      Cajas (VTID) <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       type="number"
@@ -397,14 +428,27 @@ export const Quotes = () => {
                       className="h-10"
                     />
                   </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                      Bancos/Entes
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={quoteData.cantidad_bancos}
+                      onChange={(e) => setQuoteData({ ...quoteData, cantidad_bancos: parseInt(e.target.value) || 1 })}
+                      data-testid="cantidad-bancos-input"
+                      className="h-10"
+                    />
+                  </div>
                 </div>
 
-                {/* Indicador de estado */}
                 {isHeaderComplete && (
                   <div className="mt-4 p-3 bg-brand-green-50 border border-brand-green-200 rounded-lg flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-brand-green-600" />
                     <span className="text-sm text-brand-green-700 font-medium">
-                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name} • {quoteData.cantidad_cajas} cajas
+                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name} • {quoteData.cantidad_cajas} cajas • {quoteData.cantidad_bancos} bancos
                     </span>
                   </div>
                 )}
@@ -419,12 +463,7 @@ export const Quotes = () => {
                   </h3>
                   
                   <div className="bg-slate-50 rounded-lg p-4 border mb-4">
-                    <p className="text-sm text-slate-600 mb-3">
-                      Paso A: Seleccione primero el <strong>Banco</strong>, luego el <strong>Medio de Pago</strong> disponible.
-                    </p>
-                    
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                      {/* Selector de Banco */}
                       <div>
                         <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                           <Building2 size={16} className="text-brand-blue-600" />
@@ -437,14 +476,13 @@ export const Quotes = () => {
                           <SelectContent>
                             {banks.map((bank) => (
                               <SelectItem key={bank.bank_id} value={bank.bank_id}>
-                                {bank.name} ({bank.country})
+                                {bank.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Selector de Medio de Pago (filtrado por banco) */}
                       <div>
                         <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                           <CreditCard size={16} className="text-brand-green-600" />
@@ -456,13 +494,7 @@ export const Quotes = () => {
                           disabled={!selectedBankId || availableMediosPago.length === 0}
                         >
                           <SelectTrigger data-testid="select-medio-pago">
-                            <SelectValue placeholder={
-                              !selectedBankId 
-                                ? "Primero seleccione un banco" 
-                                : availableMediosPago.length === 0 
-                                  ? "No hay medios disponibles" 
-                                  : "Seleccione medio..."
-                            } />
+                            <SelectValue placeholder={!selectedBankId ? "Primero seleccione banco" : "Seleccione medio..."} />
                           </SelectTrigger>
                           <SelectContent>
                             {availableMediosPago.map((mp) => (
@@ -474,7 +506,6 @@ export const Quotes = () => {
                         </Select>
                       </div>
 
-                      {/* Botón Agregar */}
                       <Button
                         onClick={addMedioPagoItem}
                         disabled={!selectedBankId || !selectedMedioPagoId}
@@ -485,78 +516,72 @@ export const Quotes = () => {
                         Agregar
                       </Button>
                     </div>
-
-                    {selectedBankId && availableMediosPago.length === 0 && (
-                      <p className="text-sm text-amber-600 mt-3">
-                        Este banco no tiene medios de pago configurados para {getQuoteTypeName(quoteData.quote_type)}.
-                      </p>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* SECCIÓN 3: Matriz de Resumen */}
+              {/* SECCIÓN 3: Matriz de Resumen - Set Up */}
               {isHeaderComplete && quoteData.medios_pago_items.length > 0 && (
-                <div className="bg-white rounded-lg p-5 border mt-4">
-                  <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-brand-green-600 text-white flex items-center justify-center text-sm">3</span>
-                    Matriz de Resumen
-                  </h3>
+                <div className="bg-white rounded-lg border mt-4 overflow-hidden">
+                  {/* Encabezado Set Up */}
+                  <div className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-center py-2 font-semibold">
+                    Set Up - Puesta en Marcha
+                  </div>
                   
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse text-sm">
                       <thead>
                         <tr className="bg-slate-100">
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border">Banco</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-slate-700 border">Medio de Pago</th>
-                          <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700 border">Cant. Cajas</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-brand-blue-600 border">Costo Setup ($)</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-brand-green-600 border">Costo Recurrente ($)</th>
-                          <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700 border">Acciones</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Set-up<br/>(USD/VTID/Banco)</th>
+                          <th className="px-3 py-2 text-center font-semibold text-brand-blue-600 border border-slate-300 w-32 bg-blue-50">Total Set-Up USD</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">Acc.</th>
                         </tr>
                       </thead>
                       <tbody>
                         {quoteData.medios_pago_items.map((item, index) => (
-                          <tr key={index} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 text-sm text-slate-900 border font-medium">{item.bank_name}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700 border">
-                              <div>
-                                <p className="font-medium">{item.medio_pago_name}</p>
-                                {item.description && (
-                                  <p className="text-xs text-slate-500">{item.description}</p>
-                                )}
-                              </div>
+                          <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
+                            <td className="px-3 py-2 border border-slate-300">
+                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
+                              <div className="text-xs text-slate-500">{item.bank_name}</div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-center border">
-                              <span className="font-mono font-semibold">{item.cantidad}</span>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_cajas}
+                                onChange={(e) => updateItemField(index, 'cantidad_cajas', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
                             </td>
-                            <td className="px-4 py-3 border">
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.cantidad_bancos}
+                                onChange={(e) => updateItemField(index, 'cantidad_bancos', e.target.value)}
+                                className="w-16 h-7 text-center text-sm mx-auto"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={item.setup_cost}
-                                onChange={(e) => updateItemCost(index, 'setup_cost', e.target.value)}
-                                className="w-24 h-8 text-right font-mono text-sm"
+                                value={item.tarifa_setup}
+                                onChange={(e) => updateItemField(index, 'tarifa_setup', e.target.value)}
+                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
-                            <td className="px-4 py-3 border">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.monthly_cost}
-                                onChange={(e) => updateItemCost(index, 'monthly_cost', e.target.value)}
-                                className="w-24 h-8 text-right font-mono text-sm"
-                              />
+                            <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
+                              ${calcularTotalFila(item).toFixed(2)}
                             </td>
-                            <td className="px-4 py-3 text-center border">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => removeMedioPagoItem(index)}
-                                className="text-red-600 hover:text-red-700 hover:border-red-300"
-                              >
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Button size="sm" variant="outline" onClick={() => removeMedioPagoItem(index)} className="text-red-600 h-7 w-7 p-0">
                                 <Trash2 size={14} />
                               </Button>
                             </td>
@@ -564,23 +589,109 @@ export const Quotes = () => {
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="bg-slate-100 font-semibold">
-                          <td colSpan={3} className="px-4 py-3 text-right text-sm text-slate-700 border">TOTALES:</td>
-                          <td className="px-4 py-3 text-right text-sm text-brand-blue-600 border font-mono">${totalSetup.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-sm text-brand-green-600 border font-mono">${totalRecurrente.toFixed(2)}</td>
-                          <td className="border"></td>
+                        <tr className="bg-slate-100">
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-blue-600 border border-slate-300 bg-blue-50">${subtotalSetup.toFixed(2)}</td>
+                          <td className="border border-slate-300"></td>
                         </tr>
-                        <tr className="bg-slate-900 text-white">
-                          <td colSpan={3} className="px-4 py-3 text-right text-sm font-bold border border-slate-900">TOTAL GENERAL:</td>
-                          <td colSpan={2} className="px-4 py-3 text-right text-lg font-bold border border-slate-900 font-mono">${grandTotal.toFixed(2)} USD</td>
-                          <td className="border border-slate-900"></td>
+                        <tr className="bg-amber-50">
+                          <td colSpan={4} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento:</td>
+                          <td className="px-3 py-2 text-center border border-slate-300">
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={quoteData.descuento}
+                                onChange={(e) => setQuoteData({ ...quoteData, descuento: parseFloat(e.target.value) || 0 })}
+                                className="w-16 h-7 text-right text-sm font-mono"
+                              />
+                              <span className="text-sm">%</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoSetup.toFixed(2)}</td>
+                          <td className="border border-slate-300"></td>
+                        </tr>
+                        <tr className="bg-green-100">
+                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Costos de Arranque (VTID) Neto:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg">${totalNetoSetup.toFixed(2)}</td>
+                          <td className="border border-slate-300"></td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
 
-                  {/* Notas */}
-                  <div className="mt-4">
+                  {/* Encabezado Costos Recurrentes */}
+                  <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-center py-2 font-semibold mt-4">
+                    Costos Recurrentes - Mensuales
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-100">
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">(VTID)<br/>Cajas</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD/VTID/Banco)</th>
+                          <th className="px-3 py-2 text-center font-semibold text-brand-green-600 border border-slate-300 w-32 bg-green-50">Total Mensual USD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {quoteData.medios_pago_items.map((item, index) => (
+                          <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                            <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
+                            <td className="px-3 py-2 border border-slate-300">
+                              <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
+                              <div className="text-xs text-slate-500">{item.bank_name}</div>
+                            </td>
+                            <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_cajas}</td>
+                            <td className="px-3 py-2 text-center border border-slate-300 font-mono">{item.cantidad_bancos}</td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.tarifa_recurrente}
+                                onChange={(e) => updateItemField(index, 'tarifa_recurrente', e.target.value)}
+                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
+                              ${calcularTotalRecurrenteFila(item).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-100">
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Mensual:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300 bg-green-50">${subtotalRecurrente.toFixed(2)}</td>
+                        </tr>
+                        <tr className="bg-amber-50">
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento ({quoteData.descuento}%):</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoRecurrente.toFixed(2)}</td>
+                        </tr>
+                        <tr className="bg-green-100">
+                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Costos Recurrentes Neto:</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg">${totalNetoRecurrente.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Resumen General */}
+                  <div className="bg-slate-900 text-white p-4 mt-4 rounded-b-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold">TOTAL GENERAL (Setup + Recurrente)</span>
+                      <span className="text-2xl font-bold font-mono">${grandTotal.toFixed(2)} USD</span>
+                    </div>
+                  </div>
+
+                  {/* Notas y Botón Finalizar */}
+                  <div className="p-4">
                     <Label htmlFor="notes" className="text-sm font-medium text-slate-700">Notas adicionales</Label>
                     <Textarea
                       id="notes"
@@ -590,18 +701,17 @@ export const Quotes = () => {
                       rows={2}
                       className="mt-2"
                     />
-                  </div>
 
-                  {/* Botón Finalizar */}
-                  <div className="mt-6 flex justify-end">
-                    <Button
-                      onClick={handleSubmitQuote}
-                      className="bg-brand-green-600 hover:bg-brand-green-700 text-white px-8 py-3 text-lg"
-                      data-testid="submit-quote-button"
-                    >
-                      <CheckCircle2 size={20} className="mr-2" />
-                      Finalizar Cotización
-                    </Button>
+                    <div className="mt-4 flex justify-end">
+                      <Button
+                        onClick={handleSubmitQuote}
+                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white px-8 py-3 text-lg"
+                        data-testid="submit-quote-button"
+                      >
+                        <CheckCircle2 size={20} className="mr-2" />
+                        Finalizar Cotización
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
