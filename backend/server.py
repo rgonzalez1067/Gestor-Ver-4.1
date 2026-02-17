@@ -369,6 +369,91 @@ async def delete_bank(bank_id: str, authorization: Optional[str] = Header(None))
         raise HTTPException(status_code=404, detail="Bank not found")
     return {"message": "Bank deleted successfully"}
 
+@api_router.post("/banks/import")
+async def import_banks(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    
+    content = await file.read()
+    imported_count = 0
+    
+    try:
+        if file.filename.endswith('.csv'):
+            decoded = content.decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded))
+            
+            for row in reader:
+                bank = Bank(
+                    name=row.get('Nombre', row.get('nombre', row.get('name', ''))).strip(),
+                    type=row.get('Tipo', row.get('tipo', row.get('type', 'Banco'))).strip(),
+                    country=row.get('País', row.get('pais', row.get('country', 'Venezuela'))).strip(),
+                    products=[]
+                )
+                if bank.name:
+                    doc = bank.model_dump()
+                    doc['created_at'] = doc['created_at'].isoformat()
+                    await db.banks.insert_one(doc)
+                    imported_count += 1
+        else:
+            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
+    
+    return {"message": f"{imported_count} bancos importados exitosamente"}
+
+@api_router.get("/banks/export/pdf")
+async def export_banks_pdf(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    banks = await db.banks.find({}, {"_id": 0}).to_list(1000)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title = Paragraph("Bancos y Entidades - Cotizador Merchant Server", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 20))
+    
+    data = [['Banco', 'Tipo', 'País', 'Productos']]
+    for b in banks:
+        products_str = ', '.join([p['product_name'] for p in b.get('products', [])][:3])
+        if len(b.get('products', [])) > 3:
+            products_str += f" (+{len(b['products']) - 3} más)"
+        data.append([
+            b['name'][:30],
+            b['type'],
+            b['country'],
+            products_str[:40] if products_str else 'Sin productos'
+        ])
+    
+    table = Table(data, colWidths=[2*inch, 1*inch, 1.2*inch, 2.5*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1B7D4E')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=bancos.pdf"}
+    )
+
 # ==================== COMPONENT TYPES ENDPOINTS ====================
 
 @api_router.post("/component-types", response_model=ComponentType)
