@@ -72,7 +72,7 @@ export const Banks = () => {
       }
       setDialogOpen(false);
       resetForm();
-      fetchBanks();
+      fetchData();
     } catch (error) {
       console.error('Error saving bank:', error);
       toast.error('Error al guardar banco');
@@ -85,10 +85,26 @@ export const Banks = () => {
     try {
       await api.delete(`/banks/${bankId}`);
       toast.success('Banco eliminado exitosamente');
-      fetchBanks();
+      fetchData();
     } catch (error) {
       console.error('Error deleting bank:', error);
       toast.error('Error al eliminar banco');
+    }
+  };
+
+  const handleMedioPagoSelect = (serviceId) => {
+    const selectedMedio = mediosPago.find(m => m.service_id === serviceId);
+    if (selectedMedio) {
+      setNewProduct({
+        ...newProduct,
+        service_id: serviceId,
+        product_name: selectedMedio.name,
+        description: selectedMedio.description || '',
+        vpos_available: selectedMedio.vpos_enabled !== false,
+        gateway_available: selectedMedio.gateway_enabled !== false,
+        mpos_available: selectedMedio.mpos_enabled !== false,
+        link_available: selectedMedio.link_enabled !== false
+      });
     }
   };
 
