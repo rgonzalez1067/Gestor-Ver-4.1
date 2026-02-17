@@ -71,9 +71,8 @@ export const Quotes = () => {
     }
   };
 
-  // Buscar precio en el catálogo de servicios
+  // Buscar precio en el catálogo de servicios según modelo seleccionado
   const findServicePrice = (productName) => {
-    // Buscar coincidencia exacta o parcial en el catálogo
     const service = serviceCatalog.find(s => 
       s.name.toLowerCase() === productName.toLowerCase() ||
       s.name.toLowerCase().includes(productName.toLowerCase()) ||
@@ -81,9 +80,15 @@ export const Quotes = () => {
     );
     
     if (service) {
+      // Seleccionar precios según el modelo elegido
+      const isOutsourcing = quoteData.pricing_model === 'outsourcing';
       return {
-        setup_cost: service.setup_cost_conventional || 0,
-        monthly_cost: service.monthly_cost_conventional || 0,
+        setup_cost: isOutsourcing 
+          ? (service.setup_cost_outsourcing || 0) 
+          : (service.setup_cost_conventional || 0),
+        monthly_cost: isOutsourcing 
+          ? (service.monthly_cost_outsourcing || 0) 
+          : (service.monthly_cost_conventional || 0),
         application_type: service.application_type || 'both'
       };
     }
