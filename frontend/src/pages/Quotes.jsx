@@ -360,18 +360,6 @@ export const Quotes = () => {
     setQuoteData({ ...quoteData, recurring_other_items: updatedItems });
   };
 
-  // Actualizar campo en recurring_complement_items
-  const updateRecurringComplementItem = (index, field, value) => {
-    const updatedItems = [...quoteData.recurring_complement_items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
-        ? (value === '' ? '' : parseFloat(value)) 
-        : value
-    };
-    setQuoteData({ ...quoteData, recurring_complement_items: updatedItems });
-  };
-
   // Actualizar campo en additional_items
   const updateAdditionalItem = (index, field, value) => {
     const updatedItems = [...quoteData.additional_items];
