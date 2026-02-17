@@ -237,25 +237,25 @@ export const MediosPago = () => {
               <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button
-                    data-testid="add-service-button"
+                    data-testid="add-medio-pago-button"
                     className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                   >
                     <Plus size={20} className="mr-2" />
-                    Nuevo Servicio
+                    Nuevo Medio de Pago
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-xl">
                   <DialogHeader>
                     <DialogTitle className="font-manrope text-2xl">
-                      {editingService ? 'Editar Servicio' : 'Nuevo Servicio'}
+                      {editingMedioPago ? 'Editar Medio de Pago' : 'Nuevo Medio de Pago'}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <Label htmlFor="name">Nombre del Servicio</Label>
+                      <Label htmlFor="name">Nombre del Medio de Pago</Label>
                       <Input
                         id="name"
-                        data-testid="service-name-input"
+                        data-testid="medio-pago-name-input"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         required
