@@ -591,7 +591,12 @@ export const Quotes = () => {
                       type="number"
                       min="1"
                       value={quoteData.cantidad_cajas}
-                      onChange={(e) => setQuoteData({ ...quoteData, cantidad_cajas: parseInt(e.target.value) || 1 })}
+                      onChange={(e) => setQuoteData({ ...quoteData, cantidad_cajas: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setQuoteData({ ...quoteData, cantidad_cajas: 1 });
+                        }
+                      }}
                       data-testid="cantidad-cajas-input"
                       className="h-10"
                     />
@@ -605,7 +610,12 @@ export const Quotes = () => {
                       type="number"
                       min="1"
                       value={quoteData.cantidad_bancos}
-                      onChange={(e) => setQuoteData({ ...quoteData, cantidad_bancos: parseInt(e.target.value) || 1 })}
+                      onChange={(e) => setQuoteData({ ...quoteData, cantidad_bancos: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setQuoteData({ ...quoteData, cantidad_bancos: 1 });
+                        }
+                      }}
                       data-testid="cantidad-bancos-input"
                       className="h-10"
                     />
