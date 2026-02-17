@@ -153,6 +153,19 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Modelo Convencional (Conv): setup_cost_conventional, monthly_cost_conventional
   - Modelo Outsourcing (Outs): setup_cost_outsourcing, monthly_cost_outsourcing
   - Campo obligatorio antes de agregar medios de pago
+- [x] **Conceptos Base por Defecto (Diciembre 2025):**
+  - 4 conceptos se cargan automáticamente al seleccionar modelo de precios:
+    1. Suscripción PDV/Banco
+    2. Configuración dispositivo (Pinpad o POS)
+    3. Configuración PDV en MServer
+    4. Configuración Medio de Pago / Banco en MServer, por PDV
+  - Marcados con badge "Base" y borde lateral distintivo
+  - Campos Cajas y Bancos editables por fila para ajustes excepcionales
+  - Conceptos base no pueden eliminarse (sin botón de eliminar)
+- [x] **Dashboard Mejorado (Diciembre 2025):**
+  - Agregados indicadores: Medios de Pago, Hardware
+  - 6 tarjetas de estadísticas en total
+  - Validación robusta de datos (Array.isArray)
 
 ## Backlog / Tareas Futuras
 - [ ] Módulo de reportes estadísticos
