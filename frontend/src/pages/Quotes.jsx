@@ -313,17 +313,14 @@ export const Quotes = () => {
   };
 
   // Calcular subtotales SETUP (conceptos base + adicionales con tarifa_setup)
-  const subtotalSetup = [
-    ...quoteData.setup_items.reduce((sum, item) => sum + calcularTotal(item), 0),
-    ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).reduce((sum, item) => sum + (item.tarifa_setup * item.cantidad_cajas * item.cantidad_bancos), 0)
-  ].reduce((a, b) => a + b, 0) || 
-    quoteData.setup_items.reduce((sum, item) => sum + calcularTotal(item), 0) +
-    quoteData.additional_items.reduce((sum, item) => sum + (item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1), 0);
+  const subtotalSetup = 
+    (quoteData.setup_items || []).reduce((sum, item) => sum + calcularTotal(item), 0) +
+    (quoteData.additional_items || []).reduce((sum, item) => sum + ((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
 
   // Calcular subtotales RECURRENTE (conceptos recurrentes + adicionales con tarifa_recurrente)
   const subtotalRecurrente = 
-    quoteData.recurring_items.reduce((sum, item) => sum + calcularTotal(item), 0) +
-    quoteData.additional_items.reduce((sum, item) => sum + (item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1), 0);
+    (quoteData.recurring_items || []).reduce((sum, item) => sum + calcularTotal(item), 0) +
+    (quoteData.additional_items || []).reduce((sum, item) => sum + ((item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
 
   // Calcular descuento
   const montoDescuentoSetup = subtotalSetup * (quoteData.descuento / 100);
