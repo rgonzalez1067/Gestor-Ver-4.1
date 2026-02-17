@@ -16,7 +16,7 @@ const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/clients', icon: Users, label: 'Clientes' },
   { path: '/banks', icon: Building2, label: 'Bancos' },
-  { path: '/hardware', icon: Package, label: 'Hardware' },
+  { path: '/hardware', icon: Package, label: 'Dispositivos y Accesorios' },
   { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
   { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
   { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
