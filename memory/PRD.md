@@ -159,13 +159,17 @@ El usuario solicitó una aplicación de cotizaciones con:
     2. Configuración dispositivo (Pinpad o POS)
     3. Configuración PDV en MServer
     4. Configuración Medio de Pago / Banco en MServer, por PDV
-  - **Recurrentes EXCLUSIVO (2 conceptos)** - NO aparecen en setup:
-    1. Suscripción Medio de Pago / Banco en MServer por PDV
-    2. Hospedaje MServer
+  - **Recurrentes EXCLUSIVO (4 conceptos)** - Vinculados a Setup:
+    1. Comunicación Backend (SSL Público o VPN, APN, etc.)
+    2. Procesamiento (HSM, Server, DC, etc.)
+    3. Suscripción Medio de Pago / Banco en MServer por PDV (cierre)
+    4. Hospedaje MServer (cierre)
   - Campos Cajas y Bancos editables por fila para ajustes excepcionales
   - Items adicionales (de bancos) pueden tener ambos costos
+- [x] **Renombrado Global (Diciembre 2025):**
+  - "Hardware" → "Dispositivos y Accesorios" en toda la plataforma
 - [x] **Dashboard Mejorado (Diciembre 2025):**
-  - Agregados indicadores: Medios de Pago, Hardware
+  - Agregados indicadores: Medios de Pago, Dispositivos
   - 6 tarjetas de estadísticas en total
   - Validación robusta de datos (Array.isArray)
 
