@@ -258,7 +258,6 @@ export const Quotes = () => {
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
-      recurring_complement_items: [],
       additional_items: [],
       descuento: 0,
       notes: ''
