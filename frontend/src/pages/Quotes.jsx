@@ -175,7 +175,7 @@ export const Quotes = () => {
     });
   };
 
-  // BLOQUE 2: Inicializar Otros Recurrentes
+  // Inicializar Otros Recurrentes
   const initializeRecurringOtherConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
     return RECURRING_OTHER_CONCEPTS.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
@@ -191,28 +191,36 @@ export const Quotes = () => {
     });
   };
 
-  // Función para agregar complementos de recurrentes (vinculados a Setup)
-  const addRecurringComplements = () => {
+  // Función para agregar complementos recurrentes de items ADICIONALES (no de conceptos base)
+  // Solo aplica a los medios de pago que el usuario agregó manualmente
+  const addRecurringComplementsFromAdditional = () => {
     const cajas = quoteData.cantidad_cajas || 1;
     const bancos = quoteData.cantidad_bancos || 1;
     
-    const complements = RECURRING_COMPLEMENT_CONCEPTS.map((concept) => {
-      const prices = findServicePriceWithModel(concept.name, quoteData.pricing_model);
+    // Solo crear complementos para los items adicionales (los que el usuario agregó)
+    const newComplements = quoteData.additional_items.map((item) => {
+      const prices = findServicePriceWithModel(`Mantenimiento ${item.medio_pago_name}`, quoteData.pricing_model);
       return {
-        id: `recurring_complement_${concept.name}`,
-        medio_pago_name: concept.name,
-        linkedTo: concept.linkedTo,
+        id: `recurring_from_additional_${item.id}`,
+        medio_pago_name: `Mantenimiento ${item.medio_pago_name}`,
+        linkedTo: item.medio_pago_name,
+        bank_name: item.bank_name,
         cantidad_cajas: cajas,
         cantidad_bancos: bancos,
-        tarifa: prices.monthly_cost,
+        tarifa: prices.monthly_cost || item.tarifa_recurrente || 0,
         isDefault: false,
-        type: 'recurring_complement'
+        isComplement: true,
+        type: 'recurring_basic'
       };
     });
 
+    // Agregar a recurring_basic_items sin duplicar
+    const existingIds = quoteData.recurring_basic_items.map(i => i.id);
+    const uniqueComplements = newComplements.filter(c => !existingIds.includes(c.id));
+
     setQuoteData({
       ...quoteData,
-      recurring_complement_items: complements
+      recurring_basic_items: [...quoteData.recurring_basic_items, ...uniqueComplements]
     });
   };
 
