@@ -565,7 +565,6 @@ export const Quotes = () => {
                         const bancos = quoteData.cantidad_bancos || 1;
                         const setupItems = initializeSetupConcepts(value, cajas, bancos);
                         const recurringItems = initializeRecurringConcepts(value, cajas, bancos);
-                        console.log('Initializing concepts:', { setupItems, recurringItems }); // Debug
                         setQuoteData({ 
                           ...quoteData, 
                           pricing_model: value, 
