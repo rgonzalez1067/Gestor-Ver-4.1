@@ -22,6 +22,14 @@ const PRICING_MODELS = [
   { id: 'outsourcing', name: 'Modelo Outsourcing', description: 'Precios para tercerización' }
 ];
 
+// Conceptos base que aparecen por defecto en cada cotización
+const DEFAULT_CONCEPTS = [
+  { name: 'Suscripción PDV/Banco', isDefault: true },
+  { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true },
+  { name: 'Configuración PDV en MServer', isDefault: true },
+  { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true }
+];
+
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
