@@ -122,11 +122,11 @@ export const MediosPago = () => {
       await api.post('/services/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast.success('Servicios importados exitosamente');
-      fetchServices();
+      toast.success('Medios de pago importados exitosamente');
+      fetchMediosPago();
     } catch (error) {
-      console.error('Error importing services:', error);
-      toast.error('Error al importar servicios. Verifique el formato del archivo.');
+      console.error('Error importing medios de pago:', error);
+      toast.error('Error al importar. Verifique el formato del archivo.');
     }
     
     if (fileInputRef.current) {
@@ -138,7 +138,7 @@ export const MediosPago = () => {
     const headers = ['Nombre', 'Setup Convencional', 'Mensual Convencional', 'Setup Outsourcing', 'Mensual Outsourcing', 'Descripción'];
     const csvContent = [
       headers.join(','),
-      ...services.map(s => [
+      ...mediosPago.map(s => [
         `"${s.name}"`,
         s.setup_cost_conventional || 0,
         s.monthly_cost_conventional || 0,
@@ -151,7 +151,7 @@ export const MediosPago = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'servicios.csv';
+    link.download = 'medios_de_pago.csv';
     link.click();
     toast.success('Archivo CSV descargado');
   };
@@ -162,7 +162,7 @@ export const MediosPago = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'servicios.pdf';
+      link.download = 'medios_de_pago.pdf';
       link.click();
       toast.success('PDF descargado exitosamente');
     } catch (error) {
@@ -178,7 +178,7 @@ export const MediosPago = () => {
         <div className="flex-1 flex items-center justify-center bg-white">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
-            <p className="mt-4 text-slate-900">Cargando servicios...</p>
+            <p className="mt-4 text-slate-900">Cargando medios de pago...</p>
           </div>
         </div>
       </div>
@@ -189,14 +189,14 @@ export const MediosPago = () => {
     <div className="flex min-h-screen bg-white">
       <Sidebar />
       
-      <main className="flex-1 p-8" data-testid="services-page">
+      <main className="flex-1 p-8" data-testid="medios-pago-page">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
-                Servicios
+                Medios de Pago
               </h1>
-              <p className="text-slate-600">Catálogo de servicios y conceptos facturables</p>
+              <p className="text-slate-600">Catálogo de medios de pago y conceptos facturables</p>
             </div>
             
             <div className="flex gap-2">
