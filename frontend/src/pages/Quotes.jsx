@@ -65,9 +65,11 @@ export const Quotes = () => {
     pricing_model: '', // 'conventional' o 'outsourcing'
     cantidad_cajas: 1,
     cantidad_bancos: 1,
-    setup_items: [],       // Items exclusivos de Setup
-    recurring_items: [],   // Items exclusivos de Recurrente
-    additional_items: [],  // Items adicionales (medios de pago de bancos)
+    setup_items: [],              // Items exclusivos de Setup
+    recurring_basic_items: [],    // Bloque 1: Recurrentes Básicos
+    recurring_other_items: [],    // Bloque 2: Otros Recurrentes
+    recurring_complement_items: [], // Complementos vinculados a Setup
+    additional_items: [],         // Items adicionales (medios de pago de bancos)
     descuento: 0,
     notes: ''
   });
