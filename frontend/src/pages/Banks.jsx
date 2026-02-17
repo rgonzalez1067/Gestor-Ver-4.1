@@ -156,6 +156,7 @@ export const Banks = () => {
     setNewProduct({ 
       product_name: '', 
       description: '',
+      service_id: '',
       vpos_available: false,
       gateway_available: false,
       mpos_available: false,
