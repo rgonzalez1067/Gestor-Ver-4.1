@@ -60,20 +60,20 @@ export const Hardware = () => {
       fetchHardware();
     } catch (error) {
       console.error('Error saving hardware:', error);
-      toast.error('Error al guardar hardware');
+      toast.error('Error al guardar dispositivo');
     }
   };
 
   const handleDelete = async (hardwareId) => {
-    if (!window.confirm('¿Está seguro de eliminar este hardware?')) return;
+    if (!window.confirm('¿Está seguro de eliminar este dispositivo?')) return;
     
     try {
       await api.delete(`/hardware/${hardwareId}`);
-      toast.success('Hardware eliminado exitosamente');
+      toast.success('Dispositivo eliminado exitosamente');
       fetchHardware();
     } catch (error) {
       console.error('Error deleting hardware:', error);
-      toast.error('Error al eliminar hardware');
+      toast.error('Error al eliminar dispositivo');
     }
   };
 
