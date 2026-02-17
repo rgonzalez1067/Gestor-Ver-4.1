@@ -308,7 +308,7 @@ export const Hardware = () => {
 
           {hardwareList.length === 0 && (
             <div className="bg-white rounded-lg border border-slate-200 p-12 text-center text-slate-500">
-              <p>No hay hardware registrado</p>
+              <p>No hay dispositivos registrados</p>
               <p className="text-sm mt-1">Agregue su primer dispositivo usando el botón superior</p>
             </div>
           )}
