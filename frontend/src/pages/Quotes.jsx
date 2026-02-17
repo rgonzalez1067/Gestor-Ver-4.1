@@ -404,10 +404,13 @@ export const Quotes = () => {
     (quoteData.setup_items || []).reduce((sum, item) => sum + calcularTotal(item), 0) +
     (quoteData.additional_items || []).reduce((sum, item) => sum + ((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
 
-  // Calcular subtotales RECURRENTE (conceptos recurrentes + adicionales con tarifa_recurrente)
-  const subtotalRecurrente = 
-    (quoteData.recurring_items || []).reduce((sum, item) => sum + calcularTotal(item), 0) +
-    (quoteData.additional_items || []).reduce((sum, item) => sum + ((item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
+  // Calcular subtotales RECURRENTES (3 bloques + adicionales)
+  const subtotalRecurringBasic = (quoteData.recurring_basic_items || []).reduce((sum, item) => sum + calcularTotal(item), 0);
+  const subtotalRecurringOther = (quoteData.recurring_other_items || []).reduce((sum, item) => sum + calcularTotal(item), 0);
+  const subtotalRecurringComplement = (quoteData.recurring_complement_items || []).reduce((sum, item) => sum + calcularTotal(item), 0);
+  const subtotalRecurringAdditional = (quoteData.additional_items || []).reduce((sum, item) => sum + ((item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
+  
+  const subtotalRecurrente = subtotalRecurringBasic + subtotalRecurringOther + subtotalRecurringComplement + subtotalRecurringAdditional;
 
   // Calcular descuento
   const montoDescuentoSetup = subtotalSetup * (quoteData.descuento / 100);
