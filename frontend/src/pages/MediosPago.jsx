@@ -9,11 +9,11 @@ import { Plus, Pencil, Trash2, Upload, Download, FileSpreadsheet, FileText } fro
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-export const Services = () => {
-  const [services, setServices] = useState([]);
+export const MediosPago = () => {
+  const [mediosPago, setMediosPago] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState(null);
+  const [editingMedioPago, setEditingMedioPago] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     setup_cost_conventional: '',
@@ -25,16 +25,16 @@ export const Services = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchServices();
+    fetchMediosPago();
   }, []);
 
-  const fetchServices = async () => {
+  const fetchMediosPago = async () => {
     try {
       const response = await api.get('/services');
-      setServices(response.data);
+      setMediosPago(response.data);
     } catch (error) {
-      console.error('Error fetching services:', error);
-      toast.error('Error al cargar servicios');
+      console.error('Error fetching medios de pago:', error);
+      toast.error('Error al cargar medios de pago');
     } finally {
       setLoading(false);
     }
@@ -52,44 +52,44 @@ export const Services = () => {
         monthly_cost_outsourcing: parseFloat(formData.monthly_cost_outsourcing) || 0
       };
 
-      if (editingService) {
-        await api.put(`/services/${editingService.service_id}`, payload);
-        toast.success('Servicio actualizado exitosamente');
+      if (editingMedioPago) {
+        await api.put(`/services/${editingMedioPago.service_id}`, payload);
+        toast.success('Medio de pago actualizado exitosamente');
       } else {
         await api.post('/services', payload);
-        toast.success('Servicio creado exitosamente');
+        toast.success('Medio de pago creado exitosamente');
       }
       setDialogOpen(false);
       resetForm();
-      fetchServices();
+      fetchMediosPago();
     } catch (error) {
-      console.error('Error saving service:', error);
-      toast.error('Error al guardar servicio');
+      console.error('Error saving medio de pago:', error);
+      toast.error('Error al guardar medio de pago');
     }
   };
 
   const handleDelete = async (serviceId) => {
-    if (!window.confirm('¿Está seguro de eliminar este servicio?')) return;
+    if (!window.confirm('¿Está seguro de eliminar este medio de pago?')) return;
     
     try {
       await api.delete(`/services/${serviceId}`);
-      toast.success('Servicio eliminado exitosamente');
-      fetchServices();
+      toast.success('Medio de pago eliminado exitosamente');
+      fetchMediosPago();
     } catch (error) {
-      console.error('Error deleting service:', error);
-      toast.error('Error al eliminar servicio');
+      console.error('Error deleting medio de pago:', error);
+      toast.error('Error al eliminar medio de pago');
     }
   };
 
-  const openEditDialog = (service) => {
-    setEditingService(service);
+  const openEditDialog = (medioPago) => {
+    setEditingMedioPago(medioPago);
     setFormData({
-      name: service.name,
-      setup_cost_conventional: service.setup_cost_conventional?.toString() || '0',
-      monthly_cost_conventional: service.monthly_cost_conventional?.toString() || '0',
-      setup_cost_outsourcing: service.setup_cost_outsourcing?.toString() || '0',
-      monthly_cost_outsourcing: service.monthly_cost_outsourcing?.toString() || '0',
-      description: service.description || ''
+      name: medioPago.name,
+      setup_cost_conventional: medioPago.setup_cost_conventional?.toString() || '0',
+      monthly_cost_conventional: medioPago.monthly_cost_conventional?.toString() || '0',
+      setup_cost_outsourcing: medioPago.setup_cost_outsourcing?.toString() || '0',
+      monthly_cost_outsourcing: medioPago.monthly_cost_outsourcing?.toString() || '0',
+      description: medioPago.description || ''
     });
     setDialogOpen(true);
   };
@@ -103,7 +103,7 @@ export const Services = () => {
       monthly_cost_outsourcing: '',
       description: ''
     });
-    setEditingService(null);
+    setEditingMedioPago(null);
   };
 
   const handleDialogClose = (open) => {
