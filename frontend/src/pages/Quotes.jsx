@@ -51,9 +51,12 @@ export const Quotes = () => {
     pricing_model: '', // 'conventional' o 'outsourcing'
     cantidad_cajas: 1,
     cantidad_bancos: 1,
-    medios_pago_items: [],
+    setup_items: [],       // Items exclusivos de Setup
+    recurring_items: [],   // Items exclusivos de Recurrente
+    additional_items: [],  // Items adicionales (medios de pago de bancos)
     descuento: 0,
     notes: ''
+  });
   });
   
   // Estado para agregar nuevo medio de pago
