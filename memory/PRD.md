@@ -76,12 +76,17 @@ El usuario solicitó una aplicación de cotizaciones con:
 }
 ```
 
-### Service
+### Service (Medio de Pago)
 ```json
 {
   "service_id": "string",
   "category": "string",
   "name": "string",
+  "application_type": "setup | recurring | both",
+  "vpos_enabled": "boolean",
+  "gateway_enabled": "boolean",
+  "mpos_enabled": "boolean",
+  "link_enabled": "boolean",
   "setup_cost_conventional": "float",
   "monthly_cost_conventional": "float",
   "setup_cost_outsourcing": "float",
@@ -109,7 +114,8 @@ El usuario solicitó una aplicación de cotizaciones con:
 - `GET/POST/PUT/DELETE /api/banks` - CRUD Bancos
 - `POST /api/banks/seed` - Poblar bancos
 - `GET/POST/PUT/DELETE /api/hardware` - CRUD Hardware
-- `GET/POST/PUT/DELETE /api/services` - CRUD Servicios
+- `GET/POST/PUT/DELETE /api/services` - CRUD Medios de Pago
+- `GET /api/services?compatibility=vpos|gateway|mpos|link` - Filtrar por compatibilidad
 - `GET/POST /api/quotes` - CRUD Cotizaciones
 - `GET /api/quotes/{id}/pdf` - Descargar PDF
 - `GET /api/exchange-rate/current` - Tasa actual
@@ -127,15 +133,23 @@ El usuario solicitó una aplicación de cotizaciones con:
 - Cashea, Lysto, Crixto
 
 ## Testing Status
-- Backend: 33/33 tests pasados (100%)
+- Backend: 54/54 tests pasados (100%)
 - Frontend: Login, OAuth, rutas protegidas, responsive funcionando
+- Filtro de compatibilidad: Implementado y probado
+
+## Funcionalidades Completadas (Diciembre 2025)
+- [x] Filtrado de medios de pago por compatibilidad en cotizaciones
+- [x] Checkboxes de compatibilidad en formulario de Medios de Pago
+- [x] Backend acepta parámetro ?compatibility=vpos|gateway|mpos|link
 
 ## Backlog / Tareas Futuras
 - [ ] Módulo de reportes estadísticos
 - [ ] Consultas avanzadas de cotizaciones
 - [ ] Exportación masiva a Excel
 - [ ] Notificaciones por email
+- [ ] Recuperación de contraseña
+- [ ] Refactorización del backend (dividir server.py monolítico)
 
 ---
 **Última actualización:** Diciembre 2025
-**Estado:** MVP Completo - Probado
+**Estado:** MVP Completo - Probado con filtrado de compatibilidad
