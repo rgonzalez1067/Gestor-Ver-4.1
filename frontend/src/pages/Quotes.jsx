@@ -597,6 +597,66 @@ export const Quotes = () => {
     }
   };
 
+  // Exportar cotización actual a PDF (sin guardar en BD)
+  const exportCurrentQuoteToPDF = async () => {
+    const client = clients.find(c => c.client_id === quoteData.client_id);
+    if (!client) {
+      toast.error('Seleccione un cliente');
+      return;
+    }
+
+    // Preparar datos para el PDF
+    const pdfData = {
+      cliente_nombre: client.legal_name || client.commercial_name || 'Cliente',
+      cliente_rif: client.rif || '',
+      quote_type: quoteData.quote_type,
+      pricing_model: quoteData.pricing_model,
+      setup_items: [
+        ...quoteData.setup_items.map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa) || 0
+        })),
+        ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
+          concepto: `${item.medio_pago_name} - ${item.bank_name}`,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa_setup) || 0
+        }))
+      ],
+      recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
+        concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        tarifa: parseFloat(item.tarifa) || 0
+      })),
+      recurring_other_items: quoteData.recurring_other_items.map(item => ({
+        concepto: item.medio_pago_name,
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        tarifa: parseFloat(item.tarifa) || 0
+      })),
+      descuento: quoteData.descuento || 0,
+      notes: quoteData.notes || ''
+    };
+
+    try {
+      const response = await api.post('/quotes/generate-pdf', pdfData, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success('PDF generado exitosamente');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Error al generar PDF');
+    }
+  };
+
   const getQuoteTypeName = (typeId) => {
     const type = QUOTE_TYPES.find(t => t.id === typeId);
     return type ? type.name : typeId;
