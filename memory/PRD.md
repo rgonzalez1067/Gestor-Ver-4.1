@@ -212,6 +212,13 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
+### Mejoras de Interfaz y Lógica de Cotización (Febrero 2026)
+- **Campos bloqueados muestran "N/A":** En "Configuración dispositivo" y "Configuración PDV", el campo Bancos muestra "N/A" en lugar de un número
+- **Botón Duplicar:** Cada concepto de Setup tiene un botón para clonar la línea (las copias pueden eliminarse)
+- **Nuevos Medios de Pago con Bancos = 1:** Los medios de pago agregados inician con Bancos = 1 por defecto (configuración granular)
+- **Otros Recurrentes con indicador:** Cuando la tarifa es $0.00, se muestra "Configurar" para indicar que el usuario debe ingresar el valor manualmente
+- **Estado:** IMPLEMENTADO
+
 ### Nueva Funcionalidad: Plantillas de Cotización PDF (Febrero 2026)
 - **Configuración de Plantillas:**
   - VPOS Pyme
