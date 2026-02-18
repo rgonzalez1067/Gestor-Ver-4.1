@@ -382,9 +382,20 @@ export const Quotes = () => {
   };
 
   const removeAdditionalItem = (index) => {
+    const itemToRemove = quoteData.additional_items[index];
+    
+    // Remover también los recurrentes vinculados a este item
+    const filteredRecurringBasic = quoteData.recurring_basic_items.filter(
+      r => r.sourceServiceId !== itemToRemove.id
+    );
+    
+    // Re-consolidar recurrentes después de eliminar
+    const consolidatedRecurring = consolidateRecurringItems(filteredRecurringBasic);
+
     setQuoteData({
       ...quoteData,
-      additional_items: quoteData.additional_items.filter((_, i) => i !== index)
+      additional_items: quoteData.additional_items.filter((_, i) => i !== index),
+      recurring_basic_items: consolidatedRecurring
     });
   };
 
