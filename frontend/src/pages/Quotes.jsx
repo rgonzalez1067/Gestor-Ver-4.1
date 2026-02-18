@@ -904,6 +904,7 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Set-up<br/>(USD)</th>
                           <th className="px-3 py-2 text-center font-semibold text-brand-blue-600 border border-slate-300 w-32 bg-blue-50">Total USD</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -915,6 +916,8 @@ export const Quotes = () => {
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
                                 <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
+                                {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">Fijo</span>}
+                                {item.autoBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Auto</span>}
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
@@ -927,13 +930,19 @@ export const Quotes = () => {
                               />
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.cantidad_bancos}
-                                onChange={(e) => updateSetupItem(index, 'cantidad_bancos', e.target.value)}
-                                className="w-16 h-7 text-center text-sm mx-auto"
-                              />
+                              {item.lockBancos || item.autoBancos ? (
+                                <div className={`w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium ${item.autoBancos ? 'text-purple-600 bg-purple-50 rounded' : 'text-slate-500 bg-slate-100 rounded'}`}>
+                                  {item.cantidad_bancos}
+                                </div>
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.cantidad_bancos}
+                                  onChange={(e) => updateSetupItem(index, 'cantidad_bancos', e.target.value)}
+                                  className="w-16 h-7 text-center text-sm mx-auto"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
@@ -948,11 +957,16 @@ export const Quotes = () => {
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
                               ${calcularTotal(item).toFixed(2)}
                             </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              {/* Los conceptos base no se pueden eliminar */}
+                            </td>
                           </tr>
                         ))}
                         {/* Items adicionales con Setup */}
-                        {quoteData.additional_items.filter(i => i.tarifa_setup > 0).map((item, index) => (
-                          <tr key={`add-setup-${index}`} className="bg-white">
+                        {quoteData.additional_items.filter(i => i.tarifa_setup > 0).map((item, index) => {
+                          const realIndex = quoteData.additional_items.indexOf(item);
+                          return (
+                          <tr key={`add-setup-${index}`} className="bg-white border-l-4 border-l-amber-500">
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{quoteData.setup_items.length + index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="font-medium text-slate-900">{item.medio_pago_name}</div>
@@ -963,7 +977,7 @@ export const Quotes = () => {
                                 type="number"
                                 min="1"
                                 value={item.cantidad_cajas}
-                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'cantidad_cajas', e.target.value)}
+                                onChange={(e) => updateAdditionalItem(realIndex, 'cantidad_cajas', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -972,7 +986,7 @@ export const Quotes = () => {
                                 type="number"
                                 min="1"
                                 value={item.cantidad_bancos}
-                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'cantidad_bancos', e.target.value)}
+                                onChange={(e) => updateAdditionalItem(realIndex, 'cantidad_bancos', e.target.value)}
                                 className="w-16 h-7 text-center text-sm mx-auto"
                               />
                             </td>
@@ -982,7 +996,7 @@ export const Quotes = () => {
                                 min="0"
                                 step="0.01"
                                 value={item.tarifa_setup}
-                                onChange={(e) => updateAdditionalItem(quoteData.additional_items.indexOf(item), 'tarifa_setup', e.target.value)}
+                                onChange={(e) => updateAdditionalItem(realIndex, 'tarifa_setup', e.target.value)}
                                 className="w-20 h-7 text-right text-sm mx-auto font-mono"
                               />
                             </td>
