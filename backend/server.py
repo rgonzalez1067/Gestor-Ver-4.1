@@ -406,45 +406,176 @@ async def delete_client(client_id: str, authorization: Optional[str] = Header(No
         raise HTTPException(status_code=404, detail="Client not found")
     return {"message": "Client deleted successfully"}
 
-@api_router.post("/clients/import")
+@api_router.post("/clients/import", response_model=ImportResult)
 async def import_clients(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    import pandas as pd
     
     content = await file.read()
-    imported_count = 0
+    errors: List[ImportError] = []
+    success_count = 0
+    skipped_count = 0
+    
+    # Validar formato de archivo
+    file_ext = file.filename.split('.')[-1].lower() if file.filename else ''
+    if file_ext not in ['csv', 'xlsx', 'xls']:
+        return ImportResult(
+            status='error',
+            total_processed=0,
+            success_count=0,
+            error_count=1,
+            skipped_count=0,
+            errors=[ImportError(
+                row=0, column='archivo', value=file.filename,
+                error_type='format',
+                message='Formato de archivo no soportado',
+                suggested_action='Utilice archivos .xlsx, .xls o .csv'
+            )],
+            message='Error: Formato de archivo no válido'
+        )
     
     try:
-        if file.filename.endswith('.csv'):
-            decoded = content.decode('utf-8-sig')
-            reader = csv.DictReader(io.StringIO(decoded))
-            
-            for row in reader:
-                client = Client(
-                    rif=row.get('RIF', row.get('rif', '')).strip(),
-                    legal_name=row.get('Nombre Jurídico', row.get('legal_name', '')).strip(),
-                    fantasy_name=row.get('Nombre Fantasía', row.get('fantasy_name', '')).strip(),
-                    segment=row.get('Segmento', row.get('segment', 'Pymes')).strip() or 'Pymes',
-                    contact1=Contact(
-                        name=row.get('Contacto1 Nombre', '').strip(),
-                        phone=row.get('Contacto1 Teléfono', '').strip(),
-                        email=row.get('Contacto1 Email', '').strip()
-                    ),
-                    contact2=Contact(name='', phone='', email='')
-                )
-                if client.rif and client.legal_name:
-                    doc = client.model_dump()
-                    doc['created_at'] = doc['created_at'].isoformat()
-                    await db.clients.insert_one(doc)
-                    imported_count += 1
+        # Leer archivo
+        if file_ext == 'csv':
+            df = pd.read_csv(io.BytesIO(content))
         else:
-            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+            df = pd.read_excel(io.BytesIO(content))
+        
+        total_rows = len(df)
+        
+        if total_rows == 0:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column='archivo', value=file.filename, error_type='format',
+                    message='El archivo está vacío', suggested_action='Agregue registros al archivo')],
+                message='Error: El archivo no contiene datos'
+            )
+        
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        
+        # Mapeo de columnas comunes
+        column_mapping = {
+            'nombre_jurídico': 'legal_name', 'nombre_juridico': 'legal_name',
+            'nombre_fantasía': 'fantasy_name', 'nombre_fantasia': 'fantasy_name',
+            'segmento': 'segment',
+            'contacto1_nombre': 'contact1_name', 'contacto1_teléfono': 'contact1_phone',
+            'contacto1_telefono': 'contact1_phone', 'contacto1_email': 'contact1_email'
+        }
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Verificar columnas requeridas
+        required_columns = ['rif', 'legal_name']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column=', '.join(missing_columns), value=None, error_type='missing',
+                    message=f'Columnas requeridas no encontradas', 
+                    suggested_action='Asegúrese de que el archivo tenga las columnas: RIF, Nombre Jurídico')],
+                message=f'Error: Faltan columnas requeridas ({", ".join(missing_columns)})'
+            )
+        
+        valid_segments = ['Pymes', 'Corporativo', 'Mixto']
+        
+        # Procesar cada fila
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # Número de fila en Excel
+            
+            try:
+                rif = str(row.get('rif', '')).strip() if pd.notna(row.get('rif')) else ''
+                legal_name = str(row.get('legal_name', '')).strip() if pd.notna(row.get('legal_name')) else ''
+                fantasy_name = str(row.get('fantasy_name', '')).strip() if pd.notna(row.get('fantasy_name')) else ''
+                segment = str(row.get('segment', 'Pymes')).strip() if pd.notna(row.get('segment')) else 'Pymes'
+                
+                row_errors = []
+                
+                # Validar campos requeridos
+                if not rif:
+                    row_errors.append(ImportError(row=row_num, column='RIF', value='(vacío)',
+                        error_type='missing', message='El RIF es obligatorio',
+                        suggested_action='Ingrese un RIF válido'))
+                
+                if not legal_name:
+                    row_errors.append(ImportError(row=row_num, column='Nombre Jurídico', value='(vacío)',
+                        error_type='missing', message='El nombre jurídico es obligatorio',
+                        suggested_action='Ingrese el nombre jurídico del cliente'))
+                
+                # Validar segmento
+                if segment not in valid_segments:
+                    segment = 'Pymes'  # Usar valor por defecto si no es válido
+                
+                if row_errors:
+                    errors.extend(row_errors)
+                    skipped_count += 1
+                    continue
+                
+                # Verificar duplicados
+                existing = await db.clients.find_one({"rif": rif})
+                if existing:
+                    errors.append(ImportError(row=row_num, column='RIF', value=rif,
+                        error_type='duplicate', message='Ya existe un cliente con este RIF',
+                        suggested_action='Verifique si desea actualizar el registro existente'))
+                    skipped_count += 1
+                    continue
+                
+                # Obtener datos de contacto
+                contact1_name = str(row.get('contact1_name', '')).strip() if pd.notna(row.get('contact1_name')) else ''
+                contact1_phone = str(row.get('contact1_phone', '')).strip() if pd.notna(row.get('contact1_phone')) else ''
+                contact1_email = str(row.get('contact1_email', '')).strip() if pd.notna(row.get('contact1_email')) else ''
+                
+                # Crear cliente
+                client = Client(
+                    rif=rif,
+                    legal_name=legal_name,
+                    fantasy_name=fantasy_name,
+                    segment=segment,
+                    contact1=Contact(name=contact1_name, phone=contact1_phone, email=contact1_email or 'sin@email.com'),
+                    contact2=Contact(name='', phone='', email='sin@email.com')
+                )
+                
+                doc = client.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.clients.insert_one(doc)
+                success_count += 1
+                
+            except Exception as e:
+                errors.append(ImportError(row=row_num, column='general', value=None,
+                    error_type='format', message=f'Error al procesar fila: {str(e)}',
+                    suggested_action='Verifique el formato de los datos'))
+                skipped_count += 1
+        
+        # Determinar estado final
+        if success_count == 0 and errors:
+            status = 'error'
+            message = f'Error: No se pudo importar ningún registro. {len(errors)} errores encontrados.'
+        elif errors:
+            status = 'partial'
+            message = f'Importación parcial: {success_count} registros importados, {skipped_count} omitidos.'
+        else:
+            status = 'success'
+            message = f'Importación exitosa: {success_count} clientes importados correctamente.'
+        
+        return ImportResult(
+            status=status,
+            total_processed=total_rows,
+            success_count=success_count,
+            error_count=len(errors),
+            skipped_count=skipped_count,
+            errors=errors,
+            message=message
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
-    
-    return {"message": f"{imported_count} clientes importados exitosamente"}
+        return ImportResult(
+            status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+            errors=[ImportError(row=0, column='archivo', value=None, error_type='format',
+                message=f'Error al procesar archivo: {str(e)}',
+                suggested_action='Verifique que el archivo no esté corrupto')],
+            message=f'Error: {str(e)}'
+        )
 
 @api_router.get("/clients/export/pdf")
 async def export_clients_pdf(authorization: Optional[str] = Header(None)):
