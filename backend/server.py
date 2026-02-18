@@ -669,39 +669,142 @@ async def delete_bank(bank_id: str, authorization: Optional[str] = Header(None))
         raise HTTPException(status_code=404, detail="Bank not found")
     return {"message": "Bank deleted successfully"}
 
-@api_router.post("/banks/import")
+@api_router.post("/banks/import", response_model=ImportResult)
 async def import_banks(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    import pandas as pd
     
     content = await file.read()
-    imported_count = 0
+    errors: List[ImportError] = []
+    success_count = 0
+    skipped_count = 0
+    
+    # Validar formato de archivo
+    file_ext = file.filename.split('.')[-1].lower() if file.filename else ''
+    if file_ext not in ['csv', 'xlsx', 'xls']:
+        return ImportResult(
+            status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+            errors=[ImportError(row=0, column='archivo', value=file.filename,
+                error_type='format', message='Formato de archivo no soportado',
+                suggested_action='Utilice archivos .xlsx, .xls o .csv')],
+            message='Error: Formato de archivo no válido'
+        )
     
     try:
-        if file.filename.endswith('.csv'):
-            decoded = content.decode('utf-8-sig')
-            reader = csv.DictReader(io.StringIO(decoded))
-            
-            for row in reader:
-                bank = Bank(
-                    name=row.get('Nombre', row.get('nombre', row.get('name', ''))).strip(),
-                    type=row.get('Tipo', row.get('tipo', row.get('type', 'Banco'))).strip(),
-                    country=row.get('País', row.get('pais', row.get('country', 'Venezuela'))).strip(),
-                    products=[]
-                )
-                if bank.name:
-                    doc = bank.model_dump()
-                    doc['created_at'] = doc['created_at'].isoformat()
-                    await db.banks.insert_one(doc)
-                    imported_count += 1
+        # Leer archivo
+        if file_ext == 'csv':
+            df = pd.read_csv(io.BytesIO(content))
         else:
-            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+            df = pd.read_excel(io.BytesIO(content))
+        
+        total_rows = len(df)
+        
+        if total_rows == 0:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column='archivo', value=file.filename, error_type='format',
+                    message='El archivo está vacío', suggested_action='Agregue registros al archivo')],
+                message='Error: El archivo no contiene datos'
+            )
+        
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        
+        # Mapeo de columnas
+        column_mapping = {
+            'nombre': 'name', 'tipo': 'type', 'país': 'country', 'pais': 'country'
+        }
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Verificar columnas requeridas
+        if 'name' not in df.columns:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column='name', value=None, error_type='missing',
+                    message='Columna "Nombre" no encontrada',
+                    suggested_action='Asegúrese de que el archivo tenga la columna: Nombre')],
+                message='Error: Falta columna requerida (Nombre)'
+            )
+        
+        valid_types = ['Banco', 'Fintech']
+        valid_countries = ['Venezuela', 'Estados Unidos']
+        
+        # Procesar cada fila
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            
+            try:
+                name = str(row.get('name', '')).strip() if pd.notna(row.get('name')) else ''
+                bank_type = str(row.get('type', 'Banco')).strip() if pd.notna(row.get('type')) else 'Banco'
+                country = str(row.get('country', 'Venezuela')).strip() if pd.notna(row.get('country')) else 'Venezuela'
+                
+                row_errors = []
+                
+                if not name:
+                    row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
+                        error_type='missing', message='El nombre del banco es obligatorio',
+                        suggested_action='Ingrese un nombre válido'))
+                
+                # Validar tipo (usar default si no es válido)
+                if bank_type not in valid_types:
+                    bank_type = 'Banco'
+                
+                # Validar país (usar default si no es válido)
+                if country not in valid_countries:
+                    country = 'Venezuela'
+                
+                if row_errors:
+                    errors.extend(row_errors)
+                    skipped_count += 1
+                    continue
+                
+                # Verificar duplicados
+                existing = await db.banks.find_one({"name": name})
+                if existing:
+                    errors.append(ImportError(row=row_num, column='Nombre', value=name,
+                        error_type='duplicate', message='Ya existe un banco con este nombre',
+                        suggested_action='Verifique si desea actualizar el registro existente'))
+                    skipped_count += 1
+                    continue
+                
+                # Crear banco
+                bank = Bank(name=name, type=bank_type, country=country, products=[])
+                doc = bank.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.banks.insert_one(doc)
+                success_count += 1
+                
+            except Exception as e:
+                errors.append(ImportError(row=row_num, column='general', value=None,
+                    error_type='format', message=f'Error al procesar fila: {str(e)}',
+                    suggested_action='Verifique el formato de los datos'))
+                skipped_count += 1
+        
+        # Determinar estado final
+        if success_count == 0 and errors:
+            status = 'error'
+            message = f'Error: No se pudo importar ningún registro. {len(errors)} errores encontrados.'
+        elif errors:
+            status = 'partial'
+            message = f'Importación parcial: {success_count} registros importados, {skipped_count} omitidos.'
+        else:
+            status = 'success'
+            message = f'Importación exitosa: {success_count} bancos importados correctamente.'
+        
+        return ImportResult(
+            status=status, total_processed=total_rows, success_count=success_count,
+            error_count=len(errors), skipped_count=skipped_count, errors=errors, message=message
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
-    
-    return {"message": f"{imported_count} bancos importados exitosamente"}
+        return ImportResult(
+            status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+            errors=[ImportError(row=0, column='archivo', value=None, error_type='format',
+                message=f'Error al procesar archivo: {str(e)}',
+                suggested_action='Verifique que el archivo no esté corrupto')],
+            message=f'Error: {str(e)}'
+        )
 
 @api_router.get("/banks/export/pdf")
 async def export_banks_pdf(authorization: Optional[str] = Header(None)):
