@@ -994,42 +994,157 @@ async def delete_service(service_id: str, authorization: Optional[str] = Header(
         raise HTTPException(status_code=404, detail="Service not found")
     return {"message": "Service deleted successfully"}
 
-@api_router.post("/services/import")
+@api_router.post("/services/import", response_model=ImportResult)
 async def import_services(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel.")
+    import pandas as pd
     
     content = await file.read()
-    imported_count = 0
+    errors: List[ImportError] = []
+    success_count = 0
+    skipped_count = 0
+    
+    # Validar formato de archivo
+    file_ext = file.filename.split('.')[-1].lower() if file.filename else ''
+    if file_ext not in ['csv', 'xlsx', 'xls']:
+        return ImportResult(
+            status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+            errors=[ImportError(row=0, column='archivo', value=file.filename,
+                error_type='format', message='Formato de archivo no soportado',
+                suggested_action='Utilice archivos .xlsx, .xls o .csv')],
+            message='Error: Formato de archivo no válido'
+        )
     
     try:
-        if file.filename.endswith('.csv'):
-            decoded = content.decode('utf-8-sig')
-            reader = csv.DictReader(io.StringIO(decoded))
-            
-            for row in reader:
-                service = Service(
-                    category='General',
-                    name=row.get('Nombre', row.get('nombre', row.get('name', ''))).strip(),
-                    setup_cost_conventional=float(row.get('Setup Convencional', row.get('setup_cost_conventional', 0)) or 0),
-                    monthly_cost_conventional=float(row.get('Mensual Convencional', row.get('monthly_cost_conventional', 0)) or 0),
-                    setup_cost_outsourcing=float(row.get('Setup Outsourcing', row.get('setup_cost_outsourcing', 0)) or 0),
-                    monthly_cost_outsourcing=float(row.get('Mensual Outsourcing', row.get('monthly_cost_outsourcing', 0)) or 0),
-                    description=row.get('Descripción', row.get('descripcion', row.get('description', ''))).strip()
-                )
-                if service.name:
-                    doc = service.model_dump()
-                    doc['created_at'] = doc['created_at'].isoformat()
-                    await db.services.insert_one(doc)
-                    imported_count += 1
+        # Leer archivo
+        if file_ext == 'csv':
+            df = pd.read_csv(io.BytesIO(content))
         else:
-            raise HTTPException(status_code=400, detail="Para archivos Excel, por favor convierta a CSV primero")
+            df = pd.read_excel(io.BytesIO(content))
+        
+        total_rows = len(df)
+        
+        if total_rows == 0:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column='archivo', value=file.filename, error_type='format',
+                    message='El archivo está vacío', suggested_action='Agregue registros al archivo')],
+                message='Error: El archivo no contiene datos'
+            )
+        
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        
+        # Mapeo de columnas
+        column_mapping = {
+            'nombre': 'name', 'categoría': 'category', 'categoria': 'category',
+            'descripción': 'description', 'descripcion': 'description',
+            'setup_convencional': 'setup_cost_conventional',
+            'mensual_convencional': 'monthly_cost_conventional',
+            'setup_outsourcing': 'setup_cost_outsourcing',
+            'mensual_outsourcing': 'monthly_cost_outsourcing'
+        }
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Verificar columna requerida
+        if 'name' not in df.columns:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column='name', value=None, error_type='missing',
+                    message='Columna "Nombre" no encontrada',
+                    suggested_action='Asegúrese de que el archivo tenga la columna: Nombre')],
+                message='Error: Falta columna requerida (Nombre)'
+            )
+        
+        # Procesar cada fila
+        for idx, row in df.iterrows():
+            row_num = idx + 2
+            
+            try:
+                name = str(row.get('name', '')).strip() if pd.notna(row.get('name')) else ''
+                category = str(row.get('category', 'General')).strip() if pd.notna(row.get('category')) else 'General'
+                description = str(row.get('description', '')).strip() if pd.notna(row.get('description')) else ''
+                
+                row_errors = []
+                
+                if not name:
+                    row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
+                        error_type='missing', message='El nombre del servicio es obligatorio',
+                        suggested_action='Ingrese un nombre válido'))
+                
+                # Parsear costos con validación
+                def parse_cost(value, field_name):
+                    if pd.isna(value) or value == '':
+                        return 0.0
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        row_errors.append(ImportError(row=row_num, column=field_name, value=str(value),
+                            error_type='format', message=f'Valor numérico inválido',
+                            suggested_action='Ingrese un número válido (ej: 100.50)'))
+                        return 0.0
+                
+                setup_conv = parse_cost(row.get('setup_cost_conventional'), 'Setup Convencional')
+                monthly_conv = parse_cost(row.get('monthly_cost_conventional'), 'Mensual Convencional')
+                setup_outs = parse_cost(row.get('setup_cost_outsourcing'), 'Setup Outsourcing')
+                monthly_outs = parse_cost(row.get('monthly_cost_outsourcing'), 'Mensual Outsourcing')
+                
+                if row_errors:
+                    errors.extend(row_errors)
+                    skipped_count += 1
+                    continue
+                
+                # Verificar duplicados
+                existing = await db.services.find_one({"name": name})
+                if existing:
+                    errors.append(ImportError(row=row_num, column='Nombre', value=name,
+                        error_type='duplicate', message='Ya existe un servicio con este nombre',
+                        suggested_action='Verifique si desea actualizar el registro existente'))
+                    skipped_count += 1
+                    continue
+                
+                # Crear servicio
+                service = Service(
+                    category=category, name=name, description=description,
+                    setup_cost_conventional=setup_conv, monthly_cost_conventional=monthly_conv,
+                    setup_cost_outsourcing=setup_outs, monthly_cost_outsourcing=monthly_outs
+                )
+                doc = service.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.services.insert_one(doc)
+                success_count += 1
+                
+            except Exception as e:
+                errors.append(ImportError(row=row_num, column='general', value=None,
+                    error_type='format', message=f'Error al procesar fila: {str(e)}',
+                    suggested_action='Verifique el formato de los datos'))
+                skipped_count += 1
+        
+        # Determinar estado final
+        if success_count == 0 and errors:
+            status = 'error'
+            message = f'Error: No se pudo importar ningún registro. {len(errors)} errores encontrados.'
+        elif errors:
+            status = 'partial'
+            message = f'Importación parcial: {success_count} registros importados, {skipped_count} omitidos.'
+        else:
+            status = 'success'
+            message = f'Importación exitosa: {success_count} servicios importados correctamente.'
+        
+        return ImportResult(
+            status=status, total_processed=total_rows, success_count=success_count,
+            error_count=len(errors), skipped_count=skipped_count, errors=errors, message=message
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
-    
-    return {"message": f"{imported_count} servicios importados exitosamente"}
+        return ImportResult(
+            status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
+            errors=[ImportError(row=0, column='archivo', value=None, error_type='format',
+                message=f'Error al procesar archivo: {str(e)}',
+                suggested_action='Verifique que el archivo no esté corrupto')],
+            message=f'Error: {str(e)}'
+        )
 
 @api_router.get("/services/export/pdf")
 async def export_services_pdf(authorization: Optional[str] = Header(None)):
