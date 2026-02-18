@@ -26,7 +26,7 @@ export const Integrators = () => {
     integrator_type: '',
     app_name: '',
     integration_modality: '',
-    status: 'En proceso'
+    integrator_status: 'En proceso'
   });
   const fileInputRef = useRef(null);
 
