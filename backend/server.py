@@ -145,6 +145,33 @@ INTEGRATOR_TYPES = ["Integrador", "Comercio"]
 INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone"]
 INTEGRATOR_STATUSES = ["Certificado", "En proceso", "Suspendido"]
 
+# ==================== IMPORT RESPONSE MODELS ====================
+class ImportError(BaseModel):
+    row: int
+    column: str
+    value: Optional[str] = None
+    error_type: str  # 'missing', 'invalid', 'format', 'duplicate'
+    message: str
+    suggested_action: str
+
+class ImportValidationResult(BaseModel):
+    is_valid: bool
+    file_format: str
+    total_rows: int
+    columns_found: List[str]
+    columns_missing: List[str]
+    columns_extra: List[str]
+    message: str
+
+class ImportResult(BaseModel):
+    status: str  # 'success', 'partial', 'error'
+    total_processed: int
+    success_count: int
+    error_count: int
+    skipped_count: int
+    errors: List[ImportError]
+    message: str
+
 class IntegratorCreate(BaseModel):
     name: str
     integrator_type: Literal["Integrador", "Comercio"]
