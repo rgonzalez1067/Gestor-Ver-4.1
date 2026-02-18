@@ -785,8 +785,10 @@ export const Quotes = () => {
     const pdfData = {
       cliente_nombre: client.legal_name || client.commercial_name || 'Cliente',
       cliente_rif: client.rif || '',
+      cliente_address: client.address || '',  // Dirección fiscal para el resumen
       quote_type: quoteData.quote_type,
       pricing_model: quoteData.pricing_model,
+      cantidad_cajas: quoteData.cantidad_cajas || 1,  // Total de cajas para el resumen
       // Nuevos campos de integración y hardware
       integrator_name: integrator?.name || '',
       integrator_app_name: quoteData.integrator_app_name || '',
@@ -797,13 +799,15 @@ export const Quotes = () => {
           concepto: item.medio_pago_name,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0
+          tarifa: parseFloat(item.tarifa) || 0,
+          bank_name: item.bank_name || null
         })),
         ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
           concepto: `${item.medio_pago_name} - ${item.bank_name}`,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-          tarifa: parseFloat(item.tarifa_setup) || 0
+          tarifa: parseFloat(item.tarifa_setup) || 0,
+          bank_name: item.bank_name || null
         }))
       ],
       recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
