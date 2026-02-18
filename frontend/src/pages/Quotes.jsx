@@ -23,11 +23,13 @@ const PRICING_MODELS = [
 ];
 
 // Conceptos EXCLUSIVOS de Setup (Inversión Inicial)
+// lockBancos: true = campo Bancos bloqueado para edición
+// autoBancos: true = auto-calcular basado en medios de pago agregados
 const SETUP_CONCEPTS = [
-  { name: 'Suscripción PDV/Banco', isDefault: true, type: 'setup' },
-  { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true, type: 'setup' },
-  { name: 'Configuración PDV en MServer', isDefault: true, type: 'setup' },
-  { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true, type: 'setup' }
+  { name: 'Suscripción PDV/Banco', isDefault: true, type: 'setup', lockBancos: false, autoBancos: false },
+  { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true, type: 'setup', lockBancos: true, autoBancos: false },
+  { name: 'Configuración PDV en MServer', isDefault: true, type: 'setup', lockBancos: true, autoBancos: false },
+  { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true, type: 'setup', lockBancos: false, autoBancos: true }
 ];
 
 // Recurrentes Básicos (obligatorios) - incluye conceptos pre-relacionados con Setup
