@@ -1911,24 +1911,26 @@ export const Quotes = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {/* Agrupar items por banco */}
+                          {/* Agrupar items por banco - SOLO medios de pago con banco (excluir conceptos base) */}
                           {(() => {
-                            // Consolidar items por banco y medio de pago
+                            // Consolidar solo additional_items que tienen bank_name (medios de pago por banco)
                             const bankProductMap = {};
-                            [...quoteData.setup_items, ...quoteData.additional_items].forEach(item => {
-                              const bankName = item.bank_name || 'Sin Banco';
-                              const productName = item.medio_pago_name || item.item_name || 'Producto';
-                              const key = `${bankName}-${productName}`;
-                              
-                              if (!bankProductMap[key]) {
-                                bankProductMap[key] = {
-                                  bank: bankName,
-                                  product: productName,
-                                  cajas: 0
-                                };
-                              }
-                              bankProductMap[key].cajas += item.cantidad_cajas || 1;
-                            });
+                            quoteData.additional_items
+                              .filter(item => item.bank_name) // Solo items con banco asociado
+                              .forEach(item => {
+                                const bankName = item.bank_name;
+                                const productName = item.medio_pago_name || 'Producto';
+                                const key = `${bankName}-${productName}`;
+                                
+                                if (!bankProductMap[key]) {
+                                  bankProductMap[key] = {
+                                    bank: bankName,
+                                    product: productName,
+                                    cajas: 0
+                                  };
+                                }
+                                bankProductMap[key].cajas += item.cantidad_cajas || 1;
+                              });
                             
                             const rows = Object.values(bankProductMap);
                             
