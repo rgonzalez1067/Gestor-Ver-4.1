@@ -421,5 +421,54 @@ Nueva sección obligatoria "Detalles de Integración y Hardware" en el wizard de
 - Testing: 100% (12/12 tests backend, UI tests pasados)
 
 ---
+
+## Ciclo de Vida y Menú de Acciones en Cotizaciones (Febrero 2026)
+
+### Descripción
+Sistema de gestión del ciclo de vida de cotizaciones con un menú de acciones contextuales para cada registro.
+
+### Estados del Ciclo de Vida
+```
+Borrador → Emitida → Aprobada → En Implementación → Completada
+```
+
+### Acciones Implementadas
+| Acción | Descripción | Impacto en Sistema |
+|--------|-------------|-------------------|
+| Modificar | Abre formulario con datos precargados | En desarrollo |
+| Enviar al Cliente | Email automático con PDF adjunto | Cambia estado a "Emitida" |
+| Aprobar | Valida cierre de negociación | Cambia estado a "Aprobada" |
+| Enviar a Implementación | Email al equipo operativo | Cambia estado a "En Implementación" |
+
+### Endpoints de Acciones
+- `PUT /api/quotes/{quote_id}/status` - Actualiza estado
+- `POST /api/quotes/{quote_id}/send-to-client` - Envía al cliente
+- `POST /api/quotes/{quote_id}/send-to-implementation` - Envía a implementación
+
+### Configuración de Email
+- **Servicio**: Resend (requiere RESEND_API_KEY en .env)
+- **Email de implementación**: Configurable en Settings (`/api/config/settings`)
+- **Modo simulado**: Si no hay API key, los emails se simulan pero los estados cambian correctamente
+
+### Campos Agregados al Modelo Quote
+```python
+quote_status: str  # Borrador, Emitida, Aprobada, En Implementación, Completada
+sent_to_client_at: Optional[datetime]
+approved_at: Optional[datetime]
+sent_to_implementation_at: Optional[datetime]
+```
+
+### UI Implementada
+- Columna "Estado" en tabla de cotizaciones con colores diferenciados
+- Menú desplegable de acciones (DropdownMenu) con iconos
+- Validación de flujo: acciones habilitadas/deshabilitadas según estado
+- Sección de email de implementación en página Settings
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- **NOTA**: Email SIMULADO (requiere RESEND_API_KEY para envío real)
+- Testing: 100% (17/17 tests backend, UI verificada)
+
+---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Campos de Integración y Hardware IMPLEMENTADOS
+**Estado:** MVP Operativo - Ciclo de Vida de Cotizaciones IMPLEMENTADO
