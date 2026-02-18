@@ -814,13 +814,15 @@ export const Quotes = () => {
         concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-        tarifa: parseFloat(item.tarifa) || 0
+        tarifa: parseFloat(item.tarifa) || 0,
+        bank_name: item.bank_name || null
       })),
       recurring_other_items: quoteData.recurring_other_items.map(item => ({
         concepto: item.medio_pago_name,
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-        tarifa: parseFloat(item.tarifa) || 0
+        tarifa: parseFloat(item.tarifa) || 0,
+        bank_name: item.bank_name || null
       })),
       descuento: quoteData.descuento || 0,
       notes: quoteData.notes || ''
