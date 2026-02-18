@@ -212,10 +212,27 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
-### Correcciones de Incidencias (Febrero 2026)
-- **Mapeo de Precios Corregido:** La función `findServicePriceWithModel` ahora prioriza coincidencias exactas antes de buscar por inclusión, evitando que "Derecho de uso de plataforma MServer por PDV" coincida incorrectamente con "Derecho de uso de plataforma MServer por PDV / Banco"
-- **Otros Recurrentes con N/A:** "Comunicación Backend" y "Procesamiento" ahora muestran "N/A" en campo Bancos (igual que Setup bloqueado)
-- **Descarga PDF Mejorada:** Se mejoró el manejo de la descarga de PDF con validaciones adicionales y limpieza de recursos
+### Correcciones de Incidencias (Febrero 2026 - Actualizado)
+- **Regla de Negocio "Derecho de uso de plataforma MServer por PDV":** Campo Bancos ahora está **bloqueado en 1** (cobro unitario por terminal, no depende de entidades financieras)
+- **Mapeo de Precios Corregido:** Prioriza coincidencias exactas antes de buscar por inclusión
+- **Otros Recurrentes con N/A:** "Comunicación Backend" y "Procesamiento" muestran "N/A" en campo Bancos
+- **Descarga PDF Mejorada:** 
+  - Toast de carga mientras genera
+  - Validación de respuesta y tipo de contenido
+  - Manejo de errores mejorado con mensajes específicos
+  - Limpieza automática de recursos
+
+### Conceptos con Campo Bancos Bloqueado (N/A o valor fijo 1):
+**Setup:**
+- Configuración dispositivo (Pinpad o POS) - N/A
+- Configuración PDV en MServer - N/A
+
+**Recurrentes Básicos:**
+- Derecho de uso de plataforma MServer por PDV - Fijo en 1
+
+**Otros Recurrentes:**
+- Comunicación Backend (SSL Público o VPN, APN, etc.) - N/A
+- Procesamiento (HSM, Server, DC, etc.) - N/A
 
 ### Mejoras de Interfaz y Lógica de Cotización (Febrero 2026)
 - **Campos bloqueados muestran "N/A":** En "Configuración dispositivo" y "Configuración PDV", el campo Bancos muestra "N/A" en lugar de un número
