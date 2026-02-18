@@ -341,11 +341,28 @@ export const Quotes = () => {
 
   // Versión de findServicePrice que acepta modelo como parámetro (para inicialización)
   const findServicePriceWithModel = (productName, pricingModel) => {
-    const service = serviceCatalog.find(s => 
-      s.name.toLowerCase() === productName.toLowerCase() ||
-      s.name.toLowerCase().includes(productName.toLowerCase()) ||
-      productName.toLowerCase().includes(s.name.toLowerCase())
+    // Primero intentar coincidencia exacta (case-insensitive)
+    let service = serviceCatalog.find(s => 
+      s.name.toLowerCase() === productName.toLowerCase()
     );
+    
+    // Si no hay coincidencia exacta, buscar por inclusión pero priorizando el nombre más largo
+    if (!service) {
+      const candidates = serviceCatalog.filter(s => 
+        s.name.toLowerCase().includes(productName.toLowerCase()) ||
+        productName.toLowerCase().includes(s.name.toLowerCase())
+      );
+      
+      // Ordenar por longitud de nombre descendente para evitar que nombres cortos coincidan antes
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.name.length - a.name.length);
+        // Buscar el que mejor coincida con la longitud del productName
+        service = candidates.find(c => 
+          c.name.toLowerCase() === productName.toLowerCase() ||
+          Math.abs(c.name.length - productName.length) < 10
+        ) || candidates[0];
+      }
+    }
     
     if (service) {
       const isOutsourcing = pricingModel === 'outsourcing';
@@ -356,10 +373,12 @@ export const Quotes = () => {
         monthly_cost: isOutsourcing 
           ? (service.monthly_cost_outsourcing || 0) 
           : (service.monthly_cost_conventional || 0),
-        application_type: service.application_type || 'both'
+        application_type: service.application_type || 'both',
+        service_id: service.service_id,
+        service_name: service.name
       };
     }
-    return { setup_cost: 0, monthly_cost: 0, application_type: 'both' };
+    return { setup_cost: 0, monthly_cost: 0, application_type: 'both', service_id: null, service_name: null };
   };
 
   const openWizard = () => {
