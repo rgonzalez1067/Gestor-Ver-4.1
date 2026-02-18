@@ -198,7 +198,7 @@ export const Integrators = () => {
           </span>
         );
       default:
-        return status;
+        return integrator_status;
     }
   };
 
