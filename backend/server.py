@@ -142,7 +142,7 @@ class Service(BaseModel):
 
 class QuoteItem(BaseModel):
     item_type: str
-    item_id: str
+    item_id: Optional[str] = None  # Opcional para items generados dinámicamente
     item_name: str
     quantity: int
     unit_price_usd: float
