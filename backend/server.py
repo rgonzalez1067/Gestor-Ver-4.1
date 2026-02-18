@@ -121,6 +121,7 @@ class ServiceCreate(BaseModel):
     setup_cost_outsourcing: float = 0
     monthly_cost_outsourcing: float = 0
     description: Optional[str] = None
+    linked_recurring_service_id: Optional[str] = None  # ID del servicio recurrente vinculado (solo para tipo setup/both)
 
 class Service(BaseModel):
     service_id: str = Field(default_factory=lambda: f"srv_{uuid.uuid4().hex[:12]}")
@@ -136,6 +137,7 @@ class Service(BaseModel):
     setup_cost_outsourcing: float = 0
     monthly_cost_outsourcing: float = 0
     description: Optional[str] = None
+    linked_recurring_service_id: Optional[str] = None  # ID del servicio recurrente vinculado
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):
