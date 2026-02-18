@@ -7,6 +7,7 @@ import Clients from './pages/Clients';
 import Banks from './pages/Banks';
 import Hardware from './pages/Hardware';
 import MediosPago from './pages/MediosPago';
+import Integrators from './pages/Integrators';
 import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
@@ -46,6 +47,11 @@ function AppRouter() {
       <Route path="/medios-pago" element={
         <ProtectedRoute>
           <MediosPago />
+        </ProtectedRoute>
+      } />
+      <Route path="/integrators" element={
+        <ProtectedRoute>
+          <Integrators />
         </ProtectedRoute>
       } />
       <Route path="/quotes" element={
