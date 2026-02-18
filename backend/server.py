@@ -473,7 +473,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             return ImportResult(
                 status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
                 errors=[ImportError(row=0, column=', '.join(missing_columns), value=None, error_type='missing',
-                    message=f'Columnas requeridas no encontradas', 
+                    message='Columnas requeridas no encontradas', 
                     suggested_action='Asegúrese de que el archivo tenga las columnas: RIF, Nombre Jurídico')],
                 message=f'Error: Faltan columnas requeridas ({", ".join(missing_columns)})'
             )
@@ -1081,7 +1081,7 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
                         return float(value)
                     except (ValueError, TypeError):
                         row_errors.append(ImportError(row=row_num, column=field_name, value=str(value),
-                            error_type='format', message=f'Valor numérico inválido',
+                            error_type='format', message='Valor numérico inválido',
                             suggested_action='Ingrese un número válido (ej: 100.50)'))
                         return 0.0
                 
@@ -1896,7 +1896,7 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                         column='Tipo',
                         value=integrator_type or '(vacío)',
                         error_type='invalid',
-                        message=f'Tipo de integrador no válido',
+                        message='Tipo de integrador no válido',
                         suggested_action=f'Use uno de: {", ".join(INTEGRATOR_TYPES)}'
                     ))
                 
@@ -1907,7 +1907,7 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                         column='Modalidad',
                         value=integration_modality or '(vacío)',
                         error_type='invalid',
-                        message=f'Modalidad de integración no válida',
+                        message='Modalidad de integración no válida',
                         suggested_action=f'Use una de: {", ".join(INTEGRATION_MODALITIES)}'
                     ))
                 
@@ -2000,7 +2000,7 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                 message=f'Error al procesar archivo: {str(e)}',
                 suggested_action='Verifique que el archivo no esté dañado y tenga el formato correcto'
             )],
-            message=f'Error crítico: No se pudo procesar el archivo'
+            message='Error crítico: No se pudo procesar el archivo'
         )
 
 # ==================== CONFIGURATION ENDPOINTS ====================
