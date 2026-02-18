@@ -26,6 +26,8 @@ export const Clients = () => {
     contact2: { name: '', phone: '', email: '' }
   });
   const fileInputRef = useRef(null);
+  const [importResult, setImportResult] = useState(null);
+  const [showImportResult, setShowImportResult] = useState(false);
 
   useEffect(() => {
     fetchClients();
