@@ -1080,13 +1080,17 @@ export const Quotes = () => {
                       <tbody>
                         {/* Conceptos base de Setup */}
                         {quoteData.setup_items.map((item, index) => (
-                          <tr key={`setup-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-cyan-500`}>
+                          <tr key={`setup-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 ${item.isCopy ? 'border-l-amber-500' : 'border-l-cyan-500'}`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
-                                {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">Fijo</span>}
+                                {item.isCopy ? (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">Copia</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
+                                )}
+                                {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">N/A</span>}
                                 {item.autoBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Auto</span>}
                               </div>
                             </td>
@@ -1100,8 +1104,12 @@ export const Quotes = () => {
                               />
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              {item.lockBancos || item.autoBancos ? (
-                                <div className={`w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium ${item.autoBancos ? 'text-purple-600 bg-purple-50 rounded' : 'text-slate-500 bg-slate-100 rounded'}`}>
+                              {item.lockBancos ? (
+                                <div className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-slate-400 bg-slate-100 rounded">
+                                  N/A
+                                </div>
+                              ) : item.autoBancos ? (
+                                <div className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-purple-600 bg-purple-50 rounded">
                                   {item.cantidad_bancos}
                                 </div>
                               ) : (
@@ -1128,7 +1136,28 @@ export const Quotes = () => {
                               ${calcularTotal(item).toFixed(2)}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              {/* Los conceptos base no se pueden eliminar */}
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => duplicateSetupItem(index)}
+                                  className="h-7 w-7 p-0 text-brand-blue-500 hover:text-brand-blue-700 hover:bg-blue-50"
+                                  title="Duplicar"
+                                >
+                                  <Copy size={14} />
+                                </Button>
+                                {item.isCopy && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => removeSetupItem(index)}
+                                    className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 size={14} />
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
