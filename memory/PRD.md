@@ -212,6 +212,25 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
+### Nueva Funcionalidad: Ajustes de Lógica de Cotización (Febrero 2026)
+- **Restricciones de Campos:**
+  - "Configuración dispositivo (Pinpad o POS)" → Campo Bancos bloqueado (valor fijo = 1)
+  - "Configuración PDV en MServer" → Campo Bancos bloqueado (valor fijo = 1)
+  - "Configuración Medio de Pago / Banco en MServer, por PDV" → Campo Bancos auto-calculado (= cantidad de medios de pago agregados)
+- **Mejoras UX:**
+  - Eliminado botón "Complementar Recurrentes" (lógica ahora automática)
+  - Agregados botones Eliminar por fila en items adicionales y recurrentes auto-vinculados
+  - Borrado en cascada: eliminar medio de pago → elimina su recurrente vinculado
+- **Bug Fix - Crear Cotización:**
+  - `item_id` ahora es opcional en QuoteItem
+  - `exchange_rate` usa valor por defecto (40.0) si no existe en BD
+- **Nueva Funcionalidad - Exportar PDF:**
+  - Endpoint POST `/api/quotes/generate-pdf`
+  - Genera PDF profesional con secciones: Setup, Recurrentes Básicos, Otros Recurrentes
+  - Incluye resumen con subtotales, descuentos y total general
+  - Botón "Exportar PDF" junto a "Guardar Cotización"
+- **Estado:** IMPLEMENTADO Y VERIFICADO
+
 ### Estructura Actual de Estado de Cotización
 ```javascript
 quoteData = {
