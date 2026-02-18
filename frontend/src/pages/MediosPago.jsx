@@ -26,6 +26,7 @@ const PRODUCT_TYPES = [
 
 export const MediosPago = () => {
   const [mediosPago, setMediosPago] = useState([]);
+  const [recurringServices, setRecurringServices] = useState([]); // Servicios recurrentes para vinculación
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMedioPago, setEditingMedioPago] = useState(null);
@@ -40,12 +41,14 @@ export const MediosPago = () => {
     monthly_cost_conventional: '',
     setup_cost_outsourcing: '',
     monthly_cost_outsourcing: '',
-    description: ''
+    description: '',
+    linked_recurring_service_id: ''
   });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchMediosPago();
+    fetchRecurringServices();
   }, []);
 
   const fetchMediosPago = async () => {
@@ -57,6 +60,16 @@ export const MediosPago = () => {
       toast.error('Error al cargar medios de pago');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Cargar servicios recurrentes disponibles para vinculación
+  const fetchRecurringServices = async () => {
+    try {
+      const response = await api.get('/services?application_type=recurring_available');
+      setRecurringServices(response.data);
+    } catch (error) {
+      console.error('Error fetching recurring services:', error);
     }
   };
 
