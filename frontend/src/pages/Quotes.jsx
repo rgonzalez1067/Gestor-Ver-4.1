@@ -112,10 +112,33 @@ export const Quotes = () => {
         monthly_cost: isOutsourcing 
           ? (service.monthly_cost_outsourcing || 0) 
           : (service.monthly_cost_conventional || 0),
-        application_type: service.application_type || 'both'
+        application_type: service.application_type || 'both',
+        linked_recurring_service_id: service.linked_recurring_service_id || null
       };
     }
-    return { setup_cost: 0, monthly_cost: 0, application_type: 'both' };
+    return { setup_cost: 0, monthly_cost: 0, application_type: 'both', linked_recurring_service_id: null };
+  };
+
+  // Obtener servicio por ID
+  const getServiceById = (serviceId) => {
+    return serviceCatalog.find(s => s.service_id === serviceId);
+  };
+
+  // Función para consolidar recurrentes (de-duplicar y acumular)
+  const consolidateRecurringItems = (items) => {
+    const consolidated = {};
+    
+    items.forEach(item => {
+      const key = item.medio_pago_name;
+      if (consolidated[key]) {
+        // Acumular en cantidad_bancos
+        consolidated[key].cantidad_bancos += item.cantidad_bancos || 1;
+      } else {
+        consolidated[key] = { ...item };
+      }
+    });
+    
+    return Object.values(consolidated);
   };
 
   // Obtener los medios de pago asociados al banco seleccionado
