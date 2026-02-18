@@ -98,7 +98,7 @@ export const Integrators = () => {
       integrator_type: integrator.integrator_type,
       app_name: integrator.app_name,
       integration_modality: integrator.integration_modality,
-      status: integrator.status
+      integrator_status: integrator.integrator_status
     });
     setDialogOpen(true);
   };
@@ -109,7 +109,7 @@ export const Integrators = () => {
       integrator_type: '',
       app_name: '',
       integration_modality: '',
-      status: 'En proceso'
+      integrator_status: 'En proceso'
     });
     setEditingIntegrator(null);
   };
