@@ -192,6 +192,26 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Botón "Complementar Recurrentes" ahora usa `addRecurringComplementsFromAdditional()`
 - **Estado:** VERIFICADO - Backend 70/70 tests (100%), Lint sin errores
 
+### Nueva Funcionalidad: Mapeo Automático Setup → Recurrente (Febrero 2026)
+- **Descripción:** Sistema de vinculación automática entre conceptos de Setup y sus Recurrentes asociados.
+- **Cambios Backend:**
+  - Nuevo campo `linked_recurring_service_id` en modelo Service/ServiceCreate
+  - Nuevo filtro `GET /api/services?application_type=recurring_available` para obtener servicios recurrentes
+- **Cambios Frontend MediosPago:**
+  - Selector "Concepto Recurrente Asociado" visible solo para tipos `setup` o `both`
+  - Carga de servicios recurrentes disponibles para vinculación
+  - Visualización del servicio vinculado en la tabla de listado
+- **Cambios Frontend Quotes:**
+  - `findServicePrice()` ahora retorna `linked_recurring_service_id`
+  - `addMedioPagoItem()` detecta vinculación y agrega automáticamente el recurrente a `recurring_basic_items`
+  - `consolidateRecurringItems()` agrupa duplicados y acumula en campo `cantidad_bancos`
+  - Al eliminar item adicional, se eliminan también sus recurrentes vinculados
+- **Beneficios:**
+  - Reducción de errores: No se olvidan cargos mensuales obligatorios
+  - Agilidad comercial: Automatización del 100% de carga de recurrentes
+  - Consistencia de datos: Ofertas comerciales íntegras
+- **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
+
 ### Estructura Actual de Estado de Cotización
 ```javascript
 quoteData = {
@@ -201,7 +221,7 @@ quoteData = {
   cantidad_cajas: 1,
   cantidad_bancos: 1,
   setup_items: [],          // Items exclusivos de Setup (4 base)
-  recurring_basic_items: [],// Recurrentes Básicos (2 base)
+  recurring_basic_items: [],// Recurrentes Básicos (2 base + auto-vinculados consolidados)
   recurring_other_items: [],// Otros Recurrentes (2 base)
   additional_items: [],     // Items adicionales (medios de pago de bancos)
   descuento: 0,
@@ -222,4 +242,4 @@ quoteData = {
 
 ---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Crash en Cotizaciones CORREGIDO
+**Estado:** MVP Operativo - Mapeo Automático Setup→Recurrente IMPLEMENTADO
