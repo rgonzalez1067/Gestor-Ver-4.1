@@ -1045,6 +1045,172 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
         headers={"Content-Disposition": f"attachment; filename=quote_{quote['quote_number']}.pdf"}
     )
 
+@api_router.post("/quotes/generate-pdf")
+async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Optional[str] = Header(None)):
+    """Genera un PDF de cotización desde los datos del frontend sin guardar en BD"""
+    await get_current_user(authorization)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Título
+    title_style = styles['Title']
+    title_style.fontSize = 16
+    elements.append(Paragraph("<b>COTIZACIÓN - Merchant Server</b>", title_style))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Información del cliente
+    quote_type_names = {
+        'VPOS': 'Cajas Registradoras (VPOS)',
+        'GATEWAY': 'Ecommerce (Payment Gateway)',
+        'MPOS': 'Tablet o Android (MPOS)',
+        'LINK': 'Link de Pago'
+    }
+    pricing_model_names = {
+        'conventional': 'Modelo Convencional',
+        'outsourcing': 'Modelo Outsourcing'
+    }
+    
+    info_data = [
+        ["Fecha:", datetime.now().strftime("%d/%m/%Y")],
+        ["Cliente:", data.cliente_nombre],
+        ["RIF:", data.cliente_rif or "N/A"],
+        ["Tipo de Servicio:", quote_type_names.get(data.quote_type, data.quote_type)],
+        ["Modelo de Precios:", pricing_model_names.get(data.pricing_model, data.pricing_model)],
+    ]
+    info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Función para crear tabla de items
+    def create_items_table(items, header_color, title):
+        if not items:
+            return None
+        
+        elements.append(Paragraph(f"<b>{title}</b>", styles['Heading2']))
+        elements.append(Spacer(1, 0.05*inch))
+        
+        table_data = [["N°", "Concepto", "Cajas", "Bancos", "Tarifa USD", "Total USD"]]
+        subtotal = 0
+        for i, item in enumerate(items, 1):
+            total = item.cantidad_cajas * item.cantidad_bancos * item.tarifa
+            subtotal += total
+            table_data.append([
+                str(i),
+                item.concepto,
+                str(item.cantidad_cajas),
+                str(item.cantidad_bancos),
+                f"${item.tarifa:.2f}",
+                f"${total:.2f}"
+            ])
+        
+        # Fila de subtotal
+        table_data.append(["", "", "", "", "Subtotal:", f"${subtotal:.2f}"])
+        
+        item_table = Table(table_data, colWidths=[0.4*inch, 3*inch, 0.6*inch, 0.6*inch, 0.9*inch, 0.9*inch])
+        item_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), header_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
+            # Estilo del subtotal
+            ('FONTNAME', (4, -1), (-1, -1), 'Helvetica-Bold'),
+            ('LINEABOVE', (4, -1), (-1, -1), 1, colors.black),
+        ]))
+        elements.append(item_table)
+        elements.append(Spacer(1, 0.15*inch))
+        return subtotal
+    
+    # Sección SETUP (azul)
+    subtotal_setup = create_items_table(data.setup_items, colors.Color(0.1, 0.4, 0.7), "INVERSIÓN INICIAL (SETUP)")
+    if subtotal_setup is None:
+        subtotal_setup = 0
+    
+    # Sección RECURRENTES BÁSICOS (verde)
+    subtotal_rec_basic = create_items_table(data.recurring_basic_items, colors.Color(0.2, 0.6, 0.3), "COSTOS RECURRENTES - BÁSICOS")
+    if subtotal_rec_basic is None:
+        subtotal_rec_basic = 0
+    
+    # Sección OTROS RECURRENTES (teal)
+    subtotal_rec_other = create_items_table(data.recurring_other_items, colors.Color(0.1, 0.5, 0.5), "OTROS RECURRENTES")
+    if subtotal_rec_other is None:
+        subtotal_rec_other = 0
+    
+    # Calcular totales
+    subtotal_recurrente = subtotal_rec_basic + subtotal_rec_other
+    descuento_setup = subtotal_setup * (data.descuento / 100)
+    descuento_recurrente = subtotal_recurrente * (data.descuento / 100)
+    total_setup = subtotal_setup - descuento_setup
+    total_recurrente = subtotal_recurrente - descuento_recurrente
+    total_general = total_setup + total_recurrente
+    
+    # Tabla de resumen final
+    elements.append(Spacer(1, 0.1*inch))
+    elements.append(Paragraph("<b>RESUMEN DE LA COTIZACIÓN</b>", styles['Heading2']))
+    elements.append(Spacer(1, 0.05*inch))
+    
+    summary_data = [
+        ["Concepto", "Subtotal", "Descuento", "Total Neto"],
+        ["Inversión Inicial (Setup)", f"${subtotal_setup:.2f}", f"-${descuento_setup:.2f}", f"${total_setup:.2f}"],
+        ["Costos Recurrentes (Mensual)", f"${subtotal_recurrente:.2f}", f"-${descuento_recurrente:.2f}", f"${total_recurrente:.2f}"],
+        ["", "", "TOTAL GENERAL:", f"${total_general:.2f}"],
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[2.5*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.2, 0.2, 0.2)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
+        # Total general
+        ('FONTNAME', (2, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (2, -1), (-1, -1), 11),
+        ('BACKGROUND', (2, -1), (-1, -1), colors.Color(0.1, 0.4, 0.7)),
+        ('TEXTCOLOR', (2, -1), (-1, -1), colors.whitesmoke),
+    ]))
+    elements.append(summary_table)
+    
+    # Notas
+    if data.notes:
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph("<b>Notas:</b>", styles['Heading3']))
+        elements.append(Paragraph(data.notes, styles['Normal']))
+    
+    # Pie de página
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = styles['Normal']
+    footer_style.fontSize = 8
+    footer_style.textColor = colors.grey
+    elements.append(Paragraph("Este documento es una cotización y no representa un compromiso contractual.", footer_style))
+    elements.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} - Cotizador Merchant Server", footer_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"cotizacion_{data.cliente_nombre.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # ==================== CONFIGURATION ENDPOINTS ====================
 
 @api_router.post("/config/logo")
