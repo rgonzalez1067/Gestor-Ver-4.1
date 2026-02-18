@@ -236,6 +236,11 @@ class QuotePDFRequest(BaseModel):
     cliente_rif: str = ""
     quote_type: str = "VPOS"
     pricing_model: str = "conventional"
+    # Nuevos campos de integración y hardware
+    integrator_name: str = ""
+    integrator_app_name: str = ""
+    pinpad_model: str = ""
+    sponsor_bank_name: str = ""
     setup_items: List[QuotePDFItem] = []
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
