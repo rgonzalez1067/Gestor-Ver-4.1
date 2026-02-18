@@ -180,12 +180,29 @@ export const Banks = () => {
     formData.append('file', file);
 
     try {
-      await api.post('/banks/import', formData, {
+      toast.loading('Procesando archivo...', { id: 'import-loading' });
+      
+      const response = await api.post('/banks/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast.success('Bancos importados exitosamente');
+      
+      toast.dismiss('import-loading');
+      
+      const result = response.data;
+      setImportResult(result);
+      setShowImportResult(true);
+      
+      if (result.status === 'success') {
+        toast.success(`${result.success_count} bancos importados exitosamente`);
+      } else if (result.status === 'partial') {
+        toast.warning(`Importación parcial: ${result.success_count} exitosos, ${result.error_count} con errores`);
+      } else {
+        toast.error(result.message || 'Error en la importación');
+      }
+      
       fetchBanks();
     } catch (error) {
+      toast.dismiss('import-loading');
       console.error('Error importing banks:', error);
       toast.error('Error al importar bancos. Verifique el formato del archivo.');
     }
@@ -193,6 +210,11 @@ export const Banks = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const closeImportResult = () => {
+    setShowImportResult(false);
+    setImportResult(null);
   };
 
   const exportToCSV = () => {
