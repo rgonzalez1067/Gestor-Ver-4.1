@@ -174,14 +174,52 @@ El usuario solicitó una aplicación de cotizaciones con:
   - 6 tarjetas de estadísticas en total
   - Validación robusta de datos (Array.isArray)
 
+## Correcciones Recientes (Febrero 2026)
+
+### Bug Fix: Crash en Página de Cotizaciones
+- **Problema:** La página `/quotes` crasheaba con error de JavaScript por referencias a una variable de estado eliminada (`recurring_complement_items`).
+- **Causa raíz:** Durante una refactorización, se eliminó la variable del estado inicial pero quedaron referencias:
+  - Función `updateRecurringComplementItem`
+  - Referencias a `recurring_complement_items.length`
+  - Variable `subtotalRecurringComplement`
+  - Sección completa de tabla de Complementos usando `.map`
+  - `handleSubmitQuote` referenciaba `quoteData.recurring_items` (inexistente)
+- **Solución aplicada:**
+  - Eliminada función `updateRecurringComplementItem`
+  - Eliminadas referencias a `recurring_complement_items.length`
+  - Eliminada sección de tabla de Complementos
+  - Corregido `handleSubmitQuote` para usar `recurring_basic_items` y `recurring_other_items`
+  - Botón "Complementar Recurrentes" ahora usa `addRecurringComplementsFromAdditional()`
+- **Estado:** VERIFICADO - Backend 70/70 tests (100%), Lint sin errores
+
+### Estructura Actual de Estado de Cotización
+```javascript
+quoteData = {
+  quote_type: '',           // VPOS, GATEWAY, MPOS, LINK
+  client_id: '',
+  pricing_model: '',        // 'conventional' o 'outsourcing'
+  cantidad_cajas: 1,
+  cantidad_bancos: 1,
+  setup_items: [],          // Items exclusivos de Setup (4 base)
+  recurring_basic_items: [],// Recurrentes Básicos (2 base)
+  recurring_other_items: [],// Otros Recurrentes (2 base)
+  additional_items: [],     // Items adicionales (medios de pago de bancos)
+  descuento: 0,
+  notes: ''
+}
+```
+
 ## Backlog / Tareas Futuras
+- [ ] **Exportar Cotización a PDF** (P1)
+- [ ] Verificar contadores del Dashboard (P1)
 - [ ] Módulo de reportes estadísticos
 - [ ] Consultas avanzadas de cotizaciones
 - [ ] Exportación masiva a Excel
 - [ ] Notificaciones por email
 - [ ] Recuperación de contraseña
 - [ ] Refactorización del backend (dividir server.py monolítico)
+- [ ] Refactorización del frontend (descomponer Quotes.jsx)
 
 ---
-**Última actualización:** Diciembre 2025
-**Estado:** MVP Completo - Probado con filtrado de compatibilidad
+**Última actualización:** Febrero 2026
+**Estado:** MVP Operativo - Crash en Cotizaciones CORREGIDO
