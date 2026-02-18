@@ -854,10 +854,12 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     await get_current_user(authorization)
     
     exchange_rate_doc = await db.exchange_rates.find_one({}, {"_id": 0}, sort=[("date", -1)])
-    if not exchange_rate_doc:
-        raise HTTPException(status_code=400, detail="Exchange rate not available")
     
-    exchange_rate = exchange_rate_doc["rate"]
+    # Si no hay tasa de cambio, usar valor por defecto
+    if not exchange_rate_doc:
+        exchange_rate = 40.0  # Valor por defecto
+    else:
+        exchange_rate = exchange_rate_doc["rate"]
     
     subtotal_usd = sum(item.total_usd for item in quote_data.services) + sum(item.total_usd for item in quote_data.hardware)
     total_usd = subtotal_usd
