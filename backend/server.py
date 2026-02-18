@@ -62,6 +62,7 @@ class ClientCreate(BaseModel):
     legal_name: str
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
+    address: Optional[str] = None  # Dirección fiscal
     contact1: Contact
     contact2: Contact
 
@@ -71,6 +72,7 @@ class Client(BaseModel):
     legal_name: str
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
+    address: Optional[str] = None  # Dirección fiscal
     contact1: Contact
     contact2: Contact
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

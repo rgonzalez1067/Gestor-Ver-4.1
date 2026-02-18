@@ -22,6 +22,7 @@ export const Clients = () => {
     legal_name: '',
     fantasy_name: '',
     segment: 'Pymes',
+    address: '',  // Dirección fiscal
     contact1: { name: '', phone: '', email: '' },
     contact2: { name: '', phone: '', email: '' }
   });
