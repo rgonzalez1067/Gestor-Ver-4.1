@@ -424,6 +424,11 @@ export const Clients = () => {
             </div>
           </div>
 
+          {/* Import Result Panel */}
+          {showImportResult && importResult && (
+            <ImportResultPanel result={importResult} onClose={closeImportResult} />
+          )}
+
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
