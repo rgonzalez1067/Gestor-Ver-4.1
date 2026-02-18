@@ -175,6 +175,25 @@ class ExchangeRate(BaseModel):
     date: datetime
     source: str = "BCV"
 
+# Modelo para generar PDF desde frontend
+class QuotePDFItem(BaseModel):
+    concepto: str
+    cantidad_cajas: int = 1
+    cantidad_bancos: int = 1
+    tarifa: float = 0
+    total: float = 0
+
+class QuotePDFRequest(BaseModel):
+    cliente_nombre: str
+    cliente_rif: str = ""
+    quote_type: str = "VPOS"
+    pricing_model: str = "conventional"
+    setup_items: List[QuotePDFItem] = []
+    recurring_basic_items: List[QuotePDFItem] = []
+    recurring_other_items: List[QuotePDFItem] = []
+    descuento: float = 0
+    notes: str = ""
+
 class User(BaseModel):
     user_id: str
     email: str
