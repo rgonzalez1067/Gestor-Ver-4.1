@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="6" time="1.276" timestamp="2026-02-18T20:06:19.509896+00:00" hostname="agent-env-72a46ee0-1805-47b5-8475-780784f1d3a2"><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_services_endpoint_returns_data" time="0.373" /><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_comunicacion_backend_service_exists" time="0.085" /><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_procesamiento_service_exists" time="0.122" /><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_mserver_pdv_service_exists" time="0.098"><failure message="AssertionError: MServer PDV conventional price should be &gt; $0, got $0.0&#10;assert 0.0 &gt; 0">self = &lt;test_services_otros_recurrentes.TestOtrosRecurrentesServices object at 0x7fc40a527850&gt;
+
+    def test_mserver_pdv_service_exists(self):
+        """Test 'Derecho de uso de plataforma MServer por PDV' service exists"""
+        response = requests.get(f"{BASE_URL}/api/services", headers=self.headers)
+        assert response.status_code == 200
+    
+        services = response.json()
+    
+        # Search for service - case insensitive and allowing Mserver/MServer
+        matching_services = [s for s in services
+                           if "mserver" in s.get('name', '').lower()
+                           and "pdv" in s.get('name', '').lower()
+                           and "banco" not in s.get('name', '').lower()]
+    
+        assert len(matching_services) &gt; 0, "Service 'Derecho de uso de plataforma MServer por PDV' not found"
+    
+        service = matching_services[0]
+        print(f"Found service: {service['name']}")
+        print(f"  - monthly_cost_conventional: ${service.get('monthly_cost_conventional', 0)}")
+        print(f"  - monthly_cost_outsourcing: ${service.get('monthly_cost_outsourcing', 0)}")
+    
+        # Verify prices are greater than $0
+        conv_price = service.get('monthly_cost_conventional', 0)
+        outs_price = service.get('monthly_cost_outsourcing', 0)
+    
+&gt;       assert conv_price &gt; 0, f"MServer PDV conventional price should be &gt; $0, got ${conv_price}"
+E       AssertionError: MServer PDV conventional price should be &gt; $0, got $0.0
+E       assert 0.0 &gt; 0
+
+tests/test_services_otros_recurrentes.py:125: AssertionError</failure></testcase><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_mserver_pdv_banco_service_exists" time="0.307"><failure message="AssertionError: MServer PDV/Banco conventional price should be &gt; $0, got $0.0&#10;assert 0.0 &gt; 0">self = &lt;test_services_otros_recurrentes.TestOtrosRecurrentesServices object at 0x7fc40a527e90&gt;
+
+    def test_mserver_pdv_banco_service_exists(self):
+        """Test 'Derecho de uso de plataforma MServer por PDV / Banco' service exists"""
+        response = requests.get(f"{BASE_URL}/api/services", headers=self.headers)
+        assert response.status_code == 200
+    
+        services = response.json()
+    
+        # Search for service - case insensitive and must include "banco"
+        matching_services = [s for s in services
+                           if "mserver" in s.get('name', '').lower()
+                           and "pdv" in s.get('name', '').lower()
+                           and "banco" in s.get('name', '').lower()]
+    
+        assert len(matching_services) &gt; 0, "Service 'Derecho de uso de plataforma MServer por PDV / Banco' not found"
+    
+        service = matching_services[0]
+        print(f"Found service: {service['name']}")
+        print(f"  - monthly_cost_conventional: ${service.get('monthly_cost_conventional', 0)}")
+        print(f"  - monthly_cost_outsourcing: ${service.get('monthly_cost_outsourcing', 0)}")
+    
+        # Verify prices are greater than $0
+        conv_price = service.get('monthly_cost_conventional', 0)
+        outs_price = service.get('monthly_cost_outsourcing', 0)
+    
+&gt;       assert conv_price &gt; 0, f"MServer PDV/Banco conventional price should be &gt; $0, got ${conv_price}"
+E       AssertionError: MServer PDV/Banco conventional price should be &gt; $0, got $0.0
+E       assert 0.0 &gt; 0
+
+tests/test_services_otros_recurrentes.py:154: AssertionError</failure></testcase><testcase classname="tests.test_services_otros_recurrentes.TestOtrosRecurrentesServices" name="test_name_matching_frontend_to_backend" time="0.094"><failure message="AssertionError: Some frontend concepts have no backend match at all: [{'frontend': 'Comunicación Backend (SSL Público o VPN, APN, etc.)', 'backend': None, 'type': 'none'}, {'frontend': 'Procesamiento (HSM, Server, DC, etc.)', 'backend': None, 'type': 'none'}]&#10;assert 2 == 0&#10; +  where 2 = len([{'backend': None, 'frontend': 'Comunicación Backend (SSL Público o VPN, APN, etc.)', 'type': 'none'}, {'backend': None, 'frontend': 'Procesamiento (HSM, Server, DC, etc.)', 'type': 'none'}])">self = &lt;test_services_otros_recurrentes.TestOtrosRecurrentesServices object at 0x7fc40a538510&gt;
+
+    def test_name_matching_frontend_to_backend(self):
+        """Test that frontend concept names can find corresponding backend services"""
+        response = requests.get(f"{BASE_URL}/api/services", headers=self.headers)
+        assert response.status_code == 200
+    
+        services = response.json()
+    
+        # Frontend concept names (exactly as defined in Quotes.jsx)
+        frontend_concepts = [
+            # RECURRING_OTHER_CONCEPTS (lines 44-47)
+            "Comunicación Backend (SSL Público o VPN, APN, etc.)",
+            "Procesamiento (HSM, Server, DC, etc.)",
+            # RECURRING_BASIC_CONCEPTS (lines 38-40)
+            "Derecho de uso de plataforma MServer por PDV",
+            "Derecho de uso de plataforma MServer por PDV / Banco"
+        ]
+    
+        mismatches = []
+    
+        for concept in frontend_concepts:
+            # Replicate the frontend matching logic (case-insensitive exact match first)
+            exact_match = None
+            for s in services:
+                if s['name'].lower() == concept.lower():
+                    exact_match = s
+                    break
+    
+            if exact_match:
+                print(f"✓ EXACT MATCH: '{concept}' -&gt; '{exact_match['name']}'")
+            else:
+                # Try partial matching
+                partial_matches = [s for s in services
+                                  if concept.lower() in s['name'].lower()
+                                  or s['name'].lower() in concept.lower()]
+    
+                if partial_matches:
+                    print(f"⚠ PARTIAL MATCH: '{concept}' -&gt; '{partial_matches[0]['name']}'")
+                    mismatches.append({
+                        "frontend": concept,
+                        "backend": partial_matches[0]['name'],
+                        "type": "partial"
+                    })
+                else:
+                    print(f"✗ NO MATCH: '{concept}'")
+                    mismatches.append({
+                        "frontend": concept,
+                        "backend": None,
+                        "type": "none"
+                    })
+    
+        if mismatches:
+            print("\n⚠ Name matching issues found:")
+            for m in mismatches:
+                print(f"  Frontend: '{m['frontend']}'")
+                print(f"  Backend:  '{m['backend']}'")
+                print()
+    
+        # This test documents the current state but doesn't fail on partial matches
+        # (since the bug fix claims exact matching now works)
+        no_matches = [m for m in mismatches if m['type'] == 'none']
+&gt;       assert len(no_matches) == 0, f"Some frontend concepts have no backend match at all: {no_matches}"
+E       AssertionError: Some frontend concepts have no backend match at all: [{'frontend': 'Comunicación Backend (SSL Público o VPN, APN, etc.)', 'backend': None, 'type': 'none'}, {'frontend': 'Procesamiento (HSM, Server, DC, etc.)', 'backend': None, 'type': 'none'}]
+E       assert 2 == 0
+E        +  where 2 = len([{'backend': None, 'frontend': 'Comunicación Backend (SSL Público o VPN, APN, etc.)', 'type': 'none'}, {'backend': None, 'frontend': 'Procesamiento (HSM, Server, DC, etc.)', 'type': 'none'}])
+
+tests/test_services_otros_recurrentes.py:219: AssertionError</failure></testcase></testsuite></testsuites>
