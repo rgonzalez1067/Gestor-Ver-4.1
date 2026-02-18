@@ -158,23 +158,68 @@ export const Integrators = () => {
     formData.append('file', file);
 
     try {
+      toast.loading('Procesando archivo...', { id: 'import-loading' });
+      
       const response = await api.post('/integrators/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
-      toast.success(response.data.message);
+      toast.dismiss('import-loading');
       
-      if (response.data.errors && response.data.errors.length > 0) {
-        response.data.errors.forEach(err => toast.warning(err));
+      const result = response.data;
+      setImportResult(result);
+      setShowImportResult(true);
+      
+      // Mostrar toast según el resultado
+      if (result.status === 'success') {
+        toast.success(`${result.success_count} registros importados exitosamente`);
+      } else if (result.status === 'partial') {
+        toast.warning(`Importación parcial: ${result.success_count} exitosos, ${result.error_count} con errores`);
+      } else {
+        toast.error(result.message || 'Error en la importación');
       }
       
       fetchIntegrators();
     } catch (error) {
+      toast.dismiss('import-loading');
       toast.error(error.response?.data?.detail || 'Error al importar archivo');
     } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const closeImportResult = () => {
+    setShowImportResult(false);
+    setImportResult(null);
+  };
+
+  const getImportStatusColor = (status) => {
+    switch (status) {
+      case 'success': return 'bg-green-50 border-green-200';
+      case 'partial': return 'bg-amber-50 border-amber-200';
+      case 'error': return 'bg-red-50 border-red-200';
+      default: return 'bg-slate-50 border-slate-200';
+    }
+  };
+
+  const getImportStatusIcon = (status) => {
+    switch (status) {
+      case 'success': return <CheckCircle className="text-green-600" size={24} />;
+      case 'partial': return <AlertTriangle className="text-amber-600" size={24} />;
+      case 'error': return <XCircle className="text-red-600" size={24} />;
+      default: return <Info className="text-slate-600" size={24} />;
+    }
+  };
+
+  const getErrorTypeLabel = (errorType) => {
+    switch (errorType) {
+      case 'missing': return 'Campo requerido vacío';
+      case 'invalid': return 'Valor no válido';
+      case 'format': return 'Formato incorrecto';
+      case 'duplicate': return 'Registro duplicado';
+      default: return errorType;
     }
   };
 
