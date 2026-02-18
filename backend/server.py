@@ -1232,6 +1232,243 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+# ==================== INTEGRATORS ENDPOINTS ====================
+
+@api_router.get("/integrators", response_model=List[Integrator])
+async def get_integrators(
+    authorization: Optional[str] = Header(None),
+    status: Optional[str] = None,
+    integrator_type: Optional[str] = None
+):
+    await get_current_user(authorization)
+    
+    query = {}
+    if status:
+        query['status'] = status
+    if integrator_type:
+        query['integrator_type'] = integrator_type
+    
+    integrators = await db.integrators.find(query, {"_id": 0}).to_list(1000)
+    for intg in integrators:
+        if isinstance(intg.get('created_at'), str):
+            intg['created_at'] = datetime.fromisoformat(intg['created_at'])
+    return integrators
+
+@api_router.post("/integrators", response_model=Integrator)
+async def create_integrator(integrator: IntegratorCreate, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    new_integrator = Integrator(**integrator.model_dump())
+    doc = new_integrator.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.integrators.insert_one(doc)
+    return new_integrator
+
+@api_router.get("/integrators/{integrator_id}", response_model=Integrator)
+async def get_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    integrator = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    if not integrator:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    return integrator
+
+@api_router.put("/integrators/{integrator_id}", response_model=Integrator)
+async def update_integrator(integrator_id: str, integrator: IntegratorCreate, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    
+    update_data = integrator.model_dump()
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": update_data}
+    )
+    
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/integrators/{integrator_id}")
+async def delete_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    result = await db.integrators.delete_one({"integrator_id": integrator_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    return {"message": "Integrator deleted successfully"}
+
+# Export integrators to Excel
+@api_router.get("/integrators/export/excel")
+async def export_integrators_excel(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
+    
+    if not integrators:
+        raise HTTPException(status_code=404, detail="No integrators to export")
+    
+    import pandas as pd
+    
+    df = pd.DataFrame(integrators)
+    if 'created_at' in df.columns:
+        df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
+    
+    # Reorder columns
+    columns_order = ['integrator_id', 'name', 'integrator_type', 'app_name', 'integration_modality', 'status', 'created_at']
+    df = df[[c for c in columns_order if c in df.columns]]
+    
+    buffer = io.BytesIO()
+    df.to_excel(buffer, index=False, sheet_name='Integradores')
+    buffer.seek(0)
+    
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=integradores.xlsx"}
+    )
+
+# Export integrators to PDF
+@api_router.get("/integrators/export/pdf")
+async def export_integrators_pdf(authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
+    
+    if not integrators:
+        raise HTTPException(status_code=404, detail="No integrators to export")
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    elements.append(Paragraph("<b>Listado de Integradores</b>", styles['Title']))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Table data
+    table_data = [["Nombre", "Tipo", "Aplicativo", "Modalidad", "Estatus"]]
+    for intg in integrators:
+        table_data.append([
+            intg.get('name', ''),
+            intg.get('integrator_type', ''),
+            intg.get('app_name', ''),
+            intg.get('integration_modality', ''),
+            intg.get('status', '')
+        ])
+    
+    table = Table(table_data, colWidths=[1.5*inch, 1*inch, 1.5*inch, 1.3*inch, 1*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.2, 0.3, 0.5)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
+    ]))
+    elements.append(table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=integradores.pdf"}
+    )
+
+# Import integrators from Excel/CSV
+@api_router.post("/integrators/import")
+async def import_integrators(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    content = await file.read()
+    imported_count = 0
+    errors = []
+    
+    try:
+        import pandas as pd
+        
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(content))
+        elif file.filename.endswith('.xlsx') or file.filename.endswith('.xls'):
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            raise HTTPException(status_code=400, detail="Formato no soportado. Use .xlsx, .xls o .csv")
+        
+        # Normalize column names
+        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        
+        # Map common column names
+        column_mapping = {
+            'nombre': 'name',
+            'nombre_del_integrador': 'name',
+            'tipo': 'integrator_type',
+            'tipo_de_integrador': 'integrator_type',
+            'aplicativo': 'app_name',
+            'nombre_del_aplicativo': 'app_name',
+            'modalidad': 'integration_modality',
+            'modalidad_de_integración': 'integration_modality',
+            'modalidad_de_integracion': 'integration_modality',
+            'estatus': 'status',
+            'estado': 'status'
+        }
+        
+        df.rename(columns=column_mapping, inplace=True)
+        
+        for idx, row in df.iterrows():
+            try:
+                name = str(row.get('name', '')).strip()
+                integrator_type = str(row.get('integrator_type', '')).strip()
+                app_name = str(row.get('app_name', '')).strip()
+                integration_modality = str(row.get('integration_modality', '')).strip()
+                status = str(row.get('status', 'En proceso')).strip()
+                
+                if not name:
+                    errors.append(f"Fila {idx + 2}: Nombre requerido")
+                    continue
+                
+                # Validate integrator_type
+                if integrator_type not in INTEGRATOR_TYPES:
+                    errors.append(f"Fila {idx + 2}: Tipo inválido '{integrator_type}'. Use: {', '.join(INTEGRATOR_TYPES)}")
+                    continue
+                
+                # Validate integration_modality
+                if integration_modality not in INTEGRATION_MODALITIES:
+                    errors.append(f"Fila {idx + 2}: Modalidad inválida '{integration_modality}'. Use: {', '.join(INTEGRATION_MODALITIES)}")
+                    continue
+                
+                # Validate status
+                if status not in INTEGRATOR_STATUSES:
+                    status = "En proceso"  # Default if invalid
+                
+                new_integrator = Integrator(
+                    name=name,
+                    integrator_type=integrator_type,
+                    app_name=app_name,
+                    integration_modality=integration_modality,
+                    status=status
+                )
+                
+                doc = new_integrator.model_dump()
+                doc['created_at'] = doc['created_at'].isoformat()
+                await db.integrators.insert_one(doc)
+                imported_count += 1
+                
+            except Exception as e:
+                errors.append(f"Fila {idx + 2}: {str(e)}")
+        
+        return {
+            "message": f"Importación completada. {imported_count} integradores importados.",
+            "imported": imported_count,
+            "errors": errors[:10] if errors else []  # Limit errors to first 10
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
+
 # ==================== CONFIGURATION ENDPOINTS ====================
 
 @api_router.post("/config/logo")
