@@ -329,6 +329,8 @@ quoteData = {
 
 ## Backlog / Tareas Futuras
 - [ ] Verificar contadores del Dashboard (P1)
+- [ ] Resolver bug de descarga de PDF en Cotizaciones (P1)
+- [ ] Tarifas de "Otros Recurrentes" muestran $0.00 (P2)
 - [ ] Módulo de reportes estadísticos
 - [ ] Consultas avanzadas de cotizaciones
 - [ ] Exportación masiva a Excel
@@ -337,6 +339,54 @@ quoteData = {
 - [ ] Refactorización del backend (dividir server.py monolítico)
 - [ ] Refactorización del frontend (descomponer Quotes.jsx)
 
+## Sistema de Importación Estandarizado (Febrero 2026)
+
+### Descripción
+Sistema de validación robusto y transversal para todas las funcionalidades de carga masiva de datos. Proporciona feedback detallado al usuario con contadores, log de errores y alertas visuales.
+
+### Endpoints Actualizados
+- `POST /api/integrators/import` → Devuelve `ImportResult`
+- `POST /api/clients/import` → Devuelve `ImportResult`
+- `POST /api/banks/import` → Devuelve `ImportResult`
+- `POST /api/services/import` → Devuelve `ImportResult`
+
+### Modelos de Respuesta
+```python
+class ImportError:
+    row: int              # Número de fila en el archivo
+    column: str           # Nombre de la columna
+    value: str | None     # Valor que causó el error
+    error_type: str       # 'missing', 'invalid', 'format', 'duplicate'
+    message: str          # Descripción del error
+    suggested_action: str # Acción sugerida para corregir
+
+class ImportResult:
+    status: str           # 'success', 'partial', 'error'
+    total_processed: int  # Total de filas procesadas
+    success_count: int    # Registros importados exitosamente
+    error_count: int      # Cantidad de errores encontrados
+    skipped_count: int    # Registros omitidos
+    errors: List[ImportError]  # Detalle de cada error
+    message: str          # Mensaje resumen
+```
+
+### Componente Frontend
+- **ImportResultPanel** (`/app/frontend/src/components/ImportResultPanel.jsx`)
+  - Alertas con colores: verde (éxito), naranja (parcial), rojo (error)
+  - Contadores visuales: Total, Exitosos, Errores, Omitidos
+  - Tabla de errores detallada con: Fila, Columna, Valor, Tipo de error, Acción sugerida
+  - Badges de tipo de error con colores diferenciados
+
+### Validaciones Implementadas
+- Campos obligatorios vacíos → `error_type: 'missing'`
+- Valores fuera de opciones permitidas (enums) → `error_type: 'invalid'`
+- Formato de datos incorrecto → `error_type: 'format'`
+- Registros duplicados en base de datos → `error_type: 'duplicate'`
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 131/131 tests pasados (incluyendo 26 tests nuevos de importación)
+
 ---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Lógica de Cotización y Exportar PDF IMPLEMENTADOS
+**Estado:** MVP Operativo - Sistema de Importación Estandarizado IMPLEMENTADO
