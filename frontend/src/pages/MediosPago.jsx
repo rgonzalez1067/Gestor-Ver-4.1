@@ -93,7 +93,11 @@ export const MediosPago = () => {
         setup_cost_conventional: formData.application_type !== 'recurring' ? (parseFloat(formData.setup_cost_conventional) || 0) : 0,
         monthly_cost_conventional: formData.application_type !== 'setup' ? (parseFloat(formData.monthly_cost_conventional) || 0) : 0,
         setup_cost_outsourcing: formData.application_type !== 'recurring' ? (parseFloat(formData.setup_cost_outsourcing) || 0) : 0,
-        monthly_cost_outsourcing: formData.application_type !== 'setup' ? (parseFloat(formData.monthly_cost_outsourcing) || 0) : 0
+        monthly_cost_outsourcing: formData.application_type !== 'setup' ? (parseFloat(formData.monthly_cost_outsourcing) || 0) : 0,
+        // Solo guardar vinculación si es tipo setup o both
+        linked_recurring_service_id: (formData.application_type === 'setup' || formData.application_type === 'both') 
+          ? (formData.linked_recurring_service_id || null) 
+          : null
       };
 
       if (editingMedioPago) {
