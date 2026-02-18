@@ -99,6 +99,68 @@ export const Quotes = () => {
     }
   }, [quoteData.additional_items.length]);
 
+  // Sincronizar valores de Cajas y Bancos de la cabecera con los conceptos base
+  useEffect(() => {
+    const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items } = quoteData;
+    
+    if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0) {
+      return; // No hay items para actualizar
+    }
+    
+    let needsUpdate = false;
+    
+    // Actualizar Setup items (excepto lockBancos y autoBancos)
+    const updatedSetupItems = setup_items.map(item => {
+      if (item.isDefault) {
+        const newCajas = cantidad_cajas || 1;
+        const newBancos = (item.lockBancos || item.autoBancos) ? item.cantidad_bancos : (cantidad_bancos || 1);
+        
+        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && !item.autoBancos && item.cantidad_bancos !== newBancos)) {
+          needsUpdate = true;
+          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
+        }
+      }
+      return item;
+    });
+    
+    // Actualizar Recurrentes Básicos (solo los base, no los auto-vinculados)
+    const updatedRecurringBasic = recurring_basic_items.map(item => {
+      if (item.isDefault && !item.isAutoLinked) {
+        const newCajas = cantidad_cajas || 1;
+        const newBancos = cantidad_bancos || 1;
+        
+        if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+          needsUpdate = true;
+          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
+        }
+      }
+      return item;
+    });
+    
+    // Actualizar Otros Recurrentes
+    const updatedRecurringOther = recurring_other_items.map(item => {
+      if (item.isDefault) {
+        const newCajas = cantidad_cajas || 1;
+        const newBancos = cantidad_bancos || 1;
+        
+        if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+          needsUpdate = true;
+          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
+        }
+      }
+      return item;
+    });
+    
+    if (needsUpdate) {
+      setQuoteData(prev => ({
+        ...prev,
+        setup_items: updatedSetupItems,
+        recurring_basic_items: updatedRecurringBasic,
+        recurring_other_items: updatedRecurringOther
+      }));
+    }
+  }, [quoteData.cantidad_cajas, quoteData.cantidad_bancos]);
+
   const fetchData = async () => {
     try {
       const [quotesRes, clientsRes, banksRes, servicesRes] = await Promise.all([
