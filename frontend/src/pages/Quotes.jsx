@@ -407,6 +407,10 @@ export const Quotes = () => {
       pricing_model: '',
       cantidad_cajas: 1,
       cantidad_bancos: 1,
+      integrator_id: '',
+      integrator_app_name: '',
+      pinpad_id: '',
+      sponsor_bank_id: '',
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
@@ -417,6 +421,16 @@ export const Quotes = () => {
     setSelectedBankId('');
     setSelectedMedioPagoId('');
     setAvailableMediosPago([]);
+  };
+
+  // Handler para selección de integrador
+  const handleIntegratorChange = (integratorId) => {
+    const integrator = integrators.find(i => i.integrator_id === integratorId);
+    setQuoteData({
+      ...quoteData,
+      integrator_id: integratorId,
+      integrator_app_name: integrator?.app_name || ''
+    });
   };
 
   const addMedioPagoItem = () => {
