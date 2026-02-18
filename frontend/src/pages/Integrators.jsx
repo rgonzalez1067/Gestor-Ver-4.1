@@ -464,19 +464,19 @@ export const Integrators = () => {
             <div className="bg-white rounded-lg border border-green-200 p-4">
               <div className="text-sm text-green-600">Certificados</div>
               <div className="text-2xl font-bold text-green-700">
-                {integrators.filter(i => i.status === 'Certificado').length}
+                {integrators.filter(i => i.integrator_status === 'Certificado').length}
               </div>
             </div>
             <div className="bg-white rounded-lg border border-amber-200 p-4">
               <div className="text-sm text-amber-600">En proceso</div>
               <div className="text-2xl font-bold text-amber-700">
-                {integrators.filter(i => i.status === 'En proceso').length}
+                {integrators.filter(i => i.integrator_status === 'En proceso').length}
               </div>
             </div>
             <div className="bg-white rounded-lg border border-red-200 p-4">
               <div className="text-sm text-red-600">Suspendidos</div>
               <div className="text-2xl font-bold text-red-700">
-                {integrators.filter(i => i.status === 'Suspendido').length}
+                {integrators.filter(i => i.integrator_status === 'Suspendido').length}
               </div>
             </div>
           </div>
