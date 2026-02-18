@@ -754,12 +754,22 @@ export const Quotes = () => {
       return;
     }
 
+    // Obtener datos de integración y hardware
+    const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+    const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+    const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+
     // Preparar datos para el PDF
     const pdfData = {
       cliente_nombre: client.legal_name || client.commercial_name || 'Cliente',
       cliente_rif: client.rif || '',
       quote_type: quoteData.quote_type,
       pricing_model: quoteData.pricing_model,
+      // Nuevos campos de integración y hardware
+      integrator_name: integrator?.name || '',
+      integrator_app_name: quoteData.integrator_app_name || '',
+      pinpad_model: pinpad?.name || '',
+      sponsor_bank_name: sponsorBank?.name || '',
       setup_items: [
         ...quoteData.setup_items.map(item => ({
           concepto: item.medio_pago_name,
