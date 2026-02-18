@@ -1355,7 +1355,7 @@ async def export_integrators_pdf(authorization: Optional[str] = Header(None)):
             intg.get('integrator_type', ''),
             intg.get('app_name', ''),
             intg.get('integration_modality', ''),
-            intg.get('status', '')
+            intg.get('integrator_status', '')
         ])
     
     table = Table(table_data, colWidths=[1.5*inch, 1*inch, 1.5*inch, 1.3*inch, 1*inch])
