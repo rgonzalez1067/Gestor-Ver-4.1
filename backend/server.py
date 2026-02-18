@@ -1316,7 +1316,7 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
         df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
     
     # Reorder columns
-    columns_order = ['integrator_id', 'name', 'integrator_type', 'app_name', 'integration_modality', 'status', 'created_at']
+    columns_order = ['integrator_id', 'name', 'integrator_type', 'app_name', 'integration_modality', 'integrator_status', 'created_at']
     df = df[[c for c in columns_order if c in df.columns]]
     
     buffer = io.BytesIO()
