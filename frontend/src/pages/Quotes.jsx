@@ -896,6 +896,75 @@ export const Quotes = () => {
     return model ? model.name : modelId;
   };
 
+  // === FUNCIONES DE ACCIONES DE COTIZACIÓN ===
+  
+  // Enviar al cliente
+  const handleSendToClient = async (quoteId) => {
+    setActionLoading(quoteId);
+    try {
+      const response = await api.post(`/quotes/${quoteId}/send-to-client`);
+      
+      if (response.data.status === 'simulated') {
+        toast.warning(response.data.message);
+      } else {
+        toast.success(response.data.message);
+      }
+      
+      fetchData(); // Recargar lista
+    } catch (error) {
+      console.error('Error sending to client:', error);
+      toast.error(error.response?.data?.detail || 'Error al enviar al cliente');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Aprobar cotización
+  const handleApproveQuote = async (quoteId) => {
+    if (!window.confirm('¿Confirma que desea aprobar esta cotización?')) return;
+    
+    setActionLoading(quoteId);
+    try {
+      await api.put(`/quotes/${quoteId}/status`, { new_status: 'Aprobada' });
+      toast.success('Cotización aprobada exitosamente');
+      fetchData();
+    } catch (error) {
+      console.error('Error approving quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al aprobar');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Enviar a implementación
+  const handleSendToImplementation = async (quoteId) => {
+    setActionLoading(quoteId);
+    try {
+      const response = await api.post(`/quotes/${quoteId}/send-to-implementation`);
+      
+      if (response.data.status === 'simulated') {
+        toast.warning(response.data.message);
+      } else {
+        toast.success(response.data.message);
+      }
+      
+      fetchData();
+    } catch (error) {
+      console.error('Error sending to implementation:', error);
+      toast.error(error.response?.data?.detail || 'Error al enviar a implementación');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Modificar cotización (abrir con datos precargados)
+  const handleEditQuote = async (quote) => {
+    // Por ahora solo abre el wizard vacío con mensaje
+    // La funcionalidad completa de edición requiere más trabajo
+    toast.info('Funcionalidad de edición en desarrollo. Por favor, cree una nueva cotización.');
+    // TODO: Implementar carga de datos de la cotización existente
+  };
+
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
   const selectedIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
   const selectedPinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
