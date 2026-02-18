@@ -1039,9 +1039,10 @@ export const Quotes = () => {
                             </div>
                           </td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300">-${montoDescuentoSetup.toFixed(2)}</td>
+                          <td></td>
                         </tr>
                         <tr className="bg-cyan-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">Total Setup Neto:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-bold border border-slate-300">Total Setup Neto:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-cyan-700 border border-slate-300 text-lg">${totalNetoSetup.toFixed(2)}</td>
                         </tr>
                       </tfoot>
@@ -1063,17 +1064,25 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
                           <th className="px-3 py-2 text-center font-semibold text-brand-green-600 border border-slate-300 w-32 bg-green-50">Total USD</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {(quoteData.recurring_basic_items || []).map((item, index) => (
-                          <tr key={`rec-basic-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 border-l-green-500`}>
+                          <tr key={`rec-basic-${index}`} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-l-4 ${item.isAutoLinked ? 'border-l-purple-500' : 'border-l-green-500'}`}>
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{index + 1}</td>
                             <td className="px-3 py-2 border border-slate-300">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
-                                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Básico</span>
+                                {item.isAutoLinked ? (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Auto</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Básico</span>
+                                )}
                               </div>
+                              {item.linkedTo && (
+                                <div className="text-xs text-slate-500 mt-1">Vinculado a: {item.linkedTo}</div>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
