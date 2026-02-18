@@ -1,16 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
-import { Upload, Trash2, Image, Database } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+
+const TEMPLATE_TYPES = [
+  { id: 'vpos_pyme', name: 'VPOS Pyme', description: 'Cotización para pequeñas y medianas empresas con VPOS' },
+  { id: 'vpos_corporativo', name: 'VPOS Corporativo', description: 'Cotización para empresas corporativas con VPOS' },
+  { id: 'payment_gateway', name: 'Payment Gateway', description: 'Cotización para pasarela de pagos (Ecommerce)' },
+  { id: 'mpos', name: 'MPOS', description: 'Cotización para soluciones móviles (Tablet/Android)' },
+  { id: 'dispositivos', name: 'Dispositivos', description: 'Cotización de dispositivos de pago' },
+  { id: 'accesorios', name: 'Accesorios', description: 'Cotización de accesorios complementarios' }
+];
 
 export const Settings = () => {
   const [logoUrl, setLogoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [templates, setTemplates] = useState({});
+  const [uploadingTemplate, setUploadingTemplate] = useState(null);
   const fileInputRef = useRef(null);
+  const templateInputRefs = useRef({});
 
   useEffect(() => {
     fetchLogo();
