@@ -512,6 +512,44 @@ export const MediosPago = () => {
                             </div>
                           </div>
                         )}
+
+                        {/* Vinculación con Concepto Recurrente - Solo para Setup */}
+                        {showLinkedField && (
+                          <div className="border-t pt-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <LinkIcon size={18} className="text-purple-600" />
+                              <h3 className="font-semibold text-sm text-purple-600">Vinculación Automática</h3>
+                            </div>
+                            <p className="text-sm text-slate-500 mb-3">
+                              Seleccione el concepto recurrente que se agregará automáticamente a las cotizaciones cuando se incluya este servicio de Setup.
+                            </p>
+                            <div>
+                              <Label htmlFor="linked_recurring">Concepto Recurrente Asociado (Opcional)</Label>
+                              <Select 
+                                value={formData.linked_recurring_service_id} 
+                                onValueChange={(value) => setFormData({ ...formData, linked_recurring_service_id: value === 'none' ? '' : value })}
+                              >
+                                <SelectTrigger data-testid="linked-recurring-select">
+                                  <SelectValue placeholder="Seleccione un concepto recurrente..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Sin vinculación</SelectItem>
+                                  {getAvailableRecurringServices().map((service) => (
+                                    <SelectItem key={service.service_id} value={service.service_id}>
+                                      {service.name} 
+                                      {service.monthly_cost_conventional > 0 && ` ($${service.monthly_cost_conventional.toFixed(2)}/mes)`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {formData.linked_recurring_service_id && (
+                                <p className="text-xs text-purple-600 mt-2">
+                                  Al agregar este servicio a una cotización, se incluirá automáticamente el concepto recurrente seleccionado.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
 
