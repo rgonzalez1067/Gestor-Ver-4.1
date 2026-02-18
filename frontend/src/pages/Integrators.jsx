@@ -38,7 +38,7 @@ export const Integrators = () => {
     try {
       let url = '/integrators';
       const params = new URLSearchParams();
-      if (filterStatus) params.append('status', filterStatus);
+      if (filterStatus) params.append('integrator_status', filterStatus);
       if (filterType) params.append('integrator_type', filterType);
       if (params.toString()) url += `?${params.toString()}`;
       
