@@ -640,7 +640,8 @@ async def create_service(service_data: ServiceCreate, authorization: Optional[st
 @api_router.get("/services", response_model=List[Service])
 async def get_services(
     authorization: Optional[str] = Header(None),
-    compatibility: Optional[str] = None
+    compatibility: Optional[str] = None,
+    application_type: Optional[str] = None
 ):
     await get_current_user(authorization)
     
@@ -655,6 +656,14 @@ async def get_services(
             query['mpos_enabled'] = True
         elif compatibility_lower == 'link':
             query['link_enabled'] = True
+    
+    # Filtrar por tipo de aplicación (setup, recurring, both)
+    if application_type:
+        if application_type == 'recurring_available':
+            # Servicios que pueden ser recurrentes (recurring o both)
+            query['application_type'] = {'$in': ['recurring', 'both']}
+        else:
+            query['application_type'] = application_type
     
     services = await db.services.find(query, {"_id": 0}).to_list(1000)
     for srv in services:
