@@ -38,10 +38,10 @@ const RECURRING_BASIC_CONCEPTS = [
   { name: 'Derecho de uso de plataforma MServer por PDV / Banco', isDefault: true, type: 'recurring_basic' }
 ];
 
-// Otros Recurrentes
+// Otros Recurrentes - lockBancos: true para mostrar N/A
 const RECURRING_OTHER_CONCEPTS = [
-  { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring_other' },
-  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other' }
+  { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true },
+  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true }
 ];
 
 export const Quotes = () => {
