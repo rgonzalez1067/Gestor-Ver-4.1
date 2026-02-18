@@ -1237,14 +1237,14 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
 @api_router.get("/integrators", response_model=List[Integrator])
 async def get_integrators(
     authorization: Optional[str] = Header(None),
-    status: Optional[str] = None,
+    integrator_status: Optional[str] = None,
     integrator_type: Optional[str] = None
 ):
     await get_current_user(authorization)
     
     query = {}
-    if status:
-        query['status'] = status
+    if integrator_status:
+        query['integrator_status'] = integrator_status
     if integrator_type:
         query['integrator_type'] = integrator_type
     
