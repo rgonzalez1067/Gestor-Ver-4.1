@@ -46,6 +46,15 @@ const RECURRING_OTHER_CONCEPTS = [
   { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true }
 ];
 
+// Colores de estado
+const STATUS_COLORS = {
+  'Borrador': 'bg-slate-100 text-slate-700',
+  'Emitida': 'bg-blue-100 text-blue-700',
+  'Aprobada': 'bg-green-100 text-green-700',
+  'En Implementación': 'bg-amber-100 text-amber-700',
+  'Completada': 'bg-emerald-100 text-emerald-700'
+};
+
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
@@ -53,6 +62,7 @@ export const Quotes = () => {
   const [serviceCatalog, setServiceCatalog] = useState([]); // Catálogo de precios
   const [integrators, setIntegrators] = useState([]); // Lista de integradores
   const [pinpads, setPinpads] = useState([]); // Lista de pinpads (dispositivos tipo Pinpad)
+  const [actionLoading, setActionLoading] = useState(null); // Para indicar carga en acciones
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   
