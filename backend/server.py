@@ -199,15 +199,28 @@ class QuoteItem(BaseModel):
 class QuoteCreate(BaseModel):
     client_id: str
     quote_type: Optional[str] = "VPOS"
+    pricing_model: Optional[str] = "conventional"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     notes: Optional[str] = None
+    # Nuevos campos de integración y hardware
+    integrator_id: Optional[str] = None
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_id: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    sponsor_bank_id: Optional[str] = None
+    sponsor_bank_name: Optional[str] = None
+
+# Estados del ciclo de vida de cotizaciones
+QUOTE_STATUSES = ["Borrador", "Emitida", "Aprobada", "En Implementación", "Completada"]
 
 class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
     quote_number: str
     client_id: str
     quote_type: str = "VPOS"
+    pricing_model: str = "conventional"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     subtotal_usd: float
@@ -215,7 +228,19 @@ class Quote(BaseModel):
     exchange_rate: float
     total_bs: float
     notes: Optional[str] = None
-    quote_status: str = "draft"
+    quote_status: str = "Borrador"  # Borrador, Emitida, Aprobada, En Implementación, Completada
+    # Campos de integración y hardware
+    integrator_id: Optional[str] = None
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_id: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    sponsor_bank_id: Optional[str] = None
+    sponsor_bank_name: Optional[str] = None
+    # Campos de seguimiento
+    sent_to_client_at: Optional[datetime] = None
+    approved_at: Optional[datetime] = None
+    sent_to_implementation_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ExchangeRate(BaseModel):
