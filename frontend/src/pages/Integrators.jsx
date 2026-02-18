@@ -196,34 +196,6 @@ export const Integrators = () => {
     setImportResult(null);
   };
 
-  const getImportStatusColor = (status) => {
-    switch (status) {
-      case 'success': return 'bg-green-50 border-green-200';
-      case 'partial': return 'bg-amber-50 border-amber-200';
-      case 'error': return 'bg-red-50 border-red-200';
-      default: return 'bg-slate-50 border-slate-200';
-    }
-  };
-
-  const getImportStatusIcon = (status) => {
-    switch (status) {
-      case 'success': return <CheckCircle className="text-green-600" size={24} />;
-      case 'partial': return <AlertTriangle className="text-amber-600" size={24} />;
-      case 'error': return <XCircle className="text-red-600" size={24} />;
-      default: return <Info className="text-slate-600" size={24} />;
-    }
-  };
-
-  const getErrorTypeLabel = (errorType) => {
-    switch (errorType) {
-      case 'missing': return 'Campo requerido vacío';
-      case 'invalid': return 'Valor no válido';
-      case 'format': return 'Formato incorrecto';
-      case 'duplicate': return 'Registro duplicado';
-      default: return errorType;
-    }
-  };
-
   const getStatusBadge = (integrator_status) => {
     switch (integrator_status) {
       case 'Certificado':
