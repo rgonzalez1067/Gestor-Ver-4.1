@@ -624,12 +624,19 @@ export const MediosPago = () => {
               <tbody className="divide-y divide-slate-100">
                 {mediosPago.map((medioPago) => {
                   const productBadges = getProductBadges(medioPago);
+                  const linkedServiceName = getLinkedServiceName(medioPago.linked_recurring_service_id);
                   return (
                     <tr key={medioPago.service_id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-900">{medioPago.name}</p>
                         {medioPago.description && (
                           <p className="text-xs text-slate-500 mt-1 truncate max-w-xs">{medioPago.description}</p>
+                        )}
+                        {linkedServiceName && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <LinkIcon size={12} className="text-purple-500" />
+                            <span className="text-xs text-purple-600">{linkedServiceName}</span>
+                          </div>
                         )}
                       </td>
                       <td className="px-3 py-3">
