@@ -1020,7 +1020,7 @@ export const Quotes = () => {
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
                   <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total Bs</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
                   <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
                   <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
                 </tr>
@@ -1028,6 +1028,9 @@ export const Quotes = () => {
               <tbody className="divide-y divide-slate-100">
                 {quotes.map((quote) => {
                   const client = clients.find(c => c.client_id === quote.client_id);
+                  const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
+                  const isLoading = actionLoading === quote.quote_id;
+                  
                   return (
                     <tr key={quote.quote_id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
@@ -1037,14 +1040,85 @@ export const Quotes = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-900">{client?.fantasy_name || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-sm font-mono text-right text-slate-700">{quote.total_bs.toFixed(2)} Bs</td>
+                      <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
+                          {quote.quote_status || 'Borrador'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-center">
-                          <Button size="sm" variant="outline" onClick={() => downloadPDF(quote.quote_id)} className="text-brand-blue-600">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => downloadPDF(quote.quote_id)} 
+                            className="text-brand-blue-600"
+                            disabled={isLoading}
+                          >
                             <Download size={16} className="mr-1" />PDF
                           </Button>
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="px-2"
+                                disabled={isLoading}
+                                data-testid={`quote-actions-${quote.quote_id}`}
+                              >
+                                {isLoading ? (
+                                  <div className="animate-spin h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full" />
+                                ) : (
+                                  <MoreHorizontal size={16} />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem 
+                                onClick={() => handleEditQuote(quote)}
+                                className="cursor-pointer"
+                              >
+                                <Pencil size={16} className="mr-2 text-slate-500" />
+                                Modificar
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem 
+                                onClick={() => handleSendToClient(quote.quote_id)}
+                                className="cursor-pointer"
+                                disabled={quote.quote_status === 'Emitida' || quote.quote_status === 'Aprobada'}
+                              >
+                                <Mail size={16} className="mr-2 text-blue-500" />
+                                Enviar al Cliente
+                                {quote.sent_to_client_at && (
+                                  <span className="ml-auto text-xs text-slate-400">Enviado</span>
+                                )}
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem 
+                                onClick={() => handleApproveQuote(quote.quote_id)}
+                                className="cursor-pointer"
+                                disabled={quote.quote_status === 'Aprobada' || quote.quote_status === 'En Implementación' || quote.quote_status === 'Completada'}
+                              >
+                                <CheckCircle size={16} className="mr-2 text-green-500" />
+                                Aprobar
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem 
+                                onClick={() => handleSendToImplementation(quote.quote_id)}
+                                className="cursor-pointer"
+                                disabled={quote.quote_status !== 'Aprobada'}
+                              >
+                                <Send size={16} className="mr-2 text-amber-500" />
+                                Enviar a Implementación
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
