@@ -29,6 +29,10 @@ export const Integrators = () => {
     integrator_status: 'En proceso'
   });
   const fileInputRef = useRef(null);
+  
+  // Estado para el resultado de importación
+  const [importResult, setImportResult] = useState(null);
+  const [showImportResult, setShowImportResult] = useState(false);
 
   useEffect(() => {
     fetchIntegrators();
