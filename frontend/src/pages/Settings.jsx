@@ -322,6 +322,50 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Email de Implementación Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
+              <Mail size={24} />
+              Email de Implementación
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Configure el correo electrónico del equipo de implementación. Las cotizaciones aprobadas 
+              serán enviadas a este email cuando se utilice la acción "Enviar a Implementación".
+            </p>
+
+            <div className="flex items-end gap-4 max-w-md">
+              <div className="flex-1">
+                <Label htmlFor="implementation-email" className="text-sm font-medium text-slate-700 mb-2 block">
+                  Email del equipo
+                </Label>
+                <Input
+                  id="implementation-email"
+                  type="email"
+                  value={implementationEmail}
+                  onChange={(e) => setImplementationEmail(e.target.value)}
+                  placeholder="implementacion@empresa.com"
+                  className="w-full"
+                  data-testid="implementation-email-input"
+                />
+              </div>
+              <Button
+                onClick={handleSaveImplementationEmail}
+                disabled={savingEmail}
+                className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
+                data-testid="save-email-button"
+              >
+                <Save size={16} className="mr-2" />
+                {savingEmail ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+            {implementationEmail && (
+              <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                <Check size={14} />
+                Email configurado correctamente
+              </p>
+            )}
+          </div>
+
           {/* Templates Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
