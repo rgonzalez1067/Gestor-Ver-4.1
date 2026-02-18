@@ -212,6 +212,36 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
+## Módulos de la Aplicación
+
+### Módulo: Gestión de Integradores (Nuevo - Febrero 2026)
+**Descripción:** Registro y administración de aliados técnicos y sus estados de certificación.
+
+**Campos del formulario:**
+- Nombre del Integrador (texto)
+- Tipo de Integrador (dropdown: Integrador, Comercio)
+- Nombre del Aplicativo (texto)
+- Modalidad de Integración (dropdown: Bridge PG, MPOS, PG Universal, PG No universal, REST, Stand Alone)
+- Estatus (dropdown: Certificado, En proceso, Suspendido)
+
+**Funcionalidades:**
+- CRUD completo (crear, leer, actualizar, eliminar)
+- Exportación a Excel (.xlsx) y PDF
+- Importación desde Excel (.xlsx, .xls) y CSV
+- Validación de datos importados contra opciones predefinidas
+- Búsqueda y filtrado por Estatus y Tipo
+- Dashboard con contadores por estado
+
+**Endpoints:**
+- `GET /api/integrators` - Listar (con filtros opcionales)
+- `POST /api/integrators` - Crear
+- `GET /api/integrators/{id}` - Obtener
+- `PUT /api/integrators/{id}` - Actualizar
+- `DELETE /api/integrators/{id}` - Eliminar
+- `GET /api/integrators/export/excel` - Exportar Excel
+- `GET /api/integrators/export/pdf` - Exportar PDF
+- `POST /api/integrators/import` - Importar desde archivo
+
 ### Correcciones de Incidencias (Febrero 2026 - Actualizado)
 - **Regla de Negocio "Derecho de uso de plataforma MServer por PDV":** Campo Bancos ahora está **bloqueado en 1** (cobro unitario por terminal, no depende de entidades financieras)
 - **Mapeo de Precios Corregido:** Prioriza coincidencias exactas antes de buscar por inclusión
