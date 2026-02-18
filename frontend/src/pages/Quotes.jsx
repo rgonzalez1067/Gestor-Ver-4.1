@@ -283,10 +283,11 @@ export const Quotes = () => {
         id: `recurring_basic_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: cantidadBancos,
+        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos, // lockBancos usa 1 fijo
         tarifa: prices.monthly_cost,
         isDefault: true,
-        type: 'recurring_basic'
+        type: 'recurring_basic',
+        lockBancos: concept.lockBancos || false
       };
     });
   };
