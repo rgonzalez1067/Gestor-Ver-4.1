@@ -1128,12 +1128,25 @@ export const Quotes = () => {
                             <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
                               ${calcularTotal(item).toFixed(2)}
                             </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              {item.isAutoLinked && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeRecurringBasicItem(index)}
+                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="bg-green-50">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Básicos:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Básicos:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300">${subtotalRecurringBasic.toFixed(2)}</td>
                         </tr>
                       </tfoot>
@@ -1155,6 +1168,7 @@ export const Quotes = () => {
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos o<br/>Entes</th>
                           <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa Mensual<br/>(USD)</th>
                           <th className="px-3 py-2 text-center font-semibold text-teal-600 border border-slate-300 w-32 bg-teal-50">Total USD</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16"></th>
                         </tr>
                       </thead>
                       <tbody>
