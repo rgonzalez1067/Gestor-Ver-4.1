@@ -516,6 +516,40 @@ export const Quotes = () => {
     setQuoteData({ ...quoteData, setup_items: updatedItems });
   };
 
+  // Duplicar un concepto de Setup
+  const duplicateSetupItem = (index) => {
+    const itemToDuplicate = quoteData.setup_items[index];
+    const newItem = {
+      ...itemToDuplicate,
+      id: `setup_copy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      isDefault: false, // La copia no es concepto base
+      isCopy: true
+    };
+    
+    // Insertar la copia justo después del original
+    const newSetupItems = [
+      ...quoteData.setup_items.slice(0, index + 1),
+      newItem,
+      ...quoteData.setup_items.slice(index + 1)
+    ];
+    
+    setQuoteData({ ...quoteData, setup_items: newSetupItems });
+    toast.success('Concepto duplicado');
+  };
+
+  // Eliminar un concepto de Setup (solo copias, no los base)
+  const removeSetupItem = (index) => {
+    const item = quoteData.setup_items[index];
+    if (item.isDefault && !item.isCopy) {
+      toast.error('Los conceptos base no se pueden eliminar');
+      return;
+    }
+    setQuoteData({
+      ...quoteData,
+      setup_items: quoteData.setup_items.filter((_, i) => i !== index)
+    });
+  };
+
   // Actualizar campo en recurring_basic_items
   const updateRecurringBasicItem = (index, field, value) => {
     const updatedItems = [...quoteData.recurring_basic_items];
