@@ -1393,8 +1393,12 @@ export const Quotes = () => {
                                 step="0.01"
                                 value={item.tarifa}
                                 onChange={(e) => updateRecurringOtherItem(index, 'tarifa', e.target.value)}
-                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                                className={`w-20 h-7 text-right text-sm mx-auto font-mono ${(!item.tarifa || item.tarifa === 0) ? 'border-amber-400 bg-amber-50' : ''}`}
+                                placeholder="0.00"
                               />
+                              {(!item.tarifa || item.tarifa === 0) && (
+                                <p className="text-xs text-amber-600 mt-1">Configurar</p>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-teal-50 font-mono font-semibold text-teal-600">
                               ${calcularTotal(item).toFixed(2)}
