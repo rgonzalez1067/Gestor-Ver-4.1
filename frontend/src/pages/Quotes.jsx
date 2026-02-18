@@ -33,8 +33,9 @@ const SETUP_CONCEPTS = [
 ];
 
 // Recurrentes Básicos (obligatorios) - incluye conceptos pre-relacionados con Setup
+// lockBancos: true = campo Bancos bloqueado en 1 (cobro unitario por PDV)
 const RECURRING_BASIC_CONCEPTS = [
-  { name: 'Derecho de uso de plataforma MServer por PDV', isDefault: true, type: 'recurring_basic' },
+  { name: 'Derecho de uso de plataforma MServer por PDV', isDefault: true, type: 'recurring_basic', lockBancos: true },
   { name: 'Derecho de uso de plataforma MServer por PDV / Banco', isDefault: true, type: 'recurring_basic' }
 ];
 
