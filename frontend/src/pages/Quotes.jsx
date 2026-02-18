@@ -735,7 +735,7 @@ export const Quotes = () => {
         ...quoteData.setup_items.map(item => ({
           concepto: item.medio_pago_name,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
           tarifa: parseFloat(item.tarifa) || 0
         })),
         ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
@@ -748,13 +748,13 @@ export const Quotes = () => {
       recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
         concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
         tarifa: parseFloat(item.tarifa) || 0
       })),
       recurring_other_items: quoteData.recurring_other_items.map(item => ({
         concepto: item.medio_pago_name,
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
         tarifa: parseFloat(item.tarifa) || 0
       })),
       descuento: quoteData.descuento || 0,
@@ -762,36 +762,77 @@ export const Quotes = () => {
     };
 
     try {
-      const response = await api.post('/quotes/generate-pdf', pdfData, { responseType: 'blob' });
+      toast.loading('Generando PDF...');
+      
+      const response = await api.post('/quotes/generate-pdf', pdfData, { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
       
       // Verificar que la respuesta sea válida
       if (!response.data || response.data.size === 0) {
-        throw new Error('Respuesta vacía del servidor');
+        toast.dismiss();
+        toast.error('Error: Respuesta vacía del servidor');
+        return;
+      }
+      
+      // Verificar el tipo de contenido
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/json')) {
+        // Es un error JSON, no un PDF
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        toast.dismiss();
+        toast.error(errorData.detail || 'Error al generar PDF');
+        return;
       }
       
       // Crear blob con tipo correcto
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       
+      // Nombre del archivo
+      const filename = `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      
       // Crear elemento de descarga
       const link = document.createElement('a');
       link.href = url;
-      link.download = `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`;
-      link.style.display = 'none';
+      link.download = filename;
+      link.target = '_blank';
       
+      // Añadir al DOM, hacer clic y remover
       document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       
-      // Limpiar después de un pequeño delay
+      // Limpiar URL después de un delay
       setTimeout(() => {
-        document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-      }, 100);
+      }, 1000);
       
-      toast.success('PDF generado exitosamente');
+      toast.dismiss();
+      toast.success('PDF descargado exitosamente');
     } catch (error) {
+      toast.dismiss();
       console.error('Error generating PDF:', error);
-      toast.error(error.response?.data?.detail || 'Error al generar PDF');
+      
+      // Intentar obtener mensaje de error específico
+      let errorMessage = 'Error al generar PDF';
+      if (error.response?.data) {
+        try {
+          const text = await error.response.data.text?.();
+          if (text) {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.detail || errorMessage;
+          }
+        } catch (e) {
+          // Ignorar errores de parsing
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
