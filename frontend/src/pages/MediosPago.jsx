@@ -142,7 +142,8 @@ export const MediosPago = () => {
       monthly_cost_conventional: medioPago.monthly_cost_conventional?.toString() || '0',
       setup_cost_outsourcing: medioPago.setup_cost_outsourcing?.toString() || '0',
       monthly_cost_outsourcing: medioPago.monthly_cost_outsourcing?.toString() || '0',
-      description: medioPago.description || ''
+      description: medioPago.description || '',
+      linked_recurring_service_id: medioPago.linked_recurring_service_id || ''
     });
     setDialogOpen(true);
   };
