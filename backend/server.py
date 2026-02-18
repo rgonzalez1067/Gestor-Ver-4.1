@@ -140,6 +140,27 @@ class Service(BaseModel):
     linked_recurring_service_id: Optional[str] = None  # ID del servicio recurrente vinculado
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+# ==================== INTEGRATOR MODELS ====================
+INTEGRATOR_TYPES = ["Integrador", "Comercio"]
+INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone"]
+INTEGRATOR_STATUSES = ["Certificado", "En proceso", "Suspendido"]
+
+class IntegratorCreate(BaseModel):
+    name: str
+    integrator_type: Literal["Integrador", "Comercio"]
+    app_name: str
+    integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone"]
+    status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
+
+class Integrator(BaseModel):
+    integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
+    name: str
+    integrator_type: str
+    app_name: str
+    integration_modality: str
+    status: str = "En proceso"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class QuoteItem(BaseModel):
     item_type: str
     item_id: Optional[str] = None  # Opcional para items generados dinámicamente
