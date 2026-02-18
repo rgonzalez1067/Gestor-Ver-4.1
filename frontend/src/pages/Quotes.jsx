@@ -761,17 +761,35 @@ export const Quotes = () => {
 
     try {
       const response = await api.post('/quotes/generate-pdf', pdfData, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      
+      // Verificar que la respuesta sea válida
+      if (!response.data || response.data.size === 0) {
+        throw new Error('Respuesta vacía del servidor');
+      }
+      
+      // Crear blob con tipo correcto
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Crear elemento de descarga
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`);
+      link.download = `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      link.style.display = 'none';
+      
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      
+      // Limpiar después de un pequeño delay
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
       toast.success('PDF generado exitosamente');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error('Error al generar PDF');
+      toast.error(error.response?.data?.detail || 'Error al generar PDF');
     }
   };
 
