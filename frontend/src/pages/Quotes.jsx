@@ -876,7 +876,18 @@ export const Quotes = () => {
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
-  const isHeaderComplete = quoteData.quote_type && quoteData.client_id && quoteData.pricing_model && (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '');
+  const selectedIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+  const selectedPinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+  const selectedSponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+  
+  // Validación completa incluyendo nuevos campos obligatorios
+  const isHeaderComplete = quoteData.quote_type && 
+    quoteData.client_id && 
+    quoteData.pricing_model && 
+    (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
+    quoteData.integrator_id &&
+    quoteData.pinpad_id &&
+    quoteData.sponsor_bank_id;
 
   if (loading) {
     return (
