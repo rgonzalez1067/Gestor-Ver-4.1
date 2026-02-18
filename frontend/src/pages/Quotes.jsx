@@ -50,6 +50,8 @@ export const Quotes = () => {
   const [clients, setClients] = useState([]);
   const [banks, setBanks] = useState([]);
   const [serviceCatalog, setServiceCatalog] = useState([]); // Catálogo de precios
+  const [integrators, setIntegrators] = useState([]); // Lista de integradores
+  const [pinpads, setPinpads] = useState([]); // Lista de pinpads (dispositivos tipo Pinpad)
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   
@@ -60,6 +62,11 @@ export const Quotes = () => {
     pricing_model: '', // 'conventional' o 'outsourcing'
     cantidad_cajas: 1,
     cantidad_bancos: 1,
+    // Nuevos campos de integración y hardware
+    integrator_id: '',
+    integrator_app_name: '', // Campo informativo auto-completado
+    pinpad_id: '',
+    sponsor_bank_id: '', // Entidad patrocinadora/vendedora
     setup_items: [],              // Items exclusivos de Setup
     recurring_basic_items: [],    // Recurrentes Básicos (incluye complementos de adicionales)
     recurring_other_items: [],    // Otros Recurrentes
