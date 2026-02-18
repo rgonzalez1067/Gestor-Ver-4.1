@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Download, Search, Filter, Users, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Download, Search, Filter, Users, CheckCircle, Clock, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
