@@ -1248,6 +1248,93 @@ async def delete_logo(authorization: Optional[str] = Header(None)):
     
     raise HTTPException(status_code=404, detail="No hay logo para eliminar")
 
+# ==================== QUOTE TEMPLATES (PDFs) ====================
+
+TEMPLATE_TYPES = [
+    "vpos_pyme",
+    "vpos_corporativo", 
+    "payment_gateway",
+    "mpos",
+    "dispositivos",
+    "accesorios"
+]
+
+@api_router.post("/config/templates/{template_type}")
+async def upload_template(template_type: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Subir plantilla PDF para un tipo de cotización"""
+    await get_current_user(authorization)
+    
+    if template_type not in TEMPLATE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipo de plantilla inválido. Tipos válidos: {', '.join(TEMPLATE_TYPES)}")
+    
+    if not file.content_type == 'application/pdf':
+        raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
+    
+    templates_dir = UPLOADS_DIR / "templates"
+    templates_dir.mkdir(exist_ok=True)
+    
+    template_path = templates_dir / f"{template_type}.pdf"
+    
+    # Remove existing template if exists
+    if template_path.exists():
+        template_path.unlink()
+    
+    with open(template_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"message": f"Plantilla {template_type} subida exitosamente", "filename": f"{template_type}.pdf"}
+
+@api_router.get("/config/templates/{template_type}")
+async def get_template(template_type: str, authorization: Optional[str] = Header(None)):
+    """Obtener plantilla PDF de un tipo de cotización"""
+    await get_current_user(authorization)
+    
+    if template_type not in TEMPLATE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipo de plantilla inválido")
+    
+    templates_dir = UPLOADS_DIR / "templates"
+    template_path = templates_dir / f"{template_type}.pdf"
+    
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail=f"No hay plantilla configurada para {template_type}")
+    
+    return FileResponse(template_path, media_type="application/pdf", filename=f"plantilla_{template_type}.pdf")
+
+@api_router.delete("/config/templates/{template_type}")
+async def delete_template(template_type: str, authorization: Optional[str] = Header(None)):
+    """Eliminar plantilla PDF de un tipo de cotización"""
+    await get_current_user(authorization)
+    
+    if template_type not in TEMPLATE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipo de plantilla inválido")
+    
+    templates_dir = UPLOADS_DIR / "templates"
+    template_path = templates_dir / f"{template_type}.pdf"
+    
+    if template_path.exists():
+        template_path.unlink()
+        return {"message": f"Plantilla {template_type} eliminada exitosamente"}
+    
+    raise HTTPException(status_code=404, detail=f"No hay plantilla para eliminar")
+
+@api_router.get("/config/templates")
+async def list_templates(authorization: Optional[str] = Header(None)):
+    """Listar estado de todas las plantillas"""
+    await get_current_user(authorization)
+    
+    templates_dir = UPLOADS_DIR / "templates"
+    templates_dir.mkdir(exist_ok=True)
+    
+    template_status = {}
+    for template_type in TEMPLATE_TYPES:
+        template_path = templates_dir / f"{template_type}.pdf"
+        template_status[template_type] = {
+            "exists": template_path.exists(),
+            "filename": f"{template_type}.pdf" if template_path.exists() else None
+        }
+    
+    return template_status
+
 # ==================== SEED BANKS ENDPOINT ====================
 
 @api_router.post("/banks/seed")
