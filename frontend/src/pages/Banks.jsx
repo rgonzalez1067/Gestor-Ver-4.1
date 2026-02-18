@@ -39,6 +39,8 @@ export const Banks = () => {
     link_available: false
   });
   const fileInputRef = useRef(null);
+  const [importResult, setImportResult] = useState(null);
+  const [showImportResult, setShowImportResult] = useState(false);
 
   useEffect(() => {
     fetchData();
