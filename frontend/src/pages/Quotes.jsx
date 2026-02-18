@@ -171,16 +171,24 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes, servicesRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
         api.get('/banks'),
-        api.get('/services') // Cargar catálogo de precios
+        api.get('/services'), // Cargar catálogo de precios
+        api.get('/integrators'), // Cargar integradores
+        api.get('/hardware') // Cargar dispositivos
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
       setBanks(banksRes.data);
       setServiceCatalog(servicesRes.data);
+      setIntegrators(integratorsRes.data);
+      // Filtrar solo dispositivos tipo "Pinpad"
+      const pinpadDevices = (hardwareRes.data || []).filter(hw => 
+        hw.type?.toLowerCase() === 'pinpad'
+      );
+      setPinpads(pinpadDevices);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Error al cargar datos');
