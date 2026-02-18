@@ -43,6 +43,75 @@ export const Settings = () => {
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const response = await api.get('/config/templates');
+      setTemplates(response.data);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
+
+  const handleTemplateUpload = async (templateType, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      toast.error('Por favor seleccione un archivo PDF');
+      return;
+    }
+
+    setUploadingTemplate(templateType);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await api.post(`/config/templates/${templateType}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Plantilla subida exitosamente');
+      fetchTemplates();
+    } catch (error) {
+      console.error('Error uploading template:', error);
+      toast.error('Error al subir la plantilla');
+    } finally {
+      setUploadingTemplate(null);
+      // Reset the input
+      if (templateInputRefs.current[templateType]) {
+        templateInputRefs.current[templateType].value = '';
+      }
+    }
+  };
+
+  const handleTemplateDelete = async (templateType) => {
+    if (!window.confirm('¿Está seguro de eliminar esta plantilla?')) return;
+
+    try {
+      await api.delete(`/config/templates/${templateType}`);
+      toast.success('Plantilla eliminada exitosamente');
+      fetchTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast.error('Error al eliminar la plantilla');
+    }
+  };
+
+  const handleTemplateDownload = async (templateType, templateName) => {
+    try {
+      const response = await api.get(`/config/templates/${templateType}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `plantilla_${templateType}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      toast.success('Plantilla descargada');
+    } catch (error) {
+      toast.error('Error al descargar la plantilla');
+    }
+  };
+
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
