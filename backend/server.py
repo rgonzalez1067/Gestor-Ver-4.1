@@ -1440,16 +1440,16 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                     errors.append(f"Fila {idx + 2}: Modalidad inválida '{integration_modality}'. Use: {', '.join(INTEGRATION_MODALITIES)}")
                     continue
                 
-                # Validate status
-                if status not in INTEGRATOR_STATUSES:
-                    status = "En proceso"  # Default if invalid
+                # Validate integrator_status
+                if integrator_status not in INTEGRATOR_STATUSES:
+                    integrator_status = "En proceso"  # Default if invalid
                 
                 new_integrator = Integrator(
                     name=name,
                     integrator_type=integrator_type,
                     app_name=app_name,
                     integration_modality=integration_modality,
-                    status=status
+                    integrator_status=integrator_status
                 )
                 
                 doc = new_integrator.model_dump()
