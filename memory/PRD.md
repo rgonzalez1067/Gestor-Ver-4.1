@@ -388,5 +388,38 @@ class ImportResult:
 - Testing: 131/131 tests pasados (incluyendo 26 tests nuevos de importación)
 
 ---
+
+## Campos de Integración y Hardware en Cotizaciones (Febrero 2026)
+
+### Descripción
+Nueva sección obligatoria "Detalles de Integración y Hardware" en el wizard de cotizaciones con tres campos que vinculan información de las bases de datos existentes.
+
+### Nuevos Campos
+1. **Integrador** (obligatorio)
+   - Selector de integradores certificados (filtro: `integrator_status === 'Certificado'`)
+   - Al seleccionar, auto-completa el campo "Aplicativo Certificado"
+   
+2. **Modelo de Pinpad** (obligatorio)
+   - Selector de dispositivos (filtro: `type === 'Pinpad'`)
+   - Muestra nombre y precio USD
+
+3. **Entidad Patrocinadora/Vendedora** (obligatorio)
+   - Dropdown con lista completa de Bancos
+
+### Cambios en Frontend
+- `Quotes.jsx`: Nueva sección después de "Parámetros de la Cotización"
+- Estados: `integrator_id`, `integrator_app_name`, `pinpad_id`, `sponsor_bank_id`
+- Validación: `isHeaderComplete` incluye los 3 nuevos campos
+- `fetchData`: Carga integradores y hardware (filtrados como pinpads)
+
+### Cambios en Backend
+- `QuotePDFRequest`: Nuevos campos opcionales para el PDF
+- `generate_quote_pdf_from_data`: Incluye integrador, aplicativo, pinpad y patrocinador en el PDF
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (12/12 tests backend, UI tests pasados)
+
+---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Sistema de Importación Estandarizado IMPLEMENTADO
+**Estado:** MVP Operativo - Campos de Integración y Hardware IMPLEMENTADOS
