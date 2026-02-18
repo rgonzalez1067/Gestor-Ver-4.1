@@ -2380,6 +2380,36 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
 
 # ==================== CONFIGURATION ENDPOINTS ====================
 
+class AppSettings(BaseModel):
+    implementation_email: Optional[EmailStr] = None
+
+@api_router.get("/config/settings")
+async def get_app_settings(authorization: Optional[str] = Header(None)):
+    """Obtiene la configuración general de la aplicación"""
+    await get_current_user(authorization)
+    
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    if not config:
+        return {"implementation_email": None}
+    return {"implementation_email": config.get("implementation_email")}
+
+@api_router.put("/config/settings")
+async def update_app_settings(settings: AppSettings, authorization: Optional[str] = Header(None)):
+    """Actualiza la configuración general de la aplicación"""
+    await get_current_user(authorization)
+    
+    await db.config.update_one(
+        {"type": "app_settings"},
+        {"$set": {
+            "type": "app_settings",
+            "implementation_email": settings.implementation_email,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Configuración actualizada", "implementation_email": settings.implementation_email}
+
 @api_router.post("/config/logo")
 async def upload_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
