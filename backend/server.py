@@ -1412,8 +1412,8 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
             'modalidad': 'integration_modality',
             'modalidad_de_integración': 'integration_modality',
             'modalidad_de_integracion': 'integration_modality',
-            'estatus': 'status',
-            'estado': 'status'
+            'estatus': 'integrator_status',
+            'estado': 'integrator_status'
         }
         
         df.rename(columns=column_mapping, inplace=True)
@@ -1424,7 +1424,7 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                 integrator_type = str(row.get('integrator_type', '')).strip()
                 app_name = str(row.get('app_name', '')).strip()
                 integration_modality = str(row.get('integration_modality', '')).strip()
-                status = str(row.get('status', 'En proceso')).strip()
+                integrator_status = str(row.get('integrator_status', 'En proceso')).strip()
                 
                 if not name:
                     errors.append(f"Fila {idx + 2}: Nombre requerido")
