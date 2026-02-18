@@ -46,6 +46,8 @@ export const MediosPago = () => {
     linked_recurring_service_id: ''
   });
   const fileInputRef = useRef(null);
+  const [importResult, setImportResult] = useState(null);
+  const [showImportResult, setShowImportResult] = useState(false);
 
   useEffect(() => {
     fetchMediosPago();
