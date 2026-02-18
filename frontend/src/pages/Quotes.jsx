@@ -298,10 +298,11 @@ export const Quotes = () => {
         id: `recurring_other_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: cantidadBancos,
+        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos, // N/A usa 1 internamente
         tarifa: prices.monthly_cost,
         isDefault: true,
-        type: 'recurring_other'
+        type: 'recurring_other',
+        lockBancos: concept.lockBancos || false
       };
     });
   };
