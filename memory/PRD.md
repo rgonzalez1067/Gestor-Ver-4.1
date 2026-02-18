@@ -212,6 +212,26 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
+### Nueva Funcionalidad: Plantillas de Cotización PDF (Febrero 2026)
+- **Configuración de Plantillas:**
+  - VPOS Pyme
+  - VPOS Corporativo
+  - Payment Gateway
+  - MPOS
+  - Dispositivos
+  - Accesorios
+- **Endpoints:**
+  - `POST /api/config/templates/{type}` - Subir plantilla
+  - `GET /api/config/templates/{type}` - Descargar plantilla
+  - `DELETE /api/config/templates/{type}` - Eliminar plantilla
+  - `GET /api/config/templates` - Listar estado de plantillas
+- **UI en Configuración:** Tarjetas por tipo con estados (subido/pendiente), botones de subir, ver y eliminar
+
+### Mejora: Sincronización de Cajas y Bancos (Febrero 2026)
+- Todos los conceptos base (Setup, Recurrentes Básicos, Otros Recurrentes) heredan automáticamente los valores de Cajas y Bancos de la cabecera
+- **Excepciones:** "Configuración dispositivo (Pinpad o POS)" y "Configuración PDV en MServer" mantienen sus campos bloqueados
+- Se actualizan en tiempo real cuando cambian los valores en la cabecera
+
 ### Nueva Funcionalidad: Ajustes de Lógica de Cotización (Febrero 2026)
 - **Restricciones de Campos:**
   - "Configuración dispositivo (Pinpad o POS)" → Campo Bancos bloqueado (valor fijo = 1)
