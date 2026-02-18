@@ -406,6 +406,7 @@ export const Quotes = () => {
     // Buscar precios en el catálogo
     const prices = findServicePrice(medioPago.product_name);
 
+    // REGLA: Nuevos Medios de Pago siempre inician con Bancos = 1
     const newItem = {
       id: `${selectedBankId}_${selectedMedioPagoId}`,
       bank_id: selectedBankId,
@@ -413,7 +414,7 @@ export const Quotes = () => {
       medio_pago_name: medioPago.product_name,
       description: medioPago.description || '',
       cantidad_cajas: quoteData.cantidad_cajas,
-      cantidad_bancos: quoteData.cantidad_bancos,
+      cantidad_bancos: 1, // Siempre inicia en 1, configuración granular
       tarifa_setup: prices.setup_cost,
       tarifa_recurrente: prices.monthly_cost,
       application_type: prices.application_type,
