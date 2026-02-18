@@ -1386,6 +1386,7 @@ export const Quotes = () => {
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
                                 <span className="px-1.5 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded">Otro</span>
+                                {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">N/A</span>}
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
@@ -1398,13 +1399,19 @@ export const Quotes = () => {
                               />
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.cantidad_bancos}
-                                onChange={(e) => updateRecurringOtherItem(index, 'cantidad_bancos', e.target.value)}
-                                className="w-16 h-7 text-center text-sm mx-auto"
-                              />
+                              {item.lockBancos ? (
+                                <div className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-slate-400 bg-slate-100 rounded">
+                                  N/A
+                                </div>
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.cantidad_bancos}
+                                  onChange={(e) => updateRecurringOtherItem(index, 'cantidad_bancos', e.target.value)}
+                                  className="w-16 h-7 text-center text-sm mx-auto"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Input
