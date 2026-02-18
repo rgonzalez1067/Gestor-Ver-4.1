@@ -1054,7 +1054,7 @@ export const Quotes = () => {
                       <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                          {quote.quote_status || 'Borrador'}
+                          {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
