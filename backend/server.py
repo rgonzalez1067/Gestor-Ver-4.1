@@ -1482,6 +1482,15 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         ["Tipo de Servicio:", quote_type_names.get(data.quote_type, data.quote_type)],
         ["Modelo de Precios:", pricing_model_names.get(data.pricing_model, data.pricing_model)],
     ]
+    
+    # Agregar información de integración y hardware si está disponible
+    if data.integrator_name:
+        info_data.append(["Integrador:", f"{data.integrator_name} ({data.integrator_app_name})"])
+    if data.pinpad_model:
+        info_data.append(["Modelo de Pinpad:", data.pinpad_model])
+    if data.sponsor_bank_name:
+        info_data.append(["Entidad Patrocinadora:", data.sponsor_bank_name])
+    
     info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
     info_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
