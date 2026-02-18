@@ -1290,7 +1290,7 @@ async def get_template(template_type: str, authorization: Optional[str] = Header
     await get_current_user(authorization)
     
     if template_type not in TEMPLATE_TYPES:
-        raise HTTPException(status_code=400, detail=f"Tipo de plantilla inválido")
+        raise HTTPException(status_code=400, detail="Tipo de plantilla inválido")
     
     templates_dir = UPLOADS_DIR / "templates"
     template_path = templates_dir / f"{template_type}.pdf"
@@ -1306,7 +1306,7 @@ async def delete_template(template_type: str, authorization: Optional[str] = Hea
     await get_current_user(authorization)
     
     if template_type not in TEMPLATE_TYPES:
-        raise HTTPException(status_code=400, detail=f"Tipo de plantilla inválido")
+        raise HTTPException(status_code=400, detail="Tipo de plantilla inválido")
     
     templates_dir = UPLOADS_DIR / "templates"
     template_path = templates_dir / f"{template_type}.pdf"
@@ -1315,7 +1315,7 @@ async def delete_template(template_type: str, authorization: Optional[str] = Hea
         template_path.unlink()
         return {"message": f"Plantilla {template_type} eliminada exitosamente"}
     
-    raise HTTPException(status_code=404, detail=f"No hay plantilla para eliminar")
+    raise HTTPException(status_code=404, detail="No hay plantilla para eliminar")
 
 @api_router.get("/config/templates")
 async def list_templates(authorization: Optional[str] = Header(None)):
