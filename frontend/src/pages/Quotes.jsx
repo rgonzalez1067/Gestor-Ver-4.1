@@ -1327,14 +1327,23 @@ export const Quotes = () => {
                       className="mt-2"
                     />
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex justify-end gap-3">
+                      <Button
+                        onClick={exportCurrentQuoteToPDF}
+                        variant="outline"
+                        className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50 px-6 py-3 text-lg"
+                        data-testid="export-pdf-button"
+                      >
+                        <Download size={20} className="mr-2" />
+                        Exportar PDF
+                      </Button>
                       <Button
                         onClick={handleSubmitQuote}
                         className="bg-brand-green-600 hover:bg-brand-green-700 text-white px-8 py-3 text-lg"
                         data-testid="submit-quote-button"
                       >
                         <CheckCircle2 size={20} className="mr-2" />
-                        Finalizar Cotización
+                        Guardar Cotización
                       </Button>
                     </div>
                   </div>
