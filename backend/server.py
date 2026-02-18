@@ -1642,6 +1642,100 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     ]))
     elements.append(summary_table)
     
+    # ==================== RESUMEN EJECUTIVO ====================
+    elements.append(Spacer(1, 0.25*inch))
+    elements.append(Paragraph("<b>RESUMEN EJECUTIVO</b>", styles['Heading2']))
+    elements.append(Spacer(1, 0.1*inch))
+    
+    # Colores para la matriz
+    color_amarillo = colors.Color(0.98, 0.75, 0.18)  # Amber/Amarillo
+    color_azul = colors.Color(0.74, 0.85, 0.95)      # Azul claro
+    color_verde = colors.Color(0.74, 0.93, 0.74)    # Verde claro
+    
+    # Cabecera del Resumen (Cliente, Cajas, Dirección)
+    header_data = [
+        ["Cliente", data.cliente_nombre],
+        ["Cantidad de Cajas", str(data.cantidad_cajas)],
+        ["Dirección Fiscal", data.cliente_address or "No especificada"],
+    ]
+    
+    header_table = Table(header_data, colWidths=[1.5*inch, 5*inch])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), color_amarillo),
+        ('BACKGROUND', (0, 1), (0, 1), color_azul),
+        ('BACKGROUND', (0, 2), (0, 2), color_verde),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Matriz de Distribución (Bancos, Productos, Cajas)
+    # Consolidar items por banco y producto
+    bank_product_map = {}
+    all_items = data.setup_items + data.recurring_basic_items + data.recurring_other_items
+    
+    for item in all_items:
+        bank_name = item.bank_name or "General"
+        product_name = item.concepto
+        key = f"{bank_name}-{product_name}"
+        
+        if key not in bank_product_map:
+            bank_product_map[key] = {
+                "banco": bank_name,
+                "producto": product_name,
+                "cajas": 0
+            }
+        bank_product_map[key]["cajas"] += item.cantidad_cajas
+    
+    # Crear tabla de matriz
+    matriz_data = [["Bancos", "Productos", "Cantidad de Cajas"]]
+    total_terminales = 0
+    
+    for row in bank_product_map.values():
+        matriz_data.append([row["banco"], row["producto"], str(row["cajas"])])
+        total_terminales += row["cajas"]
+    
+    # Si no hay items, mostrar mensaje
+    if len(matriz_data) == 1:
+        matriz_data.append(["Sin medios de pago", "", "0"])
+    
+    matriz_table = Table(matriz_data, colWidths=[2.5*inch, 2.5*inch, 1.5*inch])
+    matriz_table.setStyle(TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (0, 0), color_verde),
+        ('BACKGROUND', (1, 0), (1, 0), color_azul),
+        ('BACKGROUND', (2, 0), (2, 0), color_amarillo),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
+    ]))
+    elements.append(matriz_table)
+    
+    # Total de Terminales Virtuales
+    elements.append(Spacer(1, 0.05*inch))
+    total_data = [["Total de Terminales Virtuales", str(total_terminales or data.cantidad_cajas)]]
+    total_table = Table(total_data, colWidths=[5*inch, 1.5*inch])
+    total_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.Color(0.2, 0.2, 0.2)),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(total_table)
+    
     # Notas
     if data.notes:
         elements.append(Spacer(1, 0.2*inch))
