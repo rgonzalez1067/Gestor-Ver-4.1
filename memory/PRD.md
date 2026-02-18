@@ -249,7 +249,6 @@ quoteData = {
 ```
 
 ## Backlog / Tareas Futuras
-- [ ] **Exportar Cotización a PDF** (P1)
 - [ ] Verificar contadores del Dashboard (P1)
 - [ ] Módulo de reportes estadísticos
 - [ ] Consultas avanzadas de cotizaciones
@@ -261,4 +260,4 @@ quoteData = {
 
 ---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Mapeo Automático Setup→Recurrente IMPLEMENTADO
+**Estado:** MVP Operativo - Lógica de Cotización y Exportar PDF IMPLEMENTADOS
