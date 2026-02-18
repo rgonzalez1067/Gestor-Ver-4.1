@@ -26,6 +26,7 @@ export const Settings = () => {
 
   useEffect(() => {
     fetchLogo();
+    fetchTemplates();
   }, []);
 
   const fetchLogo = async () => {
