@@ -1675,12 +1675,16 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     elements.append(Spacer(1, 0.15*inch))
     
     # Matriz de Distribución (Bancos, Productos, Cajas)
-    # Consolidar items por banco y producto
+    # Consolidar solo items con banco asociado (excluir conceptos base)
     bank_product_map = {}
     all_items = data.setup_items + data.recurring_basic_items + data.recurring_other_items
     
     for item in all_items:
-        bank_name = item.bank_name or "General"
+        # Solo incluir items que tienen banco asociado (excluir conceptos base)
+        if not item.bank_name:
+            continue
+            
+        bank_name = item.bank_name
         product_name = item.concepto
         key = f"{bank_name}-{product_name}"
         
