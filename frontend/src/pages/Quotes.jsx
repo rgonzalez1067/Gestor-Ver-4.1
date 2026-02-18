@@ -1112,6 +1112,113 @@ export const Quotes = () => {
                 )}
               </div>
 
+              {/* SECCIÓN 1.5: Detalles de Integración y Hardware */}
+              <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-5 border border-blue-100 mt-4">
+                <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
+                  <Cpu size={20} className="text-brand-blue-600" />
+                  Detalles de Integración y Hardware
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Campo 1: Integrador */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                      <Users size={14} className="text-brand-blue-600" />
+                      Integrador <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      value={quoteData.integrator_id} 
+                      onValueChange={handleIntegratorChange}
+                    >
+                      <SelectTrigger data-testid="select-integrator">
+                        <SelectValue placeholder="Seleccione integrador..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {integrators.filter(i => i.integrator_status === 'Certificado').map((integrator) => (
+                          <SelectItem key={integrator.integrator_id} value={integrator.integrator_id}>
+                            {integrator.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Campo Informativo: Aplicativo */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                      Aplicativo Certificado
+                    </Label>
+                    <div className="h-10 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md flex items-center">
+                      <span className={`text-sm ${quoteData.integrator_app_name ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                        {quoteData.integrator_app_name || 'Se completa al seleccionar integrador'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Campo 2: Modelo de Pinpad */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                      <Cpu size={14} className="text-brand-green-600" />
+                      Modelo de Pinpad <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      value={quoteData.pinpad_id} 
+                      onValueChange={(value) => setQuoteData({ ...quoteData, pinpad_id: value })}
+                    >
+                      <SelectTrigger data-testid="select-pinpad">
+                        <SelectValue placeholder="Seleccione modelo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pinpads.length === 0 ? (
+                          <SelectItem value="no-pinpads" disabled>No hay Pinpads disponibles</SelectItem>
+                        ) : (
+                          pinpads.map((pinpad) => (
+                            <SelectItem key={pinpad.hardware_id} value={pinpad.hardware_id}>
+                              {pinpad.name} {pinpad.price_usd > 0 && `($${pinpad.price_usd})`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Campo 3: Entidad Patrocinadora */}
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                      <Landmark size={14} className="text-amber-600" />
+                      Entidad Patrocinadora <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      value={quoteData.sponsor_bank_id} 
+                      onValueChange={(value) => setQuoteData({ ...quoteData, sponsor_bank_id: value })}
+                    >
+                      <SelectTrigger data-testid="select-sponsor-bank">
+                        <SelectValue placeholder="Seleccione entidad..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {banks.map((bank) => (
+                          <SelectItem key={bank.bank_id} value={bank.bank_id}>
+                            {bank.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Indicador de campos completos */}
+                {quoteData.integrator_id && quoteData.pinpad_id && quoteData.sponsor_bank_id && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                    <CheckCircle2 size={18} className="text-brand-blue-600" />
+                    <span className="text-sm text-brand-blue-700 font-medium">
+                      Integrador: {selectedIntegrator?.name} ({quoteData.integrator_app_name}) • 
+                      Pinpad: {selectedPinpad?.name} • 
+                      Patrocinador: {selectedSponsorBank?.name}
+                    </span>
+                  </div>
+                )}
+              </div>
+
               {/* SECCIÓN 2: Selección de Medios de Pago */}
               {isHeaderComplete && (
                 <div className="bg-white rounded-lg p-5 border mt-4">
