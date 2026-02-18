@@ -261,7 +261,7 @@ export const Settings = () => {
           </div>
 
           {/* Database Section */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6">
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
               <Database size={24} />
               Base de Datos
@@ -289,6 +289,101 @@ export const Settings = () => {
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* Templates Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
+              <FileText size={24} />
+              Plantillas de Cotización (PDF)
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Cargue los modelos de cotización en formato PDF para cada tipo de producto/servicio.
+              Estas plantillas se utilizarán como referencia para las cotizaciones generadas.
+            </p>
+
+            <div className="grid gap-4">
+              {TEMPLATE_TYPES.map((template) => {
+                const templateStatus = templates[template.id];
+                const isUploading = uploadingTemplate === template.id;
+                
+                return (
+                  <div 
+                    key={template.id} 
+                    className={`p-4 rounded-lg border ${templateStatus?.exists ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${templateStatus?.exists ? 'bg-green-100' : 'bg-slate-200'}`}>
+                          {templateStatus?.exists ? (
+                            <Check size={20} className="text-green-600" />
+                          ) : (
+                            <X size={20} className="text-slate-400" />
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-slate-900">{template.name}</h3>
+                          <p className="text-sm text-slate-500">{template.description}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={(el) => templateInputRefs.current[template.id] = el}
+                          onChange={(e) => handleTemplateUpload(template.id, e)}
+                          accept="application/pdf"
+                          className="hidden"
+                          data-testid={`template-input-${template.id}`}
+                        />
+                        
+                        {templateStatus?.exists && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleTemplateDownload(template.id, template.name)}
+                              className="text-brand-blue-600 hover:text-brand-blue-700"
+                              data-testid={`download-template-${template.id}`}
+                            >
+                              <Download size={16} className="mr-1" />
+                              Ver
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleTemplateDelete(template.id)}
+                              className="text-red-600 hover:text-red-700 hover:border-red-300"
+                              data-testid={`delete-template-${template.id}`}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </>
+                        )}
+                        
+                        <Button
+                          size="sm"
+                          onClick={() => templateInputRefs.current[template.id]?.click()}
+                          disabled={isUploading}
+                          className={templateStatus?.exists 
+                            ? 'bg-slate-600 hover:bg-slate-700 text-white' 
+                            : 'bg-brand-green-600 hover:bg-brand-green-700 text-white'
+                          }
+                          data-testid={`upload-template-${template.id}`}
+                        >
+                          <Upload size={16} className="mr-1" />
+                          {isUploading ? 'Subiendo...' : (templateStatus?.exists ? 'Reemplazar' : 'Subir PDF')}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <p className="text-sm text-slate-500 mt-4">
+              <strong>Nota:</strong> Solo se aceptan archivos en formato PDF. El tamaño máximo recomendado es 10MB.
+            </p>
           </div>
         </div>
       </main>
