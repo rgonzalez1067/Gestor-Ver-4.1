@@ -272,12 +272,15 @@ class QuotePDFItem(BaseModel):
     cantidad_bancos: int = 1
     tarifa: float = 0
     total: float = 0
+    bank_name: Optional[str] = None  # Para la matriz de distribución
 
 class QuotePDFRequest(BaseModel):
     cliente_nombre: str
     cliente_rif: str = ""
+    cliente_address: str = ""  # Dirección fiscal
     quote_type: str = "VPOS"
     pricing_model: str = "conventional"
+    cantidad_cajas: int = 1  # Total de cajas cotizadas
     # Nuevos campos de integración y hardware
     integrator_name: str = ""
     integrator_app_name: str = ""
