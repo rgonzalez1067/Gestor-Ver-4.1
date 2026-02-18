@@ -1662,6 +1662,327 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+# ==================== QUOTE ACTIONS ENDPOINTS ====================
+
+class QuoteStatusUpdate(BaseModel):
+    new_status: str
+
+class EmailSendRequest(BaseModel):
+    quote_id: str
+    recipient_email: EmailStr
+    subject: Optional[str] = None
+    message: Optional[str] = None
+
+@api_router.put("/quotes/{quote_id}/status")
+async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, authorization: Optional[str] = Header(None)):
+    """Actualiza el estatus de una cotización"""
+    await get_current_user(authorization)
+    
+    if status_update.new_status not in QUOTE_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Estados válidos: {QUOTE_STATUSES}")
+    
+    # Actualizar campos de seguimiento según el nuevo estado
+    update_data = {"quote_status": status_update.new_status}
+    
+    if status_update.new_status == "Aprobada":
+        update_data["approved_at"] = datetime.now(timezone.utc).isoformat()
+    elif status_update.new_status == "En Implementación":
+        update_data["sent_to_implementation_at"] = datetime.now(timezone.utc).isoformat()
+    
+    result = await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    return {"message": f"Cotización actualizada a estado: {status_update.new_status}"}
+
+@api_router.post("/quotes/{quote_id}/send-to-client")
+async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Envía la cotización por email al cliente con el PDF adjunto"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Obtener cliente
+    client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    # Obtener email del contacto
+    client_email = client.get('contact1', {}).get('email')
+    if not client_email or client_email == 'sin@email.com':
+        raise HTTPException(status_code=400, detail="El cliente no tiene un email de contacto válido")
+    
+    # Verificar configuración de Resend
+    if not RESEND_AVAILABLE or not RESEND_API_KEY:
+        # Simular envío si no hay API key
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "sent_to_client_at": datetime.now(timezone.utc).isoformat(),
+                "quote_status": "Emitida"
+            }}
+        )
+        return {
+            "status": "simulated",
+            "message": f"Email simulado a {client_email} (Configure RESEND_API_KEY para envío real)",
+            "recipient": client_email
+        }
+    
+    # Generar PDF en memoria
+    pdf_buffer = await generate_quote_pdf_buffer(quote, client)
+    pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+    
+    # Preparar email
+    client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
+    subject = f"Cotización #{quote.get('quote_number', '')} - Merchant Server"
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #1a56db;">Cotización #{quote.get('quote_number', '')}</h2>
+        <p>Estimado(a) <strong>{client_name}</strong>,</p>
+        <p>Adjunto encontrará la cotización solicitada con los detalles de los servicios y productos.</p>
+        <table style="margin: 20px 0; border-collapse: collapse;">
+            <tr><td style="padding: 5px 15px 5px 0; font-weight: bold;">Tipo de Servicio:</td><td>{quote.get('quote_type', 'N/A')}</td></tr>
+            <tr><td style="padding: 5px 15px 5px 0; font-weight: bold;">Total USD:</td><td>${quote.get('total_usd', 0):.2f}</td></tr>
+        </table>
+        <p>Quedamos atentos a cualquier consulta.</p>
+        <p style="margin-top: 30px;">Saludos cordiales,<br><strong>Equipo Merchant Server</strong></p>
+    </body>
+    </html>
+    """
+    
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [client_email],
+            "subject": subject,
+            "html": html_content,
+            "attachments": [{
+                "filename": f"cotizacion_{quote.get('quote_number', 'quote')}.pdf",
+                "content": pdf_base64
+            }]
+        }
+        
+        email_result = await asyncio.to_thread(resend.Emails.send, params)
+        
+        # Actualizar cotización
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "sent_to_client_at": datetime.now(timezone.utc).isoformat(),
+                "quote_status": "Emitida"
+            }}
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Cotización enviada exitosamente a {client_email}",
+            "email_id": email_result.get("id")
+        }
+    except Exception as e:
+        logger.error(f"Error enviando email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar email: {str(e)}")
+
+@api_router.post("/quotes/{quote_id}/send-to-implementation")
+async def send_quote_to_implementation(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Envía la cotización al equipo de implementación"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Obtener cliente
+    client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    # Obtener email de implementación desde configuración
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    implementation_email = config.get('implementation_email') if config else None
+    
+    if not implementation_email:
+        raise HTTPException(status_code=400, detail="Email de implementación no configurado. Vaya a Configuración para establecerlo.")
+    
+    # Verificar configuración de Resend
+    if not RESEND_AVAILABLE or not RESEND_API_KEY:
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "sent_to_implementation_at": datetime.now(timezone.utc).isoformat(),
+                "quote_status": "En Implementación"
+            }}
+        )
+        return {
+            "status": "simulated",
+            "message": f"Email simulado a {implementation_email} (Configure RESEND_API_KEY para envío real)"
+        }
+    
+    # Generar PDF
+    pdf_buffer = await generate_quote_pdf_buffer(quote, client)
+    pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+    
+    client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
+    subject = f"[IMPLEMENTACIÓN] Cotización #{quote.get('quote_number', '')} - {client_name}"
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #059669;">Nueva Implementación Aprobada</h2>
+        <p>Se ha aprobado la siguiente cotización y está lista para implementación:</p>
+        
+        <table style="margin: 20px 0; border-collapse: collapse; width: 100%; max-width: 600px;">
+            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Cotización #</td><td style="padding: 10px;">{quote.get('quote_number', 'N/A')}</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold;">Cliente</td><td style="padding: 10px;">{client_name}</td></tr>
+            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">RIF</td><td style="padding: 10px;">{client.get('rif', 'N/A')}</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold;">Tipo de Servicio</td><td style="padding: 10px;">{quote.get('quote_type', 'N/A')}</td></tr>
+            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Integrador</td><td style="padding: 10px;">{quote.get('integrator_name', 'N/A')} ({quote.get('integrator_app_name', '')})</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold;">Modelo Pinpad</td><td style="padding: 10px;">{quote.get('pinpad_model', 'N/A')}</td></tr>
+            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Patrocinador</td><td style="padding: 10px;">{quote.get('sponsor_bank_name', 'N/A')}</td></tr>
+            <tr><td style="padding: 10px; font-weight: bold;">Total USD</td><td style="padding: 10px;"><strong>${quote.get('total_usd', 0):.2f}</strong></td></tr>
+        </table>
+        
+        <p>Por favor revisar el PDF adjunto para los detalles completos.</p>
+        <p style="margin-top: 30px; color: #6b7280; font-size: 12px;">Este es un mensaje automático del sistema de cotizaciones.</p>
+    </body>
+    </html>
+    """
+    
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [implementation_email],
+            "subject": subject,
+            "html": html_content,
+            "attachments": [{
+                "filename": f"implementacion_{quote.get('quote_number', 'quote')}.pdf",
+                "content": pdf_base64
+            }]
+        }
+        
+        email_result = await asyncio.to_thread(resend.Emails.send, params)
+        
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "sent_to_implementation_at": datetime.now(timezone.utc).isoformat(),
+                "quote_status": "En Implementación"
+            }}
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Enviado a implementación: {implementation_email}",
+            "email_id": email_result.get("id")
+        }
+    except Exception as e:
+        logger.error(f"Error enviando a implementación: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al enviar email: {str(e)}")
+
+async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
+    """Genera un PDF de cotización y lo retorna como buffer"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    title_style = styles['Title']
+    title_style.fontSize = 16
+    elements.append(Paragraph("<b>COTIZACIÓN - Merchant Server</b>", title_style))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    quote_type_names = {
+        'VPOS': 'Cajas Registradoras (VPOS)',
+        'GATEWAY': 'Ecommerce (Payment Gateway)',
+        'MPOS': 'Tablet o Android (MPOS)',
+        'LINK': 'Link de Pago'
+    }
+    
+    client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
+    
+    info_data = [
+        ["Cotización #:", quote.get('quote_number', 'N/A')],
+        ["Fecha:", datetime.now().strftime("%d/%m/%Y")],
+        ["Cliente:", client_name],
+        ["RIF:", client.get('rif', 'N/A')],
+        ["Tipo de Servicio:", quote_type_names.get(quote.get('quote_type'), quote.get('quote_type', 'N/A'))],
+    ]
+    
+    if quote.get('integrator_name'):
+        info_data.append(["Integrador:", f"{quote.get('integrator_name')} ({quote.get('integrator_app_name', '')})"])
+    if quote.get('pinpad_model'):
+        info_data.append(["Modelo Pinpad:", quote.get('pinpad_model')])
+    if quote.get('sponsor_bank_name'):
+        info_data.append(["Patrocinador:", quote.get('sponsor_bank_name')])
+    
+    info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Servicios
+    if quote.get('services'):
+        elements.append(Paragraph("<b>Servicios</b>", styles['Heading2']))
+        svc_data = [["Concepto", "Cantidad", "Precio USD", "Total USD"]]
+        for svc in quote['services']:
+            total = svc.get('quantity', 1) * svc.get('price_usd', 0)
+            svc_data.append([
+                svc.get('item_name', ''),
+                str(svc.get('quantity', 1)),
+                f"${svc.get('price_usd', 0):.2f}",
+                f"${total:.2f}"
+            ])
+        svc_table = Table(svc_data, colWidths=[3.5*inch, 1*inch, 1*inch, 1*inch])
+        svc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.1, 0.4, 0.7)),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ]))
+        elements.append(svc_table)
+        elements.append(Spacer(1, 0.15*inch))
+    
+    # Total
+    elements.append(Spacer(1, 0.2*inch))
+    total_data = [
+        ["Total USD:", f"${quote.get('total_usd', 0):.2f}"]
+    ]
+    total_table = Table(total_data, colWidths=[5*inch, 1.5*inch])
+    total_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.Color(0.95, 0.95, 0.95)),
+    ]))
+    elements.append(total_table)
+    
+    # Footer
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = styles['Normal']
+    footer_style.fontSize = 8
+    footer_style.textColor = colors.grey
+    elements.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}", footer_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
 # ==================== INTEGRATORS ENDPOINTS ====================
 
 @api_router.get("/integrators", response_model=List[Integrator])
