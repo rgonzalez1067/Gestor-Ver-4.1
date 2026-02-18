@@ -1003,16 +1003,27 @@ export const Quotes = () => {
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
                               ${((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
                             </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeAdditionalItem(realIndex)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                       <tfoot>
                         <tr className="bg-slate-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Setup:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Setup:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-blue-600 border border-slate-300 bg-blue-50">${subtotalSetup.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-amber-50">
-                          <td colSpan={4} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento:</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento:</td>
                           <td className="px-3 py-2 text-center border border-slate-300">
                             <div className="flex items-center justify-center gap-1">
                               <Input
