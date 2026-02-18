@@ -258,6 +258,20 @@ export const MediosPago = () => {
 
   const showSetupFields = formData.application_type === 'setup' || formData.application_type === 'both';
   const showRecurringFields = formData.application_type === 'recurring' || formData.application_type === 'both';
+  const showLinkedField = formData.application_type === 'setup' || formData.application_type === 'both';
+
+  // Obtener nombre del servicio recurrente vinculado
+  const getLinkedServiceName = (serviceId) => {
+    if (!serviceId) return null;
+    const service = recurringServices.find(s => s.service_id === serviceId);
+    return service?.name || null;
+  };
+
+  // Filtrar servicios recurrentes para no incluir el mismo servicio que se está editando
+  const getAvailableRecurringServices = () => {
+    if (!editingMedioPago) return recurringServices;
+    return recurringServices.filter(s => s.service_id !== editingMedioPago.service_id);
+  };
 
   if (loading) {
     return (
