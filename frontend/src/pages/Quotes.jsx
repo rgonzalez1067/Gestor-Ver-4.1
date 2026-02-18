@@ -49,10 +49,21 @@ const RECURRING_OTHER_CONCEPTS = [
 // Colores de estado
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-700',
+  'draft': 'bg-slate-100 text-slate-700', // Legacy support
   'Emitida': 'bg-blue-100 text-blue-700',
   'Aprobada': 'bg-green-100 text-green-700',
   'En Implementación': 'bg-amber-100 text-amber-700',
   'Completada': 'bg-emerald-100 text-emerald-700'
+};
+
+// Mapeo de nombres de estado (para mostrar en español)
+const STATUS_DISPLAY_NAMES = {
+  'draft': 'Borrador',
+  'Borrador': 'Borrador',
+  'Emitida': 'Emitida',
+  'Aprobada': 'Aprobada',
+  'En Implementación': 'En Implementación',
+  'Completada': 'Completada'
 };
 
 export const Quotes = () => {
