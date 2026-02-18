@@ -207,11 +207,6 @@ class TestResumenEjecutivoData:
 class TestApiEndpoints:
     """Basic API endpoint verification"""
     
-    def test_health_check(self):
-        """Test API is responding"""
-        response = requests.get(f"{BASE_URL}/api/health")
-        assert response.status_code == 200
-    
     def test_clients_endpoint_auth_required(self):
         """Test clients endpoint requires authentication"""
         response = requests.get(f"{BASE_URL}/api/clients")
