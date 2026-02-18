@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download } from 'lucide-react';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -21,13 +23,42 @@ export const Settings = () => {
   const [seeding, setSeeding] = useState(false);
   const [templates, setTemplates] = useState({});
   const [uploadingTemplate, setUploadingTemplate] = useState(null);
+  const [implementationEmail, setImplementationEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
 
   useEffect(() => {
     fetchLogo();
     fetchTemplates();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await api.get('/config/settings');
+      setImplementationEmail(response.data.implementation_email || '');
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    }
+  };
+
+  const handleSaveImplementationEmail = async () => {
+    if (!implementationEmail) {
+      toast.error('Ingrese un email válido');
+      return;
+    }
+    
+    setSavingEmail(true);
+    try {
+      await api.put('/config/settings', { implementation_email: implementationEmail });
+      toast.success('Email de implementación guardado');
+    } catch (error) {
+      toast.error('Error al guardar el email');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
 
   const fetchLogo = async () => {
     try {
