@@ -1961,10 +1961,11 @@ export const Quotes = () => {
                       <span className="font-semibold text-slate-800">Total de Terminales Virtuales</span>
                       <span className="font-bold text-xl text-slate-900">
                         {(() => {
-                          // Sumar todas las cajas de todos los items
-                          const total = [...quoteData.setup_items, ...quoteData.additional_items]
+                          // Sumar cajas solo de medios de pago con banco (excluir conceptos base)
+                          const total = quoteData.additional_items
+                            .filter(item => item.bank_name)
                             .reduce((sum, item) => sum + (item.cantidad_cajas || 1), 0);
-                          return total;
+                          return total || quoteData.cantidad_cajas;
                         })()}
                       </span>
                     </div>
