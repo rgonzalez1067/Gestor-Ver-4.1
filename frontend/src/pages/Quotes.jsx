@@ -325,19 +325,60 @@ export const Quotes = () => {
       tarifa_setup: prices.setup_cost,
       tarifa_recurrente: prices.monthly_cost,
       application_type: prices.application_type,
-      isDefault: false
+      isDefault: false,
+      linked_recurring_service_id: prices.linked_recurring_service_id
     };
+
+    // Preparar nuevo estado
+    let newAdditionalItems = [...quoteData.additional_items, newItem];
+    let newRecurringBasicItems = [...quoteData.recurring_basic_items];
+
+    // CARGA AUTOMÁTICA: Si el servicio tiene un recurrente vinculado, agregarlo
+    if (prices.linked_recurring_service_id) {
+      const linkedService = getServiceById(prices.linked_recurring_service_id);
+      if (linkedService) {
+        const isOutsourcing = quoteData.pricing_model === 'outsourcing';
+        const linkedMonthlyPrice = isOutsourcing 
+          ? (linkedService.monthly_cost_outsourcing || 0) 
+          : (linkedService.monthly_cost_conventional || 0);
+
+        // Crear item recurrente vinculado
+        const linkedRecurringItem = {
+          id: `auto_linked_${newItem.id}_${linkedService.service_id}`,
+          medio_pago_name: linkedService.name,
+          linkedTo: medioPago.product_name,
+          bank_name: bank.name,
+          cantidad_cajas: quoteData.cantidad_cajas,
+          cantidad_bancos: 1, // Cada vinculación cuenta como 1 banco para acumulación
+          tarifa: linkedMonthlyPrice,
+          isDefault: false,
+          isAutoLinked: true,
+          sourceServiceId: newItem.id,
+          type: 'recurring_basic'
+        };
+
+        newRecurringBasicItems.push(linkedRecurringItem);
+        
+        toast.success(`Agregado: ${medioPago.product_name} + Recurrente vinculado: ${linkedService.name}`);
+      } else {
+        toast.success('Medio de pago agregado');
+      }
+    } else {
+      toast.success('Medio de pago agregado');
+    }
+
+    // Consolidar recurrentes (de-duplicar y acumular cantidades)
+    const consolidatedRecurring = consolidateRecurringItems(newRecurringBasicItems);
 
     setQuoteData({
       ...quoteData,
-      additional_items: [...quoteData.additional_items, newItem]
+      additional_items: newAdditionalItems,
+      recurring_basic_items: consolidatedRecurring
     });
 
     setSelectedBankId('');
     setSelectedMedioPagoId('');
     setAvailableMediosPago([]);
-    
-    toast.success('Medio de pago agregado');
   };
 
   const removeAdditionalItem = (index) => {
