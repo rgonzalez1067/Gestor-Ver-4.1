@@ -470,5 +470,44 @@ sent_to_implementation_at: Optional[datetime]
 - Testing: 100% (17/17 tests backend, UI verificada)
 
 ---
+
+## Matriz de Resumen Ejecutivo (Febrero 2026)
+
+### Descripción
+Sección de resumen consolidado al final de cada cotización que presenta información técnica y comercial en formato de fácil lectura para el cliente.
+
+### Campo Dirección en Clientes
+- **Backend**: Campo `address: Optional[str]` agregado a modelos `ClientCreate` y `Client`
+- **Frontend**: Campo "Dirección Fiscal" en formulario de Clientes
+
+### Estructura del Resumen Ejecutivo
+
+#### 1. Cabecera
+| Campo | Color | Datos |
+|-------|-------|-------|
+| Cliente | Amarillo (amber-400) | Nombre/Razón Social |
+| Cantidad de Cajas | Azul (blue-200) | Total de PDV cotizados |
+| Dirección Fiscal | Verde (green-200) | Dirección del cliente |
+
+#### 2. Matriz de Distribución
+| Columna | Color | Contenido |
+|---------|-------|-----------|
+| Bancos | Verde (green-200) | Entidad financiera |
+| Productos | Azul (blue-200) | Medio de pago |
+| Cantidad de Cajas | Amarillo (amber-400) | Número de cajas por producto |
+
+#### 3. Total de Terminales Virtuales
+- Suma de `cantidad_cajas` de todos los items (setup + adicionales)
+
+### Ubicación en Código
+- `Quotes.jsx` líneas 1867-1963
+- Sección aparece después del "Total General"
+- data-testid: `executive-summary`
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (8/8 tests backend)
+
+---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Ciclo de Vida de Cotizaciones IMPLEMENTADO
+**Estado:** MVP Operativo - Matriz de Resumen Ejecutivo IMPLEMENTADO
