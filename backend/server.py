@@ -150,7 +150,7 @@ class IntegratorCreate(BaseModel):
     integrator_type: Literal["Integrador", "Comercio"]
     app_name: str
     integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone"]
-    status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
+    integrator_status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
@@ -158,7 +158,7 @@ class Integrator(BaseModel):
     integrator_type: str
     app_name: str
     integration_modality: str
-    status: str = "En proceso"
+    integrator_status: str = "En proceso"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):
