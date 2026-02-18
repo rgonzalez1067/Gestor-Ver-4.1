@@ -319,7 +319,19 @@ export const Clients = () => {
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
+                  {/* Campo de Dirección Fiscal */}
+                  <div className="mt-4">
+                    <Label htmlFor="address">Dirección Fiscal</Label>
+                    <Input
+                      id="address"
+                      data-testid="client-address-input"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="Av. Principal, Edificio X, Piso 2, Oficina 201, Caracas"
+                    />
+                  </div>
+
+                  <div className="border-t pt-4 mt-4">
                     <h3 className="font-semibold text-lg mb-3">Contacto 1</h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
