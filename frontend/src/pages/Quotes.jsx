@@ -1212,12 +1212,15 @@ export const Quotes = () => {
                             <td className="px-3 py-2 text-right border border-slate-300 bg-teal-50 font-mono font-semibold text-teal-600">
                               ${calcularTotal(item).toFixed(2)}
                             </td>
+                            <td className="px-3 py-2 text-center border border-slate-300">
+                              {/* Los conceptos base no se pueden eliminar */}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="bg-teal-50">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Otros:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Otros:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-teal-600 border border-slate-300">${subtotalRecurringOther.toFixed(2)}</td>
                         </tr>
                       </tfoot>
@@ -1229,15 +1232,15 @@ export const Quotes = () => {
                     <table className="w-full border-collapse text-sm">
                       <tfoot>
                         <tr className="bg-slate-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">SUBTOTAL RECURRENTES:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-semibold border border-slate-300">SUBTOTAL RECURRENTES:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-600 border border-slate-300 bg-green-50 w-32">${subtotalRecurrente.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-amber-50">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento ({quoteData.descuento}%):</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento ({quoteData.descuento}%):</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-amber-600 border border-slate-300 w-32">-${montoDescuentoRecurrente.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-green-100">
-                          <td colSpan={5} className="px-3 py-2 text-right font-bold border border-slate-300">TOTAL RECURRENTE NETO:</td>
+                          <td colSpan={6} className="px-3 py-2 text-right font-bold border border-slate-300">TOTAL RECURRENTE NETO:</td>
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-green-700 border border-slate-300 text-lg w-32">${totalNetoRecurrente.toFixed(2)}</td>
                         </tr>
                       </tfoot>
