@@ -200,7 +200,7 @@ export const Banks = () => {
         toast.error(result.message || 'Error en la importación');
       }
       
-      fetchBanks();
+      fetchData();
     } catch (error) {
       toast.dismiss('import-loading');
       console.error('Error importing banks:', error);
