@@ -85,6 +85,7 @@ export const Clients = () => {
       legal_name: client.legal_name,
       fantasy_name: client.fantasy_name,
       segment: client.segment || 'Pymes',
+      address: client.address || '',
       contact1: client.contact1,
       contact2: client.contact2
     });
@@ -97,6 +98,7 @@ export const Clients = () => {
       legal_name: '',
       fantasy_name: '',
       segment: 'Pymes',
+      address: '',
       contact1: { name: '', phone: '', email: '' },
       contact2: { name: '', phone: '', email: '' }
     });
