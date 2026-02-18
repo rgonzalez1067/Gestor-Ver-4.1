@@ -76,6 +76,29 @@ export const Quotes = () => {
     fetchData();
   }, []);
 
+  // Auto-calcular campo "Bancos" para conceptos con autoBancos: true
+  useEffect(() => {
+    if (quoteData.setup_items.length > 0) {
+      const totalMediosPago = quoteData.additional_items.length;
+      
+      const updatedSetupItems = quoteData.setup_items.map(item => {
+        if (item.autoBancos) {
+          return { ...item, cantidad_bancos: Math.max(1, totalMediosPago) };
+        }
+        return item;
+      });
+      
+      // Solo actualizar si hay cambios
+      const hasChanges = updatedSetupItems.some((item, idx) => 
+        item.cantidad_bancos !== quoteData.setup_items[idx].cantidad_bancos
+      );
+      
+      if (hasChanges) {
+        setQuoteData(prev => ({ ...prev, setup_items: updatedSetupItems }));
+      }
+    }
+  }, [quoteData.additional_items.length]);
+
   const fetchData = async () => {
     try {
       const [quotesRes, clientsRes, banksRes, servicesRes] = await Promise.all([
