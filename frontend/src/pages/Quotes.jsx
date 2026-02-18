@@ -172,14 +172,19 @@ export const Quotes = () => {
   const initializeSetupConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
     return SETUP_CONCEPTS.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
+      // Si lockBancos es true, el campo Bancos vale 1 y está bloqueado
+      // Si autoBancos es true, el campo Bancos se calculará dinámicamente
+      const bancosValue = concept.lockBancos ? 1 : cantidadBancos;
       return {
         id: `setup_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: cantidadBancos,
+        cantidad_bancos: bancosValue,
         tarifa: prices.setup_cost,
         isDefault: true,
-        type: 'setup'
+        type: 'setup',
+        lockBancos: concept.lockBancos || false,
+        autoBancos: concept.autoBancos || false
       };
     });
   };
