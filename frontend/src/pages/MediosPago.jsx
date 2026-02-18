@@ -160,7 +160,8 @@ export const MediosPago = () => {
       monthly_cost_conventional: '',
       setup_cost_outsourcing: '',
       monthly_cost_outsourcing: '',
-      description: ''
+      description: '',
+      linked_recurring_service_id: ''
     });
     setEditingMedioPago(null);
   };
