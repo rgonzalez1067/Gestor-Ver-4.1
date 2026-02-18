@@ -371,8 +371,8 @@ export const Integrators = () => {
                     <div>
                       <Label htmlFor="status">Estatus *</Label>
                       <Select 
-                        value={formData.status} 
-                        onValueChange={(value) => setFormData({ ...formData, status: value })}
+                        value={formData.integrator_status} 
+                        onValueChange={(value) => setFormData({ ...formData, integrator_status: value })}
                       >
                         <SelectTrigger data-testid="status-select">
                           <SelectValue placeholder="Seleccione un estatus" />
