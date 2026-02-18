@@ -1163,26 +1163,6 @@ export const Quotes = () => {
                     </table>
                   </div>
 
-                  {/* Botón Complementar Recurrentes - Solo visible si hay items adicionales */}
-                  {quoteData.additional_items.length > 0 && (
-                    <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-purple-800">Complementar Cotización de Recurrentes</p>
-                          <p className="text-sm text-purple-600">Agregar conceptos de mantenimiento para los medios de pago adicionales</p>
-                        </div>
-                        <Button
-                          onClick={addRecurringComplementsFromAdditional}
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
-                          data-testid="add-complements-btn"
-                        >
-                          <Plus size={16} className="mr-2" />
-                          Complementar Recurrentes
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Resumen Total Recurrentes */}
                   <div className="overflow-x-auto mt-4">
                     <table className="w-full border-collapse text-sm">
