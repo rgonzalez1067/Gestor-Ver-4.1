@@ -1863,6 +1863,105 @@ export const Quotes = () => {
                     </div>
                   </div>
 
+                  {/* SECCIÓN: Resumen Ejecutivo - Matriz de Distribución */}
+                  <div className="mt-6 bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="executive-summary">
+                    <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                      <h3 className="font-semibold text-lg text-slate-800">Resumen Ejecutivo</h3>
+                    </div>
+                    
+                    {/* Cabecera del Resumen */}
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex">
+                          <span className="bg-amber-400 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cliente</span>
+                          <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-900 font-medium">
+                            {selectedClient?.legal_name || selectedClient?.fantasy_name || 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex">
+                          <span className="bg-blue-200 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Cantidad de Cajas</span>
+                          <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-900 font-medium">
+                            {quoteData.cantidad_cajas}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <span className="bg-green-200 text-slate-900 px-3 py-2 font-semibold text-sm min-w-[140px]">Dirección Fiscal</span>
+                        <span className="bg-white border border-slate-200 px-3 py-2 flex-1 text-slate-700">
+                          {selectedClient?.address || 'No especificada'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Matriz de Distribución - Bancos/Productos/Cajas */}
+                    <div className="px-4 pb-4">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="bg-green-200 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Bancos</th>
+                            <th className="bg-blue-200 text-slate-900 px-4 py-2 text-left font-semibold border border-slate-200">Productos</th>
+                            <th className="bg-amber-400 text-slate-900 px-4 py-2 text-center font-semibold border border-slate-200 w-32">Cantidad de Cajas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Agrupar items por banco */}
+                          {(() => {
+                            // Consolidar items por banco y medio de pago
+                            const bankProductMap = {};
+                            [...quoteData.setup_items, ...quoteData.additional_items].forEach(item => {
+                              const bankName = item.bank_name || 'Sin Banco';
+                              const productName = item.medio_pago_name || item.item_name || 'Producto';
+                              const key = `${bankName}-${productName}`;
+                              
+                              if (!bankProductMap[key]) {
+                                bankProductMap[key] = {
+                                  bank: bankName,
+                                  product: productName,
+                                  cajas: 0
+                                };
+                              }
+                              bankProductMap[key].cajas += item.cantidad_cajas || 1;
+                            });
+                            
+                            const rows = Object.values(bankProductMap);
+                            
+                            if (rows.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={3} className="px-4 py-3 text-center text-slate-500 italic border border-slate-200">
+                                    No hay medios de pago seleccionados
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            
+                            return rows.map((row, idx) => (
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <td className="px-4 py-2 border border-slate-200 text-slate-900">{row.bank}</td>
+                                <td className="px-4 py-2 border border-slate-200 text-slate-700">{row.product}</td>
+                                <td className="px-4 py-2 border border-slate-200 text-center font-medium text-slate-900">{row.cajas}</td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Total de Terminales Virtuales */}
+                    <div className="border-t-2 border-slate-400 px-4 py-3 flex justify-between items-center bg-slate-50">
+                      <span className="font-semibold text-slate-800">Total de Terminales Virtuales</span>
+                      <span className="font-bold text-xl text-slate-900">
+                        {(() => {
+                          // Sumar todas las cajas de todos los items
+                          const total = [...quoteData.setup_items, ...quoteData.additional_items]
+                            .reduce((sum, item) => sum + (item.cantidad_cajas || 1), 0);
+                          return total;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Notas y Botón Finalizar */}
                   <div className="p-4">
                     <Label htmlFor="notes" className="text-sm font-medium text-slate-700">Notas adicionales</Label>
