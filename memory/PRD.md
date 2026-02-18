@@ -212,6 +212,11 @@ El usuario solicitó una aplicación de cotizaciones con:
   - Consistencia de datos: Ofertas comerciales íntegras
 - **Estado:** IMPLEMENTADO - Backend 85/85 tests (100%)
 
+### Correcciones de Incidencias (Febrero 2026)
+- **Mapeo de Precios Corregido:** La función `findServicePriceWithModel` ahora prioriza coincidencias exactas antes de buscar por inclusión, evitando que "Derecho de uso de plataforma MServer por PDV" coincida incorrectamente con "Derecho de uso de plataforma MServer por PDV / Banco"
+- **Otros Recurrentes con N/A:** "Comunicación Backend" y "Procesamiento" ahora muestran "N/A" en campo Bancos (igual que Setup bloqueado)
+- **Descarga PDF Mejorada:** Se mejoró el manejo de la descarga de PDF con validaciones adicionales y limpieza de recursos
+
 ### Mejoras de Interfaz y Lógica de Cotización (Febrero 2026)
 - **Campos bloqueados muestran "N/A":** En "Configuración dispositivo" y "Configuración PDV", el campo Bancos muestra "N/A" en lugar de un número
 - **Botón Duplicar:** Cada concepto de Setup tiene un botón para clonar la línea (las copias pueden eliminarse)
