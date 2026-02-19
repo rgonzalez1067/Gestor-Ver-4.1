@@ -2212,6 +2212,238 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
         logger.error(f"Error enviando a implementación: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al enviar email: {str(e)}")
 
+# ==================== NUEVOS ENDPOINTS DEL FLUJO DE ESTADOS ====================
+
+class InvoiceUpload(BaseModel):
+    invoice_number: Optional[str] = None
+
+@api_router.post("/quotes/{quote_id}/invoice")
+async def invoice_quote(
+    quote_id: str, 
+    invoice_file: UploadFile = File(...),
+    invoice_number: str = Form(None),
+    authorization: Optional[str] = Header(None)
+):
+    """Facturar una cotización - Requiere subir el PDF de la factura"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Validar estado actual
+    if quote.get("quote_status") != "Aprobada":
+        raise HTTPException(status_code=400, detail="Solo se pueden facturar cotizaciones en estado 'Aprobada'")
+    
+    # Validar que sea un PDF
+    if not invoice_file.content_type == 'application/pdf':
+        raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
+    
+    # Guardar el archivo de factura
+    file_extension = "pdf"
+    invoice_filename = f"invoice_{quote_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{file_extension}"
+    invoice_path = UPLOADS_DIR / invoice_filename
+    
+    content = await invoice_file.read()
+    with open(invoice_path, "wb") as f:
+        f.write(content)
+    
+    # Actualizar cotización
+    update_data = {
+        "quote_status": "Facturada",
+        "invoiced_at": datetime.now(timezone.utc).isoformat(),
+        "invoice_pdf_url": f"/uploads/{invoice_filename}",
+        "invoice_number": invoice_number
+    }
+    
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
+    
+    # Enviar notificación a administración
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    admin_email = config.get('admin_email') if config else None
+    
+    if admin_email and RESEND_AVAILABLE and RESEND_API_KEY:
+        client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+        client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+        
+        try:
+            params = {
+                "from": SENDER_EMAIL,
+                "to": [admin_email],
+                "subject": f"[FACTURADA] Cotización #{quote.get('quote_number', '')} - {client_name}",
+                "html": f"""
+                <html><body style="font-family: Arial, sans-serif;">
+                    <h2 style="color: #2563eb;">Cotización Facturada</h2>
+                    <p>La cotización <strong>#{quote.get('quote_number', '')}</strong> para <strong>{client_name}</strong> ha sido facturada.</p>
+                    <p>Número de Factura: <strong>{invoice_number or 'No especificado'}</strong></p>
+                    <p>Total: <strong>${quote.get('total_usd', 0):.2f}</strong></p>
+                </body></html>
+                """
+            }
+            await asyncio.to_thread(resend.Emails.send, params)
+        except Exception as e:
+            logger.error(f"Error enviando notificación de factura: {str(e)}")
+    
+    return {
+        "message": "Cotización facturada exitosamente",
+        "invoice_pdf_url": f"/uploads/{invoice_filename}",
+        "invoice_number": invoice_number
+    }
+
+@api_router.post("/quotes/{quote_id}/collect")
+async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Marcar cotización como Pagada (Cobrar)"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Validar estado actual
+    if quote.get("quote_status") != "Facturada":
+        raise HTTPException(status_code=400, detail="Solo se pueden cobrar cotizaciones en estado 'Facturada'")
+    
+    # Actualizar cotización
+    update_data = {
+        "quote_status": "Pagada",
+        "paid_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
+    
+    # Si es categoría equipos, enviar notificación a almacén
+    quote_category = quote.get("quote_category", "implementation")
+    
+    if quote_category == "equipment":
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        warehouse_email = config.get('warehouse_email') if config else None
+        
+        if warehouse_email and RESEND_AVAILABLE and RESEND_API_KEY:
+            client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+            client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+            
+            # Preparar lista de items
+            equipment_items = quote.get('equipment_items', [])
+            items_html = ""
+            for item in equipment_items:
+                items_html += f"<tr><td style='padding: 8px; border: 1px solid #ddd;'>{item.get('name', 'N/A')}</td><td style='padding: 8px; border: 1px solid #ddd; text-align: center;'>{item.get('quantity', 1)}</td></tr>"
+            
+            try:
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [warehouse_email],
+                    "subject": f"[ALMACÉN] Pedido Pagado - Cotización #{quote.get('quote_number', '')} - {client_name}",
+                    "html": f"""
+                    <html><body style="font-family: Arial, sans-serif;">
+                        <h2 style="color: #f59e0b;">Pedido Listo para Preparar</h2>
+                        <p>La cotización <strong>#{quote.get('quote_number', '')}</strong> ha sido pagada y está lista para preparar.</p>
+                        
+                        <h3>Datos del Cliente:</h3>
+                        <p><strong>Cliente:</strong> {client_name}</p>
+                        <p><strong>RIF:</strong> {client.get('rif', 'N/A') if client else 'N/A'}</p>
+                        <p><strong>Dirección:</strong> {client.get('address', 'N/A') if client else 'N/A'}</p>
+                        
+                        <h3>Items a Despachar:</h3>
+                        <table style="border-collapse: collapse; width: 100%; max-width: 400px;">
+                            <thead>
+                                <tr style="background: #f3f4f6;">
+                                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Producto</th>
+                                    <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Cantidad</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items_html}
+                            </tbody>
+                        </table>
+                        
+                        <p style="margin-top: 20px; color: #6b7280; font-size: 12px;">Este es un mensaje automático del sistema de cotizaciones.</p>
+                    </body></html>
+                    """
+                }
+                await asyncio.to_thread(resend.Emails.send, params)
+            except Exception as e:
+                logger.error(f"Error enviando notificación a almacén: {str(e)}")
+    
+    return {"message": "Cotización marcada como Pagada", "notified_warehouse": quote_category == "equipment"}
+
+@api_router.post("/quotes/{quote_id}/deliver")
+async def deliver_quote(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Marcar cotización de equipos como Entregada"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Validar categoría
+    if quote.get("quote_category") != "equipment":
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos")
+    
+    # Validar estado actual
+    if quote.get("quote_status") != "Pagada":
+        raise HTTPException(status_code=400, detail="Solo se pueden entregar cotizaciones en estado 'Pagada'")
+    
+    # Actualizar cotización
+    update_data = {
+        "quote_status": "Entregada",
+        "delivered_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
+    
+    return {"message": "Cotización marcada como Entregada"}
+
+@api_router.post("/quotes/{quote_id}/duplicate")
+async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Crea una nueva versión de la cotización (Modificar)"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización original
+    original_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not original_quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Generar nuevo número de cotización
+    count = await db.quotes.count_documents({})
+    new_quote_number = f"COT-{datetime.now().year}-{str(count + 1).zfill(3)}"
+    
+    # Determinar versión
+    original_version = original_quote.get("version", 1)
+    parent_id = original_quote.get("parent_quote_id") or quote_id
+    
+    # Crear nueva cotización basada en la original
+    new_quote = {
+        **original_quote,
+        "quote_id": f"quo_{uuid.uuid4().hex[:12]}",
+        "quote_number": new_quote_number,
+        "quote_status": "Borrador",
+        "version": original_version + 1,
+        "parent_quote_id": parent_id,
+        # Limpiar timestamps
+        "sent_to_client_at": None,
+        "approved_at": None,
+        "invoiced_at": None,
+        "paid_at": None,
+        "delivered_at": None,
+        "sent_to_implementation_at": None,
+        "invoice_pdf_url": None,
+        "invoice_number": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.quotes.insert_one(new_quote)
+    
+    return {
+        "message": "Nueva versión creada exitosamente",
+        "new_quote_id": new_quote["quote_id"],
+        "new_quote_number": new_quote_number,
+        "version": new_quote["version"],
+        "parent_quote_id": parent_id
+    }
+
 async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     """Genera un PDF de cotización y lo retorna como buffer"""
     buffer = io.BytesIO()
