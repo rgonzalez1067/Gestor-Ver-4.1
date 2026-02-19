@@ -24,6 +24,8 @@ export const Settings = () => {
   const [templates, setTemplates] = useState({});
   const [uploadingTemplate, setUploadingTemplate] = useState(null);
   const [implementationEmail, setImplementationEmail] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [warehouseEmail, setWarehouseEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
@@ -38,23 +40,24 @@ export const Settings = () => {
     try {
       const response = await api.get('/config/settings');
       setImplementationEmail(response.data.implementation_email || '');
+      setAdminEmail(response.data.admin_email || '');
+      setWarehouseEmail(response.data.warehouse_email || '');
     } catch (error) {
       console.error('Error fetching settings:', error);
     }
   };
 
-  const handleSaveImplementationEmail = async () => {
-    if (!implementationEmail) {
-      toast.error('Ingrese un email válido');
-      return;
-    }
-    
+  const handleSaveEmails = async () => {
     setSavingEmail(true);
     try {
-      await api.put('/config/settings', { implementation_email: implementationEmail });
-      toast.success('Email de implementación guardado');
+      await api.put('/config/settings', { 
+        implementation_email: implementationEmail || null,
+        admin_email: adminEmail || null,
+        warehouse_email: warehouseEmail || null
+      });
+      toast.success('Configuración de correos guardada');
     } catch (error) {
-      toast.error('Error al guardar el email');
+      toast.error('Error al guardar la configuración');
     } finally {
       setSavingEmail(false);
     }
