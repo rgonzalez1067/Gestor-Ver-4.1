@@ -2143,7 +2143,7 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
             {"quote_id": quote_id},
             {"$set": {
                 "sent_to_implementation_at": datetime.now(timezone.utc).isoformat(),
-                "quote_status": "En Implementación"
+                "quote_status": "Enviada a Imple"
             }}
         )
         return {
@@ -2199,7 +2199,7 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
             {"quote_id": quote_id},
             {"$set": {
                 "sent_to_implementation_at": datetime.now(timezone.utc).isoformat(),
-                "quote_status": "En Implementación"
+                "quote_status": "Enviada a Imple"
             }}
         )
         
