@@ -418,6 +418,20 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Plantillas de Correo Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
+              <FileCode size={24} />
+              Plantillas de Correo Electrónico
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Personalice el contenido de los correos automáticos que envía el sistema en cada etapa del flujo de trabajo.
+              Puede modificar el asunto y el cuerpo de cada correo usando variables dinámicas.
+            </p>
+
+            <EmailTemplatesEditor />
+          </div>
+
           {/* Templates Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
