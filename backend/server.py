@@ -284,7 +284,7 @@ class Quote(BaseModel):
     exchange_rate: float
     total_bs: float
     notes: Optional[str] = None
-    quote_status: str = "Borrador"  # Borrador, Emitida, Aprobada, En Implementación, Completada
+    quote_status: str = "Borrador"  # Estados: Borrador, Enviada, Aprobada, Facturada, Pagada, Entregada, Enviada a Imple
     # Campos de integración y hardware
     integrator_id: Optional[str] = None
     integrator_name: Optional[str] = None
@@ -293,10 +293,19 @@ class Quote(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
-    # Campos de seguimiento
+    # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
+    invoiced_at: Optional[datetime] = None  # NUEVO: Cuando se factura
+    paid_at: Optional[datetime] = None  # NUEVO: Cuando se cobra
+    delivered_at: Optional[datetime] = None  # NUEVO: Cuando se entrega (equipos)
     sent_to_implementation_at: Optional[datetime] = None
+    # Campos de factura
+    invoice_pdf_url: Optional[str] = None  # NUEVO: URL del PDF de la factura
+    invoice_number: Optional[str] = None  # NUEVO: Número de factura
+    # Versionamiento
+    version: int = 1  # NUEVO: Versión de la cotización
+    parent_quote_id: Optional[str] = None  # NUEVO: ID de la cotización original (si es una modificación)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ExchangeRate(BaseModel):
