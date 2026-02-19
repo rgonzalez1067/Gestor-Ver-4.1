@@ -1401,13 +1401,63 @@ export const Quotes = () => {
                 })}
               </tbody>
             </table>
-            {quotes.length === 0 && (
-              <div className="text-center py-12 text-slate-500">
-                <FileText size={48} className="mx-auto mb-4 text-slate-300" />
-                <p>No hay cotizaciones registradas</p>
-                <p className="text-sm mt-2">Cree una cotización de Implementación o Equipos para comenzar</p>
-              </div>
-            )}
+            {/* Mensaje cuando no hay cotizaciones o no hay resultados */}
+            {(() => {
+              const filteredQuotes = quotes.filter(quote => {
+                if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
+                if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
+                if (filterCategory && filterCategory !== 'all') {
+                  const isEquipment = quote.quote_category === 'equipment';
+                  if (filterCategory === 'equipment' && !isEquipment) return false;
+                  if (filterCategory === 'implementation' && isEquipment) return false;
+                }
+                if (filterDateFrom) {
+                  const quoteDate = new Date(quote.created_at);
+                  const fromDate = new Date(filterDateFrom);
+                  if (quoteDate < fromDate) return false;
+                }
+                if (filterDateTo) {
+                  const quoteDate = new Date(quote.created_at);
+                  const toDate = new Date(filterDateTo);
+                  toDate.setHours(23, 59, 59, 999);
+                  if (quoteDate > toDate) return false;
+                }
+                return true;
+              });
+              
+              if (quotes.length === 0) {
+                return (
+                  <div className="text-center py-12 text-slate-500">
+                    <FileText size={48} className="mx-auto mb-4 text-slate-300" />
+                    <p>No hay cotizaciones registradas</p>
+                    <p className="text-sm mt-2">Cree una cotización de Implementación o Equipos para comenzar</p>
+                  </div>
+                );
+              } else if (filteredQuotes.length === 0) {
+                return (
+                  <div className="text-center py-12 text-slate-500">
+                    <Search size={48} className="mx-auto mb-4 text-slate-300" />
+                    <p>No se encontraron cotizaciones</p>
+                    <p className="text-sm mt-2">Intente ajustar los filtros de búsqueda</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={() => {
+                        setFilterClient('');
+                        setFilterStatus('');
+                        setFilterCategory('');
+                        setFilterDateFrom('');
+                        setFilterDateTo('');
+                      }}
+                    >
+                      <X size={16} className="mr-2" />
+                      Limpiar filtros
+                    </Button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* Dialog de Nueva Cotización */}
