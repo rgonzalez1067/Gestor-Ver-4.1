@@ -215,6 +215,11 @@ class QuoteItem(BaseModel):
     # Campos adicionales para preservar datos de edición
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
+    # Campos específicos para items adicionales (medios de pago)
+    bank_id: Optional[str] = None
+    bank_name: Optional[str] = None
+    tarifa_setup: Optional[float] = None
+    tarifa_recurrente: Optional[float] = None
 
 # Modelo para items de cotización de equipos
 class EquipmentQuoteItem(BaseModel):
