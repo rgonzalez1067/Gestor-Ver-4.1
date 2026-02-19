@@ -1216,10 +1216,12 @@ export const Quotes = () => {
                   <SelectContent>
                     <SelectItem value="all">Todos los estados</SelectItem>
                     <SelectItem value="Borrador">Borrador</SelectItem>
-                    <SelectItem value="Emitida">Emitida</SelectItem>
+                    <SelectItem value="Enviada">Enviada</SelectItem>
                     <SelectItem value="Aprobada">Aprobada</SelectItem>
-                    <SelectItem value="En Implementación">En Implementación</SelectItem>
-                    <SelectItem value="Completada">Completada</SelectItem>
+                    <SelectItem value="Facturada">Facturada</SelectItem>
+                    <SelectItem value="Pagada">Pagada</SelectItem>
+                    <SelectItem value="Entregada">Entregada (Equipos)</SelectItem>
+                    <SelectItem value="Enviada a Imple">Enviada a Imple</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
