@@ -1143,14 +1143,17 @@ export const Quotes = () => {
     const services = quote.services || [];
     
     // Mapear servicios al formato esperado por el wizard
+    // El wizard usa: medio_pago_name, tarifa, cantidad_cajas, cantidad_bancos
     const mapService = (s) => ({
       service_id: s.item_id || s.service_id || '',
-      name: s.item_name || s.name || '',
+      medio_pago_name: s.item_name || s.name || '',  // El wizard usa medio_pago_name
+      name: s.item_name || s.name || '',  // Backup
       quantity: s.quantity || 1,
-      unit_price_usd: s.unit_price_usd || 0,
+      tarifa: s.unit_price_usd || 0,  // El wizard usa tarifa
+      unit_price_usd: s.unit_price_usd || 0,  // Backup
       total_usd: s.total_usd || 0,
-      cantidad_cajas: s.cantidad_cajas || 0,
-      cantidad_bancos: s.cantidad_bancos || 0
+      cantidad_cajas: s.cantidad_cajas || 1,
+      cantidad_bancos: s.cantidad_bancos || 1
     });
     
     // Filtrar por categoría (puede ser 'category' o 'item_type')
