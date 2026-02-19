@@ -212,6 +212,9 @@ class QuoteItem(BaseModel):
     quantity: int
     unit_price_usd: float
     total_usd: float
+    # Campos adicionales para preservar datos de edición
+    cantidad_cajas: Optional[int] = None
+    cantidad_bancos: Optional[int] = None
 
 # Modelo para items de cotización de equipos
 class EquipmentQuoteItem(BaseModel):
@@ -244,6 +247,9 @@ class QuoteCreate(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Campos de cantidades a nivel de cotización
+    cantidad_cajas: Optional[int] = None
+    cantidad_bancos: Optional[int] = None
 
 # Estados del ciclo de vida de cotizaciones - Flujo actualizado
 QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
