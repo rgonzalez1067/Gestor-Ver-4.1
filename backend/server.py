@@ -3435,7 +3435,7 @@ async def update_email_template(template_id: str, template: EmailTemplate, autho
     template_data = template.model_dump()
     template_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     
-    result = await db.email_templates.update_one(
+    await db.email_templates.update_one(
         {"template_id": template_id},
         {"$set": template_data},
         upsert=True
