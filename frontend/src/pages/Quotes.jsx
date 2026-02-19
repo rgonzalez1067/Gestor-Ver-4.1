@@ -1120,6 +1120,42 @@ export const Quotes = () => {
       return;
     }
     
+    // Obtener los servicios y mapear al formato del wizard
+    const services = quote.services || [];
+    
+    // Mapear servicios al formato esperado por el wizard
+    const mapService = (s) => ({
+      service_id: s.item_id || s.service_id || '',
+      name: s.item_name || s.name || '',
+      quantity: s.quantity || 1,
+      unit_price_usd: s.unit_price_usd || 0,
+      total_usd: s.total_usd || 0,
+      cantidad_cajas: s.cantidad_cajas || 0,
+      cantidad_bancos: s.cantidad_bancos || 0
+    });
+    
+    // Filtrar por categoría (puede ser 'category' o 'item_type')
+    const getCategory = (s) => s.category || s.item_type || '';
+    
+    const setupItems = services.filter(s => getCategory(s) === 'setup').map(mapService);
+    const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(mapService);
+    const recurringOtherItems = services.filter(s => getCategory(s) === 'recurring_other').map(mapService);
+    const additionalItems = services.filter(s => getCategory(s) === 'additional').map(mapService);
+    
+    console.log('Loading quote for edit:', {
+      quote_id: quote.quote_id,
+      quote_type: quote.quote_type,
+      client_id: quote.client_id,
+      integrator_id: quote.integrator_id,
+      pinpad_id: quote.pinpad_id,
+      sponsor_bank_id: quote.sponsor_bank_id,
+      services_count: services.length,
+      setup: setupItems.length,
+      recurring_basic: recurringBasicItems.length,
+      recurring_other: recurringOtherItems.length,
+      additional: additionalItems.length
+    });
+    
     // Precargar datos de la cotización en el formulario
     setQuoteData({
       quote_type: quote.quote_type || 'VPOS',
@@ -1131,10 +1167,10 @@ export const Quotes = () => {
       integrator_app_name: quote.integrator_app_name || '',
       pinpad_id: quote.pinpad_id || '',
       sponsor_bank_id: quote.sponsor_bank_id || '',
-      setup_items: quote.services?.filter(s => s.category === 'setup') || [],
-      recurring_basic_items: quote.services?.filter(s => s.category === 'recurring_basic') || [],
-      recurring_other_items: quote.services?.filter(s => s.category === 'recurring_other') || [],
-      additional_items: quote.services?.filter(s => s.category === 'additional') || [],
+      setup_items: setupItems,
+      recurring_basic_items: recurringBasicItems,
+      recurring_other_items: recurringOtherItems,
+      additional_items: additionalItems,
       descuento: quote.descuento || 0,
       notes: quote.notes || ''
     });
