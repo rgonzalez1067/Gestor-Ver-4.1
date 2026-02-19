@@ -767,17 +767,86 @@ export const Quotes = () => {
 
   const downloadPDF = async (quoteId) => {
     try {
-      const response = await api.get(`/quotes/${quoteId}/pdf`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      toast.loading('Generando PDF...');
+      
+      const response = await api.get(`/quotes/${quoteId}/pdf`, { 
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Verificar que hay datos
+      if (!response.data || response.data.size === 0) {
+        toast.dismiss();
+        toast.error('Error: El servidor no devolvió el PDF');
+        return;
+      }
+      
+      // Verificar que es un PDF válido (no un error JSON)
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/json')) {
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        toast.dismiss();
+        toast.error(errorData.detail || 'Error al generar PDF');
+        return;
+      }
+      
+      // Crear blob y descargar
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Obtener nombre del archivo del header o usar default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `cotizacion_${quoteId}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `cotizacion_${quoteId}.pdf`);
+      link.download = filename;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
-      toast.success('PDF descargado');
+      
+      // Limpiar
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast.dismiss();
+      toast.success('PDF descargado exitosamente');
     } catch (error) {
-      toast.error('Error al descargar PDF');
+      toast.dismiss();
+      console.error('Error downloading PDF:', error);
+      
+      // Intentar obtener mensaje de error
+      let errorMessage = 'Error al descargar PDF';
+      if (error.response) {
+        if (error.response.status === 404) {
+          errorMessage = 'Cotización no encontrada';
+        } else if (error.response.status === 401) {
+          errorMessage = 'Sesión expirada. Por favor, inicie sesión nuevamente';
+        } else if (error.response.data) {
+          try {
+            const text = await error.response.data.text?.();
+            if (text) {
+              const errorData = JSON.parse(text);
+              errorMessage = errorData.detail || errorMessage;
+            }
+          } catch (e) {
+            // Ignorar errores de parsing
+          }
+        }
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
