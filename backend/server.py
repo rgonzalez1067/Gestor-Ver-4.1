@@ -1420,7 +1420,9 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         pinpad_id=quote_data.pinpad_id,
         pinpad_model=quote_data.pinpad_model,
         sponsor_bank_id=quote_data.sponsor_bank_id,
-        sponsor_bank_name=quote_data.sponsor_bank_name
+        sponsor_bank_name=quote_data.sponsor_bank_name,
+        cantidad_cajas=quote_data.cantidad_cajas,
+        cantidad_bancos=quote_data.cantidad_bancos
     )
     
     doc = quote.model_dump()
