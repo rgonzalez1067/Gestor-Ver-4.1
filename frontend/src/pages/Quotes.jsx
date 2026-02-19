@@ -937,75 +937,87 @@ export const Quotes = () => {
     try {
       toast.loading('Generando PDF...');
       
-      const response = await api.post('/quotes/generate-pdf', pdfData, { 
-        responseType: 'blob',
+      // Obtener token de autenticación
+      const token = localStorage.getItem('session_token');
+      if (!token) {
+        toast.dismiss();
+        toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
+        return;
+      }
+      
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      // Usar fetch nativo para mejor control
+      const response = await fetch(`${backendUrl}/api/quotes/generate-pdf`, {
+        method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
           'Accept': 'application/pdf'
-        }
+        },
+        body: JSON.stringify(pdfData)
       });
       
-      // Verificar que la respuesta sea válida
-      if (!response.data || response.data.size === 0) {
+      // Verificar respuesta
+      if (!response.ok) {
         toast.dismiss();
-        toast.error('Error: Respuesta vacía del servidor');
+        const errorText = await response.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          toast.error(errorData.detail || 'Error al generar PDF');
+        } catch {
+          toast.error(`Error del servidor: ${response.status}`);
+        }
         return;
       }
       
-      // Verificar el tipo de contenido
-      const contentType = response.headers['content-type'];
-      if (contentType && contentType.includes('application/json')) {
-        // Es un error JSON, no un PDF
-        const text = await response.data.text();
-        const errorData = JSON.parse(text);
+      // Verificar Content-Type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/pdf')) {
         toast.dismiss();
-        toast.error(errorData.detail || 'Error al generar PDF');
+        toast.error('El servidor no devolvió un PDF válido');
         return;
       }
       
-      // Crear blob con tipo correcto
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
+      // Obtener el blob
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        toast.dismiss();
+        toast.error('El archivo PDF está vacío');
+        return;
+      }
       
       // Nombre del archivo
       const filename = `cotizacion_${client.legal_name?.replace(/\s+/g, '_') || 'cliente'}_${new Date().toISOString().split('T')[0]}.pdf`;
       
+      // Crear URL del blob y descargar
+      const blobUrl = window.URL.createObjectURL(blob);
+      
       // Crear elemento de descarga
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.target = '_blank';
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = filename;
+      downloadLink.style.display = 'none';
       
       // Añadir al DOM, hacer clic y remover
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
       
-      // Limpiar URL después de un delay
+      // Limpiar después de un delay
       setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-      }, 1000);
+        if (downloadLink.parentNode) {
+          document.body.removeChild(downloadLink);
+        }
+        window.URL.revokeObjectURL(blobUrl);
+      }, 250);
       
       toast.dismiss();
       toast.success('PDF descargado exitosamente');
     } catch (error) {
       toast.dismiss();
       console.error('Error generating PDF:', error);
-      
-      // Intentar obtener mensaje de error específico
-      let errorMessage = 'Error al generar PDF';
-      if (error.response?.data) {
-        try {
-          const text = await error.response.data.text?.();
-          if (text) {
-            const errorData = JSON.parse(text);
-            errorMessage = errorData.detail || errorMessage;
-          }
-        } catch (e) {
-          // Ignorar errores de parsing
-        }
-      }
-      
-      toast.error(errorMessage);
+      toast.error('Error al generar el PDF. Verifique su conexión.');
     }
   };
 
