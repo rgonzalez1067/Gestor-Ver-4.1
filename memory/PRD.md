@@ -559,5 +559,69 @@ Antes de generar el PDF, se muestra un modal con:
 - Testing: 100% (8/8 tests frontend - Iteration 15)
 
 ---
+
+## Filtros Rápidos en Panel de Cotizaciones (Febrero 2026)
+
+### Descripción
+Sistema de filtrado rápido para facilitar la búsqueda de cotizaciones en el panel unificado.
+
+### Filtros Implementados
+
+| Filtro | Componente | Test ID |
+|--------|------------|---------|
+| Cliente | Select dropdown | `filter-client` |
+| Estado | Select dropdown | `filter-status` |
+| Categoría | Select dropdown | `filter-category` |
+| Fecha Desde | Input date | `filter-date-from` |
+| Fecha Hasta | Input date | `filter-date-to` |
+| Limpiar | Button | `clear-filters-btn` |
+
+### Estados Disponibles
+- Borrador
+- Emitida
+- Aprobada
+- En Implementación
+- Completada
+
+### Categorías
+- Implementación (flujo original)
+- Equipos (cotizaciones de hardware)
+
+### Comportamiento
+- Los filtros se aplican en tiempo real al cambiar cualquier valor
+- El valor "all" (Todos) no aplica filtro
+- Los filtros se combinan con AND lógico
+- Al no encontrar resultados, se muestra mensaje con botón para limpiar filtros
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (8/8 features - Iteration 16)
+
+---
+
+## Corrección de Descarga de PDF (Febrero 2026)
+
+### Problema
+El usuario hacía clic en "Exportar PDF", veía mensaje de éxito, pero el archivo no se descargaba. Bug recurrente reportado múltiples veces.
+
+### Causa Raíz
+La función `downloadPDF` no manejaba correctamente la respuesta blob de axios ni limpiaba los recursos después de la descarga.
+
+### Solución Implementada
+1. Verificación de datos en la respuesta (`response.data.size`)
+2. Detección de errores JSON en respuestas blob
+3. Creación correcta del blob con `type: 'application/pdf'`
+4. Uso de `URL.createObjectURL` con limpieza posterior
+5. Toast de carga "Generando PDF..." durante el proceso
+6. Manejo de errores específicos (404, 401, etc.)
+
+### Archivo Modificado
+- `frontend/src/pages/Quotes.jsx` - función `downloadPDF`
+
+### Estado
+- **CORREGIDO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (Backend y Frontend verificados - Iteration 16)
+
+---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Módulo de Cotizaciones de Equipos ACTUALIZADO
+**Estado:** MVP Operativo - Filtros Rápidos y Descarga PDF FUNCIONANDO
