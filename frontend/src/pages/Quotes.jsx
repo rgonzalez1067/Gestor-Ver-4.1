@@ -1833,22 +1833,33 @@ export const Quotes = () => {
                     <Select 
                       value={quoteData.pricing_model} 
                       onValueChange={(value) => {
-                        // Al seleccionar modelo, inicializar todos los conceptos
+                        // Al seleccionar modelo, inicializar conceptos SOLO si no estamos en modo edición
+                        // o si no hay items ya cargados
                         const cajas = quoteData.cantidad_cajas || 1;
                         const bancos = quoteData.cantidad_bancos || 1;
-                        const setupItems = initializeSetupConcepts(value, cajas, bancos);
-                        const recurringBasicItems = initializeRecurringBasicConcepts(value, cajas, bancos);
-                        const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos);
-                        setQuoteData({ 
-                          ...quoteData, 
-                          pricing_model: value, 
-                          cantidad_cajas: cajas,
-                          cantidad_bancos: bancos,
-                          setup_items: setupItems,
-                          recurring_basic_items: recurringBasicItems,
-                          recurring_other_items: recurringOtherItems,
-                          additional_items: []
-                        });
+                        
+                        // Si estamos editando y ya hay items, mantenerlos
+                        if (isEditing && (quoteData.setup_items.length > 0 || quoteData.recurring_basic_items.length > 0)) {
+                          setQuoteData({ 
+                            ...quoteData, 
+                            pricing_model: value
+                          });
+                        } else {
+                          // Nueva cotización: inicializar conceptos desde el catálogo
+                          const setupItems = initializeSetupConcepts(value, cajas, bancos);
+                          const recurringBasicItems = initializeRecurringBasicConcepts(value, cajas, bancos);
+                          const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos);
+                          setQuoteData({ 
+                            ...quoteData, 
+                            pricing_model: value, 
+                            cantidad_cajas: cajas,
+                            cantidad_bancos: bancos,
+                            setup_items: setupItems,
+                            recurring_basic_items: recurringBasicItems,
+                            recurring_other_items: recurringOtherItems,
+                            additional_items: []
+                          });
+                        }
                       }}
                     >
                       <SelectTrigger data-testid="select-pricing-model">
