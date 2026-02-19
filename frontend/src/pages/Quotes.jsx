@@ -1123,6 +1123,108 @@ export const Quotes = () => {
             </Button>
           </div>
 
+          {/* Filtros Rápidos */}
+          <div className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-200">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter size={18} className="text-slate-500" />
+              <span className="font-medium text-slate-700">Filtros Rápidos</span>
+              {(filterClient || filterStatus || filterCategory || filterDateFrom || filterDateTo) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setFilterClient('');
+                    setFilterStatus('');
+                    setFilterCategory('');
+                    setFilterDateFrom('');
+                    setFilterDateTo('');
+                  }}
+                  className="text-red-500 hover:text-red-700 ml-auto"
+                  data-testid="clear-filters-btn"
+                >
+                  <X size={14} className="mr-1" />
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {/* Filtro por Cliente */}
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">Cliente</Label>
+                <Select value={filterClient} onValueChange={setFilterClient}>
+                  <SelectTrigger className="h-9 bg-white" data-testid="filter-client">
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.client_id} value={client.client_id}>
+                        {client.fantasy_name || client.legal_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por Estado */}
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">Estado</Label>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="h-9 bg-white" data-testid="filter-status">
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="Borrador">Borrador</SelectItem>
+                    <SelectItem value="Emitida">Emitida</SelectItem>
+                    <SelectItem value="Aprobada">Aprobada</SelectItem>
+                    <SelectItem value="En Implementación">En Implementación</SelectItem>
+                    <SelectItem value="Completada">Completada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por Categoría */}
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">Categoría</Label>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="h-9 bg-white" data-testid="filter-category">
+                    <SelectValue placeholder="Todas las categorías" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las categorías</SelectItem>
+                    <SelectItem value="implementation">Implementación</SelectItem>
+                    <SelectItem value="equipment">Equipos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por Fecha Desde */}
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">Desde</Label>
+                <Input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="h-9 bg-white"
+                  data-testid="filter-date-from"
+                />
+              </div>
+
+              {/* Filtro por Fecha Hasta */}
+              <div>
+                <Label className="text-xs text-slate-500 mb-1 block">Hasta</Label>
+                <Input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="h-9 bg-white"
+                  data-testid="filter-date-to"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Panel de Gestión Único - Todas las Cotizaciones */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full" data-testid="quotes-unified-table">
@@ -1139,7 +1241,39 @@ export const Quotes = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {quotes.map((quote) => {
+                {quotes
+                  .filter(quote => {
+                    // Filtro por cliente
+                    if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
+                    
+                    // Filtro por estado
+                    if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
+                    
+                    // Filtro por categoría
+                    if (filterCategory && filterCategory !== 'all') {
+                      const isEquipment = quote.quote_category === 'equipment';
+                      if (filterCategory === 'equipment' && !isEquipment) return false;
+                      if (filterCategory === 'implementation' && isEquipment) return false;
+                    }
+                    
+                    // Filtro por fecha desde
+                    if (filterDateFrom) {
+                      const quoteDate = new Date(quote.created_at);
+                      const fromDate = new Date(filterDateFrom);
+                      if (quoteDate < fromDate) return false;
+                    }
+                    
+                    // Filtro por fecha hasta
+                    if (filterDateTo) {
+                      const quoteDate = new Date(quote.created_at);
+                      const toDate = new Date(filterDateTo);
+                      toDate.setHours(23, 59, 59, 999); // Incluir todo el día
+                      if (quoteDate > toDate) return false;
+                    }
+                    
+                    return true;
+                  })
+                  .map((quote) => {
                   const client = clients.find(c => c.client_id === quote.client_id);
                   const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
                   const isLoading = actionLoading === quote.quote_id;
