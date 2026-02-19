@@ -245,8 +245,28 @@ class QuoteCreate(BaseModel):
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
 
-# Estados del ciclo de vida de cotizaciones
-QUOTE_STATUSES = ["Borrador", "Emitida", "Aprobada", "En Implementación", "Completada"]
+# Estados del ciclo de vida de cotizaciones - Flujo actualizado
+QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
+
+# Flujo de transiciones permitidas por categoría
+QUOTE_TRANSITIONS = {
+    "equipment": {
+        "Borrador": ["Enviada"],
+        "Enviada": ["Aprobada"],
+        "Aprobada": ["Facturada"],
+        "Facturada": ["Pagada"],
+        "Pagada": ["Entregada"],
+        "Entregada": []  # Estado final
+    },
+    "implementation": {
+        "Borrador": ["Enviada"],
+        "Enviada": ["Aprobada"],
+        "Aprobada": ["Facturada"],
+        "Facturada": ["Pagada"],
+        "Pagada": ["Enviada a Imple"],
+        "Enviada a Imple": []  # Estado final
+    }
+}
 
 class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
