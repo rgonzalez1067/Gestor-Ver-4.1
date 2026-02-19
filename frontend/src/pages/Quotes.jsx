@@ -2699,7 +2699,7 @@ export const Quotes = () => {
               )}
 
               {/* Mensaje cuando no hay items */}
-              {isHeaderComplete && quoteData.setup_items.length === 0 && (
+              {canShowItems && quoteData.setup_items.length === 0 && (
                 <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg mt-4 border-2 border-dashed">
                   <CreditCard size={40} className="mx-auto mb-3 text-slate-300" />
                   <p className="font-medium">No hay medios de pago agregados</p>
