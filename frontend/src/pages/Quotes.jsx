@@ -52,20 +52,30 @@ const RECURRING_OTHER_CONCEPTS = [
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-700',
   'draft': 'bg-slate-100 text-slate-700', // Legacy support
-  'Emitida': 'bg-blue-100 text-blue-700',
+  'Enviada': 'bg-blue-100 text-blue-700',
+  'Emitida': 'bg-blue-100 text-blue-700', // Legacy support
   'Aprobada': 'bg-green-100 text-green-700',
-  'En Implementación': 'bg-amber-100 text-amber-700',
-  'Completada': 'bg-emerald-100 text-emerald-700'
+  'Facturada': 'bg-purple-100 text-purple-700',
+  'Pagada': 'bg-emerald-100 text-emerald-700',
+  'Entregada': 'bg-teal-100 text-teal-700',
+  'Enviada a Imple': 'bg-amber-100 text-amber-700',
+  'En Implementación': 'bg-amber-100 text-amber-700', // Legacy support
+  'Completada': 'bg-emerald-100 text-emerald-700' // Legacy support
 };
 
 // Mapeo de nombres de estado (para mostrar en español)
 const STATUS_DISPLAY_NAMES = {
   'draft': 'Borrador',
   'Borrador': 'Borrador',
-  'Emitida': 'Emitida',
+  'Enviada': 'Enviada',
+  'Emitida': 'Emitida', // Legacy
   'Aprobada': 'Aprobada',
-  'En Implementación': 'En Implementación',
-  'Completada': 'Completada'
+  'Facturada': 'Facturada',
+  'Pagada': 'Pagada',
+  'Entregada': 'Entregada',
+  'Enviada a Imple': 'Enviada a Imple',
+  'En Implementación': 'En Implementación', // Legacy
+  'Completada': 'Completada' // Legacy
 };
 
 // Categorías de cotización
