@@ -599,29 +599,100 @@ Sistema de filtrado rápido para facilitar la búsqueda de cotizaciones en el pa
 
 ---
 
-## Corrección de Descarga de PDF (Febrero 2026)
+## Corrección de Descarga de PDF (Febrero 2026 - Segunda Iteración)
 
 ### Problema
-El usuario hacía clic en "Exportar PDF", veía mensaje de éxito, pero el archivo no se descargaba. Bug recurrente reportado múltiples veces.
+El usuario reportó que la descarga de PDF seguía sin funcionar a pesar de las correcciones anteriores.
 
 ### Causa Raíz
-La función `downloadPDF` no manejaba correctamente la respuesta blob de axios ni limpiaba los recursos después de la descarga.
+Axios con `responseType: 'blob'` junto con `withCredentials: true` puede causar problemas de CORS y manejo de respuestas en algunos navegadores.
 
-### Solución Implementada
-1. Verificación de datos en la respuesta (`response.data.size`)
-2. Detección de errores JSON en respuestas blob
-3. Creación correcta del blob con `type: 'application/pdf'`
-4. Uso de `URL.createObjectURL` con limpieza posterior
-5. Toast de carga "Generando PDF..." durante el proceso
-6. Manejo de errores específicos (404, 401, etc.)
+### Solución Implementada (Final)
+Se reemplazó completamente axios por **fetch nativo** para las descargas de PDF:
+1. Uso de `fetch()` con headers de Authorization explícitos
+2. Validación de `response.ok` y `content-type`
+3. Verificación de `blob.size > 0`
+4. Creación de elemento `<a>` con `download` attribute
+5. Limpieza asincrónica de recursos
+6. Aplicado a todas las funciones de PDF: `downloadPDF`, `exportCurrentQuoteToPDF`, y `EquipmentQuoteWizard`
 
-### Archivo Modificado
-- `frontend/src/pages/Quotes.jsx` - función `downloadPDF`
+### Archivos Modificados
+- `frontend/src/pages/Quotes.jsx` - funciones downloadPDF y exportCurrentQuoteToPDF
+- `frontend/src/components/EquipmentQuoteWizard.jsx` - función handleGeneratePDF
 
 ### Estado
 - **CORREGIDO Y VERIFICADO** - Febrero 2026
-- Testing: 100% (Backend y Frontend verificados - Iteration 16)
+- Testing: 100% (Backend verificado, PDF válido confirmado via curl)
+
+---
+
+## Sistema de Estados de Cotizaciones (Febrero 2026)
+
+### Descripción
+Implementación completa del nuevo flujo de estados para cotizaciones según documento de especificaciones.
+
+### Flujo de Estados
+
+#### Categoría: Implementación
+```
+Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Enviada a Imple
+```
+
+#### Categoría: Equipos y Accesorios
+```
+Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Entregada
+```
+
+### Acciones por Estado
+
+| Estado Actual | Acción | Nuevo Estado | Notificación |
+|---------------|--------|--------------|--------------|
+| Borrador | Enviar al Cliente | Enviada | - |
+| Enviada | Aprobar | Aprobada | → Administración |
+| Aprobada | Facturar | Facturada | → Administración + PDF requerido |
+| Facturada | Cobrar | Pagada | → Almacén (solo Equipos) |
+| Pagada (Equipos) | Entregar | Entregada | - |
+| Pagada (Implementación) | Enviar a Imple | Enviada a Imple | → Implementación |
+
+### Gestión de Versiones
+- Acción **"Modificar"** crea una nueva versión de la cotización
+- Nuevo número correlativo: `COT-YYYY-NNN`
+- Campo `version` incrementado
+- Campo `parent_quote_id` referencia al original
+- Cotización original permanece intacta
+- Nueva versión queda en estado **Borrador**
+
+### Configuración de Correos (Settings)
+
+| Campo | Descripción | Test ID |
+|-------|-------------|---------|
+| Correo de Administración | Recibe notificaciones de Aprobación y Facturación | `admin-email-input` |
+| Correo de Almacén | Recibe notificaciones cuando Equipos pasa a Pagada | `warehouse-email-input` |
+| Correo de Implementación | Recibe detalles técnicos al Enviar a Implementación | `implementation-email-input` |
+
+### Endpoints Nuevos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/quotes/{id}/invoice` | Facturar con PDF obligatorio |
+| POST | `/api/quotes/{id}/collect` | Marcar como Pagada |
+| POST | `/api/quotes/{id}/deliver` | Marcar como Entregada (equipos) |
+| POST | `/api/quotes/{id}/duplicate` | Crear nueva versión |
+
+### Modal de Factura
+- Campo: Número de factura (opcional)
+- Archivo: PDF de factura (obligatorio)
+- Test IDs: `invoice-number-input`, `invoice-file-input`, `invoice-submit-btn`
+
+### Archivos Modificados
+- `backend/server.py` - Nuevos endpoints y configuración
+- `frontend/src/pages/Quotes.jsx` - Menú de acciones, modal de factura, estados
+- `frontend/src/pages/Settings.jsx` - Campos de correo
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (17/17 backend, frontend code review - Iteration 17)
 
 ---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Filtros Rápidos y Descarga PDF FUNCIONANDO
+**Estado:** MVP Operativo - Sistema de Estados de Cotizaciones COMPLETO
