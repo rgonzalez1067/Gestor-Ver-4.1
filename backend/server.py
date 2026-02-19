@@ -1579,6 +1579,9 @@ class QuoteUpdate(BaseModel):
     exchange_rate: Optional[float] = None
     total_bs: Optional[float] = None
     notes: Optional[str] = None
+    # Campos de cantidades a nivel de cotización
+    cantidad_cajas: Optional[int] = None
+    cantidad_bancos: Optional[int] = None
 
 @api_router.put("/quotes/{quote_id}")
 async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):
