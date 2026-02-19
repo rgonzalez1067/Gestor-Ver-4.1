@@ -1770,10 +1770,24 @@ export const Quotes = () => {
           </div>
 
           {/* Dialog de Nueva Cotización */}
-          <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+          <Dialog open={wizardOpen} onOpenChange={(open) => {
+            if (!open) {
+              // Al cerrar el dialog, resetear el modo edición
+              setIsEditing(false);
+              setEditingQuoteId(null);
+            }
+            setWizardOpen(open);
+          }}>
             <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="font-manrope text-2xl">Nueva Cotización</DialogTitle>
+                <DialogTitle className="font-manrope text-2xl">
+                  {isEditing ? 'Modificar Cotización (Nueva Versión)' : 'Nueva Cotización'}
+                </DialogTitle>
+                {isEditing && (
+                  <p className="text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mt-2">
+                    Está editando una cotización existente. Al guardar se creará una nueva versión con número correlativo diferente.
+                  </p>
+                )}
               </DialogHeader>
 
               {/* SECCIÓN 1: Parámetros Iniciales */}
