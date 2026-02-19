@@ -2499,6 +2499,71 @@ export const Quotes = () => {
             clients={clients}
             hardware={allHardware}
           />
+
+          {/* Modal de Factura */}
+          <Dialog open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Receipt className="text-purple-600" size={20} />
+                  Facturar Cotización
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="invoice_number">Número de Factura (opcional)</Label>
+                  <Input
+                    id="invoice_number"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="Ej: FAC-001234"
+                    data-testid="invoice-number-input"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="invoice_file">PDF de la Factura *</Label>
+                  <div className="mt-2">
+                    <label 
+                      htmlFor="invoice_file"
+                      className={`flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors
+                        ${invoiceFile ? 'border-green-500 bg-green-50' : 'border-slate-300 hover:border-brand-blue-500'}`}
+                    >
+                      <Upload size={20} className={invoiceFile ? 'text-green-600' : 'text-slate-400'} />
+                      <span className={invoiceFile ? 'text-green-700 font-medium' : 'text-slate-500'}>
+                        {invoiceFile ? invoiceFile.name : 'Seleccionar archivo PDF'}
+                      </span>
+                    </label>
+                    <input
+                      id="invoice_file"
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      data-testid="invoice-file-input"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">Solo archivos PDF</p>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setInvoiceModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleInvoiceQuote}
+                  disabled={!invoiceFile}
+                  className="bg-purple-600 hover:bg-purple-700"
+                  data-testid="invoice-submit-btn"
+                >
+                  <Receipt size={16} className="mr-2" />
+                  Facturar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
     </div>
