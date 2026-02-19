@@ -1162,7 +1162,9 @@ export const Quotes = () => {
       tarifa: s.unit_price_usd || 0,  // El wizard usa tarifa
       unit_price_usd: s.unit_price_usd || 0,  // Backup
       total_usd: s.total_usd || 0,
-      cantidad_cajas: s.cantidad_cajas || 1,
+      // Leer cantidad_cajas y cantidad_bancos directamente del servicio si existen
+      // Si no existen, intentar calcular desde quantity (fallback para cotizaciones antiguas)
+      cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
       cantidad_bancos: s.cantidad_bancos || 1
     });
     
@@ -1181,14 +1183,19 @@ export const Quotes = () => {
       integrator_id: quote.integrator_id,
       pinpad_id: quote.pinpad_id,
       sponsor_bank_id: quote.sponsor_bank_id,
+      cantidad_cajas_quote: quote.cantidad_cajas,
+      cantidad_bancos_quote: quote.cantidad_bancos,
       services_count: services.length,
       setup: setupItems.length,
       recurring_basic: recurringBasicItems.length,
       recurring_other: recurringOtherItems.length,
-      additional: additionalItems.length
+      additional: additionalItems.length,
+      // Log de datos de servicios para debug
+      first_setup_item: setupItems[0] || null
     });
     
     // Precargar datos de la cotización en el formulario
+    // Usar cantidad_cajas y cantidad_bancos a nivel de cotización si existen
     setQuoteData({
       quote_type: quote.quote_type || 'VPOS',
       client_id: quote.client_id || '',
