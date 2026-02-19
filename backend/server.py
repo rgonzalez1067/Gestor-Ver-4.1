@@ -1973,18 +1973,44 @@ class EmailSendRequest(BaseModel):
 
 @api_router.put("/quotes/{quote_id}/status")
 async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, authorization: Optional[str] = Header(None)):
-    """Actualiza el estatus de una cotización"""
+    """Actualiza el estatus de una cotización validando transiciones permitidas"""
     await get_current_user(authorization)
     
     if status_update.new_status not in QUOTE_STATUSES:
         raise HTTPException(status_code=400, detail=f"Estado inválido. Estados válidos: {QUOTE_STATUSES}")
     
+    # Obtener cotización actual
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    current_status = quote.get("quote_status", "Borrador")
+    quote_category = quote.get("quote_category", "implementation")
+    
+    # Validar transición permitida
+    transitions = QUOTE_TRANSITIONS.get(quote_category, QUOTE_TRANSITIONS["implementation"])
+    allowed_next_states = transitions.get(current_status, [])
+    
+    if status_update.new_status not in allowed_next_states:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Transición no permitida de '{current_status}' a '{status_update.new_status}'. Estados siguientes permitidos: {allowed_next_states}"
+        )
+    
     # Actualizar campos de seguimiento según el nuevo estado
     update_data = {"quote_status": status_update.new_status}
     
-    if status_update.new_status == "Aprobada":
+    if status_update.new_status == "Enviada":
+        update_data["sent_to_client_at"] = datetime.now(timezone.utc).isoformat()
+    elif status_update.new_status == "Aprobada":
         update_data["approved_at"] = datetime.now(timezone.utc).isoformat()
-    elif status_update.new_status == "En Implementación":
+    elif status_update.new_status == "Facturada":
+        update_data["invoiced_at"] = datetime.now(timezone.utc).isoformat()
+    elif status_update.new_status == "Pagada":
+        update_data["paid_at"] = datetime.now(timezone.utc).isoformat()
+    elif status_update.new_status == "Entregada":
+        update_data["delivered_at"] = datetime.now(timezone.utc).isoformat()
+    elif status_update.new_status == "Enviada a Imple":
         update_data["sent_to_implementation_at"] = datetime.now(timezone.utc).isoformat()
     
     result = await db.quotes.update_one(
