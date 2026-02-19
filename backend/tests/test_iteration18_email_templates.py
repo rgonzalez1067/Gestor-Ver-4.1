@@ -18,20 +18,8 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 @pytest.fixture(scope="module")
 def session_token():
     """Get a session token for testing"""
-    # Use Emergent auth endpoint to get session
-    try:
-        # First try to get a valid session via the auth endpoint
-        response = requests.post(
-            f"{BASE_URL}/api/auth/session",
-            headers={"X-Session-ID": "test-session-emergent"}
-        )
-        if response.status_code == 200:
-            return response.json().get("session_token")
-    except:
-        pass
-    
-    # Use a known test token if available
-    return "test_token_for_iteration18"
+    # Use valid session token from MongoDB
+    return "o7XyYR_BAjxR73QS_Y_4UQuyFrXSa8pCk-gUUL5BVGw"
 
 @pytest.fixture
 def api_client(session_token):
