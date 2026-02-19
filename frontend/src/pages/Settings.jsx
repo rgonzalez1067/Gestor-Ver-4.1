@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
