@@ -1173,13 +1173,34 @@ export const Quotes = () => {
       cantidad_bancos: s.cantidad_bancos || 1
     });
     
+    // Mapear items adicionales con campos específicos (bank_id, bank_name, tarifa_setup, tarifa_recurrente)
+    const mapAdditionalItem = (s) => ({
+      id: s.item_id || `additional_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      service_id: s.item_id || s.service_id || '',
+      medio_pago_name: s.item_name || s.name || '',
+      name: s.item_name || s.name || '',
+      quantity: s.quantity || 1,
+      // Campos específicos de items adicionales
+      bank_id: s.bank_id || '',
+      bank_name: s.bank_name || '',
+      tarifa_setup: s.tarifa_setup || 0,
+      tarifa_recurrente: s.tarifa_recurrente || 0,
+      // Fallback: si no hay tarifa_setup/recurrente, usar unit_price_usd dividido
+      unit_price_usd: s.unit_price_usd || 0,
+      total_usd: s.total_usd || 0,
+      cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
+      cantidad_bancos: s.cantidad_bancos || 1,
+      isDefault: false
+    });
+    
     // Filtrar por categoría (puede ser 'category' o 'item_type')
     const getCategory = (s) => s.category || s.item_type || '';
     
     const setupItems = services.filter(s => getCategory(s) === 'setup').map(mapService);
     const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(mapService);
     const recurringOtherItems = services.filter(s => getCategory(s) === 'recurring_other').map(mapService);
-    const additionalItems = services.filter(s => getCategory(s) === 'additional').map(mapService);
+    // Usar mapAdditionalItem para items adicionales
+    const additionalItems = services.filter(s => getCategory(s) === 'additional').map(mapAdditionalItem);
     
     console.log('Loading quote for edit:', {
       quote_id: quote.quote_id,
@@ -1196,7 +1217,8 @@ export const Quotes = () => {
       recurring_other: recurringOtherItems.length,
       additional: additionalItems.length,
       // Log de datos de servicios para debug
-      first_setup_item: setupItems[0] || null
+      first_setup_item: setupItems[0] || null,
+      first_additional_item: additionalItems[0] || null
     });
     
     // Precargar datos de la cotización en el formulario
