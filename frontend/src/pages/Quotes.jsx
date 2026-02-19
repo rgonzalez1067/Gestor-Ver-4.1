@@ -110,6 +110,10 @@ export const Quotes = () => {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   
+  // Estado para edición de cotización existente
+  const [editingQuoteId, setEditingQuoteId] = useState(null); // ID de la cotización que se está editando
+  const [isEditing, setIsEditing] = useState(false); // Flag para modo edición
+  
   // Estado del formulario de cotización
   const [quoteData, setQuoteData] = useState({
     quote_type: '',
