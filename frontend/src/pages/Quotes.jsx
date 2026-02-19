@@ -1036,62 +1036,66 @@ export const Quotes = () => {
             </div>
           </div>
 
-          {/* Pestañas de Implementaciones y Equipos */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="flex justify-between items-center mb-6">
-              <TabsList className="bg-slate-100">
-                <TabsTrigger value="implementation" className="data-[state=active]:bg-white" data-testid="tab-implementation">
-                  <Settings2 size={16} className="mr-2" />
-                  Implementaciones
-                </TabsTrigger>
-                <TabsTrigger value="equipment" className="data-[state=active]:bg-white" data-testid="tab-equipment">
-                  <Package size={16} className="mr-2" />
-                  Equipos y Accesorios
-                </TabsTrigger>
-              </TabsList>
-              
-              {/* Botón de nueva cotización según pestaña activa */}
-              {activeTab === 'implementation' ? (
-                <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
-                  <Plus size={20} className="mr-2" />
-                  Nueva Implementación
-                </Button>
-              ) : (
-                <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
-                  <Plus size={20} className="mr-2" />
-                  Nueva Cotización de Equipos
-                </Button>
-              )}
-            </div>
+          {/* Botones de Nueva Cotización */}
+          <div className="flex items-center gap-3 mb-6">
+            <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+              <Plus size={20} className="mr-2" />
+              Nueva Implementación
+            </Button>
+            <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
+              <Plus size={20} className="mr-2" />
+              Nueva Cotización de Equipos
+            </Button>
+          </div>
 
-            {/* Contenido de Implementaciones */}
-            <TabsContent value="implementation" className="mt-0">
-              {/* Tabla de cotizaciones de implementación */}
-              <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
-                      <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
-                      <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {quotes.filter(q => q.quote_category !== 'equipment').map((quote) => {
-                      const client = clients.find(c => c.client_id === quote.client_id);
-                      const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
-                      const isLoading = actionLoading === quote.quote_id;
+          {/* Panel de Gestión Único - Todas las Cotizaciones */}
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <table className="w-full" data-testid="quotes-unified-table">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Categoría</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
+                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
+                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {quotes.map((quote) => {
+                  const client = clients.find(c => c.client_id === quote.client_id);
+                  const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
+                  const isLoading = actionLoading === quote.quote_id;
+                  const isEquipment = quote.quote_category === 'equipment';
+                  
+                  // Determinar el tipo a mostrar
+                  const displayType = isEquipment 
+                    ? (quote.equipment_type || 'Equipos')
+                    : getQuoteTypeName(quote.quote_type);
+                  
+                  // Color de categoría
+                  const categoryColor = isEquipment 
+                    ? 'bg-amber-100 text-amber-700' 
+                    : 'bg-green-100 text-green-700';
+                  
+                  // Color de tipo según si es equipo o implementación
+                  const typeColor = isEquipment
+                    ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
+                    : 'bg-brand-blue-50 text-brand-blue-600';
                   
                   return (
-                    <tr key={quote.quote_id} className="hover:bg-slate-50">
+                    <tr key={quote.quote_id} className="hover:bg-slate-50" data-testid={`quote-row-${quote.quote_id}`}>
                       <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
                       <td className="px-6 py-4 text-sm">
-                        <span className="px-2 py-1 text-xs font-medium bg-brand-blue-50 text-brand-blue-600 rounded">
-                          {getQuoteTypeName(quote.quote_type)}
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
+                          {isEquipment ? 'Equipos' : 'Implementación'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>
+                          {displayType}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-900">{client?.fantasy_name || 'N/A'}</td>
@@ -1110,6 +1114,7 @@ export const Quotes = () => {
                             onClick={() => downloadPDF(quote.quote_id)} 
                             className="text-brand-blue-600"
                             disabled={isLoading}
+                            data-testid={`quote-download-pdf-${quote.quote_id}`}
                           >
                             <Download size={16} className="mr-1" />PDF
                           </Button>
@@ -1131,15 +1136,18 @@ export const Quotes = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuItem 
-                                onClick={() => handleEditQuote(quote)}
-                                className="cursor-pointer"
-                              >
-                                <Pencil size={16} className="mr-2 text-slate-500" />
-                                Modificar
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
+                              {!isEquipment && (
+                                <>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleEditQuote(quote)}
+                                    className="cursor-pointer"
+                                  >
+                                    <Pencil size={16} className="mr-2 text-slate-500" />
+                                    Modificar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               
                               <DropdownMenuItem 
                                 onClick={() => handleSendToClient(quote.quote_id)}
@@ -1162,16 +1170,19 @@ export const Quotes = () => {
                                 Aprobar
                               </DropdownMenuItem>
                               
-                              <DropdownMenuSeparator />
-                              
-                              <DropdownMenuItem 
-                                onClick={() => handleSendToImplementation(quote.quote_id)}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status !== 'Aprobada'}
-                              >
-                                <Send size={16} className="mr-2 text-amber-500" />
-                                Enviar a Implementación
-                              </DropdownMenuItem>
+                              {!isEquipment && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => handleSendToImplementation(quote.quote_id)}
+                                    className="cursor-pointer"
+                                    disabled={quote.quote_status !== 'Aprobada'}
+                                  >
+                                    <Send size={16} className="mr-2 text-amber-500" />
+                                    Enviar a Implementación
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -1181,122 +1192,14 @@ export const Quotes = () => {
                 })}
               </tbody>
             </table>
-            {quotes.filter(q => q.quote_category !== 'equipment').length === 0 && (
+            {quotes.length === 0 && (
               <div className="text-center py-12 text-slate-500">
                 <FileText size={48} className="mx-auto mb-4 text-slate-300" />
-                <p>No hay cotizaciones de implementación</p>
+                <p>No hay cotizaciones registradas</p>
+                <p className="text-sm mt-2">Cree una cotización de Implementación o Equipos para comenzar</p>
               </div>
             )}
           </div>
-        </TabsContent>
-
-        {/* Contenido de Equipos y Accesorios */}
-        <TabsContent value="equipment" className="mt-0">
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
-                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {quotes.filter(q => q.quote_category === 'equipment').map((quote) => {
-                  const client = clients.find(c => c.client_id === quote.client_id);
-                  const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
-                  const isLoading = actionLoading === quote.quote_id;
-                  
-                  return (
-                    <tr key={quote.quote_id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${quote.equipment_type === 'Dispositivo' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {quote.equipment_type || 'Equipos'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-900">{client?.fantasy_name || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                          {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => downloadPDF(quote.quote_id)} 
-                            className="text-brand-blue-600"
-                            disabled={isLoading}
-                          >
-                            <Download size={16} className="mr-1" />PDF
-                          </Button>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="px-2"
-                                disabled={isLoading}
-                              >
-                                {isLoading ? (
-                                  <div className="animate-spin h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full" />
-                                ) : (
-                                  <MoreHorizontal size={16} />
-                                )}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem 
-                                onClick={() => handleSendToClient(quote.quote_id)}
-                                className="cursor-pointer"
-                              >
-                                <Mail size={16} className="mr-2 text-blue-500" />
-                                Enviar al Cliente
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleApproveQuote(quote.quote_id)}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status === 'Aprobada' || quote.quote_status === 'Completada'}
-                              >
-                                <CheckCircle size={16} className="mr-2 text-green-500" />
-                                Aprobar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {quotes.filter(q => q.quote_category === 'equipment').length === 0 && (
-              <div className="text-center py-12 text-slate-500">
-                <Package size={48} className="mx-auto mb-4 text-slate-300" />
-                <p>No hay cotizaciones de equipos y accesorios</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => setEquipmentWizardOpen(true)}
-                >
-                  <Plus size={16} className="mr-2" />
-                  Crear primera cotización
-                </Button>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
 
           {/* Dialog de Nueva Cotización */}
           <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
