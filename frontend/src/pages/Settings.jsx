@@ -28,6 +28,12 @@ export const Settings = () => {
   const [adminEmail, setAdminEmail] = useState('');
   const [warehouseEmail, setWarehouseEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
+  // Resend API Key state
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [resendApiKeyConfigured, setResendApiKeyConfigured] = useState(false);
+  const [resendApiKeyMasked, setResendApiKeyMasked] = useState('');
+  const [showResendKey, setShowResendKey] = useState(false);
+  const [savingResendKey, setSavingResendKey] = useState(false);
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
 
