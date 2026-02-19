@@ -1112,21 +1112,126 @@ export const Quotes = () => {
     }
   };
 
-  // Modificar cotización (crear nueva versión)
+  // Modificar cotización (abrir wizard con datos precargados)
   const handleEditQuote = async (quote) => {
-    if (!window.confirm('¿Desea crear una nueva versión de esta cotización? La original se mantendrá intacta.')) return;
-    
-    setActionLoading(quote.quote_id);
-    try {
-      const response = await api.post(`/quotes/${quote.quote_id}/duplicate`);
-      toast.success(`Nueva versión creada: ${response.data.new_quote_number} (Versión ${response.data.version})`);
-      fetchData();
-    } catch (error) {
-      console.error('Error duplicating quote:', error);
-      toast.error(error.response?.data?.detail || 'Error al crear nueva versión');
-    } finally {
-      setActionLoading(null);
+    // Solo permitir editar cotizaciones de implementación por ahora
+    if (quote.quote_category === 'equipment') {
+      toast.info('La edición de cotizaciones de equipos estará disponible próximamente');
+      return;
     }
+    
+    // Precargar datos de la cotización en el formulario
+    setQuoteData({
+      quote_type: quote.quote_type || 'VPOS',
+      client_id: quote.client_id || '',
+      pricing_model: quote.pricing_model || 'conventional',
+      cantidad_cajas: quote.cantidad_cajas || 1,
+      cantidad_bancos: quote.cantidad_bancos || 1,
+      integrator_id: quote.integrator_id || '',
+      integrator_app_name: quote.integrator_app_name || '',
+      pinpad_id: quote.pinpad_id || '',
+      sponsor_bank_id: quote.sponsor_bank_id || '',
+      setup_items: quote.services?.filter(s => s.category === 'setup') || [],
+      recurring_basic_items: quote.services?.filter(s => s.category === 'recurring_basic') || [],
+      recurring_other_items: quote.services?.filter(s => s.category === 'recurring_other') || [],
+      additional_items: quote.services?.filter(s => s.category === 'additional') || [],
+      descuento: quote.descuento || 0,
+      notes: quote.notes || ''
+    });
+    
+    // Marcar como edición
+    setEditingQuoteId(quote.quote_id);
+    setIsEditing(true);
+    
+    // Abrir el wizard
+    setWizardOpen(true);
+    setWizardStep(1); // Empezar desde el paso 1
+    
+    toast.info(`Editando cotización ${quote.quote_number}. Al guardar se creará una nueva versión.`);
+  };
+
+  // Función para crear nueva versión al guardar edición
+  const handleSaveEditedQuote = async () => {
+    if (!isEditing || !editingQuoteId) return;
+    
+    try {
+      // Primero duplicar la cotización original
+      const duplicateResponse = await api.post(`/quotes/${editingQuoteId}/duplicate`);
+      const newQuoteId = duplicateResponse.data.new_quote_id;
+      
+      // Luego actualizar la nueva cotización con los datos editados
+      const client = clients.find(c => c.client_id === quoteData.client_id);
+      const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+      const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+      const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+      
+      // Combinar todos los servicios
+      const allServices = [
+        ...quoteData.setup_items.map(item => ({ ...item, category: 'setup' })),
+        ...quoteData.recurring_basic_items.map(item => ({ ...item, category: 'recurring_basic' })),
+        ...quoteData.recurring_other_items.map(item => ({ ...item, category: 'recurring_other' })),
+        ...quoteData.additional_items.map(item => ({ ...item, category: 'additional' }))
+      ];
+      
+      // Calcular totales
+      const subtotal = allServices.reduce((sum, item) => sum + (item.total_usd || 0), 0);
+      const total = subtotal - (quoteData.descuento || 0);
+      
+      // Actualizar la cotización duplicada
+      await api.put(`/quotes/${newQuoteId}`, {
+        quote_type: quoteData.quote_type,
+        client_id: quoteData.client_id,
+        pricing_model: quoteData.pricing_model,
+        services: allServices,
+        integrator_id: quoteData.integrator_id,
+        integrator_name: integrator?.name || '',
+        integrator_app_name: integrator?.app_name || quoteData.integrator_app_name || '',
+        pinpad_id: quoteData.pinpad_id,
+        pinpad_model: pinpad?.name || '',
+        sponsor_bank_id: quoteData.sponsor_bank_id,
+        sponsor_bank_name: sponsorBank?.name || '',
+        subtotal_usd: subtotal,
+        total_usd: total,
+        descuento: quoteData.descuento || 0,
+        notes: quoteData.notes
+      });
+      
+      toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
+      
+      // Limpiar estado de edición
+      setIsEditing(false);
+      setEditingQuoteId(null);
+      setWizardOpen(false);
+      resetQuoteForm();
+      fetchData();
+      
+    } catch (error) {
+      console.error('Error saving edited quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al guardar la cotización');
+    }
+  };
+
+  // Reset del formulario
+  const resetQuoteForm = () => {
+    setQuoteData({
+      quote_type: '',
+      client_id: '',
+      pricing_model: '',
+      cantidad_cajas: 1,
+      cantidad_bancos: 1,
+      integrator_id: '',
+      integrator_app_name: '',
+      pinpad_id: '',
+      sponsor_bank_id: '',
+      setup_items: [],
+      recurring_basic_items: [],
+      recurring_other_items: [],
+      additional_items: [],
+      descuento: 0,
+      notes: ''
+    });
+    setIsEditing(false);
+    setEditingQuoteId(null);
   };
 
   // Abrir modal de factura
