@@ -299,6 +299,9 @@ class Quote(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Campos de cantidades a nivel de cotización
+    cantidad_cajas: Optional[int] = None
+    cantidad_bancos: Optional[int] = None
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
