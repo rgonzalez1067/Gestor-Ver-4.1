@@ -509,5 +509,55 @@ Sección de resumen consolidado al final de cada cotización que presenta inform
 - Testing: 100% (8/8 tests backend)
 
 ---
+
+## Reestructuración del Módulo de Cotizaciones de Equipos (Febrero 2026)
+
+### Descripción
+Actualización del wizard de cotizaciones de Equipos y Accesorios con lógica de selección dinámica y panel de gestión unificado.
+
+### 1. Lógica de Selección Dinámica (Paso 2)
+
+| Categoría Seleccionada | Comportamiento |
+|------------------------|----------------|
+| **Dispositivos** | Muestra dropdown secundario exclusivo con opciones: POS y Pinpad |
+| **Accesorios** | Carga automáticamente ítems de categoría (sin dropdown secundario) |
+
+**Regla de Negocio:** El campo de selección de ítems está bloqueado/vacío hasta que el usuario defina el "Tipo de Ítem", para evitar errores en la carga de datos.
+
+### 2. Filtrado de Productos (Paso 3)
+
+| Selección | Tipos que muestra |
+|-----------|-------------------|
+| Dispositivos > POS | Solo ítems con `type === 'POS'` |
+| Dispositivos > Pinpad | Solo ítems con `type === 'Pinpad'` |
+| Accesorios | Ítems con `type === 'Accesorio'` o `type === 'Base'` |
+
+### 3. Panel de Gestión Único
+
+- Tabla unificada que muestra **todas** las cotizaciones (Implementaciones + Equipos)
+- Nueva columna **"Categoría"** con badges de color:
+  - `Implementación` (verde)
+  - `Equipos` (amber)
+- Columna **"Tipo"** muestra el tipo específico (VPOS, POS, Pinpad, Accesorio, etc.)
+- Nomenclatura estandarizada: `COT-YYYY-XXXX` para todos los tipos
+
+### 4. Modal de Confirmación
+
+Antes de generar el PDF, se muestra un modal con:
+- Nombre del cliente
+- RIF
+- Tipo de cotización
+- Cantidad de ítems
+- Total USD
+
+### Archivos Modificados
+- `frontend/src/components/EquipmentQuoteWizard.jsx` - Lógica de selección dinámica
+- `frontend/src/pages/Quotes.jsx` - Panel unificado
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (8/8 tests frontend - Iteration 15)
+
+---
 **Última actualización:** Febrero 2026
-**Estado:** MVP Operativo - Matriz de Resumen Ejecutivo IMPLEMENTADO
+**Estado:** MVP Operativo - Módulo de Cotizaciones de Equipos ACTUALIZADO
