@@ -1239,34 +1239,43 @@ export const Quotes = () => {
       const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
       
       // Combinar todos los servicios con el formato correcto
+      // Incluir cantidad_cajas y cantidad_bancos para cada item
       const allServices = [
         ...quoteData.setup_items.map(item => ({ 
           item_type: 'setup',
           item_name: item.medio_pago_name || item.name || '',
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)),
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1
         })),
         ...quoteData.recurring_basic_items.map(item => ({ 
           item_type: 'recurring_basic',
           item_name: item.medio_pago_name || item.name || '',
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)),
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1
         })),
         ...quoteData.recurring_other_items.map(item => ({ 
           item_type: 'recurring_other',
           item_name: item.medio_pago_name || item.name || '',
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)),
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1
         })),
         ...quoteData.additional_items.map(item => ({ 
           item_type: 'additional',
           item_name: item.medio_pago_name ? `${item.medio_pago_name} - ${item.bank_name}` : (item.name || ''),
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.unit_price_usd || (item.tarifa_setup || 0) + (item.tarifa_recurrente || 0),
-          total_usd: item.total_usd || 0
+          total_usd: item.total_usd || 0,
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1
         }))
       ];
       
@@ -1290,7 +1299,9 @@ export const Quotes = () => {
         subtotal_usd: subtotal,
         total_usd: total,
         descuento: quoteData.descuento || 0,
-        notes: quoteData.notes
+        notes: quoteData.notes,
+        cantidad_cajas: quoteData.cantidad_cajas || 1,
+        cantidad_bancos: quoteData.cantidad_bancos || 1
       });
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
