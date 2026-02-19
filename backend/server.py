@@ -43,6 +43,22 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
+# Helper function para obtener API key de Resend (BD o env)
+async def get_resend_api_key():
+    """Obtiene la API key de Resend de la BD o de las variables de entorno"""
+    global RESEND_API_KEY
+    
+    # Primero intentar de la BD
+    config = await db.config.find_one({"type": "app_settings"})
+    if config and config.get("resend_api_key"):
+        api_key = config["resend_api_key"]
+        if RESEND_AVAILABLE:
+            resend.api_key = api_key
+        return api_key
+    
+    # Fallback a variable de entorno
+    return RESEND_API_KEY
+
 app = FastAPI(title="Cotizador Merchant Server API")
 
 # Create uploads directory for logo
