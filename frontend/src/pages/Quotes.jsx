@@ -1108,12 +1108,100 @@ export const Quotes = () => {
     }
   };
 
-  // Modificar cotización (abrir con datos precargados)
+  // Modificar cotización (crear nueva versión)
   const handleEditQuote = async (quote) => {
-    // Por ahora solo abre el wizard vacío con mensaje
-    // La funcionalidad completa de edición requiere más trabajo
-    toast.info('Funcionalidad de edición en desarrollo. Por favor, cree una nueva cotización.');
-    // TODO: Implementar carga de datos de la cotización existente
+    if (!window.confirm('¿Desea crear una nueva versión de esta cotización? La original se mantendrá intacta.')) return;
+    
+    setActionLoading(quote.quote_id);
+    try {
+      const response = await api.post(`/quotes/${quote.quote_id}/duplicate`);
+      toast.success(`Nueva versión creada: ${response.data.new_quote_number} (Versión ${response.data.version})`);
+      fetchData();
+    } catch (error) {
+      console.error('Error duplicating quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al crear nueva versión');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Abrir modal de factura
+  const openInvoiceModal = (quoteId) => {
+    setInvoiceQuoteId(quoteId);
+    setInvoiceFile(null);
+    setInvoiceNumber('');
+    setInvoiceModalOpen(true);
+  };
+
+  // Facturar cotización
+  const handleInvoiceQuote = async () => {
+    if (!invoiceFile) {
+      toast.error('Debe cargar el PDF de la factura');
+      return;
+    }
+    
+    setActionLoading(invoiceQuoteId);
+    setInvoiceModalOpen(false);
+    
+    try {
+      const formData = new FormData();
+      formData.append('invoice_file', invoiceFile);
+      if (invoiceNumber) {
+        formData.append('invoice_number', invoiceNumber);
+      }
+      
+      await api.post(`/quotes/${invoiceQuoteId}/invoice`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      toast.success('Cotización facturada exitosamente');
+      fetchData();
+    } catch (error) {
+      console.error('Error invoicing quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al facturar');
+    } finally {
+      setActionLoading(null);
+      setInvoiceFile(null);
+      setInvoiceNumber('');
+      setInvoiceQuoteId(null);
+    }
+  };
+
+  // Cobrar cotización
+  const handleCollectQuote = async (quoteId) => {
+    if (!window.confirm('¿Confirma que el pago ha sido verificado?')) return;
+    
+    setActionLoading(quoteId);
+    try {
+      const response = await api.post(`/quotes/${quoteId}/collect`);
+      toast.success(response.data.message);
+      if (response.data.notified_warehouse) {
+        toast.info('Se ha notificado al almacén para preparar el pedido');
+      }
+      fetchData();
+    } catch (error) {
+      console.error('Error collecting quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al cobrar');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Entregar cotización (solo equipos)
+  const handleDeliverQuote = async (quoteId) => {
+    if (!window.confirm('¿Confirma que el pedido ha sido entregado?')) return;
+    
+    setActionLoading(quoteId);
+    try {
+      await api.post(`/quotes/${quoteId}/deliver`);
+      toast.success('Cotización marcada como Entregada');
+      fetchData();
+    } catch (error) {
+      console.error('Error delivering quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al marcar como entregada');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
