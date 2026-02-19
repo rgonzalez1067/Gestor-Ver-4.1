@@ -957,10 +957,6 @@ export const Quotes = () => {
       toast.error('Error al descargar el PDF. Verifique su conexión.');
     }
   };
-      console.error('Error downloading PDF:', error);
-      toast.error('Error al descargar el PDF. Verifique su conexión.');
-    }
-  };
 
   // Exportar cotización actual a PDF (sin guardar en BD)
   const exportCurrentQuoteToPDF = async () => {
