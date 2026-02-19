@@ -163,27 +163,67 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         notes: notes
       };
 
-      const response = await api.post('/quotes/generate-equipment-pdf', pdfData, {
-        responseType: 'blob'
-      });
-
-      // Verificar respuesta
-      if (!response.data || response.data.size === 0) {
-        toast.error('Error: Respuesta vacía del servidor');
+      // Obtener token de autenticación
+      const token = localStorage.getItem('session_token');
+      if (!token) {
+        toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
         setLoading(false);
         return;
       }
-
-      // Descargar PDF
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `cotizacion_${equipmentTypeForPdf.toLowerCase()}_${selectedClient.rif || 'cliente'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      // Usar fetch nativo para mejor control de la descarga
+      const response = await fetch(`${backendUrl}/api/quotes/generate-equipment-pdf`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        },
+        body: JSON.stringify(pdfData)
+      });
+      
+      // Verificar respuesta
+      if (!response.ok) {
+        const errorText = await response.text();
+        try {
+          const errorData = JSON.parse(errorText);
+          toast.error(errorData.detail || 'Error al generar PDF');
+        } catch {
+          toast.error(`Error del servidor: ${response.status}`);
+        }
+        setLoading(false);
+        return;
+      }
+      
+      // Obtener el blob
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        toast.error('El archivo PDF está vacío');
+        setLoading(false);
+        return;
+      }
+      
+      // Crear URL del blob y descargar
+      const blobUrl = window.URL.createObjectURL(blob);
+      const filename = `cotizacion_${equipmentTypeForPdf.toLowerCase()}_${selectedClient.rif || 'cliente'}.pdf`;
+      
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = filename;
+      downloadLink.style.display = 'none';
+      
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      
+      setTimeout(() => {
+        if (downloadLink.parentNode) {
+          document.body.removeChild(downloadLink);
+        }
+        window.URL.revokeObjectURL(blobUrl);
+      }, 250);
 
       toast.success('PDF generado exitosamente');
       
@@ -201,7 +241,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       onClose();
     } catch (error) {
       console.error('Error generando PDF:', error);
-      toast.error('Error al generar la cotización');
+      toast.error('Error al generar la cotización. Verifique su conexión.');
     } finally {
       setLoading(false);
     }
