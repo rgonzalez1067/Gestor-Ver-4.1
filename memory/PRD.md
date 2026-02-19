@@ -696,3 +696,83 @@ Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Entregada
 ---
 **Última actualización:** Febrero 2026
 **Estado:** MVP Operativo - Sistema de Estados de Cotizaciones COMPLETO
+
+---
+
+## Módulo de Comunicaciones (Febrero 2026)
+
+### Descripción
+Sistema completo de plantillas de correo personalizables y corrección de la funcionalidad de modificación de cotizaciones.
+
+### 1. Acción "Modificar" - Corregida
+
+**Comportamiento anterior:** Solo creaba una copia sin permitir edición.
+
+**Comportamiento actual:**
+1. Abre el wizard con los datos de la cotización precargados
+2. Permite modificar cualquier campo
+3. Al guardar, crea una nueva versión con:
+   - Nuevo número correlativo (COT-YYYY-NNN)
+   - Campo `version` incrementado
+   - Campo `parent_quote_id` apuntando a la original
+   - Estado inicial: **Borrador**
+4. La cotización original permanece intacta
+
+**Endpoint nuevo:** `PUT /api/quotes/{quote_id}` - Solo permite actualizar cotizaciones en estado Borrador.
+
+### 2. Plantillas de Correo Personalizables
+
+Nueva sección en **Configuración → Plantillas de Correo Electrónico**.
+
+| Plantilla | Disparador | Variables Disponibles |
+|-----------|------------|----------------------|
+| **Envío de Cotización** | Enviar al Cliente | quote_number, client_name, client_rif, quote_type, total_usd, company_name |
+| **Facturación** | Facturar | quote_number, client_name, client_rif, invoice_number, total_usd |
+| **Despacho de Equipos** | Cobrar (Equipos) | quote_number, client_name, client_rif, client_address, items_table |
+| **Inicio de Obra** | Enviar a Implementación | quote_number, client_name, client_rif, quote_type, integrator_name, pinpad_model, services_table |
+
+**Funcionalidades del Editor:**
+- Editar **Asunto** y **Cuerpo HTML**
+- Lista de **variables disponibles** clickeables para insertar
+- **Vista previa** con datos de ejemplo
+- **Restablecer** a valores predeterminados
+
+### 3. Integración con Resend
+
+Los correos ahora usan las plantillas configuradas:
+- `render_email_template()` reemplaza `{variable}` con valores reales
+- Si no hay plantilla en BD, usa `DEFAULT_EMAIL_TEMPLATES`
+- PDFs se adjuntan automáticamente según el escenario
+
+### Endpoints Nuevos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/email-templates` | Lista todas las plantillas |
+| GET | `/api/email-templates/{id}` | Obtiene una plantilla |
+| PUT | `/api/email-templates/{id}` | Actualiza una plantilla |
+| POST | `/api/email-templates/reset/{id}` | Restablece a valores predeterminados |
+| PUT | `/api/quotes/{id}` | Actualiza cotización (solo Borrador) |
+
+### Archivos Nuevos/Modificados
+- `frontend/src/components/EmailTemplatesEditor.jsx` - **NUEVO**
+- `backend/server.py` - Endpoints de plantillas, DEFAULT_EMAIL_TEMPLATES
+- `frontend/src/pages/Settings.jsx` - Sección de plantillas
+- `frontend/src/pages/Quotes.jsx` - Función handleEditQuote actualizada
+
+### Estado
+- **IMPLEMENTADO Y VERIFICADO** - Febrero 2026
+- Testing: 100% (18/18 backend, 100% frontend - Iteration 18)
+
+---
+
+## Pendientes Registrados
+
+### Bug de Descarga de PDF (Prioridad Baja)
+- **Estado:** Registrado para mantenimiento posterior
+- **Descripción:** Se han realizado múltiples correcciones pero el usuario reporta fallas persistentes
+- **Próximos pasos:** Investigación profunda del comportamiento en diferentes navegadores
+
+---
+**Última actualización:** Febrero 2026
+**Estado:** MVP Operativo - Módulo de Comunicaciones COMPLETO
