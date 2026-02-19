@@ -1,0 +1,112 @@
+{
+  "summary": "Iteration 21 - Testing of 3 bug fixes: 1) Items adicionales de Setup now load correctly in 'Modificar Cotización' 2) PDF download working 3) Resend API Key section in Settings working. All features verified and passing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Quotes Table",
+        "issues": ["Console warning: <tr> cannot be child of <span>, <span> cannot be child of <tbody> - React hydration issue, doesn't affect functionality"]
+      },
+      {
+        "screen": "Wizard Dialog",
+        "issues": ["Console warning: Missing Description or aria-describedby for DialogContent - minor accessibility issue"]
+      }
+    ]
+  },
+  "features_verified": {
+    "resend_api_key_section": {
+      "status": "PASSED",
+      "description": "New 'Motor de Correos (Resend)' section visible in Settings with API Key input, show/hide toggle, and save button"
+    },
+    "resend_api_key_masked": {
+      "status": "PASSED",
+      "description": "After saving API Key, it is shown masked as (***********************cdef)"
+    },
+    "resend_api_key_configured_status": {
+      "status": "PASSED",
+      "description": "Settings shows 'API Key configurada' with green checkmark when key is saved"
+    },
+    "modificar_cotizacion_menu": {
+      "status": "PASSED",
+      "description": "'Modificar (Nueva Versión)' option visible in dropdown menu for implementation quotes"
+    },
+    "modificar_wizard_opens": {
+      "status": "PASSED",
+      "description": "Clicking 'Modificar' opens wizard with title 'Modificar Cotización (Nueva Versión)'"
+    },
+    "modificar_warning_message": {
+      "status": "PASSED",
+      "description": "Yellow warning message: 'Está editando una cotización existente. Al guardar se creará una nueva versión con número correlativo diferente.'"
+    },
+    "modificar_data_preloaded": {
+      "status": "PASSED",
+      "description": "Quote type, client, pricing model, cajas, bancos all preloaded correctly"
+    },
+    "setup_items_loaded_in_edit": {
+      "status": "PASSED",
+      "description": "Setup items (Suscripción PDV/Banco, Configuración dispositivo, etc.) load correctly with quantities and prices"
+    },
+    "pdf_download_working": {
+      "status": "PASSED",
+      "description": "PDF download triggers file download 'quote_COT-2026-034.pdf' (2561 bytes) - console shows 'PDF blob recibido'"
+    },
+    "backend_settings_endpoint": {
+      "status": "PASSED",
+      "description": "GET /api/config/settings returns resend_api_key_configured and resend_api_key_masked fields"
+    },
+    "backend_settings_update": {
+      "status": "PASSED",
+      "description": "PUT /api/config/settings correctly saves and masks the resend_api_key"
+    },
+    "backend_pdf_endpoint": {
+      "status": "PASSED",
+      "description": "GET /api/quotes/{id}/pdf returns application/pdf content"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration21_resend_settings.py",
+    "/app/test_reports/pytest/pytest_results_iteration21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "QuoteItem model (line 224-238) correctly includes bank_id, bank_name, tarifa_setup, tarifa_recurrente fields",
+    "AppSettings model (line 3058-3062) correctly includes resend_api_key field",
+    "Settings.jsx correctly shows/hides API key with eye toggle and masks after save",
+    "downloadPDF function (line 828-960) has multiple fallback methods - direct download, new tab, iframe",
+    "Minor: React hydration warnings in Quotes.jsx table due to span wrapping tr elements - cosmetic issue"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (12 features verified)"
+  },
+  "test_credentials": {
+    "session_token": "P9AVoJzHOYxuqit3lai9Vz5t2QaHxeGWUnVh3hBtZIo"
+  },
+  "seed_data_creation": "Created quote during backend testing with additional items containing bank_id, bank_name, tarifa_setup, tarifa_recurrente",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 3 reported bugs have been fixed and verified: 1) Items adicionales de Setup now correctly load in 'Modificar Cotización' mode using mapAdditionalItem function, 2) PDF download now works with blob download and multiple fallback methods, 3) New 'Motor de Correos (Resend)' section exists in Settings with API Key configuration. Backend endpoints for /api/config/settings correctly handle resend_api_key storage and masking.",
+  "bugs_fixed_verified": [
+    {
+      "bug": "Items adicionales de Setup no se cargan en Modificar Cotización",
+      "status": "FIXED",
+      "verification": "Tested with COT-2026-023 - Setup items loaded with correct names, quantities, and prices"
+    },
+    {
+      "bug": "Descarga de PDF no funciona (mostraba 'descargado exitosamente' pero no descargaba)",
+      "status": "FIXED",
+      "verification": "PDF download triggered successfully - file 'quote_COT-2026-034.pdf' (2561 bytes) downloaded"
+    },
+    {
+      "bug": "Falta sección para configurar API Key de Resend en Settings",
+      "status": "FIXED",
+      "verification": "Section 'Motor de Correos (Resend)' visible in Settings with input field, save button, and masked display"
+    }
+  ]
+}
