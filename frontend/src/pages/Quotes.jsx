@@ -1210,17 +1210,40 @@ export const Quotes = () => {
       const newQuoteId = duplicateResponse.data.new_quote_id;
       
       // Luego actualizar la nueva cotización con los datos editados
-      const client = clients.find(c => c.client_id === quoteData.client_id);
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
       const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
       const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
       
-      // Combinar todos los servicios
+      // Combinar todos los servicios con el formato correcto
       const allServices = [
-        ...quoteData.setup_items.map(item => ({ ...item, category: 'setup' })),
-        ...quoteData.recurring_basic_items.map(item => ({ ...item, category: 'recurring_basic' })),
-        ...quoteData.recurring_other_items.map(item => ({ ...item, category: 'recurring_other' })),
-        ...quoteData.additional_items.map(item => ({ ...item, category: 'additional' }))
+        ...quoteData.setup_items.map(item => ({ 
+          item_type: 'setup',
+          item_name: item.medio_pago_name || item.name || '',
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+        })),
+        ...quoteData.recurring_basic_items.map(item => ({ 
+          item_type: 'recurring_basic',
+          item_name: item.medio_pago_name || item.name || '',
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+        })),
+        ...quoteData.recurring_other_items.map(item => ({ 
+          item_type: 'recurring_other',
+          item_name: item.medio_pago_name || item.name || '',
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || ((item.tarifa || item.unit_price_usd || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
+        })),
+        ...quoteData.additional_items.map(item => ({ 
+          item_type: 'additional',
+          item_name: item.medio_pago_name ? `${item.medio_pago_name} - ${item.bank_name}` : (item.name || ''),
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.unit_price_usd || (item.tarifa_setup || 0) + (item.tarifa_recurrente || 0),
+          total_usd: item.total_usd || 0
+        }))
       ];
       
       // Calcular totales
