@@ -68,6 +68,12 @@ const STATUS_DISPLAY_NAMES = {
   'Completada': 'Completada'
 };
 
+// Categorías de cotización
+const QUOTE_CATEGORY_LABELS = {
+  'implementation': 'Implementación',
+  'equipment': 'Equipos'
+};
+
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
@@ -75,9 +81,12 @@ export const Quotes = () => {
   const [serviceCatalog, setServiceCatalog] = useState([]); // Catálogo de precios
   const [integrators, setIntegrators] = useState([]); // Lista de integradores
   const [pinpads, setPinpads] = useState([]); // Lista de pinpads (dispositivos tipo Pinpad)
+  const [allHardware, setAllHardware] = useState([]); // Todos los dispositivos y accesorios
   const [actionLoading, setActionLoading] = useState(null); // Para indicar carga en acciones
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('implementation');
   
   // Estado del formulario de cotización
   const [quoteData, setQuoteData] = useState({
