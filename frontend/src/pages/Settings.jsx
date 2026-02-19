@@ -325,48 +325,96 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* Email de Implementación Section */}
+          {/* Configuración de Correos Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
               <Mail size={24} />
-              Email de Implementación
+              Configuración de Correos de Notificación
             </h2>
             <p className="text-slate-600 mb-6">
-              Configure el correo electrónico del equipo de implementación. Las cotizaciones aprobadas 
-              serán enviadas a este email cuando se utilice la acción "Enviar a Implementación".
+              Configure los correos electrónicos para las notificaciones automáticas del sistema.
+              Estos correos recibirán alertas según el flujo de trabajo de las cotizaciones.
             </p>
 
-            <div className="flex items-end gap-4 max-w-md">
-              <div className="flex-1">
-                <Label htmlFor="implementation-email" className="text-sm font-medium text-slate-700 mb-2 block">
-                  Email del equipo
-                </Label>
+            <div className="space-y-6">
+              {/* Email de Administración */}
+              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={18} className="text-purple-600" />
+                  <Label className="text-sm font-semibold text-purple-800">
+                    Correo de Administración
+                  </Label>
+                </div>
+                <p className="text-sm text-purple-700 mb-3">
+                  Recibe notificaciones cuando una cotización es <strong>Aprobada</strong> o <strong>Facturada</strong>.
+                </p>
                 <Input
-                  id="implementation-email"
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="administracion@empresa.com"
+                  className="bg-white"
+                  data-testid="admin-email-input"
+                />
+              </div>
+
+              {/* Email de Almacén */}
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Warehouse size={18} className="text-amber-600" />
+                  <Label className="text-sm font-semibold text-amber-800">
+                    Correo de Almacén
+                  </Label>
+                </div>
+                <p className="text-sm text-amber-700 mb-3">
+                  Recibe notificaciones cuando una cotización de <strong>Equipos y Accesorios</strong> es marcada como <strong>Pagada</strong>.
+                  Incluye la lista de productos a despachar.
+                </p>
+                <Input
+                  type="email"
+                  value={warehouseEmail}
+                  onChange={(e) => setWarehouseEmail(e.target.value)}
+                  placeholder="almacen@empresa.com"
+                  className="bg-white"
+                  data-testid="warehouse-email-input"
+                />
+              </div>
+
+              {/* Email de Implementación */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail size={18} className="text-blue-600" />
+                  <Label className="text-sm font-semibold text-blue-800">
+                    Correo de Implementación
+                  </Label>
+                </div>
+                <p className="text-sm text-blue-700 mb-3">
+                  Recibe notificaciones cuando una cotización de <strong>Implementación</strong> es <strong>Enviada a Implementación</strong>.
+                  Incluye los detalles técnicos del proyecto.
+                </p>
+                <Input
                   type="email"
                   value={implementationEmail}
                   onChange={(e) => setImplementationEmail(e.target.value)}
                   placeholder="implementacion@empresa.com"
-                  className="w-full"
+                  className="bg-white"
                   data-testid="implementation-email-input"
                 />
               </div>
-              <Button
-                onClick={handleSaveImplementationEmail}
-                disabled={savingEmail}
-                className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
-                data-testid="save-email-button"
-              >
-                <Save size={16} className="mr-2" />
-                {savingEmail ? 'Guardando...' : 'Guardar'}
-              </Button>
+
+              {/* Botón Guardar */}
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={handleSaveEmails}
+                  disabled={savingEmail}
+                  className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
+                  data-testid="save-emails-button"
+                >
+                  <Save size={16} className="mr-2" />
+                  {savingEmail ? 'Guardando...' : 'Guardar Configuración de Correos'}
+                </Button>
+              </div>
             </div>
-            {implementationEmail && (
-              <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
-                <Check size={14} />
-                Email configurado correctamente
-              </p>
-            )}
           </div>
 
           {/* Templates Section */}
