@@ -360,6 +360,77 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Motor de Correos (Resend) Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
+              <Key size={24} />
+              Motor de Correos (Resend)
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Configure la API Key de Resend para habilitar el envío de correos automáticos del sistema.
+              Puede obtener su API Key en <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-blue-600 hover:underline">resend.com/api-keys</a>
+            </p>
+
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              {/* Estado actual */}
+              <div className="flex items-center gap-2 mb-4">
+                {resendApiKeyConfigured ? (
+                  <>
+                    <CheckCircle size={20} className="text-green-600" />
+                    <span className="text-green-700 font-medium">API Key configurada</span>
+                    {resendApiKeyMasked && (
+                      <span className="text-slate-500 text-sm ml-2">({resendApiKeyMasked})</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={20} className="text-amber-500" />
+                    <span className="text-amber-700 font-medium">API Key no configurada</span>
+                    <span className="text-slate-500 text-sm ml-2">(Los correos se enviarán en modo simulado)</span>
+                  </>
+                )}
+              </div>
+
+              {/* Campo para nueva API Key */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-slate-700">
+                  {resendApiKeyConfigured ? 'Actualizar API Key' : 'Configurar API Key'}
+                </Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showResendKey ? 'text' : 'password'}
+                      value={resendApiKey}
+                      onChange={(e) => setResendApiKey(e.target.value)}
+                      placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="bg-white pr-10"
+                      data-testid="resend-api-key-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResendKey(!showResendKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showResendKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <Button
+                    onClick={handleSaveResendKey}
+                    disabled={savingResendKey || !resendApiKey.trim()}
+                    className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
+                    data-testid="save-resend-key-button"
+                  >
+                    <Save size={16} className="mr-2" />
+                    {savingResendKey ? 'Guardando...' : 'Guardar'}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500">
+                  La API Key se almacena de forma segura y nunca se muestra completa después de guardarla.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Configuración de Correos Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
