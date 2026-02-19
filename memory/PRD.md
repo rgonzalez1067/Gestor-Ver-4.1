@@ -3,156 +3,164 @@
 ## Descripción General
 Sistema integral de cotizaciones para plataformas de medios de pago. Permite gestionar clientes, bancos, hardware, servicios y generar cotizaciones profesionales con conversión de tasa de cambio BCV.
 
-## Problema Original
-El usuario solicitó una aplicación de cotizaciones con:
-1. Gestión de Usuarios con autenticación Google OAuth (Emergent-managed)
-2. Módulos CRUD para Clientes, Bancos, Hardware y Servicios
-3. Configuración de costos de Setup y Mantenimiento Mensual
-4. Motor de cotización con tasa de cambio BCV
-5. Escalabilidad para futuros módulos de reportes
+## Estado Actual: MVP Operativo ✅
 
 ## Stack Tecnológico
 - **Backend:** FastAPI (Python)
-- **Frontend:** React + TailwindCSS
+- **Frontend:** React + TailwindCSS + Shadcn/UI
 - **Base de Datos:** MongoDB
 - **Autenticación:** Emergent-managed Google OAuth
-- **Email:** Resend
+- **Email:** Resend (configurable desde UI)
+- **PDF:** ReportLab
+
+---
+
+## Correcciones Realizadas - 19 Febrero 2026
+
+### 1. Bug Fix: Items Adicionales no se cargan en Modificar ✅
+**Problema:** Los conceptos adicionales/agregados en Setup no se cargaban al editar una cotización.
+
+**Solución:**
+- Backend: Agregados campos `bank_id`, `bank_name`, `tarifa_setup`, `tarifa_recurrente` al modelo `QuoteItem`
+- Frontend: Nueva función `mapAdditionalItem()` que mapea correctamente los campos específicos de items adicionales
+- Frontend: `handleSubmitQuote` y `handleSaveEditedQuote` ahora preservan estos campos
+
+### 2. Bug Fix: Descarga de PDF no funcionaba ✅
+**Problema:** El sistema mostraba "descargado exitosamente" pero el archivo no se descargaba realmente.
+
+**Solución:**
+- Implementación de 3 métodos de fallback en `downloadPDF()`:
+  1. Descarga directa con blob URL y elemento `<a>`
+  2. Apertura en nueva pestaña (fallback)
+  3. Iframe invisible como último recurso
+- Mejor manejo de errores y logging para debugging
+
+### 3. Feature: Configuración de Motor de Correos (Resend) ✅
+**Problema:** No existía sección para configurar la API Key de Resend.
+
+**Solución:**
+- Backend: Agregado campo `resend_api_key` al modelo `AppSettings`
+- Backend: Endpoint GET/PUT `/api/config/settings` maneja la API key con enmascaramiento
+- Backend: Helper `get_resend_api_key()` para obtener key de BD o env
+- Frontend: Nueva sección "Motor de Correos (Resend)" en Settings con:
+  - Campo de entrada para API Key
+  - Toggle para mostrar/ocultar la key
+  - Indicador de estado (configurada/no configurada)
+  - API Key enmascarada después de guardar
+
+---
 
 ## Funcionalidades Implementadas
 
-### Backend (FastAPI)
-- [x] Autenticación via Emergent Google OAuth
-- [x] CRUD Clientes (con campo `segment`: Pymes/Corporativo/Mixto)
-- [x] Importación/Exportación de Clientes (CSV/PDF)
-- [x] CRUD Bancos (Venezuela, EE.UU., Fintechs) con medios de pago asociados
-- [x] CRUD Hardware
-- [x] CRUD Medios de Pago con compatibilidad por tipo de cotización
-- [x] CRUD Cotizaciones con flujo optimizado
-- [x] Tasa de cambio BCV
-- [x] Upload/descarga/eliminación de logo de empresa
-- [x] Generación de PDF para cotizaciones
-- [x] Sistema de estados de cotización avanzado
+### Módulo de Cotizaciones
+- [x] CRUD completo de cotizaciones
+- [x] Dos categorías: Implementaciones y Equipos/Accesorios
+- [x] Panel unificado con filtros por cliente, estado, categoría, fecha
+- [x] Wizard de creación con pasos guiados
+- [x] Modificar cotización (crea nueva versión)
+- [x] Generación y descarga de PDF
+- [x] Duplicar cotización
+
+### Flujo de Estados
+- Borrador → Enviada al Cliente → Aprobada → Facturada → Pagada → Entregada/Enviada a Implementación
+- Notificaciones automáticas por email en cada transición
+
+### Módulos CRUD
+- [x] Clientes (con segmento: Pymes/Corporativo/Mixto)
+- [x] Bancos (Venezuela, EE.UU., Fintechs)
+- [x] Hardware (dispositivos de pago)
+- [x] Medios de Pago/Servicios
+- [x] Integradores
+- [x] Importación/Exportación masiva
+
+### Configuración
+- [x] Logo de empresa
+- [x] Correos de notificación (Admin, Almacén, Implementación)
+- [x] **Motor de Correos Resend (NUEVO)**
 - [x] Plantillas de correo personalizables
+- [x] Plantillas PDF por tipo de cotización
 
-### Frontend (React)
-- [x] Login con Google OAuth
-- [x] Panel de cotizaciones unificado (Implementaciones + Equipos)
-- [x] Filtros rápidos por cliente, estado, categoría y fecha
-- [x] Flujo de estados completo (Borrador → Enviada → Aprobada → Facturada → Pagada → Entregada/Enviada a Imple)
-- [x] Módulo de plantillas de correo en Configuración
-- [x] Wizard de equipos con selección dinámica
-- [x] **Funcionalidad "Modificar Cotización" (CORREGIDA - Feb 2026)**
+---
 
-## Correcciones Recientes (Febrero 2026)
-
-### Bug Fix: Funcionalidad "Modificar Cotización" - CORREGIDO ✅
-**Fecha:** 19 Febrero 2026
-
-**Problemas reportados:**
-1. Al guardar, la modificación sobrescribía la cotización original en lugar de crear una nueva versión
-2. El formulario de edición no precargaba correctamente todos los datos (cantidad de cajas, bancos, precios)
-
-**Solución implementada:**
-
-**Backend (`server.py`):**
-- Agregados campos `cantidad_cajas` y `cantidad_bancos` al modelo `QuoteItem`
-- Agregados campos `cantidad_cajas` y `cantidad_bancos` al modelo `Quote`
-- Agregados campos `cantidad_cajas` y `cantidad_bancos` al modelo `QuoteCreate`
-- Agregados campos `cantidad_cajas` y `cantidad_bancos` al modelo `QuoteUpdate`
-- Modificado `create_quote` para guardar estos campos a nivel de cotización
-
-**Frontend (`Quotes.jsx`):**
-- `handleSubmitQuote`: Ahora envía `cantidad_cajas` y `cantidad_bancos` tanto a nivel de cotización como por cada item de servicio
-- `handleEditQuote`: Lee correctamente `cantidad_cajas` y `cantidad_bancos` del backend (tanto a nivel cotización como por servicio)
-- `handleSaveEditedQuote`: Usa `POST /quotes/{id}/duplicate` para crear nueva versión y luego `PUT /quotes/{new_id}` para actualizarla
-
-**Resultado:**
-- Al modificar una cotización, se crea una nueva versión (nuevo número correlativo COT-YYYY-NNN)
-- La cotización original permanece intacta
-- Todos los datos se precargan correctamente incluyendo cantidad de cajas, bancos y tarifas
-- Testing: 11/11 tests backend PASSED ✅
-
-## Endpoints API Clave
-
-### Cotizaciones
-- `POST /api/quotes` - Crear cotización (incluye cantidad_cajas, cantidad_bancos)
-- `GET /api/quotes` - Listar cotizaciones
-- `GET /api/quotes/{id}` - Obtener cotización
-- `PUT /api/quotes/{id}` - Actualizar cotización (solo Borrador)
-- `POST /api/quotes/{id}/duplicate` - Crear nueva versión
-- `GET /api/quotes/{id}/pdf` - Descargar PDF
-- `POST /api/quotes/{id}/send-to-client` - Enviar al cliente
-- `POST /api/quotes/{id}/invoice` - Facturar
-- `POST /api/quotes/{id}/collect` - Cobrar
-- `POST /api/quotes/{id}/deliver` - Entregar (equipos)
-- `POST /api/quotes/{id}/send-to-implementation` - Enviar a implementación
-
-### Plantillas de Correo
-- `GET /api/email-templates` - Lista plantillas
-- `PUT /api/email-templates/{id}` - Actualizar plantilla
-- `POST /api/email-templates/reset/{id}` - Restablecer plantilla
-
-## Modelos de Datos
+## Modelos de Datos Clave
 
 ### QuoteItem (Actualizado)
-```json
-{
-  "item_type": "string",
-  "item_id": "string (optional)",
-  "item_name": "string",
-  "quantity": "int",
-  "unit_price_usd": "float",
-  "total_usd": "float",
-  "cantidad_cajas": "int (optional)",
-  "cantidad_bancos": "int (optional)"
-}
+```python
+class QuoteItem(BaseModel):
+    item_type: str
+    item_id: Optional[str]
+    item_name: str
+    quantity: int
+    unit_price_usd: float
+    total_usd: float
+    cantidad_cajas: Optional[int]
+    cantidad_bancos: Optional[int]
+    # Campos para items adicionales
+    bank_id: Optional[str]
+    bank_name: Optional[str]
+    tarifa_setup: Optional[float]
+    tarifa_recurrente: Optional[float]
 ```
 
-### Quote (Actualizado)
-```json
-{
-  "quote_id": "string",
-  "quote_number": "string",
-  "client_id": "string",
-  "quote_category": "implementation | equipment",
-  "quote_type": "VPOS | GATEWAY | MPOS | LINK",
-  "pricing_model": "conventional | outsourcing",
-  "services": "List[QuoteItem]",
-  "cantidad_cajas": "int (optional)",
-  "cantidad_bancos": "int (optional)",
-  "version": "int",
-  "parent_quote_id": "string (optional)",
-  "quote_status": "Borrador | Enviada | Aprobada | Facturada | Pagada | Entregada | Enviada a Imple"
-}
+### AppSettings (Actualizado)
+```python
+class AppSettings(BaseModel):
+    implementation_email: Optional[EmailStr]
+    admin_email: Optional[EmailStr]
+    warehouse_email: Optional[EmailStr]
+    resend_api_key: Optional[str]  # NUEVO
 ```
+
+---
+
+## Endpoints API Principales
+
+### Cotizaciones
+- `POST /api/quotes` - Crear cotización
+- `GET /api/quotes` - Listar cotizaciones
+- `PUT /api/quotes/{id}` - Actualizar (solo Borrador)
+- `POST /api/quotes/{id}/duplicate` - Duplicar/Nueva versión
+- `GET /api/quotes/{id}/pdf` - Descargar PDF
+
+### Estados
+- `POST /api/quotes/{id}/send-to-client` - Enviar al cliente
+- `POST /api/quotes/{id}/approve` - Aprobar
+- `POST /api/quotes/{id}/invoice` - Facturar
+- `POST /api/quotes/{id}/collect` - Marcar como pagada
+- `POST /api/quotes/{id}/deliver` - Marcar como entregada
+- `POST /api/quotes/{id}/send-to-implementation` - Enviar a implementación
+
+### Configuración
+- `GET/PUT /api/config/settings` - Configuración general (incluye Resend API Key)
+- `GET/POST/DELETE /api/config/logo` - Logo de empresa
+- `GET/PUT /api/email-templates` - Plantillas de correo
+
+---
 
 ## Backlog / Tareas Pendientes
 
-### P1 - Alta Prioridad
-- [ ] **Bug de descarga de PDF** - El usuario reporta que muestra "descargado exitosamente" pero no descarga el archivo
-- [ ] Configuración de motor de correos (Resend/SMTP) en Settings
-- [ ] Contadores del Dashboard no suman correctamente
-
 ### P2 - Media Prioridad
+- [ ] Contadores del Dashboard no suman correctamente (bug recurrente)
 - [ ] Refactorización del backend (dividir server.py monolítico)
 - [ ] Refactorización del frontend (descomponer Quotes.jsx)
-- [ ] Módulo de reportes estadísticos
 
 ### P3 - Baja Prioridad
+- [ ] Módulo de Reportes estadísticos
 - [ ] Recuperación de contraseña
 - [ ] Exportación masiva a Excel
 
+---
+
 ## Testing Status
-- Backend: Tests de "Modificar Cotización" - 11/11 PASSED ✅
-- Frontend: Verificado con Playwright ✅
-- Test files: `/app/backend/tests/test_modificar_cotizacion.py`
+- Backend: 12/12 tests PASSED ✅
+- Frontend: 12/12 features verificadas ✅
+- Test reports: `/app/test_reports/iteration_21.json`
 
 ## Archivos Clave
-- `/app/backend/server.py` - Backend monolítico FastAPI
-- `/app/frontend/src/pages/Quotes.jsx` - Componente principal de cotizaciones
-- `/app/frontend/src/pages/Settings.jsx` - Configuración y plantillas
-- `/app/frontend/src/components/EmailTemplatesEditor.jsx` - Editor de plantillas
+- `/app/backend/server.py` - Backend monolítico
+- `/app/frontend/src/pages/Quotes.jsx` - Panel de cotizaciones
+- `/app/frontend/src/pages/Settings.jsx` - Configuración
 
 ---
 **Última actualización:** 19 Febrero 2026
-**Estado:** MVP Operativo - Funcionalidad "Modificar Cotización" CORREGIDA ✅
+**Estado:** MVP Operativo - 3 Bugs Críticos Corregidos ✅
