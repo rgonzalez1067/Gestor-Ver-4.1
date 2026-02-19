@@ -1346,24 +1346,43 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     else:
         exchange_rate = exchange_rate_doc["rate"]
     
-    subtotal_usd = sum(item.total_usd for item in quote_data.services) + sum(item.total_usd for item in quote_data.hardware)
-    total_usd = subtotal_usd
+    # Calcular totales según el tipo de cotización
+    if quote_data.quote_category == "equipment":
+        # Cotización de equipos/accesorios
+        subtotal_usd = sum(item.total_usd for item in quote_data.equipment_items)
+        total_usd = subtotal_usd
+    else:
+        # Cotización de implementación (flujo original)
+        subtotal_usd = sum(item.total_usd for item in quote_data.services) + sum(item.total_usd for item in quote_data.hardware)
+        total_usd = subtotal_usd
+    
     total_bs = total_usd * exchange_rate
     
     count = await db.quotes.count_documents({})
-    quote_number = f"QUO-{count + 1:05d}"
+    quote_number = f"COT-{datetime.now().year}-{count + 1:03d}"
     
     quote = Quote(
         quote_number=quote_number,
         client_id=quote_data.client_id,
+        quote_category=quote_data.quote_category or "implementation",
         quote_type=quote_data.quote_type or "VPOS",
+        equipment_type=quote_data.equipment_type,
+        pricing_model=quote_data.pricing_model or "conventional",
         services=quote_data.services,
         hardware=quote_data.hardware,
+        equipment_items=quote_data.equipment_items,
         subtotal_usd=subtotal_usd,
         total_usd=total_usd,
         exchange_rate=exchange_rate,
         total_bs=total_bs,
-        notes=quote_data.notes
+        notes=quote_data.notes,
+        integrator_id=quote_data.integrator_id,
+        integrator_name=quote_data.integrator_name,
+        integrator_app_name=quote_data.integrator_app_name,
+        pinpad_id=quote_data.pinpad_id,
+        pinpad_model=quote_data.pinpad_model,
+        sponsor_bank_id=quote_data.sponsor_bank_id,
+        sponsor_bank_name=quote_data.sponsor_bank_name
     )
     
     doc = quote.model_dump()
