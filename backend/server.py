@@ -1803,6 +1803,134 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
+# Modelo para PDF de cotización de equipos
+class EquipmentPDFItem(BaseModel):
+    hardware_id: str
+    name: str
+    hardware_type: str
+    quantity: int = 1
+    unit_price_usd: float = 0
+    total_usd: float = 0
+
+class EquipmentQuotePDFRequest(BaseModel):
+    cliente_nombre: str
+    cliente_rif: str = ""
+    cliente_address: str = ""
+    equipment_type: str = "Dispositivo"  # "Dispositivo" o "Accesorio"
+    items: List[EquipmentPDFItem] = []
+    notes: str = ""
+
+@api_router.post("/quotes/generate-equipment-pdf")
+async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
+    """Genera un PDF para cotización de Equipos y Accesorios"""
+    await get_current_user(authorization)
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Título
+    title_style = styles['Title']
+    title_style.fontSize = 18
+    title_style.textColor = colors.Color(0.1, 0.3, 0.5)
+    
+    type_title = "DISPOSITIVOS" if data.equipment_type == "Dispositivo" else "ACCESORIOS"
+    elements.append(Paragraph(f"<b>COTIZACIÓN DE {type_title}</b>", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Información del cliente
+    elements.append(Paragraph("<b>Información del Cliente</b>", styles['Heading2']))
+    
+    info_data = [
+        ["Cliente:", data.cliente_nombre],
+        ["RIF:", data.cliente_rif or "N/A"],
+        ["Dirección:", data.cliente_address or "No especificada"],
+        ["Fecha:", datetime.now().strftime("%d/%m/%Y")],
+    ]
+    
+    info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9)),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Tabla de items
+    elements.append(Paragraph(f"<b>Detalle de {type_title.title()}</b>", styles['Heading2']))
+    elements.append(Spacer(1, 0.1*inch))
+    
+    # Header de la tabla
+    items_data = [["#", "Producto", "Cantidad", "Precio Unit.", "Total USD"]]
+    
+    subtotal = 0
+    for idx, item in enumerate(data.items, 1):
+        total_line = item.quantity * item.unit_price_usd
+        items_data.append([
+            str(idx),
+            item.name,
+            str(item.quantity),
+            f"${item.unit_price_usd:.2f}",
+            f"${total_line:.2f}"
+        ])
+        subtotal += total_line
+    
+    # Fila de subtotal
+    items_data.append(["", "", "", "Subtotal:", f"${subtotal:.2f}"])
+    items_data.append(["", "", "", "TOTAL:", f"${subtotal:.2f}"])
+    
+    items_table = Table(items_data, colWidths=[0.4*inch, 3.5*inch, 0.8*inch, 0.9*inch, 0.9*inch])
+    items_table.setStyle(TableStyle([
+        # Header
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.1, 0.4, 0.6)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -3), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -3), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
+        # Subtotal y Total
+        ('FONTNAME', (3, -2), (-1, -1), 'Helvetica-Bold'),
+        ('ALIGN', (3, -2), (-1, -1), 'RIGHT'),
+        ('LINEABOVE', (3, -2), (-1, -2), 1, colors.black),
+        ('BACKGROUND', (3, -1), (-1, -1), colors.Color(0.1, 0.4, 0.6)),
+        ('TEXTCOLOR', (3, -1), (-1, -1), colors.whitesmoke),
+        ('FONTSIZE', (3, -1), (-1, -1), 11),
+    ]))
+    elements.append(items_table)
+    
+    # Notas
+    if data.notes:
+        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Paragraph("<b>Observaciones:</b>", styles['Heading3']))
+        elements.append(Paragraph(data.notes, styles['Normal']))
+    
+    # Footer
+    elements.append(Spacer(1, 0.4*inch))
+    footer_style = styles['Normal']
+    footer_style.fontSize = 8
+    footer_style.textColor = colors.grey
+    elements.append(Paragraph("Esta cotización tiene una validez de 15 días.", footer_style))
+    elements.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} - Cotizador Merchant Server", footer_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    filename = f"cotizacion_{type_title.lower()}_{data.cliente_nombre.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # ==================== QUOTE ACTIONS ENDPOINTS ====================
 
 class QuoteStatusUpdate(BaseModel):
