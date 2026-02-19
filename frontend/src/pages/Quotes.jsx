@@ -86,7 +86,13 @@ export const Quotes = () => {
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
-  // activeTab removido - ahora usamos panel único de gestión
+  
+  // Estados para filtros rápidos
+  const [filterClient, setFilterClient] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   
   // Estado del formulario de cotización
   const [quoteData, setQuoteData] = useState({
