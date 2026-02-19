@@ -1481,52 +1481,81 @@ export const Quotes = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                              {!isEquipment && (
-                                <>
-                                  <DropdownMenuItem 
-                                    onClick={() => handleEditQuote(quote)}
-                                    className="cursor-pointer"
-                                  >
-                                    <Pencil size={16} className="mr-2 text-slate-500" />
-                                    Modificar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
+                              {/* Modificar - Crea nueva versión */}
+                              <DropdownMenuItem 
+                                onClick={() => handleEditQuote(quote)}
+                                className="cursor-pointer"
+                              >
+                                <RefreshCw size={16} className="mr-2 text-slate-500" />
+                                Modificar (Nueva Versión)
+                              </DropdownMenuItem>
                               
+                              <DropdownMenuSeparator />
+                              
+                              {/* Enviar al Cliente - Borrador -> Enviada */}
                               <DropdownMenuItem 
                                 onClick={() => handleSendToClient(quote.quote_id)}
                                 className="cursor-pointer"
-                                disabled={quote.quote_status === 'Emitida' || quote.quote_status === 'Aprobada'}
+                                disabled={quote.quote_status !== 'Borrador'}
                               >
                                 <Mail size={16} className="mr-2 text-blue-500" />
                                 Enviar al Cliente
                                 {quote.sent_to_client_at && (
-                                  <span className="ml-auto text-xs text-slate-400">Enviado</span>
+                                  <span className="ml-auto text-xs text-slate-400">✓</span>
                                 )}
                               </DropdownMenuItem>
                               
+                              {/* Aprobar - Enviada -> Aprobada */}
                               <DropdownMenuItem 
                                 onClick={() => handleApproveQuote(quote.quote_id)}
                                 className="cursor-pointer"
-                                disabled={quote.quote_status === 'Aprobada' || quote.quote_status === 'En Implementación' || quote.quote_status === 'Completada'}
+                                disabled={quote.quote_status !== 'Enviada'}
                               >
                                 <CheckCircle size={16} className="mr-2 text-green-500" />
                                 Aprobar
                               </DropdownMenuItem>
                               
-                              {!isEquipment && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
-                                    onClick={() => handleSendToImplementation(quote.quote_id)}
-                                    className="cursor-pointer"
-                                    disabled={quote.quote_status !== 'Aprobada'}
-                                  >
-                                    <Send size={16} className="mr-2 text-amber-500" />
-                                    Enviar a Implementación
-                                  </DropdownMenuItem>
-                                </>
+                              {/* Facturar - Aprobada -> Facturada */}
+                              <DropdownMenuItem 
+                                onClick={() => openInvoiceModal(quote.quote_id)}
+                                className="cursor-pointer"
+                                disabled={quote.quote_status !== 'Aprobada'}
+                              >
+                                <Receipt size={16} className="mr-2 text-purple-500" />
+                                Facturar
+                              </DropdownMenuItem>
+                              
+                              {/* Cobrar - Facturada -> Pagada */}
+                              <DropdownMenuItem 
+                                onClick={() => handleCollectQuote(quote.quote_id)}
+                                className="cursor-pointer"
+                                disabled={quote.quote_status !== 'Facturada'}
+                              >
+                                <Banknote size={16} className="mr-2 text-emerald-500" />
+                                Cobrar
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
+                              {/* Acciones finales según categoría */}
+                              {isEquipment ? (
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeliverQuote(quote.quote_id)}
+                                  className="cursor-pointer"
+                                  disabled={quote.quote_status !== 'Pagada'}
+                                >
+                                  <Truck size={16} className="mr-2 text-teal-500" />
+                                  Marcar como Entregada
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem 
+                                  onClick={() => handleSendToImplementation(quote.quote_id)}
+                                  className="cursor-pointer"
+                                  disabled={quote.quote_status !== 'Pagada'}
+                                >
+                                  <Send size={16} className="mr-2 text-amber-500" />
+                                  Enviar a Implementación
+                                </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
