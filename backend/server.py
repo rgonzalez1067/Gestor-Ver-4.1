@@ -213,12 +213,28 @@ class QuoteItem(BaseModel):
     unit_price_usd: float
     total_usd: float
 
+# Modelo para items de cotización de equipos
+class EquipmentQuoteItem(BaseModel):
+    hardware_id: str
+    name: str
+    hardware_type: str  # "Dispositivo" o "Accesorio"
+    quantity: int = 1
+    unit_price_usd: float = 0
+    total_usd: float = 0
+
+# Tipos de cotización
+QUOTE_CATEGORIES = ["implementation", "equipment"]  # Implementación o Equipos/Accesorios
+EQUIPMENT_TYPES = ["Dispositivo", "Accesorio"]
+
 class QuoteCreate(BaseModel):
     client_id: str
-    quote_type: Optional[str] = "VPOS"
+    quote_category: str = "implementation"  # "implementation" o "equipment"
+    quote_type: Optional[str] = "VPOS"  # Para implementaciones
+    equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: Optional[str] = "conventional"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
+    equipment_items: List[EquipmentQuoteItem] = []  # Items para cotización de equipos
     notes: Optional[str] = None
     # Nuevos campos de integración y hardware
     integrator_id: Optional[str] = None
@@ -236,10 +252,13 @@ class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
     quote_number: str
     client_id: str
-    quote_type: str = "VPOS"
+    quote_category: str = "implementation"  # "implementation" o "equipment"
+    quote_type: str = "VPOS"  # Para implementaciones
+    equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: str = "conventional"
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
+    equipment_items: List[EquipmentQuoteItem] = []  # Items para cotización de equipos
     subtotal_usd: float
     total_usd: float
     exchange_rate: float
