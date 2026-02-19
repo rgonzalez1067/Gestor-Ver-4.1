@@ -2217,30 +2217,39 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
     pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
     
     client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
-    subject = f"[IMPLEMENTACIÓN] Cotización #{quote.get('quote_number', '')} - {client_name}"
     
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #059669;">Nueva Implementación Aprobada</h2>
-        <p>Se ha aprobado la siguiente cotización y está lista para implementación:</p>
-        
-        <table style="margin: 20px 0; border-collapse: collapse; width: 100%; max-width: 600px;">
-            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Cotización #</td><td style="padding: 10px;">{quote.get('quote_number', 'N/A')}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">Cliente</td><td style="padding: 10px;">{client_name}</td></tr>
-            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">RIF</td><td style="padding: 10px;">{client.get('rif', 'N/A')}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">Tipo de Servicio</td><td style="padding: 10px;">{quote.get('quote_type', 'N/A')}</td></tr>
-            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Integrador</td><td style="padding: 10px;">{quote.get('integrator_name', 'N/A')} ({quote.get('integrator_app_name', '')})</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">Modelo Pinpad</td><td style="padding: 10px;">{quote.get('pinpad_model', 'N/A')}</td></tr>
-            <tr style="background: #f3f4f6;"><td style="padding: 10px; font-weight: bold;">Patrocinador</td><td style="padding: 10px;">{quote.get('sponsor_bank_name', 'N/A')}</td></tr>
-            <tr><td style="padding: 10px; font-weight: bold;">Total USD</td><td style="padding: 10px;"><strong>${quote.get('total_usd', 0):.2f}</strong></td></tr>
-        </table>
-        
-        <p>Por favor revisar el PDF adjunto para los detalles completos.</p>
-        <p style="margin-top: 30px; color: #6b7280; font-size: 12px;">Este es un mensaje automático del sistema de cotizaciones.</p>
-    </body>
-    </html>
-    """
+    # Preparar tabla de servicios
+    services = quote.get('services', [])
+    services_html = """<table style="border-collapse: collapse; width: 100%;">
+        <thead>
+            <tr style="background: #f3f4f6;">
+                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Servicio</th>
+                <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Categoría</th>
+            </tr>
+        </thead>
+        <tbody>"""
+    for service in services:
+        services_html += f"<tr><td style='padding: 8px; border: 1px solid #ddd;'>{service.get('name', 'N/A')}</td><td style='padding: 8px; border: 1px solid #ddd; text-align: center;'>{service.get('category', 'N/A')}</td></tr>"
+    services_html += "</tbody></table>"
+    
+    # Obtener plantilla
+    template = await db.email_templates.find_one({"template_id": "implementation"}, {"_id": 0})
+    if not template:
+        template = DEFAULT_EMAIL_TEMPLATES["implementation"]
+    
+    # Preparar variables
+    template_vars = {
+        "quote_number": quote.get('quote_number', ''),
+        "client_name": client_name,
+        "client_rif": client.get('rif', 'N/A'),
+        "quote_type": quote.get('quote_type', 'N/A'),
+        "integrator_name": f"{quote.get('integrator_name', 'N/A')} ({quote.get('integrator_app_name', '')})",
+        "pinpad_model": quote.get('pinpad_model', 'N/A'),
+        "services_table": services_html
+    }
+    
+    subject = render_email_template(template["subject"], template_vars)
+    html_content = render_email_template(template["body_html"], template_vars)
     
     try:
         params = {
