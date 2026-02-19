@@ -1399,13 +1399,17 @@ export const Quotes = () => {
   const selectedSponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
   
   // Validación completa incluyendo nuevos campos obligatorios
+  // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
   const isHeaderComplete = quoteData.quote_type && 
     quoteData.client_id && 
     quoteData.pricing_model && 
     (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
-    quoteData.integrator_id &&
-    quoteData.pinpad_id &&
-    quoteData.sponsor_bank_id;
+    (isEditing || (quoteData.integrator_id && quoteData.pinpad_id && quoteData.sponsor_bank_id));
+  
+  // En modo edición, siempre mostrar los items si existen
+  const canShowItems = isEditing 
+    ? (quoteData.quote_type && quoteData.client_id && quoteData.pricing_model)
+    : isHeaderComplete;
 
   if (loading) {
     return (
