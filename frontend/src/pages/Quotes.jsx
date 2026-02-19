@@ -735,6 +735,12 @@ export const Quotes = () => {
   const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
   const handleSubmitQuote = async () => {
+    // Si estamos editando, usar la función de edición
+    if (isEditing && editingQuoteId) {
+      await handleSaveEditedQuote();
+      return;
+    }
+    
     if (quoteData.setup_items.length === 0 && quoteData.recurring_basic_items.length === 0) {
       toast.error('No hay items en la cotización');
       return;
@@ -744,46 +750,55 @@ export const Quotes = () => {
       const allItems = [
         ...quoteData.setup_items.map(item => ({
           item_type: 'setup',
-          item_name: item.medio_pago_name,
-          quantity: item.cantidad_cajas * item.cantidad_bancos,
-          unit_price_usd: item.tarifa,
-          total_usd: calcularTotal(item)
+          item_name: item.medio_pago_name || item.name,
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || calcularTotal(item)
         })),
         ...quoteData.recurring_basic_items.map(item => ({
           item_type: 'recurring_basic',
-          item_name: item.medio_pago_name,
-          quantity: item.cantidad_cajas * item.cantidad_bancos,
-          unit_price_usd: item.tarifa,
-          total_usd: calcularTotal(item)
+          item_name: item.medio_pago_name || item.name,
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || calcularTotal(item)
         })),
         ...quoteData.recurring_other_items.map(item => ({
           item_type: 'recurring_other',
-          item_name: item.medio_pago_name,
-          quantity: item.cantidad_cajas * item.cantidad_bancos,
-          unit_price_usd: item.tarifa,
-          total_usd: calcularTotal(item)
+          item_name: item.medio_pago_name || item.name,
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || item.unit_price_usd || 0,
+          total_usd: item.total_usd || calcularTotal(item)
         })),
         ...quoteData.additional_items.map(item => ({
           item_type: 'additional',
-          item_name: `${item.medio_pago_name} - ${item.bank_name}`,
-          quantity: item.cantidad_cajas * item.cantidad_bancos,
-          unit_price_usd: (item.tarifa_setup || 0) + (item.tarifa_recurrente || 0),
-          total_usd: (item.tarifa_setup || 0) * item.cantidad_cajas * item.cantidad_bancos + 
-                     (item.tarifa_recurrente || 0) * item.cantidad_cajas * item.cantidad_bancos
+          item_name: item.medio_pago_name ? `${item.medio_pago_name} - ${item.bank_name}` : item.name,
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: (item.tarifa_setup || 0) + (item.tarifa_recurrente || 0) || item.unit_price_usd || 0,
+          total_usd: item.total_usd || ((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1) + 
+                     (item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1))
         }))
       ];
 
       const payload = {
         client_id: quoteData.client_id,
         quote_type: quoteData.quote_type,
+        pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
+        integrator_id: quoteData.integrator_id,
+        integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || '',
+        integrator_app_name: quoteData.integrator_app_name,
+        pinpad_id: quoteData.pinpad_id,
+        pinpad_model: pinpads.find(p => p.hardware_id === quoteData.pinpad_id)?.name || '',
+        sponsor_bank_id: quoteData.sponsor_bank_id,
+        sponsor_bank_name: banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '',
         notes: quoteData.notes
       };
 
       await api.post('/quotes', payload);
       toast.success('Cotización creada exitosamente');
       setWizardOpen(false);
+      resetQuoteForm();
       fetchData();
     } catch (error) {
       console.error('Error creating quote:', error);
