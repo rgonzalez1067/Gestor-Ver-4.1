@@ -217,7 +217,9 @@ export const Quotes = () => {
       setBanks(banksRes.data);
       setServiceCatalog(servicesRes.data);
       setIntegrators(integratorsRes.data);
-      // Filtrar solo dispositivos tipo "Pinpad"
+      // Guardar todos los hardware
+      setAllHardware(hardwareRes.data || []);
+      // Filtrar solo dispositivos tipo "Pinpad" para cotizaciones de implementación
       const pinpadDevices = (hardwareRes.data || []).filter(hw => 
         hw.type?.toLowerCase() === 'pinpad'
       );
