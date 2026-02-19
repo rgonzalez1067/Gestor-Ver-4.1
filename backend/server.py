@@ -1559,6 +1559,67 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
         headers={"Content-Disposition": f"attachment; filename=quote_{quote['quote_number']}.pdf"}
     )
 
+class QuoteUpdate(BaseModel):
+    """Modelo para actualizar cotización existente"""
+    quote_type: Optional[str] = None
+    client_id: Optional[str] = None
+    pricing_model: Optional[str] = None
+    services: Optional[List[QuoteItem]] = None
+    hardware: Optional[List[QuoteItem]] = None
+    integrator_id: Optional[str] = None
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_id: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    sponsor_bank_id: Optional[str] = None
+    sponsor_bank_name: Optional[str] = None
+    subtotal_usd: Optional[float] = None
+    total_usd: Optional[float] = None
+    descuento: Optional[float] = None
+    exchange_rate: Optional[float] = None
+    total_bs: Optional[float] = None
+    notes: Optional[str] = None
+
+@api_router.put("/quotes/{quote_id}")
+async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):
+    """Actualiza una cotización existente (solo en estado Borrador)"""
+    await get_current_user(authorization)
+    
+    # Verificar que la cotización existe
+    existing_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not existing_quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Solo permitir actualizar cotizaciones en estado Borrador
+    if existing_quote.get("quote_status", "Borrador") != "Borrador":
+        raise HTTPException(status_code=400, detail="Solo se pueden modificar cotizaciones en estado Borrador")
+    
+    # Preparar datos de actualización (solo campos proporcionados)
+    update_data = {}
+    update_fields = quote_update.model_dump(exclude_unset=True)
+    
+    for field, value in update_fields.items():
+        if value is not None:
+            update_data[field] = value
+    
+    # Calcular total_bs si se actualizó total_usd
+    if "total_usd" in update_data:
+        exchange_rate = update_data.get("exchange_rate", existing_quote.get("exchange_rate", 36.5))
+        update_data["total_bs"] = update_data["total_usd"] * exchange_rate
+    
+    if update_data:
+        result = await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Retornar cotización actualizada
+    updated_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    return updated_quote
+
 @api_router.post("/quotes/generate-pdf")
 async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Optional[str] = Header(None)):
     """Genera un PDF de cotización desde los datos del frontend sin guardar en BD"""
