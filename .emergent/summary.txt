@@ -1,101 +1,304 @@
 <analysis>**original_problem_statement:**
-El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo de la sesión, los requerimientos se expandieron para incluir:
-1.  **Módulo de Gestión de Integradores:** Un CRUD para administrar Integradores con importación/exportación.
-2.  **Estandarización del Proceso de Importación:** Implementar un sistema de validación robusto y con feedback detallado (contadores, logs) para todas las cargas masivas.
-3.  **Ajustes de Lógica en Cotizaciones:** Múltiples reglas de negocio, incluyendo duplicación de conceptos, bloqueo de campos y corrección de errores de precios.
-4.  **Configuración de Plantillas PDF:** Cargar plantillas PDF para diferentes tipos de cotización.
-5.  **Ciclo de Vida de Cotizaciones:** Añadir un menú de acciones (Modificar, Enviar, Aprobar, Enviar a Implementación) con notificaciones por email.
-6.  **Resumen Ejecutivo:** Añadir una matriz de resumen consolidada al final de la cotización, tanto en la UI como en el PDF.
-7.  **Campo de Dirección de Cliente:** Agregar el campo Dirección al módulo de Clientes.
-8.  **Reestructuración del Módulo de Cotizaciones:** Separar el módulo en dos flujos: Implementaciones (el flujo existente) y Equipos y Accesorios (un nuevo flujo para venta directa de hardware).
+El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. Los requerimientos se han expandido para incluir:
+1.  **Módulos CRUD:** Gestión de Integradores, Clientes, Bancos, etc., con importación/exportación.
+2.  **Lógica de Cotizaciones Compleja:** Múltiples reglas de negocio, duplicación de conceptos, y un ciclo de vida con estados y notificaciones por email (usando Resend).
+3.  **Reestructuración del Módulo de Cotizaciones:** Separación en dos flujos: Implementaciones y Equipos y Accesorios, ahora unificados en una sola vista de gestión.
+4.  **Gestión de Plantillas:** Configuración de plantillas PDF y plantillas de correo electrónico personalizables para diferentes acciones (enviar a cliente, facturar, notificar a almacén).
+5.  **Acción Modificar Cotización:** Permitir la edición de una cotización existente para generar una nueva versión en estado Borrador.
+6.  **Filtros y Descarga de PDF:** Se han solicitado filtros para la lista de cotizaciones y se ha reportado persistentemente un bug que impide la descarga de los PDF.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la generación de cotizaciones. El módulo de Cotizaciones ha sido reestructurado y ahora presenta dos pestañas: Implementaciones, que contiene el flujo de cotización original y complejo, y Equipos y Accesorios, un nuevo wizard para la venta directa de hardware. Se ha implementado un sistema de importación estandarizado y reutilizable en todos los módulos CRUD (Clientes, Bancos, Medios de Pago, Integradores). También se ha añadido un ciclo de vida para las cotizaciones con estados y un menú de acciones que dispara notificaciones por email usando Resend. Se corrigió un bug de precios y se añadieron múltiples campos y una sección de resumen ejecutivo a las cotizaciones. El backend sigue siendo un archivo monolítico () y el componente principal de cotizaciones () ha aumentado drásticamente su complejidad al gestionar ambos flujos.
+La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para generar y gestionar cotizaciones. El frontend presenta un panel unificado que lista todas las cotizaciones (de Implementaciones y Equipos). Se ha implementado un sistema de estados de cotización avanzado (Borrador, Enviada, Aprobada, Facturada, Pagada, etc.) que dispara notificaciones por correo electrónico usando Resend. Existe un nuevo módulo en Configuración para que el usuario pueda editar las plantillas de dichos correos. El backend sigue siendo un archivo monolítico () y el componente principal del frontend () es extremadamente complejo, manejando la lógica de la lista, los filtros, los dos tipos de wizards de creación y la edición de cotizaciones.
 
 **Last working item**:
-- Last item agent was working: El agente estaba depurando un bug crítico reportado por el usuario en el nuevo módulo de Equipos y Accesorios. El selector de ítems no mostraba ningún dispositivo, bloqueando completamente la creación de cotizaciones de equipos. El agente identificó una discrepancia en los datos de prueba ( de los dispositivos) y estaba en proceso de verificar el flujo de datos desde la API del backend al componente del frontend.
+- Last item agent was working: El agente estaba depurando bugs críticos reportados por el usuario en la funcionalidad de **Modificar Cotización**. El problema es doble: 1) Al guardar, la modificación sobrescribe la cotización original en lugar de crear una nueva versión. 2) El formulario de edición no precarga correctamente todos los datos, omitiendo valores clave como la cantidad de cajas, cantidad de bancos y los precios/cantidades en las secciones de costos.
 - Status: IN PROGRESS
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: El selector de ítems en el módulo Equipos y Accesorios no funciona (P0)
--   Issue 2: La descarga de cotizaciones en PDF no funciona (P1 - Crítico Recurrente)
--   Issue 3: Los contadores del Dashboard no suman los registros correctamente (P2)
+-   Issue 1: La funcionalidad Modificar Cotización está rota: sobrescribe el original y no carga todos los datos (P0)
+-   Issue 2: La descarga de cotizaciones en PDF sigue sin funcionar para el usuario (P1 - Crítico Recurrente)
+-   Issue 3: Falta la sección para configurar el motor de correos (Resend/SMTP) en la página de Configuración (P2)
+-   Issue 4: Los contadores del Dashboard no suman los registros correctamente (P2 - Recurrente)
 
 **Issues Detail:**
--   **Issue 1: El selector de ítems en el módulo Equipos y Accesorios no funciona**
-    -   **Attempted fixes**: El agente identificó que el filtro en  busca por  o , pero los datos de prueba existentes tenían otros tipos (, ). Creó nuevos datos con los tipos correctos para validar, pero el problema persiste. Estaba a punto de probar la respuesta de la API () para asegurarse de que el frontend recibe los datos esperados.
+-   **Issue 1: La funcionalidad Modificar Cotización está rota**
+    -   **Attempted fixes**: El agente modificó la lógica en  para que no se reinicien los campos en modo edición y ajustó el mapeo de datos. Sin embargo, la lógica de guardado sigue usando un endpoint  que actualiza el registro existente, y el mapeo de datos para las cantidades (, ) es incorrecto o se pierde.
     -   **Next debug checklist**:
-        1.  Verificar la respuesta de la API  usando  (con un token de autenticación) para confirmar que se devuelven todos los dispositivos, incluyendo los recién creados con los tipos Dispositivo y Accesorio.
-        2.  En , inspeccionar con  el contenido de la prop  que se pasa al componente .
-        3.  Dentro de , verificar el contenido del array  después de aplicar el filtro por  para entender por qué resulta en una lista vacía.
-        4.  Asegurarse de que el estado  se está estableciendo correctamente en el Paso 2 del wizard.
-    -   **Why fix this issue and what will be achieved with the fix?**: Es un bug bloqueante que impide usar por completo la nueva funcionalidad de cotización de equipos.
+        1.  Revisar  y  en . La lógica debe modificarse para que en modo edición siempre se llame al endpoint  para crear un **nuevo** registro, en lugar del .
+        2.  Dentro de la función  en , investigar por qué los campos  y  no se están asignando correctamente al estado que alimenta el wizard. Es probable que se estén perdiendo en la transición o que el wizard los reinicie.
+        3.  Asegurarse de que al crear la nueva versión, el  se genere correctamente y el estado se reinicie a Borrador.
+    -   **Why fix this issue and what will be achieved with the fix?**: Es una función clave para la eficiencia del usuario, permitiendo crear versiones de ofertas sin reingresar todo manualmente. Actualmente es inutilizable y causa pérdida de datos.
     -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on other issue**: None
+
+-   **Issue 2: La descarga de cotizaciones en PDF sigue sin funcionar**
+    -   **Description**: A pesar de que las pruebas del agente pasan, el usuario reporta que la descarga de PDF falla en todas las instancias.
+    -   **Attempted fixes**: Se refactorizó la lógica de descarga en el frontend para usar  nativo en lugar de , una técnica más robusta para manejar .
+    -   **Next debug checklist**:
+        1.  Verificar los logs de la consola del navegador del lado del usuario para identificar errores específicos (CORS, CSP, bloqueos de pop-ups).
+        2.  Revisar los logs del backend (==> /var/log/supervisor/backend.err.log <==
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [495]
+INFO:     Started server process [658]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [658]
+INFO:     Started server process [743]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [743]
+INFO:     Started server process [801]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [801]
+INFO:     Started server process [859]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [859]
+INFO:     Started server process [917]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [917]
+INFO:     Started server process [1298]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1298]
+INFO:     Stopping reloader process [43]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [1322] using WatchFiles
+INFO:     Started server process [1324]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'tests/test_iteration18_email_templates.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1324]
+INFO:     Started server process [1731]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-02-19 16:17:11,055 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 404 Not Found"
+2026-02-19 16:17:24,834 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 404 Not Found"
+WARNING:  WatchFiles detected changes in 'tests/test_iteration18_email_templates.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1731]
+INFO:     Started server process [1975]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-02-19 16:25:16,322 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 200 OK"
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [42] using WatchFiles
+INFO:     Started server process [84]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-02-19 18:02:00,530 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 200 OK"
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [65]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-02-19 18:40:48,836 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 200 OK"
+2026-02-19 18:43:23,029 - httpx - INFO - HTTP Request: GET https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data "HTTP/1.1 200 OK"
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [51] using WatchFiles
+INFO:     Started server process [88]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.169.5.6:57484 - "POST /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:60480 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:44306 - "POST /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:34212 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:44306 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:59970 - "GET /api/services?application_type=recurring_available HTTP/1.1" 200 OK
+INFO:     10.169.5.6:34212 - "GET /api/services?application_type=recurring_available HTTP/1.1" 200 OK
+INFO:     10.169.11.194:59970 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:59970 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:44306 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:59982 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:59996 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:34212 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.5.6:34212 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:44306 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:39392 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:39392 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.5.6:39392 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:44306 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.5.6:39392 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.5.6:38886 - "POST /api/quotes/generate-equipment-pdf HTTP/1.1" 200 OK
+INFO:     10.169.11.194:35898 - "POST /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:35898 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:50054 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.5.6:50046 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:38886 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:35920 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:35908 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.11.194:56656 - "POST /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:56656 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:56656 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:56670 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.5.6:46734 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:46748 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:46748 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:54982 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     10.169.5.6:60610 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     10.169.5.6:60610 - "GET /api/config/logo HTTP/1.1" 200 OK
+INFO:     10.169.11.194:54982 - "GET /api/config/logo HTTP/1.1" 200 OK
+INFO:     10.169.11.194:54982 - "GET /api/config/logo HTTP/1.1" 200 OK
+INFO:     10.169.11.194:54982 - "GET /api/config/logo HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "POST /api/auth/session HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45520 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45520 - "GET /api/exchange-rate/current HTTP/1.1" 503 Service Unavailable
+INFO:     10.169.5.6:58458 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/exchange-rate/current HTTP/1.1" 503 Service Unavailable
+INFO:     10.169.5.6:58472 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58478 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45520 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45520 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45520 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58458 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:45518 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "POST /api/auth/session HTTP/1.1" 200 OK
+INFO:     10.169.5.6:33432 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.5.6:33432 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:33432 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.5.6:33432 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34596 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:34604 - "GET /api/exchange-rate/current HTTP/1.1" 503 Service Unavailable
+INFO:     10.169.5.6:33432 - "GET /api/exchange-rate/current HTTP/1.1" 503 Service Unavailable
+INFO:     10.169.11.194:38130 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48876 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38140 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38138 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38150 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48884 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38130 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48884 - "GET /api/clients HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38140 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48884 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48876 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.5.6:48876 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.11.194:38140 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:60896 - "POST /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58840 - "GET /api/integrators HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58848 - "GET /api/quotes HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58840 - "GET /api/banks HTTP/1.1" 200 OK
+INFO:     10.169.11.194:60900 - "GET /api/hardware HTTP/1.1" 200 OK
+INFO:     10.169.11.194:60896 - "GET /api/services HTTP/1.1" 200 OK
+INFO:     10.169.5.6:58848 - "GET /api/clients HTTP/1.1" 200 OK) en el momento exacto en que el usuario intenta la descarga para buscar errores de generación.
+        3.  En el backend, volver a confirmar que la respuesta para los endpoints de PDF incluye el header .
+        4.  Añadir logging más detallado en el bloque  de las funciones de descarga en  para capturar cualquier error que  pueda estar arrojando.
+    -   **Why fix this issue and what will be achieved with the fix?**: Es una funcionalidad de negocio crítica y un bug recurrente que frustra al usuario.
+    -   **Status**: NOT STARTED
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on other issue**: None
+
+-   **Issue 3: Falta la sección para configurar el motor de correos (Resend/SMTP)**
+    -   **Description**: El usuario indicó que necesita una sección en Configuración para gestionar los parámetros del motor de correos (ej. API Key de Resend), pero no la ve. El agente implementó la gestión de plantillas, pero no la configuración del servicio.
+    -   **Attempted fixes**: Ninguno.
+    -   **Next debug checklist**:
+        1.  En , añadir una nueva sección en el formulario para Configuración de Correo que incluya un campo para la API Key de Resend.
+        2.  En , crear un endpoint para guardar esta configuración de forma segura (preferiblemente actualizando una variable de entorno o un archivo de configuración no versionado).
+        3.  Asegurarse de que la lógica de envío de correo en el backend lea la clave desde esta nueva configuración.
+    -   **Why fix this issue and what will be achieved with the fix?**: Permite al usuario autogestionar la integración con el servicio de email sin depender de cambios en el código.
+    -   **Status**: NOT STARTED
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on other issue**: None
 
--   **Issue 2: La descarga de cotizaciones en PDF no funciona**
-    -   **Description**: Reportado múltiples veces. El usuario hace clic en Exportar PDF, ve un mensaje de éxito, pero el archivo no se descarga.
-    -   **Attempted fixes**: (Sesiones anteriores) Múltiples intentos con ,  y , sin éxito. El problema no se ha abordado en esta sesión.
-    -   **Next debug checklist**:
-        1.  Verificar los logs de la consola de red del navegador para errores (CORS, Content-Type).
-        2.  Probar el endpoint  directamente con  para validar el PDF generado.
-        3.  Asegurar que la respuesta del backend tiene el header .
-    -   **Why fix this issue and what will be achieved with the fix?**: Funcionalidad crítica para el negocio del usuario.
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on other issue**: None
-
--   **Issue 3: Los contadores del Dashboard no suman los registros correctamente**
+-   **Issue 4: Los contadores del Dashboard no suman los registros correctamente**
     -   **Description**: Problema persistente donde el dashboard no muestra el total correcto de registros.
-    -   **Attempted fixes**: (Sesiones anteriores) Refactorización del  sin validar la lógica. No se ha abordado en esta sesión.
-    -   **Next debug checklist**:
-        1.  En , inspeccionar la respuesta de cada API call.
-        2.  Verificar que las APIs devuelven un array y que  se usa correctamente.
-    -   **Why fix this issue and what will be achieved with the fix?**: Proporcionará una vista general fiable en la página de inicio.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?**: frontend
-    -   **Blocked on other issue**: None
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
-Upcoming Tasks:
--   **Exportar Cotización a PDF (P0):** Solucionar de forma definitiva el bug que impide la descarga del archivo PDF.
--   **Pruebas de Regresión Completas (P1):** Ejecutar un ciclo de pruebas E2E para validar todos los flujos después de las recientes refactorizaciones importantes.
-
 Future Tasks:
 -   **Módulo de Reportes:** Desarrollar una nueva sección para generar reportes.
 -   **Refactorización del Backend:** Dividir el monolito  en una estructura de routers, modelos y servicios.
--   **Refactorización del Frontend:** Descomponer el componente monolítico  en subcomponentes.
--   **Recuperación de Contraseña:** Implementar la funcionalidad de Olvidé mi contraseña.
+-   **Refactorización del Frontend:** Descomponer el componente .
+-   **Recuperación de Contraseña:** Implementar la funcionalidad Olvidé mi contraseña.
 
 **Completed work in this session**
--   **Sistema de Importación Estandarizado:** Se finalizó la implementación de un sistema de importación robusto, con feedback detallado para el usuario (éxitos, errores, logs) y se extendió a todos los módulos (Integradores, Clientes, Bancos, Medios de Pago) creando un componente reutilizable ().
--   **Nuevos Campos en Cotización:** Se agregaron los campos Integrador, Modelo de Pinpad y Entidad Patrocinadora al formulario y al PDF de la cotización.
--   **Ciclo de Vida de Cotizaciones:** Se implementó un menú de acciones (Modificar, Enviar, Aprobar, Implementar) con cambio de estado y notificaciones por email a través de .
--   **Corrección de Bug de Precios:** Se solucionó el problema de las tarifas de Otros Recurrentes que aparecían en /bin/bash.00, creando los servicios correspondientes en la base de datos.
--   **Campo Dirección en Clientes:** Se añadió el campo Dirección al CRUD de clientes.
--   **Matriz de Resumen Ejecutivo:** Se creó y añadió una tabla de resumen en la UI y en el PDF de la cotización.
--   **Reestructuración del Módulo de Cotizaciones:** Se dividió el módulo en dos pestañas: Implementaciones (flujo existente) y Equipos y Accesorios (nuevo flujo para venta de hardware), con su propia lógica de backend y frontend.
+-   **Corrección de Wizard de Equipos:** Se implementó la lógica de selección dinámica de ítems (Dispositivos -> Sub-dropdown, Accesorios -> Carga automática).
+-   **Panel de Cotizaciones Unificado:** Se unificaron las cotizaciones de Implementaciones y Equipos en una sola tabla.
+-   **Filtros Rápidos:** Se añadieron filtros funcionales por cliente, estado, categoría y fecha en el panel de cotizaciones.
+-   **Nuevo Flujo de Estados:** Se implementó un ciclo de vida de cotización más detallado (Facturada, Pagada, Entregada, etc.) con sus correspondientes acciones y notificaciones.
+-   **Módulo de Plantillas de Correo:** Se creó una UI en Configuración para que el usuario pueda definir el asunto y cuerpo de los correos automáticos.
+-   **Refactorización de Descarga de PDF (Intento de Corrección):** Se actualizó el código del frontend para usar , aunque el usuario reporta que el problema persiste.
+-   **Implementación Parcial de Modificar:** Se creó la base para la funcionalidad, pero contiene los bugs críticos que ahora son la máxima prioridad.
 
 **Earlier issues found/mentioned but not fixed**
--   El bug de la descarga de PDF (Issue 2) ha sido reportado múltiples veces y sigue sin resolverse.
--   El bug de los contadores del Dashboard (Issue 3) persiste desde sesiones anteriores.
+-   El bug de los contadores del Dashboard (Issue 4) ha sido mencionado en resúmenes anteriores pero no ha sido abordado.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La funcionalidad de descarga de PDF ha fallado repetidamente.
--   **Recurrence count**: 3+
--   **Status**: NOT STARTED
+-   **Issue recurrence in previous fork**: La funcionalidad de descarga de PDF.
+-   **Recurrence count**: 4+
+-   **Status**: IN PROGRESS
 
 **Code Architecture**
 
@@ -107,76 +310,77 @@ Future Tasks:
 - **Authentication:** JWT
 - **Email:** Resend
 - **Styling:** TailwindCSS, Shadcn/UI
-- **File I/O**: , , 
+- **File I/O**: 
 
 **key DB schema**
-- **Client:**  (se añadió )
-- **Quote:**  (se añadieron múltiples campos)
+- **Quote:** Se añadieron nuevos campos de fecha y estado para el flujo avanzado: , , , , , , , .
+- **EmailTemplate:** Nueva colección: .
+- **Config:** Modelo actualizado para  y .
 
 **changes in tech stack**
--   **Resend:** Añadido para el envío de correos electrónicos.
+- None.
 
 **All files of reference**
--   : Modificado extensamente para estandarizar importaciones, añadir el ciclo de vida de cotizaciones, la reestructuración del módulo de quotes, y la integración con Resend.
--   : Modificado drásticamente. Ahora contiene pestañas, el flujo de cotización original, un nuevo wizard para equipos (), y la lógica del menú de acciones.
--   : Componente nuevo y reutilizable para mostrar resultados de importación.
--   , , , : Actualizados para usar el nuevo sistema de importación.
--   : Actualizado para configurar el email de implementación.
+-   : Modificado para el nuevo flujo de estados, el endpoint  de cotizaciones (que causa el bug) y la lógica de plantillas de correo.
+-   : Modificado extensamente para los filtros, el nuevo menú de acciones, la lógica de descarga de PDF y la funcionalidad de Modificar (fuente de los bugs actuales).
+-   : Actualizado para incluir el componente de gestión de plantillas de correo.
+-   : Nuevo componente para la UI de edición de plantillas.
 
 **Areas that need refactoring**:
--   ** (CRÍTICO):** Este componente es ahora un monstruo de complejidad. Gestiona dos flujos de trabajo completamente diferentes, múltiples estados, un wizard anidado y una lista. Debe ser descompuesto en subcomponentes (, , ,  como archivo separado) para ser mantenible.
--   ** (ALTA PRIORIDAD):** Sigue siendo un monolito que crece con cada feature, dificultando su mantenimiento y escalabilidad.
+-   ** (CRÍTICO):** La complejidad de este componente es la causa raíz de los bugs actuales en la función Modificar. Es extremadamente propenso a errores y difícil de mantener. Su descomposición es una alta prioridad técnica.
+-   ** (ALTA PRIORIDAD):** Sigue siendo un monolito que dificulta la escalabilidad y el mantenimiento.
 
 **key api endpoints**
-- : Envía email al cliente.
-- : Cambia el estado a Aprobada.
-- : Envía email al equipo de implementación.
-- : Endpoint actualizado para manejar  ('implementation' o 'equipment').
-- : Genera el PDF para cotizaciones de equipos.
-- : Guarda el email del equipo de implementación.
+-   : **(CAUSA DEL BUG)** Endpoint que sobrescribe una cotización. Debe dejar de usarse en el flujo Modificar.
+-   , , : Nuevos endpoints para el ciclo de vida de la cotización.
+-   , : Endpoints para el nuevo gestor de plantillas.
 
 **Critical Info for New Agent**
 -   **Idioma:** Toda la comunicación con el usuario debe ser en **español**.
--   **Prioridad Inmediata (P0):** Solucionar el bug del selector de ítems en el módulo Equipos y Accesorios. Es un bloqueador para una funcionalidad recién entregada.
--   **Prioridad Alta (P1):** Resolver de una vez por todas el bug recurrente de la descarga de PDF. Es una funcionalidad crítica para el usuario.
--   **Riesgo Técnico:** La complejidad de  es un riesgo técnico mayor. Cualquier cambio en este archivo es propenso a introducir nuevos bugs. Se recomienda planificar su refactorización.
+-   **Prioridad Inmediata (P0):** Arreglar la funcionalidad de **Modificar Cotización**. Debe crear una nueva versión (), no sobrescribir la existente (), y debe precargar **todos** los datos del original, incluyendo cantidades de cajas y bancos.
+-   **Prioridad Alta (P1):** Solucionar de forma definitiva el bug recurrente de la **descarga de PDF**. Las pruebas del agente no son suficientes; se requiere una depuración más profunda para entender por qué falla en el entorno del usuario.
+-   **Complejidad del Código:** Ten extrema precaución al editar . Los bugs actuales son el resultado directo de su alta complejidad y del mal manejo del estado.
 
 **documents and test reports created in this job**
--    (actualizado continuamente)
--    (múltiples reportes generados)
+-   
+-   
+-   
+-    (especificación de plantillas de correo)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User Req**: Reporte de un bug: el selector de ítems en el nuevo módulo de Equipos no funciona. (EN PROGRESO)
-2.  **User Req**: Reestructurar el módulo de cotizaciones en Implementaciones y Equipos y Accesorios. (HECHO)
-3.  **User Req**: Eliminar los Conceptos Base del Resumen Ejecutivo. (HECHO)
-4.  **User Feedback**: Recordatorio de que el Resumen Ejecutivo también debe estar en el PDF. (HECHO)
-5.  **User Req**: Implementar una matriz de Resumen Ejecutivo y añadir el campo Dirección a Clientes. (HECHO)
-6.  **User Req**: Solucionar el bug de las tarifas de Otros Recurrentes que muestran /bin/bash.00. (HECHO)
-7.  **User Req**: Implementar un menú de acciones y ciclo de vida para las cotizaciones. (HECHO)
-8.  **User Req**: Añadir campos de Integrador, Pinpad y Entidad Patrocinadora a la cotización. (HECHO)
-9.  **User Req**: Estandarizar todos los procesos de importación. (HECHO)
-10. **User Req**: Crear un módulo de Gestión de Integradores. (HECHO)
+1.  **User Req:** Reporte de error en Modificar: no carga todos los datos y sobrescribe el original.
+2.  **User Req:** Reporte de que la sección de configuración de Resend no está visible.
+3.  **Agent Action:** Finaliza la implementación anterior y la marca como exitosa.
+4.  **User Req:** Proporciona feedback detallado sobre la falla en Modificar Cotización (los datos no se cargan bien).
+5.  **Agent Action:** Intenta corregir la carga de datos en el modo de edición y vuelve a probar.
+6.  **User Req:** Solicita habilitar la acción Modificar, crear un módulo de plantillas de correo y configurar Resend.
+7.  **Agent Action:** Implementa el nuevo flujo de estados y la descarga de PDF con .
+8.  **User Req:** Aclara la lógica del flujo de estados para equipos (notificar a almacén cuando está Pagada).
+9.  **User Req:** Reporta que la descarga de PDF sigue sin funcionar y solicita continuar con el nuevo flujo de estados.
+10. **User Req:** Proporciona un archivo  con los requerimientos para el nuevo manejo de estatus de cotizaciones.
 
 **Project Health Check:**
--   **Broken**: La nueva funcionalidad de cotización de Equipos y Accesorios está bloqueada por un bug. La funcionalidad crítica de exportación a PDF sigue sin funcionar.
--   **Mocked**: Ninguno.
+-   **Broken**: La funcionalidad Modificar Cotización y la descarga de PDF están rotas desde la perspectiva del usuario.
+-   **Mocked**: None.
 
 **3rd Party Integrations**
 -   , : Autenticación JWT.
--   , : Importación/exportación de archivos.
+-   , : Importación de archivos.
 -   : Generación de PDF.
 -   : Subida de archivos.
 -   **Resend**: Envío de correos transaccionales.
 
 **Testing status**
--   Testing agent used after significant changes: YES. El agente de pruebas se utilizó sistemáticamente después de cada entrega de funcionalidad importante, lo que ayudó a validar cambios complejos y detectar bugs.
+-   Testing agent used after significant changes: YES. Sin embargo, las últimas pruebas exitosas del agente fueron invalidadas por el reporte de bugs inmediato del usuario, lo que sugiere que los escenarios de prueba no son completos o no replican el entorno/flujo del usuario.
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: []
--   Known regressions: La funcionalidad de descarga de PDF.
+-   Known regressions: La descarga de PDF y la funcionalidad de Modificar Cotización (regresión sobre una feature recién implementada).
 
 **Credentials to test flow:**
-No hay credenciales predefinidas. Es necesario registrar un nuevo usuario. Para probar las funcionalidades, se deben crear datos de prueba (Clientes, Bancos, Dispositivos, etc.) a través de la UI o la base de datos.
+No hay credenciales predefinidas. Es necesario registrar un nuevo usuario y crear datos de prueba (Clientes, Bancos, Dispositivos, etc.) a través de la UI para poder probar los flujos.
 
 **What agent forgot to execute**
--   El agente olvidó incluir el Resumen Ejecutivo en el PDF en su primera implementación, pero lo corrigió rápidamente tras el feedback del usuario.
--   No se han abordado los bugs persistentes de la descarga de PDF y los contadores del dashboard, que fueron heredados de la sesión anterior.</analysis>
+-   El agente implementó incorrectamente la lógica de Modificar, usando  (sobrescribir) en lugar de  (crear nueva versión).
+-   El agente no mapeó correctamente todos los campos de datos (cantidades) al precargar una cotización para modificarla.
+-   El agente olvidó implementar la sección de configuración del motor de correos (Resend/SMTP) que el usuario solicitó, enfocándose solo en las plantillas.
+-   No se ha abordado el bug persistente de los contadores del dashboard.</analysis>
