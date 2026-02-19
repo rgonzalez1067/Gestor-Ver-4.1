@@ -1029,37 +1029,62 @@ export const Quotes = () => {
       
       <main className="flex-1 p-8" data-testid="quotes-page">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-6">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizaciones</h1>
               <p className="text-slate-600">Genere cotizaciones profesionales para sus clientes</p>
             </div>
-            
-            <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
-              <Plus size={20} className="mr-2" />
-              Nueva Cotización
-            </Button>
           </div>
 
-          {/* Tabla de cotizaciones existentes */}
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
-                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {quotes.map((quote) => {
-                  const client = clients.find(c => c.client_id === quote.client_id);
-                  const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
-                  const isLoading = actionLoading === quote.quote_id;
+          {/* Pestañas de Implementaciones y Equipos */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex justify-between items-center mb-6">
+              <TabsList className="bg-slate-100">
+                <TabsTrigger value="implementation" className="data-[state=active]:bg-white" data-testid="tab-implementation">
+                  <Settings2 size={16} className="mr-2" />
+                  Implementaciones
+                </TabsTrigger>
+                <TabsTrigger value="equipment" className="data-[state=active]:bg-white" data-testid="tab-equipment">
+                  <Package size={16} className="mr-2" />
+                  Equipos y Accesorios
+                </TabsTrigger>
+              </TabsList>
+              
+              {/* Botón de nueva cotización según pestaña activa */}
+              {activeTab === 'implementation' ? (
+                <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                  <Plus size={20} className="mr-2" />
+                  Nueva Implementación
+                </Button>
+              ) : (
+                <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
+                  <Plus size={20} className="mr-2" />
+                  Nueva Cotización de Equipos
+                </Button>
+              )}
+            </div>
+
+            {/* Contenido de Implementaciones */}
+            <TabsContent value="implementation" className="mt-0">
+              {/* Tabla de cotizaciones de implementación */}
+              <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
+                      <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
+                      <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {quotes.filter(q => q.quote_category !== 'equipment').map((quote) => {
+                      const client = clients.find(c => c.client_id === quote.client_id);
+                      const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
+                      const isLoading = actionLoading === quote.quote_id;
                   
                   return (
                     <tr key={quote.quote_id} className="hover:bg-slate-50">
