@@ -2399,43 +2399,43 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
             client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
             
-            # Preparar lista de items
+            # Preparar lista de items como tabla HTML
             equipment_items = quote.get('equipment_items', [])
-            items_html = ""
+            items_html = """<table style="border-collapse: collapse; width: 100%; max-width: 400px;">
+                <thead>
+                    <tr style="background: #f3f4f6;">
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Producto</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody>"""
             for item in equipment_items:
                 items_html += f"<tr><td style='padding: 8px; border: 1px solid #ddd;'>{item.get('name', 'N/A')}</td><td style='padding: 8px; border: 1px solid #ddd; text-align: center;'>{item.get('quantity', 1)}</td></tr>"
+            items_html += "</tbody></table>"
+            
+            # Obtener plantilla
+            template = await db.email_templates.find_one({"template_id": "warehouse"}, {"_id": 0})
+            if not template:
+                template = DEFAULT_EMAIL_TEMPLATES["warehouse"]
+            
+            # Preparar variables
+            template_vars = {
+                "quote_number": quote.get('quote_number', ''),
+                "client_name": client_name,
+                "client_rif": client.get('rif', 'N/A') if client else 'N/A',
+                "client_address": client.get('address', 'N/A') if client else 'N/A',
+                "items_table": items_html
+            }
+            
+            subject = render_email_template(template["subject"], template_vars)
+            html_content = render_email_template(template["body_html"], template_vars)
             
             try:
                 params = {
                     "from": SENDER_EMAIL,
                     "to": [warehouse_email],
-                    "subject": f"[ALMACÉN] Pedido Pagado - Cotización #{quote.get('quote_number', '')} - {client_name}",
-                    "html": f"""
-                    <html><body style="font-family: Arial, sans-serif;">
-                        <h2 style="color: #f59e0b;">Pedido Listo para Preparar</h2>
-                        <p>La cotización <strong>#{quote.get('quote_number', '')}</strong> ha sido pagada y está lista para preparar.</p>
-                        
-                        <h3>Datos del Cliente:</h3>
-                        <p><strong>Cliente:</strong> {client_name}</p>
-                        <p><strong>RIF:</strong> {client.get('rif', 'N/A') if client else 'N/A'}</p>
-                        <p><strong>Dirección:</strong> {client.get('address', 'N/A') if client else 'N/A'}</p>
-                        
-                        <h3>Items a Despachar:</h3>
-                        <table style="border-collapse: collapse; width: 100%; max-width: 400px;">
-                            <thead>
-                                <tr style="background: #f3f4f6;">
-                                    <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Producto</th>
-                                    <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Cantidad</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {items_html}
-                            </tbody>
-                        </table>
-                        
-                        <p style="margin-top: 20px; color: #6b7280; font-size: 12px;">Este es un mensaje automático del sistema de cotizaciones.</p>
-                    </body></html>
-                    """
+                    "subject": subject,
+                    "html": html_content
                 }
                 await asyncio.to_thread(resend.Emails.send, params)
             except Exception as e:
