@@ -49,8 +49,36 @@ export const Settings = () => {
       setImplementationEmail(response.data.implementation_email || '');
       setAdminEmail(response.data.admin_email || '');
       setWarehouseEmail(response.data.warehouse_email || '');
+      setResendApiKeyConfigured(response.data.resend_api_key_configured || false);
+      setResendApiKeyMasked(response.data.resend_api_key_masked || '');
     } catch (error) {
       console.error('Error fetching settings:', error);
+    }
+  };
+
+  const handleSaveResendKey = async () => {
+    if (!resendApiKey.trim()) {
+      toast.error('Por favor ingrese una API Key válida');
+      return;
+    }
+    
+    setSavingResendKey(true);
+    try {
+      await api.put('/config/settings', { 
+        implementation_email: implementationEmail || null,
+        admin_email: adminEmail || null,
+        warehouse_email: warehouseEmail || null,
+        resend_api_key: resendApiKey
+      });
+      setResendApiKeyConfigured(true);
+      setResendApiKeyMasked(`${'*'.repeat(resendApiKey.length - 4)}${resendApiKey.slice(-4)}`);
+      setResendApiKey(''); // Limpiar el campo
+      setShowResendKey(false);
+      toast.success('API Key de Resend configurada correctamente');
+    } catch (error) {
+      toast.error('Error al guardar la API Key');
+    } finally {
+      setSavingResendKey(false);
     }
   };
 
