@@ -2680,6 +2680,8 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
 
 class AppSettings(BaseModel):
     implementation_email: Optional[EmailStr] = None
+    admin_email: Optional[EmailStr] = None  # NUEVO: Correo de Administración
+    warehouse_email: Optional[EmailStr] = None  # NUEVO: Correo de Almacén
 
 @api_router.get("/config/settings")
 async def get_app_settings(authorization: Optional[str] = Header(None)):
@@ -2688,8 +2690,12 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     if not config:
-        return {"implementation_email": None}
-    return {"implementation_email": config.get("implementation_email")}
+        return {"implementation_email": None, "admin_email": None, "warehouse_email": None}
+    return {
+        "implementation_email": config.get("implementation_email"),
+        "admin_email": config.get("admin_email"),
+        "warehouse_email": config.get("warehouse_email")
+    }
 
 @api_router.put("/config/settings")
 async def update_app_settings(settings: AppSettings, authorization: Optional[str] = Header(None)):
@@ -2701,12 +2707,19 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
         {"$set": {
             "type": "app_settings",
             "implementation_email": settings.implementation_email,
+            "admin_email": settings.admin_email,
+            "warehouse_email": settings.warehouse_email,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }},
         upsert=True
     )
     
-    return {"message": "Configuración actualizada", "implementation_email": settings.implementation_email}
+    return {
+        "message": "Configuración actualizada",
+        "implementation_email": settings.implementation_email,
+        "admin_email": settings.admin_email,
+        "warehouse_email": settings.warehouse_email
+    }
 
 @api_router.post("/config/logo")
 async def upload_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
