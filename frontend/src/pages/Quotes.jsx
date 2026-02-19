@@ -1145,7 +1145,6 @@ export const Quotes = () => {
     
     // Abrir el wizard
     setWizardOpen(true);
-    setWizardStep(1); // Empezar desde el paso 1
     
     toast.info(`Editando cotización ${quote.quote_number}. Al guardar se creará una nueva versión.`);
   };
