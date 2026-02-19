@@ -2104,6 +2104,26 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     if not client_email or client_email == 'sin@email.com':
         raise HTTPException(status_code=400, detail="El cliente no tiene un email de contacto válido")
     
+    # Obtener plantilla de correo
+    template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
+    if not template:
+        template = DEFAULT_EMAIL_TEMPLATES["quote_sent"]
+    
+    # Preparar variables para la plantilla
+    client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
+    template_vars = {
+        "quote_number": quote.get('quote_number', ''),
+        "client_name": client_name,
+        "client_rif": client.get('rif', 'N/A'),
+        "quote_type": quote.get('quote_type', 'N/A'),
+        "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "company_name": "Merchant Server"
+    }
+    
+    # Renderizar plantilla
+    subject = render_email_template(template["subject"], template_vars)
+    html_content = render_email_template(template["body_html"], template_vars)
+    
     # Verificar configuración de Resend
     if not RESEND_AVAILABLE or not RESEND_API_KEY:
         # Simular envío si no hay API key
@@ -2111,7 +2131,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
             {"quote_id": quote_id},
             {"$set": {
                 "sent_to_client_at": datetime.now(timezone.utc).isoformat(),
-                "quote_status": "Emitida"
+                "quote_status": "Enviada"
             }}
         )
         return {
@@ -2123,26 +2143,6 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     # Generar PDF en memoria
     pdf_buffer = await generate_quote_pdf_buffer(quote, client)
     pdf_base64 = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
-    
-    # Preparar email
-    client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
-    subject = f"Cotización #{quote.get('quote_number', '')} - Merchant Server"
-    
-    html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #1a56db;">Cotización #{quote.get('quote_number', '')}</h2>
-        <p>Estimado(a) <strong>{client_name}</strong>,</p>
-        <p>Adjunto encontrará la cotización solicitada con los detalles de los servicios y productos.</p>
-        <table style="margin: 20px 0; border-collapse: collapse;">
-            <tr><td style="padding: 5px 15px 5px 0; font-weight: bold;">Tipo de Servicio:</td><td>{quote.get('quote_type', 'N/A')}</td></tr>
-            <tr><td style="padding: 5px 15px 5px 0; font-weight: bold;">Total USD:</td><td>${quote.get('total_usd', 0):.2f}</td></tr>
-        </table>
-        <p>Quedamos atentos a cualquier consulta.</p>
-        <p style="margin-top: 30px;">Saludos cordiales,<br><strong>Equipo Merchant Server</strong></p>
-    </body>
-    </html>
-    """
     
     try:
         params = {
@@ -2163,7 +2163,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
             {"quote_id": quote_id},
             {"$set": {
                 "sent_to_client_at": datetime.now(timezone.utc).isoformat(),
-                "quote_status": "Emitida"
+                "quote_status": "Enviada"
             }}
         )
         
