@@ -461,6 +461,10 @@ export const Quotes = () => {
   };
 
   const openWizard = () => {
+    // Resetear modo edición si estaba activo
+    setIsEditing(false);
+    setEditingQuoteId(null);
+    
     setWizardOpen(true);
     setQuoteData({
       quote_type: '',
