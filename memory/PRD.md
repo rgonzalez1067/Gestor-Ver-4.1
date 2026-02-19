@@ -709,7 +709,11 @@ Sistema completo de plantillas de correo personalizables y corrección de la fun
 **Comportamiento anterior:** Solo creaba una copia sin permitir edición.
 
 **Comportamiento actual:**
-1. Abre el wizard con los datos de la cotización precargados
+1. Abre el wizard con los datos de la cotización precargados:
+   - Cliente seleccionado
+   - Tipo de cotización
+   - Modelo de precios
+   - **Items de setup, recurring_basic, recurring_other y additional** ✅
 2. Permite modificar cualquier campo
 3. Al guardar, crea una nueva versión con:
    - Nuevo número correlativo (COT-YYYY-NNN)
@@ -717,6 +721,10 @@ Sistema completo de plantillas de correo personalizables y corrección de la fun
    - Campo `parent_quote_id` apuntando a la original
    - Estado inicial: **Borrador**
 4. La cotización original permanece intacta
+
+**Bugs corregidos (Iteración 20):**
+- `mapService`: Ahora mapea `item_name` → `medio_pago_name` y `unit_price_usd` → `tarifa`
+- `canShowItems`: Nueva condición que permite mostrar items en modo edición sin requerir integrator/pinpad/sponsor
 
 **Endpoint nuevo:** `PUT /api/quotes/{quote_id}` - Solo permite actualizar cotizaciones en estado Borrador.
 
