@@ -97,6 +97,12 @@ export const Quotes = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
   
+  // Estados para el modal de factura
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceQuoteId, setInvoiceQuoteId] = useState(null);
+  const [invoiceFile, setInvoiceFile] = useState(null);
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  
   // Estados para filtros rápidos
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
