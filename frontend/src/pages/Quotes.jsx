@@ -875,11 +875,14 @@ export const Quotes = () => {
       if (!contentType || !contentType.includes('application/pdf')) {
         toast.dismiss();
         toast.error('El servidor no devolvió un PDF válido');
+        console.error('Content-Type recibido:', contentType);
         return;
       }
       
       // Obtener el blob
       const blob = await response.blob();
+      
+      console.log('PDF blob recibido:', { size: blob.size, type: blob.type });
       
       if (blob.size === 0) {
         toast.dismiss();
@@ -897,32 +900,63 @@ export const Quotes = () => {
         }
       }
       
-      // Crear URL del blob y descargar
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      // Crear elemento de descarga
-      const downloadLink = document.createElement('a');
-      downloadLink.href = blobUrl;
-      downloadLink.download = filename;
-      downloadLink.style.display = 'none';
-      
-      // Añadir al DOM, hacer clic y remover
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      
-      // Limpiar después de un pequeño delay
-      setTimeout(() => {
-        if (downloadLink.parentNode) {
-          document.body.removeChild(downloadLink);
-        }
-        window.URL.revokeObjectURL(blobUrl);
-      }, 250);
-      
       toast.dismiss();
-      toast.success('PDF descargado exitosamente');
+      
+      // Método 1: Intentar descarga directa usando saveAs pattern
+      try {
+        // Crear URL del blob
+        const blobUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        
+        // Crear elemento de descarga
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.download = filename;
+        downloadLink.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+        
+        // Añadir al DOM
+        document.body.appendChild(downloadLink);
+        
+        // Simular click
+        downloadLink.click();
+        
+        // Limpiar después de un delay
+        setTimeout(() => {
+          document.body.removeChild(downloadLink);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
+        
+        toast.success('PDF descargado exitosamente');
+      } catch (downloadError) {
+        console.error('Error en descarga directa:', downloadError);
+        
+        // Método 2: Fallback - Abrir en nueva pestaña
+        const blobUrl = window.URL.createObjectURL(blob);
+        const newWindow = window.open(blobUrl, '_blank');
+        
+        if (newWindow) {
+          toast.success('PDF abierto en nueva pestaña. Use Ctrl+S para guardar.');
+        } else {
+          // Método 3: Crear iframe invisible como último recurso
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = blobUrl;
+          document.body.appendChild(iframe);
+          
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.URL.revokeObjectURL(blobUrl);
+          }, 5000);
+          
+          toast.info('Si la descarga no inició, verifique su bloqueador de pop-ups');
+        }
+      }
       
     } catch (error) {
       toast.dismiss();
+      console.error('Error downloading PDF:', error);
+      toast.error('Error al descargar el PDF. Verifique su conexión.');
+    }
+  };
       console.error('Error downloading PDF:', error);
       toast.error('Error al descargar el PDF. Verifique su conexión.');
     }
