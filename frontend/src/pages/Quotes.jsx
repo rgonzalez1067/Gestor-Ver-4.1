@@ -2163,6 +2163,15 @@ export const Quotes = () => {
               )}
             </DialogContent>
           </Dialog>
+
+          {/* Wizard de Equipos y Accesorios */}
+          <EquipmentQuoteWizard
+            open={equipmentWizardOpen}
+            onClose={() => setEquipmentWizardOpen(false)}
+            onQuoteCreated={fetchData}
+            clients={clients}
+            hardware={allHardware}
+          />
         </div>
       </main>
     </div>
