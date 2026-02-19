@@ -3072,17 +3072,28 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
 @api_router.put("/config/settings")
 async def update_app_settings(settings: AppSettings, authorization: Optional[str] = Header(None)):
     """Actualiza la configuración general de la aplicación"""
+    global RESEND_API_KEY
     await get_current_user(authorization)
+    
+    update_data = {
+        "type": "app_settings",
+        "implementation_email": settings.implementation_email,
+        "admin_email": settings.admin_email,
+        "warehouse_email": settings.warehouse_email,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Solo actualizar resend_api_key si se proporciona un valor
+    if settings.resend_api_key:
+        update_data["resend_api_key"] = settings.resend_api_key
+        # Actualizar la variable global y configurar Resend
+        RESEND_API_KEY = settings.resend_api_key
+        if RESEND_AVAILABLE:
+            resend.api_key = settings.resend_api_key
     
     await db.config.update_one(
         {"type": "app_settings"},
-        {"$set": {
-            "type": "app_settings",
-            "implementation_email": settings.implementation_email,
-            "admin_email": settings.admin_email,
-            "warehouse_email": settings.warehouse_email,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }},
+        {"$set": update_data},
         upsert=True
     )
     
@@ -3090,7 +3101,8 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
         "message": "Configuración actualizada",
         "implementation_email": settings.implementation_email,
         "admin_email": settings.admin_email,
-        "warehouse_email": settings.warehouse_email
+        "warehouse_email": settings.warehouse_email,
+        "resend_api_key_configured": bool(settings.resend_api_key)
     }
 
 @api_router.post("/config/logo")
