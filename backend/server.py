@@ -2320,7 +2320,7 @@ async def invoice_quote(
     
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
     
-    # Enviar notificación a administración
+    # Enviar notificación a administración usando plantilla
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     admin_email = config.get('admin_email') if config else None
     
@@ -2328,19 +2328,33 @@ async def invoice_quote(
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
         client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
         
+        # Obtener plantilla
+        template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
+        if not template:
+            template = DEFAULT_EMAIL_TEMPLATES["invoice"]
+        
+        # Preparar variables
+        template_vars = {
+            "quote_number": quote.get('quote_number', ''),
+            "client_name": client_name,
+            "client_rif": client.get('rif', 'N/A') if client else 'N/A',
+            "invoice_number": invoice_number or 'No especificado',
+            "total_usd": f"{quote.get('total_usd', 0):.2f}"
+        }
+        
+        subject = render_email_template(template["subject"], template_vars)
+        html_content = render_email_template(template["body_html"], template_vars)
+        
         try:
             params = {
                 "from": SENDER_EMAIL,
                 "to": [admin_email],
-                "subject": f"[FACTURADA] Cotización #{quote.get('quote_number', '')} - {client_name}",
-                "html": f"""
-                <html><body style="font-family: Arial, sans-serif;">
-                    <h2 style="color: #2563eb;">Cotización Facturada</h2>
-                    <p>La cotización <strong>#{quote.get('quote_number', '')}</strong> para <strong>{client_name}</strong> ha sido facturada.</p>
-                    <p>Número de Factura: <strong>{invoice_number or 'No especificado'}</strong></p>
-                    <p>Total: <strong>${quote.get('total_usd', 0):.2f}</strong></p>
-                </body></html>
-                """
+                "subject": subject,
+                "html": html_content,
+                "attachments": [{
+                    "filename": f"factura_{invoice_number or quote_id}.pdf",
+                    "content": base64.b64encode(content).decode('utf-8')
+                }]
             }
             await asyncio.to_thread(resend.Emails.send, params)
         except Exception as e:
