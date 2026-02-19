@@ -3043,6 +3043,7 @@ class AppSettings(BaseModel):
     implementation_email: Optional[EmailStr] = None
     admin_email: Optional[EmailStr] = None  # NUEVO: Correo de Administración
     warehouse_email: Optional[EmailStr] = None  # NUEVO: Correo de Almacén
+    resend_api_key: Optional[str] = None  # NUEVO: API Key de Resend
 
 @api_router.get("/config/settings")
 async def get_app_settings(authorization: Optional[str] = Header(None)):
@@ -3051,11 +3052,21 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     if not config:
-        return {"implementation_email": None, "admin_email": None, "warehouse_email": None}
+        return {"implementation_email": None, "admin_email": None, "warehouse_email": None, "resend_api_key_configured": False}
+    
+    # No devolver la API key completa por seguridad, solo indicar si está configurada
+    resend_key = config.get("resend_api_key")
+    resend_key_masked = None
+    if resend_key:
+        # Mostrar solo los últimos 4 caracteres
+        resend_key_masked = f"{'*' * (len(resend_key) - 4)}{resend_key[-4:]}" if len(resend_key) > 4 else "****"
+    
     return {
         "implementation_email": config.get("implementation_email"),
         "admin_email": config.get("admin_email"),
-        "warehouse_email": config.get("warehouse_email")
+        "warehouse_email": config.get("warehouse_email"),
+        "resend_api_key_configured": bool(resend_key),
+        "resend_api_key_masked": resend_key_masked
     }
 
 @api_router.put("/config/settings")
