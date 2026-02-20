@@ -84,7 +84,7 @@ export const Integrators = () => {
   };
 
   const handleDelete = async (integratorId) => {
-    if (!window.confirm('¿Está seguro de eliminar este integrador?')) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este Integrador de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
 
     try {
       await api.delete(`/integrators/${integratorId}`);

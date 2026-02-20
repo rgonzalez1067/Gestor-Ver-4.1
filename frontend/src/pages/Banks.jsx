@@ -82,7 +82,7 @@ export const Banks = () => {
   };
 
   const handleDelete = async (bankId) => {
-    if (!window.confirm('¿Está seguro de eliminar este banco?')) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este Banco de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
     
     try {
       await api.delete(`/banks/${bankId}`);

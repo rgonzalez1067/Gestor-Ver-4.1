@@ -66,7 +66,7 @@ export const Clients = () => {
   };
 
   const handleDelete = async (clientId) => {
-    if (!window.confirm('¿Está seguro de eliminar este cliente?')) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este Cliente de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
     
     try {
       await api.delete(`/clients/${clientId}`);

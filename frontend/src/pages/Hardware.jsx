@@ -74,7 +74,7 @@ export const Hardware = () => {
   };
 
   const handleDelete = async (hardwareId) => {
-    if (!window.confirm('¿Está seguro de eliminar este dispositivo?')) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este Dispositivo de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
     
     try {
       await api.delete(`/hardware/${hardwareId}`);

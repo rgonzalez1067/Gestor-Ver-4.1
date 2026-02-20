@@ -120,7 +120,7 @@ export const MediosPago = () => {
   };
 
   const handleDelete = async (serviceId) => {
-    if (!window.confirm('¿Está seguro de eliminar este medio de pago?')) return;
+    if (!window.confirm('¿Está seguro de que desea eliminar este Medio de Pago de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
     
     try {
       await api.delete(`/services/${serviceId}`);
