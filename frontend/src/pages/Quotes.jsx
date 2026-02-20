@@ -1887,12 +1887,16 @@ export const Quotes = () => {
                               
                               {/* Cobrar - Facturada -> Pagada */}
                               <DropdownMenuItem 
-                                onClick={() => handleCollectQuote(quote.quote_id)}
+                                onClick={() => {
+                                  console.log('CLICK COBRAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
+                                  handleCollectQuote(quote.quote_id);
+                                }}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Facturada'}
                               >
                                 <Banknote size={16} className="mr-2 text-emerald-500" />
                                 Cobrar
+                                {quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">●</span>}
                               </DropdownMenuItem>
                               
                               <DropdownMenuSeparator />
