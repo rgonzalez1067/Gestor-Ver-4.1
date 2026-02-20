@@ -1155,30 +1155,47 @@ export const Quotes = () => {
 
   // Eliminar cotización (función de mantenimiento - disponible en cualquier estado)
   const handleDeleteQuote = async (quoteId, quoteNumber) => {
-    console.log('handleDeleteQuote llamado:', { quoteId, quoteNumber });
+    console.log('🗑️ handleDeleteQuote llamado:', { quoteId, quoteNumber });
     
     if (!window.confirm(`¿Está seguro de eliminar la cotización ${quoteNumber}?\n\nEsta acción no se puede deshacer.`)) {
-      console.log('Usuario canceló la eliminación');
+      console.log('❌ Usuario canceló la eliminación');
       return;
     }
     
-    console.log('Usuario confirmó, procediendo a eliminar...');
+    console.log('✅ Usuario confirmó, procediendo a eliminar...');
     setActionLoading(quoteId);
     
     try {
-      console.log('Enviando DELETE request a:', `/quotes/${quoteId}`);
+      console.log('📤 Enviando DELETE request a:', `/quotes/${quoteId}`);
       const response = await api.delete(`/quotes/${quoteId}`);
-      console.log('Respuesta DELETE:', response.data);
+      console.log('✅ Respuesta DELETE:', response.data);
       toast.success(`Cotización ${quoteNumber} eliminada exitosamente`);
       // Refrescar la lista inmediatamente
+      console.log('🔄 Refrescando lista...');
       await fetchData();
-      console.log('Lista refrescada');
+      console.log('✅ Lista refrescada');
     } catch (error) {
-      console.error('Error completo:', error);
-      console.error('Error response:', error.response);
-      console.error('Error status:', error.response?.status);
-      console.error('Error data:', error.response?.data);
-      toast.error(error.response?.data?.detail || 'Error al eliminar la cotización');
+      console.error('❌ Error completo:', error);
+      console.error('❌ Error response:', error.response);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error data:', error.response?.data);
+      
+      // Mensaje de error más descriptivo
+      let errorMessage = 'Error al eliminar la cotización';
+      if (error.response?.status === 401) {
+        errorMessage = 'Sesión expirada. Por favor, vuelva a iniciar sesión.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'La cotización ya no existe o fue eliminada.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (!navigator.onLine) {
+        errorMessage = 'Sin conexión a internet. Verifique su conexión.';
+      }
+      
+      toast.error(errorMessage);
+      
+      // Mostrar alerta adicional para el usuario
+      alert(`Error al eliminar cotización:\n\n${errorMessage}\n\nSi el problema persiste, intente:\n1. Recargar la página (F5)\n2. Cerrar sesión y volver a iniciar\n3. Limpiar caché del navegador`);
     } finally {
       setActionLoading(null);
     }
