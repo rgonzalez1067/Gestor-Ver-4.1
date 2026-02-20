@@ -388,33 +388,25 @@ class SessionData(BaseModel):
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     session_token = None
     
-    print(f"[AUTH] Authorization header: {authorization[:50] if authorization else 'None'}...")
-    
     if authorization and authorization.startswith("Bearer "):
         session_token = authorization.replace("Bearer ", "")
-    
-    print(f"[AUTH] Session token: {session_token}")
     
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     session_doc = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
-    print(f"[AUTH] Session doc found: {session_doc is not None}")
-    
     if not session_doc:
-        # Debug: ver qué sesiones hay
-        all_sessions = await db.user_sessions.find({}, {"session_token": 1, "_id": 0}).to_list(10)
-        print(f"[AUTH] All sessions in DB: {[s.get('session_token')[:20] for s in all_sessions]}")
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    expires_at = session_doc["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
+    expires_at = session_doc.get("expires_at")
+    if expires_at:
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
     
     user_doc = await db.users.find_one({"user_id": session_doc["user_id"]}, {"_id": 0})
     if not user_doc:
