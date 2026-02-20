@@ -1201,14 +1201,20 @@ export const Quotes = () => {
     }
   };
 
-  // Aprobar cotización
+  // Aprobar cotización - Envía notificación a Administración
   const handleApproveQuote = async (quoteId) => {
-    if (!window.confirm('¿Confirma que desea aprobar esta cotización?')) return;
+    if (!window.confirm('¿Confirma que desea aprobar esta cotización?\n\nSe enviará una notificación por email al área de Administración.')) return;
     
     setActionLoading(quoteId);
     try {
-      await api.put(`/quotes/${quoteId}/status`, { new_status: 'Aprobada' });
-      toast.success('Cotización aprobada exitosamente');
+      const response = await api.post(`/quotes/${quoteId}/approve`);
+      const adminNotified = response.data.admin_notified;
+      if (adminNotified) {
+        toast.success(`Cotización aprobada. Notificación enviada a ${response.data.admin_email}`);
+      } else {
+        toast.success('Cotización aprobada exitosamente');
+        toast.info('No se pudo enviar notificación a Administración (revisar configuración de correos)');
+      }
       fetchData();
     } catch (error) {
       console.error('Error approving quote:', error);
