@@ -2569,17 +2569,15 @@ export const Quotes = () => {
                               ${calcularTotal(item).toFixed(2)}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              {item.isAutoLinked && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removeRecurringBasicItem(index)}
-                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 size={14} />
-                                </Button>
-                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeRecurringBasicItem(index)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
                             </td>
                           </tr>
                         ))}
