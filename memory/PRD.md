@@ -65,15 +65,19 @@ Registros actualizados:
 ## Backlog
 
 ### P2 - Media Prioridad
-- [ ] Contadores del Dashboard
-- [ ] Refactorización del código
+- [ ] Contadores del Dashboard (Issue recurrente - no abordado aún)
+- [ ] Refactorización del backend (dividir `server.py` en módulos)
+- [ ] Refactorización del frontend (descomponer `Quotes.jsx`)
+- [ ] Módulo de Reportes
+- [ ] Recuperación de contraseña
 
 ---
 
 ## Testing Status
-- Backend: 100% (14/14 tests) ✅
-- Test report: `/app/test_reports/iteration_26.json`
+- Backend: 100% ✅
+- Frontend: 100% ✅
+- Test report: `/app/test_reports/iteration_27.json`
 
 ---
-**Última actualización:** 20 Febrero 2026
-**Estado:** MVP Operativo - Flujo de Estados Verificado ✅
+**Última actualización:** 20 Diciembre 2025
+**Estado:** MVP Operativo - Flujo de Estados y Acciones del Menú Verificados ✅
