@@ -654,17 +654,44 @@ export const Quotes = () => {
     toast.success('Concepto duplicado');
   };
 
-  // Eliminar un concepto de Setup (solo copias, no los base)
+  // Eliminar un concepto de Setup (ahora permite eliminar cualquier item)
   const removeSetupItem = (index) => {
-    const item = quoteData.setup_items[index];
-    if (item.isDefault && !item.isCopy) {
-      toast.error('Los conceptos base no se pueden eliminar');
+    // Confirmar antes de eliminar
+    if (!window.confirm('¿Está seguro de eliminar este concepto? Los totales se recalcularán automáticamente.')) {
       return;
     }
+    
     setQuoteData({
       ...quoteData,
       setup_items: quoteData.setup_items.filter((_, i) => i !== index)
     });
+    toast.success('Concepto eliminado. Los totales han sido recalculados.');
+  };
+
+  // Eliminar un concepto de Recurring Basic
+  const removeRecurringBasicItem = (index) => {
+    if (!window.confirm('¿Está seguro de eliminar este concepto? Los totales se recalcularán automáticamente.')) {
+      return;
+    }
+    
+    setQuoteData({
+      ...quoteData,
+      recurring_basic_items: quoteData.recurring_basic_items.filter((_, i) => i !== index)
+    });
+    toast.success('Concepto eliminado. Los totales han sido recalculados.');
+  };
+
+  // Eliminar un concepto de Recurring Other
+  const removeRecurringOtherItem = (index) => {
+    if (!window.confirm('¿Está seguro de eliminar este concepto? Los totales se recalcularán automáticamente.')) {
+      return;
+    }
+    
+    setQuoteData({
+      ...quoteData,
+      recurring_other_items: quoteData.recurring_other_items.filter((_, i) => i !== index)
+    });
+    toast.success('Concepto eliminado. Los totales han sido recalculados.');
   };
 
   // Actualizar campo en recurring_basic_items
