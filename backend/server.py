@@ -3455,6 +3455,28 @@ class EmailTemplate(BaseModel):
 
 # Plantillas predeterminadas
 DEFAULT_EMAIL_TEMPLATES = {
+    "quote_approved": {
+        "template_id": "quote_approved",
+        "name": "Cotización Aprobada",
+        "description": "Se envía a Administración cuando una cotización es aprobada y está lista para facturar",
+        "subject": "[APROBADA] Cotización #{quote_number} - Lista para Facturar",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #059669;">Cotización Aprobada - Lista para Facturar</h2>
+<p>La siguiente cotización ha sido <strong>APROBADA</strong> y requiere facturación:</p>
+<table style="border-collapse: collapse; margin: 20px 0;">
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cotización:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_number}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cliente:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_name}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Tipo:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_type}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${total_usd} USD</td></tr>
+</table>
+<p><strong>Acción Requerida:</strong> Por favor proceda con la facturación desde el módulo de Cotizaciones.</p>
+</body>
+</html>
+""",
+        "is_active": True
+    },
     "quote_sent": {
         "template_id": "quote_sent",
         "name": "Envío de Cotización",
