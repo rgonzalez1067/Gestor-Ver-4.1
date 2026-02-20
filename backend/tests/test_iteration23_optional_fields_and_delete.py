@@ -20,10 +20,6 @@ class TestDeleteQuoteAnyState:
         """Setup session for tests"""
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
-        # Try to get existing session token from previous tests
-        auth_response = self.session.get(f"{BASE_URL}/api/quotes")
-        if auth_response.status_code == 401:
-            pytest.skip("No valid session available - skipping authenticated tests")
         yield
         
     def get_auth_headers(self):
