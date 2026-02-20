@@ -1526,7 +1526,7 @@ export const Quotes = () => {
     quoteData.client_id && 
     quoteData.pricing_model && 
     (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
-    (isEditing || (quoteData.integrator_id && quoteData.pinpad_id && quoteData.sponsor_bank_id));
+    (isEditing || quoteData.integrator_id); // Pinpad y Entidad Patrocinadora ahora son opcionales
   
   // En modo edición, siempre mostrar los items si existen
   const canShowItems = isEditing 
