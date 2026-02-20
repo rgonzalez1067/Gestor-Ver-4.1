@@ -1839,7 +1839,7 @@ export const Quotes = () => {
                             <DropdownMenuContent align="end" className="w-56">
                               {/* Modificar - Crea nueva versión */}
                               <DropdownMenuItem 
-                                onClick={() => handleEditQuote(quote)}
+                                onSelect={() => handleEditQuote(quote)}
                                 className="cursor-pointer"
                               >
                                 <RefreshCw size={16} className="mr-2 text-slate-500" />
@@ -1850,7 +1850,7 @@ export const Quotes = () => {
                               
                               {/* Enviar al Cliente - Borrador -> Enviada */}
                               <DropdownMenuItem 
-                                onClick={() => handleSendToClient(quote.quote_id)}
+                                onSelect={() => handleSendToClient(quote.quote_id)}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Borrador'}
                               >
@@ -1877,7 +1877,7 @@ export const Quotes = () => {
                               
                               {/* Facturar - Aprobada -> Facturada */}
                               <DropdownMenuItem 
-                                onClick={() => openInvoiceModal(quote.quote_id)}
+                                onSelect={() => openInvoiceModal(quote.quote_id)}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Aprobada'}
                               >
@@ -1904,7 +1904,7 @@ export const Quotes = () => {
                               {/* Acciones finales según categoría */}
                               {isEquipment ? (
                                 <DropdownMenuItem 
-                                  onClick={() => handleDeliverQuote(quote.quote_id)}
+                                  onSelect={() => handleDeliverQuote(quote.quote_id)}
                                   className="cursor-pointer"
                                   disabled={quote.quote_status !== 'Pagada'}
                                 >
@@ -1913,7 +1913,7 @@ export const Quotes = () => {
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem 
-                                  onClick={() => handleSendToImplementation(quote.quote_id)}
+                                  onSelect={() => handleSendToImplementation(quote.quote_id)}
                                   className="cursor-pointer"
                                   disabled={quote.quote_status !== 'Pagada'}
                                 >
@@ -1926,8 +1926,8 @@ export const Quotes = () => {
                               
                               {/* Eliminar - Función de mantenimiento, disponible en cualquier estado */}
                               <DropdownMenuItem 
-                                onClick={() => {
-                                  console.log('CLICK ELIMINAR - quote_id:', quote.quote_id, 'quote_number:', quote.quote_number);
+                                onSelect={() => {
+                                  console.log('SELECT ELIMINAR - quote_id:', quote.quote_id, 'quote_number:', quote.quote_number);
                                   handleDeleteQuote(quote.quote_id, quote.quote_number);
                                 }}
                                 className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
