@@ -1519,8 +1519,13 @@ export const Quotes = () => {
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
   const selectedIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-  const selectedPinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
-  const selectedSponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+  // Campos opcionales - no buscar si el valor es "none"
+  const selectedPinpad = quoteData.pinpad_id && quoteData.pinpad_id !== 'none' 
+    ? pinpads.find(p => p.hardware_id === quoteData.pinpad_id) 
+    : null;
+  const selectedSponsorBank = quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none'
+    ? banks.find(b => b.bank_id === quoteData.sponsor_bank_id)
+    : null;
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
