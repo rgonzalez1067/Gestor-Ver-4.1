@@ -1525,19 +1525,23 @@ export const Quotes = () => {
 
   // Cobrar cotización
   const handleCollectQuote = async (quoteId) => {
-    if (!window.confirm('¿Confirma que el pago ha sido verificado?')) return;
+    if (!window.confirm('¿Confirma que el pago de esta cotización ha sido verificado?\n\nEl estado cambiará a "Pagada".')) return;
     
     setActionLoading(quoteId);
     try {
       const response = await api.post(`/quotes/${quoteId}/collect`);
-      toast.success(response.data.message);
+      toast.success(response.data.message || 'Cotización marcada como Pagada');
       if (response.data.notified_warehouse) {
         toast.info('Se ha notificado al almacén para preparar el pedido');
       }
-      fetchData();
+      await fetchData();
     } catch (error) {
       console.error('Error collecting quote:', error);
-      toast.error(error.response?.data?.detail || 'Error al cobrar');
+      if (error.response?.status === 401) {
+        toast.error('Sesión expirada. Redirigiendo al login...');
+      } else {
+        toast.error(error.response?.data?.detail || 'Error al registrar el cobro');
+      }
     } finally {
       setActionLoading(null);
     }
