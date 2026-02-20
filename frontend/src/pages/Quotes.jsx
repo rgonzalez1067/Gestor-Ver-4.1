@@ -1863,12 +1863,16 @@ export const Quotes = () => {
                               
                               {/* Aprobar - Enviada -> Aprobada */}
                               <DropdownMenuItem 
-                                onClick={() => handleApproveQuote(quote.quote_id)}
+                                onClick={() => {
+                                  console.log('CLICK APROBAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
+                                  handleApproveQuote(quote.quote_id);
+                                }}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Enviada'}
                               >
                                 <CheckCircle size={16} className="mr-2 text-green-500" />
                                 Aprobar
+                                {quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">●</span>}
                               </DropdownMenuItem>
                               
                               {/* Facturar - Aprobada -> Facturada */}
