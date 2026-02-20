@@ -1863,8 +1863,8 @@ export const Quotes = () => {
                               
                               {/* Aprobar - Enviada -> Aprobada */}
                               <DropdownMenuItem 
-                                onClick={() => {
-                                  console.log('CLICK APROBAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
+                                onSelect={() => {
+                                  console.log('SELECT APROBAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
                                   handleApproveQuote(quote.quote_id);
                                 }}
                                 className="cursor-pointer"
