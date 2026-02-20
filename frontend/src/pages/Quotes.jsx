@@ -2219,9 +2219,9 @@ export const Quotes = () => {
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-brand-blue-600" />
                     <span className="text-sm text-brand-blue-700 font-medium">
-                      Integrador: {selectedIntegrator?.name} ({quoteData.integrator_app_name}) • 
-                      Pinpad: {selectedPinpad?.name} • 
-                      Patrocinador: {selectedSponsorBank?.name}
+                      Integrador: {selectedIntegrator?.name} ({quoteData.integrator_app_name})
+                      {selectedPinpad && ` • Pinpad: ${selectedPinpad.name}`}
+                      {selectedSponsorBank && ` • Patrocinador: ${selectedSponsorBank.name}`}
                     </span>
                   </div>
                 )}
