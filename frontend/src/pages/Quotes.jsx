@@ -2161,11 +2161,11 @@ export const Quotes = () => {
                     </div>
                   </div>
 
-                  {/* Campo 2: Modelo de Pinpad */}
+                  {/* Campo 2: Modelo de Pinpad (Opcional) */}
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Cpu size={14} className="text-brand-green-600" />
-                      Modelo de Pinpad <span className="text-red-500">*</span>
+                      Modelo de Pinpad <span className="text-slate-400 text-xs font-normal">(Opcional)</span>
                     </Label>
                     <Select 
                       value={quoteData.pinpad_id} 
@@ -2175,6 +2175,7 @@ export const Quotes = () => {
                         <SelectValue placeholder="Seleccione modelo..." />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Sin Pinpad</SelectItem>
                         {pinpads.length === 0 ? (
                           <SelectItem value="no-pinpads" disabled>No hay Pinpads disponibles</SelectItem>
                         ) : (
@@ -2188,11 +2189,11 @@ export const Quotes = () => {
                     </Select>
                   </div>
 
-                  {/* Campo 3: Entidad Patrocinadora */}
+                  {/* Campo 3: Entidad Patrocinadora (Opcional) */}
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Landmark size={14} className="text-amber-600" />
-                      Entidad Patrocinadora <span className="text-red-500">*</span>
+                      Entidad Patrocinadora <span className="text-slate-400 text-xs font-normal">(Opcional)</span>
                     </Label>
                     <Select 
                       value={quoteData.sponsor_bank_id} 
@@ -2202,6 +2203,7 @@ export const Quotes = () => {
                         <SelectValue placeholder="Seleccione entidad..." />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Sin Entidad Patrocinadora</SelectItem>
                         {banks.map((bank) => (
                           <SelectItem key={bank.bank_id} value={bank.bank_id}>
                             {bank.name}
@@ -2212,8 +2214,8 @@ export const Quotes = () => {
                   </div>
                 </div>
 
-                {/* Indicador de campos completos */}
-                {quoteData.integrator_id && quoteData.pinpad_id && quoteData.sponsor_bank_id && (
+                {/* Indicador de campos completos - Solo requiere Integrador */}
+                {quoteData.integrator_id && (
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-brand-blue-600" />
                     <span className="text-sm text-brand-blue-700 font-medium">
