@@ -15,75 +15,72 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Permite ges
 
 ---
 
-## Implementaciones Realizadas - 20 Febrero 2026
+## Implementación del Flujo de Estados - 20 Febrero 2026
 
-### 1. Eliminación Global Sin Restricciones ✅
+### Flujo de Aprobación, Facturación y Cierre ✅
 
-**Cambio solicitado:** La función de eliminar debe estar disponible en cualquier estado (Borrador, Enviada, Aprobada, Facturada, etc.) como función de mantenimiento básica.
+| Acción | Estado Resultante | Trigger/Requisito |
+|--------|------------------|-------------------|
+| Enviar al Cliente | Enviada | Email al cliente |
+| **Aprobar** | **Aprobada** | **Email a Administración** |
+| Facturar | Facturada | PDF de factura obligatorio |
+| Cobrar | Pagada | Verificación de pago |
+| Enviar a Implementación | Enviada a Imple | Email a Implementación (solo si Pagada) |
 
-**Implementación:**
-- Backend: Endpoint `DELETE /api/quotes/{quote_id}` ya NO valida el estado
-- Frontend: DropdownMenuItem "Eliminar Cotización" ya NO tiene atributo `disabled`
-- Se puede eliminar cotizaciones en cualquier etapa del proceso
+### Detalles de Implementación:
 
-### 2. Campos Opcionales (Pinpad y Entidad Patrocinadora) ✅
+1. **Nuevo Endpoint `POST /quotes/{id}/approve`**
+   - Valida que la cotización esté en estado "Enviada"
+   - Cambia estado a "Aprobada"
+   - Registra timestamp `approved_at`
+   - Envía email automático a Administración (admin_email)
+   - Usa plantilla "quote_approved"
 
-**Cambio solicitado:** Los campos "Modelo de Pinpad" y "Entidad Patrocinadora" deben ser opcionales, no obligatorios.
+2. **Validación en `POST /send-to-implementation`**
+   - Ahora requiere que la cotización esté en estado "Pagada"
+   - Rechaza con HTTP 400 si no cumple la condición
 
-**Implementación:**
-- Labels actualizados de `*` (obligatorio) a `(Opcional)`
-- Nuevas opciones en selectores: "Sin Pinpad" y "Sin Entidad Patrocinadora"
-- Validación `isHeaderComplete` ya NO requiere estos campos
-- Solo se requiere: tipo de cotización, cliente, modelo de pricing e integrador
-- El formulario envía string vacío cuando se selecciona "Sin..." en lugar de "none"
+3. **Nueva Plantilla de Email "quote_approved"**
+   - Asunto: "[APROBADA] Cotización #{quote_number} - Lista para Facturar"
+   - Notifica a Administración que la cotización está lista para facturar
+   - Incluye: número de cotización, cliente, tipo, total
 
 ---
 
-## Funcionalidades Implementadas (Completo)
+## Funcionalidades Implementadas
 
 ### Módulo de Cotizaciones
-- [x] CRUD completo (Create, Read, Update, Delete)
-- [x] **Eliminar en cualquier estado** (función de mantenimiento)
-- [x] **Campos opcionales** (Pinpad, Entidad Patrocinadora)
-- [x] Dos categorías: Implementaciones y Equipos/Accesorios
-- [x] Panel unificado con filtros
-- [x] Wizard de creación con pasos guiados
-- [x] Modificar cotización (crea nueva versión)
-- [x] Eliminar conceptos individuales con recálculo
+- [x] CRUD completo
+- [x] Eliminar en cualquier estado
+- [x] Campos opcionales (Pinpad, Entidad Patrocinadora)
+- [x] Flujo de estados completo con validaciones
+- [x] Notificaciones automáticas por email
 - [x] Generación y descarga de PDF
-- [x] Duplicar cotización
 
-### Flujo de Estados
-- Borrador → Enviada → Aprobada → Facturada → Pagada → Entregada/Enviada a Imple
-- Notificaciones automáticas por email
-- **Eliminación disponible en todos los estados**
+### Flujo de Estados (Actualizado)
+```
+Borrador → Enviada (email cliente) → Aprobada (email admin) → 
+Facturada (PDF obligatorio) → Pagada → Enviada a Imple (email implementación)
+```
 
-### Módulos CRUD
-- [x] Clientes (con segmento)
-- [x] Bancos (Venezuela, EE.UU., Fintechs)
-- [x] Hardware/Dispositivos (estilo tabla)
-- [x] Medios de Pago/Servicios
-- [x] Integradores
-- [x] Importación/Exportación masiva
-
-### Configuración
-- [x] Logo de empresa
-- [x] Correos de notificación
-- [x] Motor de Correos Resend (API Key configurable)
-- [x] Plantillas de correo personalizables
-- [x] Plantillas PDF
+### Emails Automáticos
+1. **quote_sent** - Al cliente cuando se envía la cotización
+2. **quote_approved** - A Administración cuando se aprueba (NUEVO)
+3. **invoice** - A Administración cuando se factura
+4. **warehouse** - A Almacén cuando equipos están pagados
+5. **implementation** - A Implementación cuando se envía el proyecto
 
 ---
 
-## Endpoints API
+## Endpoints API (Actualizados)
 
-### Cotizaciones
-- `POST /api/quotes` - Crear (Pinpad/Sponsor opcionales)
-- `GET /api/quotes` - Listar
-- `PUT /api/quotes/{id}` - Actualizar
-- `DELETE /api/quotes/{id}` - **Eliminar (cualquier estado)**
-- `POST /api/quotes/{id}/duplicate` - Duplicar
-- `GET /api/quotes/{id}/pdf` - PDF
+### Estados de Cotización
+- `POST /api/quotes/{id}/send-to-client` - Enviar al cliente (Borrador → Enviada)
+- `POST /api/quotes/{id}/approve` - **NUEVO: Aprobar + Email Admin** (Enviada → Aprobada)
+- `POST /api/quotes/{id}/invoice` - Facturar con PDF (Aprobada → Facturada)
+- `POST /api/quotes/{id}/collect` - Cobrar (Facturada → Pagada)
+- `POST /api/quotes/{id}/send-to-implementation` - Enviar a Imple (solo desde Pagada)
+- `POST /api/quotes/{id}/deliver` - Entregar equipos (Pagada → Entregada)
 
 ---
 
@@ -97,16 +94,13 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Permite ges
 ### P3 - Baja Prioridad
 - [ ] Módulo de Reportes
 - [ ] Recuperación de contraseña
-- [ ] Exportación masiva a Excel
 
 ---
 
 ## Testing Status
-- Backend: 100% (7/7 tests passed) ✅
-- Frontend: 100% (10/10 features verified) ✅
-- Test reports: `/app/test_reports/iteration_23.json`
-- Test files: `/app/backend/tests/test_iteration23_optional_fields_and_delete.py`
+- Backend: 100% (11/11 tests passed) ✅
+- Test file: `/app/backend/tests/test_iteration25_approve_flow.py`
 
 ---
 **Última actualización:** 20 Febrero 2026
-**Estado:** MVP Operativo - CRUD Completo con Flexibilidad ✅
+**Estado:** MVP Operativo - Flujo de Estados Completo ✅
