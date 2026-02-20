@@ -2147,6 +2147,89 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
     
     return {"message": f"Cotización actualizada a estado: {status_update.new_status}"}
 
+@api_router.post("/quotes/{quote_id}/approve")
+async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Aprobar cotización y enviar notificación a Administración"""
+    await get_current_user(authorization)
+    
+    # Obtener cotización
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Validar que está en estado Enviada
+    current_status = quote.get("quote_status", "Borrador")
+    if current_status != "Enviada":
+        raise HTTPException(status_code=400, detail=f"Solo se pueden aprobar cotizaciones en estado 'Enviada'. Estado actual: {current_status}")
+    
+    # Obtener cliente
+    client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+    client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+    
+    # Actualizar estado a Aprobada
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$set": {
+            "quote_status": "Aprobada",
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Obtener configuración de correos
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    admin_email = config.get("admin_email") if config else None
+    
+    email_sent = False
+    if admin_email and RESEND_AVAILABLE:
+        try:
+            # Obtener API key de BD o env
+            api_key = await get_resend_api_key()
+            if api_key:
+                resend.api_key = api_key
+                
+                # Obtener plantilla de correo
+                template = await db.email_templates.find_one({"template_id": "quote_approved"}, {"_id": 0})
+                if not template:
+                    template = {
+                        "subject": "Cotización {{quote_number}} Aprobada - Lista para Facturar",
+                        "body_html": """
+                        <h2>Cotización Aprobada</h2>
+                        <p>La cotización <strong>{{quote_number}}</strong> ha sido aprobada y está lista para ser facturada.</p>
+                        <p><strong>Cliente:</strong> {{client_name}}</p>
+                        <p><strong>Tipo:</strong> {{quote_type}}</p>
+                        <p><strong>Total USD:</strong> ${{total_usd}}</p>
+                        <p>Por favor proceda con la facturación.</p>
+                        """
+                    }
+                
+                template_vars = {
+                    "quote_number": quote.get('quote_number', ''),
+                    "client_name": client_name,
+                    "quote_type": quote.get('quote_type', 'N/A'),
+                    "total_usd": f"{quote.get('total_usd', 0):.2f}"
+                }
+                
+                subject = render_email_template(template["subject"], template_vars)
+                html_content = render_email_template(template["body_html"], template_vars)
+                
+                resend.emails.send({
+                    "from": SENDER_EMAIL,
+                    "to": [admin_email],
+                    "subject": subject,
+                    "html": html_content
+                })
+                email_sent = True
+        except Exception as e:
+            print(f"Error enviando email a administración: {e}")
+    
+    return {
+        "message": "Cotización aprobada exitosamente",
+        "quote_id": quote_id,
+        "new_status": "Aprobada",
+        "admin_notified": email_sent,
+        "admin_email": admin_email if email_sent else None
+    }
+
 @api_router.post("/quotes/{quote_id}/send-to-client")
 async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None)):
     """Envía la cotización por email al cliente con el PDF adjunto"""
