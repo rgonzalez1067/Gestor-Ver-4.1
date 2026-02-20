@@ -2332,6 +2332,11 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
+    # Validar que esté en estado Pagada
+    current_status = quote.get("quote_status", "Borrador")
+    if current_status != "Pagada":
+        raise HTTPException(status_code=400, detail=f"Solo se pueden enviar a implementación cotizaciones en estado 'Pagada'. Estado actual: {current_status}")
+    
     # Obtener cliente
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     if not client:
