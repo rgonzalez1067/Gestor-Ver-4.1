@@ -2395,17 +2395,15 @@ export const Quotes = () => {
                                 >
                                   <Copy size={14} />
                                 </Button>
-                                {item.isCopy && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => removeSetupItem(index)}
-                                    className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    title="Eliminar"
-                                  >
-                                    <Trash2 size={14} />
-                                  </Button>
-                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeSetupItem(index)}
+                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
                               </div>
                             </td>
                           </tr>
