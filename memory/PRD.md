@@ -17,85 +17,73 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Permite ges
 
 ## Implementaciones Realizadas - 20 Febrero 2026
 
-### 1. Funciones de Eliminación Activadas ✅
+### 1. Eliminación Global Sin Restricciones ✅
 
-**Backend:**
-- Nuevo endpoint `DELETE /api/quotes/{quote_id}` que solo permite eliminar cotizaciones en estado "Borrador"
-- Validación de estado antes de eliminar con mensaje de error apropiado
+**Cambio solicitado:** La función de eliminar debe estar disponible en cualquier estado (Borrador, Enviada, Aprobada, Facturada, etc.) como función de mantenimiento básica.
 
-**Frontend Cotizaciones:**
-- Nueva opción "Eliminar Cotización" en menú desplegable (ícono rojo Trash2)
-- Opción deshabilitada para cotizaciones que no están en estado Borrador
-- Confirmación antes de eliminar con mensaje descriptivo
+**Implementación:**
+- Backend: Endpoint `DELETE /api/quotes/{quote_id}` ya NO valida el estado
+- Frontend: DropdownMenuItem "Eliminar Cotización" ya NO tiene atributo `disabled`
+- Se puede eliminar cotizaciones en cualquier etapa del proceso
 
-**Frontend Wizard de Cotización:**
-- Botón de eliminar en TODOS los conceptos de Setup (sin restricción isDefault)
-- Botón de eliminar en TODOS los conceptos de Recurrentes Básicos
-- Botón de eliminar en TODOS los conceptos de Otros Recurrentes
-- Confirmación antes de cada eliminación
-- Recálculo automático de totales al eliminar cualquier concepto
+### 2. Campos Opcionales (Pinpad y Entidad Patrocinadora) ✅
 
-### 2. Rediseño de Dispositivos y Accesorios ✅
+**Cambio solicitado:** Los campos "Modelo de Pinpad" y "Entidad Patrocinadora" deben ser opcionales, no obligatorios.
 
-**Antes:** Vista de tarjetas (cards) en grid
-**Ahora:** Vista de tabla estilo MediosPago con:
-- Columnas: Dispositivo/Accesorio, Tipo, Precio Efectivo, Precio Bs/USD, Acciones
-- Badges de tipo con colores: Pinpad(azul), POS(verde), Cable(amarillo), Base(morado), Accesorio(gris)
-- Botones Editar y Eliminar en columna de acciones
-- Resumen por tipo de dispositivo al final de la página
-- Consistencia visual con el resto de la aplicación
+**Implementación:**
+- Labels actualizados de `*` (obligatorio) a `(Opcional)`
+- Nuevas opciones en selectores: "Sin Pinpad" y "Sin Entidad Patrocinadora"
+- Validación `isHeaderComplete` ya NO requiere estos campos
+- Solo se requiere: tipo de cotización, cliente, modelo de pricing e integrador
+- El formulario envía string vacío cuando se selecciona "Sin..." en lugar de "none"
 
 ---
 
 ## Funcionalidades Implementadas (Completo)
 
 ### Módulo de Cotizaciones
-- [x] CRUD completo de cotizaciones (Create, Read, Update, **DELETE**)
+- [x] CRUD completo (Create, Read, Update, Delete)
+- [x] **Eliminar en cualquier estado** (función de mantenimiento)
+- [x] **Campos opcionales** (Pinpad, Entidad Patrocinadora)
 - [x] Dos categorías: Implementaciones y Equipos/Accesorios
-- [x] Panel unificado con filtros por cliente, estado, categoría, fecha
+- [x] Panel unificado con filtros
 - [x] Wizard de creación con pasos guiados
 - [x] Modificar cotización (crea nueva versión)
-- [x] **Eliminar cotización (solo Borradores)**
-- [x] **Eliminar conceptos individuales con recálculo**
+- [x] Eliminar conceptos individuales con recálculo
 - [x] Generación y descarga de PDF
 - [x] Duplicar cotización
 
 ### Flujo de Estados
-- Borrador → Enviada al Cliente → Aprobada → Facturada → Pagada → Entregada/Enviada a Implementación
-- Notificaciones automáticas por email en cada transición
+- Borrador → Enviada → Aprobada → Facturada → Pagada → Entregada/Enviada a Imple
+- Notificaciones automáticas por email
+- **Eliminación disponible en todos los estados**
 
 ### Módulos CRUD
-- [x] Clientes (con segmento: Pymes/Corporativo/Mixto)
+- [x] Clientes (con segmento)
 - [x] Bancos (Venezuela, EE.UU., Fintechs)
-- [x] **Hardware/Dispositivos (rediseñado a tabla)**
+- [x] Hardware/Dispositivos (estilo tabla)
 - [x] Medios de Pago/Servicios
 - [x] Integradores
 - [x] Importación/Exportación masiva
 
 ### Configuración
 - [x] Logo de empresa
-- [x] Correos de notificación (Admin, Almacén, Implementación)
+- [x] Correos de notificación
 - [x] Motor de Correos Resend (API Key configurable)
 - [x] Plantillas de correo personalizables
-- [x] Plantillas PDF por tipo de cotización
+- [x] Plantillas PDF
 
 ---
 
-## Endpoints API (Actualizados)
+## Endpoints API
 
 ### Cotizaciones
-- `POST /api/quotes` - Crear cotización
-- `GET /api/quotes` - Listar cotizaciones
-- `PUT /api/quotes/{id}` - Actualizar (solo Borrador)
-- `DELETE /api/quotes/{id}` - **NUEVO: Eliminar (solo Borrador)**
-- `POST /api/quotes/{id}/duplicate` - Duplicar/Nueva versión
-- `GET /api/quotes/{id}/pdf` - Descargar PDF
-
-### Hardware
-- `GET /api/hardware` - Listar dispositivos
-- `POST /api/hardware` - Crear dispositivo
-- `PUT /api/hardware/{id}` - Actualizar dispositivo
-- `DELETE /api/hardware/{id}` - Eliminar dispositivo ✅
+- `POST /api/quotes` - Crear (Pinpad/Sponsor opcionales)
+- `GET /api/quotes` - Listar
+- `PUT /api/quotes/{id}` - Actualizar
+- `DELETE /api/quotes/{id}` - **Eliminar (cualquier estado)**
+- `POST /api/quotes/{id}/duplicate` - Duplicar
+- `GET /api/quotes/{id}/pdf` - PDF
 
 ---
 
@@ -103,26 +91,22 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Permite ges
 
 ### P2 - Media Prioridad
 - [ ] Contadores del Dashboard no suman correctamente
-- [ ] Refactorización del backend (dividir server.py monolítico)
+- [ ] Refactorización del backend (dividir server.py)
 - [ ] Refactorización del frontend (descomponer Quotes.jsx)
 
 ### P3 - Baja Prioridad
-- [ ] Módulo de Reportes estadísticos
+- [ ] Módulo de Reportes
 - [ ] Recuperación de contraseña
 - [ ] Exportación masiva a Excel
 
 ---
 
 ## Testing Status
-- Backend: 10/10 tests PASSED ✅
-- Frontend: 11/11 features verificadas ✅
-- Test reports: `/app/test_reports/iteration_22.json`
-
-## Archivos Clave Modificados
-- `/app/backend/server.py` - Nuevo endpoint DELETE quotes
-- `/app/frontend/src/pages/Quotes.jsx` - Funciones de eliminación
-- `/app/frontend/src/pages/Hardware.jsx` - Rediseñado a tabla
+- Backend: 100% (7/7 tests passed) ✅
+- Frontend: 100% (10/10 features verified) ✅
+- Test reports: `/app/test_reports/iteration_23.json`
+- Test files: `/app/backend/tests/test_iteration23_optional_fields_and_delete.py`
 
 ---
 **Última actualización:** 20 Febrero 2026
-**Estado:** MVP Operativo - Funciones CRUD Completas ✅
+**Estado:** MVP Operativo - CRUD Completo con Flexibilidad ✅
