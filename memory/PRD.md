@@ -7,27 +7,25 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
-## Diagnóstico de Problemas Reportados - 20 Febrero 2026
+## CORRECCIÓN CRÍTICA - 20 Diciembre 2025
 
-### Problema Reportado:
-- "Aprobar" y "Cobrar" no actualizan el estado
-- "Eliminar" no funciona
-- Botones visibles pero sin acción
+### Problema Reportado (P0 - CRÍTICO):
+- Las acciones del menú dropdown (Aprobar, Cobrar, Eliminar, Enviar al Cliente, Facturar) no funcionaban al hacer clic
+- El usuario reportaba que los botones eran visibles pero no ejecutaban ninguna acción
 
-### Causa Raíz Identificada: **SESIÓN EXPIRADA**
-Los tokens de sesión del usuario ya no existían en la base de datos, causando errores 401 silenciosos.
+### Causa Raíz Identificada: **USO INCORRECTO DE EVENTO EN RADIX UI**
+Los componentes `DropdownMenuItem` de Radix UI/Shadcn utilizan `onSelect` en lugar de `onClick` para manejar eventos de selección. El código usaba `onClick` que era ignorado silenciosamente.
 
-### Solución:
-1. **Para el usuario**: Cerrar sesión y volver a iniciar sesión con Google
-2. **Mejoras implementadas**: 
-   - Mejor manejo de errores 401 en el frontend
-   - Mensajes claros cuando la sesión expira
-   - Modales de confirmación estandarizados
+### Solución Aplicada:
+- Cambiados TODOS los `onClick` por `onSelect` en los `DropdownMenuItem` (líneas 1842-1932 de `Quotes.jsx`)
+- Acciones corregidas: Modificar, Enviar al Cliente, Aprobar, Facturar, Cobrar, Entregar, Enviar a Implementación, Eliminar
 
-### Verificación:
-- Backend: 14/14 tests PASSED ✅
-- Endpoints POST /approve, POST /collect, DELETE funcionan correctamente
-- Requiere sesión válida (Bearer token)
+### Verificación (iteration_27.json):
+- ✅ Todas las 7 acciones del menú dropdown funcionando
+- ✅ Descarga de PDF funcionando
+- ✅ Flujo de estados completo verificado
+- Backend: 100% ✅
+- Frontend: 100% ✅
 
 ---
 
