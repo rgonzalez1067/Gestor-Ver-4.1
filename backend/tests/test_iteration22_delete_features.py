@@ -154,9 +154,17 @@ class TestQuoteDeletion:
         )
         assert status_response.status_code == 200, f"Failed to change quote status: {status_response.text}"
         
-        new_status = status_response.json()["quote_status"]
+        # Verify the message confirms the status change
+        message = status_response.json().get("message", "")
+        assert "Enviada" in message, f"Response should confirm status change, got: {message}"
+        print(f"Status update response: {message}")
+        
+        # Verify the actual status by fetching the quote
+        verify_response = api_client.get(f"{BASE_URL}/api/quotes/{test_quote_id_sent}")
+        assert verify_response.status_code == 200
+        new_status = verify_response.json()["quote_status"]
         assert new_status == "Enviada", f"Quote should be in Enviada status, got: {new_status}"
-        print(f"Changed quote status to: {new_status}")
+        print(f"Verified quote status: {new_status}")
     
     def test_delete_sent_quote_rejected(self, api_client):
         """Test that deletion of non-Borrador quote is rejected"""
