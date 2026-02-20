@@ -819,10 +819,11 @@ export const Quotes = () => {
         integrator_id: quoteData.integrator_id,
         integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || '',
         integrator_app_name: quoteData.integrator_app_name,
-        pinpad_id: quoteData.pinpad_id,
-        pinpad_model: pinpads.find(p => p.hardware_id === quoteData.pinpad_id)?.name || '',
-        sponsor_bank_id: quoteData.sponsor_bank_id,
-        sponsor_bank_name: banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '',
+        // Campos opcionales - enviar vacío si es "none"
+        pinpad_id: quoteData.pinpad_id === 'none' ? '' : quoteData.pinpad_id,
+        pinpad_model: quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (pinpads.find(p => p.hardware_id === quoteData.pinpad_id)?.name || '') : '',
+        sponsor_bank_id: quoteData.sponsor_bank_id === 'none' ? '' : quoteData.sponsor_bank_id,
+        sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '') : '',
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1
