@@ -1887,8 +1887,8 @@ export const Quotes = () => {
                               
                               {/* Cobrar - Facturada -> Pagada */}
                               <DropdownMenuItem 
-                                onClick={() => {
-                                  console.log('CLICK COBRAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
+                                onSelect={() => {
+                                  console.log('SELECT COBRAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
                                   handleCollectQuote(quote.quote_id);
                                 }}
                                 className="cursor-pointer"
