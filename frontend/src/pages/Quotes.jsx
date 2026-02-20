@@ -608,19 +608,6 @@ export const Quotes = () => {
     });
   };
 
-  // Eliminar item de recurrentes básicos (solo auto-vinculados)
-  const removeRecurringBasicItem = (index) => {
-    const item = quoteData.recurring_basic_items[index];
-    if (!item.isAutoLinked) {
-      toast.error('Los conceptos base no se pueden eliminar');
-      return;
-    }
-    setQuoteData({
-      ...quoteData,
-      recurring_basic_items: quoteData.recurring_basic_items.filter((_, i) => i !== index)
-    });
-  };
-
   // Actualizar campo en setup_items
   const updateSetupItem = (index, field, value) => {
     const updatedItems = [...quoteData.setup_items];
