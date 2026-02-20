@@ -1926,7 +1926,10 @@ export const Quotes = () => {
                               
                               {/* Eliminar - Función de mantenimiento, disponible en cualquier estado */}
                               <DropdownMenuItem 
-                                onClick={() => handleDeleteQuote(quote.quote_id, quote.quote_number)}
+                                onClick={() => {
+                                  console.log('CLICK ELIMINAR - quote_id:', quote.quote_id, 'quote_number:', quote.quote_number);
+                                  handleDeleteQuote(quote.quote_id, quote.quote_number);
+                                }}
                                 className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
                                 <Trash2 size={16} className="mr-2" />
