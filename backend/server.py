@@ -1658,20 +1658,29 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
 @api_router.delete("/quotes/{quote_id}")
 async def delete_quote(quote_id: str, authorization: Optional[str] = Header(None)):
     """Elimina una cotización (función de mantenimiento - disponible en cualquier estado)"""
+    print(f"[DELETE QUOTE] Recibida solicitud para eliminar quote_id: {quote_id}")
+    
     await get_current_user(authorization)
+    print(f"[DELETE QUOTE] Usuario autenticado correctamente")
     
     # Verificar que la cotización existe
     existing_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not existing_quote:
+        print(f"[DELETE QUOTE] ERROR: Cotización no encontrada: {quote_id}")
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    quote_number = existing_quote.get("quote_number", quote_id)
+    print(f"[DELETE QUOTE] Cotización encontrada: {quote_number}, procediendo a eliminar...")
     
     # Eliminar la cotización (sin restricción de estado - función de mantenimiento)
     result = await db.quotes.delete_one({"quote_id": quote_id})
+    print(f"[DELETE QUOTE] Resultado de delete_one: deleted_count={result.deleted_count}")
     
     if result.deleted_count == 0:
+        print(f"[DELETE QUOTE] ERROR: delete_one retornó 0")
         raise HTTPException(status_code=404, detail="Error al eliminar la cotización")
     
-    quote_number = existing_quote.get("quote_number", quote_id)
+    print(f"[DELETE QUOTE] ÉXITO: Cotización {quote_number} eliminada")
     return {"message": f"Cotización {quote_number} eliminada exitosamente", "quote_id": quote_id}
 
 @api_router.post("/quotes/generate-pdf")

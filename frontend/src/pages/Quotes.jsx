@@ -1153,17 +1153,31 @@ export const Quotes = () => {
     }
   };
 
-  // Eliminar cotización (solo Borrador)
+  // Eliminar cotización (función de mantenimiento - disponible en cualquier estado)
   const handleDeleteQuote = async (quoteId, quoteNumber) => {
-    if (!window.confirm(`¿Está seguro de eliminar la cotización ${quoteNumber}?\n\nEsta acción no se puede deshacer.`)) return;
+    console.log('handleDeleteQuote llamado:', { quoteId, quoteNumber });
     
+    if (!window.confirm(`¿Está seguro de eliminar la cotización ${quoteNumber}?\n\nEsta acción no se puede deshacer.`)) {
+      console.log('Usuario canceló la eliminación');
+      return;
+    }
+    
+    console.log('Usuario confirmó, procediendo a eliminar...');
     setActionLoading(quoteId);
+    
     try {
-      await api.delete(`/quotes/${quoteId}`);
+      console.log('Enviando DELETE request a:', `/quotes/${quoteId}`);
+      const response = await api.delete(`/quotes/${quoteId}`);
+      console.log('Respuesta DELETE:', response.data);
       toast.success(`Cotización ${quoteNumber} eliminada exitosamente`);
-      fetchData();
+      // Refrescar la lista inmediatamente
+      await fetchData();
+      console.log('Lista refrescada');
     } catch (error) {
-      console.error('Error deleting quote:', error);
+      console.error('Error completo:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
       toast.error(error.response?.data?.detail || 'Error al eliminar la cotización');
     } finally {
       setActionLoading(null);
