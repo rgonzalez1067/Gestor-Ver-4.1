@@ -1661,7 +1661,7 @@ async def delete_quote(quote_id: str, authorization: Optional[str] = Header(None
     print(f"[DELETE QUOTE] Recibida solicitud para eliminar quote_id: {quote_id}")
     
     await get_current_user(authorization)
-    print(f"[DELETE QUOTE] Usuario autenticado correctamente")
+    print("[DELETE QUOTE] Usuario autenticado correctamente")
     
     # Verificar que la cotización existe
     existing_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -1677,7 +1677,7 @@ async def delete_quote(quote_id: str, authorization: Optional[str] = Header(None
     print(f"[DELETE QUOTE] Resultado de delete_one: deleted_count={result.deleted_count}")
     
     if result.deleted_count == 0:
-        print(f"[DELETE QUOTE] ERROR: delete_one retornó 0")
+        print("[DELETE QUOTE] ERROR: delete_one retornó 0")
         raise HTTPException(status_code=404, detail="Error al eliminar la cotización")
     
     print(f"[DELETE QUOTE] ÉXITO: Cotización {quote_number} eliminada")
