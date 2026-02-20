@@ -1213,12 +1213,18 @@ export const Quotes = () => {
         toast.success(`Cotización aprobada. Notificación enviada a ${response.data.admin_email}`);
       } else {
         toast.success('Cotización aprobada exitosamente');
-        toast.info('No se pudo enviar notificación a Administración (revisar configuración de correos)');
+        if (!response.data.admin_email) {
+          toast.info('Configure el email de Administración en Configuración para recibir notificaciones');
+        }
       }
-      fetchData();
+      await fetchData();
     } catch (error) {
       console.error('Error approving quote:', error);
-      toast.error(error.response?.data?.detail || 'Error al aprobar');
+      if (error.response?.status === 401) {
+        toast.error('Sesión expirada. Redirigiendo al login...');
+      } else {
+        toast.error(error.response?.data?.detail || 'Error al aprobar la cotización');
+      }
     } finally {
       setActionLoading(null);
     }
