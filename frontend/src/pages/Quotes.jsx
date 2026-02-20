@@ -1138,6 +1138,23 @@ export const Quotes = () => {
     }
   };
 
+  // Eliminar cotización (solo Borrador)
+  const handleDeleteQuote = async (quoteId, quoteNumber) => {
+    if (!window.confirm(`¿Está seguro de eliminar la cotización ${quoteNumber}?\n\nEsta acción no se puede deshacer.`)) return;
+    
+    setActionLoading(quoteId);
+    try {
+      await api.delete(`/quotes/${quoteId}`);
+      toast.success(`Cotización ${quoteNumber} eliminada exitosamente`);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+      toast.error(error.response?.data?.detail || 'Error al eliminar la cotización');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Aprobar cotización
   const handleApproveQuote = async (quoteId) => {
     if (!window.confirm('¿Confirma que desea aprobar esta cotización?')) return;
