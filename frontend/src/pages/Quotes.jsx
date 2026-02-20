@@ -1858,6 +1858,18 @@ export const Quotes = () => {
                                   Enviar a Implementación
                                 </DropdownMenuItem>
                               )}
+                              
+                              <DropdownMenuSeparator />
+                              
+                              {/* Eliminar - Solo para Borradores */}
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteQuote(quote.quote_id, quote.quote_number)}
+                                className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
+                                disabled={(quote.quote_status || 'Borrador') !== 'Borrador'}
+                              >
+                                <Trash2 size={16} className="mr-2" />
+                                Eliminar Cotización
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
