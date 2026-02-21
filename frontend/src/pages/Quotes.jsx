@@ -1573,30 +1573,6 @@ export const Quotes = () => {
     }
   };
 
-  // Cobrar cotización
-  const handleCollectQuote = async (quoteId) => {
-    if (!window.confirm('¿Confirma que el pago de esta cotización ha sido verificado?\n\nEl estado cambiará a "Pagada".')) return;
-    
-    setActionLoading(quoteId);
-    try {
-      const response = await api.post(`/quotes/${quoteId}/collect`);
-      toast.success(response.data.message || 'Cotización marcada como Pagada');
-      if (response.data.notified_warehouse) {
-        toast.info('Se ha notificado al almacén para preparar el pedido');
-      }
-      await fetchData();
-    } catch (error) {
-      console.error('Error collecting quote:', error);
-      if (error.response?.status === 401) {
-        toast.error('Sesión expirada. Redirigiendo al login...');
-      } else {
-        toast.error(error.response?.data?.detail || 'Error al registrar el cobro');
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   // Entregar cotización (solo equipos)
   const handleDeliverQuote = async (quoteId) => {
     if (!window.confirm('¿Confirma que el pedido ha sido entregado?')) return;
