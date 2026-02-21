@@ -139,6 +139,14 @@ export const Quotes = () => {
   const [selectedBankId, setSelectedBankId] = useState('');
   const [selectedMedioPagoId, setSelectedMedioPagoId] = useState('');
   const [availableMediosPago, setAvailableMediosPago] = useState([]);
+  
+  // Estados para modales de confirmación
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteQuoteData, setDeleteQuoteData] = useState({ id: null, number: null });
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
+  const [approveQuoteId, setApproveQuoteId] = useState(null);
+  const [collectConfirmOpen, setCollectConfirmOpen] = useState(false);
+  const [collectQuoteId, setCollectQuoteId] = useState(null);
 
   useEffect(() => {
     fetchData();
