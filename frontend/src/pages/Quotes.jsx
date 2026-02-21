@@ -3012,6 +3012,75 @@ export const Quotes = () => {
               </div>
             </DialogContent>
           </Dialog>
+          
+          {/* Modal de confirmación para Eliminar */}
+          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar Cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  ¿Está seguro de que desea eliminar la Cotización <strong>"{deleteQuoteData.number}"</strong> de forma permanente?
+                  <br /><br />
+                  <span className="text-red-600 font-medium">Esta acción no se puede deshacer.</span>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={executeDeleteQuote}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          {/* Modal de confirmación para Aprobar */}
+          <AlertDialog open={approveConfirmOpen} onOpenChange={setApproveConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Aprobar Cotización?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  ¿Confirma que desea aprobar esta cotización?
+                  <br /><br />
+                  Se enviará una notificación por email al área de Administración utilizando la plantilla <strong>"Cotización Aprobada"</strong>.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={executeApproveQuote}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Aprobar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          
+          {/* Modal de confirmación para Cobrar */}
+          <AlertDialog open={collectConfirmOpen} onOpenChange={setCollectConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Registrar Cobro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  ¿Confirma que el pago de esta cotización ha sido verificado?
+                  <br /><br />
+                  El estado cambiará a <strong>"Pagada"</strong>.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={executeCollectQuote}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  Confirmar Cobro
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
     </div>
