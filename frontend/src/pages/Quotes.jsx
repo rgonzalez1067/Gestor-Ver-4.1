@@ -1162,12 +1162,19 @@ export const Quotes = () => {
     }
   };
 
-  // Eliminar cotización (función de mantenimiento - disponible en cualquier estado)
-  const handleDeleteQuote = async (quoteId, quoteNumber) => {
-    // Modal de confirmación con mensaje específico
-    if (!window.confirm(`¿Está seguro de que desea eliminar la Cotización "${quoteNumber}" de forma permanente?\n\nEsta acción no se puede deshacer.`)) {
-      return;
-    }
+  // Abrir modal de confirmación para eliminar
+  const openDeleteConfirm = (quoteId, quoteNumber) => {
+    console.log('ABRIR MODAL ELIMINAR:', quoteId, quoteNumber);
+    setDeleteQuoteData({ id: quoteId, number: quoteNumber });
+    setDeleteConfirmOpen(true);
+  };
+
+  // Ejecutar eliminación después de confirmación
+  const executeDeleteQuote = async () => {
+    const { id: quoteId, number: quoteNumber } = deleteQuoteData;
+    setDeleteConfirmOpen(false);
+    
+    if (!quoteId) return;
     
     setActionLoading(quoteId);
     
@@ -1185,7 +1192,7 @@ export const Quotes = () => {
       } else if (error.response?.status === 404) {
         errorMessage = 'La cotización ya no existe o fue eliminada.';
         toast.error(errorMessage);
-        await fetchData(); // Refrescar lista
+        await fetchData();
       } else if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
         toast.error(errorMessage);
@@ -1194,12 +1201,23 @@ export const Quotes = () => {
       }
     } finally {
       setActionLoading(null);
+      setDeleteQuoteData({ id: null, number: null });
     }
   };
 
-  // Aprobar cotización - Envía notificación a Administración
-  const handleApproveQuote = async (quoteId) => {
-    if (!window.confirm('¿Confirma que desea aprobar esta cotización?\n\nSe enviará una notificación por email al área de Administración.')) return;
+  // Abrir modal de confirmación para aprobar
+  const openApproveConfirm = (quoteId) => {
+    console.log('ABRIR MODAL APROBAR:', quoteId);
+    setApproveQuoteId(quoteId);
+    setApproveConfirmOpen(true);
+  };
+
+  // Ejecutar aprobación después de confirmación
+  const executeApproveQuote = async () => {
+    const quoteId = approveQuoteId;
+    setApproveConfirmOpen(false);
+    
+    if (!quoteId) return;
     
     setActionLoading(quoteId);
     try {
@@ -1223,6 +1241,42 @@ export const Quotes = () => {
       }
     } finally {
       setActionLoading(null);
+      setApproveQuoteId(null);
+    }
+  };
+
+  // Abrir modal de confirmación para cobrar
+  const openCollectConfirm = (quoteId) => {
+    console.log('ABRIR MODAL COBRAR:', quoteId);
+    setCollectQuoteId(quoteId);
+    setCollectConfirmOpen(true);
+  };
+
+  // Ejecutar cobro después de confirmación
+  const executeCollectQuote = async () => {
+    const quoteId = collectQuoteId;
+    setCollectConfirmOpen(false);
+    
+    if (!quoteId) return;
+    
+    setActionLoading(quoteId);
+    try {
+      const response = await api.post(`/quotes/${quoteId}/collect`);
+      toast.success(response.data.message || 'Cotización marcada como Pagada');
+      if (response.data.notified_warehouse) {
+        toast.info('Se ha notificado al almacén para preparar el pedido');
+      }
+      await fetchData();
+    } catch (error) {
+      console.error('Error collecting quote:', error);
+      if (error.response?.status === 401) {
+        toast.error('Sesión expirada. Redirigiendo al login...');
+      } else {
+        toast.error(error.response?.data?.detail || 'Error al registrar el cobro');
+      }
+    } finally {
+      setActionLoading(null);
+      setCollectQuoteId(null);
     }
   };
 
