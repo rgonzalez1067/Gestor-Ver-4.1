@@ -1904,7 +1904,7 @@ export const Quotes = () => {
                               <DropdownMenuItem 
                                 onSelect={() => {
                                   console.log('SELECT APROBAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
-                                  handleApproveQuote(quote.quote_id);
+                                  openApproveConfirm(quote.quote_id);
                                 }}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Enviada'}
@@ -1928,7 +1928,7 @@ export const Quotes = () => {
                               <DropdownMenuItem 
                                 onSelect={() => {
                                   console.log('SELECT COBRAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
-                                  handleCollectQuote(quote.quote_id);
+                                  openCollectConfirm(quote.quote_id);
                                 }}
                                 className="cursor-pointer"
                                 disabled={quote.quote_status !== 'Facturada'}
@@ -1967,7 +1967,7 @@ export const Quotes = () => {
                               <DropdownMenuItem 
                                 onSelect={() => {
                                   console.log('SELECT ELIMINAR - quote_id:', quote.quote_id, 'quote_number:', quote.quote_number);
-                                  handleDeleteQuote(quote.quote_id, quote.quote_number);
+                                  openDeleteConfirm(quote.quote_id, quote.quote_number);
                                 }}
                                 className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
