@@ -85,7 +85,16 @@ export const Banks = () => {
   };
 
   const handleDelete = async (bankId) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este Banco de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
+    const bank = banks.find(b => b.bank_id === bankId);
+    setDeleteBankData({ id: bankId, name: bank?.name || 'este banco' });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    const bankId = deleteBankData.id;
+    setDeleteConfirmOpen(false);
+    
+    if (!bankId) return;
     
     try {
       await api.delete(`/banks/${bankId}`);
@@ -93,7 +102,13 @@ export const Banks = () => {
       fetchData();
     } catch (error) {
       console.error('Error deleting bank:', error);
-      toast.error('Error al eliminar banco');
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else {
+        toast.error('Error al eliminar banco');
+      }
+    } finally {
+      setDeleteBankData({ id: null, name: null });
     }
   };
 
