@@ -123,7 +123,16 @@ export const MediosPago = () => {
   };
 
   const handleDelete = async (serviceId) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este Medio de Pago de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
+    const medioPago = mediosPago.find(m => m.service_id === serviceId);
+    setDeleteMedioPagoData({ id: serviceId, name: medioPago?.name || 'este medio de pago' });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    const serviceId = deleteMedioPagoData.id;
+    setDeleteConfirmOpen(false);
+    
+    if (!serviceId) return;
     
     try {
       await api.delete(`/services/${serviceId}`);
@@ -131,7 +140,13 @@ export const MediosPago = () => {
       fetchMediosPago();
     } catch (error) {
       console.error('Error deleting medio de pago:', error);
-      toast.error('Error al eliminar medio de pago');
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else {
+        toast.error('Error al eliminar medio de pago');
+      }
+    } finally {
+      setDeleteMedioPagoData({ id: null, name: null });
     }
   };
 
