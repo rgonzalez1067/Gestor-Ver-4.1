@@ -1074,10 +1074,24 @@ async def update_hardware(hardware_id: str, hardware_data: HardwareCreate, autho
 @api_router.delete("/hardware/{hardware_id}")
 async def delete_hardware(hardware_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    
+    # Validar integridad referencial - verificar si hay cotizaciones que usen este dispositivo
+    quotes_with_hardware = await db.quotes.count_documents({
+        "$or": [
+            {"pinpad_id": hardware_id},
+            {"hardware.hardware_id": hardware_id}
+        ]
+    })
+    if quotes_with_hardware > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el dispositivo porque está asociado a {quotes_with_hardware} cotización(es). Elimine primero las cotizaciones asociadas."
+        )
+    
     result = await db.hardware.delete_one({"hardware_id": hardware_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Hardware not found")
-    return {"message": "Hardware deleted successfully"}
+    return {"message": "Dispositivo eliminado exitosamente"}
 
 # ==================== SERVICES ENDPOINTS ====================
 
