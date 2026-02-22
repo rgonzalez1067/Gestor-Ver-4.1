@@ -1141,10 +1141,31 @@ async def update_service(service_id: str, service_data: ServiceCreate, authoriza
 @api_router.delete("/services/{service_id}")
 async def delete_service(service_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    
+    # Validar integridad referencial - verificar si hay cotizaciones que usen este servicio
+    quotes_with_service = await db.quotes.count_documents({
+        "services.item_id": service_id
+    })
+    if quotes_with_service > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el medio de pago porque está asociado a {quotes_with_service} cotización(es). Elimine primero las cotizaciones asociadas."
+        )
+    
+    # Verificar si está vinculado a algún banco
+    banks_with_service = await db.banks.count_documents({
+        "products.service_id": service_id
+    })
+    if banks_with_service > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el medio de pago porque está configurado en {banks_with_service} banco(s). Elimine primero la asociación con los bancos."
+        )
+    
     result = await db.services.delete_one({"service_id": service_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Service not found")
-    return {"message": "Service deleted successfully"}
+    return {"message": "Medio de pago eliminado exitosamente"}
 
 @api_router.post("/services/import", response_model=ImportResult)
 async def import_services(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
