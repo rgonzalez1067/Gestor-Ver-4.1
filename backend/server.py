@@ -2895,10 +2895,20 @@ async def update_integrator(integrator_id: str, integrator: IntegratorCreate, au
 async def delete_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
+    # Validar integridad referencial - verificar si hay cotizaciones que usen este integrador
+    quotes_with_integrator = await db.quotes.count_documents({
+        "integrator_id": integrator_id
+    })
+    if quotes_with_integrator > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el integrador porque está asociado a {quotes_with_integrator} cotización(es). Elimine primero las cotizaciones asociadas."
+        )
+    
     result = await db.integrators.delete_one({"integrator_id": integrator_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Integrator not found")
-    return {"message": "Integrator deleted successfully"}
+    return {"message": "Integrador eliminado exitosamente"}
 
 # Export integrators to Excel
 @api_router.get("/integrators/export/excel")
