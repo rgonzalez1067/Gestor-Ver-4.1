@@ -802,10 +802,24 @@ async def update_bank(bank_id: str, bank_data: BankCreate, authorization: Option
 @api_router.delete("/banks/{bank_id}")
 async def delete_bank(bank_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    
+    # Validar integridad referencial - verificar si hay cotizaciones que usen este banco
+    quotes_with_bank = await db.quotes.count_documents({
+        "$or": [
+            {"sponsor_bank_id": bank_id},
+            {"services.bank_id": bank_id}
+        ]
+    })
+    if quotes_with_bank > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el banco porque está asociado a {quotes_with_bank} cotización(es). Elimine primero las cotizaciones asociadas."
+        )
+    
     result = await db.banks.delete_one({"bank_id": bank_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Bank not found")
-    return {"message": "Bank deleted successfully"}
+    return {"message": "Banco eliminado exitosamente"}
 
 @api_router.post("/banks/import", response_model=ImportResult)
 async def import_banks(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
