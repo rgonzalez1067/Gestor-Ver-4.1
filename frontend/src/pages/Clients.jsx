@@ -69,7 +69,16 @@ export const Clients = () => {
   };
 
   const handleDelete = async (clientId) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este Cliente de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
+    const client = clients.find(c => c.client_id === clientId);
+    setDeleteClientData({ id: clientId, name: client?.fantasy_name || client?.legal_name || 'este cliente' });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    const clientId = deleteClientData.id;
+    setDeleteConfirmOpen(false);
+    
+    if (!clientId) return;
     
     try {
       await api.delete(`/clients/${clientId}`);
@@ -77,7 +86,13 @@ export const Clients = () => {
       fetchClients();
     } catch (error) {
       console.error('Error deleting client:', error);
-      toast.error('Error al eliminar cliente');
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else {
+        toast.error('Error al eliminar cliente');
+      }
+    } finally {
+      setDeleteClientData({ id: null, name: null });
     }
   };
 
