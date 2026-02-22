@@ -47,19 +47,24 @@ Facturada (PDF req.) → Pagada → Enviada a Imple (email implementación)
 
 ---
 
-## Modales de Confirmación Estandarizados
+## Modales de Confirmación Estandarizados (iteration_29.json)
 
-Todos los CRUDs ahora tienen el mensaje:
-> "¿Está seguro de que desea eliminar este [Registro] de forma permanente?
-> Esta acción no se puede deshacer."
+Todos los módulos CRUD ahora tienen AlertDialog de confirmación para eliminación:
 
-Registros actualizados:
-- Cotización
-- Banco
-- Cliente
-- Dispositivo
-- Integrador
-- Medio de Pago
+| Módulo | Dialog Title | Advertencia | Validación Backend |
+|--------|-------------|-------------|-------------------|
+| Cotizaciones | ¿Eliminar Cotización? | "Esta acción no se puede deshacer" | N/A |
+| Clientes | ¿Eliminar Cliente? | "Podría afectar cotizaciones, facturas" | Verifica cotizaciones vinculadas |
+| Bancos | ¿Eliminar Banco? | "Podría afectar medios de pago, cotizaciones" | Verifica cotizaciones vinculadas |
+| Medios de Pago | ¿Eliminar Medio de Pago? | "Podría afectar bancos, cotizaciones" | Verifica cotizaciones y bancos |
+| Dispositivos | ¿Eliminar Dispositivo? | "Podría afectar cotizaciones de equipos" | Verifica cotizaciones vinculadas |
+| Integradores | ¿Eliminar Integrador? | "Podría afectar cotizaciones, configuraciones" | Verifica cotizaciones vinculadas |
+
+**Comportamiento estándar:**
+1. Click en botón eliminar → Abre AlertDialog con advertencia
+2. Click "Cancelar" → Cierra el dialog sin acción
+3. Click "Eliminar" → Ejecuta DELETE API → Toast de éxito/error
+4. Si hay datos vinculados → Backend retorna HTTP 400 con mensaje descriptivo
 
 ---
 
