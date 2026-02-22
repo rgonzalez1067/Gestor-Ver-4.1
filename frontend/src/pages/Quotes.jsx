@@ -850,19 +850,21 @@ export const Quotes = () => {
   };
 
   const downloadPDF = async (quoteId) => {
+    const toastId = toast.loading('Generando PDF...');
+    
     try {
-      toast.loading('Generando PDF...');
-      
       // Obtener token de autenticación
       const token = localStorage.getItem('session_token');
       if (!token) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
         return;
       }
       
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
       const pdfUrl = `${backendUrl}/api/quotes/${quoteId}/pdf`;
+      
+      console.log('[PDF Download] Iniciando descarga:', pdfUrl);
       
       // Usar fetch nativo para mejor control de la descarga
       const response = await fetch(pdfUrl, {
@@ -873,9 +875,11 @@ export const Quotes = () => {
         }
       });
       
+      console.log('[PDF Download] Response status:', response.status);
+      
       // Verificar respuesta
       if (!response.ok) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         if (response.status === 404) {
           toast.error('Cotización no encontrada');
         } else if (response.status === 401) {
@@ -896,20 +900,21 @@ export const Quotes = () => {
       
       // Verificar Content-Type
       const contentType = response.headers.get('content-type');
+      console.log('[PDF Download] Content-Type:', contentType);
+      
       if (!contentType || !contentType.includes('application/pdf')) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('El servidor no devolvió un PDF válido');
-        console.error('Content-Type recibido:', contentType);
+        console.error('[PDF Download] Content-Type inválido:', contentType);
         return;
       }
       
       // Obtener el blob
       const blob = await response.blob();
-      
-      console.log('PDF blob recibido:', { size: blob.size, type: blob.type });
+      console.log('[PDF Download] Blob recibido:', { size: blob.size, type: blob.type });
       
       if (blob.size === 0) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('El archivo PDF está vacío');
         return;
       }
@@ -924,60 +929,49 @@ export const Quotes = () => {
         }
       }
       
-      toast.dismiss();
+      console.log('[PDF Download] Filename:', filename);
       
-      // Método 1: Intentar descarga directa usando saveAs pattern
-      try {
-        // Crear URL del blob
-        const blobUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-        
-        // Crear elemento de descarga
-        const downloadLink = document.createElement('a');
-        downloadLink.href = blobUrl;
-        downloadLink.download = filename;
-        downloadLink.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
-        
-        // Añadir al DOM
-        document.body.appendChild(downloadLink);
-        
-        // Simular click
-        downloadLink.click();
-        
-        // Limpiar después de un delay
-        setTimeout(() => {
+      // Crear URL del blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Crear elemento de descarga
+      const downloadLink = document.createElement('a');
+      downloadLink.href = blobUrl;
+      downloadLink.download = filename;
+      
+      // Estilos para ocultar pero mantener funcional
+      downloadLink.style.position = 'fixed';
+      downloadLink.style.left = '-9999px';
+      downloadLink.style.top = '-9999px';
+      downloadLink.style.visibility = 'hidden';
+      
+      // Añadir al DOM
+      document.body.appendChild(downloadLink);
+      
+      // Usar setTimeout para asegurar que el elemento esté en el DOM
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Disparar el click
+      downloadLink.click();
+      
+      console.log('[PDF Download] Click disparado');
+      
+      // Esperar un poco antes de limpiar para asegurar que la descarga inicie
+      setTimeout(() => {
+        if (document.body.contains(downloadLink)) {
           document.body.removeChild(downloadLink);
-          window.URL.revokeObjectURL(blobUrl);
-        }, 1000);
-        
-        toast.success('PDF descargado exitosamente');
-      } catch (downloadError) {
-        console.error('Error en descarga directa:', downloadError);
-        
-        // Método 2: Fallback - Abrir en nueva pestaña
-        const blobUrl = window.URL.createObjectURL(blob);
-        const newWindow = window.open(blobUrl, '_blank');
-        
-        if (newWindow) {
-          toast.success('PDF abierto en nueva pestaña. Use Ctrl+S para guardar.');
-        } else {
-          // Método 3: Crear iframe invisible como último recurso
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = blobUrl;
-          document.body.appendChild(iframe);
-          
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-            window.URL.revokeObjectURL(blobUrl);
-          }, 5000);
-          
-          toast.info('Si la descarga no inició, verifique su bloqueador de pop-ups');
         }
-      }
+        window.URL.revokeObjectURL(blobUrl);
+        console.log('[PDF Download] Limpieza completada');
+      }, 3000);
+      
+      // Mostrar éxito
+      toast.dismiss(toastId);
+      toast.success(`PDF "${filename}" descargado`);
       
     } catch (error) {
-      toast.dismiss();
-      console.error('Error downloading PDF:', error);
+      toast.dismiss(toastId);
+      console.error('[PDF Download] Error:', error);
       toast.error('Error al descargar el PDF. Verifique su conexión.');
     }
   };
