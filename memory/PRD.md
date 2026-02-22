@@ -7,6 +7,31 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
+## CORRECCIÓN DESCARGA PDF - 22 Febrero 2026
+
+### Problema Reportado:
+- La descarga de PDF mostraba "PDF descargado correctamente" pero el archivo no llegaba a la carpeta de descargas
+- Afectaba todos los módulos (Cotizaciones, Clientes, Bancos)
+
+### Causa Raíz:
+- El código anterior no esperaba a que el elemento `<a>` estuviera en el DOM antes de disparar el click
+- El timeout de limpieza era muy corto (1 segundo)
+
+### Solución Implementada:
+1. Reescrita la función `downloadPDF` en `Quotes.jsx` con:
+   - Logging detallado con prefijo `[PDF Download]`
+   - Control de toast con `toastId`
+   - `await setTimeout(100ms)` antes del click
+   - Timeout de 3 segundos antes de limpiar
+
+### Verificación (iteration_30.json):
+- ✅ Backend: 10/10 tests pasados
+- ✅ Frontend: Descarga verificada con Playwright
+- ✅ PDFs válidos (3020 bytes, header %PDF-1.4)
+- ✅ Módulos verificados: Cotizaciones, Clientes, Bancos, Medios de Pago
+
+---
+
 ## CORRECCIÓN CRÍTICA - 21 Diciembre 2025
 
 ### Problema Reportado:
