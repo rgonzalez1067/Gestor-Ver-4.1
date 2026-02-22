@@ -530,10 +530,19 @@ async def update_client(client_id: str, client_data: ClientCreate, authorization
 @api_router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    
+    # Validar integridad referencial - verificar si hay cotizaciones vinculadas
+    quotes_count = await db.quotes.count_documents({"client_id": client_id})
+    if quotes_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No se puede eliminar el cliente porque tiene {quotes_count} cotización(es) vinculada(s). Elimine primero las cotizaciones asociadas."
+        )
+    
     result = await db.clients.delete_one({"client_id": client_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Client not found")
-    return {"message": "Client deleted successfully"}
+    return {"message": "Cliente eliminado exitosamente"}
 
 @api_router.post("/clients/import", response_model=ImportResult)
 async def import_clients(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
