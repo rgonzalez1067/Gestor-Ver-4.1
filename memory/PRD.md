@@ -7,22 +7,23 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
-## CORRECCIÓN CRÍTICA - 20 Diciembre 2025
+## CORRECCIÓN CRÍTICA - 21 Diciembre 2025
 
-### Problema Reportado (P0 - CRÍTICO):
-- Las acciones del menú dropdown (Aprobar, Cobrar, Eliminar, Enviar al Cliente, Facturar) no funcionaban al hacer clic
-- El usuario reportaba que los botones eran visibles pero no ejecutaban ninguna acción
+### Problema Reportado:
+- Las funciones de Aprobación y Eliminación no ejecutaban los procesos lógicos esperados
+- Se requería modal de confirmación (pop-up) en lugar de eliminación directa
 
-### Causa Raíz Identificada: **USO INCORRECTO DE EVENTO EN RADIX UI**
-Los componentes `DropdownMenuItem` de Radix UI/Shadcn utilizan `onSelect` en lugar de `onClick` para manejar eventos de selección. El código usaba `onClick` que era ignorado silenciosamente.
+### Solución Implementada:
+1. **Modales AlertDialog**: Reemplazados todos los `window.confirm` por componentes `AlertDialog` de Shadcn
+2. **Aprobar**: Muestra modal con mensaje sobre envío de email usando plantilla "Cotización Aprobada"
+3. **Eliminar**: Muestra modal con advertencia "Esta acción no se puede deshacer" en rojo
+4. **Cobrar**: Muestra modal confirmando cambio de estado a "Pagada"
 
-### Solución Aplicada:
-- Cambiados TODOS los `onClick` por `onSelect` en los `DropdownMenuItem` (líneas 1842-1932 de `Quotes.jsx`)
-- Acciones corregidas: Modificar, Enviar al Cliente, Aprobar, Facturar, Cobrar, Entregar, Enviar a Implementación, Eliminar
-
-### Verificación (iteration_27.json):
-- ✅ Todas las 7 acciones del menú dropdown funcionando
-- ✅ Descarga de PDF funcionando
+### Verificación (iteration_28.json):
+- ✅ Modal de Aprobar funcionando
+- ✅ Modal de Eliminar funcionando  
+- ✅ Modal de Cobrar funcionando
+- ✅ APIs backend funcionando (approve, collect, delete)
 - ✅ Flujo de estados completo verificado
 - Backend: 100% ✅
 - Frontend: 100% ✅
