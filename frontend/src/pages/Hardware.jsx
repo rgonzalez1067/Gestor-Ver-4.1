@@ -406,6 +406,29 @@ export const Hardware = () => {
             </div>
           )}
         </div>
+        
+        {/* Modal de confirmación para Eliminar */}
+        <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar Dispositivo?</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Está seguro de que desea eliminar el dispositivo <strong>"{deleteHardwareData.name}"</strong>?
+                <br /><br />
+                <span className="text-red-600 font-medium">Esta acción es irreversible y podría afectar datos vinculados (cotizaciones de equipos).</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={executeDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
