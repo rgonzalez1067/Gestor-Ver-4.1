@@ -745,6 +745,29 @@ export const MediosPago = () => {
             )}
           </div>
         </div>
+        
+        {/* Modal de confirmación para Eliminar */}
+        <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar Medio de Pago?</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Está seguro de que desea eliminar el medio de pago <strong>"{deleteMedioPagoData.name}"</strong>?
+                <br /><br />
+                <span className="text-red-600 font-medium">Esta acción es irreversible y podría afectar datos vinculados (bancos, cotizaciones).</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={executeDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
