@@ -87,7 +87,16 @@ export const Integrators = () => {
   };
 
   const handleDelete = async (integratorId) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este Integrador de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
+    const integrator = integrators.find(i => i.integrator_id === integratorId);
+    setDeleteIntegratorData({ id: integratorId, name: integrator?.name || 'este integrador' });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    const integratorId = deleteIntegratorData.id;
+    setDeleteConfirmOpen(false);
+    
+    if (!integratorId) return;
 
     try {
       await api.delete(`/integrators/${integratorId}`);
@@ -95,7 +104,13 @@ export const Integrators = () => {
       fetchIntegrators();
     } catch (error) {
       console.error('Error deleting integrator:', error);
-      toast.error('Error al eliminar integrador');
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else {
+        toast.error('Error al eliminar integrador');
+      }
+    } finally {
+      setDeleteIntegratorData({ id: null, name: null });
     }
   };
 
