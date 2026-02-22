@@ -77,7 +77,16 @@ export const Hardware = () => {
   };
 
   const handleDelete = async (hardwareId) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este Dispositivo de forma permanente?\n\nEsta acción no se puede deshacer.')) return;
+    const hardware = hardwareList.find(h => h.hardware_id === hardwareId);
+    setDeleteHardwareData({ id: hardwareId, name: hardware?.name || 'este dispositivo' });
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    const hardwareId = deleteHardwareData.id;
+    setDeleteConfirmOpen(false);
+    
+    if (!hardwareId) return;
     
     try {
       await api.delete(`/hardware/${hardwareId}`);
@@ -85,7 +94,13 @@ export const Hardware = () => {
       fetchHardware();
     } catch (error) {
       console.error('Error deleting hardware:', error);
-      toast.error('Error al eliminar dispositivo');
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else {
+        toast.error('Error al eliminar dispositivo');
+      }
+    } finally {
+      setDeleteHardwareData({ id: null, name: null });
     }
   };
 
