@@ -9,7 +9,48 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ## NUEVA FUNCIONALIDAD - 23 Febrero 2026
 
-### 1. ACTUALIZACIÓN UI BOTÓN DE COTIZACIÓN
+### 1. GENERADOR DE PDF CON PLANTILLA DINÁMICA
+Sistema de generación de cotizaciones que usa plantillas PDF configurables:
+
+**Funcionamiento:**
+1. Lee la plantilla PDF del módulo de Configuración (según tipo de cotización)
+2. Usa PyPDF2 para combinar la plantilla base con contenido dinámico
+3. Reemplaza campos variables (marcados en amarillo en la plantilla original)
+4. Inserta tablas de cotización en las páginas correspondientes
+
+**Campos Variables Reemplazados:**
+| Campo | Ubicación |
+|-------|-----------|
+| Nombre Cliente | Página 1, 2 |
+| RIF | Página 2 |
+| Persona Contacto | Página 2 |
+| Integrador | Página 1, 5 |
+| Aplicativo de Caja | Página 1, 5 |
+| Modelo Pinpad | Página 1 |
+| Patrocinador | Página 1 |
+| Cantidad de Cajas | Página 1, 2 |
+| Número de Cotización | Página 1 |
+| Fecha | Página 2, 7 |
+
+**Secciones Dinámicas:**
+| Página | Sección | Contenido |
+|--------|---------|-----------|
+| 2 | Resumen Ejecutivo | Matriz de distribución (Bancos/Productos/Cajas) |
+| 4 | Costos SETUP | Tabla de conceptos de implementación |
+| 5 | Costos Recurrentes | Tabla de conceptos mensuales |
+
+**Endpoints Backend:**
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/quotes/generate-pdf-with-template` | POST | Genera PDF con plantilla |
+| `/api/quotes/preview-pdf-with-template` | POST | Previsualización inline |
+| `/api/quotes/check-template/{type}` | GET | Verifica disponibilidad |
+
+**Verificación (iteration_38.json):** 100% Backend ✅
+
+---
+
+### 2. ACTUALIZACIÓN UI BOTÓN DE COTIZACIÓN
 - **Nombre anterior**: "Nueva Cotización de Equipos"
 - **Nombre nuevo**: "Nueva Cotización: Equipos, Accesorios y Reparaciones"
 
