@@ -3038,6 +3038,13 @@ class DynamicQuotePDFGenerator:
     def generate(self):
         """Generar el PDF completo con flujo dinámico"""
         
+        # Meses en español
+        MESES_ES = {
+            1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+            5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+            9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+        }
+        
         # Crear documento con flujo automático
         doc = SimpleDocTemplate(
             self.buffer,
@@ -3050,11 +3057,15 @@ class DynamicQuotePDFGenerator:
         
         elements = []
         
+        # Fecha actual en español
+        now = datetime.now()
+        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        
         # ==================== PÁGINA 1: PORTADA ====================
         elements.append(Spacer(1, 80))
         elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
-        elements.append(Spacer(1, 15))  # Salto de línea entre título y subtítulo
-        elements.append(Paragraph("<b>Merchant Server - Plataforma de Pagos</b>", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 10))  # Salto de línea entre título y subtítulo
+        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
         elements.append(Spacer(1, 40))
         
         # Información del proyecto
@@ -3070,8 +3081,7 @@ class DynamicQuotePDFGenerator:
         elements.append(self._create_info_table(info_portada))
         elements.append(Spacer(1, 30))
         
-        # Número de cotización (autogenerado) y fecha
-        fecha_actual = datetime.now().strftime("%d de %B de %Y")
+        # Número de cotización (autogenerado) y fecha en español
         elements.append(Paragraph(
             f"<b>Número de Cotización:</b> {self.data.quote_number}", 
             self.styles['TextoNormal']
@@ -3090,35 +3100,27 @@ class DynamicQuotePDFGenerator:
         """
         elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
         
+        # Texto corregido según solicitud del usuario
         carta_body = f"""
         Por medio de la presente, nos complace presentarle nuestra propuesta comercial para la implementación 
-        de terminales virtuales de pago en sus puntos de venta. La solución propuesta incluye la integración 
-        con el aplicativo <b>{self.data.integrator_app_name}</b> desarrollado por <b>{self.data.integrator_name}</b>, 
-        garantizando una experiencia de cobro segura y eficiente.
+        de terminales virtuales de pago en sus puntos de venta. La solución propuesta se implementa con la 
+        integración del Merchant Server con el aplicativo <b>{self.data.integrator_app_name}</b> desarrollado 
+        por <b>{self.data.integrator_name}</b>, garantizando una experiencia de cobro segura y eficiente.
         """
         elements.append(Paragraph(carta_body, self.styles['TextoNormal']))
         elements.append(Spacer(1, 15))
         
-        # RESUMEN EJECUTIVO (inmediatamente después de "...de cobro segura y eficiente")
+        # RESUMEN EJECUTIVO (inmediatamente después del párrafo)
         elements.append(Paragraph("RESUMEN EJECUTIVO", self.styles['SeccionHeader']))
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 8))
         
-        # Solo los datos solicitados: Cliente, Cantidad de Cajas, Dirección
-        info_resumen = [
-            ("Nombre del Cliente", self.data.cliente_nombre),
-            ("Cantidad de Cajas", str(self.data.cantidad_cajas)),
-            ("Dirección", self.data.cliente_address or "—"),
-        ]
-        elements.append(self._create_info_table(info_resumen))
-        elements.append(Spacer(1, 15))
-        
-        # Tabla de Bancos/Productos/Cajas (NO "Matriz de Distribución")
+        # Tabla de resumen con estilo igual al frontend (Cliente/Cajas/Dirección + Bancos/Productos)
         elements.extend(self._create_bank_products_table())
         
         # Salto de página
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 3+: COSTOS ====================
+        # ==================== PÁGINA 3: COSTOS ====================
         # Costos de Setup con desglose fiscal
         setup_elements, subtotal_setup = self._create_items_table(
             self.data.setup_items, 
@@ -3138,8 +3140,17 @@ class DynamicQuotePDFGenerator:
         )
         elements.extend(recurring_elements)
         
-        # ==================== RESUMEN DE LA INVERSIÓN (misma página) ====================
-        elements.append(Paragraph("RESUMEN DE LA INVERSIÓN", self.styles['SeccionHeader']))
+        # Notas (si existen) - van en esta página
+        if self.data.notes:
+            elements.append(Spacer(1, 8))
+            elements.append(Paragraph(f"<b>Notas:</b> {self.data.notes}", self.styles['TextoNormal']))
+        
+        # Salto de página para el Resumen de Inversión
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 4: RESUMEN DE LA INVERSIÓN ====================
+        elements.append(Paragraph("RESUMEN DE LA INVERSIÓN", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 20))
         
         # Calcular totales con IVA
         iva_setup = subtotal_setup * 0.16
@@ -3172,39 +3183,51 @@ class DynamicQuotePDFGenerator:
         resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
         resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
         
+        # Gran total
+        resumen_data.append(['', ''])
+        resumen_data.append(['INVERSIÓN INICIAL (Setup)', f"${total_setup_final:.2f}"])
+        resumen_data.append(['COSTO MENSUAL RECURRENTE', f"${total_recurrente_final:.2f}"])
+        
         resumen_table = Table(resumen_data, colWidths=[360, 120])
+        
+        # Determinar índices de filas importantes
+        idx_total_setup = 5 if descuento <= 0 else 6
+        idx_total_mensual = idx_total_setup + 5
+        
         resumen_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            # Destacar totales
-            ('BACKGROUND', (0, 5 if descuento <= 0 else 6), (-1, 5 if descuento <= 0 else 6), self.COLOR_AZUL_CLARO),
-            ('FONTNAME', (0, 5 if descuento <= 0 else 6), (-1, 5 if descuento <= 0 else 6), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_VERDE_CLARO),
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            # Destacar total setup
+            ('BACKGROUND', (0, idx_total_setup), (-1, idx_total_setup), self.COLOR_AZUL_CLARO),
+            ('FONTNAME', (0, idx_total_setup), (-1, idx_total_setup), 'Helvetica-Bold'),
+            # Destacar total mensual
+            ('BACKGROUND', (0, -3), (-1, -3), self.COLOR_VERDE_CLARO),
+            ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
+            # Destacar filas finales
+            ('BACKGROUND', (0, -2), (-1, -1), colors.HexColor("#1E293B")),  # slate-800
+            ('TEXTCOLOR', (0, -2), (-1, -1), colors.white),
+            ('FONTNAME', (0, -2), (-1, -1), 'Helvetica-Bold'),
         ]))
         
         elements.append(resumen_table)
         
-        # Notas (si existen)
-        if self.data.notes:
-            elements.append(Spacer(1, 10))
-            elements.append(Paragraph(f"<b>Notas:</b> {self.data.notes}", self.styles['TextoNormal']))
-        
         # Salto de página para Términos
         elements.append(PageBreak())
         
-        # ==================== PÁGINA FINAL: TÉRMINOS Y CONDICIONES ====================
+        # ==================== PÁGINA 5: TÉRMINOS Y CONDICIONES ====================
         elements.append(Paragraph("TÉRMINOS Y CONDICIONES", self.styles['TituloPortada']))
         elements.append(Spacer(1, 20))
         
-        vigencia_fecha = (datetime.now() + timedelta(days=5)).strftime("%d/%m/%Y")
+        # Fecha de vigencia en español
+        vigencia_date = now + timedelta(days=5)
+        vigencia_fecha = f"{vigencia_date.day} de {MESES_ES[vigencia_date.month]} de {vigencia_date.year}"
         
         terminos = f"""
         <b>1. Vigencia de la Propuesta</b><br/>
