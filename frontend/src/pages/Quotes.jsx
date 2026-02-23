@@ -1337,17 +1337,30 @@ export const Quotes = () => {
     }
     
     // Función auxiliar para detectar si un concepto debe tener lockBancos
+    // SOLO estos 5 conceptos muestran N/A:
+    // - Derecho de uso de plataforma MServer por PDV (SIN "/ Banco")
+    // - Configuración dispositivo (Pinpad o POS)
+    // - Configuración PDV en MServer
+    // - Comunicación Backend
+    // - Procesamiento
     const shouldLockBancos = (itemName) => {
+      const lowerName = itemName.toLowerCase();
+      
+      // EXCLUIR explícitamente "/ Banco" - este SÍ debe mostrar cantidad de bancos
+      if (lowerName.includes('/ banco')) {
+        return false;
+      }
+      
+      // Solo estos conceptos tienen lockBancos
       const lockBancosNames = [
-        'Derecho de uso de plataforma MServer por PDV',
-        'Configuración dispositivo',
-        'Configuración PDV en MServer',
-        'Comunicación Backend',
-        'Procesamiento'
+        'derecho de uso de plataforma mserver por pdv',
+        'configuración dispositivo',
+        'configuración pdv en mserver',
+        'comunicación backend',
+        'procesamiento'
       ];
-      return lockBancosNames.some(name => 
-        itemName.toLowerCase().includes(name.toLowerCase())
-      );
+      
+      return lockBancosNames.some(name => lowerName.includes(name));
     };
     
     // Función auxiliar para detectar si un concepto tiene autoBancos
