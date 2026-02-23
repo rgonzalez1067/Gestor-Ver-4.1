@@ -3192,11 +3192,6 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
     except Exception as e:
         logging.error(f"Error generando PDF dinámico: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al generar PDF: {str(e)}")
-        )
-        
-    except Exception as e:
-        logging.error(f"Error generando PDF con plantilla: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error al generar PDF: {str(e)}")
 
 
 @api_router.post("/quotes/preview-pdf-with-template")
