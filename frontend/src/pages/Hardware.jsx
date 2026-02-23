@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Smartphone, Package, Wrench, Settings2, Cog } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Smartphone, Package, Wrench, Settings2, Cog, FileSpreadsheet, FileText, FileDown, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
