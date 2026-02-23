@@ -113,6 +113,10 @@ export const Quotes = () => {
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   
+  // Estado para usar plantilla PDF
+  const [useTemplateForPDF, setUseTemplateForPDF] = useState(true); // Por defecto usa plantilla si está disponible
+  const [templateAvailable, setTemplateAvailable] = useState({});
+  
   // Estados para filtros rápidos
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
