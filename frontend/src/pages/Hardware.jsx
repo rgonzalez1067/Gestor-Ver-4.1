@@ -52,6 +52,12 @@ export const Hardware = () => {
     description: ''
   });
   const fileInputRef = useRef(null);
+  
+  // Estados para importación
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
     fetchHardware();
