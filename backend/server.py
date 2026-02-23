@@ -539,7 +539,20 @@ async def create_session(x_session_id: str = Header(...)):
 @api_router.get("/auth/me")
 async def get_me(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
-    return user
+    # Retornar usuario sin password_hash
+    return {
+        "user_id": user.get("user_id"),
+        "email": user.get("email"),
+        "first_name": user.get("first_name", user.get("name", "").split()[0] if user.get("name") else ""),
+        "last_name": user.get("last_name", " ".join(user.get("name", "").split()[1:]) if user.get("name") else ""),
+        "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
+        "cedula": user.get("cedula", ""),
+        "role": user.get("role", "user"),
+        "is_active": user.get("is_active", True),
+        "is_verified": user.get("is_verified", False),
+        "permissions": user.get("permissions", {}),
+        "picture": user.get("picture")
+    }
 
 @api_router.post("/auth/logout")
 async def logout(authorization: Optional[str] = Header(None)):
