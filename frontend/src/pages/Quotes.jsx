@@ -1391,6 +1391,7 @@ export const Quotes = () => {
     
     // Mapear items adicionales con campos específicos (bank_id, bank_name, tarifa_setup, tarifa_recurrente)
     // Los items adicionales SIEMPRE preservan sus valores originales de cantidad_bancos
+    // Marcamos isFromDB=true para evitar que el useEffect los actualice
     const mapAdditionalItem = (s) => ({
       id: s.item_id || `additional_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       service_id: s.item_id || s.service_id || '',
@@ -1410,6 +1411,7 @@ export const Quotes = () => {
       cantidad_bancos: s.cantidad_bancos || 1,
       isDefault: false,
       isAutoLinked: false,
+      isFromDB: true, // Marca que viene de BD para evitar propagación automática
       lockBancos: false // Items adicionales nunca tienen lockBancos
     });
     
