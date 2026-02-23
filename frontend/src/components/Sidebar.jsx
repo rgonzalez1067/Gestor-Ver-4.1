@@ -11,7 +11,8 @@ import {
   Settings,
   LogOut,
   UserCheck,
-  Shield
+  Shield,
+  Boxes
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -19,12 +20,11 @@ const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/clients', icon: Users, label: 'Clientes' },
   { path: '/banks', icon: Building2, label: 'Bancos' },
-  { path: '/hardware', icon: Package, label: 'Dispositivos y Accesorios' },
+  { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
   { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
   { path: '/integrators', icon: UserCheck, label: 'Integradores' },
   { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
-  { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
-  { path: '/settings', icon: Settings, label: 'Configuración' }
+  { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
 ];
 
 // Items solo para admin
