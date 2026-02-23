@@ -384,7 +384,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               <p className="text-slate-600 text-sm">Seleccione la categoría de ítems a cotizar.</p>
               
               {/* Selección de Categoría Principal */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {EQUIPMENT_CATEGORIES.map((cat) => {
                   const IconComponent = cat.icon;
                   return (
@@ -401,11 +401,11 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                       }`}
                       data-testid={`equipment-category-${cat.id.toLowerCase()}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <IconComponent size={24} className={equipmentCategory === cat.id ? 'text-brand-blue-600' : 'text-slate-400'} />
+                      <div className="flex flex-col items-center text-center gap-2">
+                        <IconComponent size={28} className={equipmentCategory === cat.id ? 'text-brand-blue-600' : 'text-slate-400'} />
                         <div>
                           <p className="font-semibold text-slate-900">{cat.name}</p>
-                          <p className="text-sm text-slate-500">{cat.description}</p>
+                          <p className="text-xs text-slate-500 mt-1">{cat.description}</p>
                         </div>
                       </div>
                     </button>
@@ -438,8 +438,56 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 </div>
               )}
 
+              {/* Campos específicos para REPARACIONES */}
+              {equipmentCategory === 'Reparacion' && (
+                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2 text-orange-800 font-medium">
+                    <Wrench size={18} />
+                    Información de la Reparación
+                  </div>
+                  
+                  <div>
+                    <Label className="text-orange-800">Descripción de la falla *</Label>
+                    <Textarea
+                      value={repairDescription}
+                      onChange={(e) => setRepairDescription(e.target.value)}
+                      placeholder="Describa el problema o falla del equipo..."
+                      className="bg-white mt-1"
+                      rows={3}
+                      data-testid="repair-description"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-orange-800">Número de serie del equipo</Label>
+                      <Input
+                        value={equipmentSerialNumber}
+                        onChange={(e) => setEquipmentSerialNumber(e.target.value)}
+                        placeholder="Ej: SN-12345678"
+                        className="bg-white mt-1"
+                        data-testid="repair-serial-number"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-orange-800">Fecha estimada de entrega</Label>
+                      <div className="relative mt-1">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <Input
+                          type="date"
+                          value={estimatedDeliveryDate}
+                          onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                          className="bg-white pl-10"
+                          data-testid="repair-delivery-date"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Indicador de selección */}
-              {(equipmentCategory === 'Accesorio' || (equipmentCategory === 'Dispositivo' && deviceSubtype)) && (
+              {(equipmentCategory === 'Accesorio' || equipmentCategory === 'Reparacion' || (equipmentCategory === 'Dispositivo' && deviceSubtype)) && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-600" />
                   <span className="text-sm text-green-700 font-medium">
@@ -454,7 +502,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 </Button>
                 <Button 
                   onClick={() => setStep(3)} 
-                  disabled={!equipmentCategory || (equipmentCategory === 'Dispositivo' && !deviceSubtype)}
+                  disabled={!equipmentCategory || (equipmentCategory === 'Dispositivo' && !deviceSubtype) || (equipmentCategory === 'Reparacion' && !repairDescription)}
                   className="bg-brand-blue-600 hover:bg-brand-blue-700"
                   data-testid="equipment-step2-next"
                 >
