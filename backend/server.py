@@ -3143,247 +3143,9 @@ class DynamicQuotePDFGenerator:
 
 
 def create_overlay_pdf(data: TemplateQuotePDFRequest, page_width: float, page_height: float, page_num: int):
-    """[LEGACY] Crea un PDF overlay para el modo de plantilla base"""
-    # Esta función se mantiene para compatibilidad con el modo de overlay
+    """[LEGACY] Crea un PDF overlay para el modo de plantilla base - Solo para compatibilidad"""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
-    c.save()
-    buffer.seek(0)
-    return buffer
-        
-        # Número de cotización (esquina inferior derecha)
-        c.setFont(font_bold, 11)
-        c.drawRightString(page_width - 50, 70, data.quote_number or f"COT-{datetime.now().strftime('%Y%m%d')}")
-        
-    elif page_num == 2:
-        # ===== PÁGINA 2: CARTA + RESUMEN EJECUTIVO =====
-        
-        # Fecha (arriba a la derecha)
-        c.setFont(font_name, 10)
-        fecha_actual = datetime.now().strftime("%d de %B de %Y")
-        c.drawRightString(page_width - 80, page_height - 100, fecha_actual)
-        
-        # Datos del destinatario (izquierda)
-        c.setFont(font_bold, 11)
-        c.drawString(80, page_height - 145, f"Señores: {data.cliente_nombre}")
-        c.setFont(font_name, 10)
-        c.drawString(80, page_height - 160, f"RIF: {data.cliente_rif}")
-        c.drawString(80, page_height - 175, f"Att: {data.cliente_contacto}")
-        
-        # Datos en el cuerpo de la carta
-        c.drawString(350, page_height - 240, data.cliente_nombre[:35] if data.cliente_nombre else "")
-        c.drawString(350, page_height - 258, str(data.cantidad_cajas))
-        
-        # ===== RESUMEN EJECUTIVO (Tabla) =====
-        # Posición debajo del texto introductorio
-        y_resumen = page_height - 400
-        
-        # Crear matriz de distribución
-        styles = getSampleStyleSheet()
-        
-        # Calcular totales para el resumen
-        total_setup = sum(item.cantidad_cajas * item.cantidad_bancos * item.tarifa for item in data.setup_items)
-        total_rec_basic = sum(item.cantidad_cajas * item.cantidad_bancos * item.tarifa for item in data.recurring_basic_items)
-        total_rec_other = sum(item.cantidad_cajas * item.cantidad_bancos * item.tarifa for item in data.recurring_other_items)
-        total_recurrente = total_rec_basic + total_rec_other
-        
-        # Header del resumen
-        c.setFont(font_bold, 11)
-        c.setFillColor(color_azul)
-        c.drawString(80, y_resumen, "RESUMEN EJECUTIVO")
-        
-        c.setFillColor(colors.black)
-        c.setFont(font_name, 9)
-        
-        # Información básica
-        y_info = y_resumen - 25
-        c.drawString(80, y_info, f"Cliente: {data.cliente_nombre}")
-        c.drawString(80, y_info - 15, f"Cantidad de Cajas: {data.cantidad_cajas}")
-        c.drawString(80, y_info - 30, f"Integrador: {data.integrator_name}")
-        c.drawString(80, y_info - 45, f"Aplicativo: {data.integrator_app_name}")
-        
-        # Matriz de distribución (Bancos/Productos/Cajas)
-        y_matriz = y_info - 80
-        
-        # Obtener productos por banco
-        bank_products = {}
-        all_items = data.setup_items + data.recurring_basic_items + data.recurring_other_items
-        for item in all_items:
-            if item.bank_name:
-                key = f"{item.bank_name}"
-                if key not in bank_products:
-                    bank_products[key] = {"productos": set(), "cajas": 0}
-                bank_products[key]["productos"].add(item.concepto[:20])
-                bank_products[key]["cajas"] = max(bank_products[key]["cajas"], item.cantidad_cajas)
-        
-        c.setFont(font_bold, 9)
-        c.setFillColor(colors.HexColor("#28A745"))
-        c.drawString(80, y_matriz, "Banco")
-        c.setFillColor(colors.HexColor("#007BFF"))
-        c.drawString(200, y_matriz, "Productos")
-        c.setFillColor(colors.HexColor("#FFC107"))
-        c.drawString(400, y_matriz, "Cajas")
-        
-        c.setFillColor(colors.black)
-        c.setFont(font_name, 8)
-        y_row = y_matriz - 15
-        total_terminales = 0
-        
-        for bank, info in bank_products.items():
-            if y_row < 100:  # Evitar desbordamiento
-                break
-            c.drawString(80, y_row, bank[:25])
-            c.drawString(200, y_row, ", ".join(list(info["productos"])[:2]))
-            c.drawString(400, y_row, str(info["cajas"]))
-            total_terminales += info["cajas"]
-            y_row -= 12
-        
-        # Total de terminales
-        c.setFont(font_bold, 9)
-        c.drawString(300, y_row - 10, f"Total Terminales Virtuales: {total_terminales or data.cantidad_cajas}")
-        
-    elif page_num == 4:
-        # ===== PÁGINA 4: SECCIÓN DE COTIZACIÓN SETUP =====
-        
-        y_start = page_height - 180
-        
-        # Título de la sección
-        c.setFont(font_bold, 12)
-        c.setFillColor(color_azul)
-        c.drawString(80, y_start, "COSTOS DE IMPLEMENTACIÓN O SET-UP")
-        
-        # Tabla de items de SETUP
-        c.setFillColor(colors.black)
-        c.setFont(font_name, 8)
-        
-        # Headers
-        y_header = y_start - 25
-        c.setFillColor(colors.white)
-        c.setFont(font_bold, 8)
-        
-        # Dibujar rectángulo de header
-        c.setFillColor(color_azul)
-        c.rect(80, y_header - 5, 450, 18, fill=1)
-        
-        c.setFillColor(colors.white)
-        c.drawString(85, y_header, "N°")
-        c.drawString(105, y_header, "Concepto")
-        c.drawString(320, y_header, "Cajas")
-        c.drawString(360, y_header, "Bancos")
-        c.drawString(410, y_header, "Tarifa")
-        c.drawString(470, y_header, "Total")
-        
-        # Filas de datos
-        c.setFillColor(colors.black)
-        c.setFont(font_name, 7)
-        y_row = y_header - 20
-        subtotal = 0
-        
-        for i, item in enumerate(data.setup_items, 1):
-            if y_row < 120:  # Validación de espacio
-                c.setFont(font_bold, 8)
-                c.drawString(85, y_row, "... (contenido truncado)")
-                break
-                
-            total_item = item.cantidad_cajas * item.cantidad_bancos * item.tarifa
-            subtotal += total_item
-            
-            # Alternar color de fondo
-            if i % 2 == 0:
-                c.setFillColor(colors.Color(0.95, 0.95, 0.95))
-                c.rect(80, y_row - 3, 450, 12, fill=1)
-                c.setFillColor(colors.black)
-            
-            c.drawString(85, y_row, str(i))
-            # Truncar concepto si es muy largo
-            concepto_display = item.concepto[:35] + "..." if len(item.concepto) > 35 else item.concepto
-            c.drawString(105, y_row, concepto_display)
-            c.drawString(325, y_row, str(item.cantidad_cajas))
-            c.drawString(365, y_row, str(item.cantidad_bancos))
-            c.drawString(410, y_row, f"${item.tarifa:.2f}")
-            c.drawString(470, y_row, f"${total_item:.2f}")
-            y_row -= 14
-        
-        # Línea de subtotal
-        c.setFont(font_bold, 9)
-        c.drawString(410, y_row - 10, "Subtotal:")
-        c.drawString(470, y_row - 10, f"${subtotal:.2f}")
-        
-    elif page_num == 5:
-        # ===== PÁGINA 5: SECCIÓN DE COSTOS RECURRENTES =====
-        
-        y_start = page_height - 120
-        
-        # Características del Proyecto (campos amarillos)
-        c.setFont(font_name, 9)
-        c.drawString(420, y_start + 30, data.integrator_app_name[:25] if data.integrator_app_name else "")
-        c.drawString(420, y_start + 15, data.integrator_name[:25] if data.integrator_name else "")
-        
-        # Título de la sección
-        c.setFont(font_bold, 12)
-        c.setFillColor(color_verde)
-        c.drawString(80, y_start - 20, "COSTOS RECURRENTES MENSUALES")
-        
-        # Tabla de items recurrentes básicos
-        c.setFillColor(colors.black)
-        
-        # Headers
-        y_header = y_start - 45
-        c.setFillColor(color_verde)
-        c.rect(80, y_header - 5, 450, 18, fill=1)
-        
-        c.setFillColor(colors.white)
-        c.setFont(font_bold, 8)
-        c.drawString(85, y_header, "N°")
-        c.drawString(105, y_header, "Concepto")
-        c.drawString(320, y_header, "Cajas")
-        c.drawString(360, y_header, "Bancos")
-        c.drawString(410, y_header, "Tarifa")
-        c.drawString(470, y_header, "Total")
-        
-        # Combinar items recurrentes
-        all_recurring = data.recurring_basic_items + data.recurring_other_items
-        
-        c.setFillColor(colors.black)
-        c.setFont(font_name, 7)
-        y_row = y_header - 20
-        subtotal_recurrente = 0
-        
-        for i, item in enumerate(all_recurring, 1):
-            if y_row < 180:  # Validación de espacio
-                c.setFont(font_bold, 8)
-                c.drawString(85, y_row, "... (contenido truncado)")
-                break
-                
-            total_item = item.cantidad_cajas * item.cantidad_bancos * item.tarifa
-            subtotal_recurrente += total_item
-            
-            if i % 2 == 0:
-                c.setFillColor(colors.Color(0.95, 0.95, 0.95))
-                c.rect(80, y_row - 3, 450, 12, fill=1)
-                c.setFillColor(colors.black)
-            
-            c.drawString(85, y_row, str(i))
-            concepto_display = item.concepto[:35] + "..." if len(item.concepto) > 35 else item.concepto
-            c.drawString(105, y_row, concepto_display)
-            c.drawString(325, y_row, str(item.cantidad_cajas))
-            c.drawString(365, y_row, str(item.cantidad_bancos))
-            c.drawString(410, y_row, f"${item.tarifa:.2f}")
-            c.drawString(470, y_row, f"${total_item:.2f}")
-            y_row -= 14
-        
-        # Subtotal recurrente
-        c.setFont(font_bold, 9)
-        c.drawString(410, y_row - 10, "Subtotal Mensual:")
-        c.drawString(470, y_row - 10, f"${subtotal_recurrente:.2f}")
-        
-    elif page_num == 7:
-        # ===== PÁGINA 7: VIGENCIA =====
-        # Fecha de vigencia (30 días desde hoy)
-        fecha_vigencia = (datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")
-        c.setFont(font_name, 10)
-        c.drawString(370, 85, fecha_vigencia)
-    
     c.save()
     buffer.seek(0)
     return buffer
@@ -3392,62 +3154,44 @@ def create_overlay_pdf(data: TemplateQuotePDFRequest, page_width: float, page_he
 @api_router.post("/quotes/generate-pdf-with-template")
 async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, authorization: Optional[str] = Header(None)):
     """
-    Genera un PDF de cotización usando la plantilla configurada.
-    Combina la plantilla base con el contenido dinámico.
+    Genera un PDF de cotización profesional con flujo dinámico.
+    Ya no depende de plantilla base - genera el documento completo desde cero con diseño profesional.
+    Características:
+    - Flujo dinámico con salto de página automático
+    - Sin placeholders amarillos
+    - Posicionamiento exacto
+    - Diseño profesional
     """
     await get_current_user(authorization)
     
-    if not PYPDF2_AVAILABLE:
-        raise HTTPException(status_code=500, detail="PyPDF2 no está instalado. No se puede usar plantillas PDF.")
-    
-    # Verificar que existe la plantilla
-    templates_dir = UPLOADS_DIR / "templates"
-    template_path = templates_dir / f"{data.template_type}.pdf"
-    
-    if not template_path.exists():
-        raise HTTPException(
-            status_code=404, 
-            detail=f"No hay plantilla configurada para '{data.template_type}'. Por favor suba una plantilla en Configuración."
-        )
-    
     try:
-        # Leer la plantilla base
-        template_reader = PdfReader(str(template_path))
-        output = PdfWriter()
+        # Obtener logo si existe
+        logo_path = None
+        logo_file = UPLOADS_DIR / "logo.png"
+        if logo_file.exists():
+            logo_path = str(logo_file)
         
-        # Procesar cada página de la plantilla
-        for page_num, page in enumerate(template_reader.pages, 1):
-            # Obtener dimensiones de la página
-            media_box = page.mediabox
-            page_width = float(media_box.width)
-            page_height = float(media_box.height)
-            
-            # Crear overlay con contenido dinámico para esta página
-            overlay_buffer = create_overlay_pdf(data, page_width, page_height, page_num)
-            overlay_reader = PdfReader(overlay_buffer)
-            
-            if len(overlay_reader.pages) > 0:
-                overlay_page = overlay_reader.pages[0]
-                # Merge overlay sobre la página de la plantilla
-                page.merge_page(overlay_page)
-            
-            output.add_page(page)
+        # Crear generador
+        generator = DynamicQuotePDFGenerator(data, logo_path)
         
-        # Escribir PDF final
-        output_buffer = io.BytesIO()
-        output.write(output_buffer)
-        output_buffer.seek(0)
+        # Generar PDF
+        pdf_buffer = generator.generate()
         
         # Nombre del archivo
-        filename = f"cotizacion_{data.cliente_nombre.replace(' ', '_')}_{data.quote_number or datetime.now().strftime('%Y%m%d')}.pdf"
+        filename = f"cotizacion_{data.cliente_nombre.replace(' ', '_').replace('.', '')}_{data.quote_number or datetime.now().strftime('%Y%m%d')}.pdf"
         
         return Response(
-            content=output_buffer.getvalue(),
+            content=pdf_buffer.getvalue(),
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
-                "X-Template-Used": data.template_type
+                "X-Generation-Method": "dynamic-flow"
             }
+        )
+        
+    except Exception as e:
+        logging.error(f"Error generando PDF dinámico: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al generar PDF: {str(e)}")
         )
         
     except Exception as e:
