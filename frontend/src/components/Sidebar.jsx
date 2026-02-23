@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -9,7 +10,8 @@ import {
   TrendingUp,
   Settings,
   LogOut,
-  UserCheck
+  UserCheck,
+  Shield
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -25,8 +27,29 @@ const menuItems = [
   { path: '/settings', icon: Settings, label: 'Configuración' }
 ];
 
+// Items solo para admin
+const adminItems = [
+  { path: '/admin/users', icon: Shield, label: 'Gestión de Usuarios' }
+];
+
 export const Sidebar = () => {
   const location = useLocation();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userName, setUserName] = useState('');
+  
+  useEffect(() => {
+    // Verificar si el usuario es admin
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setIsAdmin(user.role === 'admin');
+        setUserName(user.first_name || user.name?.split(' ')[0] || user.email?.split('@')[0] || '');
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -40,6 +63,8 @@ export const Sidebar = () => {
       window.location.href = '/login';
     }
   };
+  
+  const allMenuItems = isAdmin ? [...menuItems, ...adminItems] : menuItems;
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col">
@@ -49,7 +74,7 @@ export const Sidebar = () => {
       </div>
 
       <nav className="flex-1 p-4">
-        {menuItems.map((item) => {
+        {allMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
           
@@ -57,7 +82,7 @@ export const Sidebar = () => {
             <Link
               key={item.path}
               to={item.path}
-              data-testid={`nav-${item.label.toLowerCase()}`}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
               className={`sidebar-nav-item flex items-center gap-3 px-4 py-3 rounded-lg mb-1 ${
                 isActive ? 'active' : 'text-slate-600'
               }`}
@@ -70,6 +95,19 @@ export const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-slate-200">
+        {userName && (
+          <div className="mb-3 px-4 py-2 bg-slate-50 rounded-lg">
+            <p className="text-xs text-slate-500">Sesión activa:</p>
+            <p className="text-sm font-medium text-slate-700 flex items-center gap-2">
+              {userName}
+              {isAdmin && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                  Admin
+                </span>
+              )}
+            </p>
+          </div>
+        )}
         <button
           onClick={handleLogout}
           data-testid="logout-button"
