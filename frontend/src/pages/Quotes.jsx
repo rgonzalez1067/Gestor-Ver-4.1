@@ -1046,19 +1046,32 @@ export const Quotes = () => {
     const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
     const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
 
+    // Determinar tipo de plantilla según el tipo de cotización
+    const templateTypeMap = {
+      'VPOS': 'vpos_pyme',
+      'GATEWAY': 'payment_gateway',
+      'MPOS': 'mpos',
+      'LINK': 'vpos_pyme'
+    };
+    const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
+    const hasTemplate = templateAvailable[templateType]?.exists;
+
     // Preparar datos para el PDF
     const pdfData = {
       cliente_nombre: client.legal_name || client.commercial_name || 'Cliente',
       cliente_rif: client.rif || '',
+      cliente_contacto: client.contact_name || '',  // Persona de contacto
       cliente_address: client.address || '',  // Dirección fiscal para el resumen
       quote_type: quoteData.quote_type,
       pricing_model: quoteData.pricing_model,
       cantidad_cajas: quoteData.cantidad_cajas || 1,  // Total de cajas para el resumen
+      quote_number: editingQuoteId ? quotes.find(q => q.quote_id === editingQuoteId)?.quote_number : '',
       // Nuevos campos de integración y hardware
       integrator_name: integrator?.name || '',
       integrator_app_name: quoteData.integrator_app_name || '',
       pinpad_model: pinpad?.name || '',
       sponsor_bank_name: sponsorBank?.name || '',
+      template_type: templateType,
       setup_items: [
         ...quoteData.setup_items.map(item => ({
           concepto: item.medio_pago_name,
@@ -1094,20 +1107,27 @@ export const Quotes = () => {
     };
 
     try {
-      toast.loading('Generando PDF...');
+      const toastId = toast.loading(hasTemplate && useTemplateForPDF 
+        ? 'Generando PDF con plantilla...' 
+        : 'Generando PDF...');
       
       // Obtener token de autenticación
       const token = localStorage.getItem('session_token');
       if (!token) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
         return;
       }
       
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
       
+      // Decidir qué endpoint usar
+      const endpoint = (hasTemplate && useTemplateForPDF) 
+        ? '/api/quotes/generate-pdf-with-template'
+        : '/api/quotes/generate-pdf';
+      
       // Usar fetch nativo para mejor control
-      const response = await fetch(`${backendUrl}/api/quotes/generate-pdf`, {
+      const response = await fetch(`${backendUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1119,7 +1139,7 @@ export const Quotes = () => {
       
       // Verificar respuesta
       if (!response.ok) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         const errorText = await response.text();
         try {
           const errorData = JSON.parse(errorText);
@@ -1133,7 +1153,7 @@ export const Quotes = () => {
       // Verificar Content-Type
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/pdf')) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('El servidor no devolvió un PDF válido');
         return;
       }
@@ -1142,7 +1162,7 @@ export const Quotes = () => {
       const blob = await response.blob();
       
       if (blob.size === 0) {
-        toast.dismiss();
+        toast.dismiss(toastId);
         toast.error('El archivo PDF está vacío');
         return;
       }
@@ -1171,8 +1191,10 @@ export const Quotes = () => {
         window.URL.revokeObjectURL(blobUrl);
       }, 250);
       
-      toast.dismiss();
-      toast.success('PDF descargado exitosamente');
+      toast.dismiss(toastId);
+      toast.success(hasTemplate && useTemplateForPDF 
+        ? 'PDF con plantilla descargado exitosamente' 
+        : 'PDF descargado exitosamente');
     } catch (error) {
       toast.dismiss();
       console.error('Error generating PDF:', error);
