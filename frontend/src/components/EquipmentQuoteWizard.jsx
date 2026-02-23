@@ -291,7 +291,10 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   // Obtener etiqueta del tipo de cotización
   const getEquipmentTypeLabel = () => {
     if (equipmentCategory === 'Dispositivo') {
-      return deviceSubtype ? `Dispositivo (${deviceSubtype})` : 'Dispositivo';
+      return deviceSubtype ? `Equipo (${deviceSubtype})` : 'Equipo';
+    }
+    if (equipmentCategory === 'Reparacion') {
+      return 'Reparación';
     }
     return equipmentCategory || 'No seleccionado';
   };
