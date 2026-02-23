@@ -1,166 +1,171 @@
 <analysis>**original_problem_statement:**
 El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo del desarrollo, los requerimientos se han expandido para incluir:
-1.  **Módulos CRUD:** Gestión completa para Integradores, Clientes, Bancos, Dispositivos, etc.
-2.  **Lógica de Cotizaciones:** Un ciclo de vida complejo con múltiples estados (Borrador, Enviada, Aprobada, Facturada, Pagada, etc.) que activan notificaciones por correo electrónico a través de Resend.
-3.  **Gestión de Plantillas:** Módulo de configuración para plantillas de correo y PDF.
-4.  **Funcionalidad Modificar Cotización:** Permitir la edición de una cotización para generar una nueva versión.
-5.  **Funcionalidad Eliminar Global:** Habilitar la eliminación de registros en todos los módulos, con un modal de confirmación.
-6.  **Flujo de Aprobación Secuencial:** Implementar una lógica de negocio estricta donde una acción habilita la siguiente (Aprobar -> Facturar -> Cobrar -> Enviar a Implementación).
-7.  **Campos Opcionales:** Permitir que ciertos campos en el formulario de cotización no sean obligatorios.
-8.  **Estandarización de UI:** Unificar el diseño de diferentes vistas de gestión de datos.
+1.  **Módulos CRUD:** Gestión completa para Integradores, Clientes, Bancos, Bienes y Servicios (antes Dispositivos), etc., con modales de confirmación para borrado y validaciones de integridad referencial.
+2.  **Lógica de Cotizaciones:** Un ciclo de vida complejo con múltiples estados (Borrador, Enviada, Aprobada, etc.) y una función de Modificar con lógica de negocio específica para la herencia de datos (cajas, bancos).
+3.  **Sistema de Autenticación y Permisos:** Un sistema de login/registro basado en JWT (reemplazando a Google OAuth) con un panel de administración para gestionar roles y permisos por módulo.
+4.  **Gestión de Datos (Importación/Exportación):** Una funcionalidad crítica para importar datos masivos (Excel/CSV) con mapeo de columnas y exportar a Excel/PDF.
+5.  **Mejoras de UI/UX:** Unificar la pantalla de login/registro, renombrar módulos (Dispositivos y Accesorios a Bienes y Servicios), y fijar elementos de navegación en el menú lateral.
+6.  **Funcionalidades Pendientes:** Implementar la verificación de email al registrarse y la recuperación de contraseña (actualmente en backlog).
 
-El usuario ha expresado una frustración significativa debido a que funcionalidades críticas (cambio de estados, eliminación) han sido reportadas como rotas repetidamente, a pesar de que los agentes anteriores las marcaron como corregidas.
+El usuario ha expresado una frustración significativa en el pasado debido a bugs recurrentes, pero los problemas críticos más recientes han sido resueltos. La atención se centra ahora en la implementación de nuevas características y mejoras de la interfaz.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. El frontend, centrado en el componente , presenta un panel para listar y gestionar cotizaciones. Se han implementado flujos de estado, notificaciones por email (Resend), y un módulo de configuración para plantillas de correo y la API key de Resend. Sin embargo, funcionalidades críticas del negocio, como cambiar el estado de una cotización (Aprobar, Cobrar) y eliminar registros, están rotas desde la perspectiva del usuario. El agente anterior identificó que la causa raíz es un error de implementación en el frontend, pero no llegó a verificar la solución.
+La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. Se ha implementado un robusto sistema de autenticación JWT con roles (Admin/Usuario) y un panel de administración para gestionar permisos. Los flujos CRUD para todos los módulos ahora incluyen modales de confirmación () y validaciones de integridad en el backend para evitar borrados accidentales de datos vinculados. Se corrigieron bugs críticos persistentes relacionados con las acciones del menú de cotizaciones y la descarga de PDF. Recientemente, se ha comenzado a trabajar en una serie de mejoras de UI, renombrando el módulo Dispositivos y Accesorios a Bienes y Servicios y ajustando el menú lateral para que la información del usuario y el cierre de sesión estén siempre visibles.
 
 **Last working item**:
-- Last item agent was working: El agente estaba solucionando el bug crítico por el cual los botones de acción (Aprobar, Cobrar, Eliminar) en el menú desplegable de cada cotización no funcionaban. El agente descubrió que la causa raíz era el uso del evento  en lugar de  en el componente  de la librería Radix/Shadcn. Se aplicó un  en  para corregir esto.
+- Last item agent was working: El agente estaba implementando un conjunto de mejoras de UI y funcionalidad solicitadas por el usuario. Específicamente, el agente completó el renombramiento del módulo Dispositivos y Accesorios a Bienes y Servicios, actualizó el menú de navegación lateral para que los botones de usuario y logout queden fijos en la parte inferior, y comenzó a modificar la página  (ahora ) para reflejar estos cambios y añadir nuevas categorías. El siguiente paso era implementar la funcionalidad de importación y exportación de datos.
 - Status: IN PROGRESS
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Las acciones del menú de cotizaciones (Aprobar, Cobrar, Eliminar, etc.) no se ejecutan al hacer clic (P0 - CRÍTICO)
--   Issue 2: La descarga de cotizaciones en PDF sigue sin funcionar para el usuario (P1 - Crítico Recurrente)
--   Issue 3: Los contadores del Dashboard no suman los registros correctamente (P2 - Recurrente)
+-   Issue 1: Los contadores del Dashboard no suman los registros correctamente (P2 - Recurrente)
 
 **Issues Detail:**
--   **Issue 1: Las acciones del menú de cotizaciones no se ejecutan**
-    -   **Attempted fixes**: El agente anterior aplicó la corrección cambiando  por  en los  dentro de . **Esta corrección no ha sido probada.**
+-   **Issue 1: Los contadores del Dashboard no suman los registros correctamente**
+    -   **Attempted fixes**: Ninguno. Este problema fue mencionado en resúmenes anteriores pero no ha sido priorizado ni abordado.
     -   **Next debug checklist**:
-        1.  Reiniciar los servicios de frontend y backend para asegurar que los últimos cambios se carguen.
-        2.  Crear una cotización de prueba.
-        3.  Probar **cada una** de las acciones en el menú desplegable (Enviar al cliente, Aprobar, Facturar, Cobrar, Eliminar, etc.) y verificar que la petición a la API se envía y que el estado de la cotización se actualiza correctamente en la UI.
-        4.  Llamar al  para realizar una prueba de regresión completa de todo el flujo de cotizaciones.
-    -   **Why fix this issue and what will be achieved with the fix?**: Este bug bloquea por completo el flujo operativo de la aplicación. Solucionarlo es la máxima prioridad para restaurar la funcionalidad básica y la confianza del usuario.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on other issue**: None
-
--   **Issue 2: La descarga de cotizaciones en PDF sigue sin funcionar**
-    -   **Attempted fixes**: Se han intentado múltiples soluciones, incluyendo el cambio de  a  y, más recientemente, añadir un fallback que abre el PDF en una nueva pestaña. A pesar de esto, el usuario reporta que la descarga falla, aunque la UI muestre un mensaje de éxito.
-    -   **Next debug checklist**:
-        1.  Revisar la implementación de descarga en  (función ).
-        2.  Añadir logging detallado en la consola del navegador, específicamente en el bloque  del , para capturar cualquier error silencioso.
-        3.  Verificar los logs del backend en el momento de la descarga para descartar errores de generación del PDF.
-        4.  Pedir al usuario que intente la descarga y revise la consola del navegador (pestaña Network y Console) en busca de errores (CORS, errores de blob, etc.).
-    -   **Why fix this issue and what will be achieved with the fix?**: Es una funcionalidad de negocio crítica y una fuente principal de frustración para el usuario.
+        1.  Revisar el componente del Dashboard en el frontend.
+        2.  Verificar los endpoints del backend que proveen los datos para los contadores.
+        3.  Asegurarse de que las consultas a la base de datos están contando los documentos correctamente, considerando posibles filtros (por ejemplo, por usuario).
+    -   **Why fix this issue and what will be achieved with the fix?**: Solucionarlo proporcionará una vista general precisa del estado del sistema, lo cual es fundamental para la toma de decisiones.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None
-
--   **Issue 3: Los contadores del Dashboard no suman los registros correctamente**
-    -   **Description**: Problema persistente donde el dashboard no muestra el total correcto de registros. Ha sido mencionado en resúmenes anteriores pero no ha sido abordado.
-    -   **Status**: NOT STARTED
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?**: frontend
 
 **In progress Task List**:
--   None.
+-   Task 1: Implementación de Importación y Exportación de Datos (P0 - CRÍTICO)
+
+**Task Detail:**
+-   **Task 1: Implementación de Importación y Exportación de Datos**
+    -   **Where to resume**: La implementación debe comenzar desde cero. Se necesita:
+        1.  **Backend:** Crear nuevos endpoints para:
+            - Exportar datos a Excel y PDF desde los diferentes módulos.
+            - Recibir archivos Excel/CSV para importación masiva.
+            - Proveer una plantilla de ejemplo para la importación.
+            - Validar los datos del archivo antes de la importación final.
+        2.  **Frontend:** Añadir botones de Importar y Exportar a las páginas de los módulos relevantes (empezando por Bienes y Servicios). Crear un modal o asistente para el proceso de importación que permita al usuario mapear columnas y ver los resultados de la validación previa.
+    -   **What will be achieved with this?**: Se entregará una funcionalidad crítica para la productividad del usuario, permitiendo la gestión masiva de datos.
+    -   **Status**: NOT STARTED
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
+Upcoming Tasks:
+-   **Verificación de Email (P1)**: Implementar el envío de un correo de verificación al registrar un nuevo usuario (actualmente deshabilitado por falta de API Key de Resend).
+-   **Recuperación de Contraseña (P1)**: Crear el flujo para Olvidé mi contraseña, que también depende de la configuración de Resend.
+
 Future Tasks:
 -   **Refactorización del Backend (P1):** Dividir el monolito  en una estructura modular (routers, modelos, servicios).
 -   **Refactorización del Frontend (P1):** Descomponer el componente  en subcomponentes más pequeños y manejables.
--   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes.
--   **Recuperación de Contraseña (P2):** Implementar la funcionalidad Olvidé mi contraseña.
+-   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes avanzados.
 
 **Completed work in this session**
--   **Corrección de Modificar Cotización**: Se implementó la lógica para que al modificar una cotización se carguen correctamente todos los datos, incluyendo campos dinámicos y adicionales.
--   **Implementación de Configuración de Resend**: Se añadió una sección en la página de Configuración para que el usuario pueda introducir su API Key de Resend, la cual se almacena en la base de datos.
--   **Estandarización de UI**: Se rediseñó la página de Dispositivos y Accesorios () para que use una tabla, replicando el estilo de otras páginas de gestión.
--   **Implementación de Eliminación con Confirmación**: Se agregaron endpoints y lógica en el frontend para eliminar registros en todos los módulos, incluyendo un modal de confirmación () como solicitó el usuario.
--   **Campos Opcionales**: Se ajustó el formulario de creación de cotizaciones para que los campos Modelo de Pinpad y Entidad Patrocinadora sean opcionales.
--   **Implementación del Flujo de Estados**: Se ajustaron los endpoints y la lógica del frontend para seguir el flujo secuencial de estados (Aprobar -> Facturar -> Cobrar) solicitado por el usuario.
+-   **Sistema de Autenticación JWT y Roles**: Se implementó desde cero un sistema de registro y login con email/contraseña, roles (Admin/Usuario), y un panel de administración para gestionar permisos, reemplazando completamente el login de Google anterior.
+-   **UI Unificada de Login/Registro**: Se creó una nueva página  con pestañas para Iniciar Sesión y Registrarse.
+-   **Resolución de Bugs Críticos Recurrentes**:
+    -   Se solucionó permanentemente el bug de las acciones del menú de cotizaciones (cambiando  por  en ).
+    -   Se implementó una función de descarga de PDF robusta que funciona correctamente.
+-   **Modal de Confirmación Global ()**: Se reemplazó el  por un modal de confirmación  de Shadcn en todos los módulos para las operaciones de borrado.
+-   **Validación de Integridad Referencial**: Se añadió lógica en el backend para impedir la eliminación de entidades (clientes, bancos, etc.) si tienen cotizaciones asociadas.
+-   **Corrección de Lógica de Modificar Cotización**: Se realizaron múltiples ajustes para asegurar que los valores de bancos y cajas se hereden y propaguen correctamente según las reglas de negocio especificadas por el usuario.
+-   **Rebranding y UI del Sidebar**: Se renombró el módulo Dispositivos y Accesorios a Bienes y Servicios y se fijó la sección de usuario/logout en la parte inferior del menú lateral.
 
 **Earlier issues found/mentioned but not fixed**
--   El bug de los contadores del Dashboard (Issue 3) ha sido mencionado en resúmenes anteriores pero no ha sido abordado.
+-   **Issue 1**: El bug de los contadores del Dashboard que no suman los registros correctamente sigue pendiente.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La descarga de PDF, la funcionalidad de Modificar Cotización, y las acciones de cambio de estado y eliminación han fallado repetidamente tras ser declaradas como resueltas.
+-   **Issue recurrence in previous fork**: La descarga de PDF y las acciones del menú de cotizaciones.
 -   **Recurrence count**: 4+
--   **Status**: IN PROGRESS
+-   **Status**: RESOLVED. Ambos problemas fueron solucionados y verificados exhaustivamente con el testing agent en esta sesión.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB
--   **Frontend:** React (Hooks), Axios
--   **UI:** TailwindCSS, Shadcn/UI, Radix UI
--   **Key Insight**: Los componentes de Radix UI (usados por Shadcn) pueden tener manejadores de eventos específicos como  en lugar del  estándar de HTML. Ignorar esto fue la causa raíz de un bug crítico y persistente.
+-   **Backend:** FastAPI, Pydantic, MongoDB, JWT (PyJWT),  para hashing de contraseñas.
+-   **Frontend:** React (Hooks), Axios, .
+-   **UI:** TailwindCSS, Shadcn/UI (usando , , etc.).
+-   **Autenticación:** Flujo completo de registro y login basado en tokens JWT con almacenamiento en .
+-   **RBAC (Role-Based Access Control):** Sistema de permisos simple manejado en el backend y reflejado en el frontend (p.ej., visibilidad del panel de admin).
 
 **key DB schema**
--   **Quote:** Colección principal, con un campo  que dicta el estado del flujo.
--   **AppSettings:** Colección para configuraciones globales, ahora incluye .
+-   **users:** 
+-   **quotes:**  (contiene referencias a otros documentos).
+-   **app_settings:** .
 
 **changes in tech stack**
--   None.
+-   ****: Añadido al  del backend para el hashing de contraseñas.
 
 **All files of reference**
--   : Archivo más modificado. La corrección final de  a  fue aplicada aquí.
--   : Modificado extensamente para añadir endpoints, actualizar modelos y lógica de negocio.
--   : El código fuente de este componente contiene la pista () que ayudó a resolver el bug.
--   : Modificado para la configuración de Resend.
--   : Refactorizado para usar una tabla.
--   CRUD pages (, , etc.): Modificados para implementar el modal de confirmación de eliminación.
+-   : Modificado extensamente para añadir el nuevo sistema de autenticación, modelos de usuario, lógica de permisos y validaciones de integridad referencial en los .
+-   : Nuevo archivo que implementa la pantalla unificada de login/registro.
+-   : Nuevo archivo para el panel de administración de usuarios.
+-   : Modificado para gestionar rutas públicas/privadas y añadir las nuevas páginas.
+-   : Modificado para el rebranding y para fijar la sección de usuario/logout.
+-   : Fuertemente modificado para solucionar bugs, implementar modales de confirmación y añadir lógica compleja en la función de Modificar.
+-   : Renombrado desde .
+-   Todos los archivos de páginas CRUD (, , , etc.): Modificados para implementar el modal de confirmación .
 
 **Areas that need refactoring**:
--   ** (CRÍTICO):** La complejidad de este componente es una deuda técnica masiva y la fuente de la mayoría de los bugs. Su descomposición es la máxima prioridad de refactorización.
--   ** (ALTA PRIORIDAD):** Es un monolito que dificulta el mantenimiento y la escalabilidad. Debe ser dividido en una arquitectura de routers.
+-   ** (CRÍTICO):** Sigue siendo un componente extremadamente grande y complejo. Su descomposición es una prioridad técnica alta para mejorar la mantenibilidad.
+-   ** (CRÍTICO):** La adición de más lógica (auth, permisos, integridad) ha hecho que el refactor de este monolito a una arquitectura de routers sea aún más urgente.
 
 **key api endpoints**
--   : Endpoint para cambiar el estado a Aprobada y enviar email.
--   : Endpoint para adjuntar factura y cambiar estado.
--   : Endpoint para marcar la cotización como Pagada.
--   : Endpoint para eliminar cotizaciones.
+-   : (Nuevo) Registra un nuevo usuario.
+-   : (Nuevo) Autentica un usuario y devuelve un token JWT.
+-   : (Nuevo) Obtiene la lista de usuarios (solo para admins).
+-   : (Nuevo) Actualiza los permisos de un usuario (solo para admins).
+-   : (Actualizado) Ahora incluye validación de integridad referencial. Lo mismo aplica para los endpoints de borrado de otros módulos.
 
 **Critical Info for New Agent**
--   **Idioma:** Toda la comunicación con el usuario debe ser en **español**.
--   **Prioridad Inmediata (P0):** Tu primera y única tarea es **probar y verificar la última corrección**. El agente anterior cambió  por  en  pero no probó el cambio. Debes crear una cotización y confirmar que **TODAS** las acciones del menú (Aprobar, Cobrar, Eliminar, etc.) ahora funcionan.
--   **Máxima Precaución:** El usuario está muy frustrado por bugs recurrentes. NO marques ninguna tarea como finalizada hasta haberla probado exhaustivamente. Llama al  para regresiones completas.
--   **Causa Raíz de Bugs Recientes:** El problema principal no era el backend ni la sesión del usuario, sino un error sutil en la implementación de la librería de componentes del frontend (Radix/Shadcn). Presta mucha atención a la documentación y el comportamiento de los componentes de la UI.
+-   **Idioma:** La comunicación con el usuario debe ser exclusivamente en **español**.
+-   **Prioridad Inmediata (P0):** La tarea más importante es implementar la **funcionalidad de Importación y Exportación de datos** como se describe en el último requerimiento del usuario.
+-   **Autenticación:** El sistema de autenticación de Google ha sido **completamente eliminado y reemplazado** por un sistema JWT propio. El primer usuario que se registra obtiene el rol de admin.
+-   **Pruebas:** El usuario es muy detallado. Todas las nuevas funcionalidades, especialmente la de importación/exportación, deben ser probadas exhaustivamente. Utiliza el  para verificar flujos complejos.
+-   **Dependencias pendientes:** Funcionalidades como la verificación de correo y la recuperación de contraseña están bloqueadas hasta que el usuario configure la API key de Resend. No intentes implementarlas hasta que se resuelva esa dependencia.
 
 **documents and test reports created in this job**
--    (Los resultados no son confiables ya que no detectaron el bug de ).
--   
+-   : Actualizado con los últimos cambios.
+-   : Reporte de la prueba exitosa del nuevo sistema de autenticación.
+-   : Reporte de la prueba exitosa de las correcciones en la lógica de Modificar Cotización.
+-   : Reporte de la prueba exitosa de la corrección de descarga de PDF.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Critical):** Estas acciones siguen sin funcionar. Ya hice Logout y volvi a ingresar y no funcionan - Reporte directo de que ,  y  siguen rotas, invalidando la teoría de sesión expirada del agente anterior.
-2.  **User (Info):** Proporciona 4 capturas de pantalla que muestran el estado de la aplicación y la consola del navegador. Una de ellas muestra la propiedad  en el , que fue una pista clave.
-3.  **User (Critical):** Reporte de que el flujo de estados (, ) está roto y la función de eliminación no se ejecuta, solicitando además un modal de confirmación para eliminar.
-4.  **User (Info):** Proporciona un  y una imagen explicando el flujo de estados secuencial deseado (Aprobación -> Facturación -> Cierre).
-5.  **User (Critical):** Reclamo por cobros de créditos en una funcionalidad (eliminación) que nunca ha sido entregada de forma operativa y que sigue sin funcionar.
-6.  **User (Request):** Solicita que la función de eliminación esté disponible en todo momento, sin importar el estado de la cotización, y que los campos de Pinpad sean opcionales.
-7.  **User (Request):** Solicita activar la eliminación de registros y estandarizar la UI de Dispositivos y Accesorios para que coincida con la de Medios de Pago.
-8.  **User (Critical):** Reporte de bug detallado sobre la función Modificar Cotización (los items agregados no se cargan) y reitera el bug de descarga de PDF.
-9.  **User (Info):** listo (confirmación).
-10. **User (Info):** Ejecuta la 1 completa y proporciona más detalles sobre el fallo de descarga de PDF.
+1.  **User (Request):** Solicitud completa de rebranding (Dispositivos a Bienes y Servicios), nuevas categorías (Servicios, Repuestos), funcionalidad de importación/exportación (Excel/PDF/CSV) y un menú lateral fijo. (ÚLTIMA TAREA ASIGNADA)
+2.  **User (Confirmation):** Confirma la implementación del sistema de autenticación.
+3.  **User (Request):** Proporciona una imagen y una descripción detallada para un nuevo sistema de autenticación con pantalla unificada, roles y panel de administración.
+4.  **User (Clarification):** Indica que la verificación por email y la recuperación de contraseña deben quedar pendientes por ahora.
+5.  **User (Request):** Solicita una corrección en la lógica de Modificar Cotización para que el número de cajas se propague a todos los ítems y ajusta la lista de conceptos que deben mostrar N/A.
+6.  **User (Request):** Pide ajustar la lógica de Modificar Cotización para que los conceptos que no son de la lista de exclusión hereden el número de bancos de la cotización original, no del encabezado.
+7.  **User (Request):** Solicita una corrección en la lógica de Modificar Cotización, especificando qué campos deben mostrar N/A y cómo deben propagarse los cambios de cajas y bancos.
+8.  **User (Request):** Reporta un fallo crítico en la descarga de PDF, describiendo que la UI muestra éxito pero el archivo no se descarga.
+9.  **User (Request):** Solicita estandarizar la función de eliminación en todos los módulos (Clientes, Bancos, etc.) para que usen un modal de confirmación y se valide la integridad referencial.
+10. **User (Request):** Reporta que las funciones de Aprobar y Eliminar no funcionan como se espera, detallando el flujo lógico deseado para cada una (cambio de estado, trigger de email, modal de confirmación).
 
 **Project Health Check:**
--   **Broken**: Las funcionalidades de negocio más críticas (cambio de estado de cotizaciones y eliminación) están rotas para el usuario, bloqueando cualquier flujo operativo.
+-   **Broken**: Ninguna funcionalidad crítica está rota.
+-   **Mocked**: La verificación de correo al registrarse y la recuperación de contraseña están pendientes de la configuración de la API Key de Resend.
 
 **3rd Party Integrations**
--   **Resend**: Envío de correos transaccionales.
--   **reportlab**: Generación de PDF.
--   **Shadcn/UI & Radix UI**: Librerías de componentes de React. Su uso incorrecto ( vs ) fue la causa de los bugs críticos.
+-   **Resend**: Para envío de correos transaccionales (pendiente de configuración de API Key).
+-   **reportlab**: Para la generación de PDF en el backend.
+-   **Shadcn/UI & Radix UI**: Librerías de componentes de React.
+-   **bcrypt**: Librería de Python para el hashing de contraseñas.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Sin embargo, las pruebas del agente fallaron sistemáticamente en detectar el bug principal (), lo que indica que los escenarios de prueba podrían no interactuar con los menús desplegables de la misma manera que un usuario real.
+-   Testing agent used after significant changes: YES. Se utilizó con éxito para verificar la corrección de bugs críticos y la implementación del nuevo sistema de autenticación.
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: []
--   Known regressions: Las funcionalidades de cambio de estado y eliminación.
+-   Known regressions: None from this session. Critical regressions from previous forks were resolved.
 
 **Credentials to test flow:**
-No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI.
+No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado será automáticamente .
 
 **What agent forgot to execute**
--   El agente anterior no probó la corrección final de  a .
--   A lo largo de múltiples forks, los agentes no lograron identificar la causa raíz del bug de las acciones del menú, enfocándose erróneamente en el backend y problemas de sesión.
--   El bug de los contadores del dashboard sigue sin ser abordado.</analysis>
+-   No se inició la implementación de la funcionalidad de **Importación/Exportación**, que era la parte principal de la última solicitud del usuario.
+-   El problema de los **contadores del dashboard** que no suman correctamente los registros sigue sin ser abordado.</analysis>
