@@ -1417,16 +1417,23 @@ export const Quotes = () => {
         s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
         c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
       );
-      return mapService(s, concept);
+      return mapService(s, concept, false);
     });
     
     // Mapear recurrentes básicos preservando lockBancos
+    // Detectar si es auto-vinculado: si el nombre contiene "Recurrente" pero NO tiene un concepto base exacto
     const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(s => {
+      const itemName = s.item_name || '';
       const concept = RECURRING_BASIC_CONCEPTS.find(c => 
-        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
-        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
+        itemName.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
+        c.name.toLowerCase().includes(itemName.toLowerCase().substring(0, 20))
       );
-      return mapService(s, concept);
+      // Es auto-vinculado si fue agregado automáticamente (generalmente tiene isAutoLinked en BD)
+      // o si su nombre contiene patrones típicos de items auto-vinculados
+      const isAutoLinked = s.isAutoLinked || 
+                          (itemName.includes('Recurrente') && !concept) ||
+                          (itemName.includes('Suscripción') && !concept);
+      return mapService(s, concept, isAutoLinked);
     });
     
     // Mapear otros recurrentes preservando lockBancos
@@ -1435,7 +1442,7 @@ export const Quotes = () => {
         s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
         c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
       );
-      return mapService(s, concept);
+      return mapService(s, concept, false);
     });
     
     // Usar mapAdditionalItem para items adicionales
