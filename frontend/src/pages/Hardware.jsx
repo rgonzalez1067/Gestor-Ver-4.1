@@ -7,16 +7,32 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Smartphone, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Smartphone, Package, Wrench, Settings2, Cog } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
+// Categorías principales
+const CATEGORIES = [
+  { id: 'dispositivos', name: 'Dispositivos', description: 'Hardware y equipos' },
+  { id: 'servicios', name: 'Servicios', description: 'Mantenimiento, licencias, consultorías' },
+  { id: 'repuestos', name: 'Repuestos', description: 'Componentes y piezas de reemplazo' }
+];
+
+// Tipos por categoría
 const HARDWARE_TYPES = [
-  { id: 'Pinpad', name: 'Pinpad', icon: Cpu, color: 'bg-blue-100 text-blue-700' },
-  { id: 'POS', name: 'Punto de Venta (POS)', icon: Smartphone, color: 'bg-green-100 text-green-700' },
-  { id: 'Cable', name: 'Cable', icon: Cable, color: 'bg-yellow-100 text-yellow-700' },
-  { id: 'Base', name: 'Base', icon: Box, color: 'bg-purple-100 text-purple-700' },
-  { id: 'Accesorio', name: 'Accesorio', icon: Package, color: 'bg-slate-100 text-slate-700' }
+  // Dispositivos
+  { id: 'Pinpad', name: 'Pinpad', icon: Cpu, color: 'bg-blue-100 text-blue-700', category: 'dispositivos' },
+  { id: 'POS', name: 'Punto de Venta (POS)', icon: Smartphone, color: 'bg-green-100 text-green-700', category: 'dispositivos' },
+  { id: 'Cable', name: 'Cable', icon: Cable, color: 'bg-yellow-100 text-yellow-700', category: 'dispositivos' },
+  { id: 'Base', name: 'Base', icon: Box, color: 'bg-purple-100 text-purple-700', category: 'dispositivos' },
+  { id: 'Accesorio', name: 'Accesorio', icon: Package, color: 'bg-slate-100 text-slate-700', category: 'dispositivos' },
+  // Servicios
+  { id: 'Mantenimiento', name: 'Mantenimiento', icon: Wrench, color: 'bg-orange-100 text-orange-700', category: 'servicios' },
+  { id: 'Licencia', name: 'Licencia', icon: Settings2, color: 'bg-cyan-100 text-cyan-700', category: 'servicios' },
+  { id: 'Consultoria', name: 'Consultoría', icon: Settings2, color: 'bg-indigo-100 text-indigo-700', category: 'servicios' },
+  // Repuestos
+  { id: 'Componente', name: 'Componente', icon: Cog, color: 'bg-rose-100 text-rose-700', category: 'repuestos' },
+  { id: 'Pieza', name: 'Pieza Mecánica', icon: Cog, color: 'bg-amber-100 text-amber-700', category: 'repuestos' }
 ];
 
 export const Hardware = () => {
@@ -26,8 +42,10 @@ export const Hardware = () => {
   const [editingHardware, setEditingHardware] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteHardwareData, setDeleteHardwareData] = useState({ id: null, name: null });
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [formData, setFormData] = useState({
     name: '',
+    category: 'dispositivos',
     type: 'Pinpad',
     price_usd: '',
     price_bs_usd: '',
