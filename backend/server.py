@@ -3197,46 +3197,26 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
 @api_router.post("/quotes/preview-pdf-with-template")
 async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authorization: Optional[str] = Header(None)):
     """
-    Genera una previsualización del PDF con plantilla.
+    Genera una previsualización del PDF con flujo dinámico.
     Retorna el PDF inline para visualización en el navegador.
     """
     await get_current_user(authorization)
     
-    if not PYPDF2_AVAILABLE:
-        raise HTTPException(status_code=500, detail="PyPDF2 no está instalado.")
-    
-    templates_dir = UPLOADS_DIR / "templates"
-    template_path = templates_dir / f"{data.template_type}.pdf"
-    
-    if not template_path.exists():
-        raise HTTPException(
-            status_code=404, 
-            detail=f"No hay plantilla configurada para '{data.template_type}'."
-        )
-    
     try:
-        template_reader = PdfReader(str(template_path))
-        output = PdfWriter()
+        # Obtener logo si existe
+        logo_path = None
+        logo_file = UPLOADS_DIR / "logo.png"
+        if logo_file.exists():
+            logo_path = str(logo_file)
         
-        for page_num, page in enumerate(template_reader.pages, 1):
-            media_box = page.mediabox
-            page_width = float(media_box.width)
-            page_height = float(media_box.height)
-            
-            overlay_buffer = create_overlay_pdf(data, page_width, page_height, page_num)
-            overlay_reader = PdfReader(overlay_buffer)
-            
-            if len(overlay_reader.pages) > 0:
-                page.merge_page(overlay_reader.pages[0])
-            
-            output.add_page(page)
+        # Crear generador
+        generator = DynamicQuotePDFGenerator(data, logo_path)
         
-        output_buffer = io.BytesIO()
-        output.write(output_buffer)
-        output_buffer.seek(0)
+        # Generar PDF
+        pdf_buffer = generator.generate()
         
         return Response(
-            content=output_buffer.getvalue(),
+            content=pdf_buffer.getvalue(),
             media_type="application/pdf",
             headers={"Content-Disposition": "inline"}  # Inline para preview
         )
