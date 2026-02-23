@@ -22,6 +22,8 @@ import io
 import shutil
 import csv
 import base64
+import hashlib
+import secrets
 
 # Resend para envío de emails
 try:
