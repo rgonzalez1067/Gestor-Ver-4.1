@@ -248,13 +248,21 @@ class EquipmentQuoteItem(BaseModel):
     unit_price_usd: float = 0
     total_usd: float = 0
 
-# Tipos de cotización
-QUOTE_CATEGORIES = ["implementation", "equipment"]  # Implementación o Equipos/Accesorios
+# Tipos de cotización - ACTUALIZADO con nueva estructura jerárquica
+QUOTE_CATEGORIES = ["implementation", "equipment", "repair"]  # Implementación, Equipos/Accesorios o Reparaciones
 EQUIPMENT_TYPES = ["Dispositivo", "Accesorio"]
+
+# Categorías para filtros (según anexo del usuario)
+QUOTE_FILTER_CATEGORIES = [
+    {"id": "Implementaciones", "description": "Servicios de instalación, configuración o puesta en marcha"},
+    {"id": "Equipos", "description": "Venta de hardware principal (Laptops, Servidores, etc.)"},
+    {"id": "Accesorios", "description": "Periféricos y complementos (Mouses, cables, teclados)"},
+    {"id": "Reparaciones", "description": "Mano de obra técnica y servicios de mantenimiento correctivo"}
+]
 
 class QuoteCreate(BaseModel):
     client_id: str
-    quote_category: str = "implementation"  # "implementation" o "equipment"
+    quote_category: str = "implementation"  # "implementation", "equipment" o "repair"
     quote_type: Optional[str] = "VPOS"  # Para implementaciones
     equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: Optional[str] = "conventional"
@@ -273,6 +281,10 @@ class QuoteCreate(BaseModel):
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
+    # Campos específicos para REPARACIONES
+    repair_description: Optional[str] = None  # Descripción de la falla
+    equipment_serial_number: Optional[str] = None  # Número de serie del equipo a reparar
+    estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
 
 # Estados del ciclo de vida de cotizaciones - Flujo actualizado
 QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
@@ -294,6 +306,14 @@ QUOTE_TRANSITIONS = {
         "Facturada": ["Pagada"],
         "Pagada": ["Enviada a Imple"],
         "Enviada a Imple": []  # Estado final
+    },
+    "repair": {
+        "Borrador": ["Enviada"],
+        "Enviada": ["Aprobada"],
+        "Aprobada": ["Facturada"],
+        "Facturada": ["Pagada"],
+        "Pagada": ["Entregada"],
+        "Entregada": []  # Estado final - Equipo reparado entregado
     }
 }
 
@@ -301,7 +321,7 @@ class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
     quote_number: str
     client_id: str
-    quote_category: str = "implementation"  # "implementation" o "equipment"
+    quote_category: str = "implementation"  # "implementation", "equipment" o "repair"
     quote_type: str = "VPOS"  # Para implementaciones
     equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
     pricing_model: str = "conventional"
@@ -325,6 +345,10 @@ class Quote(BaseModel):
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
+    # Campos específicos para REPARACIONES
+    repair_description: Optional[str] = None  # Descripción de la falla
+    equipment_serial_number: Optional[str] = None  # Número de serie del equipo a reparar
+    estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
