@@ -151,6 +151,162 @@ export const Hardware = () => {
     setEditingHardware(null);
   };
 
+  // ==================== FUNCIONES DE IMPORTACIÓN/EXPORTACIÓN ====================
+
+  // Descargar plantilla de importación
+  const downloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${backendUrl}/api/hardware/template`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Error al descargar plantilla');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'plantilla_bienes_servicios.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Plantilla descargada');
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      toast.error('Error al descargar plantilla');
+    }
+  };
+
+  // Exportar a Excel
+  const exportToExcel = async () => {
+    const toastId = toast.loading('Exportando a Excel...');
+    try {
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${backendUrl}/api/hardware/export/excel`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Error al exportar');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bienes_servicios_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss(toastId);
+      toast.success('Archivo Excel descargado');
+    } catch (error) {
+      toast.dismiss(toastId);
+      console.error('Error exporting to Excel:', error);
+      toast.error('Error al exportar a Excel');
+    }
+  };
+
+  // Exportar a PDF
+  const exportToPDF = async () => {
+    const toastId = toast.loading('Exportando a PDF...');
+    try {
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${backendUrl}/api/hardware/export/pdf`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Error al exportar');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bienes_servicios_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss(toastId);
+      toast.success('Archivo PDF descargado');
+    } catch (error) {
+      toast.dismiss(toastId);
+      console.error('Error exporting to PDF:', error);
+      toast.error('Error al exportar a PDF');
+    }
+  };
+
+  // Manejar archivo de importación
+  const handleImportFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      setImportResult(null);
+    }
+  };
+
+  // Ejecutar importación
+  const executeImport = async () => {
+    if (!importFile) {
+      toast.error('Seleccione un archivo');
+      return;
+    }
+    
+    setImportLoading(true);
+    setImportResult(null);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      
+      const response = await api.post('/hardware/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setImportResult(response.data);
+      
+      if (response.data.status === 'success') {
+        toast.success(response.data.message);
+        fetchHardware();
+      } else if (response.data.status === 'partial') {
+        toast.warning(response.data.message);
+        fetchHardware();
+      } else {
+        toast.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Error importing:', error);
+      toast.error('Error al importar archivo');
+      setImportResult({
+        status: 'error',
+        message: error.response?.data?.detail || 'Error desconocido',
+        errors: []
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // Cerrar modal de importación
+  const closeImportDialog = () => {
+    setImportDialogOpen(false);
+    setImportFile(null);
+    setImportResult(null);
+  };
+
   const handleDialogClose = (open) => {
     setDialogOpen(open);
     if (!open) resetForm();
