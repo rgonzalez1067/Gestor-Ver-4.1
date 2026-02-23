@@ -2712,15 +2712,15 @@ class DynamicQuotePDFGenerator:
             fontSize=28,
             textColor=self.COLOR_AZUL,
             alignment=1,  # Centro
-            spaceAfter=20
+            spaceAfter=15
         ))
         
-        # Subtítulo
+        # Subtítulo (más grande pero menor que el título)
         styles.add(ParagraphStyle(
             name='Subtitulo',
-            fontName='Helvetica',
-            fontSize=14,
-            textColor=self.COLOR_TEXTO,
+            fontName='Helvetica-Bold',
+            fontSize=18,  # Aumentado de 14 a 18
+            textColor=self.COLOR_AZUL,
             alignment=1,
             spaceAfter=10
         ))
@@ -2731,8 +2731,8 @@ class DynamicQuotePDFGenerator:
             fontName='Helvetica-Bold',
             fontSize=14,
             textColor=self.COLOR_AZUL,
-            spaceBefore=20,
-            spaceAfter=10
+            spaceBefore=15,
+            spaceAfter=8
         ))
         
         # Texto normal
