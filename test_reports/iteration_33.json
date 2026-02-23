@@ -1,0 +1,104 @@
+{
+  "summary": "Tested fixes for cantidad_bancos persistence during quote edit. PARTIAL FIX: recurring_basic items with isAutoLinked=true (e.g., Biopago Recurrente, TDD/TDC Recurrente) now correctly preserve their original BD values. REMAINING BUG: additional items (e.g., Biopago Suscripción para Medio de Pago) still get header value propagated.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "critical": [
+      {
+        "component": "Quotes.jsx - useEffect for additional_items (lines 242-253)",
+        "issue": "Additional items always get header Bancos value propagated after isLoadingEdit becomes false (500ms timeout)",
+        "expected": "Additional items loaded from BD should preserve their original cantidad_bancos",
+        "actual": "Additional items show Bancos=3 (header) instead of BD values (all have Bancos=1)",
+        "affected_items": [
+          "Biopago Suscripción para Medio de Pago: BD=1, UI=3",
+          "TDD/TDC Suscripción para Medio de Pago: BD=1, UI=3",
+          "C2P o Débito Imediato Suscripción para Medio de Pago: BD=1, UI=3",
+          "C@mbio - Pago Móvil Suscripción: BD=1, UI=3",
+          "TDD/TDC Suscripción para Medio de Pago (Mercantil): BD=1, UI=3"
+        ],
+        "priority": "HIGH"
+      }
+    ],
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_verified": {
+    "lockBancos_N/A_display": {
+      "status": "WORKING",
+      "concepts_verified": [
+        "Configuración dispositivo (Pinpad o POS) - shows N/A",
+        "Configuración PDV en MServer - shows N/A",
+        "Derecho de uso de plataforma MServer por PDV - shows N/A",
+        "Derecho de uso de plataforma MServer por PDV / Banco - shows N/A",
+        "Comunicación Backend (SSL Público o VPN, APN, etc.) - shows N/A",
+        "Procesamiento (HSM, Server, DC, etc.) - shows N/A"
+      ]
+    },
+    "isAutoLinked_items_preserving_bancos": {
+      "status": "WORKING",
+      "description": "Items marked as isAutoLinked now correctly preserve their original cantidad_bancos from BD",
+      "verified_items": [
+        "Biopago Recurrente: BD=1, UI=1 - CORRECT",
+        "TDD/TDC Recurrente: BD=2, UI=2 - CORRECT",
+        "C2P o Débito Inmediato Recurrente: BD=1, UI=1 - CORRECT",
+        "C@mbio - Pago Móvil Recurrente: BD=1, UI=1 - CORRECT"
+      ]
+    },
+    "additional_items_bancos_preservation": {
+      "status": "NOT WORKING",
+      "issue": "useEffect propagates header values to all additional items regardless of isLoadingEdit after 500ms"
+    }
+  },
+  "db_vs_ui_comparison": {
+    "quote_tested": "COT-2026-028 (quo_3ecea06286a9)",
+    "header_values": {
+      "cantidad_cajas": 100,
+      "cantidad_bancos": 3
+    },
+    "correct_preservations": [
+      {"item": "Biopago Recurrente", "type": "recurring_basic", "db_bancos": 1, "ui_bancos": 1},
+      {"item": "TDD/TDC Recurrente", "type": "recurring_basic", "db_bancos": 2, "ui_bancos": 2},
+      {"item": "C2P o Débito Inmediato Recurrente", "type": "recurring_basic", "db_bancos": 1, "ui_bancos": 1},
+      {"item": "C@mbio - Pago Móvil Recurrente", "type": "recurring_basic", "db_bancos": 1, "ui_bancos": 1}
+    ],
+    "failing_preservations": [
+      {"item": "Biopago Suscripción para Medio de Pago", "type": "additional", "db_bancos": 1, "ui_bancos": 3},
+      {"item": "TDD/TDC Suscripción para Medio de Pago", "type": "additional", "db_bancos": 1, "ui_bancos": 3},
+      {"item": "C2P o Débito Imediato Suscripción", "type": "additional", "db_bancos": 1, "ui_bancos": 3},
+      {"item": "C@mbio - Pago Móvil Suscripción", "type": "additional", "db_bancos": 1, "ui_bancos": 3},
+      {"item": "TDD/TDC Suscripción para Medio de Pago (Mercantil)", "type": "additional", "db_bancos": 1, "ui_bancos": 3}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix useEffect for additional_items: add check for isLoadingEdit OR add a flag to distinguish BD-loaded items from manually-created items",
+    "Suggested fix: Add isFromDB: true flag to items in mapAdditionalItem, and skip propagation for items with isFromDB=true during initial load",
+    "Alternative fix: Move the 500ms setTimeout for isLoadingEdit to after all useEffects have settled"
+  ],
+  "critical_code_review_comments": [
+    "Lines 242-253: The comment says 'Estos siempre deben actualizarse' but this breaks edit functionality. Items loaded from BD should only update when user manually changes header AFTER initial load.",
+    "The isLoadingEdit approach works for recurring_basic (via isDefault check) but not for additional items which have no such check"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend only test)",
+    "frontend": "60% - recurring_basic isAutoLinked items FIXED, but additional items still broken"
+  },
+  "test_credentials": {
+    "session_token": "test_session_12345"
+  },
+  "seed_data_creation": "Used existing quote COT-2026-028 (quo_3ecea06286a9)",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The fix for mapService isAutoLinked works. But additional_items in useEffect need a similar mechanism to prevent header propagation on initial load. Suggest adding isFromDB flag or changing the logic to only propagate when isEditing && !isLoadingEdit && user actually changed the header (track header changes separately).",
+  "rca_of_the_issue": {
+    "root_cause": "The useEffect for additional_items (lines 242-253) propagates header values unconditionally after isLoadingEdit becomes false",
+    "why_recurring_basic_works": "recurring_basic items have isDefault && !isAutoLinked check which skips propagation for auto-linked items",
+    "why_additional_fails": "additional_items block has NO similar check - it always propagates to all items when values differ from header",
+    "suggested_fix": "Add similar logic to additional_items: only propagate to items that were manually created (not loaded from DB). Could use isFromDB flag in mapAdditionalItem",
+    "code_location": "/app/frontend/src/pages/Quotes.jsx lines 242-253"
+  }
+}
