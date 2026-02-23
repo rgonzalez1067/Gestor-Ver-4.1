@@ -79,11 +79,20 @@ const STATUS_DISPLAY_NAMES = {
   'Completada': 'Completada' // Legacy
 };
 
-// Categorías de cotización
+// Categorías de cotización - Actualizado según anexo
 const QUOTE_CATEGORY_LABELS = {
   'implementation': 'Implementación',
-  'equipment': 'Equipos'
+  'equipment': 'Equipos',
+  'repair': 'Reparaciones'
 };
+
+// Categorías para filtro según nueva estructura jerárquica
+const QUOTE_FILTER_CATEGORIES = [
+  { id: 'implementation', name: 'Implementaciones', description: 'Servicios de instalación, configuración o puesta en marcha' },
+  { id: 'equipment', name: 'Equipos', description: 'Venta de hardware principal (Laptops, Servidores, etc.)' },
+  { id: 'accessory', name: 'Accesorios', description: 'Periféricos y complementos (Mouses, cables, teclados)' },
+  { id: 'repair', name: 'Reparaciones', description: 'Mano de obra técnica y servicios de mantenimiento correctivo' }
+];
 
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
@@ -1777,7 +1786,7 @@ export const Quotes = () => {
             </Button>
             <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
               <Plus size={20} className="mr-2" />
-              Nueva Cotización de Equipos
+              Nueva Cotización: Equipos, Accesorios y Reparaciones
             </Button>
           </div>
 
@@ -1844,7 +1853,7 @@ export const Quotes = () => {
                 </Select>
               </div>
 
-              {/* Filtro por Categoría */}
+              {/* Filtro por Categoría - Actualizado según nueva estructura */}
               <div>
                 <Label className="text-xs text-slate-500 mb-1 block">Categoría</Label>
                 <Select value={filterCategory} onValueChange={setFilterCategory}>
@@ -1853,8 +1862,9 @@ export const Quotes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas las categorías</SelectItem>
-                    <SelectItem value="implementation">Implementación</SelectItem>
-                    <SelectItem value="equipment">Equipos</SelectItem>
+                    {QUOTE_FILTER_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
