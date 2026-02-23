@@ -7,6 +7,34 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
+## AJUSTE LÓGICA MODIFICAR COTIZACIÓN - 22 Febrero 2026
+
+### Problema Reportado:
+1. Ciertos conceptos heredaban número de bancos incorrecto (debían mostrar "N/A")
+2. Al modificar Cajas/Bancos en cabecera, no se propagaba a todos los conceptos
+
+### Conceptos que muestran N/A en Bancos:
+- Derecho de uso de plataforma MServer por PDV
+- Configuración dispositivo (Pinpad o POS)
+- Configuración PDV en MServer
+- Comunicación Backend (SSL Público o VPN, APN, etc.)
+- Procesamiento (HSM, Server, DC, etc.)
+
+### Solución Implementada:
+1. `lockBancos: true` en constantes de conceptos
+2. useEffect respeta lockBancos al propagar cambios
+3. handleEditQuote detecta lockBancos por nombre del concepto
+4. Items adicionales también se actualizan en cascada
+
+### Verificación (iteration_31.json):
+- ✅ N/A badges mostrados correctamente para 5 conceptos
+- ✅ Propagación de Cajas a todos los conceptos
+- ✅ Propagación de Bancos solo a conceptos sin lockBancos
+- ✅ Resumen Ejecutivo actualizado en tiempo real
+- ✅ Editar cotización preserva lockBancos
+
+---
+
 ## CORRECCIÓN DESCARGA PDF - 22 Febrero 2026
 
 ### Problema Reportado:
