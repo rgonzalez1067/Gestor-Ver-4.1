@@ -2831,8 +2831,8 @@ class DynamicQuotePDFGenerator:
         ]))
         return table
     
-    def _create_items_table(self, items, title, header_color):
-        """Crear tabla de items de cotización con flujo dinámico"""
+    def _create_items_table(self, items, title, header_color, show_tax=True):
+        """Crear tabla de items de cotización con desglose fiscal"""
         elements = []
         
         # Título de la sección
@@ -2840,7 +2840,7 @@ class DynamicQuotePDFGenerator:
         
         if not items:
             elements.append(Paragraph("No hay items en esta sección.", self.styles['TextoNormal']))
-            return elements
+            return elements, 0
         
         # Preparar datos de la tabla
         table_data = [['N°', 'Concepto', 'Cajas', 'Bancos', 'Tarifa', 'Total']]
@@ -2852,18 +2852,15 @@ class DynamicQuotePDFGenerator:
             
             table_data.append([
                 str(i),
-                item.concepto[:50] + ('...' if len(item.concepto) > 50 else ''),
+                item.concepto[:45] + ('...' if len(item.concepto) > 45 else ''),
                 str(item.cantidad_cajas),
                 str(item.cantidad_bancos),
                 f"${item.tarifa:.2f}",
                 f"${total_item:.2f}"
             ])
         
-        # Fila de subtotal
-        table_data.append(['', '', '', '', 'Subtotal:', f"${subtotal:.2f}"])
-        
-        # Crear tabla
-        col_widths = [30, 220, 50, 50, 70, 80]
+        # Crear tabla de items
+        col_widths = [25, 230, 45, 45, 65, 75]
         table = Table(table_data, colWidths=col_widths, repeatRows=1)
         
         # Estilos de la tabla
@@ -2872,42 +2869,63 @@ class DynamicQuotePDFGenerator:
             ('BACKGROUND', (0, 0), (-1, 0), header_color),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
             
             # Cuerpo
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
             ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # N°
             ('ALIGN', (2, 1), (5, -1), 'CENTER'),  # Números
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 1), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
             
             # Bordes
-            ('GRID', (0, 0), (-1, -2), 0.5, colors.HexColor("#E0E0E0")),
-            
-            # Fila de subtotal
-            ('FONTNAME', (4, -1), (-1, -1), 'Helvetica-Bold'),
-            ('ALIGN', (4, -1), (-1, -1), 'RIGHT'),
-            ('LINEABOVE', (4, -1), (-1, -1), 1, header_color),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
         ])
         
         # Alternar colores de filas
-        for i in range(1, len(table_data) - 1):
+        for i in range(1, len(table_data)):
             if i % 2 == 0:
                 style.add('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)
         
         table.setStyle(style)
         elements.append(table)
-        elements.append(Spacer(1, 15))
         
-        return elements
+        # Tabla de totales fiscales (si show_tax es True)
+        if show_tax:
+            iva = subtotal * 0.16
+            total_con_iva = subtotal + iva
+            
+            totals_data = [
+                ['Subtotal:', f"${subtotal:.2f}"],
+                ['IVA (16%):', f"${iva:.2f}"],
+                ['Total:', f"${total_con_iva:.2f}"]
+            ]
+            
+            totals_table = Table(totals_data, colWidths=[405, 75])
+            totals_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEABOVE', (0, 0), (-1, 0), 1, header_color),
+                ('BACKGROUND', (0, -1), (-1, -1), header_color),
+                ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+            ]))
+            elements.append(totals_table)
+        
+        elements.append(Spacer(1, 10))
+        
+        return elements, subtotal
     
-    def _create_distribution_matrix(self):
-        """Crear matriz de distribución por banco"""
+    def _create_bank_products_table(self):
+        """Crear tabla de Bancos/Productos/Cajas para el resumen"""
         elements = []
         
         # Agrupar items por banco
@@ -2918,44 +2936,45 @@ class DynamicQuotePDFGenerator:
             bank_name = item.bank_name or "Sin Banco"
             if bank_name not in bank_data:
                 bank_data[bank_name] = {"productos": set(), "cajas": 0}
-            bank_data[bank_name]["productos"].add(item.concepto[:30])
+            bank_data[bank_name]["productos"].add(item.concepto[:25])
             bank_data[bank_name]["cajas"] = max(bank_data[bank_name]["cajas"], item.cantidad_cajas)
         
         if not bank_data:
             return elements
         
-        elements.append(Paragraph("Matriz de Distribución", self.styles['SeccionHeader']))
+        elements.append(Paragraph("<b>Detalle Técnico:</b>", self.styles['TextoNormal']))
+        elements.append(Spacer(1, 5))
         
         # Crear tabla de distribución
-        table_data = [['Banco', 'Productos', 'Terminales']]
-        total_terminales = 0
+        table_data = [['Banco', 'Productos', 'Cajas']]
+        total_cajas = 0
         
         for bank, info in bank_data.items():
-            productos = ", ".join(list(info["productos"])[:3])
-            if len(info["productos"]) > 3:
+            productos = ", ".join(list(info["productos"])[:2])
+            if len(info["productos"]) > 2:
                 productos += "..."
             table_data.append([bank, productos, str(info["cajas"])])
-            total_terminales += info["cajas"]
+            total_cajas += info["cajas"]
         
         # Total
-        table_data.append(['TOTAL', '', str(total_terminales or self.data.cantidad_cajas)])
+        table_data.append(['TOTAL', '', str(total_cajas or self.data.cantidad_cajas)])
         
-        table = Table(table_data, colWidths=[150, 250, 80])
+        table = Table(table_data, colWidths=[140, 260, 60])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_VERDE),
+            ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('ALIGN', (2, 0), (2, -1), 'CENTER'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_VERDE_CLARO),
+            ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_AZUL_CLARO),
         ]))
         
         elements.append(table)
-        elements.append(Spacer(1, 20))
+        elements.append(Spacer(1, 15))
         
         return elements
     
