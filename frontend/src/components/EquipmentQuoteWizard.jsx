@@ -151,6 +151,10 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setSelectedItems([]);
     setNotes('');
     setShowConfirmDialog(false);
+    // Reset campos de reparación
+    setRepairDescription('');
+    setEquipmentSerialNumber('');
+    setEstimatedDeliveryDate('');
   };
 
   // Mostrar modal de confirmación
