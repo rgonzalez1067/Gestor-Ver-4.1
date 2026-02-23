@@ -499,6 +499,7 @@ export const Quotes = () => {
     // Resetear modo edición si estaba activo
     setIsEditing(false);
     setEditingQuoteId(null);
+    setIsLoadingEdit(false);
     
     setWizardOpen(true);
     setQuoteData({
