@@ -80,6 +80,10 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     } else if (equipmentCategory === 'Accesorio') {
       // Filtrar por tipos que son accesorios
       matchesCategory = ACCESSORY_TYPES.includes(item.type);
+    } else if (equipmentCategory === 'Reparacion') {
+      // Para reparaciones, mostrar servicios de mantenimiento y mano de obra
+      const repairTypes = ['Mantenimiento', 'Consultoria', 'Componente', 'Pieza'];
+      matchesCategory = repairTypes.includes(item.type);
     }
 
     const matchesSearch = searchQuery 
