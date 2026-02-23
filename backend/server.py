@@ -3029,8 +3029,8 @@ class DynamicQuotePDFGenerator:
         for item in self.data.additional_items:
             if item.bank_name:  # Solo items con banco asociado
                 bank_name = item.bank_name
-                # Extraer el nombre del producto del concepto (puede venir como "Producto - Banco")
-                producto = item.concepto.split(' - ')[0] if ' - ' in item.concepto else item.concepto
+                # Usar el concepto completo como nombre del producto
+                producto = item.concepto
                 key = f"{bank_name}-{producto}"
                 
                 if key not in bank_product_map:
