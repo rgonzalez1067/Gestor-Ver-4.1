@@ -15,15 +15,23 @@ from datetime import datetime, timezone, timedelta
 import httpx
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.units import inch
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Frame, PageTemplate, BaseDocTemplate
+from reportlab.lib.units import inch, cm, mm
+from reportlab.pdfgen import canvas
 import io
 import shutil
 import csv
 import base64
 import hashlib
 import secrets
+
+# PyPDF2 para manipulación de plantillas PDF
+try:
+    from PyPDF2 import PdfReader, PdfWriter
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
 
 # Resend para envío de emails
 try:
