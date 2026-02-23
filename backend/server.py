@@ -2673,6 +2673,7 @@ class TemplateQuotePDFRequest(BaseModel):
     setup_items: List[QuotePDFItem] = []
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
+    additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
     descuento: float = 0
     notes: str = ""
     # Datos adicionales
