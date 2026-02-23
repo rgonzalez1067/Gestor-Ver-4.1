@@ -1445,12 +1445,16 @@ export const Quotes = () => {
       recurring_other: recurringOtherItems.length,
       additional: additionalItems.length,
       // Log de lockBancos para debug
-      setup_lockBancos: setupItems.map(i => ({ name: i.name, lockBancos: i.lockBancos })),
-      recurring_lockBancos: recurringBasicItems.map(i => ({ name: i.name, lockBancos: i.lockBancos }))
+      setup_lockBancos: setupItems.map(i => ({ name: i.name, lockBancos: i.lockBancos, cantidad_bancos: i.cantidad_bancos })),
+      recurring_lockBancos: recurringBasicItems.map(i => ({ name: i.name, lockBancos: i.lockBancos, cantidad_bancos: i.cantidad_bancos })),
+      additional_bancos: additionalItems.map(i => ({ name: i.name, cantidad_bancos: i.cantidad_bancos }))
     });
     
+    // Activar flag de carga para bloquear propagación automática
+    setIsLoadingEdit(true);
+    
     // Precargar datos de la cotización en el formulario
-    // Usar cantidad_cajas y cantidad_bancos a nivel de cotización si existen
+    // Los items mantienen sus valores originales de cantidad_bancos
     setQuoteData({
       quote_type: quote.quote_type || 'VPOS',
       client_id: quote.client_id || '',
@@ -1468,6 +1472,11 @@ export const Quotes = () => {
       descuento: quote.descuento || 0,
       notes: quote.notes || ''
     });
+    
+    // Desactivar flag después de un momento para permitir edición manual posterior
+    setTimeout(() => {
+      setIsLoadingEdit(false);
+    }, 500);
     
     // Marcar como edición
     setEditingQuoteId(quote.quote_id);
