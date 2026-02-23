@@ -2926,7 +2926,8 @@ class DynamicQuotePDFGenerator:
         return elements, subtotal
     
     def _create_bank_products_table(self):
-        """Crear tabla de Bancos/Productos/Cajas para el resumen (estilo igual al frontend)"""
+        """Crear tabla de Bancos/Productos/Cajas para el resumen (estilo igual al frontend)
+        IMPORTANTE: Usa SOLO additional_items (items de Sesion Setup con bank_name)"""
         elements = []
         
         # Colores para las celdas (igual que el frontend)
@@ -2934,68 +2935,127 @@ class DynamicQuotePDFGenerator:
         COLOR_AZUL_CLARO = colors.HexColor("#BFDBFE")  # bg-blue-200
         COLOR_VERDE_CLARO = colors.HexColor("#BBF7D0")  # bg-green-200
         
-        # Agrupar items por banco
-        bank_data = {}
-        all_items = self.data.setup_items + self.data.recurring_basic_items + self.data.recurring_other_items
+        # ===== FILA 1: Cliente y Cantidad de Cajas en la misma fila (2 columnas) =====
+        row1_data = [[
+            # Celda 1: Cliente
+            Table(
+                [[Paragraph("<b>Cliente</b>", self.styles['CampoEtiqueta']), self.data.cliente_nombre]],
+                colWidths=[90, 150]
+            ),
+            # Celda 2: Cantidad de Cajas
+            Table(
+                [[Paragraph("<b>Cantidad de Cajas</b>", self.styles['CampoEtiqueta']), str(self.data.cantidad_cajas)]],
+                colWidths=[110, 120]
+            )
+        ]]
         
-        for item in all_items:
-            bank_name = item.bank_name or "Sin Banco"
-            if bank_name not in bank_data:
-                bank_data[bank_name] = {"productos": set(), "cajas": 0}
-            bank_data[bank_name]["productos"].add(item.concepto[:30])
-            bank_data[bank_name]["cajas"] = max(bank_data[bank_name]["cajas"], item.cantidad_cajas)
+        # Crear tabla externa para la fila 1
+        row1_table = Table(row1_data, colWidths=[245, 235])
+        row1_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ]))
         
-        # Crear cabecera del resumen con colores
-        header_data = [
-            [
-                Paragraph("<b>Cliente</b>", self.styles['CampoEtiqueta']),
-                self.data.cliente_nombre
-            ],
-            [
-                Paragraph("<b>Cantidad de Cajas</b>", self.styles['CampoEtiqueta']),
-                str(self.data.cantidad_cajas)
-            ],
-            [
-                Paragraph("<b>Dirección Fiscal</b>", self.styles['CampoEtiqueta']),
-                self.data.cliente_address or "No especificada"
-            ]
-        ]
-        
-        header_table = Table(header_data, colWidths=[140, 340])
-        header_table.setStyle(TableStyle([
-            # Fondo de las etiquetas
-            ('BACKGROUND', (0, 0), (0, 0), COLOR_AMARILLO),  # Cliente - amarillo
-            ('BACKGROUND', (0, 1), (0, 1), COLOR_AZUL_CLARO),  # Cantidad de Cajas - azul
-            ('BACKGROUND', (0, 2), (0, 2), COLOR_VERDE_CLARO),  # Dirección - verde
-            # Bordes
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor("#E0E0E0")),
+        # Estilizar las subtablas internas
+        cliente_table = row1_data[0][0]
+        cliente_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_AMARILLO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
             ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
-            # Padding
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         
-        elements.append(header_table)
-        elements.append(Spacer(1, 10))
+        cajas_table = row1_data[0][1]
+        cajas_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_AZUL_CLARO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
         
-        if not bank_data:
+        elements.append(row1_table)
+        elements.append(Spacer(1, 5))
+        
+        # ===== FILA 2: Dirección Fiscal (puede ser de 2 líneas si es muy larga) =====
+        direccion = self.data.cliente_address or "No especificada"
+        # Si la dirección es muy larga (más de 60 caracteres), permitir que fluya en múltiples líneas
+        direccion_style = ParagraphStyle(
+            'DireccionStyle',
+            fontName='Helvetica',
+            fontSize=9,
+            leading=11,
+            wordWrap='LTR'
+        )
+        
+        direccion_data = [[
+            Paragraph("<b>Dirección Fiscal</b>", self.styles['CampoEtiqueta']),
+            Paragraph(direccion, direccion_style)
+        ]]
+        
+        direccion_table = Table(direccion_data, colWidths=[100, 380])
+        direccion_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_VERDE_CLARO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(direccion_table)
+        elements.append(Spacer(1, 12))
+        
+        # ===== TABLA DE BANCOS/PRODUCTOS/CAJAS =====
+        # Usar SOLO additional_items (items de Sesion Setup con banco)
+        bank_product_map = {}
+        total_cajas = 0
+        
+        for item in self.data.additional_items:
+            if item.bank_name:  # Solo items con banco asociado
+                bank_name = item.bank_name
+                # Extraer el nombre del producto del concepto (puede venir como "Producto - Banco")
+                producto = item.concepto.split(' - ')[0] if ' - ' in item.concepto else item.concepto
+                key = f"{bank_name}-{producto}"
+                
+                if key not in bank_product_map:
+                    bank_product_map[key] = {
+                        'bank': bank_name,
+                        'product': producto,
+                        'cajas': 0
+                    }
+                bank_product_map[key]['cajas'] += item.cantidad_cajas or 1
+        
+        # Calcular total de cajas
+        for data in bank_product_map.values():
+            total_cajas += data['cajas']
+        
+        # Si no hay items con banco, mostrar mensaje
+        if not bank_product_map:
             elements.append(Paragraph("No hay medios de pago seleccionados", self.styles['TextoNormal']))
+            elements.append(Spacer(1, 15))
             return elements
         
         # Crear tabla de Bancos/Productos/Cajas con colores de encabezado
         table_data = [['Bancos', 'Productos', 'Cantidad de Cajas']]
-        total_cajas = 0
         
-        for bank, info in bank_data.items():
-            productos = ", ".join(list(info["productos"])[:2])
-            if len(info["productos"]) > 2:
-                productos += "..."
-            table_data.append([bank, productos, str(info["cajas"])])
-            total_cajas += info["cajas"]
+        for data in bank_product_map.values():
+            table_data.append([data['bank'], data['product'], str(data['cajas'])])
         
         table = Table(table_data, colWidths=[160, 230, 90])
         table.setStyle(TableStyle([
@@ -3020,7 +3080,8 @@ class DynamicQuotePDFGenerator:
         elements.append(table)
         
         # Total de terminales virtuales
-        total_data = [['Total de Terminales Virtuales:', str(total_cajas or self.data.cantidad_cajas)]]
+        total_display = total_cajas if total_cajas > 0 else self.data.cantidad_cajas
+        total_data = [['Total de Terminales Virtuales:', str(total_display)]]
         total_table = Table(total_data, colWidths=[390, 90])
         total_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),  # bg-slate-100
