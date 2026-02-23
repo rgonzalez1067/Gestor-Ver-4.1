@@ -352,12 +352,54 @@ export const Hardware = () => {
           <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
-                Dispositivos y Accesorios
+                Bienes y Servicios
               </h1>
-              <p className="text-slate-600">Catálogo de dispositivos de pago y accesorios</p>
+              <p className="text-slate-600">Catálogo de dispositivos, accesorios y servicios</p>
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex gap-2">
+              {/* Botón Importar */}
+              <Button
+                variant="outline"
+                onClick={() => setImportDialogOpen(true)}
+                data-testid="import-hardware-btn"
+                className="text-brand-blue-600 border-brand-blue-600 hover:bg-brand-blue-50"
+              >
+                <Upload size={18} className="mr-2" />
+                Importar
+              </Button>
+              
+              {/* Dropdown Exportar */}
+              <div className="relative group">
+                <Button
+                  variant="outline"
+                  data-testid="export-hardware-btn"
+                  className="text-brand-green-600 border-brand-green-600 hover:bg-brand-green-50"
+                >
+                  <Download size={18} className="mr-2" />
+                  Exportar
+                </Button>
+                <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <button
+                    onClick={exportToExcel}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-t-lg"
+                    data-testid="export-excel-btn"
+                  >
+                    <FileSpreadsheet size={16} className="text-green-600" />
+                    Exportar a Excel
+                  </button>
+                  <button
+                    onClick={exportToPDF}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-b-lg"
+                    data-testid="export-pdf-btn"
+                  >
+                    <FileText size={16} className="text-red-600" />
+                    Exportar a PDF
+                  </button>
+                </div>
+              </div>
+              
+              {/* Botón Nuevo */}
               <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button
@@ -365,7 +407,7 @@ export const Hardware = () => {
                     className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                   >
                     <Plus size={20} className="mr-2" />
-                    Nuevo Dispositivo
+                    Nuevo Registro
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-xl">
