@@ -11,9 +11,10 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ### Problema Reportado:
 1. Ciertos conceptos heredaban número de bancos incorrecto (debían mostrar "N/A")
-2. Al modificar Cajas/Bancos en cabecera, no se propagaba a todos los conceptos
+2. Al modificar cotización, los conceptos NO preservaban su cantidad_bancos original de BD
+3. Items adicionales siempre tomaban el valor del header en lugar de preservar BD
 
-### Conceptos que muestran N/A en Bancos:
+### Conceptos que muestran N/A en Bancos (lockBancos):
 - Derecho de uso de plataforma MServer por PDV
 - Configuración dispositivo (Pinpad o POS)
 - Configuración PDV en MServer
@@ -21,17 +22,17 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 - Procesamiento (HSM, Server, DC, etc.)
 
 ### Solución Implementada:
-1. `lockBancos: true` en constantes de conceptos
-2. useEffect respeta lockBancos al propagar cambios
-3. handleEditQuote detecta lockBancos por nombre del concepto
-4. Items adicionales también se actualizan en cascada
+1. `lockBancos: true` - Conceptos siempre muestran N/A
+2. `isAutoLinked: true` - Items recurrentes auto-vinculados preservan su valor de BD
+3. `isFromDB: true` - Items adicionales cargados de BD NO se actualizan con header
+4. `isLoadingEdit` - Flag para bloquear propagación durante carga inicial
 
-### Verificación (iteration_31.json):
-- ✅ N/A badges mostrados correctamente para 5 conceptos
-- ✅ Propagación de Cajas a todos los conceptos
-- ✅ Propagación de Bancos solo a conceptos sin lockBancos
-- ✅ Resumen Ejecutivo actualizado en tiempo real
-- ✅ Editar cotización preserva lockBancos
+### Verificación (iteration_34.json) - 100% ✅:
+- ✅ 5 conceptos con lockBancos muestran N/A
+- ✅ Items adicionales preservan cantidad_bancos de BD
+- ✅ Items recurrentes auto-vinculados preservan cantidad_bancos de BD
+- ✅ Propagación manual después de 500ms funciona correctamente
+- ✅ Items nuevos creados manualmente inician con Bancos=1
 
 ---
 
