@@ -1102,6 +1102,16 @@ export const Quotes = () => {
         tarifa: parseFloat(item.tarifa) || 0,
         bank_name: item.bank_name || null
       })),
+      // additional_items separado para el Resumen Ejecutivo (solo items con bank_name)
+      additional_items: quoteData.additional_items
+        .filter(item => item.bank_name)
+        .map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa_setup) || 0,
+          bank_name: item.bank_name
+        })),
       descuento: quoteData.descuento || 0,
       notes: quoteData.notes || ''
     };
