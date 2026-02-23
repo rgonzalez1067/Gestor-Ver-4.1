@@ -12,27 +12,29 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 ### Problema Reportado:
 1. Ciertos conceptos heredaban número de bancos incorrecto (debían mostrar "N/A")
 2. Al modificar cotización, los conceptos NO preservaban su cantidad_bancos original de BD
-3. Items adicionales siempre tomaban el valor del header en lugar de preservar BD
+3. "Derecho de uso... / Banco" mostraba N/A cuando debía mostrar número
 
-### Conceptos que muestran N/A en Bancos (lockBancos):
-- Derecho de uso de plataforma MServer por PDV
+### Conceptos que muestran N/A en Bancos (lockBancos) - SOLO ESTOS 5:
+- Derecho de uso de plataforma MServer por PDV (SIN "/ Banco")
 - Configuración dispositivo (Pinpad o POS)
 - Configuración PDV en MServer
 - Comunicación Backend (SSL Público o VPN, APN, etc.)
 - Procesamiento (HSM, Server, DC, etc.)
 
-### Solución Implementada:
-1. `lockBancos: true` - Conceptos siempre muestran N/A
-2. `isAutoLinked: true` - Items recurrentes auto-vinculados preservan su valor de BD
-3. `isFromDB: true` - Items adicionales cargados de BD NO se actualizan con header
-4. `isLoadingEdit` - Flag para bloquear propagación durante carga inicial
+**NOTA**: "Derecho de uso de plataforma MServer por PDV / Banco" SÍ muestra número de bancos
 
-### Verificación (iteration_34.json) - 100% ✅:
-- ✅ 5 conceptos con lockBancos muestran N/A
-- ✅ Items adicionales preservan cantidad_bancos de BD
-- ✅ Items recurrentes auto-vinculados preservan cantidad_bancos de BD
-- ✅ Propagación manual después de 500ms funciona correctamente
-- ✅ Items nuevos creados manualmente inician con Bancos=1
+### Reglas de Propagación:
+| Campo | Comportamiento |
+|-------|----------------|
+| **CAJAS** | Se propaga a TODOS los items sin excepción |
+| **BANCOS** | Respeta: lockBancos, isAutoLinked, isFromDB |
+
+### Solución Implementada:
+1. `shouldLockBancos()` excluye nombres con "/ banco"
+2. useEffect: CAJAS siempre se propaga, BANCOS respeta flags
+3. `isFromDB: true` - Items de BD preservan BANCOS pero reciben CAJAS
+
+### Verificación (iteration_35.json) - 100% ✅
 
 ---
 
