@@ -1322,24 +1322,51 @@ export const Quotes = () => {
       return;
     }
     
+    // Función auxiliar para detectar si un concepto debe tener lockBancos
+    const shouldLockBancos = (itemName) => {
+      const lockBancosNames = [
+        'Derecho de uso de plataforma MServer por PDV',
+        'Configuración dispositivo',
+        'Configuración PDV en MServer',
+        'Comunicación Backend',
+        'Procesamiento'
+      ];
+      return lockBancosNames.some(name => 
+        itemName.toLowerCase().includes(name.toLowerCase())
+      );
+    };
+    
+    // Función auxiliar para detectar si un concepto tiene autoBancos
+    const hasAutoBancos = (itemName) => {
+      return itemName.toLowerCase().includes('medio de pago / banco');
+    };
+    
     // Obtener los servicios y mapear al formato del wizard
     const services = quote.services || [];
     
     // Mapear servicios al formato esperado por el wizard
-    // El wizard usa: medio_pago_name, tarifa, cantidad_cajas, cantidad_bancos
-    const mapService = (s) => ({
-      service_id: s.item_id || s.service_id || '',
-      medio_pago_name: s.item_name || s.name || '',  // El wizard usa medio_pago_name
-      name: s.item_name || s.name || '',  // Backup
-      quantity: s.quantity || 1,
-      tarifa: s.unit_price_usd || 0,  // El wizard usa tarifa
-      unit_price_usd: s.unit_price_usd || 0,  // Backup
-      total_usd: s.total_usd || 0,
-      // Leer cantidad_cajas y cantidad_bancos directamente del servicio si existen
-      // Si no existen, intentar calcular desde quantity (fallback para cotizaciones antiguas)
-      cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
-      cantidad_bancos: s.cantidad_bancos || 1
-    });
+    // Preservando lockBancos y autoBancos según el nombre del concepto
+    const mapService = (s, defaultConcept = null) => {
+      const itemName = s.item_name || s.name || '';
+      const isLocked = defaultConcept?.lockBancos || shouldLockBancos(itemName);
+      const isAuto = defaultConcept?.autoBancos || hasAutoBancos(itemName);
+      
+      return {
+        service_id: s.item_id || s.service_id || '',
+        medio_pago_name: itemName,
+        name: itemName,
+        quantity: s.quantity || 1,
+        tarifa: s.unit_price_usd || 0,
+        unit_price_usd: s.unit_price_usd || 0,
+        total_usd: s.total_usd || 0,
+        cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
+        // Si lockBancos, forzar cantidad_bancos a 1 (se mostrará N/A)
+        cantidad_bancos: isLocked ? 1 : (s.cantidad_bancos || 1),
+        isDefault: true,
+        lockBancos: isLocked,
+        autoBancos: isAuto
+      };
+    };
     
     // Mapear items adicionales con campos específicos (bank_id, bank_name, tarifa_setup, tarifa_recurrente)
     const mapAdditionalItem = (s) => ({
@@ -1358,15 +1385,41 @@ export const Quotes = () => {
       total_usd: s.total_usd || 0,
       cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
       cantidad_bancos: s.cantidad_bancos || 1,
-      isDefault: false
+      isDefault: false,
+      lockBancos: false // Items adicionales nunca tienen lockBancos
     });
     
     // Filtrar por categoría (puede ser 'category' o 'item_type')
     const getCategory = (s) => s.category || s.item_type || '';
     
-    const setupItems = services.filter(s => getCategory(s) === 'setup').map(mapService);
-    const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(mapService);
-    const recurringOtherItems = services.filter(s => getCategory(s) === 'recurring_other').map(mapService);
+    // Mapear setup items preservando lockBancos
+    const setupItems = services.filter(s => getCategory(s) === 'setup').map(s => {
+      // Buscar concepto por defecto que coincida
+      const concept = SETUP_CONCEPTS.find(c => 
+        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
+        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
+      );
+      return mapService(s, concept);
+    });
+    
+    // Mapear recurrentes básicos preservando lockBancos
+    const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(s => {
+      const concept = RECURRING_BASIC_CONCEPTS.find(c => 
+        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
+        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
+      );
+      return mapService(s, concept);
+    });
+    
+    // Mapear otros recurrentes preservando lockBancos
+    const recurringOtherItems = services.filter(s => getCategory(s) === 'recurring_other').map(s => {
+      const concept = RECURRING_OTHER_CONCEPTS.find(c => 
+        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
+        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
+      );
+      return mapService(s, concept);
+    });
+    
     // Usar mapAdditionalItem para items adicionales
     const additionalItems = services.filter(s => getCategory(s) === 'additional').map(mapAdditionalItem);
     
@@ -1384,9 +1437,9 @@ export const Quotes = () => {
       recurring_basic: recurringBasicItems.length,
       recurring_other: recurringOtherItems.length,
       additional: additionalItems.length,
-      // Log de datos de servicios para debug
-      first_setup_item: setupItems[0] || null,
-      first_additional_item: additionalItems[0] || null
+      // Log de lockBancos para debug
+      setup_lockBancos: setupItems.map(i => ({ name: i.name, lockBancos: i.lockBancos })),
+      recurring_lockBancos: recurringBasicItems.map(i => ({ name: i.name, lockBancos: i.lockBancos }))
     });
     
     // Precargar datos de la cotización en el formulario
