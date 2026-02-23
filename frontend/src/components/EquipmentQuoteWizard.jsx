@@ -29,13 +29,18 @@ const ACCESSORY_TYPES = ['Accesorio', 'Base'];
 export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware }) => {
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [equipmentCategory, setEquipmentCategory] = useState(''); // "Dispositivo" o "Accesorio"
+  const [equipmentCategory, setEquipmentCategory] = useState(''); // "Dispositivo", "Accesorio" o "Reparacion"
   const [deviceSubtype, setDeviceSubtype] = useState(''); // "POS" o "Pinpad" (solo para Dispositivos)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  
+  // Campos específicos para REPARACIONES
+  const [repairDescription, setRepairDescription] = useState('');
+  const [equipmentSerialNumber, setEquipmentSerialNumber] = useState('');
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
 
   // Reset cuando cambia la categoría
   useEffect(() => {
