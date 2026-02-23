@@ -63,7 +63,7 @@ export const Hardware = () => {
       setHardwareList(response.data);
     } catch (error) {
       console.error('Error fetching hardware:', error);
-      toast.error('Error al cargar hardware');
+      toast.error('Error al cargar bienes y servicios');
     } finally {
       setLoading(false);
     }
@@ -80,23 +80,23 @@ export const Hardware = () => {
 
       if (editingHardware) {
         await api.put(`/hardware/${editingHardware.hardware_id}`, payload);
-        toast.success('Dispositivo actualizado exitosamente');
+        toast.success('Registro actualizado exitosamente');
       } else {
         await api.post('/hardware', payload);
-        toast.success('Dispositivo creado exitosamente');
+        toast.success('Registro creado exitosamente');
       }
       setDialogOpen(false);
       resetForm();
       fetchHardware();
     } catch (error) {
       console.error('Error saving hardware:', error);
-      toast.error('Error al guardar dispositivo');
+      toast.error('Error al guardar registro');
     }
   };
 
   const handleDelete = async (hardwareId) => {
     const hardware = hardwareList.find(h => h.hardware_id === hardwareId);
-    setDeleteHardwareData({ id: hardwareId, name: hardware?.name || 'este dispositivo' });
+    setDeleteHardwareData({ id: hardwareId, name: hardware?.name || 'este registro' });
     setDeleteConfirmOpen(true);
   };
 
