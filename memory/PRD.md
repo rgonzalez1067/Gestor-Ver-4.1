@@ -198,20 +198,24 @@ Todos los módulos CRUD ahora tienen AlertDialog de confirmación para eliminaci
 
 ## Backlog
 
+### P1 - Alta Prioridad
+- [ ] Verificación de email al registrarse (bloqueado - requiere Resend API key)
+- [ ] Recuperación de contraseña (bloqueado - requiere Resend API key)
+
 ### P2 - Media Prioridad
 - [ ] Contadores del Dashboard (Issue recurrente - no abordado aún)
 - [ ] Refactorización del backend (dividir `server.py` en módulos)
 - [ ] Refactorización del frontend (descomponer `Quotes.jsx`)
-- [ ] Módulo de Reportes
-- [ ] Recuperación de contraseña
+- [ ] Módulo de Reportes avanzados
+- [ ] Importación/Exportación en otros módulos (Clientes, Bancos, etc.)
 
 ---
 
 ## Testing Status
 - Backend: 100% ✅
 - Frontend: 100% ✅
-- Test report: `/app/test_reports/iteration_27.json`
+- Test report: `/app/test_reports/iteration_37.json`
 
 ---
-**Última actualización:** 20 Diciembre 2025
-**Estado:** MVP Operativo - Flujo de Estados y Acciones del Menú Verificados ✅
+**Última actualización:** 23 Febrero 2026
+**Estado:** MVP Operativo - Nueva Funcionalidad de Importación/Exportación y Reparaciones ✅
