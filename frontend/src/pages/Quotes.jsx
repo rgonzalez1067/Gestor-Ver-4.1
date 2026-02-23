@@ -1354,10 +1354,16 @@ export const Quotes = () => {
     
     // Mapear servicios al formato esperado por el wizard
     // Preservando lockBancos y autoBancos según el nombre del concepto
-    const mapService = (s, defaultConcept = null) => {
+    // IMPORTANTE: Para items cargados desde BD durante edición:
+    // - isDefault=true solo para conceptos base (los que están en las constantes)
+    // - Los items auto-vinculados (isAutoLinked) NO deben tener propagación de header
+    const mapService = (s, defaultConcept = null, isAutoLinkedItem = false) => {
       const itemName = s.item_name || s.name || '';
       const isLocked = defaultConcept?.lockBancos || shouldLockBancos(itemName);
       const isAuto = defaultConcept?.autoBancos || hasAutoBancos(itemName);
+      
+      // Solo es "default" si hay un concepto base que coincida y no es auto-vinculado
+      const isBaseDefault = defaultConcept !== null && !isAutoLinkedItem;
       
       return {
         service_id: s.item_id || s.service_id || '',
@@ -1368,15 +1374,17 @@ export const Quotes = () => {
         unit_price_usd: s.unit_price_usd || 0,
         total_usd: s.total_usd || 0,
         cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
-        // Si lockBancos, forzar cantidad_bancos a 1 (se mostrará N/A)
+        // Preservar cantidad_bancos original de la BD (excepto si lockBancos)
         cantidad_bancos: isLocked ? 1 : (s.cantidad_bancos || 1),
-        isDefault: true,
+        isDefault: isBaseDefault,
+        isAutoLinked: isAutoLinkedItem || s.isAutoLinked || false,
         lockBancos: isLocked,
         autoBancos: isAuto
       };
     };
     
     // Mapear items adicionales con campos específicos (bank_id, bank_name, tarifa_setup, tarifa_recurrente)
+    // Los items adicionales SIEMPRE preservan sus valores originales de cantidad_bancos
     const mapAdditionalItem = (s) => ({
       id: s.item_id || `additional_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       service_id: s.item_id || s.service_id || '',
@@ -1391,9 +1399,11 @@ export const Quotes = () => {
       // Fallback: si no hay tarifa_setup/recurrente, usar unit_price_usd dividido
       unit_price_usd: s.unit_price_usd || 0,
       total_usd: s.total_usd || 0,
+      // PRESERVAR valores originales de la BD
       cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
       cantidad_bancos: s.cantidad_bancos || 1,
       isDefault: false,
+      isAutoLinked: false,
       lockBancos: false // Items adicionales nunca tienen lockBancos
     });
     
