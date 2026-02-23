@@ -1,6 +1,7 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from 'sonner';
+import Auth from './pages/Auth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
@@ -11,6 +12,7 @@ import Integrators from './pages/Integrators';
 import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
+import AdminUsers from './pages/AdminUsers';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -23,7 +25,8 @@ function AppRouter() {
   
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<Auth />} />
+      <Route path="/login-google" element={<Login />} />
       <Route path="/dashboard" element={
         <ProtectedRoute>
           <Dashboard />
@@ -67,6 +70,11 @@ function AppRouter() {
       <Route path="/settings" element={
         <ProtectedRoute>
           <Settings />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/users" element={
+        <ProtectedRoute>
+          <AdminUsers />
         </ProtectedRoute>
       } />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
