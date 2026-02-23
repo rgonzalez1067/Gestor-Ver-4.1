@@ -6,14 +6,15 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-// Categorías principales
+// Categorías principales - ACTUALIZADO según nueva estructura jerárquica
 const EQUIPMENT_CATEGORIES = [
-  { id: 'Dispositivo', name: 'Dispositivos', description: 'Equipos de pago (Pinpads, Terminales, etc.)', icon: Cpu },
-  { id: 'Accesorio', name: 'Accesorios', description: 'Complementos y consumibles (cables, bases, rollos, etc.)', icon: Package }
+  { id: 'Dispositivo', name: 'Equipos', description: 'Venta de hardware principal (Laptops, Servidores, etc.)', icon: Cpu },
+  { id: 'Accesorio', name: 'Accesorios', description: 'Periféricos y complementos (Mouses, cables, teclados)', icon: Package },
+  { id: 'Reparacion', name: 'Reparaciones', description: 'Mano de obra técnica y servicios de mantenimiento correctivo', icon: Wrench }
 ];
 
 // Subtipos para Dispositivos
