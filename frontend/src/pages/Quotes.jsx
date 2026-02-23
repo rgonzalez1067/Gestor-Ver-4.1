@@ -114,6 +114,7 @@ export const Quotes = () => {
   // Estado para edición de cotización existente
   const [editingQuoteId, setEditingQuoteId] = useState(null); // ID de la cotización que se está editando
   const [isEditing, setIsEditing] = useState(false); // Flag para modo edición
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false); // Flag para bloquear propagación durante carga
   
   // Estado del formulario de cotización
   const [quoteData, setQuoteData] = useState({
