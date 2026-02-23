@@ -413,7 +413,7 @@ export const Hardware = () => {
                 <DialogContent className="max-w-xl">
                   <DialogHeader>
                     <DialogTitle className="font-manrope text-2xl">
-                      {editingHardware ? 'Editar Dispositivo' : 'Nuevo Dispositivo'}
+                      {editingHardware ? 'Editar Registro' : 'Nuevo Registro'}
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
