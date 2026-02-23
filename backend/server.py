@@ -552,6 +552,243 @@ async def logout(authorization: Optional[str] = Header(None)):
     
     return {"message": "Logged out successfully"}
 
+# ==================== NEW AUTH ENDPOINTS (Email/Password) ====================
+
+@api_router.post("/auth/register")
+async def register_user(user_data: UserRegister):
+    """Registrar nuevo usuario con email y contraseña"""
+    
+    # Verificar si el email ya existe
+    existing_user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
+    
+    # Verificar si la cédula ya existe
+    existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
+    if existing_cedula:
+        raise HTTPException(status_code=400, detail="La cédula ya está registrada")
+    
+    # Crear usuario
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    password_hash = hash_password(user_data.password)
+    
+    # Verificar si es el primer usuario (será admin)
+    user_count = await db.users.count_documents({})
+    is_first_user = user_count == 0
+    
+    # Permisos por defecto (admin tiene todo, usuario tiene lectura)
+    default_permissions = {}
+    for module in AVAILABLE_MODULES:
+        default_permissions[module] = "edit" if is_first_user else "read"
+    
+    user_doc = {
+        "user_id": user_id,
+        "email": user_data.email,
+        "first_name": user_data.first_name,
+        "last_name": user_data.last_name,
+        "name": f"{user_data.first_name} {user_data.last_name}",  # Para compatibilidad
+        "cedula": user_data.cedula,
+        "password_hash": password_hash,
+        "role": "admin" if is_first_user else "user",
+        "is_active": True,
+        "is_verified": False,  # Para futuro: verificación por email
+        "permissions": default_permissions,
+        "picture": None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    # Crear sesión automáticamente
+    session_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    session_doc = {
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.user_sessions.insert_one(session_doc)
+    
+    # Retornar usuario sin password
+    user_response = {
+        "user_id": user_id,
+        "email": user_data.email,
+        "first_name": user_data.first_name,
+        "last_name": user_data.last_name,
+        "name": f"{user_data.first_name} {user_data.last_name}",
+        "cedula": user_data.cedula,
+        "role": user_doc["role"],
+        "is_active": True,
+        "is_verified": False,
+        "permissions": default_permissions
+    }
+    
+    return {
+        "message": "Usuario registrado exitosamente",
+        "session_token": session_token,
+        "user": user_response
+    }
+
+@api_router.post("/auth/login")
+async def login_user(credentials: UserLogin):
+    """Login con email y contraseña"""
+    
+    # Buscar usuario
+    user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    # Verificar si es un usuario de Google OAuth (sin password_hash)
+    if "password_hash" not in user:
+        raise HTTPException(
+            status_code=400, 
+            detail="Esta cuenta fue creada con Google. Por favor, use el inicio de sesión con Google."
+        )
+    
+    # Verificar contraseña
+    if not verify_password(credentials.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    # Verificar si la cuenta está activa
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=403, detail="Cuenta desactivada. Contacte al administrador.")
+    
+    # Crear nueva sesión
+    session_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    session_doc = {
+        "user_id": user["user_id"],
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.user_sessions.insert_one(session_doc)
+    
+    # Retornar usuario sin password
+    user_response = {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "first_name": user.get("first_name", user.get("name", "").split()[0] if user.get("name") else ""),
+        "last_name": user.get("last_name", " ".join(user.get("name", "").split()[1:]) if user.get("name") else ""),
+        "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
+        "cedula": user.get("cedula", ""),
+        "role": user.get("role", "user"),
+        "is_active": user.get("is_active", True),
+        "is_verified": user.get("is_verified", False),
+        "permissions": user.get("permissions", {}),
+        "picture": user.get("picture")
+    }
+    
+    return {
+        "message": "Login exitoso",
+        "session_token": session_token,
+        "user": user_response
+    }
+
+# ==================== ADMIN ENDPOINTS ====================
+
+@api_router.get("/admin/users")
+async def get_all_users(authorization: Optional[str] = Header(None)):
+    """Obtener lista de usuarios (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ver la lista de usuarios")
+    
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return users
+
+@api_router.put("/admin/users/{user_id}/permissions")
+async def update_user_permissions(user_id: str, permissions: dict, authorization: Optional[str] = Header(None)):
+    """Actualizar permisos de un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar permisos")
+    
+    # Verificar que el usuario existe
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Validar permisos
+    valid_permissions = {}
+    for module in AVAILABLE_MODULES:
+        if module in permissions:
+            level = permissions[module]
+            if level in PERMISSION_LEVELS:
+                valid_permissions[module] = level
+            else:
+                valid_permissions[module] = "read"
+        else:
+            valid_permissions[module] = user.get("permissions", {}).get(module, "read")
+    
+    # Actualizar permisos
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"permissions": valid_permissions}}
+    )
+    
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Permisos actualizados", "user": updated_user}
+
+@api_router.put("/admin/users/{user_id}/role")
+async def update_user_role(user_id: str, role: str, authorization: Optional[str] = Header(None)):
+    """Actualizar rol de un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar roles")
+    
+    # No permitir que el admin se quite el rol a sí mismo
+    if current_user["user_id"] == user_id and role != "admin":
+        raise HTTPException(status_code=400, detail="No puede quitarse el rol de administrador a sí mismo")
+    
+    if role not in ["admin", "user"]:
+        raise HTTPException(status_code=400, detail="Rol inválido. Use 'admin' o 'user'")
+    
+    # Verificar que el usuario existe
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"role": role}}
+    )
+    
+    return {"message": f"Rol actualizado a '{role}'"}
+
+@api_router.put("/admin/users/{user_id}/status")
+async def update_user_status(user_id: str, is_active: bool, authorization: Optional[str] = Header(None)):
+    """Activar/desactivar un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar el estado de usuarios")
+    
+    # No permitir que el admin se desactive a sí mismo
+    if current_user["user_id"] == user_id and not is_active:
+        raise HTTPException(status_code=400, detail="No puede desactivar su propia cuenta")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"is_active": is_active}}
+    )
+    
+    # Si se desactiva, eliminar todas sus sesiones
+    if not is_active:
+        await db.user_sessions.delete_many({"user_id": user_id})
+    
+    return {"message": f"Usuario {'activado' if is_active else 'desactivado'}"}
+
 # ==================== CLIENTS ENDPOINTS ====================
 
 @api_router.post("/clients", response_model=Client)
