@@ -243,8 +243,8 @@ Todos los módulos CRUD ahora tienen AlertDialog de confirmación para eliminaci
 - Frontend: 100% ✅
 - Test reports: 
   - `/app/test_reports/iteration_37.json` (Categorías y Import/Export)
-  - `/app/test_reports/iteration_39.json` (PDF con Flujo Dinámico v2)
+  - `/app/test_reports/iteration_40.json` (PDF v3 con ajustes estructurales)
 
 ---
 **Última actualización:** 23 Febrero 2026
-**Estado:** MVP Operativo - Generador de PDF con Flujo Dinámico v2 ✅
+**Estado:** MVP Operativo - Generador de PDF con Desglose Fiscal v3 ✅
