@@ -306,7 +306,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Package className="text-brand-blue-600" />
-              Nueva Cotización de Equipos y Accesorios
+              Nueva Cotización: Equipos, Accesorios y Reparaciones
             </DialogTitle>
           </DialogHeader>
 
