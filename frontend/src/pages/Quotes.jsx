@@ -186,74 +186,82 @@ export const Quotes = () => {
     
     const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
     
-    if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0) {
+    if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0 && (additional_items || []).length === 0) {
       return; // No hay items para actualizar
     }
     
     let needsUpdate = false;
+    const newCajas = cantidad_cajas || 1;
+    const newBancos = cantidad_bancos || 1;
     
-    // Actualizar Setup items (excepto lockBancos y autoBancos)
+    // Actualizar Setup items
+    // CAJAS: Se propaga a TODOS
+    // BANCOS: Solo si NO tiene lockBancos ni autoBancos
     const updatedSetupItems = setup_items.map(item => {
-      if (item.isDefault) {
-        const newCajas = cantidad_cajas || 1;
-        // Si lockBancos o autoBancos, mantener su valor actual
-        const newBancos = (item.lockBancos || item.autoBancos) ? item.cantidad_bancos : (cantidad_bancos || 1);
-        
-        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && !item.autoBancos && item.cantidad_bancos !== newBancos)) {
-          needsUpdate = true;
-          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
-        }
+      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
+      const shouldUpdateBancos = !item.lockBancos && !item.autoBancos && item.cantidad_bancos !== newBancos;
+      
+      if (shouldUpdateCajas || shouldUpdateBancos) {
+        needsUpdate = true;
+        return { 
+          ...item, 
+          cantidad_cajas: newCajas,
+          cantidad_bancos: (item.lockBancos || item.autoBancos) ? item.cantidad_bancos : newBancos
+        };
       }
       return item;
     });
     
-    // Actualizar Recurrentes Básicos (solo los base, no los auto-vinculados)
-    // RESPETANDO lockBancos - si lockBancos es true, cantidad_bancos se mantiene en 1
+    // Actualizar Recurrentes Básicos
+    // CAJAS: Se propaga a TODOS (incluyendo isAutoLinked)
+    // BANCOS: Solo si NO tiene lockBancos y NO es isAutoLinked
     const updatedRecurringBasic = recurring_basic_items.map(item => {
-      if (item.isDefault && !item.isAutoLinked) {
-        const newCajas = cantidad_cajas || 1;
-        // Si lockBancos es true, mantener cantidad_bancos en 1 (N/A)
-        const newBancos = item.lockBancos ? 1 : (cantidad_bancos || 1);
-        
-        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && item.cantidad_bancos !== newBancos)) {
-          needsUpdate = true;
-          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
-        }
+      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
+      const shouldUpdateBancos = !item.lockBancos && !item.isAutoLinked && item.cantidad_bancos !== newBancos;
+      
+      if (shouldUpdateCajas || shouldUpdateBancos) {
+        needsUpdate = true;
+        return { 
+          ...item, 
+          cantidad_cajas: newCajas,
+          cantidad_bancos: (item.lockBancos || item.isAutoLinked) ? item.cantidad_bancos : newBancos
+        };
       }
       return item;
     });
     
     // Actualizar Otros Recurrentes
-    // RESPETANDO lockBancos - si lockBancos es true, cantidad_bancos se mantiene en 1 (N/A)
+    // CAJAS: Se propaga a TODOS
+    // BANCOS: Solo si NO tiene lockBancos
     const updatedRecurringOther = recurring_other_items.map(item => {
-      if (item.isDefault) {
-        const newCajas = cantidad_cajas || 1;
-        // Si lockBancos es true, mantener cantidad_bancos en 1 (N/A)
-        const newBancos = item.lockBancos ? 1 : (cantidad_bancos || 1);
-        
-        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && item.cantidad_bancos !== newBancos)) {
-          needsUpdate = true;
-          return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
-        }
+      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
+      const shouldUpdateBancos = !item.lockBancos && item.cantidad_bancos !== newBancos;
+      
+      if (shouldUpdateCajas || shouldUpdateBancos) {
+        needsUpdate = true;
+        return { 
+          ...item, 
+          cantidad_cajas: newCajas,
+          cantidad_bancos: item.lockBancos ? item.cantidad_bancos : newBancos
+        };
       }
       return item;
     });
     
-    // Actualizar Items Adicionales (medios de pago agregados manualmente)
-    // SOLO actualizar items que fueron creados manualmente (isFromDB=false)
-    // Los items cargados desde BD preservan sus valores originales
+    // Actualizar Items Adicionales (medios de pago)
+    // CAJAS: Se propaga a TODOS (incluyendo isFromDB)
+    // BANCOS: Solo si NO tiene isFromDB
     const updatedAdditionalItems = (additional_items || []).map(item => {
-      // Si el item viene de la BD, NO actualizarlo con valores del header
-      if (item.isFromDB) {
-        return item;
-      }
+      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
+      const shouldUpdateBancos = !item.isFromDB && item.cantidad_bancos !== newBancos;
       
-      const newCajas = cantidad_cajas || 1;
-      const newBancos = cantidad_bancos || 1;
-      
-      if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+      if (shouldUpdateCajas || shouldUpdateBancos) {
         needsUpdate = true;
-        return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
+        return { 
+          ...item, 
+          cantidad_cajas: newCajas,
+          cantidad_bancos: item.isFromDB ? item.cantidad_bancos : newBancos
+        };
       }
       return item;
     });
