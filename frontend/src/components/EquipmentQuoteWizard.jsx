@@ -47,6 +47,12 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     if (equipmentCategory !== 'Dispositivo') {
       setDeviceSubtype('');
     }
+    // Reset campos de reparación si no es reparación
+    if (equipmentCategory !== 'Reparacion') {
+      setRepairDescription('');
+      setEquipmentSerialNumber('');
+      setEstimatedDeliveryDate('');
+    }
     setSearchQuery('');
   }, [equipmentCategory]);
 
@@ -54,6 +60,9 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const isItemSelectionEnabled = () => {
     if (equipmentCategory === 'Dispositivo') {
       return !!deviceSubtype; // Debe tener subtipo seleccionado
+    }
+    if (equipmentCategory === 'Reparacion') {
+      return true; // Reparaciones siempre pueden agregar items de servicio
     }
     return !!equipmentCategory; // Solo necesita la categoría
   };
