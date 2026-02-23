@@ -3176,49 +3176,6 @@ class DynamicQuotePDFGenerator:
         
         self.buffer.seek(0)
         return self.buffer
-        
-        elements.append(totales_table)
-        elements.append(Spacer(1, 20))
-        
-        # ==================== NOTAS ====================
-        if self.data.notes:
-            elements.append(Paragraph("NOTAS Y OBSERVACIONES", self.styles['SeccionHeader']))
-            elements.append(Paragraph(self.data.notes, self.styles['TextoNormal']))
-            elements.append(Spacer(1, 20))
-        
-        # ==================== TÉRMINOS Y CONDICIONES ====================
-        elements.append(PageBreak())
-        elements.append(Paragraph("TÉRMINOS Y CONDICIONES", self.styles['TituloPortada']))
-        elements.append(Spacer(1, 20))
-        
-        vigencia = (datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")
-        terminos = f"""
-        <b>1. Vigencia de la Propuesta</b><br/>
-        Esta cotización tiene una vigencia de 30 días calendario a partir de la fecha de emisión.
-        Fecha de vencimiento: <b>{vigencia}</b><br/><br/>
-        
-        <b>2. Forma de Pago</b><br/>
-        - Costos de Setup: 100% al momento de la instalación<br/>
-        - Costos Recurrentes: Facturación mensual vencida<br/><br/>
-        
-        <b>3. Tiempo de Implementación</b><br/>
-        El tiempo estimado de implementación es de 5 a 10 días hábiles después de la aprobación
-        de la cotización y la firma del contrato de servicios.<br/><br/>
-        
-        <b>4. Soporte Técnico</b><br/>
-        Se incluye soporte técnico 24/7 para incidencias relacionadas con la plataforma de pagos.<br/><br/>
-        
-        <b>5. Confidencialidad</b><br/>
-        Toda la información contenida en este documento es confidencial y de uso exclusivo
-        del destinatario.
-        """
-        elements.append(Paragraph(terminos, self.styles['TextoNormal']))
-        
-        # Construir documento con encabezado y pie de página
-        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
-        
-        self.buffer.seek(0)
-        return self.buffer
 
 
 def create_overlay_pdf(data: TemplateQuotePDFRequest, page_width: float, page_height: float, page_num: int):
