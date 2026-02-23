@@ -9,33 +9,30 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ## NUEVA FUNCIONALIDAD - 23 Febrero 2026
 
-### 1. GENERADOR DE PDF CON FLUJO DINÁMICO (v2)
-Sistema de generación de cotizaciones completamente rediseñado:
+### 1. GENERADOR DE PDF CON FLUJO DINÁMICO (v3)
+Sistema de generación de cotizaciones con estructura comercial y fiscal optimizada:
 
-**Cambios en v2:**
-- Ya NO usa plantilla base PDF con overlays
-- Genera el documento COMPLETO desde cero con ReportLab Platypus
-- Elimina completamente los placeholders amarillos
-- Flujo dinámico con salto de página automático
-
-**Estructura del PDF Generado:**
+**Estructura del Documento:**
 | Página | Sección | Contenido |
 |--------|---------|-----------|
-| 1 | Portada | Info cliente, proyecto, número cotización |
-| 2 | Resumen Ejecutivo | Carta, matriz de distribución por banco |
-| 3+ | Costos Setup | Tabla dinámica de implementación |
-| 3+ | Costos Recurrentes | Tabla dinámica mensual |
-| 3+ | Resumen Inversión | Totales con descuento |
-| Última | Términos y Condiciones | Vigencia, forma de pago |
+| 1 | Portada | Título + Subtítulo (negrita) separados, Info cliente, Nro. cotización |
+| 2 | Cuerpo | Carta presentación, Resumen Ejecutivo (Cliente/Cajas/Dirección), Tabla Bancos/Productos/Cajas |
+| 3+ | Costos | Setup y Recurrentes con desglose fiscal: Subtotal → IVA 16% → Total |
+| 3+ | Resumen Inversión | Totales con descuento (antes de IVA) |
+| Última | Términos | Vigencia 5 días hábiles, Tiempos sujetos a bancos |
 
-**Características Técnicas:**
-- Clase: `DynamicQuotePDFGenerator`
-- Colores corporativos: Azul (#00447C), Verde (#28A745)
-- Encabezado/pie en cada página con logo y número de cotización
-- Tablas con filas alternadas
-- Tipografía Helvetica profesional
+**Ajustes Fiscales:**
+- Cada tabla incluye: **Subtotal, IVA (16%), Total**
+- Descuento se resta del subtotal ANTES de calcular IVA
+- Ejemplo: Si Setup=$1000, Descuento=$200 → Subtotal=$800 → IVA=$128 → Total=$928
 
-**Verificación (iteration_39.json):** 100% Backend ✅ (14/14 tests)
+**Cambios vs v2:**
+- Eliminado: "Matriz de Distribución" 
+- Añadido: Tabla "Bancos/Productos/Cajas"
+- Vigencia: 5 días hábiles (antes 30)
+- Términos: Párrafo sobre tiempos bancarios
+
+**Verificación (iteration_40.json):** 100% Backend ✅ (26/26 tests)
 
 ---
 
