@@ -246,8 +246,8 @@ Todos los módulos CRUD ahora tienen AlertDialog de confirmación para eliminaci
 - Frontend: 100% ✅
 - Test reports: 
   - `/app/test_reports/iteration_37.json` (Categorías y Import/Export)
-  - `/app/test_reports/iteration_38.json` (PDF con Plantilla)
+  - `/app/test_reports/iteration_39.json` (PDF con Flujo Dinámico v2)
 
 ---
 **Última actualización:** 23 Febrero 2026
-**Estado:** MVP Operativo - Generador de PDF con Plantilla Dinámica ✅
+**Estado:** MVP Operativo - Generador de PDF con Flujo Dinámico v2 ✅
