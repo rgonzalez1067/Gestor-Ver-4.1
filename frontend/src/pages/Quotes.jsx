@@ -240,8 +240,14 @@ export const Quotes = () => {
     });
     
     // Actualizar Items Adicionales (medios de pago agregados manualmente)
-    // Estos siempre deben actualizarse con las cajas y bancos del header
+    // SOLO actualizar items que fueron creados manualmente (isFromDB=false)
+    // Los items cargados desde BD preservan sus valores originales
     const updatedAdditionalItems = (additional_items || []).map(item => {
+      // Si el item viene de la BD, NO actualizarlo con valores del header
+      if (item.isFromDB) {
+        return item;
+      }
+      
       const newCajas = cantidad_cajas || 1;
       const newBancos = cantidad_bancos || 1;
       
