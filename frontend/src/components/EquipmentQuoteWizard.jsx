@@ -172,10 +172,20 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setLoading(true);
     
     try {
-      // Determinar el tipo de equipo para el PDF
-      const equipmentTypeForPdf = equipmentCategory === 'Dispositivo' 
-        ? (deviceSubtype === 'POS' ? 'POS' : 'Pinpad')
-        : 'Accesorio';
+      // Determinar el tipo de equipo para el PDF y categoría de cotización
+      let equipmentTypeForPdf;
+      let quoteCategory;
+      
+      if (equipmentCategory === 'Dispositivo') {
+        equipmentTypeForPdf = deviceSubtype === 'POS' ? 'POS' : 'Pinpad';
+        quoteCategory = 'equipment';
+      } else if (equipmentCategory === 'Accesorio') {
+        equipmentTypeForPdf = 'Accesorio';
+        quoteCategory = 'equipment';
+      } else if (equipmentCategory === 'Reparacion') {
+        equipmentTypeForPdf = 'Reparación';
+        quoteCategory = 'repair';
+      }
 
       const pdfData = {
         cliente_nombre: selectedClient.legal_name || selectedClient.fantasy_name,
@@ -183,7 +193,11 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         cliente_address: selectedClient.address || '',
         equipment_type: equipmentTypeForPdf,
         items: selectedItems,
-        notes: notes
+        notes: notes,
+        // Campos específicos de reparación
+        repair_description: repairDescription,
+        equipment_serial_number: equipmentSerialNumber,
+        estimated_delivery_date: estimatedDeliveryDate
       };
 
       // Obtener token de autenticación
@@ -250,13 +264,17 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
 
       toast.success('PDF generado exitosamente');
       
-      // Guardar cotización en BD
+      // Guardar cotización en BD con campos de reparación
       await api.post('/quotes', {
         client_id: selectedClient.client_id,
-        quote_category: 'equipment',
+        quote_category: quoteCategory,
         equipment_type: equipmentTypeForPdf,
         equipment_items: selectedItems,
-        notes: notes
+        notes: notes,
+        // Campos de reparación
+        repair_description: repairDescription || null,
+        equipment_serial_number: equipmentSerialNumber || null,
+        estimated_delivery_date: estimatedDeliveryDate || null
       });
 
       onQuoteCreated && onQuoteCreated();
