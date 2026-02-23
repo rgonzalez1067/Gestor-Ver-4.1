@@ -7,6 +7,31 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
+## ACTUALIZACIÓN - 23 Febrero 2026 (Sesión Actual)
+
+### CORRECCIÓN RESUMEN EJECUTIVO EN PDF
+
+**Problema Reportado:**
+El "Resumen Ejecutivo" del PDF no coincidía con el diseño del frontend. Los datos de la tabla de Bancos/Productos/Cajas venían de todos los items (setup + recurrentes) en lugar de solo los items de "Sesion Setup".
+
+**Solución Implementada:**
+
+1. **Nuevo campo `additional_items`** añadido al modelo `TemplateQuotePDFRequest` (línea 2676)
+   - Almacena los items de sesión setup (medios de pago con banco asociado)
+
+2. **Nuevo layout del Resumen Ejecutivo** en `_create_bank_products_table()`:
+   - **Fila 1**: "Cliente" (fondo amarillo) + "Cantidad de Cajas" (fondo azul) en la MISMA línea horizontal
+   - **Fila 2**: "Dirección Fiscal" (fondo verde) en línea separada con soporte para direcciones largas (2 líneas)
+   - **Tabla de Bancos/Productos/Cajas**: Usa SOLO `additional_items` con `bank_name` (no conceptos base)
+
+3. **Frontend actualizado** (`Quotes.jsx` líneas 1105-1114):
+   - Envía `additional_items` como campo separado
+   - Filtra solo items con `bank_name` para la tabla del PDF
+
+**Verificación (iteration_41.json):** 100% Backend ✅ (10/10 tests)
+
+---
+
 ## NUEVA FUNCIONALIDAD - 23 Febrero 2026
 
 ### 1. GENERADOR DE PDF CON FLUJO DINÁMICO (v3)
