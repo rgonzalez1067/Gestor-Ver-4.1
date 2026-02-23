@@ -292,13 +292,14 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes, templatesRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
         api.get('/banks'),
         api.get('/services'), // Cargar catálogo de precios
         api.get('/integrators'), // Cargar integradores
-        api.get('/hardware') // Cargar dispositivos
+        api.get('/hardware'), // Cargar dispositivos
+        api.get('/config/templates').catch(() => ({ data: {} })) // Cargar estado de plantillas
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
@@ -312,6 +313,8 @@ export const Quotes = () => {
         hw.type?.toLowerCase() === 'pinpad'
       );
       setPinpads(pinpadDevices);
+      // Guardar estado de plantillas disponibles
+      setTemplateAvailable(templatesRes.data || {});
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Error al cargar datos');
