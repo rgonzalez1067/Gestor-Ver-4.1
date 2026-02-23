@@ -372,11 +372,44 @@ class QuotePDFRequest(BaseModel):
     descuento: float = 0
     notes: str = ""
 
+# ==================== AUTH MODELS ====================
+
 class User(BaseModel):
     user_id: str
     email: str
     name: str
     picture: Optional[str] = None
+
+class UserRegister(BaseModel):
+    """Modelo para registro de usuario"""
+    first_name: str = Field(..., min_length=2, max_length=50)
+    last_name: str = Field(..., min_length=2, max_length=50)
+    cedula: str = Field(..., min_length=6, max_length=15)  # Cédula de identidad
+    email: EmailStr
+    password: str = Field(..., min_length=8)  # Mínimo 8 caracteres
+
+class UserLogin(BaseModel):
+    """Modelo para login de usuario"""
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    """Modelo de respuesta de usuario (sin password)"""
+    user_id: str
+    email: str
+    first_name: str
+    last_name: str
+    cedula: str
+    role: str = "user"  # "admin" o "user"
+    is_active: bool = True
+    is_verified: bool = False
+    permissions: dict = {}
+    created_at: str
+
+class UserPermissions(BaseModel):
+    """Modelo para actualizar permisos de usuario"""
+    user_id: str
+    permissions: dict  # {"cotizaciones": "edit", "clientes": "read", ...}
 
 class SessionData(BaseModel):
     id: str
@@ -384,6 +417,37 @@ class SessionData(BaseModel):
     name: str
     picture: Optional[str] = None
     session_token: str
+
+# Módulos disponibles para permisos
+AVAILABLE_MODULES = [
+    "cotizaciones",
+    "clientes", 
+    "bancos",
+    "medios_pago",
+    "dispositivos",
+    "integradores",
+    "configuracion"
+]
+
+# Niveles de permiso
+PERMISSION_LEVELS = ["none", "read", "edit"]
+
+# ==================== PASSWORD HELPERS ====================
+
+def hash_password(password: str) -> str:
+    """Hash de contraseña usando SHA-256 + salt"""
+    salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    return f"{salt}:{pwd_hash}"
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verifica contraseña contra hash almacenado"""
+    try:
+        salt, pwd_hash = stored_hash.split(":")
+        check_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+        return check_hash == pwd_hash
+    except:
+        return False
 
 # ==================== AUTH HELPERS ====================
 
