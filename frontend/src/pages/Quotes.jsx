@@ -177,7 +177,13 @@ export const Quotes = () => {
   }, [quoteData.additional_items.length]);
 
   // Sincronizar valores de Cajas y Bancos de la cabecera con los conceptos base
+  // NOTA: Solo propaga cuando el usuario MANUALMENTE cambia el header, NO durante carga inicial
   useEffect(() => {
+    // No propagar durante carga inicial de edición
+    if (isLoadingEdit) {
+      return;
+    }
+    
     const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
     
     if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0) {
@@ -255,7 +261,7 @@ export const Quotes = () => {
         additional_items: updatedAdditionalItems
       }));
     }
-  }, [quoteData.cantidad_cajas, quoteData.cantidad_bancos]);
+  }, [quoteData.cantidad_cajas, quoteData.cantidad_bancos, isLoadingEdit]);
 
   const fetchData = async () => {
     try {
