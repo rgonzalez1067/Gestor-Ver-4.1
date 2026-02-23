@@ -177,7 +177,7 @@ export const Quotes = () => {
 
   // Sincronizar valores de Cajas y Bancos de la cabecera con los conceptos base
   useEffect(() => {
-    const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items } = quoteData;
+    const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
     
     if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0) {
       return; // No hay items para actualizar
@@ -189,6 +189,7 @@ export const Quotes = () => {
     const updatedSetupItems = setup_items.map(item => {
       if (item.isDefault) {
         const newCajas = cantidad_cajas || 1;
+        // Si lockBancos o autoBancos, mantener su valor actual
         const newBancos = (item.lockBancos || item.autoBancos) ? item.cantidad_bancos : (cantidad_bancos || 1);
         
         if (item.cantidad_cajas !== newCajas || (!item.lockBancos && !item.autoBancos && item.cantidad_bancos !== newBancos)) {
@@ -200,12 +201,14 @@ export const Quotes = () => {
     });
     
     // Actualizar Recurrentes Básicos (solo los base, no los auto-vinculados)
+    // RESPETANDO lockBancos - si lockBancos es true, cantidad_bancos se mantiene en 1
     const updatedRecurringBasic = recurring_basic_items.map(item => {
       if (item.isDefault && !item.isAutoLinked) {
         const newCajas = cantidad_cajas || 1;
-        const newBancos = cantidad_bancos || 1;
+        // Si lockBancos es true, mantener cantidad_bancos en 1 (N/A)
+        const newBancos = item.lockBancos ? 1 : (cantidad_bancos || 1);
         
-        if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && item.cantidad_bancos !== newBancos)) {
           needsUpdate = true;
           return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
         }
@@ -214,15 +217,30 @@ export const Quotes = () => {
     });
     
     // Actualizar Otros Recurrentes
+    // RESPETANDO lockBancos - si lockBancos es true, cantidad_bancos se mantiene en 1 (N/A)
     const updatedRecurringOther = recurring_other_items.map(item => {
       if (item.isDefault) {
         const newCajas = cantidad_cajas || 1;
-        const newBancos = cantidad_bancos || 1;
+        // Si lockBancos es true, mantener cantidad_bancos en 1 (N/A)
+        const newBancos = item.lockBancos ? 1 : (cantidad_bancos || 1);
         
-        if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+        if (item.cantidad_cajas !== newCajas || (!item.lockBancos && item.cantidad_bancos !== newBancos)) {
           needsUpdate = true;
           return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
         }
+      }
+      return item;
+    });
+    
+    // Actualizar Items Adicionales (medios de pago agregados manualmente)
+    // Estos siempre deben actualizarse con las cajas y bancos del header
+    const updatedAdditionalItems = (additional_items || []).map(item => {
+      const newCajas = cantidad_cajas || 1;
+      const newBancos = cantidad_bancos || 1;
+      
+      if (item.cantidad_cajas !== newCajas || item.cantidad_bancos !== newBancos) {
+        needsUpdate = true;
+        return { ...item, cantidad_cajas: newCajas, cantidad_bancos: newBancos };
       }
       return item;
     });
@@ -232,7 +250,8 @@ export const Quotes = () => {
         ...prev,
         setup_items: updatedSetupItems,
         recurring_basic_items: updatedRecurringBasic,
-        recurring_other_items: updatedRecurringOther
+        recurring_other_items: updatedRecurringOther,
+        additional_items: updatedAdditionalItems
       }));
     }
   }, [quoteData.cantidad_cajas, quoteData.cantidad_bancos]);
