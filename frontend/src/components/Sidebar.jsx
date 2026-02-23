@@ -67,13 +67,15 @@ export const Sidebar = () => {
   const allMenuItems = isAdmin ? [...menuItems, ...adminItems] : menuItems;
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col">
-      <div className="p-6 border-b border-slate-200">
+    <aside className="w-64 bg-white border-r border-slate-200 h-screen flex flex-col sticky top-0">
+      {/* Header - Fixed */}
+      <div className="p-6 border-b border-slate-200 flex-shrink-0">
         <h1 className="text-xl font-bold text-slate-900 font-manrope">Cotizador</h1>
         <p className="text-sm text-slate-500 mt-1">Merchant Server</p>
       </div>
 
-      <nav className="flex-1 p-4">
+      {/* Navigation - Scrollable */}
+      <nav className="flex-1 p-4 overflow-y-auto">
         {allMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -94,9 +96,23 @@ export const Sidebar = () => {
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-200">
+      {/* Footer - Fixed at bottom */}
+      <div className="flex-shrink-0 border-t border-slate-200">
+        {/* Settings Link */}
+        <Link
+          to="/settings"
+          data-testid="nav-configuración"
+          className={`sidebar-nav-item flex items-center gap-3 px-4 py-3 mx-4 mt-2 rounded-lg ${
+            location.pathname === '/settings' ? 'active' : 'text-slate-600'
+          }`}
+        >
+          <Settings size={20} />
+          <span className="font-medium">Configuración</span>
+        </Link>
+        
+        {/* User Info */}
         {userName && (
-          <div className="mb-3 px-4 py-2 bg-slate-50 rounded-lg">
+          <div className="mx-4 my-2 px-4 py-2 bg-slate-50 rounded-lg">
             <p className="text-xs text-slate-500">Sesión activa:</p>
             <p className="text-sm font-medium text-slate-700 flex items-center gap-2">
               {userName}
@@ -108,10 +124,12 @@ export const Sidebar = () => {
             </p>
           </div>
         )}
+        
+        {/* Logout Button */}
         <button
           onClick={handleLogout}
           data-testid="logout-button"
-          className="sidebar-nav-item flex items-center gap-3 px-4 py-3 rounded-lg w-full text-slate-600 hover:text-red-600"
+          className="sidebar-nav-item flex items-center gap-3 px-4 py-3 mx-4 mb-4 rounded-lg w-[calc(100%-2rem)] text-slate-600 hover:text-red-600 hover:bg-red-50"
         >
           <LogOut size={20} />
           <span className="font-medium">Cerrar Sesión</span>
