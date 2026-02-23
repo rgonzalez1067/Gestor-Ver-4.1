@@ -7,6 +7,38 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
+## SISTEMA DE AUTENTICACIÓN - 22 Febrero 2026
+
+### Implementación Completada:
+Nuevo sistema de autenticación con email/contraseña reemplazando Google OAuth.
+
+### Funcionalidades:
+1. **Pantalla Unificada** (`/login`): Pestañas para alternar entre Login y Registro
+2. **Registro de Usuario**: Nombre, Apellido, Cédula, Email, Contraseña
+3. **Validaciones**: Nombre (solo letras), Cédula (6-15 dígitos), Contraseña (mín 8 chars)
+4. **Icono de Ojo**: Toggle para mostrar/ocultar contraseña
+5. **Primer Usuario = Admin**: El primer usuario registrado obtiene rol admin automáticamente
+6. **Panel de Admin** (`/admin/users`): Gestión de usuarios y matriz de permisos
+
+### Módulos con Permisos:
+| Módulo | Permisos |
+|--------|----------|
+| Cotizaciones | Ninguno / Leer / Editar |
+| Clientes | Ninguno / Leer / Editar |
+| Bancos | Ninguno / Leer / Editar |
+| Medios de Pago | Ninguno / Leer / Editar |
+| Dispositivos | Ninguno / Leer / Editar |
+| Integradores | Ninguno / Leer / Editar |
+| Configuración | Ninguno / Leer / Editar |
+
+### Pendientes:
+- ⏳ Verificación de email al registrarse (requiere Resend API)
+- ⏳ Recuperación de contraseña (requiere Resend API)
+
+### Verificación (iteration_36.json): 100% Backend y Frontend ✅
+
+---
+
 ## AJUSTE LÓGICA MODIFICAR COTIZACIÓN - 22 Febrero 2026
 
 ### Problema Reportado:
