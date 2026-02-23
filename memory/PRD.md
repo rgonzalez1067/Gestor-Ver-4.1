@@ -7,6 +7,46 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
+## NUEVA FUNCIONALIDAD - 23 Febrero 2026
+
+### 1. ACTUALIZACIÓN UI BOTÓN DE COTIZACIÓN
+- **Nombre anterior**: "Nueva Cotización de Equipos"
+- **Nombre nuevo**: "Nueva Cotización: Equipos, Accesorios y Reparaciones"
+
+### 2. NUEVO TIPO DE COTIZACIÓN: REPARACIONES
+Al seleccionar "Reparaciones" en el wizard, se habilitan campos adicionales:
+- Descripción de la falla (textarea, obligatorio)
+- Número de serie del equipo a reparar (input)
+- Fecha estimada de entrega (date picker)
+
+### 3. CATEGORÍAS DE FILTRO ACTUALIZADAS
+Nueva estructura jerárquica según anexo del usuario:
+| Categoría | Descripción |
+|-----------|-------------|
+| Implementaciones | Servicios de instalación, configuración o puesta en marcha |
+| Equipos | Venta de hardware principal (Laptops, Servidores, etc.) |
+| Accesorios | Periféricos y complementos (Mouses, cables, teclados) |
+| Reparaciones | Mano de obra técnica y servicios de mantenimiento correctivo |
+
+### 4. IMPORTACIÓN/EXPORTACIÓN DE DATOS
+Módulo "Bienes y Servicios" ahora incluye:
+- **Botón Importar**: Abre modal para cargar archivos Excel/CSV
+- **Botón Exportar**: Menú desplegable con opciones:
+  - Exportar a Excel (.xlsx)
+  - Exportar a PDF
+
+**Endpoints Backend:**
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/hardware/import` | POST | Importa datos desde Excel/CSV |
+| `/api/hardware/export/excel` | GET | Exporta a Excel |
+| `/api/hardware/export/pdf` | GET | Exporta a PDF |
+| `/api/hardware/template` | GET | Descarga plantilla de ejemplo |
+
+### Verificación (iteration_37.json): 100% Backend y Frontend ✅
+
+---
+
 ## SISTEMA DE AUTENTICACIÓN - 22 Febrero 2026
 
 ### Implementación Completada:
@@ -27,7 +67,7 @@ Nuevo sistema de autenticación con email/contraseña reemplazando Google OAuth.
 | Clientes | Ninguno / Leer / Editar |
 | Bancos | Ninguno / Leer / Editar |
 | Medios de Pago | Ninguno / Leer / Editar |
-| Dispositivos | Ninguno / Leer / Editar |
+| Bienes y Servicios | Ninguno / Leer / Editar |
 | Integradores | Ninguno / Leer / Editar |
 | Configuración | Ninguno / Leer / Editar |
 
