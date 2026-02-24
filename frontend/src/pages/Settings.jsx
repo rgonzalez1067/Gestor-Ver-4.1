@@ -108,8 +108,7 @@ export const Settings = () => {
     try {
       await api.put('/config/settings', { 
         implementation_email: implementationEmail || null,
-        admin_email: adminEmail || null,
-        warehouse_email: warehouseEmail || null,
+        emails_by_sede: emailsBySede,
         resend_api_key: resendApiKey
       });
       setResendApiKeyConfigured(true);
