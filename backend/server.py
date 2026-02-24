@@ -4673,11 +4673,20 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
 
 # ==================== CONFIGURATION ENDPOINTS ====================
 
+class SedeEmails(BaseModel):
+    admin: Optional[EmailStr] = None
+    warehouse: Optional[EmailStr] = None
+
+class EmailsBySede(BaseModel):
+    TBP: Optional[SedeEmails] = None
+    LCH: Optional[SedeEmails] = None
+
 class AppSettings(BaseModel):
     implementation_email: Optional[EmailStr] = None
-    admin_email: Optional[EmailStr] = None  # NUEVO: Correo de Administración
-    warehouse_email: Optional[EmailStr] = None  # NUEVO: Correo de Almacén
-    resend_api_key: Optional[str] = None  # NUEVO: API Key de Resend
+    admin_email: Optional[EmailStr] = None  # LEGACY: Mantener para compatibilidad
+    warehouse_email: Optional[EmailStr] = None  # LEGACY: Mantener para compatibilidad
+    emails_by_sede: Optional[dict] = None  # NUEVO: Correos por sede {TBP: {admin, warehouse}, LCH: {admin, warehouse}}
+    resend_api_key: Optional[str] = None
 
 @api_router.get("/config/settings")
 async def get_app_settings(authorization: Optional[str] = Header(None)):
@@ -4686,19 +4695,31 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     if not config:
-        return {"implementation_email": None, "admin_email": None, "warehouse_email": None, "resend_api_key_configured": False}
+        return {
+            "implementation_email": None, 
+            "admin_email": None, 
+            "warehouse_email": None,
+            "emails_by_sede": {
+                "TBP": {"admin": "", "warehouse": ""},
+                "LCH": {"admin": "", "warehouse": ""}
+            },
+            "resend_api_key_configured": False
+        }
     
     # No devolver la API key completa por seguridad, solo indicar si está configurada
     resend_key = config.get("resend_api_key")
     resend_key_masked = None
     if resend_key:
-        # Mostrar solo los últimos 4 caracteres
         resend_key_masked = f"{'*' * (len(resend_key) - 4)}{resend_key[-4:]}" if len(resend_key) > 4 else "****"
     
     return {
         "implementation_email": config.get("implementation_email"),
         "admin_email": config.get("admin_email"),
         "warehouse_email": config.get("warehouse_email"),
+        "emails_by_sede": config.get("emails_by_sede", {
+            "TBP": {"admin": config.get("admin_email", ""), "warehouse": config.get("warehouse_email", "")},
+            "LCH": {"admin": "", "warehouse": ""}
+        }),
         "resend_api_key_configured": bool(resend_key),
         "resend_api_key_masked": resend_key_masked
     }
@@ -4712,15 +4733,19 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
     update_data = {
         "type": "app_settings",
         "implementation_email": settings.implementation_email,
-        "admin_email": settings.admin_email,
-        "warehouse_email": settings.warehouse_email,
+        "emails_by_sede": settings.emails_by_sede or {},
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Mantener compatibilidad con campos legacy
+    if settings.admin_email:
+        update_data["admin_email"] = settings.admin_email
+    if settings.warehouse_email:
+        update_data["warehouse_email"] = settings.warehouse_email
     
     # Solo actualizar resend_api_key si se proporciona un valor
     if settings.resend_api_key:
         update_data["resend_api_key"] = settings.resend_api_key
-        # Actualizar la variable global y configurar Resend
         RESEND_API_KEY = settings.resend_api_key
         if RESEND_AVAILABLE:
             resend.api_key = settings.resend_api_key
@@ -4734,10 +4759,27 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
     return {
         "message": "Configuración actualizada",
         "implementation_email": settings.implementation_email,
-        "admin_email": settings.admin_email,
-        "warehouse_email": settings.warehouse_email,
+        "emails_by_sede": settings.emails_by_sede,
         "resend_api_key_configured": bool(settings.resend_api_key)
     }
+
+# Endpoint para obtener plantillas de documentos por sede
+@api_router.get("/config/document-templates")
+async def get_document_templates(authorization: Optional[str] = Header(None)):
+    """Obtiene el estado de las plantillas de documentos por sede"""
+    await get_current_user(authorization)
+    
+    # Por ahora retornar estructura vacía - las plantillas se configurarán más adelante
+    templates = {}
+    template_types = ['despacho_equipos', 'cotizacion_aprobada', 'facturacion_control']
+    sedes = ['TBP', 'LCH']
+    
+    for sede in sedes:
+        for template_type in template_types:
+            key = f"{template_type}_{sede}"
+            templates[key] = {"exists": False, "configured_at": None}
+    
+    return templates
 
 @api_router.post("/config/logo")
 async def upload_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
