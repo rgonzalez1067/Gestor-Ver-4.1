@@ -261,6 +261,30 @@ export const Auth = () => {
                     <p className="text-xs text-red-500">{errors.cedula}</p>
                   )}
                 </div>
+                
+                {/* Sede */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="sede" className="text-sm font-medium text-slate-700">
+                    Sede
+                  </Label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <select
+                      id="sede"
+                      name="sede"
+                      value={formData.sede}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      data-testid="register-sede"
+                    >
+                      {SEDES.map(sede => (
+                        <option key={sede.value} value={sede.value}>
+                          {sede.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </>
             )}
             
