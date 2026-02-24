@@ -37,10 +37,18 @@ export const Settings = () => {
   const [seeding, setSeeding] = useState(false);
   const [templates, setTemplates] = useState({});
   const [uploadingTemplate, setUploadingTemplate] = useState(null);
+  
+  // Correos por sede
+  const [emailsBySede, setEmailsBySede] = useState({
+    TBP: { admin: '', warehouse: '' },
+    LCH: { admin: '', warehouse: '' }
+  });
   const [implementationEmail, setImplementationEmail] = useState('');
-  const [adminEmail, setAdminEmail] = useState('');
-  const [warehouseEmail, setWarehouseEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
+  
+  // Plantillas de documentos por sede
+  const [documentTemplates, setDocumentTemplates] = useState({});
+  
   // Resend API Key state
   const [resendApiKey, setResendApiKey] = useState('');
   const [resendApiKeyConfigured, setResendApiKeyConfigured] = useState(false);
