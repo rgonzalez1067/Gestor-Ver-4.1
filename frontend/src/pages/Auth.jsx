@@ -113,13 +113,16 @@ export const Auth = () => {
           last_name: formData.lastName,
           cedula: formData.cedula,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          sede: formData.sede
         });
         
         localStorage.setItem('session_token', response.data.session_token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
-        toast.success('Cuenta creada exitosamente');
+        // Mostrar sede en el mensaje
+        const sedeLabel = SEDES.find(s => s.value === formData.sede)?.label || formData.sede;
+        toast.success(`Cuenta creada exitosamente - Sede: ${sedeLabel}`);
         navigate('/quotes');
       }
     } catch (error) {
