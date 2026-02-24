@@ -78,15 +78,6 @@ export const Settings = () => {
     }
   };
 
-  const fetchDocumentTemplates = async () => {
-    try {
-      const response = await api.get('/config/document-templates');
-      setDocumentTemplates(response.data || {});
-    } catch (error) {
-      console.error('Error fetching document templates:', error);
-    }
-  };
-
   const handleSaveResendKey = async () => {
     if (!resendApiKey.trim()) {
       toast.error('Por favor ingrese una API Key válida');
