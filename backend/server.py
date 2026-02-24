@@ -2105,7 +2105,7 @@ async def update_exchange_rate(authorization: Optional[str] = Header(None)):
 
 @api_router.post("/quotes", response_model=Quote)
 async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     
     exchange_rate_doc = await db.exchange_rates.find_one({}, {"_id": 0}, sort=[("date", -1)])
     
@@ -2126,6 +2126,9 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         total_usd = subtotal_usd
     
     total_bs = total_usd * exchange_rate
+    
+    # Obtener la sede del usuario actual
+    user_sede = current_user.get("sede", "TBP")
     
     count = await db.quotes.count_documents({})
     quote_number = f"COT-{datetime.now().year}-{count + 1:03d}"
@@ -2153,7 +2156,9 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         sponsor_bank_id=quote_data.sponsor_bank_id,
         sponsor_bank_name=quote_data.sponsor_bank_name,
         cantidad_cajas=quote_data.cantidad_cajas,
-        cantidad_bancos=quote_data.cantidad_bancos
+        cantidad_bancos=quote_data.cantidad_bancos,
+        sede=user_sede,  # Sede del usuario
+        created_by_user_id=current_user.get("user_id")  # ID del usuario que crea
     )
     
     doc = quote.model_dump()
