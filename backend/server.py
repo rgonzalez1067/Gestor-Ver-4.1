@@ -5129,9 +5129,162 @@ DEFAULT_EMAIL_TEMPLATES = {
     }
 }
 
+# Sedes disponibles
+SEDES = [
+    {"id": "TBP", "name": "Torre Banco Plaza"},
+    {"id": "LCH", "name": "Los Chaguaramos"}
+]
+
+# Base templates para generar por sede
+BASE_EMAIL_TEMPLATES = {
+    "quote_sent": {
+        "name": "Envío de Cotización a Cliente",
+        "description": "Se envía al cliente cuando se genera una cotización",
+        "subject": "Cotización #{quote_number} - {company_name} - Sede {sede_name}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #2563eb;">Cotización #{quote_number}</h2>
+<p>Estimado/a <strong>{client_name}</strong>,</p>
+<p>Adjunto encontrará la cotización solicitada con los detalles de nuestra propuesta comercial.</p>
+<p><strong>Resumen:</strong></p>
+<ul>
+<li>Número de Cotización: {quote_number}</li>
+<li>Tipo: {quote_type}</li>
+<li>Total: ${total_usd} USD</li>
+<li>Sede: {sede_name}</li>
+</ul>
+<p>Quedamos atentos a sus comentarios.</p>
+<p>Saludos cordiales,<br><strong>{company_name}</strong></p>
+</body>
+</html>
+"""
+    },
+    "quote_approved": {
+        "name": "Cotización Aprobada",
+        "description": "Se envía a Administración cuando una cotización es aprobada",
+        "subject": "[APROBADA] Cotización #{quote_number} - Lista para Facturar - Sede {sede_name}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #059669;">Cotización Aprobada - Lista para Facturar</h2>
+<p>La siguiente cotización ha sido <strong>APROBADA</strong> y requiere facturación:</p>
+<table style="border-collapse: collapse; margin: 20px 0;">
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cotización:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_number}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cliente:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_name}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Tipo:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_type}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${total_usd} USD</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Sede:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{sede_name}</td></tr>
+</table>
+<p><strong>Acción Requerida:</strong> Por favor proceda con la facturación desde el módulo de Cotizaciones.</p>
+</body>
+</html>
+"""
+    },
+    "invoice": {
+        "name": "Facturación y Control Contable",
+        "description": "Se envía a Administración cuando se factura una cotización",
+        "subject": "[FACTURADA] Cotización #{quote_number} - {client_name} - Sede {sede_name}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #7c3aed;">Notificación de Facturación</h2>
+<p>Se ha registrado la facturación de la siguiente cotización:</p>
+<table style="border-collapse: collapse; margin: 20px 0;">
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cotización:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_number}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cliente:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_name}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>RIF:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_rif}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Número de Factura:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{invoice_number}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Total:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${total_usd} USD</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Sede:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{sede_name}</td></tr>
+</table>
+<p>Este correo es para control contable y seguimiento.</p>
+</body>
+</html>
+"""
+    },
+    "warehouse": {
+        "name": "Despacho de Equipos",
+        "description": "Se envía a Almacén cuando una cotización de equipos es pagada",
+        "subject": "[ALMACÉN] Pedido Listo - Cotización #{quote_number} - Sede {sede_name}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #f59e0b;">Solicitud de Despacho de Equipos - Sede {sede_name}</h2>
+<p>El siguiente pedido ha sido <strong>PAGADO</strong> y está listo para preparar:</p>
+
+<h3>Datos del Cliente:</h3>
+<ul>
+<li><strong>Cliente:</strong> {client_name}</li>
+<li><strong>RIF:</strong> {client_rif}</li>
+<li><strong>Dirección:</strong> {client_address}</li>
+</ul>
+
+<h3>Productos a Despachar:</h3>
+{items_table}
+
+<p style="background: #fef3c7; padding: 10px; border-radius: 5px;">
+<strong>Nota:</strong> Por favor coordinar la entrega con el cliente.
+</p>
+</body>
+</html>
+"""
+    },
+    "implementation": {
+        "name": "Envío a Implementación",
+        "description": "Se envía a Implementación con los detalles técnicos del proyecto",
+        "subject": "[IMPLEMENTACIÓN] Proyecto Aprobado - {client_name} - Sede {sede_name}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<h2 style="color: #059669;">Nuevo Proyecto para Implementación - Sede {sede_name}</h2>
+<p>El siguiente proyecto ha sido aprobado y está listo para iniciar:</p>
+
+<h3>Datos del Proyecto:</h3>
+<table style="border-collapse: collapse; margin: 20px 0;">
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cotización:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_number}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Cliente:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_name}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>RIF:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{client_rif}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Tipo:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{quote_type}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Integrador:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{integrator_name}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Modelo Pinpad:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{pinpad_model}</td></tr>
+<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Sede:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">{sede_name}</td></tr>
+</table>
+
+<h3>Servicios Contratados:</h3>
+{services_table}
+
+<p>Por favor coordinar con el cliente para iniciar la implementación.</p>
+</body>
+</html>
+"""
+    }
+}
+
+# Generar todas las plantillas por sede
+def generate_email_templates_by_sede():
+    templates = {}
+    for sede in SEDES:
+        for base_id, base_template in BASE_EMAIL_TEMPLATES.items():
+            template_id = f"{base_id}_{sede['id']}"
+            templates[template_id] = {
+                "template_id": template_id,
+                "name": f"{base_template['name']} (Sede {sede['id']})",
+                "description": f"{base_template['description']} - Sede {sede['name']}",
+                "subject": base_template['subject'],
+                "body_html": base_template['body_html'],
+                "sede": sede['id'],
+                "sede_name": sede['name'],
+                "is_active": True
+            }
+    return templates
+
+# Plantillas generadas por sede
+EMAIL_TEMPLATES_BY_SEDE = generate_email_templates_by_sede()
+
 @api_router.get("/email-templates")
 async def get_email_templates(authorization: Optional[str] = Header(None)):
-    """Obtiene todas las plantillas de correo"""
+    """Obtiene todas las plantillas de correo (por sede)"""
     await get_current_user(authorization)
     
     templates = await db.email_templates.find({}, {"_id": 0}).to_list(100)
