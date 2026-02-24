@@ -582,6 +582,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
         "cedula": user.get("cedula", ""),
         "role": user.get("role", "user"),
+        "sede": user.get("sede", "TBP"),  # Sede del usuario
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
