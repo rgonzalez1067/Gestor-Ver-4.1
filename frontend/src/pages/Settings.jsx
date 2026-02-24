@@ -482,67 +482,81 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* Configuración de Correos Section */}
+          {/* Configuración de Correos Section - POR SEDE */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
               <Mail size={24} />
               Configuración de Correos de Notificación
             </h2>
             <p className="text-slate-600 mb-6">
-              Configure los correos electrónicos para las notificaciones automáticas del sistema.
-              Estos correos recibirán alertas según el flujo de trabajo de las cotizaciones.
+              Configure los correos electrónicos para las notificaciones automáticas del sistema por sede.
+              Cada sede recibirá sus propias alertas según el flujo de trabajo de las cotizaciones.
             </p>
 
             <div className="space-y-6">
-              {/* Email de Administración */}
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Building2 size={18} className="text-purple-600" />
-                  <Label className="text-sm font-semibold text-purple-800">
-                    Correo de Administración
-                  </Label>
-                </div>
-                <p className="text-sm text-purple-700 mb-3">
-                  Recibe notificaciones cuando una cotización es <strong>Aprobada</strong> o <strong>Facturada</strong>.
-                </p>
-                <Input
-                  type="email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="administracion@empresa.com"
-                  className="bg-white"
-                  data-testid="admin-email-input"
-                />
-              </div>
+              {/* Correos por Sede */}
+              {SEDES.map((sede) => (
+                <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                  {/* Header de la Sede */}
+                  <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={18} className="text-slate-600" />
+                      <span className="font-semibold text-slate-800">Sede {sede.name} ({sede.shortName})</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 space-y-4">
+                    {/* Email de Administración - Sede */}
+                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building2 size={16} className="text-purple-600" />
+                        <Label className="text-sm font-semibold text-purple-800">
+                          Correo de Administración - Sede {sede.shortName}
+                        </Label>
+                      </div>
+                      <p className="text-xs text-purple-700 mb-2">
+                        Recibe notificaciones cuando una cotización es <strong>Aprobada</strong> o <strong>Facturada</strong>.
+                      </p>
+                      <Input
+                        type="email"
+                        value={emailsBySede[sede.id]?.admin || ''}
+                        onChange={(e) => updateSedeEmail(sede.id, 'admin', e.target.value)}
+                        placeholder={`administracion.${sede.id.toLowerCase()}@empresa.com`}
+                        className="bg-white"
+                        data-testid={`admin-email-${sede.id}`}
+                      />
+                    </div>
 
-              {/* Email de Almacén */}
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Warehouse size={18} className="text-amber-600" />
-                  <Label className="text-sm font-semibold text-amber-800">
-                    Correo de Almacén
-                  </Label>
+                    {/* Email de Almacén - Sede */}
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Warehouse size={16} className="text-amber-600" />
+                        <Label className="text-sm font-semibold text-amber-800">
+                          Correo de Almacén - Sede {sede.shortName}
+                        </Label>
+                      </div>
+                      <p className="text-xs text-amber-700 mb-2">
+                        Recibe notificaciones cuando una cotización de <strong>Equipos y Accesorios</strong> es marcada como <strong>Pagada</strong>.
+                      </p>
+                      <Input
+                        type="email"
+                        value={emailsBySede[sede.id]?.warehouse || ''}
+                        onChange={(e) => updateSedeEmail(sede.id, 'warehouse', e.target.value)}
+                        placeholder={`almacen.${sede.id.toLowerCase()}@empresa.com`}
+                        className="bg-white"
+                        data-testid={`warehouse-email-${sede.id}`}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-amber-700 mb-3">
-                  Recibe notificaciones cuando una cotización de <strong>Equipos y Accesorios</strong> es marcada como <strong>Pagada</strong>.
-                  Incluye la lista de productos a despachar.
-                </p>
-                <Input
-                  type="email"
-                  value={warehouseEmail}
-                  onChange={(e) => setWarehouseEmail(e.target.value)}
-                  placeholder="almacen@empresa.com"
-                  className="bg-white"
-                  data-testid="warehouse-email-input"
-                />
-              </div>
+              ))}
 
-              {/* Email de Implementación */}
+              {/* Email de Implementación (General - no por sede) */}
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Mail size={18} className="text-blue-600" />
                   <Label className="text-sm font-semibold text-blue-800">
-                    Correo de Implementación
+                    Correo de Implementación (General)
                   </Label>
                 </div>
                 <p className="text-sm text-blue-700 mb-3">
