@@ -13,6 +13,7 @@ import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
 import AdminUsers from './pages/AdminUsers';
+import UserManagement from './pages/UserManagement';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
