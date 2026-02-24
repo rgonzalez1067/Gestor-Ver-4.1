@@ -2190,8 +2190,8 @@ class QuoteCreateWithPDF(BaseModel):
     sponsor_bank_name: Optional[str] = None
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
-    # Datos para el PDF
-    pdf_data: Optional[TemplateQuotePDFRequest] = None
+    # Datos para el PDF (diccionario flexible)
+    pdf_data: Optional[dict] = None
 
 @api_router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
