@@ -7,7 +7,63 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 
 ---
 
-## ACTUALIZACIÓN - 23 Febrero 2026 (Sesión Actual)
+## ACTUALIZACIÓN - 24 Febrero 2026 (Sesión Actual)
+
+### SISTEMA MULTI-SEDE IMPLEMENTADO
+
+**Requerimiento:**
+Implementar gestión multi-sede para separar usuarios, cotizaciones y futuras notificaciones por sede.
+
+**Sedes Configuradas:**
+| Código | Nombre Completo |
+|--------|-----------------|
+| TBP | Torre Banco Plaza |
+| LCH | Los Chaguaramos |
+
+**Cambios Implementados:**
+
+1. **Backend - Modelo de Usuario** (`UserRegister`, `UserResponse`):
+   - Añadido campo `sede` (TBP o LCH)
+   - Validación de sede en registro
+
+2. **Backend - Modelo de Cotización** (`Quote`):
+   - Añadido campo `sede` - heredado del usuario que crea
+   - Añadido campo `created_by_user_id` - ID del creador
+
+3. **Backend - Endpoint GET /quotes**:
+   - Usuarios normales: solo ven cotizaciones de SU sede
+   - Administradores: ven TODAS las cotizaciones
+
+4. **Frontend - Registro** (`Auth.jsx`):
+   - Selector de sede en formulario de registro
+   - Muestra sede en mensaje de confirmación
+
+**Estructura de Correos (Preparada para Resend):**
+| Tipo | Sede TBP | Sede Los Chaguaramos |
+|------|----------|---------------------|
+| Administración | Correo de Administración Sede TBP | Correo de Administración Sede Los Chaguaramos |
+| Almacén | Correo de Almacén Sede TBP | Correo de Almacén Sede Los Chaguaramos |
+
+**Estructura de Plantillas (Preparada):**
+| Tipo | Sede TBP | Sede Los Chaguaramos |
+|------|----------|---------------------|
+| Logística | Despacho de Equipos - Sede TBP | Despacho de Equipos - Sede Los Chaguaramos |
+| Ventas | Cotización Aprobada - Sede TBP | Cotización Aprobada - Sede Los Chaguaramos |
+| Administración | Facturación y Control Contable - Sede TBP | Facturación y Control Contable - Sede Los Chaguaramos |
+
+**Pendiente:** Integración con Resend para envío de correos por sede
+
+---
+
+### FONDO DE PANTALLA LOGIN
+
+- Nueva imagen de fondo para pantalla de login (`/fondo-megasoft.jpg`)
+- Modo `contain` con fondo negro en bordes
+- Logo Mega Soft visible completo
+
+---
+
+## ACTUALIZACIÓN - 23 Febrero 2026
 
 ### CORRECCIÓN RESUMEN EJECUTIVO EN PDF
 
