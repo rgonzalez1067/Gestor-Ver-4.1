@@ -423,7 +423,13 @@ class UserRegister(BaseModel):
     cedula: str = Field(..., min_length=6, max_length=15)  # Cédula de identidad
     email: EmailStr
     password: str = Field(..., min_length=8)  # Mínimo 8 caracteres
-    sede: str = Field(default="TBP", description="Sede del usuario: TBP (Torre Banco Plaza) o LCH (Los Chaguaramos)")
+    phone: Optional[str] = None  # Teléfono
+    cargo: Optional[str] = None  # Cargo/Función
+    departamento: Optional[str] = None  # Departamento
+    sede: str = Field(default="TBP", description="Sede del usuario: TBP o LCH")
+
+# Departamentos disponibles
+DEPARTAMENTOS = ["Administración", "Almacén", "Ventas", "TI", "Implementación", "Gerencia"]
 
 class UserLogin(BaseModel):
     """Modelo para login de usuario"""
@@ -437,12 +443,27 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     cedula: str
+    phone: Optional[str] = None
+    cargo: Optional[str] = None
+    departamento: Optional[str] = None
     role: str = "user"  # "admin" o "user"
     sede: str = "TBP"  # "TBP" (Torre Banco Plaza) o "LCH" (Los Chaguaramos)
     is_active: bool = True
     is_verified: bool = False
     permissions: dict = {}
-    created_at: str
+    created_at: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    """Modelo para actualizar usuario (admin)"""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    cedula: Optional[str] = None
+    phone: Optional[str] = None
+    cargo: Optional[str] = None
+    departamento: Optional[str] = None
+    sede: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class UserPermissions(BaseModel):
     """Modelo para actualizar permisos de usuario"""
