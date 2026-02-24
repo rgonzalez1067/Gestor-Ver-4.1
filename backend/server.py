@@ -2169,11 +2169,21 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
 
 @api_router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    quotes = await db.quotes.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    current_user = await get_current_user(authorization)
+    
+    # Filtrar por sede del usuario (admin puede ver todas)
+    query = {}
+    if current_user.get("role") != "admin":
+        user_sede = current_user.get("sede", "TBP")
+        query["sede"] = user_sede
+    
+    quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     for quote in quotes:
         if isinstance(quote['created_at'], str):
             quote['created_at'] = datetime.fromisoformat(quote['created_at'])
+        # Asegurar que cotizaciones antiguas sin sede tengan valor por defecto
+        if 'sede' not in quote:
+            quote['sede'] = 'TBP'
     return quotes
 
 @api_router.get("/quotes/{quote_id}", response_model=Quote)
