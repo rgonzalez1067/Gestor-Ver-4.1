@@ -131,16 +131,16 @@ export const Auth = () => {
   
   return (
     <div 
-      className="min-h-screen flex items-center justify-center p-4 relative"
+      className="min-h-screen flex items-center justify-center p-4 relative bg-black"
       style={{
         backgroundImage: 'url(/fondo-megasoft.jpg)',
-        backgroundSize: 'cover',
+        backgroundSize: 'contain',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
       }}
     >
-      {/* Overlay oscuro para mejor legibilidad */}
-      <div className="absolute inset-0 bg-black/40"></div>
+      {/* Overlay sutil para mejor legibilidad */}
+      <div className="absolute inset-0 bg-black/30"></div>
       
       <div className="w-full max-w-md relative z-10">
         {/* Card con fondo semitransparente */}
