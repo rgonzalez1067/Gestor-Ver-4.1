@@ -2168,6 +2168,142 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     
     return quote
 
+# Modelo para crear cotización con PDF
+class QuoteCreateWithPDF(BaseModel):
+    """Modelo combinado para crear cotización y generar PDF"""
+    # Datos básicos de la cotización
+    client_id: str
+    quote_category: str = "implementation"
+    quote_type: str = "VPOS"
+    equipment_type: Optional[str] = None
+    pricing_model: str = "conventional"
+    services: List[QuoteItem] = []
+    hardware: List[QuoteItem] = []
+    equipment_items: List[EquipmentQuoteItem] = []
+    notes: Optional[str] = None
+    integrator_id: Optional[str] = None
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_id: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    sponsor_bank_id: Optional[str] = None
+    sponsor_bank_name: Optional[str] = None
+    cantidad_cajas: Optional[int] = None
+    cantidad_bancos: Optional[int] = None
+    # Datos para el PDF
+    pdf_data: Optional[TemplateQuotePDFRequest] = None
+
+@api_router.post("/quotes/create-with-pdf")
+async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
+    """
+    Crea una cotización y genera el PDF automáticamente.
+    El PDF se almacena en el servidor y se guarda la URL en la cotización.
+    """
+    current_user = await get_current_user(authorization)
+    
+    try:
+        exchange_rate_doc = await db.exchange_rates.find_one({}, {"_id": 0}, sort=[("date", -1)])
+        
+        if not exchange_rate_doc:
+            exchange_rate = 40.0
+        else:
+            exchange_rate = exchange_rate_doc["rate"]
+        
+        # Calcular totales
+        if data.quote_category == "equipment":
+            subtotal_usd = sum(item.total_usd for item in data.equipment_items)
+            total_usd = subtotal_usd
+        else:
+            subtotal_usd = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
+            total_usd = subtotal_usd
+        
+        total_bs = total_usd * exchange_rate
+        
+        # Obtener la sede del usuario actual
+        user_sede = current_user.get("sede", "TBP")
+        
+        count = await db.quotes.count_documents({})
+        quote_number = f"COT-{datetime.now().year}-{count + 1:03d}"
+        quote_id = f"quo_{uuid.uuid4().hex[:12]}"
+        
+        # Generar PDF si se proporcionaron los datos
+        quote_pdf_url = None
+        if data.pdf_data:
+            try:
+                # Actualizar quote_number en los datos del PDF
+                pdf_request = data.pdf_data.model_copy()
+                pdf_request.quote_number = quote_number
+                
+                # Obtener logo si existe
+                logo_path = None
+                logo_file = UPLOADS_DIR / "logo.png"
+                if logo_file.exists():
+                    logo_path = str(logo_file)
+                
+                # Crear generador
+                generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
+                
+                # Generar PDF
+                pdf_buffer = generator.generate()
+                
+                # Guardar PDF en el servidor
+                pdf_filename = f"quote_{quote_id}_{quote_number.replace('-', '_')}.pdf"
+                pdf_path = UPLOADS_DIR / pdf_filename
+                with open(pdf_path, 'wb') as f:
+                    f.write(pdf_buffer.getvalue())
+                
+                quote_pdf_url = f"/uploads/{pdf_filename}"
+                logging.info(f"PDF generado y almacenado: {quote_pdf_url}")
+                
+            except Exception as e:
+                logging.error(f"Error generando PDF: {str(e)}")
+                # Continuar sin PDF si falla la generación
+        
+        # Crear la cotización
+        quote = Quote(
+            quote_id=quote_id,
+            quote_number=quote_number,
+            client_id=data.client_id,
+            quote_category=data.quote_category or "implementation",
+            quote_type=data.quote_type or "VPOS",
+            equipment_type=data.equipment_type,
+            pricing_model=data.pricing_model or "conventional",
+            services=data.services,
+            hardware=data.hardware,
+            equipment_items=data.equipment_items,
+            subtotal_usd=subtotal_usd,
+            total_usd=total_usd,
+            exchange_rate=exchange_rate,
+            total_bs=total_bs,
+            notes=data.notes,
+            integrator_id=data.integrator_id,
+            integrator_name=data.integrator_name,
+            integrator_app_name=data.integrator_app_name,
+            pinpad_id=data.pinpad_id,
+            pinpad_model=data.pinpad_model,
+            sponsor_bank_id=data.sponsor_bank_id,
+            sponsor_bank_name=data.sponsor_bank_name,
+            cantidad_cajas=data.cantidad_cajas,
+            cantidad_bancos=data.cantidad_bancos,
+            sede=user_sede,
+            created_by_user_id=current_user.get("user_id"),
+            quote_pdf_url=quote_pdf_url
+        )
+        
+        doc = quote.model_dump()
+        doc['created_at'] = doc['created_at'].isoformat()
+        await db.quotes.insert_one(doc)
+        
+        return {
+            "quote": quote,
+            "pdf_url": quote_pdf_url,
+            "message": "Cotización creada exitosamente" + (" con PDF" if quote_pdf_url else "")
+        }
+        
+    except Exception as e:
+        logging.error(f"Error creando cotización con PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al crear cotización: {str(e)}")
+
 @api_router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
