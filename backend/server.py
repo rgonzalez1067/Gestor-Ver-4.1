@@ -419,6 +419,7 @@ class UserRegister(BaseModel):
     cedula: str = Field(..., min_length=6, max_length=15)  # Cédula de identidad
     email: EmailStr
     password: str = Field(..., min_length=8)  # Mínimo 8 caracteres
+    sede: str = Field(default="TBP", description="Sede del usuario: TBP (Torre Banco Plaza) o LCH (Los Chaguaramos)")
 
 class UserLogin(BaseModel):
     """Modelo para login de usuario"""
@@ -433,6 +434,7 @@ class UserResponse(BaseModel):
     last_name: str
     cedula: str
     role: str = "user"  # "admin" o "user"
+    sede: str = "TBP"  # "TBP" (Torre Banco Plaza) o "LCH" (Los Chaguaramos)
     is_active: bool = True
     is_verified: bool = False
     permissions: dict = {}
