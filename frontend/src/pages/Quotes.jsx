@@ -830,7 +830,14 @@ export const Quotes = () => {
       return;
     }
 
+    const toastId = toast.loading('Guardando cotización y generando PDF...');
+
     try {
+      const client = clients.find(c => c.client_id === quoteData.client_id);
+      const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+      const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+      const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+
       const allItems = [
         ...quoteData.setup_items.map(item => ({
           item_type: 'setup',
@@ -868,13 +875,78 @@ export const Quotes = () => {
                      (item.tarifa_recurrente || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)),
           cantidad_cajas: item.cantidad_cajas || 1,
           cantidad_bancos: item.cantidad_bancos || 1,
-          // Campos específicos para items adicionales
           bank_id: item.bank_id || '',
           bank_name: item.bank_name || '',
           tarifa_setup: item.tarifa_setup || 0,
           tarifa_recurrente: item.tarifa_recurrente || 0
         }))
       ];
+
+      // Preparar datos del PDF (mismos datos que exportCurrentQuoteToPDF)
+      const templateTypeMap = {
+        'VPOS': 'vpos_pyme',
+        'GATEWAY': 'payment_gateway',
+        'MPOS': 'mpos',
+        'LINK': 'vpos_pyme'
+      };
+      const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
+
+      const pdfData = {
+        cliente_nombre: client?.legal_name || client?.commercial_name || 'Cliente',
+        cliente_rif: client?.rif || '',
+        cliente_contacto: client?.contact_name || '',
+        cliente_address: client?.address || '',
+        quote_type: quoteData.quote_type,
+        pricing_model: quoteData.pricing_model,
+        cantidad_cajas: quoteData.cantidad_cajas || 1,
+        quote_number: '', // Se asignará en el backend
+        integrator_name: integrator?.name || '',
+        integrator_app_name: quoteData.integrator_app_name || '',
+        pinpad_model: pinpad?.name || '',
+        sponsor_bank_name: sponsorBank?.name || '',
+        template_type: templateType,
+        setup_items: [
+          ...quoteData.setup_items.map(item => ({
+            concepto: item.medio_pago_name,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+            tarifa: parseFloat(item.tarifa) || 0,
+            bank_name: item.bank_name || null
+          })),
+          ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
+            concepto: `${item.medio_pago_name} - ${item.bank_name}`,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+            tarifa: parseFloat(item.tarifa_setup) || 0,
+            bank_name: item.bank_name || null
+          }))
+        ],
+        recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
+          concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0,
+          bank_name: item.bank_name || null
+        })),
+        recurring_other_items: quoteData.recurring_other_items.map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0,
+          bank_name: item.bank_name || null
+        })),
+        additional_items: quoteData.additional_items
+          .filter(item => item.bank_name)
+          .map(item => ({
+            concepto: item.medio_pago_name,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+            tarifa: parseFloat(item.tarifa_setup) || 0,
+            bank_name: item.bank_name
+          })),
+        descuento: quoteData.descuento || 0,
+        notes: quoteData.notes || ''
+      };
 
       const payload = {
         client_id: quoteData.client_id,
@@ -883,24 +955,33 @@ export const Quotes = () => {
         services: allItems,
         hardware: [],
         integrator_id: quoteData.integrator_id,
-        integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || '',
+        integrator_name: integrator?.name || '',
         integrator_app_name: quoteData.integrator_app_name,
-        // Campos opcionales - enviar vacío si es "none"
         pinpad_id: quoteData.pinpad_id === 'none' ? '' : quoteData.pinpad_id,
-        pinpad_model: quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (pinpads.find(p => p.hardware_id === quoteData.pinpad_id)?.name || '') : '',
+        pinpad_model: quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (pinpad?.name || '') : '',
         sponsor_bank_id: quoteData.sponsor_bank_id === 'none' ? '' : quoteData.sponsor_bank_id,
-        sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '') : '',
+        sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (sponsorBank?.name || '') : '',
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
-        cantidad_bancos: quoteData.cantidad_bancos || 1
+        cantidad_bancos: quoteData.cantidad_bancos || 1,
+        // Incluir datos del PDF
+        pdf_data: pdfData
       };
 
-      await api.post('/quotes', payload);
-      toast.success('Cotización creada exitosamente');
+      const response = await api.post('/quotes/create-with-pdf', payload);
+      toast.dismiss(toastId);
+      
+      if (response.data.pdf_url) {
+        toast.success('Cotización creada con PDF generado');
+      } else {
+        toast.success('Cotización creada exitosamente');
+      }
+      
       setWizardOpen(false);
       resetQuoteForm();
       fetchData();
     } catch (error) {
+      toast.dismiss(toastId);
       console.error('Error creating quote:', error);
       toast.error('Error al crear cotización');
     }
