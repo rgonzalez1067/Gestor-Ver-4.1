@@ -78,6 +78,11 @@ function AppRouter() {
           <AdminUsers />
         </ProtectedRoute>
       } />
+      <Route path="/users" element={
+        <ProtectedRoute>
+          <UserManagement />
+        </ProtectedRoute>
+      } />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
