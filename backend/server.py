@@ -2230,8 +2230,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         quote_pdf_url = None
         if data.pdf_data:
             try:
-                # Actualizar quote_number en los datos del PDF
-                pdf_request = data.pdf_data.model_copy()
+                # Convertir dict a TemplateQuotePDFRequest
+                pdf_request = TemplateQuotePDFRequest(**data.pdf_data)
                 pdf_request.quote_number = quote_number
                 
                 # Obtener logo si existe
