@@ -132,6 +132,7 @@ const BASE_TEMPLATE_VARIABLES = {
 
 // Función para obtener variables de una plantilla específica
 const getTemplateVariables = (templateId) => {
+  if (!templateId) return [];
   // Extraer el tipo base del template_id (ej: quote_sent_TBP -> quote_sent)
   const baseType = templateId.replace(/_TBP$|_LCH$/, '');
   return BASE_TEMPLATE_VARIABLES[baseType] || [];
