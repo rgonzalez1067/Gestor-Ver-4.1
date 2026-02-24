@@ -5289,15 +5289,23 @@ async def get_email_templates(authorization: Optional[str] = Header(None)):
     
     templates = await db.email_templates.find({}, {"_id": 0}).to_list(100)
     
-    # Si no hay plantillas, devolver las predeterminadas
+    # Si no hay plantillas, devolver las predeterminadas por sede
     if not templates:
-        return list(DEFAULT_EMAIL_TEMPLATES.values())
+        return list(EMAIL_TEMPLATES_BY_SEDE.values())
     
-    # Asegurar que todas las plantillas predeterminadas existan
+    # Asegurar que todas las plantillas por sede existan
     template_ids = [t["template_id"] for t in templates]
-    for template_id, default_template in DEFAULT_EMAIL_TEMPLATES.items():
+    for template_id, default_template in EMAIL_TEMPLATES_BY_SEDE.items():
         if template_id not in template_ids:
             templates.append(default_template)
+    
+    # También incluir plantillas legacy si existen
+    for template_id, default_template in DEFAULT_EMAIL_TEMPLATES.items():
+        if template_id not in template_ids:
+            # Solo agregar si no hay versión por sede
+            sede_version_exists = any(t["template_id"].startswith(template_id + "_") for t in templates)
+            if not sede_version_exists:
+                templates.append(default_template)
     
     return templates
 
@@ -5309,7 +5317,10 @@ async def get_email_template(template_id: str, authorization: Optional[str] = He
     template = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
     
     if not template:
-        # Devolver plantilla predeterminada si existe
+        # Buscar primero en plantillas por sede
+        if template_id in EMAIL_TEMPLATES_BY_SEDE:
+            return EMAIL_TEMPLATES_BY_SEDE[template_id]
+        # Luego buscar en plantillas legacy
         if template_id in DEFAULT_EMAIL_TEMPLATES:
             return DEFAULT_EMAIL_TEMPLATES[template_id]
         raise HTTPException(status_code=404, detail="Plantilla no encontrada")
