@@ -357,6 +357,9 @@ class Quote(BaseModel):
     repair_description: Optional[str] = None  # Descripción de la falla
     equipment_serial_number: Optional[str] = None  # Número de serie del equipo a reparar
     estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
+    # Sede del usuario que crea la cotización
+    sede: str = "TBP"  # "TBP" (Torre Banco Plaza) o "LCH" (Los Chaguaramos)
+    created_by_user_id: Optional[str] = None  # ID del usuario que creó la cotización
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
