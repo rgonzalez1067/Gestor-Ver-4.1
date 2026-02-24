@@ -588,6 +588,80 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Gestión de Plantillas de Documentos por Sede */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
+              <FileText size={24} />
+              Gestión de Plantillas de Documentos
+            </h2>
+            <p className="text-slate-600 mb-6">
+              Cada sede tiene sus propias plantillas de documentos para mantener la identidad y control separado.
+              Las plantillas base se duplican y personalizan para cada sede.
+            </p>
+
+            <div className="space-y-6">
+              {SEDES.map((sede) => (
+                <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                  {/* Header de la Sede */}
+                  <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <MapPin size={18} className="text-slate-600" />
+                      <span className="font-semibold text-slate-800">Plantillas - Sede {sede.name} ({sede.shortName})</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4">
+                    <div className="grid gap-3">
+                      {DOCUMENT_TEMPLATE_TYPES.map((docType) => {
+                        const templateKey = `${docType.id}_${sede.id}`;
+                        const templateData = documentTemplates[templateKey];
+                        const colorClasses = {
+                          emerald: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                          blue: 'bg-blue-50 border-blue-200 text-blue-700',
+                          purple: 'bg-purple-50 border-purple-200 text-purple-700'
+                        };
+                        
+                        return (
+                          <div 
+                            key={templateKey}
+                            className={`p-3 rounded-lg border ${colorClasses[docType.color] || 'bg-slate-50 border-slate-200'}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded flex items-center justify-center ${templateData?.exists ? 'bg-green-100' : 'bg-white/50'}`}>
+                                  {templateData?.exists ? (
+                                    <Check size={16} className="text-green-600" />
+                                  ) : (
+                                    <FileText size={16} className="opacity-50" />
+                                  )}
+                                </div>
+                                <div>
+                                  <h4 className="font-medium text-sm">{docType.name} - Sede {sede.shortName}</h4>
+                                  <p className="text-xs opacity-75">Área: {docType.area}</p>
+                                </div>
+                              </div>
+                              <span className={`text-xs px-2 py-1 rounded ${templateData?.exists ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                {templateData?.exists ? 'Configurada' : 'Pendiente'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Nota informativa */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-700">
+                  <strong>Nota:</strong> Al generar un despacho o cotización, el sistema seleccionará automáticamente 
+                  la plantilla y correo de notificación correspondientes según la sede del usuario que realiza la acción.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Plantillas de Correo Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
