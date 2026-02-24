@@ -12,7 +12,8 @@ import {
   LogOut,
   UserCheck,
   Shield,
-  Boxes
+  Boxes,
+  UsersRound
 } from 'lucide-react';
 import api from '../utils/api';
 
@@ -29,7 +30,8 @@ const menuItems = [
 
 // Items solo para admin
 const adminItems = [
-  { path: '/admin/users', icon: Shield, label: 'Gestión de Usuarios' }
+  { path: '/users', icon: UsersRound, label: 'Gestión de Usuarios Pro' },
+  { path: '/admin/users', icon: Shield, label: 'Permisos de Usuarios' }
 ];
 
 export const Sidebar = () => {
