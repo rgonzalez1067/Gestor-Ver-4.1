@@ -82,29 +82,41 @@ const generateTemplateConfig = () => {
 
 const TEMPLATE_CONFIG = generateTemplateConfig();
 
-// Variables disponibles por plantilla
-const TEMPLATE_VARIABLES = {
+// Variables disponibles por tipo de plantilla (aplican a todas las sedes)
+const BASE_TEMPLATE_VARIABLES = {
   quote_sent: [
     { key: 'quote_number', label: 'Número de Cotización' },
     { key: 'client_name', label: 'Nombre del Cliente' },
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'quote_type', label: 'Tipo de Cotización' },
     { key: 'total_usd', label: 'Total USD' },
-    { key: 'company_name', label: 'Nombre de la Empresa' }
+    { key: 'company_name', label: 'Nombre de la Empresa' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
+  ],
+  quote_approved: [
+    { key: 'quote_number', label: 'Número de Cotización' },
+    { key: 'client_name', label: 'Nombre del Cliente' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'quote_type', label: 'Tipo de Cotización' },
+    { key: 'total_usd', label: 'Total USD' },
+    { key: 'approved_date', label: 'Fecha de Aprobación' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
   ],
   invoice: [
     { key: 'quote_number', label: 'Número de Cotización' },
     { key: 'client_name', label: 'Nombre del Cliente' },
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'invoice_number', label: 'Número de Factura' },
-    { key: 'total_usd', label: 'Total USD' }
+    { key: 'total_usd', label: 'Total USD' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
   ],
   warehouse: [
     { key: 'quote_number', label: 'Número de Cotización' },
     { key: 'client_name', label: 'Nombre del Cliente' },
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'client_address', label: 'Dirección del Cliente' },
-    { key: 'items_table', label: 'Tabla de Items' }
+    { key: 'items_table', label: 'Tabla de Items' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
   ],
   implementation: [
     { key: 'quote_number', label: 'Número de Cotización' },
@@ -113,8 +125,16 @@ const TEMPLATE_VARIABLES = {
     { key: 'quote_type', label: 'Tipo de Cotización' },
     { key: 'integrator_name', label: 'Nombre del Integrador' },
     { key: 'pinpad_model', label: 'Modelo de Pinpad' },
-    { key: 'services_table', label: 'Tabla de Servicios' }
+    { key: 'services_table', label: 'Tabla de Servicios' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
   ]
+};
+
+// Función para obtener variables de una plantilla específica
+const getTemplateVariables = (templateId) => {
+  // Extraer el tipo base del template_id (ej: quote_sent_TBP -> quote_sent)
+  const baseType = templateId.replace(/_TBP$|_LCH$/, '');
+  return BASE_TEMPLATE_VARIABLES[baseType] || [];
 };
 
 export const EmailTemplatesEditor = () => {
