@@ -62,18 +62,39 @@ export const Settings = () => {
     fetchLogo();
     fetchTemplates();
     fetchSettings();
+    fetchDocumentTemplates();
   }, []);
 
   const fetchSettings = async () => {
     try {
       const response = await api.get('/config/settings');
       setImplementationEmail(response.data.implementation_email || '');
-      setAdminEmail(response.data.admin_email || '');
-      setWarehouseEmail(response.data.warehouse_email || '');
+      
+      // Cargar correos por sede
+      setEmailsBySede({
+        TBP: {
+          admin: response.data.emails_by_sede?.TBP?.admin || response.data.admin_email || '',
+          warehouse: response.data.emails_by_sede?.TBP?.warehouse || response.data.warehouse_email || ''
+        },
+        LCH: {
+          admin: response.data.emails_by_sede?.LCH?.admin || '',
+          warehouse: response.data.emails_by_sede?.LCH?.warehouse || ''
+        }
+      });
+      
       setResendApiKeyConfigured(response.data.resend_api_key_configured || false);
       setResendApiKeyMasked(response.data.resend_api_key_masked || '');
     } catch (error) {
       console.error('Error fetching settings:', error);
+    }
+  };
+
+  const fetchDocumentTemplates = async () => {
+    try {
+      const response = await api.get('/config/document-templates');
+      setDocumentTemplates(response.data || {});
+    } catch (error) {
+      console.error('Error fetching document templates:', error);
     }
   };
 
