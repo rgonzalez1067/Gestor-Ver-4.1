@@ -3,9 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, User, Mail, Lock, CreditCard, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, User, Mail, Lock, CreditCard, Loader2, Building2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+
+// Sedes disponibles
+const SEDES = [
+  { value: 'TBP', label: 'Torre Banco Plaza (TBP)' },
+  { value: 'LCH', label: 'Los Chaguaramos (LCH)' }
+];
 
 export const Auth = () => {
   const navigate = useNavigate();
@@ -19,7 +25,8 @@ export const Auth = () => {
     lastName: '',
     cedula: '',
     email: '',
-    password: ''
+    password: '',
+    sede: 'TBP'  // Sede por defecto
   });
   
   // Errors
