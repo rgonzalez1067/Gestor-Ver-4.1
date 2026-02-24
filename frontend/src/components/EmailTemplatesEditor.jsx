@@ -4,21 +4,38 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-// Iconos y colores por tipo de plantilla
-const TEMPLATE_CONFIG = {
-  quote_sent: {
+// Sedes disponibles
+const SEDES = [
+  { id: 'TBP', name: 'Torre Banco Plaza', shortName: 'TBP' },
+  { id: 'LCH', name: 'Los Chaguaramos', shortName: 'LCH' }
+];
+
+// Tipos base de plantillas (sin sede)
+const BASE_TEMPLATE_TYPES = [
+  {
+    baseId: 'quote_sent',
     icon: Mail,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
-    title: 'Envío de Cotización',
+    title: 'Envío de Cotización a Cliente',
     description: 'Se envía al cliente cuando se genera una cotización'
   },
-  invoice: {
+  {
+    baseId: 'quote_approved',
+    icon: CheckCircle,
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+    borderColor: 'border-emerald-200',
+    title: 'Cotización Aprobada',
+    description: 'Se envía cuando una cotización es aprobada'
+  },
+  {
+    baseId: 'invoice',
     icon: FileText,
     color: 'text-purple-600',
     bgColor: 'bg-purple-50',
@@ -26,7 +43,8 @@ const TEMPLATE_CONFIG = {
     title: 'Facturación y Control Contable',
     description: 'Se envía a Administración cuando se factura'
   },
-  warehouse: {
+  {
+    baseId: 'warehouse',
     icon: Warehouse,
     color: 'text-amber-600',
     bgColor: 'bg-amber-50',
@@ -34,15 +52,35 @@ const TEMPLATE_CONFIG = {
     title: 'Despacho de Equipos',
     description: 'Se envía a Almacén cuando equipos son pagados'
   },
-  implementation: {
+  {
+    baseId: 'implementation',
     icon: Settings2,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
-    title: 'Inicio de Obra',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
+    borderColor: 'border-cyan-200',
+    title: 'Envío a Implementación',
     description: 'Se envía a Implementación con detalles técnicos'
   }
+];
+
+// Generar configuración de plantillas por sede
+const generateTemplateConfig = () => {
+  const config = {};
+  SEDES.forEach(sede => {
+    BASE_TEMPLATE_TYPES.forEach(template => {
+      const templateId = `${template.baseId}_${sede.id}`;
+      config[templateId] = {
+        ...template,
+        title: `${template.title} (Sede ${sede.shortName})`,
+        sede: sede.id,
+        sedeName: sede.name
+      };
+    });
+  });
+  return config;
 };
+
+const TEMPLATE_CONFIG = generateTemplateConfig();
 
 // Variables disponibles por plantilla
 const TEMPLATE_VARIABLES = {
