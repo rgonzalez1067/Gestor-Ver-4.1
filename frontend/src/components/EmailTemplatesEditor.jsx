@@ -442,7 +442,7 @@ export const EmailTemplatesEditor = () => {
             <div>
               <Label className="font-semibold mb-2 block">Variables Disponibles</Label>
               <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border">
-                {(TEMPLATE_VARIABLES[editingTemplate?.template_id] || []).map((v) => (
+                {getTemplateVariables(editingTemplate?.template_id).map((v) => (
                   <button
                     key={v.key}
                     onClick={() => insertVariable(v.key)}
