@@ -3,10 +3,16 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
+
+// Sedes disponibles
+const SEDES = [
+  { id: 'TBP', name: 'Torre Banco Plaza', shortName: 'TBP' },
+  { id: 'LCH', name: 'Los Chaguaramos', shortName: 'LCH' }
+];
 
 const TEMPLATE_TYPES = [
   { id: 'vpos_pyme', name: 'VPOS Pyme', description: 'Cotización para pequeñas y medianas empresas con VPOS' },
@@ -15,6 +21,13 @@ const TEMPLATE_TYPES = [
   { id: 'mpos', name: 'MPOS', description: 'Cotización para soluciones móviles (Tablet/Android)' },
   { id: 'dispositivos', name: 'Dispositivos', description: 'Cotización de dispositivos de pago' },
   { id: 'accesorios', name: 'Accesorios', description: 'Cotización de accesorios complementarios' }
+];
+
+// Tipos de plantillas de documentos por sede
+const DOCUMENT_TEMPLATE_TYPES = [
+  { id: 'despacho_equipos', name: 'Despacho de Equipos', area: 'Logística', color: 'emerald' },
+  { id: 'cotizacion_aprobada', name: 'Cotización Aprobada', area: 'Ventas', color: 'blue' },
+  { id: 'facturacion_control', name: 'Facturación y Control Contable', area: 'Administración', color: 'purple' }
 ];
 
 export const Settings = () => {
