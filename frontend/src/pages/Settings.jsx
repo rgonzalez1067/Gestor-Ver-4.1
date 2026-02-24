@@ -128,8 +128,7 @@ export const Settings = () => {
     try {
       await api.put('/config/settings', { 
         implementation_email: implementationEmail || null,
-        admin_email: adminEmail || null,
-        warehouse_email: warehouseEmail || null
+        emails_by_sede: emailsBySede
       });
       toast.success('Configuración de correos guardada');
     } catch (error) {
@@ -137,6 +136,17 @@ export const Settings = () => {
     } finally {
       setSavingEmail(false);
     }
+  };
+
+  // Actualizar email por sede
+  const updateSedeEmail = (sedeId, type, value) => {
+    setEmailsBySede(prev => ({
+      ...prev,
+      [sedeId]: {
+        ...prev[sedeId],
+        [type]: value
+      }
+    }));
   };
 
   const fetchLogo = async () => {
