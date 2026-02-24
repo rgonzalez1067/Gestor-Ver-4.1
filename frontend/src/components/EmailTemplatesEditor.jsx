@@ -275,63 +275,142 @@ export const EmailTemplatesEditor = () => {
     );
   }
 
+  // Agrupar plantillas por sede
+  const templatesBySede = {};
+  SEDES.forEach(sede => {
+    templatesBySede[sede.id] = templates.filter(t => t.template_id?.endsWith(`_${sede.id}`));
+  });
+  
+  // Plantillas sin sede (legacy)
+  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_TBP') && !t.template_id?.endsWith('_LCH'));
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center gap-2 text-slate-600 mb-4">
         <AlertCircle size={16} />
         <span className="text-sm">Use <code className="bg-slate-100 px-1 rounded">{'{variable}'}</code> para insertar datos dinámicos en las plantillas.</span>
       </div>
 
-      {/* Lista de plantillas */}
-      <div className="grid gap-4">
-        {templates.map((template) => {
-          const config = TEMPLATE_CONFIG[template.template_id] || {};
-          const IconComponent = config.icon || Mail;
+      {/* Plantillas agrupadas por sede */}
+      {SEDES.map((sede) => (
+        <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden">
+          {/* Header de la Sede */}
+          <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <MapPin size={18} className="text-slate-600" />
+              <span className="font-semibold text-slate-800">Plantillas de Correo - Sede {sede.name} ({sede.shortName})</span>
+            </div>
+          </div>
           
-          return (
-            <div 
-              key={template.template_id}
-              className={`p-4 rounded-lg border ${config.borderColor || 'border-slate-200'} ${config.bgColor || 'bg-slate-50'}`}
-              data-testid={`email-template-${template.template_id}`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <div className={`p-2 rounded-lg bg-white ${config.color || 'text-slate-600'}`}>
-                    <IconComponent size={24} />
+          <div className="p-4 space-y-3">
+            {templatesBySede[sede.id]?.length > 0 ? (
+              templatesBySede[sede.id].map((template) => {
+                const config = TEMPLATE_CONFIG[template.template_id] || {};
+                const IconComponent = config.icon || Mail;
+                
+                return (
+                  <div 
+                    key={template.template_id}
+                    className={`p-3 rounded-lg border ${config.borderColor || 'border-slate-200'} ${config.bgColor || 'bg-slate-50'}`}
+                    data-testid={`email-template-${template.template_id}`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg bg-white ${config.color || 'text-slate-600'}`}>
+                          <IconComponent size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-slate-900 text-sm">{config.title || template.name}</h3>
+                          <p className="text-xs text-slate-600 mt-0.5">{config.description || template.description}</p>
+                          <div className="mt-1 text-xs text-slate-500">
+                            <span className="font-medium">Asunto:</span> {template.subject?.substring(0, 40)}...
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(template)}
+                          className="h-7 text-xs"
+                          data-testid={`edit-template-${template.template_id}`}
+                        >
+                          <Edit size={12} className="mr-1" />
+                          Editar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleReset(template.template_id)}
+                          className="h-7 text-slate-500 hover:text-red-600"
+                          data-testid={`reset-template-${template.template_id}`}
+                        >
+                          <RotateCcw size={12} />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{config.title || template.name}</h3>
-                    <p className="text-sm text-slate-600 mt-1">{config.description || template.description}</p>
-                    <div className="mt-2 text-xs text-slate-500">
-                      <span className="font-medium">Asunto:</span> {template.subject?.substring(0, 50)}...
+                );
+              })
+            ) : (
+              <p className="text-sm text-slate-500 text-center py-4">
+                No hay plantillas configuradas para esta sede. Se crearán automáticamente.
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Plantillas legacy (sin sede) - mostrar si existen */}
+      {legacyTemplates.length > 0 && (
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <div className="bg-amber-50 px-4 py-3 border-b border-amber-200">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={18} className="text-amber-600" />
+              <span className="font-semibold text-amber-800">Plantillas Generales (Sin Sede)</span>
+            </div>
+            <p className="text-xs text-amber-700 mt-1">Estas plantillas se migrarán a plantillas por sede.</p>
+          </div>
+          
+          <div className="p-4 space-y-3">
+            {legacyTemplates.map((template) => {
+              const config = TEMPLATE_CONFIG[template.template_id] || {};
+              const IconComponent = config.icon || Mail;
+              
+              return (
+                <div 
+                  key={template.template_id}
+                  className={`p-3 rounded-lg border ${config.borderColor || 'border-slate-200'} ${config.bgColor || 'bg-slate-50'}`}
+                  data-testid={`email-template-${template.template_id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg bg-white ${config.color || 'text-slate-600'}`}>
+                        <IconComponent size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-slate-900 text-sm">{config.title || template.name}</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">{config.description || template.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(template)}
+                        className="h-7 text-xs"
+                      >
+                        <Edit size={12} className="mr-1" />
+                        Editar
+                      </Button>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(template)}
-                    data-testid={`edit-template-${template.template_id}`}
-                  >
-                    <Edit size={14} className="mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleReset(template.template_id)}
-                    className="text-slate-500 hover:text-red-600"
-                    data-testid={`reset-template-${template.template_id}`}
-                  >
-                    <RotateCcw size={14} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Dialog de edición */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
