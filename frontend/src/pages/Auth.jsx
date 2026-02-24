@@ -130,24 +130,27 @@ export const Auth = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img 
-            src="/megasoft-logo.png" 
-            alt="MegaSoft Logo" 
-            className="h-16 mx-auto mb-4"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-          <h1 className="text-3xl font-bold text-slate-800">Cotizador</h1>
-          <p className="text-slate-600 mt-1">Merchant Server</p>
-        </div>
-        
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4 relative"
+      style={{
+        backgroundImage: 'url(/fondo-megasoft.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      {/* Overlay oscuro para mejor legibilidad */}
+      <div className="absolute inset-0 bg-black/40"></div>
+      
+      <div className="w-full max-w-md relative z-10">
+        {/* Card con fondo semitransparente */}
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
+          {/* Logo y Título dentro del card */}
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-slate-800">Cotizador</h1>
+            <p className="text-slate-600 mt-1">Merchant Server</p>
+          </div>
+          
           {/* Mode Selector */}
           <div className="flex mb-8 bg-slate-100 rounded-lg p-1">
             <button
