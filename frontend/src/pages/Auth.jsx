@@ -350,7 +350,7 @@ export const Auth = () => {
         </div>
         
         {/* Footer */}
-        <p className="text-center text-xs text-slate-500 mt-6">
+        <p className="text-center text-xs text-white/80 mt-6 drop-shadow-lg">
           Sistema integral de cotizaciones para plataformas de medios de pago
         </p>
       </div>
