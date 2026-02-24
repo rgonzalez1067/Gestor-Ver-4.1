@@ -23,13 +23,6 @@ const TEMPLATE_TYPES = [
   { id: 'accesorios', name: 'Accesorios', description: 'Cotización de accesorios complementarios' }
 ];
 
-// Tipos de plantillas de documentos por sede
-const DOCUMENT_TEMPLATE_TYPES = [
-  { id: 'despacho_equipos', name: 'Despacho de Equipos', area: 'Logística', color: 'emerald' },
-  { id: 'cotizacion_aprobada', name: 'Cotización Aprobada', area: 'Ventas', color: 'blue' },
-  { id: 'facturacion_control', name: 'Facturación y Control Contable', area: 'Administración', color: 'purple' }
-];
-
 export const Settings = () => {
   const [logoUrl, setLogoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
