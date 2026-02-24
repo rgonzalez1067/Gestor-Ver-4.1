@@ -12,7 +12,7 @@ Sistema integral de cotizaciones para plataformas de medios de pago.
 ### SISTEMA MULTI-SEDE IMPLEMENTADO
 
 **Requerimiento:**
-Implementar gestión multi-sede para separar usuarios, cotizaciones y futuras notificaciones por sede.
+Implementar gestión multi-sede para separar usuarios, cotizaciones, correos y plantillas por sede.
 
 **Sedes Configuradas:**
 | Código | Nombre Completo |
@@ -38,20 +38,20 @@ Implementar gestión multi-sede para separar usuarios, cotizaciones y futuras no
    - Selector de sede en formulario de registro
    - Muestra sede en mensaje de confirmación
 
-**Estructura de Correos (Preparada para Resend):**
-| Tipo | Sede TBP | Sede Los Chaguaramos |
-|------|----------|---------------------|
-| Administración | Correo de Administración Sede TBP | Correo de Administración Sede Los Chaguaramos |
-| Almacén | Correo de Almacén Sede TBP | Correo de Almacén Sede Los Chaguaramos |
+5. **Backend/Frontend - Configuración de Correos por Sede** (`Settings.jsx`, `server.py`):
+   - Nuevo modelo `emails_by_sede` con correos separados para cada sede
+   - Correo de Administración - Sede TBP / Sede LCH
+   - Correo de Almacén - Sede TBP / Sede LCH
+   - Correo de Implementación (General)
 
-**Estructura de Plantillas (Preparada):**
-| Tipo | Sede TBP | Sede Los Chaguaramos |
-|------|----------|---------------------|
-| Logística | Despacho de Equipos - Sede TBP | Despacho de Equipos - Sede Los Chaguaramos |
-| Ventas | Cotización Aprobada - Sede TBP | Cotización Aprobada - Sede Los Chaguaramos |
-| Administración | Facturación y Control Contable - Sede TBP | Facturación y Control Contable - Sede Los Chaguaramos |
+6. **Frontend - Gestión de Plantillas de Documentos** (`Settings.jsx`):
+   - Nueva sección mostrando plantillas por sede
+   - Despacho de Equipos - Sede TBP / Sede LCH (Logística)
+   - Cotización Aprobada - Sede TBP / Sede LCH (Ventas)
+   - Facturación y Control Contable - Sede TBP / Sede LCH (Administración)
 
-**Pendiente:** Integración con Resend para envío de correos por sede
+7. **Backend - Nuevo Endpoint** `/api/config/document-templates`:
+   - Retorna estado de plantillas de documentos por sede
 
 ---
 
