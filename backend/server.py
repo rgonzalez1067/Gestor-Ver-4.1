@@ -367,12 +367,13 @@ class Quote(BaseModel):
     paid_at: Optional[datetime] = None  # NUEVO: Cuando se cobra
     delivered_at: Optional[datetime] = None  # NUEVO: Cuando se entrega (equipos)
     sent_to_implementation_at: Optional[datetime] = None
-    # Campos de factura
-    invoice_pdf_url: Optional[str] = None  # NUEVO: URL del PDF de la factura
-    invoice_number: Optional[str] = None  # NUEVO: Número de factura
+    # Campos de PDF y factura
+    quote_pdf_url: Optional[str] = None  # URL del PDF de la cotización
+    invoice_pdf_url: Optional[str] = None  # URL del PDF de la factura
+    invoice_number: Optional[str] = None  # Número de factura
     # Versionamiento
-    version: int = 1  # NUEVO: Versión de la cotización
-    parent_quote_id: Optional[str] = None  # NUEVO: ID de la cotización original (si es una modificación)
+    version: int = 1  # Versión de la cotización
+    parent_quote_id: Optional[str] = None  # ID de la cotización original (si es una modificación)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ExchangeRate(BaseModel):
