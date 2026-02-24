@@ -877,6 +877,216 @@ async def update_user_status(user_id: str, is_active: bool, authorization: Optio
     
     return {"message": f"Usuario {'activado' if is_active else 'desactivado'}"}
 
+@api_router.put("/admin/users/{user_id}")
+async def update_user(user_id: str, user_data: UserUpdate, authorization: Optional[str] = Header(None)):
+    """Actualizar datos de un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar usuarios")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Construir datos de actualización
+    update_data = {}
+    if user_data.first_name is not None:
+        update_data["first_name"] = user_data.first_name
+    if user_data.last_name is not None:
+        update_data["last_name"] = user_data.last_name
+    if user_data.first_name or user_data.last_name:
+        fn = user_data.first_name or user.get("first_name", "")
+        ln = user_data.last_name or user.get("last_name", "")
+        update_data["name"] = f"{fn} {ln}"
+    if user_data.cedula is not None:
+        # Verificar que no exista otro usuario con esa cédula
+        existing = await db.users.find_one({"cedula": user_data.cedula, "user_id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con esa cédula")
+        update_data["cedula"] = user_data.cedula
+    if user_data.phone is not None:
+        update_data["phone"] = user_data.phone
+    if user_data.cargo is not None:
+        update_data["cargo"] = user_data.cargo
+    if user_data.departamento is not None:
+        if user_data.departamento not in DEPARTAMENTOS and user_data.departamento != "":
+            raise HTTPException(status_code=400, detail=f"Departamento inválido. Opciones: {DEPARTAMENTOS}")
+        update_data["departamento"] = user_data.departamento
+    if user_data.sede is not None:
+        if user_data.sede not in ["TBP", "LCH"]:
+            raise HTTPException(status_code=400, detail="Sede inválida. Use 'TBP' o 'LCH'")
+        update_data["sede"] = user_data.sede
+    if user_data.role is not None:
+        if user_data.role not in ["admin", "user"]:
+            raise HTTPException(status_code=400, detail="Rol inválido. Use 'admin' o 'user'")
+        # No permitir quitarse rol de admin a sí mismo
+        if current_user["user_id"] == user_id and user_data.role != "admin":
+            raise HTTPException(status_code=400, detail="No puede quitarse el rol de administrador")
+        update_data["role"] = user_data.role
+    if user_data.is_active is not None:
+        if current_user["user_id"] == user_id and not user_data.is_active:
+            raise HTTPException(status_code=400, detail="No puede desactivar su propia cuenta")
+        update_data["is_active"] = user_data.is_active
+        if not user_data.is_active:
+            await db.user_sessions.delete_many({"user_id": user_id})
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["user_id"]
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": update_data}
+    )
+    
+    # Registrar auditoría
+    audit_log = {
+        "action": "user_updated",
+        "user_id": user_id,
+        "changes": list(update_data.keys()),
+        "performed_by": current_user["user_id"],
+        "performed_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.audit_logs.insert_one(audit_log)
+    
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Usuario actualizado", "user": updated_user}
+
+@api_router.post("/admin/users/{user_id}/reset-password")
+async def reset_user_password(user_id: str, authorization: Optional[str] = Header(None)):
+    """Enviar token de restablecimiento de contraseña (solo admin)"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden restablecer contraseñas")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # Generar token de un solo uso
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+    
+    # Guardar token en la base de datos
+    await db.password_reset_tokens.delete_many({"user_id": user_id})  # Eliminar tokens anteriores
+    await db.password_reset_tokens.insert_one({
+        "user_id": user_id,
+        "token": reset_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user["user_id"]
+    })
+    
+    # Registrar auditoría
+    audit_log = {
+        "action": "password_reset_requested",
+        "user_id": user_id,
+        "performed_by": current_user["user_id"],
+        "performed_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.audit_logs.insert_one(audit_log)
+    
+    # TODO: Enviar email con el token cuando Resend esté configurado
+    # Por ahora, devolver el token para pruebas
+    return {
+        "message": "Token de restablecimiento generado",
+        "email": user.get("email"),
+        "reset_token": reset_token,  # En producción, esto NO se devuelve
+        "expires_at": expires_at.isoformat(),
+        "note": "El token debe ser enviado por correo electrónico al usuario"
+    }
+
+@api_router.post("/admin/users/create")
+async def admin_create_user(user_data: UserRegister, authorization: Optional[str] = Header(None)):
+    """Crear un nuevo usuario desde el panel de administración"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden crear usuarios")
+    
+    # Verificar si el email ya existe
+    existing_user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese correo electrónico")
+    
+    # Verificar si la cédula ya existe
+    existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
+    if existing_cedula:
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con esa cédula")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    password_hash = hash_password(user_data.password)
+    
+    valid_sedes = ["TBP", "LCH"]
+    sede = user_data.sede.upper() if user_data.sede else "TBP"
+    if sede not in valid_sedes:
+        raise HTTPException(status_code=400, detail="Sede inválida")
+    
+    default_permissions = {}
+    for module in AVAILABLE_MODULES:
+        default_permissions[module] = "read"
+    
+    user_doc = {
+        "user_id": user_id,
+        "email": user_data.email,
+        "first_name": user_data.first_name,
+        "last_name": user_data.last_name,
+        "name": f"{user_data.first_name} {user_data.last_name}",
+        "cedula": user_data.cedula,
+        "phone": user_data.phone,
+        "cargo": user_data.cargo,
+        "departamento": user_data.departamento,
+        "password_hash": password_hash,
+        "role": "user",
+        "sede": sede,
+        "is_active": True,
+        "is_verified": False,
+        "permissions": default_permissions,
+        "picture": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user["user_id"]
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    # Registrar auditoría
+    audit_log = {
+        "action": "user_created",
+        "user_id": user_id,
+        "performed_by": current_user["user_id"],
+        "performed_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.audit_logs.insert_one(audit_log)
+    
+    # Respuesta sin password
+    user_response = {k: v for k, v in user_doc.items() if k != "password_hash"}
+    return {"message": "Usuario creado exitosamente", "user": user_response}
+
+@api_router.get("/admin/users/{user_id}/audit")
+async def get_user_audit_log(user_id: str, authorization: Optional[str] = Header(None)):
+    """Obtener historial de auditoría de un usuario"""
+    current_user = await get_current_user(authorization)
+    
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ver auditorías")
+    
+    logs = await db.audit_logs.find(
+        {"user_id": user_id}, 
+        {"_id": 0}
+    ).sort("timestamp", -1).to_list(100)
+    
+    return logs
+
+@api_router.get("/admin/departamentos")
+async def get_departamentos(authorization: Optional[str] = Header(None)):
+    """Obtener lista de departamentos disponibles"""
+    await get_current_user(authorization)
+    return DEPARTAMENTOS
+
 # ==================== CLIENTS ENDPOINTS ====================
 
 @api_router.post("/clients", response_model=Client)
