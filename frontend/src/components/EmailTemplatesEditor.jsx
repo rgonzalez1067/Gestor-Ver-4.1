@@ -224,7 +224,7 @@ export const EmailTemplatesEditor = () => {
   const openPreview = () => {
     // Reemplazar variables con ejemplos
     let html = formData.body_html;
-    const variables = TEMPLATE_VARIABLES[editingTemplate?.template_id] || [];
+    const variables = getTemplateVariables(editingTemplate?.template_id) || [];
     
     const exampleValues = {
       quote_number: 'COT-2024-001',
@@ -237,6 +237,8 @@ export const EmailTemplatesEditor = () => {
       client_address: 'Av. Principal, Edificio Centro, Piso 3',
       integrator_name: 'Integrador Demo (App Demo)',
       pinpad_model: 'Verifone P400',
+      approved_date: '24/02/2026',
+      sede_name: 'Torre Banco Plaza',
       items_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Producto</th><th style="padding:8px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Terminal POS</td><td style="padding:8px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
       services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>'
     };
