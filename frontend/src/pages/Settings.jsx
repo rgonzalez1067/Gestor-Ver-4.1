@@ -39,9 +39,6 @@ export const Settings = () => {
   const [implementationEmail, setImplementationEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
   
-  // Plantillas de documentos por sede
-  const [documentTemplates, setDocumentTemplates] = useState({});
-  
   // Resend API Key state
   const [resendApiKey, setResendApiKey] = useState('');
   const [resendApiKeyConfigured, setResendApiKeyConfigured] = useState(false);
@@ -55,7 +52,6 @@ export const Settings = () => {
     fetchLogo();
     fetchTemplates();
     fetchSettings();
-    fetchDocumentTemplates();
   }, []);
 
   const fetchSettings = async () => {
