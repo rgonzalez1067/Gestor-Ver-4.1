@@ -5352,10 +5352,16 @@ async def reset_email_template(template_id: str, authorization: Optional[str] = 
     """Restablece una plantilla a su valor predeterminado"""
     await get_current_user(authorization)
     
-    if template_id not in DEFAULT_EMAIL_TEMPLATES:
+    # Buscar primero en plantillas por sede, luego en legacy
+    default_template = None
+    if template_id in EMAIL_TEMPLATES_BY_SEDE:
+        default_template = EMAIL_TEMPLATES_BY_SEDE[template_id].copy()
+    elif template_id in DEFAULT_EMAIL_TEMPLATES:
+        default_template = DEFAULT_EMAIL_TEMPLATES[template_id].copy()
+    
+    if not default_template:
         raise HTTPException(status_code=404, detail="Plantilla predeterminada no encontrada")
     
-    default_template = DEFAULT_EMAIL_TEMPLATES[template_id]
     default_template["updated_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.email_templates.update_one(
