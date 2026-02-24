@@ -665,13 +665,16 @@ async def register_user(user_data: UserRegister):
         "email": user_data.email,
         "first_name": user_data.first_name,
         "last_name": user_data.last_name,
-        "name": f"{user_data.first_name} {user_data.last_name}",  # Para compatibilidad
+        "name": f"{user_data.first_name} {user_data.last_name}",
         "cedula": user_data.cedula,
+        "phone": user_data.phone,
+        "cargo": user_data.cargo,
+        "departamento": user_data.departamento,
         "password_hash": password_hash,
         "role": "admin" if is_first_user else "user",
-        "sede": sede,  # Sede del usuario
+        "sede": sede,
         "is_active": True,
-        "is_verified": False,  # Para futuro: verificación por email
+        "is_verified": False,
         "permissions": default_permissions,
         "picture": None,
         "created_at": datetime.now(timezone.utc).isoformat()
