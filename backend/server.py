@@ -619,6 +619,12 @@ async def register_user(user_data: UserRegister):
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     password_hash = hash_password(user_data.password)
     
+    # Validar sede
+    valid_sedes = ["TBP", "LCH"]
+    sede = user_data.sede.upper() if user_data.sede else "TBP"
+    if sede not in valid_sedes:
+        raise HTTPException(status_code=400, detail="Sede inválida. Debe ser 'TBP' o 'LCH'")
+    
     # Verificar si es el primer usuario (será admin)
     user_count = await db.users.count_documents({})
     is_first_user = user_count == 0
@@ -637,6 +643,7 @@ async def register_user(user_data: UserRegister):
         "cedula": user_data.cedula,
         "password_hash": password_hash,
         "role": "admin" if is_first_user else "user",
+        "sede": sede,  # Sede del usuario
         "is_active": True,
         "is_verified": False,  # Para futuro: verificación por email
         "permissions": default_permissions,
@@ -667,6 +674,7 @@ async def register_user(user_data: UserRegister):
         "name": f"{user_data.first_name} {user_data.last_name}",
         "cedula": user_data.cedula,
         "role": user_doc["role"],
+        "sede": sede,
         "is_active": True,
         "is_verified": False,
         "permissions": default_permissions
