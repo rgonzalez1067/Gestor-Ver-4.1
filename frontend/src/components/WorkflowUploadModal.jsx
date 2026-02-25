@@ -100,18 +100,18 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
 
       // Step 2: Call the state transition endpoint
       if (config.stateEndpoint) {
-        if (config.stateEndpointMethod === 'form') {
-          // For endpoints that expect FormData (like invoice)
+        if (config.extraFields?.length > 0) {
+          // Send extra fields as form data (e.g., invoice_number)
           const formData = new FormData();
-          formData.append('invoice_file', files[0]);
-          if (extraData.invoice_number) {
-            formData.append('invoice_number', extraData.invoice_number);
+          for (const field of config.extraFields) {
+            if (extraData[field.name]) {
+              formData.append(field.name, extraData[field.name]);
+            }
           }
           await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
         } else {
-          // For endpoints that are simple POST calls
           await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`);
         }
       }
