@@ -1378,78 +1378,49 @@ export const Quotes = () => {
   };
 
   // Abrir modal de confirmación para aprobar
+  // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
   const openApproveConfirm = (quoteId) => {
-    console.log('ABRIR MODAL APROBAR:', quoteId);
-    setApproveQuoteId(quoteId);
-    setApproveConfirmOpen(true);
+    console.log('ABRIR WORKFLOW APROBAR:', quoteId);
+    setWorkflowQuoteId(quoteId);
+    setWorkflowConfig({
+      title: 'Aprobar Cotización',
+      description: 'Para aprobar esta cotización, debe cargar la Orden de Compra del cliente. Este documento es obligatorio para continuar.',
+      category: 'Orden de Compra',
+      acceptMultiple: false,
+      acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
+      actionLabel: 'Aprobar',
+      actionColor: 'bg-green-600 hover:bg-green-700',
+      actionIcon: <CheckCircle size={20} className="text-green-600" />,
+      stateEndpoint: 'approve',
+      successMessage: 'Cotización aprobada exitosamente',
+    });
+    setWorkflowModalOpen(true);
   };
 
-  // Ejecutar aprobación después de confirmación
-  const executeApproveQuote = async () => {
-    const quoteId = approveQuoteId;
-    setApproveConfirmOpen(false);
-    
-    if (!quoteId) return;
-    
-    setActionLoading(quoteId);
-    try {
-      const response = await api.post(`/quotes/${quoteId}/approve`);
-      const adminNotified = response.data.admin_notified;
-      if (adminNotified) {
-        toast.success(`Cotización aprobada. Notificación enviada a ${response.data.admin_email}`);
-      } else {
-        toast.success('Cotización aprobada exitosamente');
-        if (!response.data.admin_email) {
-          toast.info('Configure el email de Administración en Configuración para recibir notificaciones');
-        }
-      }
-      await fetchData();
-    } catch (error) {
-      console.error('Error approving quote:', error);
-      if (error.response?.status === 401) {
-        toast.error('Sesión expirada. Redirigiendo al login...');
-      } else {
-        toast.error(error.response?.data?.detail || 'Error al aprobar la cotización');
-      }
-    } finally {
-      setActionLoading(null);
-      setApproveQuoteId(null);
-    }
-  };
-
-  // Abrir modal de confirmación para cobrar
+  // Abrir modal de workflow para Cobrar (requiere Comprobante de Pago - múltiple)
   const openCollectConfirm = (quoteId) => {
-    console.log('ABRIR MODAL COBRAR:', quoteId);
-    setCollectQuoteId(quoteId);
-    setCollectConfirmOpen(true);
+    console.log('ABRIR WORKFLOW COBRAR:', quoteId);
+    setWorkflowQuoteId(quoteId);
+    setWorkflowConfig({
+      title: 'Registrar Cobro',
+      description: 'Para registrar el cobro, debe cargar el/los comprobante(s) de pago. Puede subir múltiples archivos si el cliente pagó con diferentes métodos.',
+      category: 'Pagos',
+      acceptMultiple: true,
+      acceptTypes: '.pdf,.png,.jpg,.jpeg,.doc,.docx',
+      actionLabel: 'Confirmar Cobro',
+      actionColor: 'bg-emerald-600 hover:bg-emerald-700',
+      actionIcon: <Banknote size={20} className="text-emerald-600" />,
+      stateEndpoint: 'collect',
+      successMessage: 'Cotización marcada como Pagada',
+    });
+    setWorkflowModalOpen(true);
   };
 
-  // Ejecutar cobro después de confirmación
-  const executeCollectQuote = async () => {
-    const quoteId = collectQuoteId;
-    setCollectConfirmOpen(false);
-    
-    if (!quoteId) return;
-    
-    setActionLoading(quoteId);
-    try {
-      const response = await api.post(`/quotes/${quoteId}/collect`);
-      toast.success(response.data.message || 'Cotización marcada como Pagada');
-      if (response.data.notified_warehouse) {
-        toast.info('Se ha notificado al almacén para preparar el pedido');
-      }
-      await fetchData();
-    } catch (error) {
-      console.error('Error collecting quote:', error);
-      if (error.response?.status === 401) {
-        toast.error('Sesión expirada. Redirigiendo al login...');
-      } else {
-        toast.error(error.response?.data?.detail || 'Error al registrar el cobro');
-      }
-    } finally {
-      setActionLoading(null);
-      setCollectQuoteId(null);
-    }
+  const handleWorkflowSuccess = () => {
+    setWorkflowModalOpen(false);
+    setWorkflowQuoteId(null);
+    setWorkflowConfig(null);
+    fetchData();
   };
 
   // Enviar a implementación
