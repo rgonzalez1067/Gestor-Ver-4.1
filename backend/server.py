@@ -2827,7 +2827,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                         "integrator_app_name": data.integrator_app_name,
                         "created_at": datetime.now(timezone.utc).isoformat()
                     }
-                    pdf_buffer = await create_quote_pdf_buffer(quote_dict, client)
+                    pdf_buffer = await generate_quote_pdf_buffer(quote_dict, client)
                     pdf_filename = f"{quote_number}_Cotizacion.pdf"
                     pdf_path = UPLOADS_DIR / pdf_filename
                     with open(pdf_path, 'wb') as f:
