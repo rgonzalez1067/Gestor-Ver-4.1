@@ -87,7 +87,8 @@ class TestAnexosAttachments:
 
     def test_03_upload_attachment_cotizacion_original(self, api_client):
         """Test POST /api/quotes/{quote_id}/attachments - Upload file with valid category"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        # For file upload, remove Content-Type header (requests will set it automatically for multipart)
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         # Create a test PDF-like file
         test_file_content = b'%PDF-1.4 test content for attachment'
@@ -98,10 +99,11 @@ class TestAnexosAttachments:
             'category': 'Cotización Original'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/{TestAnexosAttachments.test_quote_id}/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -116,7 +118,7 @@ class TestAnexosAttachments:
 
     def test_04_upload_attachment_orden_compra(self, api_client):
         """Test uploading to 'Orden de Compra' category"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         test_file_content = b'%PDF-1.4 orden de compra content'
         files = {
@@ -126,10 +128,11 @@ class TestAnexosAttachments:
             'category': 'Orden de Compra'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/{TestAnexosAttachments.test_quote_id}/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -139,7 +142,7 @@ class TestAnexosAttachments:
 
     def test_05_upload_attachment_factura(self, api_client):
         """Test uploading to 'Factura' category"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         test_file_content = b'%PDF-1.4 factura content'
         files = {
@@ -149,10 +152,11 @@ class TestAnexosAttachments:
             'category': 'Factura'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/{TestAnexosAttachments.test_quote_id}/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -162,7 +166,7 @@ class TestAnexosAttachments:
 
     def test_06_upload_attachment_otros(self, api_client):
         """Test uploading to 'Otros' category"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         test_file_content = b'%PDF-1.4 otros content'
         files = {
@@ -172,10 +176,11 @@ class TestAnexosAttachments:
             'category': 'Otros'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/{TestAnexosAttachments.test_quote_id}/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -185,7 +190,7 @@ class TestAnexosAttachments:
 
     def test_07_upload_invalid_category_returns_400(self, api_client):
         """Test POST with invalid category returns 400 error"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         test_file_content = b'%PDF-1.4 invalid category test'
         files = {
@@ -195,10 +200,11 @@ class TestAnexosAttachments:
             'category': 'InvalidCategory'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/{TestAnexosAttachments.test_quote_id}/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
@@ -298,7 +304,7 @@ class TestAnexosAttachments:
 
     def test_12_upload_to_nonexistent_quote(self, api_client):
         """Test POST to nonexistent quote returns 404"""
-        api_client.headers.update({"Authorization": f"Bearer {TestAnexosAttachments.session_token}"})
+        headers = {"Authorization": f"Bearer {TestAnexosAttachments.session_token}"}
         
         test_file_content = b'%PDF-1.4 test'
         files = {
@@ -308,10 +314,11 @@ class TestAnexosAttachments:
             'category': 'Otros'
         }
         
-        response = api_client.post(
+        response = requests.post(
             f"{BASE_URL}/api/quotes/quo_nonexistent123/attachments",
             files=files,
-            data=data
+            data=data,
+            headers=headers
         )
         
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
