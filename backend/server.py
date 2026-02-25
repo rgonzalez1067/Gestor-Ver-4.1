@@ -1126,40 +1126,61 @@ async def get_departamentos(authorization: Optional[str] = Header(None)):
 
 # ==================== CLIENTS ENDPOINTS ====================
 
-@api_router.post("/clients", response_model=Client)
+@api_router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    client = Client(**client_data.model_dump())
+    # Validar unicidad RIF + Sucursal
+    existing = await db.clients.find_one(
+        {"rif": client_data.rif, "sucursal": client_data.sucursal or "Principal"},
+        {"_id": 0, "client_id": 1}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Ya existe un cliente con RIF {client_data.rif} y sucursal '{client_data.sucursal or 'Principal'}'")
+    
+    data = client_data.model_dump()
+    # Generate contacts IDs if not present
+    for c in data.get("contacts", []):
+        if not c.get("contact_id"):
+            c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
+    client = Client(**data)
     doc = client.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
     await db.clients.insert_one(doc)
-    return client
+    doc.pop("_id", None)
+    return doc
 
-@api_router.get("/clients", response_model=List[Client])
+@api_router.get("/clients")
 async def get_clients(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
-    for client in clients:
-        if isinstance(client['created_at'], str):
-            client['created_at'] = datetime.fromisoformat(client['created_at'])
     return clients
 
-@api_router.get("/clients/{client_id}", response_model=Client)
+@api_router.get("/clients/{client_id}")
 async def get_client(client_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    if isinstance(client['created_at'], str):
-        client['created_at'] = datetime.fromisoformat(client['created_at'])
     return client
 
-@api_router.put("/clients/{client_id}", response_model=Client)
+@api_router.put("/clients/{client_id}")
 async def update_client(client_id: str, client_data: ClientCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    # Validar unicidad RIF + Sucursal (excluyendo el propio registro)
+    existing = await db.clients.find_one(
+        {"rif": client_data.rif, "sucursal": client_data.sucursal or "Principal", "client_id": {"$ne": client_id}},
+        {"_id": 0, "client_id": 1}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Ya existe otro cliente con RIF {client_data.rif} y sucursal '{client_data.sucursal or 'Principal'}'")
+    
+    data = client_data.model_dump()
+    for c in data.get("contacts", []):
+        if not c.get("contact_id"):
+            c["contact_id"] = f"cnt_{uuid.uuid4().hex[:8]}"
     result = await db.clients.update_one(
         {"client_id": client_id},
-        {"$set": client_data.model_dump()}
+        {"$set": data}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Client not found")
