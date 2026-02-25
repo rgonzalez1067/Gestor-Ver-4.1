@@ -126,9 +126,14 @@ export const Quotes = () => {
   const [filterDateTo, setFilterDateTo] = useState('');
   
   // Estado para edición de cotización existente
-  const [editingQuoteId, setEditingQuoteId] = useState(null); // ID de la cotización que se está editando
-  const [isEditing, setIsEditing] = useState(false); // Flag para modo edición
-  const [isLoadingEdit, setIsLoadingEdit] = useState(false); // Flag para bloquear propagación durante carga
+  const [editingQuoteId, setEditingQuoteId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  
+  // Estado para modal de Anexos
+  const [anexosOpen, setAnexosOpen] = useState(false);
+  const [anexosQuoteId, setAnexosQuoteId] = useState(null);
+  const [anexosQuoteNumber, setAnexosQuoteNumber] = useState('');
   
   // Estado del formulario de cotización
   const [quoteData, setQuoteData] = useState({
