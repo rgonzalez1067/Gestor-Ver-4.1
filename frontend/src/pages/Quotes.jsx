@@ -305,7 +305,7 @@ export const Quotes = () => {
 
   const fetchData = async () => {
     try {
-      const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes, templatesRes, pgCostsRes] = await Promise.all([
+      const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes, templatesRes, pgCostsRes, pgDefaultsRes] = await Promise.all([
         api.get('/quotes'),
         api.get('/clients'),
         api.get('/banks'),
