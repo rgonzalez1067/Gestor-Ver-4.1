@@ -904,6 +904,7 @@ export const Quotes = () => {
       // Preparar datos del PDF (mismos datos que exportCurrentQuoteToPDF)
       const templateTypeMap = {
         'VPOS': 'vpos_pyme',
+        'VPOS_MPOS': 'vpos_pyme',
         'GATEWAY': 'payment_gateway',
         'MPOS': 'mpos',
         'LINK': 'vpos_pyme'
