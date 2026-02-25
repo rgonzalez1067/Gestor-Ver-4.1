@@ -15,6 +15,9 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 /app/frontend/src/        → React SPA
   ├── pages/              → Páginas principales
   ├── components/         → Componentes reutilizables
+  │   ├── AnexosModal.jsx → Modal de anexos con 5 categorías
+  │   ├── WorkflowUploadModal.jsx → Modal de carga obligatoria para transiciones de estado
+  │   └── ...
   └── utils/api.js        → Cliente Axios
 ```
 
@@ -22,35 +25,39 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 
 ### Completados
 - [x] Autenticación JWT (login/registro con sedes)
-- [x] CRUD Clientes
-- [x] CRUD Bancos
-- [x] CRUD Bienes y Servicios
-- [x] CRUD Integradores
-- [x] CRUD Medios de Pago
-- [x] CRUD Dispositivos/Hardware
+- [x] CRUD Clientes, Bancos, Bienes y Servicios, Integradores, Medios de Pago, Hardware
 - [x] Gestión de Cotizaciones (implementación, equipos, reparaciones)
-- [x] Ciclo de vida de cotizaciones (Borrador→Enviada→Aprobada→Facturada→Pagada→Entregada/Imple)
+- [x] Ciclo de vida de cotizaciones con validación de documentos
 - [x] Generador de PDF dinámico con reportlab
 - [x] Importación/Exportación Excel
 - [x] Sistema Multi-Sede (TBP/LCH)
 - [x] Gestión de Usuarios Pro (admin panel)
-- [x] Tasa de Cambio
-- [x] Configuración por sede
-- [x] **Módulo Anexos** (25/Feb/2026) - Gestión de documentos por cotización con 4 categorías
+- [x] Tasa de Cambio y Configuración por sede
+- [x] **Módulo Anexos** (25/Feb/2026) - 5 categorías de documentos
+- [x] **Flujo de Estados Basado en Evidencias** (25/Feb/2026) - Validación obligatoria de documentos
 
-### Módulo Anexos (Completado 25/Feb/2026)
-- Backend: 4 endpoints (GET, POST, DELETE, DOWNLOAD) para gestión de archivos
-- Frontend: Modal `AnexosModal.jsx` con categorías: Cotización Original, Orden de Compra, Factura, Otros
-- Auto-guardado del PDF generado como "Cotización Original" al crear cotización
-- Botón "Anexos" reemplaza botón "PDF" en tabla de cotizaciones
-- "Descargar PDF" movido al menú dropdown de acciones
-- Testing: 15/15 backend tests passed, frontend UI tests passed
+### Flujo de Estados Basado en Evidencias (25/Feb/2026)
+**Transiciones de estado con documentos obligatorios:**
+| Estado | Documento Requerido | Categoría | Cantidad | Obligatorio |
+|--------|-------------------|-----------|----------|-------------|
+| Al crear | PDF cotización | Cotización | 1 | Sí |
+| Aprobado | Orden de Compra | Orden de Compra | 1 | Sí |
+| Facturado | Factura | Factura | 1 | Sí |
+| Pagado | Comprobante(s) de Pago | Pagos | Múltiple | Sí |
+| Cualquiera | Docs complementarios | Otros | Múltiple | No |
+
+**Componentes:**
+- `WorkflowUploadModal.jsx`: Modal genérico para carga obligatoria antes de transiciones
+- `AnexosModal.jsx`: Panel de visualización de todos los documentos por categoría
+- Backend: Validaciones 422 en endpoints approve/invoice/collect
+
+**Testing:** 14/14 backend, 100% frontend (iteration_43)
 
 ## Pendiente / Backlog
 
 ### P1 - Alta Prioridad
-- [ ] Verificar funcionalidad "Guardar con PDF" end-to-end
 - [ ] Bug: Contadores del Dashboard no suman correctamente (recurrente)
+- [ ] Verificar funcionalidad "Guardar con PDF" end-to-end
 - [ ] Verificación de email al registrarse (requiere API Key Resend)
 - [ ] Recuperación de contraseña (requiere API Key Resend)
 - [ ] **Refactorización backend/server.py** (CRÍTICO - 5800+ líneas)
@@ -67,5 +74,4 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 - Resend: Pendiente de configuración de API Key
 - reportlab: Generación de PDF
 - Shadcn/UI + Radix UI: Componentes React
-- bcrypt: Hashing de contraseñas
-- openpyxl/pandas: Manejo de Excel
+- bcrypt, openpyxl, pandas
