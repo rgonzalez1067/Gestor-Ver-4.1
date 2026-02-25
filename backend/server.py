@@ -76,6 +76,25 @@ UPLOADS_DIR = ROOT_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
 api_router = APIRouter(prefix="/api")
 
+async def generate_quote_number(sede: str) -> str:
+    """Genera un número de cotización con formato COT-AAAA-MM-NNN-SEDE.
+    Usa un contador atómico por sede y mes en la colección 'counters'.
+    """
+    now = datetime.now(timezone.utc)
+    year = now.strftime("%Y")
+    month = now.strftime("%m")
+    sede_code = sede.upper() if sede in ("TBP", "LCH") else "TBP"
+    counter_key = f"quote_{sede_code}_{year}_{month}"
+    
+    result = await db.counters.find_one_and_update(
+        {"_id": counter_key},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True
+    )
+    seq = result["seq"]
+    return f"COT-{year}-{month}-{seq:03d}-{sede_code}"
+
 # ==================== MODELS ====================
 
 class Contact(BaseModel):
