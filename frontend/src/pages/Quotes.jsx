@@ -1777,6 +1777,11 @@ export const Quotes = () => {
     });
     setIsEditing(false);
     setEditingQuoteId(null);
+    // Reset PG state
+    setPgSetupItems([]);
+    setPgTransactionRange(null);
+    setPgSelectedMedioPago('');
+    setPgSelectedBankId('');
   };
 
   // Abrir modal de factura
