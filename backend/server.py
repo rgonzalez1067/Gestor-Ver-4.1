@@ -4848,9 +4848,23 @@ async def upload_quote_attachment(
     attachments_dir = UPLOADS_DIR / "attachments" / quote_id
     attachments_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generar nombre único para el archivo
+    # Generar nombre con nomenclatura: COT-AAAA-MM-NNN-SEDE_Categoria.ext
     attachment_id = f"att_{uuid.uuid4().hex[:12]}"
     file_ext = Path(file.filename).suffix if file.filename else ".pdf"
+    quote_num = quote.get("quote_number", quote_id)
+    # Map category to short name for filename
+    category_filename_map = {
+        "Cotización": "Cotizacion",
+        "Orden de Compra": "OrdenCompra",
+        "Factura": "Factura",
+        "Pagos": "Pago",
+        "Otros": "Otros"
+    }
+    cat_short = category_filename_map.get(category, category.replace(" ", ""))
+    # Count existing in this category to add suffix if multiple
+    existing_in_cat = len([a for a in quote.get("attachments", []) if a.get("category") == category])
+    suffix = f"_{existing_in_cat + 1}" if existing_in_cat > 0 or category in ("Pagos", "Otros") else ""
+    display_filename = f"{quote_num}_{cat_short}{suffix}{file_ext}"
     safe_filename = f"{attachment_id}{file_ext}"
     file_path = attachments_dir / safe_filename
     
