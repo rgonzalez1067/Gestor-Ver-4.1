@@ -4346,12 +4346,11 @@ class InvoiceUpload(BaseModel):
 @api_router.post("/quotes/{quote_id}/invoice")
 async def invoice_quote(
     quote_id: str, 
-    invoice_file: UploadFile = File(...),
     invoice_number: str = Form(None),
     authorization: Optional[str] = Header(None)
 ):
-    """Facturar una cotización - Requiere subir el PDF de la factura"""
-    current_user = await get_current_user(authorization)
+    """Facturar una cotización - Requiere que exista un anexo de 'Factura'"""
+    await get_current_user(authorization)
     
     # Obtener cotización
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -4362,44 +4361,24 @@ async def invoice_quote(
     if quote.get("quote_status") != "Aprobada":
         raise HTTPException(status_code=400, detail="Solo se pueden facturar cotizaciones en estado 'Aprobada'")
     
-    # Guardar el archivo de factura en la carpeta de anexos
-    attachments_dir = UPLOADS_DIR / "attachments" / quote_id
-    attachments_dir.mkdir(parents=True, exist_ok=True)
+    # Validar que tiene anexo de Factura
+    attachments = quote.get("attachments", [])
+    factura_attachments = [a for a in attachments if a.get("category") == "Factura"]
+    if not factura_attachments:
+        raise HTTPException(status_code=422, detail="Debe cargar el documento de Factura antes de facturar la cotización")
     
-    attachment_id = f"att_{uuid.uuid4().hex[:12]}"
-    file_ext = Path(invoice_file.filename).suffix if invoice_file.filename else ".pdf"
-    safe_filename = f"{attachment_id}{file_ext}"
-    file_path = attachments_dir / safe_filename
+    # Obtener la URL del último anexo de factura
+    invoice_url = factura_attachments[-1].get("url", "")
     
-    content = await invoice_file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    # Crear anexo de Factura
-    factura_attachment = {
-        "attachment_id": attachment_id,
-        "category": "Factura",
-        "filename": invoice_file.filename or safe_filename,
-        "url": f"/uploads/attachments/{quote_id}/{safe_filename}",
-        "uploaded_by": current_user.get("email", "unknown"),
-        "uploaded_by_name": current_user.get("full_name", current_user.get("email", "unknown")),
-        "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        "file_size": len(content),
-        "content_type": invoice_file.content_type or "application/pdf"
-    }
-    
-    # Actualizar cotización: estado + anexo
+    # Actualizar cotización: estado
     update_data = {
         "quote_status": "Facturada",
         "invoiced_at": datetime.now(timezone.utc).isoformat(),
-        "invoice_pdf_url": f"/uploads/attachments/{quote_id}/{safe_filename}",
+        "invoice_pdf_url": invoice_url,
         "invoice_number": invoice_number
     }
     
-    await db.quotes.update_one(
-        {"quote_id": quote_id}, 
-        {"$set": update_data, "$push": {"attachments": factura_attachment}}
-    )
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
     
     # Enviar notificación a administración usando plantilla
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
