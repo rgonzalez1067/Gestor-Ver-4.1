@@ -2776,38 +2776,47 @@ export const Quotes = () => {
                     Payment Gateway - Inversión en Setup / Arranque
                   </h3>
                   
-                  {/* Agregar medio de pago al setup */}
+                  {/* Auto-load Persona Jurídica */}
+                  {pgSetupItems.length === 0 && pgDefaults && (
+                    <div className="mb-4">
+                      <Button onClick={initPgSetup} className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="pg-init-setup-btn">
+                        Cargar concepto base (Persona Jurídica)
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Agregar medio de pago: BANCO primero, luego CONCEPTO filtrado */}
                   <div className="bg-slate-50 rounded-lg p-4 border mb-4">
+                    <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wide">Agregar Medio de Pago</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                       <div>
-                        <Label className="text-sm font-medium text-slate-700 mb-2 block">Medio de Pago</Label>
-                        <Select value={pgSelectedMedioPago} onValueChange={setPgSelectedMedioPago}>
-                          <SelectTrigger data-testid="pg-select-medio-pago">
-                            <SelectValue placeholder="Seleccione medio de pago..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allGatewayMediosPago.map((mp) => (
-                              <SelectItem key={mp.product_name} value={mp.product_name}>{mp.product_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-slate-700 mb-2 block">Banco (Opcional)</Label>
-                        <Select value={pgSelectedBankId} onValueChange={setPgSelectedBankId}>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">1. Banco</Label>
+                        <Select value={pgSelectedBankId} onValueChange={handlePgBankChange}>
                           <SelectTrigger data-testid="pg-select-bank">
                             <SelectValue placeholder="Seleccione banco..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">N/A</SelectItem>
                             {banks.map((bank) => (
                               <SelectItem key={bank.bank_id} value={bank.bank_id}>{bank.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button onClick={addPgSetupItem} data-testid="pg-add-item-btn" className="bg-emerald-600 hover:bg-emerald-700">
-                        <Plus size={16} className="mr-2" /> Agregar
+                      <div>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">2. Concepto (Medio de Pago)</Label>
+                        <Select value={pgSelectedMedioPago} onValueChange={setPgSelectedMedioPago} disabled={!pgSelectedBankId}>
+                          <SelectTrigger data-testid="pg-select-medio-pago">
+                            <SelectValue placeholder={pgSelectedBankId ? "Seleccione medio de pago..." : "Seleccione banco primero"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pgFilteredProducts.map((mp) => (
+                              <SelectItem key={mp.product_name} value={mp.product_name}>{mp.product_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={addPgSetupItem} data-testid="pg-add-item-btn" className="bg-emerald-600 hover:bg-emerald-700" disabled={!pgSelectedBankId || !pgSelectedMedioPago}>
+                        <Plus size={16} className="mr-2" /> Agregar Medio de Pago
                       </Button>
                     </div>
                   </div>
@@ -2827,8 +2836,11 @@ export const Quotes = () => {
                         </thead>
                         <tbody>
                           {pgSetupItems.map((item, index) => (
-                            <tr key={index} className="hover:bg-slate-50">
-                              <td className="border p-2 text-sm font-medium">{item.concepto}</td>
+                            <tr key={index} className={`hover:bg-slate-50 ${item.fixed ? 'bg-amber-50' : ''}`}>
+                              <td className="border p-2 text-sm font-medium">
+                                {item.concepto}
+                                {item.fixed && <span className="ml-2 text-xs bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Fijo</span>}
+                              </td>
                               <td className="border p-2">
                                 <Input
                                   type="number"
@@ -2850,9 +2862,11 @@ export const Quotes = () => {
                                 />
                               </td>
                               <td className="border p-2 text-center">
-                                <Button variant="ghost" size="sm" onClick={() => removePgSetupItem(index)} data-testid={`pg-remove-item-${index}`} className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
-                                  <Trash2 size={14} />
-                                </Button>
+                                {!item.fixed && (
+                                  <Button variant="ghost" size="sm" onClick={() => removePgSetupItem(index)} data-testid={`pg-remove-item-${index}`} className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                    <Trash2 size={14} />
+                                  </Button>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -2866,9 +2880,9 @@ export const Quotes = () => {
                     </div>
                   )}
 
-                  {pgSetupItems.length === 0 && (
+                  {pgSetupItems.length === 0 && !pgDefaults && (
                     <div className="text-center py-8 text-slate-400">
-                      Agregue medios de pago para configurar el setup
+                      Cargando configuración...
                     </div>
                   )}
                 </div>
