@@ -378,8 +378,10 @@ class QuoteCreate(BaseModel):
     repair_description: Optional[str] = None  # Descripción de la falla
     equipment_serial_number: Optional[str] = None  # Número de serie del equipo a reparar
     estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
-
-# Estados del ciclo de vida de cotizaciones - Flujo actualizado
+    # Campos específicos para Payment Gateway
+    pg_setup_items: List[dict] = []
+    pg_recurring_cost: Optional[dict] = None
+    pg_transaction_range: Optional[int] = None
 QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
 
 # Flujo de transiciones permitidas por categoría
