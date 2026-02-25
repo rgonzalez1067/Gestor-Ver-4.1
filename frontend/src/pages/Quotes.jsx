@@ -1779,7 +1779,6 @@ export const Quotes = () => {
       actionColor: 'bg-purple-600 hover:bg-purple-700',
       actionIcon: <Receipt size={20} className="text-purple-600" />,
       stateEndpoint: 'invoice',
-      stateEndpointMethod: 'form',
       successMessage: 'Cotización facturada exitosamente',
       extraFields: [
         { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
