@@ -2689,6 +2689,7 @@ export const Quotes = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  )}
                 </div>
 
                 {/* Indicador de campos completos - Solo requiere Integrador */}
