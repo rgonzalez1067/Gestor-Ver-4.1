@@ -9,8 +9,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, MoreHorizontal, Pencil, Mail, CheckCircle, Send, Package, Settings2, Filter, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, MoreHorizontal, Pencil, Mail, CheckCircle, Send, Package, Settings2, Filter, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen } from 'lucide-react';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
+import { AnexosModal } from '../components/AnexosModal';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
