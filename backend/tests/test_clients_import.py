@@ -310,7 +310,7 @@ class TestClientImportValidation:
         test_data = [[
             unique_rif, 'Principal', 'TEST CRM Contact', 'CRM Corp',
             'Corporativo', 'Av CRM 123', 'Pedro', 'Contacto',
-            '0416-5551234', 'pedro@crm.test', 'Técnico'
+            '0416-5551234', 'pedro@crmtest.com', 'Técnico'
         ]]
         
         excel_bytes = self._create_test_excel(test_data)
