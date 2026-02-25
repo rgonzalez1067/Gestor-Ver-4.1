@@ -459,6 +459,10 @@ class Quote(BaseModel):
     # Versionamiento
     version: int = 1  # Versión de la cotización
     parent_quote_id: Optional[str] = None  # ID de la cotización original (si es una modificación)
+    # Campos específicos para Payment Gateway
+    pg_setup_items: List[dict] = []  # Items de setup PG: {concepto, costo, banco, observacion}
+    pg_recurring_cost: Optional[dict] = None  # {rango_index, num_products, base, tope, rango_label}
+    pg_transaction_range: Optional[int] = None  # Índice del rango de transacciones seleccionado
     attachments: List[dict] = []  # Lista de anexos: {attachment_id, category, filename, url, uploaded_by, uploaded_at}
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
