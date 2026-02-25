@@ -55,8 +55,21 @@ export const Clients = () => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { fetchClients(); }, []);
+
+  // Handle deep-link from Dashboard alerts
+  useEffect(() => {
+    const bitacoraClientId = searchParams.get('bitacora');
+    if (bitacoraClientId && clients.length > 0) {
+      const client = clients.find(c => c.client_id === bitacoraClientId);
+      if (client) {
+        openBitacora(client);
+        setSearchParams({});
+      }
+    }
+  }, [clients, searchParams]);
 
   const fetchClients = async () => {
     try {
