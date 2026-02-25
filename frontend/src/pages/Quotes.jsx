@@ -3476,8 +3476,30 @@ export const Quotes = () => {
                 </div>
               )}
 
-              {/* Mensaje cuando no hay items */}
-              {canShowItems && quoteData.setup_items.length === 0 && (
+              {/* Botones de acción para Payment Gateway */}
+              {isPaymentGateway && isHeaderComplete && pgSetupItems.length > 0 && (
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => { setWizardOpen(false); resetQuoteForm(); }}
+                    className="px-6 py-3 text-lg"
+                    data-testid="pg-cancel-button"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSubmitPGQuote}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
+                    data-testid="pg-submit-quote-button"
+                  >
+                    <CheckCircle2 size={20} className="mr-2" />
+                    Guardar Cotización PG
+                  </Button>
+                </div>
+              )}
+
+              {/* Mensaje cuando no hay items - Solo para VPOS/MPOS */}
+              {!isPaymentGateway && canShowItems && quoteData.setup_items.length === 0 && (
                 <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg mt-4 border-2 border-dashed">
                   <CreditCard size={40} className="mx-auto mb-3 text-slate-300" />
                   <p className="font-medium">No hay medios de pago agregados</p>
