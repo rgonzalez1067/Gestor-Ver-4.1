@@ -489,7 +489,6 @@ export const Clients = () => {
               onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" data-testid="client-search" />
           </div>
 
-          {showImportResult && importResult && <ImportResultPanel result={importResult} onClose={() => { setShowImportResult(false); setImportResult(null); }} />}
 
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
