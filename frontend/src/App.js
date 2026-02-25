@@ -3,8 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from 'sonner';
 import Auth from './pages/Auth';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Clients from './pages/Clients';
+import { Dashboard } from './pages/Dashboard';
+import { Clients } from './pages/Clients';
 import Banks from './pages/Banks';
 import Hardware from './pages/Hardware';
 import MediosPago from './pages/MediosPago';
