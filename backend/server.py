@@ -90,7 +90,7 @@ async def generate_quote_number(sede: str) -> str:
         {"_id": counter_key},
         {"$inc": {"seq": 1}},
         upsert=True,
-        return_document=True
+        return_document=True  # motor: True = AFTER
     )
     seq = result["seq"]
     return f"COT-{year}-{month}-{seq:03d}-{sede_code}"
