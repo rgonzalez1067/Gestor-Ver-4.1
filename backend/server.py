@@ -2762,6 +2762,9 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         if data.quote_category == "equipment":
             subtotal_usd = sum(item.total_usd for item in data.equipment_items)
             total_usd = subtotal_usd
+        elif data.quote_type == "GATEWAY" and data.pg_setup_items:
+            subtotal_usd = sum(item.get("costo", 0) for item in data.pg_setup_items)
+            total_usd = subtotal_usd
         else:
             subtotal_usd = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
             total_usd = subtotal_usd
