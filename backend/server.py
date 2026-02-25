@@ -2882,6 +2882,38 @@ async def get_pg_recurring_costs(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     return PG_RECURRING_COSTS_TABLE
 
+@api_router.get("/pg-defaults")
+async def get_pg_defaults(authorization: Optional[str] = Header(None)):
+    """Devuelve la configuración por defecto de Payment Gateway (Persona Jurídica)"""
+    await get_current_user(authorization)
+    # Buscar "Persona Jurídica" en los productos de bancos
+    pg_default = await db.config.find_one({"type": "pg_persona_juridica"}, {"_id": 0})
+    if pg_default:
+        return pg_default
+    # Si no existe en config, crear valor por defecto
+    default = {
+        "type": "pg_persona_juridica",
+        "concepto": "Persona Jurídica",
+        "costo": 240.00,
+        "descripcion": "Costo base de configuración para Persona Jurídica"
+    }
+    await db.config.insert_one(default)
+    return {k: v for k, v in default.items() if k != "_id"}
+
+@api_router.put("/pg-defaults")
+async def update_pg_defaults(data: dict, authorization: Optional[str] = Header(None)):
+    """Actualiza el costo de Persona Jurídica para PG"""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar esta configuración")
+    costo = data.get("costo", 240.00)
+    await db.config.update_one(
+        {"type": "pg_persona_juridica"},
+        {"$set": {"costo": costo}},
+        upsert=True
+    )
+    return {"message": "Configuración actualizada", "costo": costo}
+
 
 @api_router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
