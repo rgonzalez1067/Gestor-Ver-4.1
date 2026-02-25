@@ -566,6 +566,11 @@ export const Quotes = () => {
     setSelectedBankId('');
     setSelectedMedioPagoId('');
     setAvailableMediosPago([]);
+    // Reset PG state
+    setPgSetupItems([]);
+    setPgTransactionRange(null);
+    setPgSelectedMedioPago('');
+    setPgSelectedBankId('');
   };
 
   // Handler para selección de integrador
