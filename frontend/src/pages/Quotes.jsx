@@ -1769,45 +1769,26 @@ export const Quotes = () => {
   };
 
   // Abrir modal de factura
+  // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
-    setInvoiceQuoteId(quoteId);
-    setInvoiceFile(null);
-    setInvoiceNumber('');
-    setInvoiceModalOpen(true);
-  };
-
-  // Facturar cotización
-  const handleInvoiceQuote = async () => {
-    if (!invoiceFile) {
-      toast.error('Debe cargar el PDF de la factura');
-      return;
-    }
-    
-    setActionLoading(invoiceQuoteId);
-    setInvoiceModalOpen(false);
-    
-    try {
-      const formData = new FormData();
-      formData.append('invoice_file', invoiceFile);
-      if (invoiceNumber) {
-        formData.append('invoice_number', invoiceNumber);
-      }
-      
-      await api.post(`/quotes/${invoiceQuoteId}/invoice`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      toast.success('Cotización facturada exitosamente');
-      fetchData();
-    } catch (error) {
-      console.error('Error invoicing quote:', error);
-      toast.error(error.response?.data?.detail || 'Error al facturar');
-    } finally {
-      setActionLoading(null);
-      setInvoiceFile(null);
-      setInvoiceNumber('');
-      setInvoiceQuoteId(null);
-    }
+    setWorkflowQuoteId(quoteId);
+    setWorkflowConfig({
+      title: 'Facturar Cotización',
+      description: 'Para facturar esta cotización, debe cargar el documento fiscal (Factura). Este archivo se guardará automáticamente en los anexos.',
+      category: 'Factura',
+      acceptMultiple: false,
+      acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
+      actionLabel: 'Facturar',
+      actionColor: 'bg-purple-600 hover:bg-purple-700',
+      actionIcon: <Receipt size={20} className="text-purple-600" />,
+      stateEndpoint: 'invoice',
+      stateEndpointMethod: 'form',
+      successMessage: 'Cotización facturada exitosamente',
+      extraFields: [
+        { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
+      ],
+    });
+    setWorkflowModalOpen(true);
   };
 
   // Entregar cotización (solo equipos)
