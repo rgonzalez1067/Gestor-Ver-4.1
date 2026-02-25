@@ -2932,8 +2932,8 @@ export const Quotes = () => {
                 </div>
               )}
 
-              {/* SECCIÓN 3: Matriz de Resumen - Set Up (EXCLUSIVO) */}
-              {canShowItems && quoteData.setup_items.length > 0 && (
+              {/* SECCIÓN 3: Matriz de Resumen - Set Up (EXCLUSIVO) - Solo para VPOS/MPOS */}
+              {!isPaymentGateway && canShowItems && quoteData.setup_items.length > 0 && (
                 <div className="bg-white rounded-lg border mt-4 overflow-hidden">
                   {/* Encabezado Set Up */}
                   <div className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white text-center py-2 font-semibold">
