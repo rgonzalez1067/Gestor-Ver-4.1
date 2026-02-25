@@ -2700,6 +2700,9 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         sponsor_bank_name=quote_data.sponsor_bank_name,
         cantidad_cajas=quote_data.cantidad_cajas,
         cantidad_bancos=quote_data.cantidad_bancos,
+        pg_setup_items=quote_data.pg_setup_items,
+        pg_recurring_cost=quote_data.pg_recurring_cost,
+        pg_transaction_range=quote_data.pg_transaction_range,
         sede=user_sede,  # Sede del usuario
         created_by_user_id=current_user.get("user_id")  # ID del usuario que crea
     )
