@@ -2730,6 +2730,10 @@ class QuoteCreateWithPDF(BaseModel):
     cantidad_bancos: Optional[int] = None
     # Datos para el PDF (diccionario flexible)
     pdf_data: Optional[dict] = None
+    # Campos específicos para Payment Gateway
+    pg_setup_items: List[dict] = []
+    pg_recurring_cost: Optional[dict] = None
+    pg_transaction_range: Optional[int] = None
 
 @api_router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
