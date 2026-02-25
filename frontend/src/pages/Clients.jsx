@@ -6,12 +6,23 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Textarea } from '../components/ui/textarea';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Mixto'];
+const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
+
+const emptyContact = () => ({
+  contact_id: '',
+  first_name: '',
+  last_name: '',
+  phone: '',
+  email: '',
+  role: 'Administrativo'
+});
 
 export const Clients = () => {
   const [clients, setClients] = useState([]);
@@ -20,29 +31,37 @@ export const Clients = () => {
   const [editingClient, setEditingClient] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Bitácora
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [logClientId, setLogClientId] = useState(null);
+  const [logClientName, setLogClientName] = useState('');
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [newLog, setNewLog] = useState({ detail: '', action: '', follow_up_date: '' });
+
   const [formData, setFormData] = useState({
     rif: '',
     legal_name: '',
     fantasy_name: '',
     segment: 'Pymes',
-    address: '',  // Dirección fiscal
-    contact1: { name: '', phone: '', email: '' },
-    contact2: { name: '', phone: '', email: '' }
+    address: '',
+    sucursal: 'Principal',
+    contacts: [emptyContact()]
   });
+
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
+  useEffect(() => { fetchClients(); }, []);
 
   const fetchClients = async () => {
     try {
       const response = await api.get('/clients');
       setClients(response.data);
     } catch (error) {
-      console.error('Error fetching clients:', error);
       toast.error('Error al cargar clientes');
     } finally {
       setLoading(false);
@@ -51,20 +70,35 @@ export const Clients = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Migrate legacy contact1/contact2 to contacts array if needed
+    const payload = { ...formData };
+    // Ensure legacy fields for backwards compat
+    if (payload.contacts?.length >= 1) {
+      const c = payload.contacts[0];
+      payload.contact1 = { name: `${c.first_name} ${c.last_name}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
+    } else {
+      payload.contact1 = { name: 'N/A', phone: 'N/A', email: 'na@na.com' };
+    }
+    if (payload.contacts?.length >= 2) {
+      const c = payload.contacts[1];
+      payload.contact2 = { name: `${c.first_name} ${c.last_name}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
+    } else {
+      payload.contact2 = { name: 'N/A', phone: 'N/A', email: 'na@na.com' };
+    }
+
     try {
       if (editingClient) {
-        await api.put(`/clients/${editingClient.client_id}`, formData);
+        await api.put(`/clients/${editingClient.client_id}`, payload);
         toast.success('Cliente actualizado exitosamente');
       } else {
-        await api.post('/clients', formData);
+        await api.post('/clients', payload);
         toast.success('Cliente creado exitosamente');
       }
       setDialogOpen(false);
       resetForm();
       fetchClients();
     } catch (error) {
-      console.error('Error saving client:', error);
-      toast.error('Error al guardar cliente');
+      toast.error(error.response?.data?.detail || 'Error al guardar cliente');
     }
   };
 
@@ -77,20 +111,13 @@ export const Clients = () => {
   const executeDelete = async () => {
     const clientId = deleteClientData.id;
     setDeleteConfirmOpen(false);
-    
     if (!clientId) return;
-    
     try {
       await api.delete(`/clients/${clientId}`);
       toast.success('Cliente eliminado exitosamente');
       fetchClients();
     } catch (error) {
-      console.error('Error deleting client:', error);
-      if (error.response?.data?.detail) {
-        toast.error(error.response.data.detail);
-      } else {
-        toast.error('Error al eliminar cliente');
-      }
+      toast.error(error.response?.data?.detail || 'Error al eliminar cliente');
     } finally {
       setDeleteClientData({ id: null, name: null });
     }
@@ -98,27 +125,50 @@ export const Clients = () => {
 
   const openEditDialog = (client) => {
     setEditingClient(client);
+    // Migrate legacy contacts to new format
+    let contacts = client.contacts || [];
+    if (contacts.length === 0 && (client.contact1 || client.contact2)) {
+      if (client.contact1?.name && client.contact1.name !== 'N/A') {
+        const parts = client.contact1.name.split(' ');
+        contacts.push({
+          contact_id: '',
+          first_name: parts[0] || '',
+          last_name: parts.slice(1).join(' ') || '',
+          phone: client.contact1.phone || '',
+          email: client.contact1.email || '',
+          role: 'Administrativo'
+        });
+      }
+      if (client.contact2?.name && client.contact2.name !== 'N/A') {
+        const parts = client.contact2.name.split(' ');
+        contacts.push({
+          contact_id: '',
+          first_name: parts[0] || '',
+          last_name: parts.slice(1).join(' ') || '',
+          phone: client.contact2.phone || '',
+          email: client.contact2.email || '',
+          role: 'Financiero'
+        });
+      }
+    }
+    if (contacts.length === 0) contacts = [emptyContact()];
+
     setFormData({
       rif: client.rif,
       legal_name: client.legal_name,
       fantasy_name: client.fantasy_name,
       segment: client.segment || 'Pymes',
       address: client.address || '',
-      contact1: client.contact1,
-      contact2: client.contact2
+      sucursal: client.sucursal || 'Principal',
+      contacts
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
     setFormData({
-      rif: '',
-      legal_name: '',
-      fantasy_name: '',
-      segment: 'Pymes',
-      address: '',
-      contact1: { name: '', phone: '', email: '' },
-      contact2: { name: '', phone: '', email: '' }
+      rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes',
+      address: '', sucursal: 'Principal', contacts: [emptyContact()]
     });
     setEditingClient(null);
   };
@@ -128,98 +178,106 @@ export const Clients = () => {
     if (!open) resetForm();
   };
 
+  // --- Contacts array management ---
+  const addContact = () => setFormData(prev => ({ ...prev, contacts: [...prev.contacts, emptyContact()] }));
+  const removeContact = (idx) => setFormData(prev => ({ ...prev, contacts: prev.contacts.filter((_, i) => i !== idx) }));
+  const updateContact = (idx, field, value) => {
+    setFormData(prev => {
+      const contacts = [...prev.contacts];
+      contacts[idx] = { ...contacts[idx], [field]: value };
+      return { ...prev, contacts };
+    });
+  };
+
+  // --- Bitácora ---
+  const openBitacora = async (client) => {
+    setLogClientId(client.client_id);
+    setLogClientName(client.fantasy_name || client.legal_name);
+    setLogModalOpen(true);
+    setLogsLoading(true);
+    try {
+      const res = await api.get(`/clients/${client.client_id}/logs`);
+      setLogs(res.data);
+    } catch { setLogs([]); }
+    finally { setLogsLoading(false); }
+  };
+
+  const handleAddLog = async () => {
+    if (!newLog.detail.trim()) { toast.error('El detalle es obligatorio'); return; }
+    try {
+      const res = await api.post(`/clients/${logClientId}/logs`, {
+        client_id: logClientId,
+        detail: newLog.detail,
+        action: newLog.action,
+        follow_up_date: newLog.follow_up_date || null
+      });
+      setLogs(prev => [res.data, ...prev]);
+      setNewLog({ detail: '', action: '', follow_up_date: '' });
+      toast.success('Entrada de bitácora registrada');
+    } catch { toast.error('Error al registrar la entrada'); }
+  };
+
+  const toggleLogComplete = async (logId) => {
+    try {
+      const res = await api.patch(`/clients/logs/${logId}/complete`);
+      setLogs(prev => prev.map(l => l.log_id === logId ? { ...l, is_completed: res.data.is_completed } : l));
+    } catch { toast.error('Error al actualizar'); }
+  };
+
+  // --- Import/Export ---
   const handleFileImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+    const fd = new FormData();
+    fd.append('file', file);
     try {
       toast.loading('Procesando archivo...', { id: 'import-loading' });
-      
-      const response = await api.post('/clients/import', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
+      const response = await api.post('/clients/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.dismiss('import-loading');
-      
       const result = response.data;
       setImportResult(result);
       setShowImportResult(true);
-      
-      if (result.status === 'success') {
-        toast.success(`${result.success_count} clientes importados exitosamente`);
-      } else if (result.status === 'partial') {
-        toast.warning(`Importación parcial: ${result.success_count} exitosos, ${result.error_count} con errores`);
-      } else {
-        toast.error(result.message || 'Error en la importación');
-      }
-      
+      if (result.status === 'success') toast.success(`${result.success_count} clientes importados`);
+      else if (result.status === 'partial') toast.warning(`Parcial: ${result.success_count} OK, ${result.error_count} errores`);
+      else toast.error(result.message || 'Error en la importación');
       fetchClients();
-    } catch (error) {
-      toast.dismiss('import-loading');
-      console.error('Error importing clients:', error);
-      toast.error('Error al importar. Verifique el formato del archivo.');
-    }
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const closeImportResult = () => {
-    setShowImportResult(false);
-    setImportResult(null);
+    } catch { toast.dismiss('import-loading'); toast.error('Error al importar'); }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const exportToCSV = () => {
-    const headers = ['RIF', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento', 'Contacto1 Nombre', 'Contacto1 Teléfono', 'Contacto1 Email'];
-    const csvContent = [
-      headers.join(','),
-      ...clients.map(c => [
-        `"${c.rif}"`,
-        `"${c.legal_name}"`,
-        `"${c.fantasy_name}"`,
-        `"${c.segment || ''}"`,
-        `"${c.contact1?.name || ''}"`,
-        `"${c.contact1?.phone || ''}"`,
-        `"${c.contact1?.email || ''}"`
-      ].join(','))
-    ].join('\n');
-
+    const headers = ['RIF', 'Sucursal', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento'];
+    const csvContent = [headers.join(','), ...clients.map(c => [
+      `"${c.rif}"`, `"${c.sucursal || 'Principal'}"`, `"${c.legal_name}"`, `"${c.fantasy_name}"`, `"${c.segment || ''}"`
+    ].join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'clientes.csv';
-    link.click();
-    toast.success('Archivo CSV descargado');
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'clientes.csv'; link.click();
+    toast.success('CSV descargado');
   };
 
   const exportToPDF = async () => {
     try {
       const response = await api.get('/clients/export/pdf', { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'clientes.pdf';
-      link.click();
-      toast.success('PDF descargado exitosamente');
-    } catch (error) {
-      console.error('Error exporting to PDF:', error);
-      toast.error('Error al exportar a PDF');
-    }
+      const link = document.createElement('a'); link.href = url; link.download = 'clientes.pdf'; link.click();
+      toast.success('PDF descargado');
+    } catch { toast.error('Error al exportar a PDF'); }
   };
+
+  // Filtered clients
+  const filtered = clients.filter(c => {
+    if (!searchTerm) return true;
+    const s = searchTerm.toLowerCase();
+    return c.rif?.toLowerCase().includes(s) || c.legal_name?.toLowerCase().includes(s) ||
+      c.fantasy_name?.toLowerCase().includes(s) || (c.sucursal || '').toLowerCase().includes(s);
+  });
 
   if (loading) {
     return (
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center bg-white">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
-            <p className="mt-4 text-slate-900">Cargando clientes...</p>
-          </div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600 mx-auto"></div>
         </div>
       </div>
     );
@@ -228,326 +286,222 @@ export const Clients = () => {
   return (
     <div className="flex min-h-screen bg-white">
       <Sidebar />
-      
       <main className="flex-1 p-8" data-testid="clients-page">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
-                Clientes
-              </h1>
-              <p className="text-slate-600">Gestione la información de sus clientes</p>
+              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Clientes</h1>
+              <p className="text-slate-600">Gestione la información y seguimiento de sus clientes</p>
             </div>
-            
             <div className="flex gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileImport}
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
-              >
-                <Upload size={18} className="mr-2" />
-                Importar
+              <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv,.xlsx,.xls" className="hidden" />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="border-brand-blue-600 text-brand-blue-600">
+                <Upload size={18} className="mr-2" />Importar
               </Button>
-              <Button
-                variant="outline"
-                onClick={exportToCSV}
-                className="border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50"
-              >
-                <FileSpreadsheet size={18} className="mr-2" />
-                Excel/CSV
+              <Button variant="outline" onClick={exportToCSV} className="border-brand-green-600 text-brand-green-600">
+                <FileSpreadsheet size={18} className="mr-2" />CSV
               </Button>
-              <Button
-                variant="outline"
-                onClick={exportToPDF}
-                className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
-              >
-                <FileText size={18} className="mr-2" />
-                PDF
+              <Button variant="outline" onClick={exportToPDF} className="border-brand-blue-600 text-brand-blue-600">
+                <FileText size={18} className="mr-2" />PDF
               </Button>
-            <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
-              <DialogTrigger asChild>
-                <Button
-                  data-testid="add-client-button"
-                  className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                >
-                  <Plus size={20} className="mr-2" />
-                  Nuevo Cliente
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="font-manrope text-2xl">
-                    {editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="rif">RIF</Label>
-                      <Input
-                        id="rif"
-                        data-testid="client-rif-input"
-                        value={formData.rif}
-                        onChange={(e) => setFormData({ ...formData, rif: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="segment">Segmento</Label>
-                      <Select
-                        value={formData.segment}
-                        onValueChange={(value) => setFormData({ ...formData, segment: value })}
-                      >
-                        <SelectTrigger data-testid="client-segment-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SEGMENT_OPTIONS.map((seg) => (
-                            <SelectItem key={seg} value={seg}>{seg}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="legal_name">Nombre Jurídico</Label>
-                      <Input
-                        id="legal_name"
-                        data-testid="client-legal-name-input"
-                        value={formData.legal_name}
-                        onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="fantasy_name">Nombre de Fantasía</Label>
-                      <Input
-                        id="fantasy_name"
-                        data-testid="client-fantasy-name-input"
-                        value={formData.fantasy_name}
-                        onChange={(e) => setFormData({ ...formData, fantasy_name: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Campo de Dirección Fiscal */}
-                  <div className="mt-4">
-                    <Label htmlFor="address">Dirección Fiscal</Label>
-                    <Input
-                      id="address"
-                      data-testid="client-address-input"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Av. Principal, Edificio X, Piso 2, Oficina 201, Caracas"
-                    />
-                  </div>
-
-                  <div className="border-t pt-4 mt-4">
-                    <h3 className="font-semibold text-lg mb-3">Contacto 1</h3>
+              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+                <DialogTrigger asChild>
+                  <Button data-testid="add-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                    <Plus size={20} className="mr-2" />Nuevo Cliente
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="font-manrope text-2xl">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Datos del cliente */}
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <Label htmlFor="contact1_name">Nombre</Label>
-                        <Input
-                          id="contact1_name"
-                          value={formData.contact1.name}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact1: { ...formData.contact1, name: e.target.value }
-                          })}
-                          required
-                        />
+                        <Label htmlFor="rif">RIF</Label>
+                        <Input id="rif" data-testid="client-rif-input" value={formData.rif}
+                          onChange={(e) => setFormData({ ...formData, rif: e.target.value })} required />
                       </div>
                       <div>
-                        <Label htmlFor="contact1_phone">Teléfono</Label>
-                        <Input
-                          id="contact1_phone"
-                          value={formData.contact1.phone}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact1: { ...formData.contact1, phone: e.target.value }
-                          })}
-                          required
-                        />
+                        <Label htmlFor="sucursal">Sucursal</Label>
+                        <Input id="sucursal" data-testid="client-sucursal-input" value={formData.sucursal}
+                          onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
+                          placeholder="Principal, Sede Norte, etc." required />
                       </div>
                       <div>
-                        <Label htmlFor="contact1_email">Email</Label>
-                        <Input
-                          id="contact1_email"
-                          type="email"
-                          value={formData.contact1.email}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact1: { ...formData.contact1, email: e.target.value }
-                          })}
-                          required
-                        />
+                        <Label htmlFor="segment">Segmento</Label>
+                        <Select value={formData.segment} onValueChange={(value) => setFormData({ ...formData, segment: value })}>
+                          <SelectTrigger data-testid="client-segment-select"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {SEGMENT_OPTIONS.map((seg) => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold text-lg mb-3">Contacto 2</h3>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="contact2_name">Nombre</Label>
-                        <Input
-                          id="contact2_name"
-                          value={formData.contact2.name}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact2: { ...formData.contact2, name: e.target.value }
-                          })}
-                          required
-                        />
+                        <Label htmlFor="legal_name">Nombre Jurídico</Label>
+                        <Input id="legal_name" data-testid="client-legal-name-input" value={formData.legal_name}
+                          onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })} required />
                       </div>
                       <div>
-                        <Label htmlFor="contact2_phone">Teléfono</Label>
-                        <Input
-                          id="contact2_phone"
-                          value={formData.contact2.phone}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact2: { ...formData.contact2, phone: e.target.value }
-                          })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="contact2_email">Email</Label>
-                        <Input
-                          id="contact2_email"
-                          type="email"
-                          value={formData.contact2.email}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            contact2: { ...formData.contact2, email: e.target.value }
-                          })}
-                          required
-                        />
+                        <Label htmlFor="fantasy_name">Nombre de Fantasía</Label>
+                        <Input id="fantasy_name" data-testid="client-fantasy-name-input" value={formData.fantasy_name}
+                          onChange={(e) => setFormData({ ...formData, fantasy_name: e.target.value })} required />
                       </div>
                     </div>
-                  </div>
+                    <div>
+                      <Label htmlFor="address">Dirección Fiscal</Label>
+                      <Input id="address" data-testid="client-address-input" value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="Av. Principal, Edificio X, Caracas" />
+                    </div>
 
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDialogClose(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      data-testid="save-client-button"
-                      className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                    >
-                      {editingClient ? 'Actualizar' : 'Guardar'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                    {/* Matriz de Contactos Dinámica */}
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-lg">Contactos</h3>
+                        <Button type="button" size="sm" variant="outline" onClick={addContact} data-testid="add-contact-btn">
+                          <UserPlus size={14} className="mr-1" />Agregar Contacto
+                        </Button>
+                      </div>
+                      {formData.contacts.map((contact, idx) => (
+                        <div key={idx} className="grid grid-cols-12 gap-2 mb-3 items-end p-3 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
+                          <div className="col-span-2">
+                            <Label className="text-xs">Nombre</Label>
+                            <Input value={contact.first_name} onChange={(e) => updateContact(idx, 'first_name', e.target.value)}
+                              placeholder="Nombre" className="h-9 text-sm" required />
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs">Apellido</Label>
+                            <Input value={contact.last_name} onChange={(e) => updateContact(idx, 'last_name', e.target.value)}
+                              placeholder="Apellido" className="h-9 text-sm" />
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs">Teléfono</Label>
+                            <Input value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                              placeholder="0412..." className="h-9 text-sm" />
+                          </div>
+                          <div className="col-span-2">
+                            <Label className="text-xs">Email</Label>
+                            <Input value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                              placeholder="email@..." className="h-9 text-sm" type="email" />
+                          </div>
+                          <div className="col-span-3">
+                            <Label className="text-xs">Rol</Label>
+                            <Select value={contact.role} onValueChange={(v) => updateContact(idx, 'role', v)}>
+                              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-1 flex justify-center">
+                            {formData.contacts.length > 1 && (
+                              <Button type="button" size="sm" variant="ghost" onClick={() => removeContact(idx)}
+                                className="h-9 w-9 p-0 text-red-500 hover:text-red-700" data-testid={`remove-contact-${idx}`}>
+                                <X size={16} />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end gap-3">
+                      <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>Cancelar</Button>
+                      <Button type="submit" data-testid="save-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                        {editingClient ? 'Actualizar' : 'Guardar'}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
-          {/* Import Result Panel */}
-          {showImportResult && importResult && (
-            <ImportResultPanel result={importResult} onClose={closeImportResult} />
-          )}
+          {/* Search */}
+          <div className="mb-4 max-w-sm relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" data-testid="client-search" />
+          </div>
 
+          {showImportResult && importResult && <ImportResultPanel result={importResult} onClose={() => { setShowImportResult(false); setImportResult(null); }} />}
+
+          {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    RIF
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Nombre Jurídico
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Nombre de Fantasía
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Segmento
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Contacto Principal
-                  </th>
-                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Acciones
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">RIF</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sucursal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Jurídico</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Fantasía</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Segmento</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Contacto Principal</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {clients.map((client) => (
-                  <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-mono text-slate-700">
-                      {client.rif}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                      {client.legal_name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {client.fantasy_name}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
-                        client.segment === 'Corporativo' ? 'bg-purple-100 text-purple-700' :
-                        client.segment === 'Pymes' ? 'bg-emerald-100 text-emerald-700' :
-                        'bg-amber-100 text-amber-700'
-                      }`}>
-                        {client.segment || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      <div>
-                        <p className="font-medium">{client.contact1.name}</p>
-                        <p className="text-slate-500">{client.contact1.email}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          data-testid={`edit-client-${client.client_id}`}
-                          onClick={() => openEditDialog(client)}
-                        >
-                          <Pencil size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          data-testid={`delete-client-${client.client_id}`}
-                          onClick={() => handleDelete(client.client_id)}
-                          className="text-red-600 hover:text-red-700 hover:border-red-300"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((client) => {
+                  const mainContact = client.contacts?.[0] || null;
+                  const legacyContact = client.contact1;
+                  return (
+                    <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-mono text-slate-700">{client.rif}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{client.sucursal || 'Principal'}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{client.legal_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{client.fantasy_name}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
+                          client.segment === 'Corporativo' ? 'bg-purple-100 text-purple-700' :
+                          client.segment === 'Pymes' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                        }`}>{client.segment || 'N/A'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {mainContact ? (
+                          <div>
+                            <p className="font-medium">{mainContact.first_name} {mainContact.last_name}</p>
+                            <p className="text-xs text-slate-400">{mainContact.role} · {mainContact.phone}</p>
+                          </div>
+                        ) : legacyContact ? (
+                          <div>
+                            <p className="font-medium">{legacyContact.name}</p>
+                            <p className="text-xs text-slate-400">{legacyContact.email}</p>
+                          </div>
+                        ) : <span className="text-slate-400">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button size="sm" variant="outline" onClick={() => openBitacora(client)}
+                            data-testid={`bitacora-client-${client.client_id}`} className="text-blue-600 h-8 px-2">
+                            <BookOpen size={14} className="mr-1" />Bitácora
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEditDialog(client)}
+                            data-testid={`edit-client-${client.client_id}`} className="h-8 w-8 p-0">
+                            <Pencil size={14} />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleDelete(client.client_id)}
+                            data-testid={`delete-client-${client.client_id}`} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:border-red-300">
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            {clients.length === 0 && (
+            {filtered.length === 0 && (
               <div className="text-center py-12 text-slate-500">
-                <p>No hay clientes registrados</p>
-                <p className="text-sm mt-1">Cree su primer cliente usando el botón superior</p>
+                <p>{searchTerm ? 'No se encontraron clientes con ese criterio' : 'No hay clientes registrados'}</p>
               </div>
             )}
           </div>
         </div>
-        
-        {/* Modal de confirmación para Eliminar */}
+
+        {/* Delete confirmation */}
         <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -555,23 +509,94 @@ export const Clients = () => {
               <AlertDialogDescription>
                 ¿Está seguro de que desea eliminar el cliente <strong>"{deleteClientData.name}"</strong>?
                 <br /><br />
-                <span className="text-red-600 font-medium">Esta acción es irreversible y podría afectar datos vinculados (cotizaciones, facturas).</span>
+                <span className="text-red-600 font-medium">Esta acción es irreversible.</span>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={executeDelete}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Eliminar
-              </AlertDialogAction>
+              <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Bitácora Modal */}
+        <Dialog open={logModalOpen} onOpenChange={(v) => { if (!v) { setLogModalOpen(false); setLogClientId(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="bitacora-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <BookOpen size={20} className="text-blue-600" />
+                Bitácora — {logClientName}
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* New log entry form */}
+            <div className="bg-slate-50 rounded-lg border p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-slate-700">Nueva entrada</h4>
+              <div>
+                <Label className="text-xs">Detalle del contacto *</Label>
+                <Textarea value={newLog.detail} onChange={(e) => setNewLog(p => ({ ...p, detail: e.target.value }))}
+                  placeholder="Resumen de la interacción con el cliente..." rows={2} data-testid="log-detail-input" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Acción resultante</Label>
+                  <Input value={newLog.action} onChange={(e) => setNewLog(p => ({ ...p, action: e.target.value }))}
+                    placeholder="Ej: Llamar para confirmar recepción" data-testid="log-action-input" />
+                </div>
+                <div>
+                  <Label className="text-xs">Fecha de seguimiento</Label>
+                  <Input type="date" value={newLog.follow_up_date} onChange={(e) => setNewLog(p => ({ ...p, follow_up_date: e.target.value }))}
+                    data-testid="log-followup-input" />
+                </div>
+              </div>
+              <Button size="sm" onClick={handleAddLog} className="bg-blue-600 hover:bg-blue-700" data-testid="log-submit-btn">
+                <Plus size={14} className="mr-1" />Registrar
+              </Button>
+            </div>
+
+            {/* Log entries */}
+            <div className="mt-4 space-y-2">
+              {logsLoading ? (
+                <div className="text-center py-8 text-slate-400">Cargando bitácora...</div>
+              ) : logs.length === 0 ? (
+                <div className="text-center py-8 text-slate-400">No hay entradas en la bitácora</div>
+              ) : (
+                logs.map(log => {
+                  const isOverdue = log.follow_up_date && !log.is_completed && log.follow_up_date < new Date().toISOString().split('T')[0];
+                  return (
+                    <div key={log.log_id} className={`p-3 rounded-lg border ${log.is_completed ? 'bg-green-50/50 border-green-200' : isOverdue ? 'bg-red-50/50 border-red-200' : 'bg-white border-slate-200'}`}
+                      data-testid={`log-entry-${log.log_id}`}>
+                      <div className="flex items-start gap-2">
+                        <button onClick={() => toggleLogComplete(log.log_id)} className="mt-0.5 shrink-0"
+                          data-testid={`log-toggle-${log.log_id}`}>
+                          {log.is_completed
+                            ? <CheckCircle size={16} className="text-green-600" />
+                            : <Circle size={16} className={isOverdue ? 'text-red-400' : 'text-slate-300'} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${log.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{log.detail}</p>
+                          {log.action && (
+                            <p className="text-xs text-blue-600 mt-1 font-medium">Acción: {log.action}</p>
+                          )}
+                          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                            <span>Contacto: {log.contact_date}</span>
+                            {log.follow_up_date && (
+                              <span className={`px-1.5 py-0.5 rounded ${isOverdue && !log.is_completed ? 'bg-red-100 text-red-600 font-medium' : 'bg-slate-100'}`}>
+                                Seguimiento: {log.follow_up_date}
+                              </span>
+                            )}
+                            <span>Por: {log.created_by_name || log.created_by}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
 };
-
-export default Clients;
