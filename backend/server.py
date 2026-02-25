@@ -1155,6 +1155,72 @@ async def get_clients(authorization: Optional[str] = Header(None)):
     clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
     return clients
 
+@api_router.get("/clients/template")
+async def get_clients_import_template(authorization: Optional[str] = Header(None)):
+    """Descargar plantilla de importación para clientes"""
+    await get_current_user(authorization)
+    
+    import pandas as pd
+    
+    data = {
+        'RIF': ['J-12345678-9', 'J-98765432-1', 'J-11223344-5'],
+        'Sucursal': ['Principal', 'Sede Norte', 'Principal'],
+        'Nombre Jurídico': ['Empresa Demo CA', 'Empresa Demo CA', 'Otra Empresa SRL'],
+        'Nombre Fantasía': ['DemoCorp', 'DemoCorp Norte', 'OtraCorp'],
+        'Segmento': ['Corporativo', 'Corporativo', 'Pymes'],
+        'Dirección': ['Av. Libertador, Edif. Torre X, Caracas', 'CC San Ignacio, Valencia', ''],
+        'Contacto Nombre': ['Carlos', 'Ana', 'Pedro'],
+        'Contacto Apellido': ['Pérez', 'Ruiz', 'Gómez'],
+        'Contacto Teléfono': ['0412-1234567', '0416-9876543', '0414-1112233'],
+        'Contacto Email': ['carlos@demo.com', 'ana@demo.com', 'pedro@otra.com'],
+        'Contacto Rol': ['Administrativo', 'Técnico', 'Financiero']
+    }
+    
+    df = pd.DataFrame(data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Plantilla')
+        
+        info_data = {
+            'Campo': ['RIF *', 'Sucursal', 'Nombre Jurídico *', 'Nombre Fantasía', 'Segmento',
+                       'Dirección', 'Contacto Nombre', 'Contacto Apellido', 'Contacto Teléfono',
+                       'Contacto Email', 'Contacto Rol'],
+            'Descripción': [
+                'RIF del cliente (obligatorio)', 'Nombre de la sucursal (def: Principal)',
+                'Razón social (obligatorio)', 'Nombre comercial',
+                'Pymes, Corporativo o Mixto (def: Pymes)',
+                'Dirección fiscal', 'Nombre del contacto principal',
+                'Apellido del contacto', 'Teléfono del contacto',
+                'Email del contacto', 'Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo'
+            ],
+            'Obligatorio': ['Sí', 'No', 'Sí', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No'],
+            'Ejemplo': ['J-12345678-9', 'Principal', 'Empresa Demo CA', 'DemoCorp', 'Corporativo',
+                        'Av. Libertador...', 'Carlos', 'Pérez', '0412-1234567', 'carlos@demo.com', 'Administrativo']
+        }
+        pd.DataFrame(info_data).to_excel(writer, index=False, sheet_name='Instrucciones')
+        
+        roles_data = {
+            'Roles Válidos': ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'],
+            'Segmentos Válidos': ['Pymes', 'Corporativo', 'Mixto', '', ''],
+            'Nota': [
+                'RIF + Sucursal deben ser únicos',
+                'Se permite el mismo RIF con diferente Sucursal',
+                'Los campos marcados con * son obligatorios',
+                'Si no indica segmento, se asigna "Pymes"',
+                'Si no indica rol, se asigna "Administrativo"'
+            ]
+        }
+        pd.DataFrame(roles_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_clientes.xlsx"}
+    )
+
 @api_router.get("/clients/{client_id}")
 async def get_client(client_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
