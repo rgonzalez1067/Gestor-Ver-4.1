@@ -2505,6 +2505,21 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 logging.error(f"Error generando PDF: {str(e)}")
                 # Continuar sin PDF si falla la generación
         
+        # Crear anexo automático para el PDF generado
+        initial_attachments = []
+        if quote_pdf_url:
+            initial_attachments.append({
+                "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+                "category": "Cotización Original",
+                "filename": pdf_filename,
+                "url": quote_pdf_url,
+                "uploaded_by": current_user.get("email", "system"),
+                "uploaded_by_name": current_user.get("full_name", "Sistema"),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "file_size": len(pdf_buffer.getvalue()) if pdf_buffer else 0,
+                "content_type": "application/pdf"
+            })
+        
         # Crear la cotización
         quote = Quote(
             quote_id=quote_id,
@@ -2533,7 +2548,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             cantidad_bancos=data.cantidad_bancos,
             sede=user_sede,
             created_by_user_id=current_user.get("user_id"),
-            quote_pdf_url=quote_pdf_url
+            quote_pdf_url=quote_pdf_url,
+            attachments=initial_attachments
         )
         
         doc = quote.model_dump()
