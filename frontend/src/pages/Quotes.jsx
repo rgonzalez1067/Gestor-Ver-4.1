@@ -837,6 +837,124 @@ export const Quotes = () => {
   const totalNetoRecurrente = subtotalRecurrente - montoDescuentoRecurrente;
   const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
+  // === PG (Payment Gateway) Functions ===
+  const addPgSetupItem = () => {
+    if (!pgSelectedMedioPago) {
+      toast.error('Seleccione un medio de pago');
+      return;
+    }
+    // Check if already added
+    if (pgSetupItems.some(item => item.concepto === pgSelectedMedioPago)) {
+      toast.error('Este medio de pago ya fue agregado');
+      return;
+    }
+    setPgSetupItems([...pgSetupItems, {
+      concepto: pgSelectedMedioPago,
+      costo: 0,
+      banco: pgSelectedBankId ? (banks.find(b => b.bank_id === pgSelectedBankId)?.name || 'N/A') : 'N/A',
+      observacion: ''
+    }]);
+    setPgSelectedMedioPago('');
+    setPgSelectedBankId('');
+    toast.success('Medio de pago agregado al setup');
+  };
+
+  const updatePgSetupItem = (index, field, value) => {
+    const updated = [...pgSetupItems];
+    updated[index] = { ...updated[index], [field]: field === 'costo' ? (parseFloat(value) || 0) : value };
+    setPgSetupItems(updated);
+  };
+
+  const removePgSetupItem = (index) => {
+    setPgSetupItems(pgSetupItems.filter((_, i) => i !== index));
+  };
+
+  const pgSetupTotal = pgSetupItems.reduce((sum, item) => sum + (item.costo || 0), 0);
+
+  // Calculate PG recurring cost based on number of products and transaction range
+  const getPgRecurringCost = () => {
+    if (!pgRecurringCostsTable || pgTransactionRange === null || pgSetupItems.length === 0) return null;
+    const numProducts = Math.min(pgSetupItems.length, 11);
+    const rangeData = pgRecurringCostsTable.data.find(d => d.rango === pgTransactionRange);
+    if (!rangeData) return null;
+    const costData = rangeData[String(numProducts)];
+    if (!costData) return null;
+    const rangeInfo = pgRecurringCostsTable.ranges.find(r => r.rango === pgTransactionRange);
+    return { ...costData, rango_label: rangeInfo?.label || '', num_products: numProducts, rango_index: pgTransactionRange };
+  };
+
+  const pgRecurringCost = getPgRecurringCost();
+
+  // Get all gateway-available medios de pago from all banks
+  const allGatewayMediosPago = (() => {
+    const seen = new Set();
+    const result = [];
+    banks.forEach(bank => {
+      (bank.products || []).forEach(product => {
+        if (product.gateway_available && !seen.has(product.product_name)) {
+          seen.add(product.product_name);
+          result.push(product);
+        }
+      });
+    });
+    return result;
+  })();
+
+  // PG Submit handler
+  const handleSubmitPGQuote = async () => {
+    if (pgSetupItems.length === 0) {
+      toast.error('Agregue al menos un concepto de setup');
+      return;
+    }
+    if (!quoteData.client_id || !quoteData.integrator_id) {
+      toast.error('Complete los campos obligatorios: Cliente e Integrador');
+      return;
+    }
+
+    const toastId = toast.loading('Guardando cotización Payment Gateway...');
+    try {
+      const client = clients.find(c => c.client_id === quoteData.client_id);
+      const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+
+      const payload = {
+        client_id: quoteData.client_id,
+        quote_category: 'implementation',
+        quote_type: 'GATEWAY',
+        pricing_model: 'conventional',
+        services: [],
+        hardware: [],
+        equipment_items: [],
+        notes: quoteData.notes,
+        integrator_id: quoteData.integrator_id,
+        integrator_name: integrator?.name || '',
+        integrator_app_name: quoteData.integrator_app_name,
+        cantidad_cajas: 1,
+        cantidad_bancos: 1,
+        pg_setup_items: pgSetupItems,
+        pg_recurring_cost: pgRecurringCost ? {
+          rango_index: pgRecurringCost.rango_index,
+          num_products: pgRecurringCost.num_products,
+          base: pgRecurringCost.base,
+          tope: pgRecurringCost.tope,
+          rango_label: pgRecurringCost.rango_label
+        } : null,
+        pg_transaction_range: pgTransactionRange,
+        pdf_data: null
+      };
+
+      await api.post('/quotes/create-with-pdf', payload);
+      toast.dismiss(toastId);
+      toast.success('Cotización Payment Gateway creada exitosamente');
+      setWizardOpen(false);
+      resetQuoteForm();
+      fetchData();
+    } catch (error) {
+      toast.dismiss(toastId);
+      console.error('Error creating PG quote:', error);
+      toast.error('Error al crear cotización Payment Gateway');
+    }
+  };
+
   const handleSubmitQuote = async () => {
     // Si estamos editando, usar la función de edición
     if (isEditing && editingQuoteId) {
