@@ -27,23 +27,49 @@ class TestWorkflowTransitions:
     def setup(self):
         """Setup: Login and get auth token"""
         self.session = requests.Session()
-        self.session.headers.update({"Content-Type": "application/json"})
         
         # Login to get token
-        login_response = self.session.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
-        })
+        login_response = self.session.post(
+            f"{BASE_URL}/api/auth/login", 
+            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+            headers={"Content-Type": "application/json"}
+        )
         
         if login_response.status_code != 200:
             pytest.skip(f"Login failed: {login_response.text}")
         
         self.token = login_response.json().get("session_token")
-        self.session.headers.update({"Authorization": f"Bearer {self.token}"})
+        self.auth_header = {"Authorization": f"Bearer {self.token}"}
         
         yield
         
         # Cleanup: No specific cleanup needed - quotes are preserved for other tests
+    
+    def _get(self, path):
+        """GET request with auth"""
+        return self.session.get(f"{BASE_URL}{path}", headers=self.auth_header)
+    
+    def _post_json(self, path, json_data=None):
+        """POST request with JSON body"""
+        headers = {**self.auth_header, "Content-Type": "application/json"}
+        return self.session.post(f"{BASE_URL}{path}", json=json_data, headers=headers)
+    
+    def _post_form(self, path, data=None):
+        """POST request with form data (no Content-Type header)"""
+        return self.session.post(f"{BASE_URL}{path}", data=data, headers=self.auth_header)
+    
+    def _post_file(self, path, files, data=None):
+        """POST request with file upload (multipart/form-data)"""
+        return self.session.post(f"{BASE_URL}{path}", files=files, data=data, headers=self.auth_header)
+    
+    def _put_json(self, path, json_data=None):
+        """PUT request with JSON body"""
+        headers = {**self.auth_header, "Content-Type": "application/json"}
+        return self.session.put(f"{BASE_URL}{path}", json=json_data, headers=headers)
+    
+    def _delete(self, path):
+        """DELETE request with auth"""
+        return self.session.delete(f"{BASE_URL}{path}", headers=self.auth_header)
     
     # ==================== ATTACHMENT CATEGORIES TESTS ====================
     
