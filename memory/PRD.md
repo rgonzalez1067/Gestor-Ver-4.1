@@ -1,51 +1,52 @@
 # PRD - Cotizador Merchant Server
 
-## Problema Original
-Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema full-stack para gestión completa de cotizaciones con múltiples módulos CRUD, generación de PDF, sistema multi-sede, y gestión de usuarios.
+## Descripción
+Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack: FastAPI + React + MongoDB.
 
-## Stack Tecnológico
-- **Backend:** FastAPI + MongoDB (Motor async)
-- **Frontend:** React + Shadcn/UI + Tailwind CSS
-- **PDF:** reportlab + PyPDF2
-- **Auth:** JWT sessions con hash de contraseñas
+## Funcionalidades Implementadas
 
-## Módulos Implementados
+### Módulos Core
+1. **Autenticación**: Registro/Login con sesiones, roles (admin/user), sedes (TBP/LCH)
+2. **Gestión de Clientes (CRM)**: Multi-sede, contactos, bitácora de eventos, importación Excel
+3. **Bancos y Medios de Pago**: CRUD de bancos con productos/medios de pago asociados
+4. **Integradores**: Gestión de integradores certificados
+5. **Hardware (Bienes y Servicios)**: Pinpads, dispositivos, accesorios
 
-### Completados
-- [x] Autenticación JWT (login/registro con sedes)
-- [x] CRUD completo (Clientes CRM, Bancos, Bienes/Servicios, Integradores, Medios Pago, Hardware)
-- [x] Gestión de Cotizaciones con ciclo de vida completo
-- [x] Generador de PDF dinámico con reportlab
-- [x] Importación/Exportación Excel con plantillas descargables
-- [x] Sistema Multi-Sede (TBP/LCH)
-- [x] Gestión de Usuarios Pro
-- [x] Módulo Anexos con 5 categorías
-- [x] Flujo de Estados Basado en Evidencias
-- [x] Módulo Clientes & CRM Evolucionado (multi-sede, contactos, bitácora, alertas)
-- [x] **Nomenclatura COT-AAAA-MM-NNN-SEDE** (25/Feb/2026)
-  - Contador atómico independiente por sede y mes
-  - TBP y LCH con secuencias separadas
-  - Archivos en Anexos usan nomenclatura: COT-..._OrdenCompra.pdf, _Factura.pdf, _Pago_1.pdf
+### Sistema de Cotizaciones
+6. **Tipos de Cotización**:
+   - **VPOS/MPOS (Cajas y Tablet)**: Fusión de VPOS + MPOS. Flujo completo con Setup, Recurrentes, Adicionales
+   - **Payment Gateway**: NUEVO. Solo Cliente + Integrador. Matriz de Setup con medios de pago + Costos recurrentes automáticos
+   - **Link de Pago**: DESACTIVADO temporalmente
+   - **Equipos/Accesorios/Reparaciones**: Wizard independiente
+7. **Nomenclatura**: COT-AAAA-MM-NNN-SEDE con contadores atómicos por sede/mes
+8. **Anexos**: Subida de documentos por cotización (Cotización, OC, Factura, Pagos, Otros)
+9. **Workflow de Estados**: Validación de documentos para cambiar estado (Aprobado→Facturado→Pagado)
+10. **Dashboard**: Alertas de seguimiento con semáforo de colores
 
-## Pendiente / Backlog
+### Reestructuración del Modelo de Cotizaciones (Feb 2026)
+- Consolidación VPOS/MPOS en un solo tipo
+- Nuevo flujo Payment Gateway con setup items dinámicos desde medios de pago
+- Motor de costos recurrentes basado en tabla Excel (15 rangos x 11 productos)
+- Desactivación de Link de Pago
+- PDF generado con secciones PG (Setup + Recurrentes)
 
-### P1 - Alta Prioridad
-- [ ] Verificar funcionalidad "Guardar con PDF" end-to-end
-- [ ] Verificación de email (requiere API Key Resend)
-- [ ] Recuperación de contraseña (requiere API Key Resend)
-- [ ] **Refactorización backend/server.py** (CRÍTICO - 6000+ líneas)
+## Stack Técnico
+- Backend: FastAPI, MongoDB, ReportLab (PDF), openpyxl, pandas
+- Frontend: React, Shadcn/UI, Radix UI
 
-### P2 - Media Prioridad
-- [ ] Refactorización frontend
-- [ ] Módulo de Reportes avanzados
+## Pendientes P0-P2
+- P0: Refactorización backend server.py (6300+ líneas)
+- P1: Refactorización frontend (Quotes.jsx, Clients.jsx)
+- P1: Verificación de Email / Recuperación de Contraseña (requiere Resend API Key)
+- P2: Bug contadores Dashboard
+- P2: Módulo de Reportes
 
-## Credenciales de Prueba
-- TBP: test_anexos@test.com / Test1234! (admin)
-- LCH: test_lch@test.com / Test1234!
+## Arquitectura
+```
+/app/backend/server.py       # Monolito (URGENTE refactorizar)
+/app/frontend/src/pages/     # Páginas principales
+/app/frontend/src/components/ # Componentes reutilizables
+```
 
 ## Test Reports
-- iteration_42: Anexos module (15/15)
-- iteration_43: Workflow state transitions (14/14)
-- iteration_44: CRM evolution (11/11)
-- iteration_45: Client import (13/13)
-- iteration_46: Quote naming convention (14/14)
+- iteration_47: Payment Gateway features (9/9 backend, frontend verified)
