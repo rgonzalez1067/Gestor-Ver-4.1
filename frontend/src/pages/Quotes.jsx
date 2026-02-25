@@ -2635,7 +2635,8 @@ export const Quotes = () => {
                     </div>
                   </div>
 
-                  {/* Campo 2: Modelo de Pinpad (Opcional) */}
+                  {/* Campo 2: Modelo de Pinpad (Opcional) - Solo para VPOS/MPOS */}
+                  {!isPaymentGateway && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Cpu size={14} className="text-brand-green-600" />
