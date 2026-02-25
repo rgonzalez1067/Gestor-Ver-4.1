@@ -5037,9 +5037,10 @@ async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     elements.append(Spacer(1, 0.15*inch))
     
     quote_type_names = {
-        'VPOS': 'Cajas Registradoras (VPOS)',
-        'GATEWAY': 'Ecommerce (Payment Gateway)',
-        'MPOS': 'Tablet o Android (MPOS)',
+        'VPOS': 'VPOS/MPOS (Cajas y Tablet)',
+        'VPOS_MPOS': 'VPOS/MPOS (Cajas y Tablet)',
+        'GATEWAY': 'Payment Gateway',
+        'MPOS': 'VPOS/MPOS (Cajas y Tablet)',
         'LINK': 'Link de Pago'
     }
     
