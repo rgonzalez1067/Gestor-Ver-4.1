@@ -1201,7 +1201,111 @@ async def delete_client(client_id: str, authorization: Optional[str] = Header(No
     result = await db.clients.delete_one({"client_id": client_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Client not found")
+    # También eliminar los logs de bitácora del cliente
+    await db.client_logs.delete_many({"client_id": client_id})
     return {"message": "Cliente eliminado exitosamente"}
+
+# ==================== BITÁCORA DE CLIENTES ====================
+
+@api_router.get("/clients/{client_id}/logs")
+async def get_client_logs(client_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene la bitácora de eventos de un cliente (ordenada por fecha desc)"""
+    await get_current_user(authorization)
+    logs = await db.client_logs.find({"client_id": client_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return logs
+
+@api_router.post("/clients/{client_id}/logs")
+async def create_client_log(client_id: str, log_data: ClientLogCreate, authorization: Optional[str] = Header(None)):
+    """Crea una entrada en la bitácora de un cliente (no editable)"""
+    current_user = await get_current_user(authorization)
+    
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0, "client_id": 1})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    log_entry = {
+        "log_id": f"log_{uuid.uuid4().hex[:12]}",
+        "client_id": client_id,
+        "contact_date": log_data.contact_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "detail": log_data.detail,
+        "action": log_data.action,
+        "follow_up_date": log_data.follow_up_date,
+        "is_completed": False,
+        "created_by": current_user.get("email", "unknown"),
+        "created_by_name": current_user.get("full_name", current_user.get("email", "")),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.client_logs.insert_one(log_entry)
+    log_entry.pop("_id", None)
+    return log_entry
+
+@api_router.patch("/clients/logs/{log_id}/complete")
+async def toggle_log_complete(log_id: str, authorization: Optional[str] = Header(None)):
+    """Marca/desmarca un log como completado"""
+    await get_current_user(authorization)
+    log = await db.client_logs.find_one({"log_id": log_id}, {"_id": 0})
+    if not log:
+        raise HTTPException(status_code=404, detail="Entrada de bitácora no encontrada")
+    new_status = not log.get("is_completed", False)
+    await db.client_logs.update_one({"log_id": log_id}, {"$set": {"is_completed": new_status}})
+    return {"log_id": log_id, "is_completed": new_status}
+
+# ==================== DASHBOARD ALERTS ====================
+
+@api_router.get("/dashboard/alerts")
+async def get_dashboard_alerts(authorization: Optional[str] = Header(None)):
+    """Obtiene alertas de seguimiento para el dashboard"""
+    await get_current_user(authorization)
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    week_later = (datetime.now(timezone.utc) + timedelta(days=7)).strftime("%Y-%m-%d")
+    
+    # Obtener logs con fecha de seguimiento pendiente (no completados)
+    logs = await db.client_logs.find(
+        {"follow_up_date": {"$ne": None, "$ne": ""}, "is_completed": {"$ne": True}},
+        {"_id": 0}
+    ).sort("follow_up_date", 1).to_list(200)
+    
+    # Clasificar por semáforo
+    overdue = []  # Rojo
+    today_list = []  # Amarillo
+    upcoming = []  # Verde
+    
+    # Obtener info de clientes para enriquecer las alertas
+    client_ids = list(set(l["client_id"] for l in logs))
+    clients_map = {}
+    if client_ids:
+        clients = await db.clients.find({"client_id": {"$in": client_ids}}, {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "rif": 1, "sucursal": 1}).to_list(200)
+        clients_map = {c["client_id"]: c for c in clients}
+    
+    for log in logs:
+        fd = log.get("follow_up_date", "")
+        if not fd:
+            continue
+        client_info = clients_map.get(log["client_id"], {})
+        enriched = {
+            **log,
+            "client_name": client_info.get("fantasy_name") or client_info.get("legal_name", "—"),
+            "client_rif": client_info.get("rif", ""),
+            "client_sucursal": client_info.get("sucursal", "")
+        }
+        if fd < today:
+            enriched["priority"] = "overdue"
+            overdue.append(enriched)
+        elif fd == today:
+            enriched["priority"] = "today"
+            today_list.append(enriched)
+        elif fd <= week_later:
+            enriched["priority"] = "upcoming"
+            upcoming.append(enriched)
+    
+    return {
+        "overdue": overdue,
+        "today": today_list,
+        "upcoming": upcoming,
+        "total": len(overdue) + len(today_list) + len(upcoming)
+    }
 
 @api_router.post("/clients/import", response_model=ImportResult)
 async def import_clients(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
