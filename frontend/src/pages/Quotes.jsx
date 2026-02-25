@@ -162,6 +162,9 @@ export const Quotes = () => {
   const [pgRecurringCostsTable, setPgRecurringCostsTable] = useState(null);
   const [pgSelectedMedioPago, setPgSelectedMedioPago] = useState('');
   const [pgSelectedBankId, setPgSelectedBankId] = useState('');
+  const [pgDefaults, setPgDefaults] = useState(null);
+  const [pgShowRecurringTable, setPgShowRecurringTable] = useState(false);
+  const [pgFilteredProducts, setPgFilteredProducts] = useState([]);
   
   // Estados para modales de confirmación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
