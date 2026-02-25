@@ -17,10 +17,9 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 
 const QUOTE_TYPES = [
-  { id: 'VPOS', name: 'Cajas Registradoras (VPOS)', icon: Monitor, description: 'Puntos de venta físicos' },
-  { id: 'GATEWAY', name: 'Ecommerce (Payment Gateway)', icon: Globe, description: 'Pasarela de pagos' },
-  { id: 'MPOS', name: 'Tablet o Android (MPOS)', icon: Smartphone, description: 'Soluciones móviles' },
-  { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro' }
+  { id: 'VPOS_MPOS', name: 'VPOS/MPOS (Cajas y Tablet)', icon: Monitor, description: 'Puntos de venta físicos y móviles' },
+  { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },
+  { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro', disabled: true }
 ];
 
 const PRICING_MODELS = [
