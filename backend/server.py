@@ -4410,11 +4410,7 @@ async def invoice_quote(
                 "from": SENDER_EMAIL,
                 "to": [admin_email],
                 "subject": subject,
-                "html": html_content,
-                "attachments": [{
-                    "filename": f"factura_{invoice_number or quote_id}.pdf",
-                    "content": base64.b64encode(content).decode('utf-8')
-                }]
+                "html": html_content
             }
             await asyncio.to_thread(resend.Emails.send, params)
         except Exception as e:
@@ -4422,7 +4418,7 @@ async def invoice_quote(
     
     return {
         "message": "Cotización facturada exitosamente",
-        "invoice_pdf_url": f"/uploads/{invoice_filename}",
+        "invoice_pdf_url": invoice_url,
         "invoice_number": invoice_number
     }
 
