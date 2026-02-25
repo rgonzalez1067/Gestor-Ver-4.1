@@ -2705,8 +2705,169 @@ export const Quotes = () => {
                 )}
               </div>
 
-              {/* SECCIÓN 2: Selección de Medios de Pago */}
-              {isHeaderComplete && (
+              {/* ====== SECCIÓN PG: Setup de Payment Gateway ====== */}
+              {isPaymentGateway && isHeaderComplete && (
+                <div className="bg-white rounded-lg p-5 border mt-4">
+                  <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-sm">2</span>
+                    Payment Gateway - Inversión en Setup / Arranque
+                  </h3>
+                  
+                  {/* Agregar medio de pago al setup */}
+                  <div className="bg-slate-50 rounded-lg p-4 border mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">Medio de Pago</Label>
+                        <Select value={pgSelectedMedioPago} onValueChange={setPgSelectedMedioPago}>
+                          <SelectTrigger data-testid="pg-select-medio-pago">
+                            <SelectValue placeholder="Seleccione medio de pago..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allGatewayMediosPago.map((mp) => (
+                              <SelectItem key={mp.product_name} value={mp.product_name}>{mp.product_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">Banco (Opcional)</Label>
+                        <Select value={pgSelectedBankId} onValueChange={setPgSelectedBankId}>
+                          <SelectTrigger data-testid="pg-select-bank">
+                            <SelectValue placeholder="Seleccione banco..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">N/A</SelectItem>
+                            {banks.map((bank) => (
+                              <SelectItem key={bank.bank_id} value={bank.bank_id}>{bank.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={addPgSetupItem} data-testid="pg-add-item-btn" className="bg-emerald-600 hover:bg-emerald-700">
+                        <Plus size={16} className="mr-2" /> Agregar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Tabla de setup items */}
+                  {pgSetupItems.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100">
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700">Concepto</th>
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700 w-36">Costo ($)</th>
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700">Banco</th>
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700">Observación</th>
+                            <th className="border p-2 text-center text-sm font-medium text-slate-700 w-16"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pgSetupItems.map((item, index) => (
+                            <tr key={index} className="hover:bg-slate-50">
+                              <td className="border p-2 text-sm font-medium">{item.concepto}</td>
+                              <td className="border p-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={item.costo}
+                                  onChange={(e) => updatePgSetupItem(index, 'costo', e.target.value)}
+                                  data-testid={`pg-setup-cost-${index}`}
+                                  className="h-8 text-sm"
+                                />
+                              </td>
+                              <td className="border p-2 text-sm">{item.banco}</td>
+                              <td className="border p-2">
+                                <Input
+                                  value={item.observacion}
+                                  onChange={(e) => updatePgSetupItem(index, 'observacion', e.target.value)}
+                                  data-testid={`pg-setup-obs-${index}`}
+                                  className="h-8 text-sm"
+                                  placeholder="Observación..."
+                                />
+                              </td>
+                              <td className="border p-2 text-center">
+                                <Button variant="ghost" size="sm" onClick={() => removePgSetupItem(index)} data-testid={`pg-remove-item-${index}`} className="text-red-500 hover:text-red-700 h-7 w-7 p-0">
+                                  <Trash2 size={14} />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-emerald-50 font-semibold">
+                            <td className="border p-2 text-sm text-right" colSpan={1}>Total Setup:</td>
+                            <td className="border p-2 text-sm text-emerald-700">${pgSetupTotal.toFixed(2)}</td>
+                            <td className="border p-2" colSpan={3}></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {pgSetupItems.length === 0 && (
+                    <div className="text-center py-8 text-slate-400">
+                      Agregue medios de pago para configurar el setup
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ====== SECCIÓN PG: Costos Recurrentes ====== */}
+              {isPaymentGateway && isHeaderComplete && pgSetupItems.length > 0 && pgRecurringCostsTable && (
+                <div className="bg-white rounded-lg p-5 border mt-4">
+                  <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm">3</span>
+                    Costos Recurrentes Mensuales
+                  </h3>
+                  
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      Productos seleccionados: <strong>{pgSetupItems.length}</strong> — Seleccione el rango de transacciones estimado para calcular el costo recurrente.
+                    </p>
+                  </div>
+
+                  <div className="mb-4">
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">Rango de Transacciones Mensuales</Label>
+                    <Select value={pgTransactionRange?.toString() || ''} onValueChange={(val) => setPgTransactionRange(parseInt(val))}>
+                      <SelectTrigger data-testid="pg-select-transaction-range" className="max-w-md">
+                        <SelectValue placeholder="Seleccione rango de transacciones..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pgRecurringCostsTable.ranges.map((range) => (
+                          <SelectItem key={range.rango} value={range.rango.toString()}>{range.label} transacciones</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {pgRecurringCost && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-blue-100">
+                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Rango de Transacciones</th>
+                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Cant. Productos</th>
+                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Total $ Base Mensual</th>
+                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Precio Tope por Rango</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white">
+                            <td className="border p-2 text-sm font-medium">{pgRecurringCost.rango_label}</td>
+                            <td className="border p-2 text-sm">{pgRecurringCost.num_products}</td>
+                            <td className="border p-2 text-sm font-semibold text-emerald-700">
+                              {pgRecurringCost.base !== null ? `$${pgRecurringCost.base.toFixed(2)}` : 'Negociable'}
+                            </td>
+                            <td className="border p-2 text-sm">${pgRecurringCost.tope?.toFixed(6) || 'N/A'}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECCIÓN 2: Selección de Medios de Pago - Solo para VPOS/MPOS */}
+              {!isPaymentGateway && isHeaderComplete && (
                 <div className="bg-white rounded-lg p-5 border mt-4">
                   <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
                     <span className="w-7 h-7 rounded-full bg-brand-blue-600 text-white flex items-center justify-center text-sm">2</span>
