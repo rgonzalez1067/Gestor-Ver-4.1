@@ -4048,7 +4048,7 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
 
 @api_router.post("/quotes/{quote_id}/approve")
 async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Aprobar cotización y enviar notificación a Administración"""
+    """Aprobar cotización - Requiere que exista un anexo de 'Orden de Compra'"""
     await get_current_user(authorization)
     
     # Obtener cotización
@@ -4060,6 +4060,12 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     current_status = quote.get("quote_status", "Borrador")
     if current_status != "Enviada":
         raise HTTPException(status_code=400, detail=f"Solo se pueden aprobar cotizaciones en estado 'Enviada'. Estado actual: {current_status}")
+    
+    # Validar que tiene anexo de Orden de Compra
+    attachments = quote.get("attachments", [])
+    has_oc = any(a.get("category") == "Orden de Compra" for a in attachments)
+    if not has_oc:
+        raise HTTPException(status_code=422, detail="Debe cargar la Orden de Compra antes de aprobar la cotización")
     
     # Obtener cliente
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
