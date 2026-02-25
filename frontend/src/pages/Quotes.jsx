@@ -1150,6 +1150,7 @@ export const Quotes = () => {
     // Determinar tipo de plantilla según el tipo de cotización
     const templateTypeMap = {
       'VPOS': 'vpos_pyme',
+      'VPOS_MPOS': 'vpos_pyme',
       'GATEWAY': 'payment_gateway',
       'MPOS': 'mpos',
       'LINK': 'vpos_pyme'
