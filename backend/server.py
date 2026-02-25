@@ -2732,7 +2732,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 pdf_buffer = generator.generate()
                 
                 # Guardar PDF en el servidor
-                pdf_filename = f"quote_{quote_id}_{quote_number.replace('-', '_')}.pdf"
+                pdf_filename = f"{quote_number}_Cotizacion.pdf"
                 pdf_path = UPLOADS_DIR / pdf_filename
                 with open(pdf_path, 'wb') as f:
                     f.write(pdf_buffer.getvalue())
