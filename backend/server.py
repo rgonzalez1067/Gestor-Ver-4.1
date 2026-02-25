@@ -149,6 +149,7 @@ class BankProduct(BaseModel):
     gateway_available: bool = False
     mpos_available: bool = False
     link_available: bool = False
+    pg_setup_cost: float = 0  # Costo de setup para Payment Gateway
 
 class BankCreate(BaseModel):
     name: str
