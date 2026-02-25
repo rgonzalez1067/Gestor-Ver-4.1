@@ -4,144 +4,177 @@ El usuario solicitó una aplicación de cotizaciones para una plataforma de pago
 2.  **Lógica de Cotizaciones:** Un ciclo de vida complejo con múltiples estados y una función de Modificar. Se añadió un nuevo tipo de cotización: Reparaciones.
 3.  **Sistema de Autenticación y Permisos:** Un sistema de login/registro basado en JWT con un panel de administración para gestionar roles y permisos.
 4.  **Gestión de Datos (Importación/Exportación):** Una funcionalidad crítica para importar datos masivos (Excel/CSV) y exportar a Excel.
-5.  **Generador de PDF Dinámico:** Una funcionalidad clave para generar cotizaciones en PDF basadas en una plantilla, con lógica compleja para el flujo de contenido dinámico, saltos de página automáticos, cálculos fiscales (IVA, descuentos) y un diseño muy específico solicitado por el usuario.
-6.  **Mejoras de UI/UX:** Unificar la pantalla de login/registro, renombrar módulos, y fijar elementos de navegación.
-7.  **Funcionalidades Pendientes:** Implementar la verificación de email al registrarse y la recuperación de contraseña.
+5.  **Generador de PDF Dinámico:** Una funcionalidad clave para generar cotizaciones en PDF basadas en una plantilla, con lógica compleja para el flujo de contenido dinámico.
+6.  **Sistema Multi-Sede:** Funcionalidad para que los usuarios pertenezcan a diferentes sedes (TBP o LCH), afectando la visibilidad de datos y la configuración de notificaciones y plantillas.
+7.  **Módulo Gestión de Usuarios Pro:** Un panel avanzado para la administración de usuarios, incluyendo su estado (activo/inactivo), perfiles, y la capacidad de restablecer contraseñas.
+8.  **Módulo Anexos:** Centralizar todos los documentos relacionados con una cotización (Cotización Original, Orden de Compra, etc.) en un repositorio accesible desde un modal.
+9.  **Funcionalidades Pendientes:** Implementar la verificación de email al registrarse y la recuperación de contraseña.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. Cuenta con un sistema de autenticación JWT, flujos CRUD completos, y un módulo de cotizaciones. Se ha implementado la funcionalidad de importación/exportación para Bienes y Servicios. La característica más avanzada es un generador de PDF dinámico que crea cotizaciones desde cero usando ReportLab, replicando un diseño específico y manejando contenido de longitud variable, cálculos fiscales y posicionamiento preciso de elementos, según las múltiples iteraciones y refinamientos solicitados por el usuario.
+La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. Cuenta con autenticación JWT, flujos CRUD, un generador de PDF avanzado con , y funcionalidades de importación/exportación. En la última sesión, se implementaron dos características principales: un sistema multi-sede que segmenta usuarios, datos y configuraciones por sucursal (TBP/LCH), y un módulo completo de Gestión de Usuarios Pro para la administración avanzada de cuentas. Se corrigieron también varios detalles en el diseño del PDF y la pantalla de login. La base de datos en el entorno de pruebas es volátil y se vació durante la sesión, lo que requirió volver a registrar usuarios.
 
 **Last working item**:
-- Last item agent was working: El agente estaba implementando un conjunto final de ajustes de alta precisión en el generador de PDF. Las solicitudes incluían: aumentar el tamaño de una fuente en el título, mostrar el mes en español en la fecha, replicar un formato específico del Resumen Ejecutivo (con cabeceras de tabla de colores), corregir una frase en el cuerpo del texto y mover la tabla Resumen de la Inversión a una página específica.
-- Status: USER VERIFICATION PENDING
-- Agent Testing Done: Y
+- Last item agent was working: El agente estaba comenzando la implementación del módulo Anexos, una nueva funcionalidad solicitada por el usuario para gestionar todos los documentos asociados a una cotización. El agente se preparaba para modificar el backend para soportar el almacenamiento y categorización de estos archivos.
+- Status: IN PROGRESS
+- Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Los contadores del Dashboard no suman los registros correctamente (P2 - Recurrente)
+-   Issue 1: Implementar el módulo Anexos para cotizaciones. (P0 - HIGHEST)
+-   Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - Recurrente)
 
 **Issues Detail:**
--   **Issue 1: Los contadores del Dashboard no suman los registros correctamente**
-    -   **Attempted fixes**: Ninguno. Este problema fue mencionado en resúmenes anteriores pero no ha sido priorizado ni abordado.
+-   **Issue 1: Implementar el módulo Anexos para cotizaciones**
+    -   **Attempted fixes**: El agente reconoció el requerimiento y estaba a punto de empezar a codificar el backend. No se han realizado cambios en el código todavía.
     -   **Next debug checklist**:
-        1.  Revisar el componente del Dashboard en el frontend.
-        2.  Verificar los endpoints del backend que proveen los datos para los contadores ( en ).
-        3.  Asegurarse de que las consultas a la base de datos están contando los documentos correctamente en las colecciones (, , etc.).
-    -   **Why fix this issue and what will be achieved with the fix?**: Solucionarlo proporcionará una vista general precisa del estado del sistema, lo cual es fundamental para la toma de decisiones.
+        1.  **Backend:** Modificar el modelo  en  para incluir un campo que almacene una lista de anexos (ej. ). Cada anexo debe tener , , , , .
+        2.  **Backend:** Crear nuevos endpoints para gestionar los anexos:  (para subir un archivo), y .
+        3.  **Backend:** Modificar el endpoint de generación de PDF () para que guarde automáticamente el PDF generado como el anexo Cotización Original.
+        4.  **Frontend:** En , cambiar el botón PDF por un botón 📂 Anexos.
+        5.  **Frontend:** Crear un nuevo componente modal () que se abra al hacer clic en el botón Anexos.
+        6.  **Frontend:** Dentro del modal, mostrar los anexos agrupados por las 4 categorías especificadas por el usuario y permitir la subida de nuevos archivos para cada categoría.
+    -   **Why fix this issue and what will be achieved with the fix?**: Centralizará toda la documentación de una cotización, mejorando la organización y la auditoría.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on other issue**: None
+
+-   **Issue 2: Los contadores del Dashboard no suman los registros correctamente**
+    -   **Attempted fixes**: Ninguno. Este problema fue mencionado en resúmenes anteriores pero no ha sido priorizado.
+    -   **Next debug checklist**:
+        1.  Revisar el componente del Dashboard en el frontend para ver cómo consume los datos.
+        2.  Verificar el endpoint del backend que provee los datos para los contadores (probablemente  en ).
+        3.  Asegurarse de que las consultas a MongoDB () estén contando los documentos correctamente en las colecciones relevantes (, , etc.), considerando el nuevo filtrado por sede.
+    -   **Why fix this issue and what will be achieved with the fix?**: Solucionarlo proporcionará una vista general precisa del estado del sistema.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None
 
 **In progress Task List**:
-(None)
+-   **Task 1: Implementar el módulo Anexos para cotizaciones**
+    -   **Where to resume**: En el backend, abriendo el archivo  para empezar a implementar los cambios en el modelo  y los nuevos endpoints de gestión de archivos.
+    -   **What will be achieved with this?**: Un sistema completo para subir, ver y gestionar documentos relacionados con cada cotización.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Verificación de Email (P1)**: Implementar el envío de un correo de verificación al registrar un nuevo usuario (actualmente bloqueado por falta de API Key de Resend).
--   **Recuperación de Contraseña (P1)**: Crear el flujo para Olvidé mi contraseña (también bloqueado por la API Key de Resend).
+-   **Verificación de funcionalidad Guardar con PDF (P1)**: El agente implementó un endpoint () para guardar la cotización y generar el PDF simultáneamente. El usuario pidió esto, pero la implementación fue interrumpida y no se verificó completamente. Es necesario confirmar que funciona como se espera.
+-   **Verificación de Email (P1)**: Implementar el envío de un correo de verificación al registrar un nuevo usuario (bloqueado por falta de API Key de Resend).
+-   **Recuperación de Contraseña (P1)**: Crear el flujo para Olvidé mi contraseña (bloqueado por la API Key de Resend, aunque ya existe un endpoint en el backend ).
 
 Future Tasks:
--   **Refactorización del Backend (P1 - URGENTE):** Dividir el monolito  en una estructura modular (routers, modelos, servicios). El archivo ha crecido de forma crítica y es difícil de mantener.
--   **Refactorización del Frontend (P1):** Descomponer el componente  en subcomponentes más pequeños y manejables.
+-   **Refactorización del Backend (P1 - URGENTE):** Dividir el monolito  en una estructura modular (routers, modelos, servicios). El archivo ha crecido de forma crítica y es muy difícil de mantener.
+-   **Refactorización del Frontend (P1):** Descomponer componentes grandes como  y  en subcomponentes más pequeños.
 -   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes avanzados.
 
 **Completed work in this session**
--   **Funcionalidad de Importación/Exportación**: Se implementó la importación (CSV/Excel) y exportación (Excel) para el módulo Bienes y Servicios, incluyendo los endpoints de backend (, ) y la interfaz en el frontend ().
--   **Tipo de Cotización Reparaciones**: Se añadió Reparaciones como un nuevo tipo de cotización, con campos específicos en el wizard de creación y actualizaciones en los filtros del backend.
--   **Mejoras de UI**: Se actualizó el texto del botón Nueva Cotización en la página de cotizaciones.
--   **Generador de PDF Avanzado (Múltiples Iteraciones)**:
-    -   Se implementó un generador de PDF completamente nuevo desde cero utilizando  para tener control total sobre el flujo de contenido y el diseño.
-    -   Se replicó el estilo de una plantilla PDF proporcionada por el usuario.
-    -   Se implementó lógica para el flujo dinámico de contenido, incluyendo saltos de página automáticos para tablas y texto largos.
-    -   Se añadieron cálculos fiscales (Subtotal, IVA 16%, Total) y manejo de descuentos.
-    -   Se aplicaron ajustes finos de diseño solicitados por el usuario, como formato de texto (negritas, tamaños, colores), posicionamiento exacto de elementos, y estructura de contenido específica por página.
-    -   Se añadió la lógica para mostrar la fecha con el mes en español.
+-   **Corrección de PDF**: Se ajustó el layout del Resumen Ejecutivo para que coincidiera con la imagen del usuario y se solucionó un bug que truncaba los nombres de los productos.
+-   **Rediseño de Pantalla de Login**: Se implementó una nueva imagen de fondo y se ajustó el CSS para que se visualizara correctamente.
+-   **Implementación de Sistema Multi-Sede**:
+    -   Se añadió el campo  a los modelos de Usuario y Cotización.
+    -   Se agregó un selector de sede en el formulario de registro.
+    -   El listado de cotizaciones ahora se filtra por la sede del usuario (los admins ven todo).
+    -   La página de configuración fue rediseñada para gestionar correos de notificación y plantillas por sede (TBP y LCH).
+-   **Implementación de Gestión de Usuarios Pro**:
+    -   Se creó una nueva página () con una tabla de usuarios, filtros y buscador.
+    -   Se añadieron nuevos campos al modelo de usuario (teléfono, cargo, etc.).
+    -   Se implementaron endpoints CRUD completos en el backend para la gestión de usuarios, incluyendo activación/desactivación y reseteo de contraseña.
+-   **Generación de PDF al Guardar Cotización**: Se creó un nuevo endpoint () que guarda la cotización y genera el PDF en un solo paso, aunque su uso en el frontend no fue verificado completamente.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1**: El bug de los contadores del Dashboard que no suman los registros correctamente sigue pendiente.
+-   El bug de los contadores del Dashboard que no suman los registros correctamente sigue pendiente.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: Descarga de PDF y acciones del menú de cotizaciones.
--   **Recurrence count**: 4+
--   **Status**: RESOLVED. No hubo recurrencias en esta sesión. El nuevo generador de PDF es una solución completamente diferente y más robusta.
+-   **Issue recurrence in previous fork**: La base de datos se vació, un comportamiento conocido del entorno de preview de MongoDB que causó confusión al usuario. El agente no puede evitarlo, pero debe tenerlo en cuenta.
+-   **Recurrence count**: 1
+-   **Status**: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB. Se añadieron  y  para import/export. Se profundizó el uso de , específicamente con  para la generación de documentos complejos con flujo dinámico (flowables).
--   **Frontend:** React (Hooks), Axios, , Shadcn/UI.
--   **Document Generation:** Creación avanzada de PDFs desde cero, replicando el diseño de una plantilla con contenido dinámico, tablas, estilos, encabezados/pies de página, y saltos de página automáticos.
+-   **Backend:** FastAPI, MongoDB. Se consolidó la lógica de multi-sede en varios endpoints y modelos. Se expandió la gestión de usuarios con nuevos campos y acciones.
+-   **Frontend:** React (Hooks), Shadcn/UI. Se creó una nueva página de gestión con tabla de datos, filtros y modales. Se modificó la lógica de estado en  y  para manejar la configuración y el registro por sede.
 
 **key DB schema**
 -   **users:** 
--   **quotes:** 
--   **config:**  (usado para almacenar la referencia a las plantillas PDF cargadas).
--   **hardware:**  (la colección para Bienes y Servicios).
+-   **quotes:**  (el campo  se añadirá en la siguiente tarea).
+-   **settings:** 
 
 **changes in tech stack**
--   ****: Añadido al backend para leer/escribir archivos Excel.
--   ****: Añadido al backend para la manipulación de datos durante la importación.
--   ****: Añadido al backend, aunque su lógica fue reemplazada por una solución pura de . Podría ser eliminado de  para limpiar dependencias.
+-   Ninguno.
 
 **All files of reference**
--   : Modificado extensamente. Contiene los nuevos endpoints de import/export y la clase  completamente reescrita y refinada en múltiples ocasiones.
--   : Modificado para agregar la interfaz de usuario de importación y exportación, incluyendo botones y un modal.
--   : Modificado para cambiar el texto de un botón y actualizar las categorías de filtro.
--   : Modificado para añadir la nueva opción Reparaciones y sus campos asociados.
+-   : Modificado extensamente para multi-sede y gestión de usuarios.
+-   : Archivo nuevo que implementa el módulo de gestión de usuarios.
+-   : Archivo modificado para la configuración por sede.
+-   : Modificado para el registro por sede y el nuevo fondo de pantalla.
+-   : Modificado para añadir la ruta del nuevo módulo.
+-   : Modificado para añadir el enlace al nuevo módulo.
+-   : Modificado para usar el nuevo endpoint de creación con PDF.
 
 **Areas that need refactoring**:
--   ** (CRÍTICO URGENTE):** El archivo ha superado un tamaño manejable. Es imperativo dividirlo en una estructura de ,  (especialmente para ), y  para continuar el desarrollo de manera sostenible.
--   ** (ALTA):** Sigue siendo un componente muy grande y complejo que se beneficiaría de ser descompuesto.
+-   ** (CRÍTICO URGENTE):** El archivo es insostenible. Se debe proponer una refactorización inmediata después de completar la tarea actual de Anexos.
+-   ** (ALTA):** El componente ha crecido en complejidad debido a la lógica de sedes y se beneficiaría de una descomposición.
+-   ** (MEDIA):** Es un archivo nuevo y grande. Podría dividirse en subcomponentes (ej. , ).
 
 **key api endpoints**
--   : (Nuevo) Endpoint para la importación masiva de Bienes y Servicios.
--   : (Nuevo) Endpoint para la exportación de Bienes y Servicios a Excel.
--   : (Refactorizado Múltiples Veces) Endpoint que ahora utiliza el generador avanzado de  para crear el PDF desde cero.
+-   : (Nuevo) Crea una cotización, genera su PDF y guarda la URL.
+-   : (Nuevo) Obtiene todos los usuarios.
+-   : (Nuevo) Crea un nuevo usuario.
+-   : (Nuevo) Actualiza un usuario.
+-   : (Nuevo) Activa o inactiva un usuario.
+-   : (Nuevo) Inicia el flujo de reseteo de contraseña.
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación con el usuario debe ser exclusivamente en **español**.
--   **Verificación Pendiente (P0):** La primera acción debe ser presentar al usuario el resultado de los últimos ajustes en el PDF para su verificación. El trabajo está completo pero no ha sido validado por el usuario.
--   **Lógica del Generador de PDF:** La generación de PDF es una funcionalidad central y muy delicada. La implementación actual en  (clase ) construye el documento desde cero usando . No intentes volver a una lógica de superposición sobre una plantilla existente. Cualquier modificación debe hacerse dentro de esta clase, respetando la estructura de .
--   **Priorizar Refactorización:** Una vez que el usuario apruebe el trabajo actual, la siguiente tarea más importante es proponer y ejecutar la refactorización de . La mantenibilidad del proyecto depende de ello.
+-   **Tarea Prioritaria:** La primera acción es continuar y completar la implementación del módulo Anexos según lo solicitado por el usuario.
+-   **Base de Datos Volátil:** La base de datos de MongoDB en este entorno es efímera y se borró en la sesión anterior. No asumas que los datos persistirán entre sesiones. Si la base de datos está vacía, el primer usuario que se registre será .
+-   **Proponer Refactorización:** Una vez completada la tarea de Anexos, es crucial proponer la refactorización de . La estabilidad y mantenibilidad futuras del proyecto dependen de ello.
 
 **documents and test reports created in this job**
--   Varios reportes en , culminando en uno que valida todas las últimas funcionalidades implementadas.
 -    fue actualizado para reflejar el progreso.
+-   : Creado para validar las correcciones en el generador de PDF.
 
 **Last 10 User Messages and any pending HUMAN messages**
--   **User (Request):** Solicitó ajustes finales al PDF: aumentar tamaño de fuente del subtítulo en P1, fecha con mes en español, formato específico para el Resumen Ejecutivo en P2, corregir una frase en el cuerpo del resumen y mover la tabla Resumen de la Inversión a la P4. (ÚLTIMA TAREA)
--   **User (Request):** Solicitó ajustes estructurales al PDF, incluyendo jerarquía de texto, desglose fiscal (Subtotal, IVA, Total), manejo de descuentos y cláusulas de vigencia.
--   **User (Request):** Solicitó una lógica de PDF más avanzada para eliminar placeholders amarillos, alinear contenido con precisión y manejar desbordamiento de texto con saltos de página automáticos.
--   **User (Input):** Proporcionó la plantilla PDF base para la generación de cotizaciones.
--   **User (Request):** Solicitó la implementación de un generador de cotizaciones dinámico basado en una plantilla PDF.
--   **User (Request):** Solicitó un cambio en el texto del botón Nueva Cotización, añadir Reparaciones como tipo de cotización y optimizar los filtros.
--   **User (Confirmation):** Dio el visto bueno para ejecutar las tareas prioritarias.
+1.  **User (Request):** Solicitó el nuevo módulo Anexos para centralizar todos los documentos de una cotización, detallando la estructura y la lógica de funcionamiento. (TAREA ACTUAL)
+2.  **Agent (Response):** Confirmó el inicio del trabajo en el módulo Anexos.
+3.  **User (Request):** Solicitó el nuevo módulo Gestión de Usuarios Pro con una descripción detallada y una imagen del formulario deseado.
+4.  **Agent (Summary):** Resumió la implementación del guardado automático del PDF al crear una cotización, pero fue interrumpido por la nueva solicitud.
+5.  **User (Request):** Pidió que al Guardar Cotización, el PDF generado sea el mismo que se obtiene con Exportar PDF y que se almacene automáticamente.
+6.  **Agent (Summary):** Confirmó la correcta implementación de las plantillas de correo por sede.
+7.  **User (Clarification):** Aclaró que necesitaba Plantillas de Correo Electrónico por sede, no Plantillas de Documentos, y pidió eliminar la sección incorrecta.
+8.  **Agent (Summary):** Mostró la implementación (incorrecta) de la estructura de correos y plantillas por sede.
+9.  **User (Feedback):** Informó que no veía la nueva estructura de correos y plantillas.
+10. **User (Feedback):** Informó que no veía los cambios de la funcionalidad multi-sede y que la base de datos de cotizaciones parecía vacía.
 
 **Project Health Check:**
--   **Broken**: Ninguna funcionalidad crítica está rota.
--   **Mocked**: La verificación de correo al registrarse y la recuperación de contraseña están pendientes de la configuración de la API Key de Resend.
+-   **Broken**: La base de datos es efímera, lo que puede romper el flujo del usuario si no está al tanto. La funcionalidad de los contadores del dashboard está rota.
+-   **Mocked**: La verificación de email y la recuperación de contraseña por correo siguen pendientes de la API key de Resend.
 
 **3rd Party Integrations**
 -   **Resend**: Para envío de correos (pendiente de configuración de API Key).
 -   **reportlab**: Uso avanzado para generación de PDF.
 -   **Shadcn/UI & Radix UI**: Librerías de componentes de React.
 -   **bcrypt**: Para hashing de contraseñas.
--   **openpyxl**: (Nuevo) Para manejo de archivos Excel.
--   **pandas**: (Nuevo) Para manipulación de datos en importación.
+-   **openpyxl**: Para manejo de archivos Excel.
+-   **pandas**: Para manipulación de datos en importación.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Se utilizó exitosamente en varias etapas, incluyendo la validación final de todos los cambios en el PDF y la funcionalidad de import/export.
+-   Testing agent used after significant changes: YES. Se usó para validar las correcciones del PDF al inicio de la sesión.
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: []
--   Known regressions: None.
+-   Known regressions: El vaciado de la base de datos es una regresión del entorno, no del código.
 
 **Credentials to test flow:**
-No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado será automáticamente .
+No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado en una base de datos vacía será automáticamente .
 
 **What agent forgot to execute**
--   No se ha abordado el problema de los contadores del dashboard que no suman correctamente los registros. Este issue sigue pendiente desde el inicio de la sesión.</analysis>
+-   No se ha abordado el problema de los contadores del dashboard que no suman correctamente los registros.
+-   La verificación completa de la funcionalidad guardar con PDF quedó pendiente tras ser interrumpida por nuevas solicitudes.</analysis>
