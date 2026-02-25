@@ -2518,7 +2518,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         if quote_pdf_url:
             initial_attachments.append({
                 "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
-                "category": "Cotización Original",
+                "category": "Cotización",
                 "filename": pdf_filename,
                 "url": quote_pdf_url,
                 "uploaded_by": current_user.get("email", "system"),
