@@ -357,7 +357,7 @@ export const Clients = () => {
             </div>
             <div className="flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv,.xlsx,.xls" className="hidden" />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="border-brand-blue-600 text-brand-blue-600">
+              <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="border-brand-blue-600 text-brand-blue-600" data-testid="import-clients-btn">
                 <Upload size={18} className="mr-2" />Importar
               </Button>
               <Button variant="outline" onClick={exportToCSV} className="border-brand-green-600 text-brand-green-600">
