@@ -1833,13 +1833,18 @@ export const Quotes = () => {
     ? banks.find(b => b.bank_id === quoteData.sponsor_bank_id)
     : null;
   
+  // Detectar si es cotización Payment Gateway
+  const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
+  
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
-  const isHeaderComplete = quoteData.quote_type && 
-    quoteData.client_id && 
-    quoteData.pricing_model && 
-    (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
-    (isEditing || quoteData.integrator_id); // Pinpad y Entidad Patrocinadora ahora son opcionales
+  const isHeaderComplete = isPaymentGateway 
+    ? (quoteData.quote_type && quoteData.client_id && quoteData.integrator_id)
+    : (quoteData.quote_type && 
+       quoteData.client_id && 
+       quoteData.pricing_model && 
+       (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
+       (isEditing || quoteData.integrator_id)); // Pinpad y Entidad Patrocinadora ahora son opcionales
   
   // En modo edición, siempre mostrar los items si existen
   const canShowItems = isEditing 
