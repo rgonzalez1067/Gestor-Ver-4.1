@@ -164,10 +164,11 @@ export const Quotes = () => {
   // Estados para modales de confirmación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteQuoteData, setDeleteQuoteData] = useState({ id: null, number: null });
-  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
-  const [approveQuoteId, setApproveQuoteId] = useState(null);
-  const [collectConfirmOpen, setCollectConfirmOpen] = useState(false);
-  const [collectQuoteId, setCollectQuoteId] = useState(null);
+  
+  // Estados para modales de workflow (carga obligatoria de documentos)
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
+  const [workflowQuoteId, setWorkflowQuoteId] = useState(null);
+  const [workflowConfig, setWorkflowConfig] = useState(null);
 
   useEffect(() => {
     fetchData();
