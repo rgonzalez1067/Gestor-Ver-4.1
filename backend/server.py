@@ -2708,8 +2708,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         # Obtener la sede del usuario actual
         user_sede = current_user.get("sede", "TBP")
         
-        count = await db.quotes.count_documents({})
-        quote_number = f"COT-{datetime.now().year}-{count + 1:03d}"
+        quote_number = await generate_quote_number(user_sede)
         quote_id = f"quo_{uuid.uuid4().hex[:12]}"
         
         # Generar PDF si se proporcionaron los datos
