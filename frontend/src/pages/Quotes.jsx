@@ -885,13 +885,13 @@ export const Quotes = () => {
 
   const pgRecurringCost = getPgRecurringCost();
 
-  // Get all gateway-available medios de pago from all banks
+  // Get all medios de pago from all banks for Payment Gateway
   const allGatewayMediosPago = (() => {
     const seen = new Set();
     const result = [];
     banks.forEach(bank => {
       (bank.products || []).forEach(product => {
-        if (product.gateway_available && !seen.has(product.product_name)) {
+        if (!seen.has(product.product_name)) {
           seen.add(product.product_name);
           result.push(product);
         }
