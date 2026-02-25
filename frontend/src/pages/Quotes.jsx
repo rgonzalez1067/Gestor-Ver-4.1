@@ -2578,7 +2578,7 @@ export const Quotes = () => {
                     />
                   </div>
                   {/* End conditional for non-PG fields */}
-                  )}
+                  </>)}
                 </div>
 
                 {isHeaderComplete && (
