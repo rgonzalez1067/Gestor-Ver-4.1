@@ -2116,12 +2116,16 @@ export const Quotes = () => {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            onClick={() => downloadPDF(quote.quote_id)} 
+                            onClick={() => {
+                              setAnexosQuoteId(quote.quote_id);
+                              setAnexosQuoteNumber(quote.quote_number);
+                              setAnexosOpen(true);
+                            }}
                             className="text-brand-blue-600"
                             disabled={isLoading}
-                            data-testid={`quote-download-pdf-${quote.quote_id}`}
+                            data-testid={`quote-anexos-btn-${quote.quote_id}`}
                           >
-                            <Download size={16} className="mr-1" />PDF
+                            <FolderOpen size={16} className="mr-1" />Anexos
                           </Button>
                           
                           <DropdownMenu>
@@ -2141,6 +2145,17 @@ export const Quotes = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
+                              {/* Descargar PDF */}
+                              <DropdownMenuItem 
+                                onSelect={() => downloadPDF(quote.quote_id)}
+                                className="cursor-pointer"
+                              >
+                                <Download size={16} className="mr-2 text-slate-500" />
+                                Descargar PDF
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
                               {/* Modificar - Crea nueva versión */}
                               <DropdownMenuItem 
                                 onSelect={() => handleEditQuote(quote)}
