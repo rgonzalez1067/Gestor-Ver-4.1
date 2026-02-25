@@ -2861,6 +2861,14 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         logging.error(f"Error creando cotización con PDF: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al crear cotización: {str(e)}")
 
+
+@api_router.get("/pg-recurring-costs")
+async def get_pg_recurring_costs(authorization: Optional[str] = Header(None)):
+    """Devuelve la tabla de costos recurrentes para Payment Gateway"""
+    await get_current_user(authorization)
+    return PG_RECURRING_COSTS_TABLE
+
+
 @api_router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
