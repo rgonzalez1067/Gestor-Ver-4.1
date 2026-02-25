@@ -846,24 +846,64 @@ export const Quotes = () => {
   const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
   // === PG (Payment Gateway) Functions ===
+  
+  // Auto-load "Persona Jurídica" when PG is selected and header becomes complete
+  const initPgSetup = () => {
+    if (pgDefaults && pgSetupItems.length === 0) {
+      setPgSetupItems([{
+        concepto: pgDefaults.concepto || 'Persona Jurídica',
+        costo: pgDefaults.costo || 240,
+        banco: 'N/A',
+        observacion: 'Costo base - cargado automáticamente',
+        fixed: true // Marca como ítem fijo (no removible)
+      }]);
+    }
+  };
+
+  // Handle bank selection → filter products for that bank
+  const handlePgBankChange = (bankId) => {
+    setPgSelectedBankId(bankId);
+    setPgSelectedMedioPago('');
+    if (!bankId) {
+      setPgFilteredProducts([]);
+      return;
+    }
+    const bank = banks.find(b => b.bank_id === bankId);
+    if (bank) {
+      // Filter products not already in setup items
+      const existingConceptos = new Set(pgSetupItems.map(i => i.concepto));
+      const filtered = (bank.products || []).filter(p => !existingConceptos.has(p.product_name));
+      setPgFilteredProducts(filtered);
+    }
+  };
+
   const addPgSetupItem = () => {
+    if (!pgSelectedBankId) {
+      toast.error('Seleccione un banco primero');
+      return;
+    }
     if (!pgSelectedMedioPago) {
       toast.error('Seleccione un medio de pago');
       return;
     }
     // Check if already added
-    if (pgSetupItems.some(item => item.concepto === pgSelectedMedioPago)) {
-      toast.error('Este medio de pago ya fue agregado');
+    const bank = banks.find(b => b.bank_id === pgSelectedBankId);
+    const product = (bank?.products || []).find(p => p.product_name === pgSelectedMedioPago);
+    
+    if (pgSetupItems.some(item => item.concepto === pgSelectedMedioPago && item.banco === (bank?.name || 'N/A'))) {
+      toast.error('Este medio de pago de este banco ya fue agregado');
       return;
     }
     setPgSetupItems([...pgSetupItems, {
       concepto: pgSelectedMedioPago,
-      costo: 0,
-      banco: pgSelectedBankId ? (banks.find(b => b.bank_id === pgSelectedBankId)?.name || 'N/A') : 'N/A',
+      costo: product?.pg_setup_cost || 0,
+      banco: bank?.name || 'N/A',
       observacion: ''
     }]);
     setPgSelectedMedioPago('');
     setPgSelectedBankId('');
+    setPgFilteredProducts([]);
+    setPgShowRecurringTable(false); // Reset recurring table when items change
     toast.success('Medio de pago agregado al setup');
   };
 
@@ -874,39 +914,47 @@ export const Quotes = () => {
   };
 
   const removePgSetupItem = (index) => {
+    // Don't allow removing fixed items (Persona Jurídica)
+    if (pgSetupItems[index]?.fixed) {
+      toast.error('Este concepto es fijo y no puede ser eliminado');
+      return;
+    }
     setPgSetupItems(pgSetupItems.filter((_, i) => i !== index));
+    setPgShowRecurringTable(false); // Reset recurring table when items change
   };
 
   const pgSetupTotal = pgSetupItems.reduce((sum, item) => sum + (item.costo || 0), 0);
 
-  // Calculate PG recurring cost based on number of products and transaction range
-  const getPgRecurringCost = () => {
-    if (!pgRecurringCostsTable || pgTransactionRange === null || pgSetupItems.length === 0) return null;
-    const numProducts = Math.min(pgSetupItems.length, 11);
-    const rangeData = pgRecurringCostsTable.data.find(d => d.rango === pgTransactionRange);
-    if (!rangeData) return null;
-    const costData = rangeData[String(numProducts)];
-    if (!costData) return null;
-    const rangeInfo = pgRecurringCostsTable.ranges.find(r => r.rango === pgTransactionRange);
-    return { ...costData, rango_label: rangeInfo?.label || '', num_products: numProducts, rango_index: pgTransactionRange };
+  // Count only medios de pago (exclude Persona Jurídica which is fixed)
+  const pgMediosPagoCount = pgSetupItems.filter(item => !item.fixed).length;
+
+  // Generate full recurring costs table for N products
+  const generatePgRecurringTable = () => {
+    if (!pgRecurringCostsTable || pgMediosPagoCount === 0) {
+      toast.error('Agregue al menos un medio de pago para generar la tabla de recurrentes');
+      return;
+    }
+    setPgShowRecurringTable(true);
   };
 
-  const pgRecurringCost = getPgRecurringCost();
-
-  // Get all medios de pago from all banks for Payment Gateway
-  const allGatewayMediosPago = (() => {
-    const seen = new Set();
-    const result = [];
-    banks.forEach(bank => {
-      (bank.products || []).forEach(product => {
-        if (!seen.has(product.product_name)) {
-          seen.add(product.product_name);
-          result.push(product);
-        }
-      });
+  const getPgFullRecurringTable = () => {
+    if (!pgRecurringCostsTable || pgMediosPagoCount === 0) return [];
+    const numProducts = Math.min(pgMediosPagoCount, 11);
+    return pgRecurringCostsTable.data.map(rangeRow => {
+      const rangeInfo = pgRecurringCostsTable.ranges.find(r => r.rango === rangeRow.rango);
+      const costData = rangeRow[String(numProducts)];
+      return {
+        rango: rangeRow.rango,
+        label: rangeInfo?.label || '',
+        min: rangeInfo?.min || 0,
+        max: rangeInfo?.max || 0,
+        base: costData?.base,
+        tope: costData?.tope
+      };
     });
-    return result;
-  })();
+  };
+
+  const pgFullRecurringTable = pgShowRecurringTable ? getPgFullRecurringTable() : [];
 
   // PG Submit handler
   const handleSubmitPGQuote = async () => {
