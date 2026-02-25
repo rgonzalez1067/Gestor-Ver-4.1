@@ -4876,7 +4876,7 @@ async def upload_quote_attachment(
     attachment = {
         "attachment_id": attachment_id,
         "category": category,
-        "filename": file.filename or safe_filename,
+        "filename": display_filename,
         "url": f"/uploads/attachments/{quote_id}/{safe_filename}",
         "uploaded_by": current_user.get("email", "unknown"),
         "uploaded_by_name": current_user.get("full_name", current_user.get("email", "unknown")),
