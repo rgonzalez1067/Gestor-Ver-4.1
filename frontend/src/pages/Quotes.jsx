@@ -2898,47 +2898,64 @@ export const Quotes = () => {
                   
                   <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      Productos seleccionados: <strong>{pgSetupItems.length}</strong> — Seleccione el rango de transacciones estimado para calcular el costo recurrente.
+                      Medios de Pago seleccionados: <strong>{pgMediosPagoCount}</strong>
+                      {pgMediosPagoCount === 0 && <span className="text-amber-600 ml-2">(Agregue al menos un medio de pago para calcular recurrentes)</span>}
                     </p>
                   </div>
 
-                  <div className="mb-4">
-                    <Label className="text-sm font-medium text-slate-700 mb-2 block">Rango de Transacciones Mensuales</Label>
-                    <Select value={pgTransactionRange?.toString() || ''} onValueChange={(val) => setPgTransactionRange(parseInt(val))}>
-                      <SelectTrigger data-testid="pg-select-transaction-range" className="max-w-md">
-                        <SelectValue placeholder="Seleccione rango de transacciones..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pgRecurringCostsTable.ranges.map((range) => (
-                          <SelectItem key={range.rango} value={range.rango.toString()}>{range.label} transacciones</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {pgRecurringCost && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-blue-100">
-                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Rango de Transacciones</th>
-                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Cant. Productos</th>
-                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Total $ Base Mensual</th>
-                            <th className="border p-2 text-left text-sm font-medium text-blue-800">Precio Tope por Rango</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="bg-white">
-                            <td className="border p-2 text-sm font-medium">{pgRecurringCost.rango_label}</td>
-                            <td className="border p-2 text-sm">{pgRecurringCost.num_products}</td>
-                            <td className="border p-2 text-sm font-semibold text-emerald-700">
-                              {pgRecurringCost.base !== null ? `$${pgRecurringCost.base.toFixed(2)}` : 'Negociable'}
-                            </td>
-                            <td className="border p-2 text-sm">${pgRecurringCost.tope?.toFixed(6) || 'N/A'}</td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  {!pgShowRecurringTable ? (
+                    <div className="text-center py-4">
+                      <Button 
+                        onClick={generatePgRecurringTable} 
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+                        disabled={pgMediosPagoCount === 0}
+                        data-testid="pg-generate-recurring-btn"
+                      >
+                        <RefreshCw size={16} className="mr-2" />
+                        Generar Tabla de Recurrentes
+                      </Button>
                     </div>
+                  ) : (
+                    <>
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-sm text-slate-600">
+                          Tabla calculada para <strong>{Math.min(pgMediosPagoCount, 11)}</strong> medio(s) de pago
+                        </p>
+                        <Button 
+                          variant="outline" size="sm"
+                          onClick={generatePgRecurringTable}
+                          data-testid="pg-refresh-recurring-btn"
+                        >
+                          <RefreshCw size={14} className="mr-1" /> Recalcular
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-blue-100">
+                              <th className="border p-2 text-left font-medium text-blue-800">Rango</th>
+                              <th className="border p-2 text-left font-medium text-blue-800">Transacciones</th>
+                              <th className="border p-2 text-right font-medium text-blue-800">Total $ Base</th>
+                              <th className="border p-2 text-right font-medium text-blue-800">Precio Tope por Rango</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pgFullRecurringTable.map((row, idx) => (
+                              <tr key={row.rango} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <td className="border p-2 font-medium">{row.rango}</td>
+                                <td className="border p-2">{row.label}</td>
+                                <td className="border p-2 text-right font-semibold text-emerald-700">
+                                  {row.base !== null && row.base !== undefined ? `$${row.base.toFixed(2)}` : 'Negociable'}
+                                </td>
+                                <td className="border p-2 text-right">
+                                  {row.tope !== null && row.tope !== undefined ? `$${row.tope.toFixed(6)}` : 'N/A'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
