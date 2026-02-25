@@ -2660,6 +2660,10 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         # Cotización de equipos/accesorios
         subtotal_usd = sum(item.total_usd for item in quote_data.equipment_items)
         total_usd = subtotal_usd
+    elif quote_data.quote_type == "GATEWAY" and quote_data.pg_setup_items:
+        # Cotización Payment Gateway - total es suma de setup items
+        subtotal_usd = sum(item.get("costo", 0) for item in quote_data.pg_setup_items)
+        total_usd = subtotal_usd
     else:
         # Cotización de implementación (flujo original)
         subtotal_usd = sum(item.total_usd for item in quote_data.services) + sum(item.total_usd for item in quote_data.hardware)
