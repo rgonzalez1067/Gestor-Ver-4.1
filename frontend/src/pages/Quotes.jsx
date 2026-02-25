@@ -1917,6 +1917,8 @@ export const Quotes = () => {
     setPgTransactionRange(null);
     setPgSelectedMedioPago('');
     setPgSelectedBankId('');
+    setPgShowRecurringTable(false);
+    setPgFilteredProducts([]);
   };
 
   // Abrir modal de factura
