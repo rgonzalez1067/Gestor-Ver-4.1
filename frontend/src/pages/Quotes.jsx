@@ -156,6 +156,13 @@ export const Quotes = () => {
   const [selectedMedioPagoId, setSelectedMedioPagoId] = useState('');
   const [availableMediosPago, setAvailableMediosPago] = useState([]);
   
+  // Estado para Payment Gateway
+  const [pgSetupItems, setPgSetupItems] = useState([]);
+  const [pgTransactionRange, setPgTransactionRange] = useState(null);
+  const [pgRecurringCostsTable, setPgRecurringCostsTable] = useState(null);
+  const [pgSelectedMedioPago, setPgSelectedMedioPago] = useState('');
+  const [pgSelectedBankId, setPgSelectedBankId] = useState('');
+  
   // Estados para modales de confirmación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteQuoteData, setDeleteQuoteData] = useState({ id: null, number: null });
