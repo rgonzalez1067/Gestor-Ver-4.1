@@ -4651,7 +4651,8 @@ async def delete_quote_attachment(quote_id: str, attachment_id: str, authorizati
         raise HTTPException(status_code=404, detail="Anexo no encontrado")
     
     # Eliminar archivo físico
-    file_path = UPLOADS_DIR / attachment["url"].lstrip("/uploads/")
+    url_path = attachment["url"].replace("/uploads/", "")
+    file_path = UPLOADS_DIR / url_path
     if file_path.exists():
         file_path.unlink()
     
