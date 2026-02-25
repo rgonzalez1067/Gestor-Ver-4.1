@@ -4554,6 +4554,125 @@ async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(N
         "parent_quote_id": parent_id
     }
 
+# ==================== ANEXOS (ATTACHMENTS) ENDPOINTS ====================
+
+@api_router.get("/quotes/{quote_id}/attachments")
+async def get_quote_attachments(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene todos los anexos de una cotización"""
+    await get_current_user(authorization)
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "attachments": 1, "quote_number": 1})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    return {
+        "quote_id": quote_id,
+        "quote_number": quote.get("quote_number", ""),
+        "attachments": quote.get("attachments", [])
+    }
+
+@api_router.post("/quotes/{quote_id}/attachments")
+async def upload_quote_attachment(
+    quote_id: str,
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Sube un anexo a una cotización"""
+    current_user = await get_current_user(authorization)
+    
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    if category not in ATTACHMENT_CATEGORIES:
+        raise HTTPException(status_code=400, detail=f"Categoría inválida. Opciones: {', '.join(ATTACHMENT_CATEGORIES)}")
+    
+    # Crear directorio de anexos si no existe
+    attachments_dir = UPLOADS_DIR / "attachments" / quote_id
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generar nombre único para el archivo
+    attachment_id = f"att_{uuid.uuid4().hex[:12]}"
+    file_ext = Path(file.filename).suffix if file.filename else ".pdf"
+    safe_filename = f"{attachment_id}{file_ext}"
+    file_path = attachments_dir / safe_filename
+    
+    # Guardar archivo
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+    
+    attachment = {
+        "attachment_id": attachment_id,
+        "category": category,
+        "filename": file.filename or safe_filename,
+        "url": f"/uploads/attachments/{quote_id}/{safe_filename}",
+        "uploaded_by": current_user.get("email", "unknown"),
+        "uploaded_by_name": current_user.get("full_name", current_user.get("email", "unknown")),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "file_size": len(content),
+        "content_type": file.content_type or "application/octet-stream"
+    }
+    
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$push": {"attachments": attachment}}
+    )
+    
+    return {"message": "Anexo subido exitosamente", "attachment": attachment}
+
+@api_router.delete("/quotes/{quote_id}/attachments/{attachment_id}")
+async def delete_quote_attachment(quote_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina un anexo de una cotización"""
+    await get_current_user(authorization)
+    
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Buscar el anexo
+    attachment = next((a for a in quote.get("attachments", []) if a["attachment_id"] == attachment_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Anexo no encontrado")
+    
+    # Eliminar archivo físico
+    file_path = UPLOADS_DIR / attachment["url"].lstrip("/uploads/")
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Eliminar de la BD
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$pull": {"attachments": {"attachment_id": attachment_id}}}
+    )
+    
+    return {"message": "Anexo eliminado exitosamente"}
+
+@api_router.get("/quotes/{quote_id}/attachments/{attachment_id}/download")
+async def download_quote_attachment(quote_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
+    """Descarga un anexo de una cotización"""
+    await get_current_user(authorization)
+    
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    attachment = next((a for a in quote.get("attachments", []) if a["attachment_id"] == attachment_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Anexo no encontrado")
+    
+    # Construir path del archivo
+    url_path = attachment["url"].replace("/uploads/", "")
+    file_path = UPLOADS_DIR / url_path
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
+    
+    return FileResponse(
+        path=str(file_path),
+        filename=attachment["filename"],
+        media_type=attachment.get("content_type", "application/octet-stream")
+    )
+
 async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     """Genera un PDF de cotización y lo retorna como buffer"""
     buffer = io.BytesIO()
