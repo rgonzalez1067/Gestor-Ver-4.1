@@ -4449,7 +4449,7 @@ async def invoice_quote(
 
 @api_router.post("/quotes/{quote_id}/collect")
 async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Marcar cotización como Pagada (Cobrar)"""
+    """Marcar cotización como Pagada - Requiere que existan anexos en categoría 'Pagos'"""
     await get_current_user(authorization)
     
     # Obtener cotización
@@ -4460,6 +4460,12 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     # Validar estado actual
     if quote.get("quote_status") != "Facturada":
         raise HTTPException(status_code=400, detail="Solo se pueden cobrar cotizaciones en estado 'Facturada'")
+    
+    # Validar que tiene al menos un comprobante de pago
+    attachments = quote.get("attachments", [])
+    payment_proofs = [a for a in attachments if a.get("category") == "Pagos"]
+    if not payment_proofs:
+        raise HTTPException(status_code=422, detail="Debe cargar al menos un comprobante de pago antes de registrar el cobro")
     
     # Actualizar cotización
     update_data = {
