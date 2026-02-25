@@ -4774,9 +4774,9 @@ async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(N
     if not original_quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    # Generar nuevo número de cotización
-    count = await db.quotes.count_documents({})
-    new_quote_number = f"COT-{datetime.now().year}-{str(count + 1).zfill(3)}"
+    # Generar nuevo número de cotización con nomenclatura de sede
+    quote_sede = original_quote.get("sede", "TBP")
+    new_quote_number = await generate_quote_number(quote_sede)
     
     # Determinar versión
     original_version = original_quote.get("version", 1)
