@@ -2618,8 +2618,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     # Obtener la sede del usuario actual
     user_sede = current_user.get("sede", "TBP")
     
-    count = await db.quotes.count_documents({})
-    quote_number = f"COT-{datetime.now().year}-{count + 1:03d}"
+    quote_number = await generate_quote_number(user_sede)
     
     quote = Quote(
         quote_number=quote_number,
