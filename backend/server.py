@@ -3241,28 +3241,43 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         elements.append(pg_table)
         elements.append(Spacer(1, 0.15*inch))
     
-    # PG Recurring Costs
+    # PG Recurring Costs - Full table
     if data.pg_recurring_cost:
         rc = data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else {}
         elements.append(Paragraph("<b>Costos Recurrentes Mensuales</b>", styles['Heading2']))
         elements.append(Spacer(1, 0.05*inch))
-        rc_data = [
-            ["Rango de Transacciones", "Cant. Productos", "Total $ Base Mensual", "Precio Tope por Rango"],
-            [
+        num_products = rc.get('num_products', 0)
+        if num_products:
+            elements.append(Paragraph(f"Calculado para <b>{num_products}</b> medio(s) de pago", styles['Normal']))
+            elements.append(Spacer(1, 0.05*inch))
+        rc_data = [["Rango", "Transacciones", "Total $ Base", "Precio Tope por Rango"]]
+        table_rows = rc.get('table', [])
+        if table_rows:
+            for row in table_rows:
+                rc_data.append([
+                    str(row.get('rango', '')),
+                    row.get('label', 'N/A'),
+                    f"${row['base']:.2f}" if row.get('base') is not None else "Negociable",
+                    f"${row['tope']:.6f}" if row.get('tope') is not None else "N/A"
+                ])
+        else:
+            # Fallback for old format (single row)
+            rc_data.append([
+                "1",
                 rc.get('rango_label', 'N/A'),
-                str(rc.get('num_products', 0)),
                 f"${rc.get('base', 0):.2f}" if rc.get('base') is not None else "Negociable",
                 f"${rc.get('tope', 0):.6f}" if rc.get('tope') else "N/A"
-            ]
-        ]
-        rc_table = Table(rc_data, colWidths=[2*inch, 1.2*inch, 1.5*inch, 1.8*inch])
+            ])
+        rc_table = Table(rc_data, colWidths=[0.6*inch, 1.8*inch, 1.5*inch, 1.8*inch])
         rc_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.15, 0.35, 0.7)),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.Color(0.95, 0.95, 1)]),
         ]))
         elements.append(rc_table)
         elements.append(Spacer(1, 0.15*inch))
