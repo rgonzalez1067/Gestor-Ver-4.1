@@ -3178,6 +3178,62 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     elements.append(info_table)
     elements.append(Spacer(1, 0.2*inch))
     
+    # PG Setup Items (for Payment Gateway quotes)
+    if data.pg_setup_items:
+        elements.append(Paragraph("<b>Payment Gateway - Inversión en Setup / Arranque</b>", styles['Heading2']))
+        elements.append(Spacer(1, 0.05*inch))
+        pg_data = [["Concepto", "Costo ($)", "Banco", "Observación"]]
+        pg_total = 0
+        for item in data.pg_setup_items:
+            costo = item.get('costo', 0)
+            pg_total += costo
+            pg_data.append([
+                item.get('concepto', ''),
+                f"${costo:.2f}",
+                item.get('banco', 'N/A'),
+                item.get('observacion', '')
+            ])
+        pg_data.append(["Total Setup:", f"${pg_total:.2f}", "", ""])
+        pg_table = Table(pg_data, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1.5*inch])
+        pg_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.05, 0.55, 0.35)),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.9, 0.95, 0.9)),
+        ]))
+        elements.append(pg_table)
+        elements.append(Spacer(1, 0.15*inch))
+    
+    # PG Recurring Costs
+    if data.pg_recurring_cost:
+        rc = data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else {}
+        elements.append(Paragraph("<b>Costos Recurrentes Mensuales</b>", styles['Heading2']))
+        elements.append(Spacer(1, 0.05*inch))
+        rc_data = [
+            ["Rango de Transacciones", "Cant. Productos", "Total $ Base Mensual", "Precio Tope por Rango"],
+            [
+                rc.get('rango_label', 'N/A'),
+                str(rc.get('num_products', 0)),
+                f"${rc.get('base', 0):.2f}" if rc.get('base') is not None else "Negociable",
+                f"${rc.get('tope', 0):.6f}" if rc.get('tope') else "N/A"
+            ]
+        ]
+        rc_table = Table(rc_data, colWidths=[2*inch, 1.2*inch, 1.5*inch, 1.8*inch])
+        rc_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.15, 0.35, 0.7)),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ]))
+        elements.append(rc_table)
+        elements.append(Spacer(1, 0.15*inch))
+    
     # Función para crear tabla de items
     def create_items_table(items, header_color, title):
         if not items:
