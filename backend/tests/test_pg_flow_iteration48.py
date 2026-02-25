@@ -193,7 +193,11 @@ class TestPGQuoteCreation:
         response = requests.post(f"{BASE_URL}/api/quotes/create-with-pdf", headers=self.headers, json=payload)
         
         assert response.status_code == 200, f"Quote creation failed: {response.status_code} - {response.text}"
-        quote_data = response.json()
+        response_data = response.json()
+        
+        # API returns {message, quote, pdf_url} structure
+        assert "quote" in response_data, f"Missing 'quote' in response: {response_data.keys()}"
+        quote_data = response_data["quote"]
         
         # Verify quote was created
         assert "quote_id" in quote_data, "Missing quote_id in response"
@@ -214,25 +218,31 @@ class TestPGQuoteCreation:
         print(f"  - Setup items: {len(quote_data['pg_setup_items'])}")
         print(f"  - First item: {first_item['concepto']} (${first_item['costo']})")
         
+        # Return full response for PDF check
+        return response_data
+        
         return quote_data
     
     def test_pg_quote_pdf_exists(self):
         """Verify PDF is generated for PG quote"""
         # Create a quote first
-        quote_data = self.test_create_pg_quote_with_persona_juridica_and_medios_pago()
+        response_data = self.test_create_pg_quote_with_persona_juridica_and_medios_pago()
         
-        # Check if PDF was generated
-        if quote_data.get("quote_pdf_url"):
-            print(f"✓ PDF generated: {quote_data['quote_pdf_url']}")
+        # Check if PDF was generated (in response.pdf_url or quote.quote_pdf_url)
+        pdf_url = response_data.get("pdf_url") or response_data.get("quote", {}).get("quote_pdf_url")
+        
+        if pdf_url:
+            print(f"✓ PDF generated: {pdf_url}")
             
             # Verify PDF file exists
-            pdf_response = requests.get(f"{BASE_URL}{quote_data['quote_pdf_url']}", headers=self.headers)
+            pdf_response = requests.get(f"{BASE_URL}{pdf_url}", headers=self.headers)
             # Note: PDF might be served without auth, try both ways
             if pdf_response.status_code == 404:
-                pdf_response = requests.get(f"{BASE_URL}{quote_data['quote_pdf_url']}")
+                pdf_response = requests.get(f"{BASE_URL}{pdf_url}")
             
             # PDF may or may not require auth - just check it's accessible
             print(f"  - PDF access status: {pdf_response.status_code}")
+            assert pdf_response.status_code == 200, f"PDF not accessible: {pdf_response.status_code}"
         else:
             print("⚠ No PDF URL in quote response (may be expected if PDF generation is async)")
 
@@ -338,7 +348,11 @@ class TestVPOSMPOSRegression:
         response = requests.post(f"{BASE_URL}/api/quotes/create-with-pdf", headers=self.headers, json=payload)
         
         assert response.status_code == 200, f"VPOS quote creation failed: {response.text}"
-        quote_data = response.json()
+        response_data = response.json()
+        
+        # API returns {message, quote, pdf_url} structure
+        assert "quote" in response_data, f"Missing 'quote' in response: {response_data.keys()}"
+        quote_data = response_data["quote"]
         assert quote_data["quote_type"] == "VPOS_MPOS", f"Wrong quote type: {quote_data.get('quote_type')}"
         
         print(f"✓ VPOS/MPOS quote still works: {quote_data['quote_number']}")
