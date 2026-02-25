@@ -109,8 +109,7 @@ export const Quotes = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
   
-  // Estados para el modal de factura (legacy - ahora usa WorkflowUploadModal)
-  // kept for backwards compatibility but no longer used directly
+  
   
   // Estado para usar plantilla PDF
   const [useTemplateForPDF, setUseTemplateForPDF] = useState(true); // Por defecto usa plantilla si está disponible
