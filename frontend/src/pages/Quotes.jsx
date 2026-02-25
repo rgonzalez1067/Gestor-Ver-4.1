@@ -2663,8 +2663,10 @@ export const Quotes = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  )}
 
-                  {/* Campo 3: Entidad Patrocinadora (Opcional) */}
+                  {/* Campo 3: Entidad Patrocinadora (Opcional) - Solo para VPOS/MPOS */}
+                  {!isPaymentGateway && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Landmark size={14} className="text-amber-600" />
