@@ -12,13 +12,17 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 ## Arquitectura
 ```
 /app/backend/server.py   → Monolito FastAPI (REQUIERE REFACTORIZACIÓN)
-/app/frontend/src/        → React SPA
-  ├── pages/              → Páginas principales
-  ├── components/         → Componentes reutilizables
-  │   ├── AnexosModal.jsx → Modal de anexos con 5 categorías
-  │   ├── WorkflowUploadModal.jsx → Modal de carga obligatoria para transiciones de estado
+/app/frontend/src/
+  ├── pages/
+  │   ├── Dashboard.jsx      → Dashboard con widget de Alertas de Seguimiento
+  │   ├── Clients.jsx        → CRM completo: multi-sede, contactos, bitácora
+  │   ├── Quotes.jsx         → Cotizaciones con anexos y workflow de estados
   │   └── ...
-  └── utils/api.js        → Cliente Axios
+  ├── components/
+  │   ├── AnexosModal.jsx    → Modal de anexos con 5 categorías
+  │   ├── WorkflowUploadModal.jsx → Modal de carga obligatoria para transiciones
+  │   └── ...
+  └── utils/api.js
 ```
 
 ## Módulos Implementados
@@ -34,33 +38,42 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 - [x] Gestión de Usuarios Pro (admin panel)
 - [x] Tasa de Cambio y Configuración por sede
 - [x] **Módulo Anexos** (25/Feb/2026) - 5 categorías de documentos
-- [x] **Flujo de Estados Basado en Evidencias** (25/Feb/2026) - Validación obligatoria de documentos
+- [x] **Flujo de Estados Basado en Evidencias** (25/Feb/2026)
+- [x] **Módulo Clientes & CRM Evolucionado** (25/Feb/2026) - 4 bloques
 
-### Flujo de Estados Basado en Evidencias (25/Feb/2026)
-**Transiciones de estado con documentos obligatorios:**
-| Estado | Documento Requerido | Categoría | Cantidad | Obligatorio |
-|--------|-------------------|-----------|----------|-------------|
-| Al crear | PDF cotización | Cotización | 1 | Sí |
-| Aprobado | Orden de Compra | Orden de Compra | 1 | Sí |
-| Facturado | Factura | Factura | 1 | Sí |
-| Pagado | Comprobante(s) de Pago | Pagos | Múltiple | Sí |
-| Cualquiera | Docs complementarios | Otros | Múltiple | No |
+### CRM Evolucionado (25/Feb/2026)
+**Bloque 1: Estructura Multi-Sede**
+- RIF + Sucursal como llave compuesta única
+- Permite mismo RIF con diferente sucursal
+- Tabla de clientes muestra columna Sucursal
 
-**Componentes:**
-- `WorkflowUploadModal.jsx`: Modal genérico para carga obligatoria antes de transiciones
-- `AnexosModal.jsx`: Panel de visualización de todos los documentos por categoría
-- Backend: Validaciones 422 en endpoints approve/invoice/collect
+**Bloque 2: Matriz de Contactos Dinámica**
+- Contactos ilimitados por cliente (array dinámico)
+- 5 roles: Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo
+- Formulario con agregar/eliminar contactos
 
-**Testing:** 14/14 backend, 100% frontend (iteration_43)
+**Bloque 3: Bitácora de Eventos y Seguimiento**
+- Colección `client_logs` en MongoDB (tipo log, no editable)
+- Campos: fecha_contacto, detalle, acción, fecha_seguimiento
+- Toggle de completado, ordenamiento por fecha
+
+**Bloque 4: Dashboard de Alertas**
+- Widget con semáforo de prioridad
+- 🔴 Rojo: Seguimientos atrasados
+- 🟡 Amarillo: Programados para hoy
+- 🟢 Verde: Próximos 7 días
+- Click en alerta → navega a ficha del cliente con bitácora abierta
+
+**Testing:** 11/11 backend, 100% frontend (iteration_44)
 
 ## Pendiente / Backlog
 
 ### P1 - Alta Prioridad
-- [ ] Bug: Contadores del Dashboard no suman correctamente (recurrente)
+- [ ] Bug: Contadores del Dashboard no suman correctamente (parcialmente resuelto con rewrite)
 - [ ] Verificar funcionalidad "Guardar con PDF" end-to-end
 - [ ] Verificación de email al registrarse (requiere API Key Resend)
 - [ ] Recuperación de contraseña (requiere API Key Resend)
-- [ ] **Refactorización backend/server.py** (CRÍTICO - 5800+ líneas)
+- [ ] **Refactorización backend/server.py** (CRÍTICO - 6000+ líneas)
 
 ### P2 - Media Prioridad
 - [ ] Refactorización frontend (Settings.jsx, Users.jsx, Quotes.jsx)
@@ -71,7 +84,6 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Sistema fu
 - La base de datos MongoDB es volátil en el entorno de preview
 
 ## Integraciones 3rd Party
-- Resend: Pendiente de configuración de API Key
-- reportlab: Generación de PDF
-- Shadcn/UI + Radix UI: Componentes React
-- bcrypt, openpyxl, pandas
+- Resend: Pendiente de API Key
+- reportlab, bcrypt, openpyxl, pandas
+- Shadcn/UI + Radix UI
