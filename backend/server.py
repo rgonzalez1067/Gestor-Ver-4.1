@@ -83,14 +83,25 @@ class Contact(BaseModel):
     phone: str
     email: EmailStr
 
+class ContactCRM(BaseModel):
+    contact_id: str = Field(default_factory=lambda: f"cnt_{uuid.uuid4().hex[:8]}")
+    first_name: str
+    last_name: str
+    phone: str = ""
+    email: str = ""
+    role: Literal["Administrativo", "Financiero", "Técnico", "Cuentas por Pagar", "Operativo"] = "Administrativo"
+
 class ClientCreate(BaseModel):
     rif: str
     legal_name: str
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
-    address: Optional[str] = None  # Dirección fiscal
-    contact1: Contact
-    contact2: Contact
+    address: Optional[str] = None
+    sucursal: str = "Principal"
+    contacts: List[ContactCRM] = []
+    # Legacy support
+    contact1: Optional[Contact] = None
+    contact2: Optional[Contact] = None
 
 class Client(BaseModel):
     client_id: str = Field(default_factory=lambda: f"cli_{uuid.uuid4().hex[:12]}")
@@ -98,10 +109,19 @@ class Client(BaseModel):
     legal_name: str
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
-    address: Optional[str] = None  # Dirección fiscal
-    contact1: Contact
-    contact2: Contact
+    address: Optional[str] = None
+    sucursal: str = "Principal"
+    contacts: List[ContactCRM] = []
+    contact1: Optional[Contact] = None
+    contact2: Optional[Contact] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ClientLogCreate(BaseModel):
+    client_id: str
+    contact_date: Optional[str] = None
+    detail: str
+    action: str = ""
+    follow_up_date: Optional[str] = None
 
 class BankProduct(BaseModel):
     product_name: str
