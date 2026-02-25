@@ -577,6 +577,8 @@ export const Quotes = () => {
     setPgTransactionRange(null);
     setPgSelectedMedioPago('');
     setPgSelectedBankId('');
+    setPgShowRecurringTable(false);
+    setPgFilteredProducts([]);
   };
 
   // Handler para selección de integrador
