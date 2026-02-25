@@ -245,6 +245,51 @@ export const Clients = () => {
   };
 
   // --- Import/Export ---
+  const downloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${backendUrl}/api/clients/template`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Error al descargar plantilla');
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'plantilla_clientes.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success('Plantilla descargada');
+    } catch { toast.error('Error al descargar plantilla'); }
+  };
+
+  const handleImportFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) { setImportFile(file); setImportResult(null); }
+  };
+
+  const executeImport = async () => {
+    if (!importFile) { toast.error('Seleccione un archivo'); return; }
+    setImportLoading(true);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', importFile);
+      const response = await api.post('/clients/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(response.data);
+      if (response.data.status === 'success') { toast.success(response.data.message); fetchClients(); }
+      else if (response.data.status === 'partial') { toast.warning(response.data.message); fetchClients(); }
+      else toast.error(response.data.message);
+    } catch (err) {
+      toast.error('Error al importar archivo');
+      setImportResult({ status: 'error', message: err.response?.data?.detail || 'Error desconocido', errors: [] });
+    } finally { setImportLoading(false); }
+  };
+
+  const closeImportDialog = () => { setImportDialogOpen(false); setImportFile(null); setImportResult(null); };
+
   const handleFileImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -254,12 +299,9 @@ export const Clients = () => {
       toast.loading('Procesando archivo...', { id: 'import-loading' });
       const response = await api.post('/clients/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.dismiss('import-loading');
-      const result = response.data;
-      setImportResult(result);
-      setShowImportResult(true);
-      if (result.status === 'success') toast.success(`${result.success_count} clientes importados`);
-      else if (result.status === 'partial') toast.warning(`Parcial: ${result.success_count} OK, ${result.error_count} errores`);
-      else toast.error(result.message || 'Error en la importación');
+      if (response.data.status === 'success') toast.success(`${response.data.success_count} clientes importados`);
+      else if (response.data.status === 'partial') toast.warning(`Parcial: ${response.data.success_count} OK, ${response.data.error_count} errores`);
+      else toast.error(response.data.message || 'Error en la importación');
       fetchClients();
     } catch { toast.dismiss('import-loading'); toast.error('Error al importar'); }
     if (fileInputRef.current) fileInputRef.current.value = '';
