@@ -2491,6 +2491,8 @@ export const Quotes = () => {
                     </Select>
                   </div>
 
+                  {/* Hide Modelo/Cajas/Bancos for Payment Gateway */}
+                  {!isPaymentGateway && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Modelo de Precios <span className="text-red-500">*</span>
