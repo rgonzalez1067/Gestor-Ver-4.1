@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { FileText, Upload, Trash2, Download, FolderOpen, File, Image, FileSpreadsheet, Loader2, CreditCard, DollarSign } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const CATEGORIES = [
-  { id: 'Cotización Original', icon: FileText, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-  { id: 'Orden de Compra', icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-  { id: 'Factura', icon: File, color: 'text-purple-600 bg-purple-50 border-purple-200' },
-  { id: 'Otros', icon: FolderOpen, color: 'text-slate-600 bg-slate-50 border-slate-200' },
+  { id: 'Cotización', icon: FileText, color: 'text-blue-600 bg-blue-50 border-blue-200', desc: 'PDF generado por el sistema', maxFiles: 1, obligatorio: 'Al crear' },
+  { id: 'Orden de Compra', icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200', desc: 'Soporte de aprobación del cliente', maxFiles: 1, obligatorio: 'Aprobado' },
+  { id: 'Factura', icon: File, color: 'text-purple-600 bg-purple-50 border-purple-200', desc: 'Documento fiscal', maxFiles: 1, obligatorio: 'Facturado' },
+  { id: 'Pagos', icon: DollarSign, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', desc: 'Comprobantes de transferencia/depósito', maxFiles: 0, obligatorio: 'Pagado' },
+  { id: 'Otros', icon: FolderOpen, color: 'text-slate-600 bg-slate-50 border-slate-200', desc: 'Documentación miscelánea', maxFiles: 0, obligatorio: 'Opcional' },
 ];
 
 function formatFileSize(bytes) {
@@ -134,84 +135,99 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
           </div>
         ) : (
           <div className="space-y-4 mt-2">
-            {grouped.map(({ id, icon: Icon, color, files }) => (
-              <div key={id} className={`rounded-lg border p-4 ${color.split(' ').slice(1).join(' ')}`} data-testid={`anexo-category-${id.replace(/\s/g, '-').toLowerCase()}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Icon size={18} className={color.split(' ')[0]} />
-                    <span className="font-semibold text-sm">{id}</span>
-                    <span className="text-xs text-slate-500 bg-white/80 px-1.5 py-0.5 rounded-full">{files.length}</span>
-                  </div>
-                  <div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      ref={el => fileInputRefs.current[id] = el}
-                      onChange={() => handleUpload(id)}
-                      accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp"
-                      data-testid={`anexo-upload-input-${id.replace(/\s/g, '-').toLowerCase()}`}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1"
-                      disabled={uploading === id}
-                      onClick={() => fileInputRefs.current[id]?.click()}
-                      data-testid={`anexo-upload-btn-${id.replace(/\s/g, '-').toLowerCase()}`}
-                    >
-                      {uploading === id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Upload size={12} />
+            {grouped.map(({ id, icon: Icon, color, desc, maxFiles, obligatorio, files }) => {
+              const isMaxReached = maxFiles === 1 && files.length >= 1;
+              return (
+                <div key={id} className={`rounded-lg border p-4 ${color.split(' ').slice(1).join(' ')}`} data-testid={`anexo-category-${id.replace(/\s/g, '-').toLowerCase()}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Icon size={18} className={color.split(' ')[0]} />
+                      <span className="font-semibold text-sm">{id}</span>
+                      <span className="text-xs text-slate-500 bg-white/80 px-1.5 py-0.5 rounded-full">{files.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        obligatorio === 'Opcional' 
+                          ? 'bg-slate-200 text-slate-600' 
+                          : 'bg-white/80 text-slate-600 border border-slate-200'
+                      }`}>
+                        {obligatorio === 'Opcional' ? 'Opcional' : `Req. ${obligatorio}`}
+                      </span>
+                      {!isMaxReached && (
+                        <>
+                          <input
+                            type="file"
+                            className="hidden"
+                            ref={el => fileInputRefs.current[id] = el}
+                            onChange={() => handleUpload(id)}
+                            accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.webp"
+                            data-testid={`anexo-upload-input-${id.replace(/\s/g, '-').toLowerCase()}`}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            disabled={uploading === id}
+                            onClick={() => fileInputRefs.current[id]?.click()}
+                            data-testid={`anexo-upload-btn-${id.replace(/\s/g, '-').toLowerCase()}`}
+                          >
+                            {uploading === id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Upload size={12} />
+                            )}
+                            Subir
+                          </Button>
+                        </>
                       )}
-                      Subir
-                    </Button>
+                    </div>
                   </div>
-                </div>
+                  <p className="text-xs text-slate-500 mb-2 pl-6">{desc}</p>
 
-                {files.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic pl-6">Sin documentos en esta categoría</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {files.map((att) => (
-                      <div
-                        key={att.attachment_id}
-                        className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border border-slate-100 group"
-                        data-testid={`anexo-file-${att.attachment_id}`}
-                      >
-                        {getFileIcon(att.filename)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{att.filename}</p>
-                          <p className="text-xs text-slate-400">
-                            {formatFileSize(att.file_size)} · {att.uploaded_by_name || att.uploaded_by} · {new Date(att.uploaded_at).toLocaleDateString('es-VE')}
-                          </p>
+                  {files.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic pl-6">Sin documentos en esta categoría</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {files.map((att) => (
+                        <div
+                          key={att.attachment_id}
+                          className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border border-slate-100 group"
+                          data-testid={`anexo-file-${att.attachment_id}`}
+                        >
+                          {getFileIcon(att.filename)}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{att.filename}</p>
+                            <p className="text-xs text-slate-400">
+                              {formatFileSize(att.file_size)} · {att.uploaded_by_name || att.uploaded_by} · {new Date(att.uploaded_at).toLocaleDateString('es-VE')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600"
+                              onClick={() => handleDownload(att)}
+                              data-testid={`anexo-download-${att.attachment_id}`}
+                            >
+                              <Download size={14} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-slate-500 hover:text-red-600"
+                              onClick={() => handleDelete(att.attachment_id, att.filename)}
+                              data-testid={`anexo-delete-${att.attachment_id}`}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600"
-                            onClick={() => handleDownload(att)}
-                            data-testid={`anexo-download-${att.attachment_id}`}
-                          >
-                            <Download size={14} />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-slate-500 hover:text-red-600"
-                            onClick={() => handleDelete(att.attachment_id, att.filename)}
-                            data-testid={`anexo-delete-${att.attachment_id}`}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </DialogContent>
