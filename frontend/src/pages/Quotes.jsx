@@ -2596,10 +2596,10 @@ export const Quotes = () => {
               <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg p-5 border border-blue-100 mt-4">
                 <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
                   <Cpu size={20} className="text-brand-blue-600" />
-                  Detalles de Integración y Hardware
+                  {isPaymentGateway ? 'Integrador' : 'Detalles de Integración y Hardware'}
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className={`grid grid-cols-1 ${isPaymentGateway ? 'md:grid-cols-2' : 'md:grid-cols-4'} gap-4`}>
                   {/* Campo 1: Integrador */}
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
