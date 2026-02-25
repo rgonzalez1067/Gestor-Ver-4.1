@@ -58,8 +58,6 @@ export const Clients = () => {
   });
 
   const fileInputRef = useRef(null);
-  const [importResult, setImportResult] = useState(null);
-  const [showImportResult, setShowImportResult] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { fetchClients(); }, []);
