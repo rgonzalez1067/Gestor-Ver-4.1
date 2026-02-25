@@ -1760,6 +1760,12 @@ export const Quotes = () => {
       notes: quote.notes || ''
     });
     
+    // Load PG data if it's a Payment Gateway quote
+    if (quote.quote_type === 'GATEWAY') {
+      setPgSetupItems(quote.pg_setup_items || []);
+      setPgTransactionRange(quote.pg_transaction_range || null);
+    }
+    
     // Desactivar flag después de un momento para permitir edición manual posterior
     setTimeout(() => {
       setIsLoadingEdit(false);
