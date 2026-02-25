@@ -969,8 +969,13 @@ export const Quotes = () => {
 
     const toastId = toast.loading('Guardando cotización Payment Gateway...');
     try {
-      const client = clients.find(c => c.client_id === quoteData.client_id);
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+
+      // Build recurring cost data (full table for N products)
+      const recurringData = pgShowRecurringTable && pgMediosPagoCount > 0 ? {
+        num_products: Math.min(pgMediosPagoCount, 11),
+        table: getPgFullRecurringTable()
+      } : null;
 
       const payload = {
         client_id: quoteData.client_id,
@@ -986,15 +991,9 @@ export const Quotes = () => {
         integrator_app_name: quoteData.integrator_app_name,
         cantidad_cajas: 1,
         cantidad_bancos: 1,
-        pg_setup_items: pgSetupItems,
-        pg_recurring_cost: pgRecurringCost ? {
-          rango_index: pgRecurringCost.rango_index,
-          num_products: pgRecurringCost.num_products,
-          base: pgRecurringCost.base,
-          tope: pgRecurringCost.tope,
-          rango_label: pgRecurringCost.rango_label
-        } : null,
-        pg_transaction_range: pgTransactionRange,
+        pg_setup_items: pgSetupItems.map(({ fixed, ...item }) => item), // Remove fixed flag
+        pg_recurring_cost: recurringData,
+        pg_transaction_range: pgMediosPagoCount,
         pdf_data: null
       };
 
