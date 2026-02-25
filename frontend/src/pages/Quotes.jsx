@@ -2523,6 +2523,18 @@ export const Quotes = () => {
                         // Reset PG state when changing type
                         setPgSetupItems([]);
                         setPgTransactionRange(null);
+                        setPgShowRecurringTable(false);
+                        setPgFilteredProducts([]);
+                        // Auto-init Persona Jurídica for PG
+                        if (value === 'GATEWAY' && pgDefaults) {
+                          setPgSetupItems([{
+                            concepto: pgDefaults.concepto || 'Persona Jurídica',
+                            costo: pgDefaults.costo || 240,
+                            banco: 'N/A',
+                            observacion: 'Costo base - cargado automáticamente',
+                            fixed: true
+                          }]);
+                        }
                       }}
                     >
                       <SelectTrigger data-testid="select-quote-type">
