@@ -391,6 +391,7 @@ export const Quotes = () => {
   const getCompatibilityField = (quoteType) => {
     switch (quoteType) {
       case 'VPOS': return 'vpos_available';
+      case 'VPOS_MPOS': return 'vpos_available';
       case 'GATEWAY': return 'gateway_available';
       case 'MPOS': return 'mpos_available';
       case 'LINK': return 'link_available';
