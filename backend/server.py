@@ -3141,23 +3141,12 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     
     # Información del cliente
     quote_type_names = {
-        'VPOS': 'Cajas Registradoras (VPOS)',
-        'GATEWAY': 'Ecommerce (Payment Gateway)',
-        'MPOS': 'Tablet o Android (MPOS)',
+        'VPOS': 'VPOS/MPOS (Cajas y Tablet)',
+        'VPOS_MPOS': 'VPOS/MPOS (Cajas y Tablet)',
+        'GATEWAY': 'Payment Gateway',
+        'MPOS': 'VPOS/MPOS (Cajas y Tablet)',
         'LINK': 'Link de Pago'
     }
-    pricing_model_names = {
-        'conventional': 'Modelo Convencional',
-        'outsourcing': 'Modelo Outsourcing'
-    }
-    
-    info_data = [
-        ["Fecha:", datetime.now().strftime("%d/%m/%Y")],
-        ["Cliente:", data.cliente_nombre],
-        ["RIF:", data.cliente_rif or "N/A"],
-        ["Tipo de Servicio:", quote_type_names.get(data.quote_type, data.quote_type)],
-        ["Modelo de Precios:", pricing_model_names.get(data.pricing_model, data.pricing_model)],
-    ]
     
     # Agregar información de integración y hardware si está disponible
     if data.integrator_name:
