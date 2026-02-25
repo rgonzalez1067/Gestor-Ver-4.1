@@ -1263,7 +1263,7 @@ async def get_dashboard_alerts(authorization: Optional[str] = Header(None)):
     
     # Obtener logs con fecha de seguimiento pendiente (no completados)
     logs = await db.client_logs.find(
-        {"follow_up_date": {"$ne": None, "$ne": ""}, "is_completed": {"$ne": True}},
+        {"follow_up_date": {"$ne": None}, "is_completed": {"$ne": True}},
         {"_id": 0}
     ).sort("follow_up_date", 1).to_list(200)
     
@@ -1273,7 +1273,7 @@ async def get_dashboard_alerts(authorization: Optional[str] = Header(None)):
     upcoming = []  # Verde
     
     # Obtener info de clientes para enriquecer las alertas
-    client_ids = list(set(l["client_id"] for l in logs))
+    client_ids = list(set(log["client_id"] for log in logs))
     clients_map = {}
     if client_ids:
         clients = await db.clients.find({"client_id": {"$in": client_ids}}, {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "rif": 1, "sucursal": 1}).to_list(200)
