@@ -3478,23 +3478,35 @@ export const Quotes = () => {
 
               {/* Botones de acción para Payment Gateway */}
               {isPaymentGateway && isHeaderComplete && pgSetupItems.length > 0 && (
-                <div className="flex justify-end gap-3 mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => { setWizardOpen(false); resetQuoteForm(); }}
-                    className="px-6 py-3 text-lg"
-                    data-testid="pg-cancel-button"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleSubmitPGQuote}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
-                    data-testid="pg-submit-quote-button"
-                  >
-                    <CheckCircle2 size={20} className="mr-2" />
-                    Guardar Cotización PG
-                  </Button>
+                <div className="bg-white rounded-lg p-5 border mt-4">
+                  <Label htmlFor="pg-notes" className="text-sm font-medium text-slate-700">Notas adicionales</Label>
+                  <Textarea
+                    id="pg-notes"
+                    value={quoteData.notes}
+                    onChange={(e) => setQuoteData({ ...quoteData, notes: e.target.value })}
+                    placeholder="Observaciones o condiciones especiales..."
+                    rows={2}
+                    className="mt-2"
+                    data-testid="pg-notes-input"
+                  />
+                  <div className="mt-4 flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => { setWizardOpen(false); resetQuoteForm(); }}
+                      className="px-6 py-3 text-lg"
+                      data-testid="pg-cancel-button"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSubmitPGQuote}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
+                      data-testid="pg-submit-quote-button"
+                    >
+                      <CheckCircle2 size={20} className="mr-2" />
+                      Guardar Cotización PG
+                    </Button>
+                  </div>
                 </div>
               )}
 
