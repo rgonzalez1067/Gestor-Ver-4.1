@@ -1,43 +1,48 @@
 <analysis>**original_problem_statement:**
-El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo del desarrollo, los requerimientos se han expandido para incluir:
-1.  **Módulos CRUD:** Gestión completa para Integradores, Clientes, Bancos, Bienes y Servicios, etc.
-2.  **Lógica de Cotizaciones:** Un ciclo de vida complejo con múltiples estados y una función de Modificar. Se añadió un nuevo tipo de cotización: Reparaciones.
-3.  **Sistema de Autenticación y Permisos:** Un sistema de login/registro basado en JWT con un panel de administración para gestionar roles y permisos.
-4.  **Gestión de Datos (Importación/Exportación):** Una funcionalidad crítica para importar datos masivos (Excel/CSV) y exportar a Excel.
-5.  **Generador de PDF Dinámico:** Una funcionalidad clave para generar cotizaciones en PDF basadas en una plantilla, con lógica compleja para el flujo de contenido dinámico.
-6.  **Sistema Multi-Sede:** Funcionalidad para que los usuarios pertenezcan a diferentes sedes (TBP o LCH), afectando la visibilidad de datos y la configuración de notificaciones y plantillas.
-7.  **Módulo Gestión de Usuarios Pro:** Un panel avanzado para la administración de usuarios, incluyendo su estado (activo/inactivo), perfiles, y la capacidad de restablecer contraseñas.
-8.  **Módulo Anexos:** Centralizar todos los documentos relacionados con una cotización (Cotización Original, Orden de Compra, etc.) en un repositorio accesible desde un modal.
-9.  **Funcionalidades Pendientes:** Implementar la verificación de email al registrarse y la recuperación de contraseña.
+El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo de la sesión, se implementaron las siguientes funcionalidades:
+1.  **Módulo Anexos:** Centralización de todos los documentos de una cotización (Cotización, Orden de Compra, Factura, Pagos, Otros) en un modal, con subida de archivos y gestión.
+2.  **Flujo de Estados Basado en Evidencias:** Se implementó un workflow que bloquea el cambio de estado de una cotización (Aprobado, Facturado, Pagado) si no se ha cargado el documento de respaldo correspondiente en los Anexos.
+3.  **Módulo de Clientes & CRM (Evolucionado):** Se rehizo el módulo de clientes para soportar múltiples sedes por cliente (identificador único ), una matriz de contactos ilimitados por cliente, y una Bitácora de Eventos para registrar interacciones y programar seguimientos.
+4.  **Dashboard de Alertas:** Se añadió un widget en el dashboard principal que muestra alertas de seguimiento de clientes (vencidas, para hoy, próximas) con un sistema de semáforo de colores.
+5.  **Importación Avanzada de Clientes:** Se implementó una funcionalidad de importación masiva de clientes desde Excel, replicando la de Bienes y Servicios, con descarga de plantilla, instrucciones y reporte de resultados.
+6.  **Nomenclatura Definitiva de Cotizaciones:** Se implementó un sistema de codificación de cotizaciones , con contadores correlativos independientes por mes y por sede (TBP/LCH). Todos los anexos ahora se guardan con este prefijo.
+
+**La solicitud actual y pendiente es la Reestructuración del Modelo de Cotizaciones, que implica:**
+1.  **Consolidar Hardware:** Fusionar los tipos de cotización VPOS y MPOS en una sola categoría VPOS/MPOS.
+2.  **Nuevo Flujo Payment Gateway:** Crear un nuevo tipo de cotización independiente que solicita solo Cliente e Integrador, y luego presenta una matriz dinámica para agregar costos de Setup (ej. Persona Jurídica) antes de guardar.
+3.  **Lógica de Costos Recurrentes:** Implementar un motor de cálculo que, basándose en un archivo Excel, determine el costo mensual recurrente según rangos de transacciones y volumen de productos, y lo muestre en una tabla separada en la cotización.
+4.  **Desactivar:** Dejar inactiva temporalmente la cotización de tipo Link de Pago.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. Cuenta con autenticación JWT, flujos CRUD, un generador de PDF avanzado con , y funcionalidades de importación/exportación. En la última sesión, se implementaron dos características principales: un sistema multi-sede que segmenta usuarios, datos y configuraciones por sucursal (TBP/LCH), y un módulo completo de Gestión de Usuarios Pro para la administración avanzada de cuentas. Se corrigieron también varios detalles en el diseño del PDF y la pantalla de login. La base de datos en el entorno de pruebas es volátil y se vació durante la sesión, lo que requirió volver a registrar usuarios.
+La aplicación es una robusta herramienta full-stack (FastAPI, React, MongoDB) para la gestión de cotizaciones. Ahora cuenta con un sistema de adjuntos (Anexos) por cotización, un flujo de trabajo basado en la carga de documentos para validar cambios de estado, un módulo de CRM avanzado con bitácora y alertas en el dashboard, una importación de clientes desde Excel con plantilla, y una nomenclatura de cotizaciones dinámica y atómica por sede. El backend sigue siendo un archivo monolítico () cuya complejidad ha aumentado críticamente con las nuevas funcionalidades.
 
 **Last working item**:
-- Last item agent was working: El agente estaba comenzando la implementación del módulo Anexos, una nueva funcionalidad solicitada por el usuario para gestionar todos los documentos asociados a una cotización. El agente se preparaba para modificar el backend para soportar el almacenamiento y categorización de estos archivos.
-- Status: IN PROGRESS
+- Last item agent was working: El agente estaba comenzando el análisis de la nueva solicitud del usuario: Reestructuración del Modelo de Cotizaciones. Acababa de revisar los archivos  y  para entender el flujo de creación de cotizaciones existente antes de empezar a planificar la implementación.
+- Status: NOT STARTED
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Implementar el módulo Anexos para cotizaciones. (P0 - HIGHEST)
+-   Issue 1: Implementar la Reestructuración del Modelo de Cotizaciones. (P0 - HIGHEST)
 -   Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - Recurrente)
 
 **Issues Detail:**
--   **Issue 1: Implementar el módulo Anexos para cotizaciones**
-    -   **Attempted fixes**: El agente reconoció el requerimiento y estaba a punto de empezar a codificar el backend. No se han realizado cambios en el código todavía.
+-   **Issue 1: Implementar la Reestructuración del Modelo de Cotizaciones**
+    -   **Attempted fixes**: Ninguno. El agente estaba en fase de análisis.
     -   **Next debug checklist**:
-        1.  **Backend:** Modificar el modelo  en  para incluir un campo que almacene una lista de anexos (ej. ). Cada anexo debe tener , , , , .
-        2.  **Backend:** Crear nuevos endpoints para gestionar los anexos:  (para subir un archivo), y .
-        3.  **Backend:** Modificar el endpoint de generación de PDF () para que guarde automáticamente el PDF generado como el anexo Cotización Original.
-        4.  **Frontend:** En , cambiar el botón PDF por un botón 📂 Anexos.
-        5.  **Frontend:** Crear un nuevo componente modal () que se abra al hacer clic en el botón Anexos.
-        6.  **Frontend:** Dentro del modal, mostrar los anexos agrupados por las 4 categorías especificadas por el usuario y permitir la subida de nuevos archivos para cada categoría.
-    -   **Why fix this issue and what will be achieved with the fix?**: Centralizará toda la documentación de una cotización, mejorando la organización y la auditoría.
-    -   **Status**: IN PROGRESS
+        1.  **Backend ():**
+            -   Modificar los modelos Pydantic y de base de datos para reflejar la consolidación de 'VPOS/MPOS' y el nuevo tipo 'Payment Gateway'.
+            -   Crear la lógica o un nuevo endpoint para el motor de cálculo de costos recurrentes, potencialmente leyendo la configuración desde un archivo o la base de datos.
+            -   Modificar los endpoints de creación de cotizaciones (, ) para manejar la nueva lógica condicional de los tipos de cotización.
+        2.  **Frontend (, ):**
+            -   Actualizar la interfaz de selección de tipo de cotización para fusionar VPOS/MPOS, agregar Payment Gateway y desactivar Link de Pago.
+            -   Crear una nueva vista o paso en el wizard para el flujo de Payment Gateway que permita la carga dinámica de conceptos de Setup.
+            -   Integrar la visualización de la tabla de Costos Recurrentes en la vista final de la cotización y en el PDF generado.
+    -   **Why fix this issue and what will be achieved with the fix?**: Simplificará el flujo de creación de cotizaciones, automatizará cálculos complejos y adaptará la aplicación a nuevos modelos de negocio del cliente.
+    -   **Status**: NOT STARTED
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on other issue**: None
@@ -45,136 +50,135 @@ La aplicación es una herramienta full-stack (FastAPI, React, MongoDB) para la g
 -   **Issue 2: Los contadores del Dashboard no suman los registros correctamente**
     -   **Attempted fixes**: Ninguno. Este problema fue mencionado en resúmenes anteriores pero no ha sido priorizado.
     -   **Next debug checklist**:
-        1.  Revisar el componente del Dashboard en el frontend para ver cómo consume los datos.
-        2.  Verificar el endpoint del backend que provee los datos para los contadores (probablemente  en ).
-        3.  Asegurarse de que las consultas a MongoDB () estén contando los documentos correctamente en las colecciones relevantes (, , etc.), considerando el nuevo filtrado por sede.
-    -   **Why fix this issue and what will be achieved with the fix?**: Solucionarlo proporcionará una vista general precisa del estado del sistema.
+        1.  Revisar el componente  para ver cómo consume los datos.
+        2.  Verificar el endpoint del backend que provee los datos ( en ).
+        3.  Asegurarse de que las consultas a MongoDB () estén contando los documentos correctamente, considerando el filtrado por la  del usuario.
+    -   **Why fix this issue and what will be achieved with the fix?**: Solucionarlo proporcionará una vista general precisa del estado del sistema en el dashboard.
     -   **Status**: NOT STARTED
     -   **Is recurring issue?** Y
     -   **Should Test frontend/backend/both after fix?**: backend
     -   **Blocked on other issue**: None
 
 **In progress Task List**:
--   **Task 1: Implementar el módulo Anexos para cotizaciones**
-    -   **Where to resume**: En el backend, abriendo el archivo  para empezar a implementar los cambios en el modelo  y los nuevos endpoints de gestión de archivos.
-    -   **What will be achieved with this?**: Un sistema completo para subir, ver y gestionar documentos relacionados con cada cotización.
-    -   **Status**: IN PROGRESS
+-   **Task 1: Reestructuración del Modelo de Cotizaciones**
+    -   **Where to resume**: En el backend, comenzar a implementar los cambios en los modelos de datos y endpoints en  según el plan de la checklist anterior.
+    -   **What will be achieved with this?**: Un sistema de cotizaciones más flexible y alineado con los requerimientos de negocio actuales del usuario.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Verificación de funcionalidad Guardar con PDF (P1)**: El agente implementó un endpoint () para guardar la cotización y generar el PDF simultáneamente. El usuario pidió esto, pero la implementación fue interrumpida y no se verificó completamente. Es necesario confirmar que funciona como se espera.
+-   **Refactorización del Backend (P0 - CRÍTICO):** Dividir el monolito  en una estructura modular (routers, modelos, servicios, etc.). Este archivo es ahora extremadamente grande y difícil de mantener, lo que representa un riesgo técnico significativo.
 -   **Verificación de Email (P1)**: Implementar el envío de un correo de verificación al registrar un nuevo usuario (bloqueado por falta de API Key de Resend).
--   **Recuperación de Contraseña (P1)**: Crear el flujo para Olvidé mi contraseña (bloqueado por la API Key de Resend, aunque ya existe un endpoint en el backend ).
+-   **Recuperación de Contraseña (P1)**: Crear el flujo para Olvidé mi contraseña (bloqueado por la API Key de Resend).
 
 Future Tasks:
--   **Refactorización del Backend (P1 - URGENTE):** Dividir el monolito  en una estructura modular (routers, modelos, servicios). El archivo ha crecido de forma crítica y es muy difícil de mantener.
--   **Refactorización del Frontend (P1):** Descomponer componentes grandes como  y  en subcomponentes más pequeños.
+-   **Refactorización del Frontend (P1):** Descomponer componentes masivos como  y  en subcomponentes más pequeños y manejables.
 -   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes avanzados.
 
 **Completed work in this session**
--   **Corrección de PDF**: Se ajustó el layout del Resumen Ejecutivo para que coincidiera con la imagen del usuario y se solucionó un bug que truncaba los nombres de los productos.
--   **Rediseño de Pantalla de Login**: Se implementó una nueva imagen de fondo y se ajustó el CSS para que se visualizara correctamente.
--   **Implementación de Sistema Multi-Sede**:
-    -   Se añadió el campo  a los modelos de Usuario y Cotización.
-    -   Se agregó un selector de sede en el formulario de registro.
-    -   El listado de cotizaciones ahora se filtra por la sede del usuario (los admins ven todo).
-    -   La página de configuración fue rediseñada para gestionar correos de notificación y plantillas por sede (TBP y LCH).
--   **Implementación de Gestión de Usuarios Pro**:
-    -   Se creó una nueva página () con una tabla de usuarios, filtros y buscador.
-    -   Se añadieron nuevos campos al modelo de usuario (teléfono, cargo, etc.).
-    -   Se implementaron endpoints CRUD completos en el backend para la gestión de usuarios, incluyendo activación/desactivación y reseteo de contraseña.
--   **Generación de PDF al Guardar Cotización**: Se creó un nuevo endpoint () que guarda la cotización y genera el PDF en un solo paso, aunque su uso en el frontend no fue verificado completamente.
+-   **Módulo Anexos**: Implementado sistema completo para subir y gestionar documentos por cotización.
+-   **Flujo de Estados Basado en Evidencias**: Implementadas validaciones que requieren documentos para cambiar el estado de las cotizaciones.
+-   **Módulo de Clientes & CRM**: Se rehizo la sección de clientes con lógica multi-sede, matriz de contactos y bitácora de seguimiento.
+-   **Dashboard de Alertas de Seguimiento**: Añadido widget con semáforo para acciones de seguimiento de clientes.
+-   **Importación Avanzada de Clientes**: Implementada importación desde Excel con descarga de plantilla.
+-   **Nomenclatura Definitiva de Cotizaciones**: Implementado el formato  con contadores atómicos por sede y mes.
 
 **Earlier issues found/mentioned but not fixed**
--   El bug de los contadores del Dashboard que no suman los registros correctamente sigue pendiente.
+-   El bug de los contadores del Dashboard que no suman los registros correctamente sigue pendiente y no fue abordado en esta sesión.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La base de datos se vació, un comportamiento conocido del entorno de preview de MongoDB que causó confusión al usuario. El agente no puede evitarlo, pero debe tenerlo en cuenta.
--   **Recurrence count**: 1
+-   **Issue recurrence in previous fork**: La base de datos de MongoDB se vació, un comportamiento conocido del entorno de preview que obliga a registrar nuevos usuarios en cada sesión.
+-   **Recurrence count**: 2
 -   **Status**: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, MongoDB. Se consolidó la lógica de multi-sede en varios endpoints y modelos. Se expandió la gestión de usuarios con nuevos campos y acciones.
--   **Frontend:** React (Hooks), Shadcn/UI. Se creó una nueva página de gestión con tabla de datos, filtros y modales. Se modificó la lógica de estado en  y  para manejar la configuración y el registro por sede.
+-   **Backend:** FastAPI, MongoDB. Se implementó un contador atómico con  en MongoDB para la nomenclatura de cotizaciones. Se añadió lógica de validación de estado basada en la existencia de documentos.
+-   **Frontend:** React (Hooks), Shadcn/UI. Se crearon componentes modales reutilizables y se reescribieron páginas enteras () para añadir funcionalidades complejas. Se usó  para el deep-linking desde el dashboard.
 
 **key DB schema**
 -   **users:** 
--   **quotes:**  (el campo  se añadirá en la siguiente tarea).
--   **settings:** 
+-   **quotes:** 
+-   **clients:** 
+-   **client_logs:** (NUEVA COLECCIÓN) 
+-   **counters:** (NUEVA COLECCIÓN) 
 
 **changes in tech stack**
 -   Ninguno.
 
 **All files of reference**
--   : Modificado extensamente para multi-sede y gestión de usuarios.
--   : Archivo nuevo que implementa el módulo de gestión de usuarios.
--   : Archivo modificado para la configuración por sede.
--   : Modificado para el registro por sede y el nuevo fondo de pantalla.
--   : Modificado para añadir la ruta del nuevo módulo.
--   : Modificado para añadir el enlace al nuevo módulo.
--   : Modificado para usar el nuevo endpoint de creación con PDF.
+-   : Modificado extensamente en cada una de las 5 funcionalidades completadas.
+-   : Archivo reescrito por completo.
+-   : Modificado para añadir el widget de alertas.
+-   : Modificado extensamente para los flujos de Anexos y Workflows.
+-   : Nuevo archivo.
+-   : Nuevo archivo.
+-   : Modificado para corregir importaciones.
 
 **Areas that need refactoring**:
--   ** (CRÍTICO URGENTE):** El archivo es insostenible. Se debe proponer una refactorización inmediata después de completar la tarea actual de Anexos.
--   ** (ALTA):** El componente ha crecido en complejidad debido a la lógica de sedes y se beneficiaría de una descomposición.
--   ** (MEDIA):** Es un archivo nuevo y grande. Podría dividirse en subcomponentes (ej. , ).
+-   ** (CRÍTICO URGENTE):** El archivo ha crecido a un tamaño insostenible. Se debe proponer una refactorización inmediata después de completar la tarea actual.
+-   ** (ALTA):** Este componente se ha vuelto extremadamente complejo y grande. Necesita ser descompuesto en subcomponentes más pequeños.
+-   ** (MEDIA):** Aunque es nuevo, es un componente grande y podría beneficiarse de la extracción de la lógica de los modales y la tabla.
 
 **key api endpoints**
--   : (Nuevo) Crea una cotización, genera su PDF y guarda la URL.
--   : (Nuevo) Obtiene todos los usuarios.
--   : (Nuevo) Crea un nuevo usuario.
--   : (Nuevo) Actualiza un usuario.
--   : (Nuevo) Activa o inactiva un usuario.
--   : (Nuevo) Inicia el flujo de reseteo de contraseña.
+-   : (Nuevo) Sube un anexo a una cotización.
+-   : (Nuevo) Obtiene las alertas de seguimiento para el dashboard.
+-   : (Nuevo) Descarga la plantilla de Excel para importar clientes.
+-   : (Modificado) Importa clientes desde Excel con la nueva estructura.
+-   : (Nuevo) Crea una nueva entrada en la bitácora de un cliente.
+-   , , : (Modificados) Ahora validan la existencia del documento requerido antes de cambiar el estado.
+-   , , : (Modificados) Usan la nueva función de generación de nomenclatura de cotización.
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación con el usuario debe ser exclusivamente en **español**.
--   **Tarea Prioritaria:** La primera acción es continuar y completar la implementación del módulo Anexos según lo solicitado por el usuario.
--   **Base de Datos Volátil:** La base de datos de MongoDB en este entorno es efímera y se borró en la sesión anterior. No asumas que los datos persistirán entre sesiones. Si la base de datos está vacía, el primer usuario que se registre será .
--   **Proponer Refactorización:** Una vez completada la tarea de Anexos, es crucial proponer la refactorización de . La estabilidad y mantenibilidad futuras del proyecto dependen de ello.
+-   **Tarea Prioritaria:** La primera acción es implementar la Reestructuración del Modelo de Cotizaciones.
+-   **Proponer Refactorización (URGENTE):** Inmediatamente después de completar la tarea actual, se debe proponer y priorizar la refactorización de . Es el mayor riesgo técnico del proyecto.
+-   **Base de Datos Volátil:** Recuerda que la base de datos es efímera. Será necesario registrar un nuevo usuario al inicio de la sesión para poder probar la aplicación. El primer usuario registrado se convierte en .
 
 **documents and test reports created in this job**
--    fue actualizado para reflejar el progreso.
--   : Creado para validar las correcciones en el generador de PDF.
+-   : Actualizado después de cada funcionalidad.
+-   : Creado para el módulo Anexos.
+-   : Creado para el Flujo de Estados.
+-   : Creado para el módulo CRM y Dashboard.
+-   : Creado para la Importación de Clientes.
+-   : Creado para la Nomenclatura de Cotizaciones.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Request):** Solicitó el nuevo módulo Anexos para centralizar todos los documentos de una cotización, detallando la estructura y la lógica de funcionamiento. (TAREA ACTUAL)
-2.  **Agent (Response):** Confirmó el inicio del trabajo en el módulo Anexos.
-3.  **User (Request):** Solicitó el nuevo módulo Gestión de Usuarios Pro con una descripción detallada y una imagen del formulario deseado.
-4.  **Agent (Summary):** Resumió la implementación del guardado automático del PDF al crear una cotización, pero fue interrumpido por la nueva solicitud.
-5.  **User (Request):** Pidió que al Guardar Cotización, el PDF generado sea el mismo que se obtiene con Exportar PDF y que se almacene automáticamente.
-6.  **Agent (Summary):** Confirmó la correcta implementación de las plantillas de correo por sede.
-7.  **User (Clarification):** Aclaró que necesitaba Plantillas de Correo Electrónico por sede, no Plantillas de Documentos, y pidió eliminar la sección incorrecta.
-8.  **Agent (Summary):** Mostró la implementación (incorrecta) de la estructura de correos y plantillas por sede.
-9.  **User (Feedback):** Informó que no veía la nueva estructura de correos y plantillas.
-10. **User (Feedback):** Informó que no veía los cambios de la funcionalidad multi-sede y que la base de datos de cotizaciones parecía vacía.
+1.  **User (Request):** Solicitó la nueva Nomenclatura Definitiva de Cotizaciones.
+2.  **Agent (Confirmation):** Confirmó la solicitud y procedió.
+3.  **Agent (Testing):** Probó la nueva nomenclatura y llamó al agente de pruebas.
+4.  **Agent (Result):** Informó del éxito del 100% en las pruebas de la nomenclatura.
+5.  **Agent (Finish):** Finalizó la tarea de la nomenclatura.
+6.  **User (Request):** Envió la nueva y compleja solicitud de Reestructuración del Modelo de Cotizaciones con una imagen adjunta.
+7.  **Agent (Analysis):** Confirmó la recepción y comenzó a analizar el código existente.
+8.  **Agent (Thinking):** Analizó el archivo .
+9.  **Agent (Thinking):** Analizó la página de Hardware.
+10. **Agent (Analysis):** Continúa el análisis de los archivos relevantes para la nueva solicitud.
 
 **Project Health Check:**
--   **Broken**: La base de datos es efímera, lo que puede romper el flujo del usuario si no está al tanto. La funcionalidad de los contadores del dashboard está rota.
--   **Mocked**: La verificación de email y la recuperación de contraseña por correo siguen pendientes de la API key de Resend.
+-   **Broken**: La funcionalidad de los contadores del dashboard sigue rota. La base de datos es efímera, lo que interrumpe el flujo si no se tiene en cuenta.
+-   **Mocked**: La verificación de email y la recuperación de contraseña siguen pendientes de la API key de Resend.
 
 **3rd Party Integrations**
--   **Resend**: Para envío de correos (pendiente de configuración de API Key).
--   **reportlab**: Uso avanzado para generación de PDF.
--   **Shadcn/UI & Radix UI**: Librerías de componentes de React.
--   **bcrypt**: Para hashing de contraseñas.
--   **openpyxl**: Para manejo de archivos Excel.
--   **pandas**: Para manipulación de datos en importación.
+-   **Resend**: Pendiente de configuración de API Key.
+-   **reportlab**: Para generación de PDF.
+-   **Shadcn/UI & Radix UI**: Componentes de React.
+-   **bcrypt**: Hashing de contraseñas.
+-   **openpyxl**: Manejo de archivos Excel.
+-   **pandas**: Manipulación de datos en importación.
 
 **Testing status**
--   Testing agent used after significant changes: YES. Se usó para validar las correcciones del PDF al inicio de la sesión.
+-   Testing agent used after significant changes: YES. Se utilizó el agente de pruebas con éxito después de CADA una de las 5 funcionalidades implementadas en esta sesión.
 -   Troubleshoot agent used after agent stuck in loop: NO
 -   Test files created: []
--   Known regressions: El vaciado de la base de datos es una regresión del entorno, no del código.
+-   Known regressions: El vaciado de la base de datos es una regresión conocida del entorno, no del código.
 
 **Credentials to test flow:**
 No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado en una base de datos vacía será automáticamente .
 
 **What agent forgot to execute**
--   No se ha abordado el problema de los contadores del dashboard que no suman correctamente los registros.
--   La verificación completa de la funcionalidad guardar con PDF quedó pendiente tras ser interrumpida por nuevas solicitudes.</analysis>
+-   El problema de los contadores del dashboard que no suman correctamente los registros no fue abordado, a pesar de estar listado como pendiente en el resumen inicial. El agente se enfocó en las nuevas solicitudes del usuario.</analysis>
