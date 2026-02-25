@@ -379,11 +379,19 @@ class Quote(BaseModel):
 
 # Categorías de anexos
 ATTACHMENT_CATEGORIES = [
-    "Cotización Original",
+    "Cotización",
     "Orden de Compra",
     "Factura",
+    "Pagos",
     "Otros"
 ]
+
+# Reglas de workflow: qué categoría de anexo es obligatoria para cada transición de estado
+WORKFLOW_ATTACHMENT_RULES = {
+    "Aprobada": {"category": "Orden de Compra", "max_files": 1, "label": "Orden de Compra Aprobada"},
+    "Facturada": {"category": "Factura", "max_files": 1, "label": "Documento Fiscal (Factura)"},
+    "Pagada": {"category": "Pagos", "max_files": 0, "label": "Comprobante(s) de Pago"},  # 0 = múltiple
+}
 
 class ExchangeRate(BaseModel):
     rate: float
