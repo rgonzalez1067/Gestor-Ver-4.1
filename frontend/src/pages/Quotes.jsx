@@ -1433,6 +1433,7 @@ export const Quotes = () => {
   };
 
   const getQuoteTypeName = (typeId) => {
+    if (typeId === 'VPOS' || typeId === 'MPOS' || typeId === 'VPOS_MPOS') return 'VPOS/MPOS (Cajas y Tablet)';
     const type = QUOTE_TYPES.find(t => t.id === typeId);
     return type ? type.name : typeId;
   };
