@@ -165,7 +165,9 @@ class TestPaymentGatewayQuoteCreation:
         response = requests.post(f"{BASE_URL}/api/quotes/create-with-pdf", json=quote_payload, headers=self.headers)
         assert response.status_code in [200, 201], f"Failed to create PG quote: {response.text}"
         
-        quote = response.json()
+        response_data = response.json()
+        # API returns {"quote": {...}, "pdf_url": ..., "message": ...}
+        quote = response_data.get("quote", response_data)
         assert quote["quote_type"] == "GATEWAY"
         assert "pg_setup_items" in quote
         assert len(quote["pg_setup_items"]) == 2
@@ -304,7 +306,9 @@ class TestPaymentGatewayFieldsVisibility:
         response = requests.post(f"{BASE_URL}/api/quotes/create-with-pdf", json=quote_payload, headers=self.headers)
         assert response.status_code in [200, 201], f"PG quote creation failed: {response.text}"
         
-        quote = response.json()
+        response_data = response.json()
+        # API returns {"quote": {...}, "pdf_url": ..., "message": ...}
+        quote = response_data.get("quote", response_data)
         # For PG, the important fields are pg_setup_items, not services
         assert quote["quote_type"] == "GATEWAY"
         assert len(quote.get("pg_setup_items", [])) == 1
