@@ -2453,17 +2453,20 @@ export const Quotes = () => {
                     <Select
                       value={quoteData.quote_type}
                       onValueChange={(value) => {
-                        setQuoteData({ ...quoteData, quote_type: value, medios_pago_items: [] });
+                        setQuoteData({ ...quoteData, quote_type: value, medios_pago_items: [], pricing_model: value === 'GATEWAY' ? 'conventional' : '' });
                         setSelectedBankId('');
                         setSelectedMedioPagoId('');
                         setAvailableMediosPago([]);
+                        // Reset PG state when changing type
+                        setPgSetupItems([]);
+                        setPgTransactionRange(null);
                       }}
                     >
                       <SelectTrigger data-testid="select-quote-type">
                         <SelectValue placeholder="Seleccione tipo..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {QUOTE_TYPES.map((type) => (
+                        {QUOTE_TYPES.filter(t => !t.disabled).map((type) => (
                           <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
                         ))}
                       </SelectContent>
