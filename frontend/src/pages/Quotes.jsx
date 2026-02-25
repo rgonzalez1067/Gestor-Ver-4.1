@@ -313,7 +313,8 @@ export const Quotes = () => {
         api.get('/integrators'), // Cargar integradores
         api.get('/hardware'), // Cargar dispositivos
         api.get('/config/templates').catch(() => ({ data: {} })), // Cargar estado de plantillas
-        api.get('/pg-recurring-costs').catch(() => ({ data: null })) // Tabla costos recurrentes PG
+        api.get('/pg-recurring-costs').catch(() => ({ data: null })), // Tabla costos recurrentes PG
+        api.get('/pg-defaults').catch(() => ({ data: null })) // Defaults PG (Persona Jurídica)
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
@@ -331,6 +332,8 @@ export const Quotes = () => {
       setTemplateAvailable(templatesRes.data || {});
       // Tabla de costos recurrentes PG
       if (pgCostsRes.data) setPgRecurringCostsTable(pgCostsRes.data);
+      // Defaults PG
+      if (pgDefaultsRes.data) setPgDefaults(pgDefaultsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Error al cargar datos');
