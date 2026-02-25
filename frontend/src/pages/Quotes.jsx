@@ -3361,6 +3361,14 @@ export const Quotes = () => {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Modal de Anexos */}
+          <AnexosModal
+            open={anexosOpen}
+            onClose={() => { setAnexosOpen(false); setAnexosQuoteId(null); }}
+            quoteId={anexosQuoteId}
+            quoteNumber={anexosQuoteNumber}
+          />
         </div>
       </main>
     </div>
