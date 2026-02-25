@@ -559,6 +559,84 @@ export const Clients = () => {
           </div>
         </div>
 
+        {/* Import Dialog */}
+        <Dialog open={importDialogOpen} onOpenChange={closeImportDialog}>
+          <DialogContent className="max-w-2xl" data-testid="import-clients-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="text-brand-blue-600" size={20} />
+                Importar Clientes
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 mb-2"><strong>Instrucciones:</strong></p>
+                <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
+                  <li>Descargue la plantilla de ejemplo con las columnas requeridas</li>
+                  <li>Complete los datos en el archivo Excel/CSV</li>
+                  <li>La llave única es <strong>RIF + Sucursal</strong> (se permite duplicar RIF si la sucursal es distinta)</li>
+                  <li>Cargue el archivo completado</li>
+                </ol>
+                <Button variant="outline" size="sm" onClick={downloadTemplate}
+                  className="mt-3 text-blue-700 border-blue-300 hover:bg-blue-100" data-testid="download-client-template-btn">
+                  <FileDown size={16} className="mr-2" />Descargar Plantilla
+                </Button>
+              </div>
+              <div>
+                <Label>Archivo a importar (Excel o CSV)</Label>
+                <div className="mt-2 flex items-center gap-3">
+                  <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFileChange}
+                    className="flex-1" data-testid="import-client-file-input" />
+                </div>
+                {importFile && (
+                  <p className="text-sm text-slate-600 mt-2">Archivo seleccionado: <strong>{importFile.name}</strong></p>
+                )}
+              </div>
+              {importResult && (
+                <div className={`rounded-lg p-4 ${
+                  importResult.status === 'success' ? 'bg-green-50 border border-green-200' :
+                  importResult.status === 'partial' ? 'bg-amber-50 border border-amber-200' :
+                  'bg-red-50 border border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {importResult.status === 'success' ? <CheckCircle2 className="text-green-600" size={20} /> :
+                     importResult.status === 'partial' ? <AlertCircle className="text-amber-600" size={20} /> :
+                     <X className="text-red-600" size={20} />}
+                    <span className={`font-medium ${
+                      importResult.status === 'success' ? 'text-green-800' :
+                      importResult.status === 'partial' ? 'text-amber-800' : 'text-red-800'
+                    }`}>{importResult.message}</span>
+                  </div>
+                  {importResult.errors?.length > 0 && (
+                    <div className="mt-3 max-h-40 overflow-y-auto">
+                      <p className="text-sm font-medium text-slate-700 mb-2">Errores encontrados:</p>
+                      <ul className="text-sm space-y-1">
+                        {importResult.errors.slice(0, 10).map((err, idx) => (
+                          <li key={idx} className="text-red-700">Fila {err.row}: {err.message} ({err.column})</li>
+                        ))}
+                        {importResult.errors.length > 10 && (
+                          <li className="text-slate-500 italic">... y {importResult.errors.length - 10} errores más</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2 border-t">
+                <Button variant="outline" onClick={closeImportDialog}>Cerrar</Button>
+                <Button onClick={executeImport} disabled={!importFile || importLoading}
+                  className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white" data-testid="execute-client-import-btn">
+                  {importLoading ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Importando...</>
+                  ) : (
+                    <><Upload size={16} className="mr-2" />Importar</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Delete confirmation */}
         <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
           <AlertDialogContent>
