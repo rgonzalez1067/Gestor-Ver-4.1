@@ -2780,6 +2780,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         
         # Generar PDF si se proporcionaron los datos
         quote_pdf_url = None
+        pdf_buffer = None
         if data.pdf_data:
             try:
                 # Convertir dict a TemplateQuotePDFRequest
@@ -2810,6 +2811,33 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             except Exception as e:
                 logging.error(f"Error generando PDF: {str(e)}")
                 # Continuar sin PDF si falla la generación
+        elif data.quote_type == "GATEWAY" and data.pg_setup_items:
+            # Generar PDF para Payment Gateway usando el generador por defecto
+            try:
+                client = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0})
+                if client:
+                    quote_dict = {
+                        "quote_number": quote_number,
+                        "quote_type": "GATEWAY",
+                        "pg_setup_items": [item if isinstance(item, dict) else item.dict() for item in data.pg_setup_items],
+                        "pg_recurring_cost": data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else (data.pg_recurring_cost.dict() if data.pg_recurring_cost else None),
+                        "total_usd": total_usd,
+                        "notes": data.notes,
+                        "integrator_name": data.integrator_name,
+                        "integrator_app_name": data.integrator_app_name,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    pdf_buffer = await create_quote_pdf_buffer(quote_dict, client)
+                    pdf_filename = f"{quote_number}_Cotizacion.pdf"
+                    pdf_path = UPLOADS_DIR / pdf_filename
+                    with open(pdf_path, 'wb') as f:
+                        f.write(pdf_buffer.getvalue())
+                    quote_pdf_url = f"/uploads/{pdf_filename}"
+                    logging.info(f"PDF PG generado: {quote_pdf_url}")
+            except Exception as e:
+                logging.error(f"Error generando PDF PG: {str(e)}")
+                import traceback
+                traceback.print_exc()
         
         # Crear anexo automático para el PDF generado
         initial_attachments = []
