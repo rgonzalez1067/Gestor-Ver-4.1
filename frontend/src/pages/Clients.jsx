@@ -42,6 +42,12 @@ export const Clients = () => {
   const [logsLoading, setLogsLoading] = useState(false);
   const [newLog, setNewLog] = useState({ detail: '', action: '', follow_up_date: '' });
 
+  // Import dialog
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   const [formData, setFormData] = useState({
     rif: '',
     legal_name: '',
