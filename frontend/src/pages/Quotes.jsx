@@ -2538,11 +2538,13 @@ export const Quotes = () => {
                         setPgTransactionRange(null);
                         setPgShowRecurringTable(false);
                         setPgFilteredProducts([]);
-                        // Auto-init Persona Jurídica for PG
-                        if (value === 'GATEWAY' && pgDefaults) {
+                        // Auto-init Persona Jurídica for PG with outsourcing price
+                        if (value === 'GATEWAY') {
+                          const pjService = serviceCatalog.find(s => s.gateway_enabled && s.name?.toLowerCase().includes('persona jur'));
+                          const pjCost = pjService?.setup_cost_outsourcing || pgDefaults?.costo || 240;
                           setPgSetupItems([{
-                            concepto: pgDefaults.concepto || 'Persona Jurídica',
-                            costo: pgDefaults.costo || 240,
+                            concepto: 'Persona Jurídica',
+                            costo: pjCost,
                             banco: 'N/A',
                             observacion: 'Costo base - cargado automáticamente',
                             fixed: true
