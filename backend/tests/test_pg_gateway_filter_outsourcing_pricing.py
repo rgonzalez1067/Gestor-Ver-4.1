@@ -276,8 +276,9 @@ class TestPGQuoteCreationWithOutsourcingPrices:
         assert response.status_code == 200 or response.status_code == 201, f"Failed to create PG quote: {response.text}"
         
         data = response.json()
-        quote_id = data.get('quote_id')
-        assert quote_id is not None, "Quote ID not returned"
+        # Quote ID is nested inside 'quote' object
+        quote_id = data.get('quote', {}).get('quote_id') or data.get('quote_id')
+        assert quote_id is not None, f"Quote ID not returned. Response: {data}"
         
         # Fetch the created quote and verify pg_setup_items
         quote_response = requests.get(f"{BASE_URL}/api/quotes/{quote_id}", headers=headers)
