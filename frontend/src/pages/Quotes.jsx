@@ -849,18 +849,21 @@ export const Quotes = () => {
   
   // Auto-load "Persona Jurídica" when PG is selected and header becomes complete
   const initPgSetup = () => {
-    if (pgDefaults && pgSetupItems.length === 0) {
+    // Find Persona Jurídica price from services catalog (outsourcing model)
+    const pjService = serviceCatalog.find(s => s.gateway_enabled && s.name?.toLowerCase().includes('persona jur'));
+    const pjCost = pjService?.setup_cost_outsourcing || pgDefaults?.costo || 240;
+    if (pgSetupItems.length === 0) {
       setPgSetupItems([{
-        concepto: pgDefaults.concepto || 'Persona Jurídica',
-        costo: pgDefaults.costo || 240,
+        concepto: 'Persona Jurídica',
+        costo: pjCost,
         banco: 'N/A',
         observacion: 'Costo base - cargado automáticamente',
-        fixed: true // Marca como ítem fijo (no removible)
+        fixed: true
       }]);
     }
   };
 
-  // Handle bank selection → filter products for that bank
+  // Handle bank selection → filter products by gateway_available for that bank
   const handlePgBankChange = (bankId) => {
     setPgSelectedBankId(bankId);
     setPgSelectedMedioPago('');
@@ -870,11 +873,21 @@ export const Quotes = () => {
     }
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank) {
-      // Filter products not already in setup items
       const existingConceptos = new Set(pgSetupItems.map(i => i.concepto));
-      const filtered = (bank.products || []).filter(p => !existingConceptos.has(p.product_name));
+      // Double filter: gateway_available=true AND not already added
+      const filtered = (bank.products || []).filter(p => 
+        p.gateway_available && !existingConceptos.has(p.product_name)
+      );
       setPgFilteredProducts(filtered);
     }
+  };
+
+  // Lookup outsourcing price from services catalog for a given product name
+  const getPgOutsourcingPrice = (productName) => {
+    const match = serviceCatalog.find(s => 
+      s.gateway_enabled && s.application_type === 'setup' && s.name === productName
+    );
+    return match?.setup_cost_outsourcing || 0;
   };
 
   const addPgSetupItem = () => {
@@ -886,24 +899,24 @@ export const Quotes = () => {
       toast.error('Seleccione un medio de pago');
       return;
     }
-    // Check if already added
     const bank = banks.find(b => b.bank_id === pgSelectedBankId);
-    const product = (bank?.products || []).find(p => p.product_name === pgSelectedMedioPago);
     
     if (pgSetupItems.some(item => item.concepto === pgSelectedMedioPago && item.banco === (bank?.name || 'N/A'))) {
       toast.error('Este medio de pago de este banco ya fue agregado');
       return;
     }
+    // Auto-fill cost from Outsourcing pricing in services catalog
+    const outsourcingCost = getPgOutsourcingPrice(pgSelectedMedioPago);
     setPgSetupItems([...pgSetupItems, {
       concepto: pgSelectedMedioPago,
-      costo: product?.pg_setup_cost || 0,
+      costo: outsourcingCost,
       banco: bank?.name || 'N/A',
       observacion: ''
     }]);
     setPgSelectedMedioPago('');
     setPgSelectedBankId('');
     setPgFilteredProducts([]);
-    setPgShowRecurringTable(false); // Reset recurring table when items change
+    setPgShowRecurringTable(false);
     toast.success('Medio de pago agregado al setup');
   };
 
