@@ -2710,19 +2710,9 @@ export const Quotes = () => {
                             data-testid="client-search-input"
                           />
                           <CommandList>
-                            <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                            <CommandEmpty>{isSearchingClients ? 'Buscando...' : 'No se encontraron clientes.'}</CommandEmpty>
                             <CommandGroup>
-                              {clients
-                                .filter(c => {
-                                  if (!clientSearchQuery) return true;
-                                  const q = clientSearchQuery.toLowerCase();
-                                  return (
-                                    (c.fantasy_name || '').toLowerCase().includes(q) ||
-                                    (c.legal_name || '').toLowerCase().includes(q) ||
-                                    (c.rif || '').toLowerCase().includes(q)
-                                  );
-                                })
-                                .slice(0, 30)
+                              {clientSearchResults
                                 .map((client) => (
                                   <CommandItem
                                     key={client.client_id}
