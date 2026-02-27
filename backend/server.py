@@ -3555,9 +3555,9 @@ class TemplateQuotePDFRequest(BaseModel):
     recurring_other_items: List[QuotePDFItem] = []
     additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
     descuento: float = 0
+    descuento_setup: float = 0
+    descuento_recurrente: float = 0
     notes: str = ""
-    # Datos adicionales
-    quote_type: str = "VPOS"
     pricing_model: str = "conventional"
 
 
