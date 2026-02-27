@@ -4098,21 +4098,31 @@ class DynamicQuotePDFGenerator:
         iva_setup = subtotal_setup * 0.16
         iva_recurrente = subtotal_recurrente * 0.16
         
-        # Manejar descuento (se resta del subtotal ANTES del IVA)
-        descuento = self.data.descuento or 0
-        subtotal_setup_con_descuento = subtotal_setup - descuento
+        # Manejar descuentos independientes
+        desc_setup_val = getattr(self.data, 'descuento_setup', 0) or 0
+        desc_recurrente_val = getattr(self.data, 'descuento_recurrente', 0) or 0
+        # Fallback to old single descuento for backward compatibility
+        if desc_setup_val == 0 and desc_recurrente_val == 0:
+            desc_setup_val = self.data.descuento or 0
+        # Setup discount (percentage-based)
+        monto_desc_setup = subtotal_setup * (desc_setup_val / 100) if desc_setup_val <= 100 else desc_setup_val
+        subtotal_setup_con_descuento = subtotal_setup - monto_desc_setup
         iva_setup_con_descuento = subtotal_setup_con_descuento * 0.16
         total_setup_final = subtotal_setup_con_descuento + iva_setup_con_descuento
         
-        total_recurrente_final = subtotal_recurrente + iva_recurrente
+        # Recurrente discount (percentage-based)
+        monto_desc_recurrente = subtotal_recurrente * (desc_recurrente_val / 100) if desc_recurrente_val <= 100 else desc_recurrente_val
+        subtotal_recurrente_con_descuento = subtotal_recurrente - monto_desc_recurrente
+        iva_recurrente_con_descuento = subtotal_recurrente_con_descuento * 0.16
+        total_recurrente_final = subtotal_recurrente_con_descuento + iva_recurrente_con_descuento
         
         # Construir tabla de resumen
         resumen_data = [['Concepto', 'Monto (USD)']]
         
         # Setup
         resumen_data.append(['Subtotal Setup', f"${subtotal_setup:.2f}"])
-        if descuento > 0:
-            resumen_data.append(['Descuento', f"-${descuento:.2f}"])
+        if monto_desc_setup > 0:
+            resumen_data.append([f'Descuento Setup ({desc_setup_val}%)', f"-${monto_desc_setup:.2f}"])
             resumen_data.append(['Subtotal con Descuento', f"${subtotal_setup_con_descuento:.2f}"])
             resumen_data.append(['IVA Setup (16%)', f"${iva_setup_con_descuento:.2f}"])
         else:
@@ -4122,7 +4132,12 @@ class DynamicQuotePDFGenerator:
         # Recurrentes
         resumen_data.append(['', ''])  # Fila vacía separadora
         resumen_data.append(['Subtotal Recurrente', f"${subtotal_recurrente:.2f}"])
-        resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
+        if monto_desc_recurrente > 0:
+            resumen_data.append([f'Descuento Recurrente ({desc_recurrente_val}%)', f"-${monto_desc_recurrente:.2f}"])
+            resumen_data.append(['Subtotal con Descuento', f"${subtotal_recurrente_con_descuento:.2f}"])
+            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente_con_descuento:.2f}"])
+        else:
+            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
         resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
         
         # Gran total
