@@ -2586,18 +2586,71 @@ export const Quotes = () => {
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Cliente <span className="text-red-500">*</span>
                     </Label>
-                    <Select value={quoteData.client_id} onValueChange={(value) => setQuoteData({ ...quoteData, client_id: value })}>
-                      <SelectTrigger data-testid="select-client">
-                        <SelectValue placeholder="Buscar cliente..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.client_id} value={client.client_id}>
-                            {client.fantasy_name} ({client.rif})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={clientSearchOpen}
+                          className="w-full justify-between h-10 font-normal"
+                          data-testid="select-client"
+                        >
+                          {quoteData.client_id ? (
+                            <span className="truncate">
+                              {selectedClient?.fantasy_name || selectedClient?.legal_name} - {selectedClient?.rif}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">Buscar por nombre, RIF o sucursal...</span>
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Buscar cliente..."
+                            value={clientSearchQuery}
+                            onValueChange={setClientSearchQuery}
+                            data-testid="client-search-input"
+                          />
+                          <CommandList>
+                            <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                            <CommandGroup>
+                              {clients
+                                .filter(c => {
+                                  if (!clientSearchQuery) return true;
+                                  const q = clientSearchQuery.toLowerCase();
+                                  return (
+                                    (c.fantasy_name || '').toLowerCase().includes(q) ||
+                                    (c.legal_name || '').toLowerCase().includes(q) ||
+                                    (c.rif || '').toLowerCase().includes(q) ||
+                                    (c.sucursal || '').toLowerCase().includes(q)
+                                  );
+                                })
+                                .slice(0, 30)
+                                .map((client) => (
+                                  <CommandItem
+                                    key={client.client_id}
+                                    value={`${client.fantasy_name} ${client.rif} ${client.sucursal}`}
+                                    onSelect={() => {
+                                      setQuoteData({ ...quoteData, client_id: client.client_id });
+                                      setClientSearchOpen(false);
+                                      setClientSearchQuery('');
+                                    }}
+                                    data-testid={`client-option-${client.client_id}`}
+                                  >
+                                    <Check className={`mr-2 h-4 w-4 ${quoteData.client_id === client.client_id ? 'opacity-100' : 'opacity-0'}`} />
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{client.fantasy_name || client.legal_name}</span>
+                                      <span className="text-xs text-muted-foreground">{client.rif} {client.sucursal ? `• ${client.sucursal}` : ''}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Hide Modelo/Cajas/Bancos for Payment Gateway */}
