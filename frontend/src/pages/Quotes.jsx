@@ -861,13 +861,16 @@ export const Quotes = () => {
   
   const subtotalRecurrente = subtotalRecurringBasic + subtotalRecurringOther + subtotalRecurringAdditional;
 
+  // Calcular subtotal "Cliente en Producción" (conceptos recurrentes adicionales)
+  const subtotalProduction = productionItems.reduce((sum, item) => sum + ((item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)), 0);
+
   // Calcular descuentos independientes (Setup vs Recurrente)
   const montoDescuentoSetup = subtotalSetup * ((quoteData.descuento_setup || 0) / 100);
-  const montoDescuentoRecurrente = subtotalRecurrente * ((quoteData.descuento_recurrente || 0) / 100);
+  const montoDescuentoRecurrente = (subtotalRecurrente + subtotalProduction) * ((quoteData.descuento_recurrente || 0) / 100);
 
   // Totales netos
   const totalNetoSetup = subtotalSetup - montoDescuentoSetup;
-  const totalNetoRecurrente = subtotalRecurrente - montoDescuentoRecurrente;
+  const totalNetoRecurrente = (subtotalRecurrente + subtotalProduction) - montoDescuentoRecurrente;
   const grandTotal = totalNetoSetup + totalNetoRecurrente;
 
   // === PG (Payment Gateway) Functions ===
