@@ -3262,7 +3262,7 @@ export const Quotes = () => {
                           <td className="px-3 py-2 text-right font-mono font-bold text-brand-blue-600 border border-slate-300 bg-blue-50">${subtotalSetup.toFixed(2)}</td>
                         </tr>
                         <tr className="bg-amber-50">
-                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento:</td>
+                          <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Descuento Setup:</td>
                           <td className="px-3 py-2 text-center border border-slate-300">
                             <div className="flex items-center justify-center gap-1">
                               <Input
@@ -3270,9 +3270,10 @@ export const Quotes = () => {
                                 min="0"
                                 max="100"
                                 step="0.01"
-                                value={quoteData.descuento}
-                                onChange={(e) => setQuoteData({ ...quoteData, descuento: parseFloat(e.target.value) || 0 })}
+                                value={quoteData.descuento_setup}
+                                onChange={(e) => setQuoteData({ ...quoteData, descuento_setup: parseFloat(e.target.value) || 0 })}
                                 className="w-16 h-7 text-right text-sm font-mono"
+                                data-testid="descuento-setup-input"
                               />
                               <span className="text-sm">%</span>
                             </div>
