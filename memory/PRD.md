@@ -19,22 +19,20 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 9. **Anexos** y **Workflow de Estados**
 10. **Dashboard** con alertas de seguimiento
 
-### Optimizaciones Recientes (Feb 2026)
-- **Buscador predictivo de clientes**: Combobox con filtro por nombre y RIF (sucursal eliminado)
-- **Setup Item #4 editable**: Campo "Bancos o Entes" editable manualmente con auto-calculo preservado. Badge "Auto" (purpura) cuando auto-calculado, badge "Manual" (ambar) + icono candado cuando editado. Duplicable con mismas caracteristicas.
+### Optimizaciones (Feb 2026)
+- **Buscador predictivo server-side**: Combobox con busqueda en BD via GET /api/clients/search?q=texto (regex). Debounce 300ms, sin limite de registros, soporte 5000+ clientes.
+- **Setup Item #4 editable**: Campo "Bancos o Entes" editable manualmente con auto-calculo preservado. Badge "Auto"/"Manual" + icono candado.
 - **Descuentos independientes**: descuento_setup y descuento_recurrente separados
-- **Filtro gateway_available**: Solo medios de pago habilitados para e-commerce
-- **Precio Outsourcing automatico**: Costo del catalogo de servicios
-- **Cliente en Produccion**: Seccion Si/No despues de costos recurrentes. Si "Si", permite agregar conceptos recurrentes adicionales del catalogo de servicios. Los items se suman al total recurrente.
+- **Cliente en Produccion**: Seccion Si/No para agregar conceptos recurrentes adicionales del catalogo
+- **PDF corregido**: Variable 'descuento' (NameError) -> 'monto_desc_setup'. Production items incluidos en PDF. Campos extra en modelos Pydantic.
 
 ## Pendientes
-- P0: Refactorizacion backend server.py (6400+ lineas)
+- P0: Refactorizacion backend server.py (6500+ lineas)
 - P1: Refactorizacion frontend (Quotes.jsx 4000+ lineas)
 - P1: Verificacion Email / Recuperacion Contrasena (Resend API)
 - P2: Bug contadores Dashboard
 - P2: Modulo de Reportes
 
 ## Test Reports
-- iteration_47-49: Payment Gateway (backend 100%, frontend verified)
-- iteration_50: Optimizaciones previas (backend 11/11, frontend 100%)
-- iteration_51: 3 optimizaciones finales (8/8 features verified, 100% frontend)
+- iteration_51: 3 optimizaciones (8/8 frontend, 100%)
+- iteration_52: Busqueda server-side + PDF fix (9/9 backend, code review verified)
