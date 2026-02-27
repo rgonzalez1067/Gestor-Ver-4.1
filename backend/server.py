@@ -515,9 +515,9 @@ class QuotePDFRequest(BaseModel):
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
     descuento: float = 0
+    descuento_setup: float = 0
+    descuento_recurrente: float = 0
     notes: str = ""
-
-# ==================== AUTH MODELS ====================
 
 class User(BaseModel):
     user_id: str
