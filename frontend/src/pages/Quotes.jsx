@@ -1488,7 +1488,14 @@ export const Quotes = () => {
       descuento: quoteData.descuento || 0,
       descuento_setup: quoteData.descuento_setup || 0,
       descuento_recurrente: quoteData.descuento_recurrente || 0,
-      notes: quoteData.notes || ''
+      notes: quoteData.notes || '',
+      is_production_client: isProductionClient,
+      production_items: productionItems.map(item => ({
+        concepto: item.medio_pago_name,
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        tarifa: parseFloat(item.tarifa) || 0
+      }))
     };
 
     try {
