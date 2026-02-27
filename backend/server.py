@@ -3368,10 +3368,12 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     if subtotal_rec_other is None:
         subtotal_rec_other = 0
     
-    # Calcular totales
+    # Calcular totales con descuentos independientes
     subtotal_recurrente = subtotal_rec_basic + subtotal_rec_other
-    descuento_setup = subtotal_setup * (data.descuento / 100)
-    descuento_recurrente = subtotal_recurrente * (data.descuento / 100)
+    desc_setup_pct = getattr(data, 'descuento_setup', 0) or getattr(data, 'descuento', 0)
+    desc_recurrente_pct = getattr(data, 'descuento_recurrente', 0) or getattr(data, 'descuento', 0)
+    descuento_setup = subtotal_setup * (desc_setup_pct / 100)
+    descuento_recurrente = subtotal_recurrente * (desc_recurrente_pct / 100)
     total_setup = subtotal_setup - descuento_setup
     total_recurrente = subtotal_recurrente - descuento_recurrente
     total_general = total_setup + total_recurrente
@@ -3383,8 +3385,8 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     
     summary_data = [
         ["Concepto", "Subtotal", "Descuento", "Total Neto"],
-        ["Inversión Inicial (Setup)", f"${subtotal_setup:.2f}", f"-${descuento_setup:.2f}", f"${total_setup:.2f}"],
-        ["Costos Recurrentes (Mensual)", f"${subtotal_recurrente:.2f}", f"-${descuento_recurrente:.2f}", f"${total_recurrente:.2f}"],
+        ["Inversión Inicial (Setup)", f"${subtotal_setup:.2f}", f"-${descuento_setup:.2f} ({desc_setup_pct}%)", f"${total_setup:.2f}"],
+        ["Costos Recurrentes (Mensual)", f"${subtotal_recurrente:.2f}", f"-${descuento_recurrente:.2f} ({desc_recurrente_pct}%)", f"${total_recurrente:.2f}"],
         ["", "", "TOTAL GENERAL:", f"${total_general:.2f}"],
     ]
     
