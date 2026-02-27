@@ -2747,7 +2747,7 @@ export const Quotes = () => {
                   <div className="mt-4 p-3 bg-brand-green-50 border border-brand-green-200 rounded-lg flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-brand-green-600" />
                     <span className="text-sm text-brand-green-700 font-medium">
-                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name}
+                      {getQuoteTypeName(quoteData.quote_type)} • {selectedClient?.fantasy_name || selectedClient?.legal_name} - {selectedClient?.rif}
                       {!isPaymentGateway && <> • {getPricingModelName(quoteData.pricing_model)} • {quoteData.cantidad_cajas} cajas • {quoteData.cantidad_bancos} bancos</>}
                     </span>
                   </div>
