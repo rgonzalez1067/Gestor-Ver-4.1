@@ -1848,6 +1848,8 @@ export const Quotes = () => {
       recurring_other_items: recurringOtherItems,
       additional_items: additionalItems,
       descuento: quote.descuento || 0,
+      descuento_setup: quote.descuento_setup || 0,
+      descuento_recurrente: quote.descuento_recurrente || 0,
       notes: quote.notes || ''
     });
     
