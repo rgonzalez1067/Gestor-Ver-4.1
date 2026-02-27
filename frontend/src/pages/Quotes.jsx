@@ -181,6 +181,11 @@ export const Quotes = () => {
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [workflowQuoteId, setWorkflowQuoteId] = useState(null);
   const [workflowConfig, setWorkflowConfig] = useState(null);
+  
+  // Estado para "Cliente en Producción"
+  const [isProductionClient, setIsProductionClient] = useState(false);
+  const [productionItems, setProductionItems] = useState([]);
+  const [productionSelectedServiceId, setProductionSelectedServiceId] = useState('');
 
   useEffect(() => {
     fetchData();
