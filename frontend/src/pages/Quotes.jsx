@@ -192,7 +192,8 @@ export const Quotes = () => {
       const totalMediosPago = quoteData.additional_items.length;
       
       const updatedSetupItems = quoteData.setup_items.map(item => {
-        if (item.autoBancos) {
+        // Solo auto-calcular si autoBancos está activo Y no hay override manual
+        if (item.autoBancos && (item.bancosOverride === undefined || item.bancosOverride === null)) {
           return { ...item, cantidad_bancos: Math.max(1, totalMediosPago) };
         }
         return item;
