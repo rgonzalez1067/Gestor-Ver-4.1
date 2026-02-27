@@ -519,6 +519,7 @@ class QuotePDFRequest(BaseModel):
     descuento_recurrente: float = 0
     notes: str = ""
     pg_setup_items: List[dict] = []  # Items de setup PG para PDF
+    pg_recurring_cost: Optional[dict] = None  # Recurring cost data for PG
 
 class User(BaseModel):
     user_id: str
