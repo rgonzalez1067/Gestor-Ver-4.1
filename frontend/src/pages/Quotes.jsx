@@ -3612,6 +3612,174 @@ export const Quotes = () => {
                     </table>
                   </div>
 
+                  {/* SECCIÓN: Cliente en Producción */}
+                  <div className="mt-4 bg-white rounded-lg border border-orange-200 overflow-hidden" data-testid="production-client-section">
+                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2.5 flex items-center justify-between">
+                      <span className="font-semibold">Cliente en Producción</span>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-4 mb-3">
+                        <span className="text-sm font-medium text-slate-700">¿Este cliente ya se encuentra en producción?</span>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={isProductionClient ? 'default' : 'outline'}
+                            onClick={() => setIsProductionClient(true)}
+                            className={`h-8 px-4 ${isProductionClient ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                            data-testid="production-client-yes"
+                          >
+                            Sí
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={!isProductionClient ? 'default' : 'outline'}
+                            onClick={() => { setIsProductionClient(false); setProductionItems([]); }}
+                            className={`h-8 px-4 ${!isProductionClient ? 'bg-slate-600 hover:bg-slate-700' : ''}`}
+                            data-testid="production-client-no"
+                          >
+                            No
+                          </Button>
+                        </div>
+                      </div>
+
+                      {isProductionClient && (
+                        <div className="space-y-3 mt-3 pt-3 border-t border-orange-100">
+                          <p className="text-xs text-slate-500">Seleccione conceptos recurrentes adicionales que apliquen para este cliente en producción.</p>
+                          
+                          {/* Selector de servicio recurrente */}
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Label className="text-xs font-medium text-slate-600 mb-1 block">Concepto Recurrente</Label>
+                              <Select value={productionSelectedServiceId} onValueChange={setProductionSelectedServiceId}>
+                                <SelectTrigger className="h-9" data-testid="production-service-select">
+                                  <SelectValue placeholder="Seleccionar concepto..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {serviceCatalog
+                                    .filter(s => s.application_type === 'recurring' || s.application_type === 'both')
+                                    .filter(s => !productionItems.find(pi => pi.service_id === s.service_id))
+                                    .map(s => (
+                                      <SelectItem key={s.service_id} value={s.service_id}>
+                                        {s.name}
+                                      </SelectItem>
+                                    ))
+                                  }
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="h-9 bg-orange-600 hover:bg-orange-700"
+                              disabled={!productionSelectedServiceId}
+                              data-testid="production-add-btn"
+                              onClick={() => {
+                                const service = serviceCatalog.find(s => s.service_id === productionSelectedServiceId);
+                                if (!service) return;
+                                const isOutsourcing = quoteData.pricing_model === 'outsourcing';
+                                const tarifa = isOutsourcing ? (service.monthly_cost_outsourcing || 0) : (service.monthly_cost_conventional || 0);
+                                setProductionItems([...productionItems, {
+                                  id: `prod_${Date.now()}`,
+                                  service_id: service.service_id,
+                                  medio_pago_name: service.name,
+                                  cantidad_cajas: quoteData.cantidad_cajas || 1,
+                                  cantidad_bancos: quoteData.cantidad_bancos || 1,
+                                  tarifa: tarifa,
+                                  type: 'production_recurring'
+                                }]);
+                                setProductionSelectedServiceId('');
+                              }}
+                            >
+                              <Plus size={14} className="mr-1" /> Agregar
+                            </Button>
+                          </div>
+
+                          {/* Tabla de items de producción */}
+                          {productionItems.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse text-sm">
+                                <thead>
+                                  <tr className="bg-orange-50">
+                                    <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-16">N°</th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-700 border border-slate-300">Concepto</th>
+                                    <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Cajas</th>
+                                    <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-24">Bancos</th>
+                                    <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-28">Tarifa (USD)</th>
+                                    <th className="px-3 py-2 text-center font-semibold text-orange-600 border border-slate-300 w-32 bg-orange-50">Total USD</th>
+                                    <th className="px-3 py-2 text-center font-semibold text-slate-700 border border-slate-300 w-12"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {productionItems.map((item, idx) => (
+                                    <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                      <td className="px-3 py-2 text-center font-medium border border-slate-300">{idx + 1}</td>
+                                      <td className="px-3 py-2 border border-slate-300 font-medium text-slate-900">{item.medio_pago_name}</td>
+                                      <td className="px-3 py-2 text-center border border-slate-300">
+                                        <Input
+                                          type="number" min="1" value={item.cantidad_cajas}
+                                          onChange={(e) => {
+                                            const updated = [...productionItems];
+                                            updated[idx] = { ...updated[idx], cantidad_cajas: parseInt(e.target.value) || 1 };
+                                            setProductionItems(updated);
+                                          }}
+                                          className="w-16 h-7 text-center text-sm mx-auto"
+                                          data-testid={`production-cajas-${idx}`}
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-center border border-slate-300">
+                                        <Input
+                                          type="number" min="1" value={item.cantidad_bancos}
+                                          onChange={(e) => {
+                                            const updated = [...productionItems];
+                                            updated[idx] = { ...updated[idx], cantidad_bancos: parseInt(e.target.value) || 1 };
+                                            setProductionItems(updated);
+                                          }}
+                                          className="w-16 h-7 text-center text-sm mx-auto"
+                                          data-testid={`production-bancos-${idx}`}
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-center border border-slate-300">
+                                        <Input
+                                          type="number" min="0" step="0.01" value={item.tarifa}
+                                          onChange={(e) => {
+                                            const updated = [...productionItems];
+                                            updated[idx] = { ...updated[idx], tarifa: parseFloat(e.target.value) || 0 };
+                                            setProductionItems(updated);
+                                          }}
+                                          className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                                          data-testid={`production-tarifa-${idx}`}
+                                        />
+                                      </td>
+                                      <td className="px-3 py-2 text-right border border-slate-300 bg-orange-50 font-mono font-semibold text-orange-600">
+                                        ${((item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
+                                      </td>
+                                      <td className="px-3 py-2 text-center border border-slate-300">
+                                        <Button
+                                          size="sm" variant="ghost"
+                                          onClick={() => setProductionItems(productionItems.filter((_, i) => i !== idx))}
+                                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                          data-testid={`production-remove-${idx}`}
+                                        >
+                                          <Trash2 size={14} />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="bg-orange-50">
+                                    <td colSpan={5} className="px-3 py-2 text-right font-semibold border border-slate-300">Subtotal Producción:</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-orange-600 border border-slate-300">${subtotalProduction.toFixed(2)}</td>
+                                    <td className="border border-slate-300"></td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Resumen General */}
                   <div className="bg-slate-900 text-white p-4 mt-4 rounded-b-lg">
                     <div className="flex justify-between items-center">
