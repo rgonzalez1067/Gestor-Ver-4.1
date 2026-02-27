@@ -4104,7 +4104,7 @@ class DynamicQuotePDFGenerator:
         elements.extend(setup_elements)
         
         # Costos Recurrentes con desglose fiscal
-        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items
+        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
         recurring_elements, subtotal_recurrente = self._create_items_table(
             all_recurring, 
             "COSTOS RECURRENTES MENSUALES", 
