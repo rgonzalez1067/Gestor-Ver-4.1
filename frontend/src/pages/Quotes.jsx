@@ -1956,6 +1956,8 @@ export const Quotes = () => {
         subtotal_usd: subtotal,
         total_usd: total,
         descuento: quoteData.descuento || 0,
+        descuento_setup: quoteData.descuento_setup || 0,
+        descuento_recurrente: quoteData.descuento_recurrente || 0,
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1
