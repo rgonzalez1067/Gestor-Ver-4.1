@@ -3389,8 +3389,15 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     if subtotal_rec_other is None:
         subtotal_rec_other = 0
     
+    # Sección PRODUCCIÓN (naranja) - si hay items de producción
+    subtotal_production = 0
+    if data.production_items:
+        subtotal_production = create_items_table(data.production_items, colors.Color(0.9, 0.5, 0.1), "CLIENTE EN PRODUCCIÓN - RECURRENTES ADICIONALES")
+        if subtotal_production is None:
+            subtotal_production = 0
+    
     # Calcular totales con descuentos independientes
-    subtotal_recurrente = subtotal_rec_basic + subtotal_rec_other
+    subtotal_recurrente = subtotal_rec_basic + subtotal_rec_other + subtotal_production
     desc_setup_pct = getattr(data, 'descuento_setup', 0) or getattr(data, 'descuento', 0)
     desc_recurrente_pct = getattr(data, 'descuento_recurrente', 0) or getattr(data, 'descuento', 0)
     descuento_setup = subtotal_setup * (desc_setup_pct / 100)
