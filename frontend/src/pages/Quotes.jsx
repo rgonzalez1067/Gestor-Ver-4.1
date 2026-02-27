@@ -159,6 +159,9 @@ export const Quotes = () => {
   const [selectedBankId, setSelectedBankId] = useState('');
   const [selectedMedioPagoId, setSelectedMedioPagoId] = useState('');
   const [availableMediosPago, setAvailableMediosPago] = useState([]);
+  // Estado para búsqueda de clientes
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   
   // Estado para Payment Gateway
   const [pgSetupItems, setPgSetupItems] = useState([]);
