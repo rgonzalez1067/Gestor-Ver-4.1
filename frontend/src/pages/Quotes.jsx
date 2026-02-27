@@ -162,6 +162,9 @@ export const Quotes = () => {
   // Estado para búsqueda de clientes
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [clientSearchResults, setClientSearchResults] = useState([]);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const clientSearchTimer = useRef(null);
   
   // Estado para Payment Gateway
   const [pgSetupItems, setPgSetupItems] = useState([]);
