@@ -194,6 +194,33 @@ export const Quotes = () => {
     fetchData();
   }, []);
 
+  // Búsqueda server-side de clientes con debounce
+  useEffect(() => {
+    if (!clientSearchQuery || clientSearchQuery.length < 2) {
+      setClientSearchResults(clients);
+      return;
+    }
+    setIsSearchingClients(true);
+    if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current);
+    clientSearchTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/clients/search?q=${encodeURIComponent(clientSearchQuery)}`);
+        setClientSearchResults(res.data);
+      } catch {
+        // Fallback: filtrar localmente
+        const q = clientSearchQuery.toLowerCase();
+        setClientSearchResults(clients.filter(c =>
+          (c.fantasy_name || '').toLowerCase().includes(q) ||
+          (c.legal_name || '').toLowerCase().includes(q) ||
+          (c.rif || '').toLowerCase().includes(q)
+        ));
+      } finally {
+        setIsSearchingClients(false);
+      }
+    }, 300);
+    return () => { if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current); };
+  }, [clientSearchQuery, clients]);
+
   // Auto-calcular campo "Bancos" para conceptos con autoBancos: true
   useEffect(() => {
     if (quoteData.setup_items.length > 0) {
