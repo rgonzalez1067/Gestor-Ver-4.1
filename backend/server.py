@@ -3559,6 +3559,10 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+  except Exception as e:
+    import traceback
+    print(f"[PDF ERROR] Error generando PDF simple: {traceback.format_exc()}")
+    raise HTTPException(status_code=500, detail=f"Error al generar el PDF: {str(e)}")
 
 # ==================== GENERADOR DE PDF CON PLANTILLA ====================
 
