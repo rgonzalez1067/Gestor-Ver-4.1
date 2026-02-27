@@ -514,12 +514,14 @@ class QuotePDFRequest(BaseModel):
     setup_items: List[QuotePDFItem] = []
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
+    production_items: List[QuotePDFItem] = []  # Items de cliente en producción
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
     notes: str = ""
     pg_setup_items: List[dict] = []  # Items de setup PG para PDF
     pg_recurring_cost: Optional[dict] = None  # Recurring cost data for PG
+    is_production_client: bool = False
 
 class User(BaseModel):
     user_id: str
