@@ -2633,8 +2633,7 @@ export const Quotes = () => {
                                   return (
                                     (c.fantasy_name || '').toLowerCase().includes(q) ||
                                     (c.legal_name || '').toLowerCase().includes(q) ||
-                                    (c.rif || '').toLowerCase().includes(q) ||
-                                    (c.sucursal || '').toLowerCase().includes(q)
+                                    (c.rif || '').toLowerCase().includes(q)
                                   );
                                 })
                                 .slice(0, 30)
