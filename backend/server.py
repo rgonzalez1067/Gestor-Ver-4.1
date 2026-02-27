@@ -1228,7 +1228,24 @@ async def create_client(client_data: ClientCreate, authorization: Optional[str] 
 @api_router.get("/clients")
 async def get_clients(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    clients = await db.clients.find({}, {"_id": 0}).to_list(1000)
+    clients = await db.clients.find({}, {"_id": 0}).to_list(5000)
+    return clients
+
+@api_router.get("/clients/search")
+async def search_clients(q: str = "", authorization: Optional[str] = Header(None)):
+    """Búsqueda server-side de clientes por nombre o RIF"""
+    await get_current_user(authorization)
+    if not q or len(q) < 2:
+        clients = await db.clients.find({}, {"_id": 0}).to_list(50)
+        return clients
+    query = {
+        "$or": [
+            {"fantasy_name": {"$regex": q, "$options": "i"}},
+            {"legal_name": {"$regex": q, "$options": "i"}},
+            {"rif": {"$regex": q, "$options": "i"}}
+        ]
+    }
+    clients = await db.clients.find(query, {"_id": 0}).to_list(100)
     return clients
 
 @api_router.get("/clients/template")
