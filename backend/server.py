@@ -3556,11 +3556,14 @@ class TemplateQuotePDFRequest(BaseModel):
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
     additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
+    production_items: List[QuotePDFItem] = []  # Items de cliente en producción
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
     notes: str = ""
     pricing_model: str = "conventional"
+    quote_type: str = "VPOS_MPOS"
+    is_production_client: bool = False
 
 
 # ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================
