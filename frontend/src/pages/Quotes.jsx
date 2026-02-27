@@ -150,6 +150,8 @@ export const Quotes = () => {
     recurring_other_items: [],    // Otros Recurrentes
     additional_items: [],         // Items adicionales (medios de pago de bancos)
     descuento: 0,
+    descuento_setup: 0,
+    descuento_recurrente: 0,
     notes: ''
   });
   
