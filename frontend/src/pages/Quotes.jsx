@@ -856,8 +856,8 @@ export const Quotes = () => {
   const subtotalRecurrente = subtotalRecurringBasic + subtotalRecurringOther + subtotalRecurringAdditional;
 
   // Calcular descuentos independientes (Setup vs Recurrente)
-  const montoDescuentoSetup = subtotalSetup * (quoteData.descuento_setup / 100);
-  const montoDescuentoRecurrente = subtotalRecurrente * (quoteData.descuento_recurrente / 100);
+  const montoDescuentoSetup = subtotalSetup * ((quoteData.descuento_setup || 0) / 100);
+  const montoDescuentoRecurrente = subtotalRecurrente * ((quoteData.descuento_recurrente || 0) / 100);
 
   // Totales netos
   const totalNetoSetup = subtotalSetup - montoDescuentoSetup;
