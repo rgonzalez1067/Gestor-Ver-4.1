@@ -2610,7 +2610,7 @@ export const Quotes = () => {
                               {selectedClient?.fantasy_name || selectedClient?.legal_name} - {selectedClient?.rif}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">Buscar por nombre, RIF o sucursal...</span>
+                            <span className="text-muted-foreground">Buscar por nombre o RIF...</span>
                           )}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
