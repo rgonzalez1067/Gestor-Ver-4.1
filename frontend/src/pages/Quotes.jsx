@@ -817,8 +817,20 @@ export const Quotes = () => {
 
   // Calcular total por fila: Tarifa * Cajas * Bancos
   const calcularTotal = (item) => {
+    // If there's a manual override, use that
+    if (item.totalOverride !== undefined && item.totalOverride !== null) {
+      return item.totalOverride;
+    }
     const cajas = item.cantidad_cajas || 1;
     // Si lockBancos es true, el cálculo usa 1 (N/A en UI)
+    const bancos = item.lockBancos ? 1 : (item.cantidad_bancos || 1);
+    const tarifa = item.tarifa || item.tarifa_setup || 0;
+    return tarifa * cajas * bancos;
+  };
+
+  // Calculate the standard (non-overridden) total for comparison
+  const calcularTotalEstandar = (item) => {
+    const cajas = item.cantidad_cajas || 1;
     const bancos = item.lockBancos ? 1 : (item.cantidad_bancos || 1);
     const tarifa = item.tarifa || item.tarifa_setup || 0;
     return tarifa * cajas * bancos;
