@@ -518,6 +518,7 @@ class QuotePDFRequest(BaseModel):
     descuento_setup: float = 0
     descuento_recurrente: float = 0
     notes: str = ""
+    pg_setup_items: List[dict] = []  # Items de setup PG para PDF
 
 class User(BaseModel):
     user_id: str
