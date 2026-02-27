@@ -1191,7 +1191,14 @@ export const Quotes = () => {
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
-        notes: quoteData.notes || ''
+        notes: quoteData.notes || '',
+        is_production_client: isProductionClient,
+        production_items: productionItems.map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa) || 0
+        }))
       };
 
       const payload = {
@@ -1210,6 +1217,14 @@ export const Quotes = () => {
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1,
+        is_production_client: isProductionClient,
+        production_items: productionItems.map(item => ({
+          item_name: item.medio_pago_name,
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1,
+          tarifa: item.tarifa || 0,
+          total: (item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)
+        })),
         // Incluir datos del PDF
         pdf_data: pdfData
       };
