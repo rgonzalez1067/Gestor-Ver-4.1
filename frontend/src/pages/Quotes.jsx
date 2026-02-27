@@ -3149,7 +3149,33 @@ export const Quotes = () => {
                               />
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
-                              ${calcularTotal(item).toFixed(2)}
+                              {item.autoBancos ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  {item.totalOverride !== undefined && item.totalOverride !== null && (
+                                    <Unlock size={12} className="text-amber-500" title="Monto editado manualmente" />
+                                  )}
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.totalOverride !== undefined && item.totalOverride !== null ? item.totalOverride : calcularTotalEstandar(item)}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      const stdTotal = calcularTotalEstandar(item);
+                                      // If value matches standard calc, remove override
+                                      if (val === stdTotal || e.target.value === '') {
+                                        updateSetupItem(index, 'totalOverride', undefined);
+                                      } else {
+                                        updateSetupItem(index, 'totalOverride', val || 0);
+                                      }
+                                    }}
+                                    className={`w-24 h-7 text-right text-sm font-mono ${item.totalOverride !== undefined && item.totalOverride !== null ? 'border-amber-400 bg-amber-50' : ''}`}
+                                    data-testid={`setup-total-${index}`}
+                                  />
+                                </div>
+                              ) : (
+                                <span>${calcularTotal(item).toFixed(2)}</span>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <div className="flex items-center justify-center gap-1">
