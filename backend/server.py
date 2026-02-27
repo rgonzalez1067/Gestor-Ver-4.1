@@ -3211,8 +3211,8 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     await get_current_user(authorization)
     
     try:
-        buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+      buffer = io.BytesIO()
+      doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
     elements = []
     styles = getSampleStyleSheet()
     
