@@ -2014,6 +2014,10 @@ export const Quotes = () => {
     setPgSelectedBankId('');
     setPgShowRecurringTable(false);
     setPgFilteredProducts([]);
+    // Reset production client
+    setIsProductionClient(false);
+    setProductionItems([]);
+    setProductionSelectedServiceId('');
   };
 
   // Abrir modal de factura
