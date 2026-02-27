@@ -1966,6 +1966,16 @@ export const Quotes = () => {
           bank_name: item.bank_name || '',
           tarifa_setup: item.tarifa_setup || 0,
           tarifa_recurrente: item.tarifa_recurrente || 0
+        })),
+        // Items de cliente en producción
+        ...productionItems.map(item => ({
+          item_type: 'production_recurring',
+          item_name: item.medio_pago_name || item.name || '',
+          quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          unit_price_usd: item.tarifa || 0,
+          total_usd: (item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1
         }))
       ];
       
@@ -1994,7 +2004,15 @@ export const Quotes = () => {
         descuento_recurrente: quoteData.descuento_recurrente || 0,
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
-        cantidad_bancos: quoteData.cantidad_bancos || 1
+        cantidad_bancos: quoteData.cantidad_bancos || 1,
+        is_production_client: isProductionClient,
+        production_items: productionItems.map(item => ({
+          item_name: item.medio_pago_name,
+          cantidad_cajas: item.cantidad_cajas || 1,
+          cantidad_bancos: item.cantidad_bancos || 1,
+          tarifa: item.tarifa || 0,
+          total: (item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)
+        }))
       });
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
