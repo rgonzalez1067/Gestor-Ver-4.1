@@ -2640,7 +2640,7 @@ export const Quotes = () => {
                                 .map((client) => (
                                   <CommandItem
                                     key={client.client_id}
-                                    value={`${client.fantasy_name} ${client.rif} ${client.sucursal}`}
+                                    value={`${client.fantasy_name} ${client.rif}`}
                                     onSelect={() => {
                                       setQuoteData({ ...quoteData, client_id: client.client_id });
                                       setClientSearchOpen(false);
