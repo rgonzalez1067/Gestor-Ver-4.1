@@ -2651,7 +2651,7 @@ export const Quotes = () => {
                                     <Check className={`mr-2 h-4 w-4 ${quoteData.client_id === client.client_id ? 'opacity-100' : 'opacity-0'}`} />
                                     <div className="flex flex-col">
                                       <span className="font-medium">{client.fantasy_name || client.legal_name}</span>
-                                      <span className="text-xs text-muted-foreground">{client.rif} {client.sucursal ? `• ${client.sucursal}` : ''}</span>
+                                      <span className="text-xs text-muted-foreground">{client.rif}</span>
                                     </div>
                                   </CommandItem>
                                 ))}
