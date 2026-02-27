@@ -3188,8 +3188,31 @@ export const Quotes = () => {
                                   N/A
                                 </div>
                               ) : item.autoBancos ? (
-                                <div className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-purple-600 bg-purple-50 rounded">
-                                  {item.cantidad_bancos}
+                                <div className="flex items-center justify-center gap-1">
+                                  {(item.bancosOverride !== undefined && item.bancosOverride !== null) && (
+                                    <Unlock size={12} className="text-amber-500" title="Valor editado manualmente (auto-cálculo desactivado)" />
+                                  )}
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.cantidad_bancos}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 1;
+                                      const autoVal = Math.max(1, quoteData.additional_items.length);
+                                      if (val === autoVal || e.target.value === '') {
+                                        // Si el valor coincide con el auto-cálculo, quitar override
+                                        const updatedItems = [...quoteData.setup_items];
+                                        updatedItems[index] = { ...updatedItems[index], cantidad_bancos: autoVal, bancosOverride: undefined, totalOverride: undefined };
+                                        setQuoteData({ ...quoteData, setup_items: updatedItems });
+                                      } else {
+                                        const updatedItems = [...quoteData.setup_items];
+                                        updatedItems[index] = { ...updatedItems[index], cantidad_bancos: val, bancosOverride: val, totalOverride: undefined };
+                                        setQuoteData({ ...quoteData, setup_items: updatedItems });
+                                      }
+                                    }}
+                                    className={`w-16 h-7 text-center text-sm mx-auto ${(item.bancosOverride !== undefined && item.bancosOverride !== null) ? 'border-amber-400 bg-amber-50' : 'border-purple-300 bg-purple-50'}`}
+                                    data-testid={`setup-bancos-${index}`}
+                                  />
                                 </div>
                               ) : (
                                 <Input
