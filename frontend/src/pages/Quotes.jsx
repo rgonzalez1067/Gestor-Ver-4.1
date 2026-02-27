@@ -1170,6 +1170,8 @@ export const Quotes = () => {
             bank_name: item.bank_name
           })),
         descuento: quoteData.descuento || 0,
+        descuento_setup: quoteData.descuento_setup || 0,
+        descuento_recurrente: quoteData.descuento_recurrente || 0,
         notes: quoteData.notes || ''
       };
 
