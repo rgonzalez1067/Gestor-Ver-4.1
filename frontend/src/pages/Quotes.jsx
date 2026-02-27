@@ -3170,7 +3170,8 @@ export const Quotes = () => {
                                   <span className="px-1.5 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">Base</span>
                                 )}
                                 {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">N/A</span>}
-                                {item.autoBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Auto</span>}
+                                {item.autoBancos && !item.bancosOverride && <span className="px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">Auto</span>}
+                                {item.autoBancos && item.bancosOverride && <span className="px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">Manual</span>}
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
