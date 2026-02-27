@@ -1995,6 +1995,8 @@ export const Quotes = () => {
       recurring_other_items: [],
       additional_items: [],
       descuento: 0,
+      descuento_setup: 0,
+      descuento_recurrente: 0,
       notes: ''
     });
     setIsEditing(false);
