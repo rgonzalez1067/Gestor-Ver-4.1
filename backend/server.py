@@ -4150,7 +4150,7 @@ class DynamicQuotePDFGenerator:
         resumen_table = Table(resumen_data, colWidths=[360, 120])
         
         # Determinar índices de filas importantes
-        idx_total_setup = 5 if descuento <= 0 else 6
+        idx_total_setup = 5 if monto_desc_setup <= 0 else 6
         idx_total_mensual = idx_total_setup + 5
         
         resumen_table.setStyle(TableStyle([
