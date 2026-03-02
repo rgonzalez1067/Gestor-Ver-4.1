@@ -2943,11 +2943,22 @@ export const Quotes = () => {
                         <SelectValue placeholder="Seleccione integrador..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {integrators.filter(i => i.integrator_status === 'Certificado').map((integrator) => (
+                        {integrators
+                          .filter(i => {
+                            if (i.integrator_status !== 'Certificado') return false;
+                            if (isPaymentGateway) {
+                              return i.integration_modality === 'PG Universal' || i.integration_modality === 'PG No universal';
+                            }
+                            return true;
+                          })
+                          .map((integrator) => (
                           <SelectItem key={integrator.integrator_id} value={integrator.integrator_id}>
                             {integrator.name}
                           </SelectItem>
                         ))}
+                        {isPaymentGateway && (
+                          <SelectItem value="sin_integrador">Sin integrador por el momento</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
