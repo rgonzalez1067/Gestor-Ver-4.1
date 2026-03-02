@@ -19,16 +19,19 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 9. **Anexos** y **Workflow de Estados**
 10. **Dashboard** con alertas de seguimiento
 
-### Optimizaciones (Feb 2026)
-- **Buscador predictivo server-side**: Combobox con busqueda en BD via GET /api/clients/search?q=texto (regex). Debounce 300ms, sin limite de registros, soporte 5000+ clientes.
-- **Setup Item #4 editable**: Campo "Bancos o Entes" editable manualmente con auto-calculo preservado. Badge "Auto"/"Manual" + icono candado.
-- **Descuentos independientes**: descuento_setup y descuento_recurrente separados
-- **Cliente en Produccion**: Seccion Si/No para agregar conceptos recurrentes adicionales del catalogo
-- **PDF corregido**: Variable 'descuento' (NameError) -> 'monto_desc_setup'. Production items incluidos en PDF. Campos extra en modelos Pydantic.
+### Optimizaciones (Feb-Mar 2026)
+- **Buscador predictivo server-side**: GET /api/clients/search?q=texto (regex MongoDB, debounce 300ms, sin limite)
+- **Setup Item #4 editable**: Campo "Bancos o Entes" editable con auto-calculo. Badge "Auto"/"Manual"
+- **Descuentos independientes persistentes**: descuento_setup y descuento_recurrente guardados en BD
+- **Cliente en Produccion persistente**: Seccion Si/No + items recurrentes adicionales guardados en BD
+- **Correccion edicion (Data Hydration)**: Carga pasiva de valores guardados, no reinicio a defaults
+- **Concept matching fix**: Matching exacto/mas-largo en vez de .substring(0,20) para evitar colisiones
+- **MongoDB Indexes**: Indices en clients (fantasy_name, legal_name, rif) y quotes (quote_id, client_id, quote_number)
+- **PDF fix**: Variable 'descuento' (NameError) corregida, production items en PDF
 
 ## Pendientes
 - P0: Refactorizacion backend server.py (6500+ lineas)
-- P1: Refactorizacion frontend (Quotes.jsx 4000+ lineas)
+- P1: Refactorizacion frontend Quotes.jsx (4100+ lineas)
 - P1: Verificacion Email / Recuperacion Contrasena (Resend API)
 - P2: Bug contadores Dashboard
 - P2: Modulo de Reportes
@@ -36,3 +39,4 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 ## Test Reports
 - iteration_51: 3 optimizaciones (8/8 frontend, 100%)
 - iteration_52: Busqueda server-side + PDF fix (9/9 backend, code review verified)
+- iteration_53: Edicion persistencia + indexes (7/7 backend, frontend verified)
