@@ -1841,7 +1841,7 @@ export const Quotes = () => {
     // Filtrar por categoría (puede ser 'category' o 'item_type')
     const getCategory = (s) => s.category || s.item_type || '';
     
-    # Mapear setup items preservando lockBancos
+    // Mapear setup items preservando lockBancos
     const setupItems = services.filter(s => getCategory(s) === 'setup').map(s => {
       // Buscar concepto por defecto - matching más preciso
       const concept = SETUP_CONCEPTS.find(c => {
