@@ -1948,6 +1948,22 @@ export const Quotes = () => {
       setPgTransactionRange(quote.pg_transaction_range || null);
     }
     
+    // Restaurar estado de "Cliente en Producción"
+    setIsProductionClient(quote.is_production_client || false);
+    if (quote.production_items && quote.production_items.length > 0) {
+      setProductionItems(quote.production_items.map(item => ({
+        id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        service_id: item.service_id || '',
+        medio_pago_name: item.item_name || item.medio_pago_name || item.concepto || '',
+        cantidad_cajas: item.cantidad_cajas || 1,
+        cantidad_bancos: item.cantidad_bancos || 1,
+        tarifa: item.tarifa || item.unit_price_usd || 0,
+        type: 'production_recurring'
+      })));
+    } else {
+      setProductionItems([]);
+    }
+    
     // Desactivar flag después de un momento para permitir edición manual posterior
     setTimeout(() => {
       setIsLoadingEdit(false);
