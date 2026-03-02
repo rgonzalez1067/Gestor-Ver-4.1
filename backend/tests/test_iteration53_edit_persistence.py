@@ -89,8 +89,10 @@ class TestIteration53EditPersistence:
         
         assert resp.status_code == 200 or resp.status_code == 201, f"Failed to create quote: {resp.text}"
         
-        data = resp.json()
-        assert "quote_id" in data, "No quote_id in response"
+        response_data = resp.json()
+        # Response may have quote nested inside "quote" key
+        data = response_data.get("quote", response_data)
+        assert "quote_id" in data, f"No quote_id in response: {response_data}"
         
         quote_id = data["quote_id"]
         self.created_quote_id = quote_id
