@@ -127,6 +127,9 @@ export const Quotes = () => {
   const [editingQuoteId, setEditingQuoteId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  // Refs para evitar propagación automática al cargar edición
+  const prevCajasRef = useRef(null);
+  const prevBancosRef = useRef(null);
   
   // Estado para modal de Anexos
   const [anexosOpen, setAnexosOpen] = useState(false);
