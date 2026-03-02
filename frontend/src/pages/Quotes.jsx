@@ -11,7 +11,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, MoreHorizontal, Pencil, Mail, CheckCircle, Send, Package, Settings2, Filter, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, MoreHorizontal, Pencil, Mail, CheckCircle, Send, Package, Settings2, Filter, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye } from 'lucide-react';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
@@ -192,6 +192,11 @@ export const Quotes = () => {
   const [isProductionClient, setIsProductionClient] = useState(false);
   const [productionItems, setProductionItems] = useState([]);
   const [productionSelectedServiceId, setProductionSelectedServiceId] = useState('');
+  
+  // Estado para previsualización de PDF
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -937,7 +942,7 @@ export const Quotes = () => {
         concepto: 'Persona Jurídica',
         costo: pjCost,
         banco: 'N/A',
-        observacion: 'Costo base - cargado automáticamente',
+        observacion: 'Costo Base',
         fixed: true
       }]);
     }
@@ -1638,6 +1643,88 @@ export const Quotes = () => {
       toast.dismiss();
       console.error('Error generating PDF:', error);
       toast.error('Error al generar el PDF. Verifique su conexión.');
+    }
+  };
+
+  // Previsualizar PDF en modal
+  const previewCurrentQuotePDF = async () => {
+    const client = selectedClient;
+    if (!client) {
+      toast.error('Seleccione un cliente primero');
+      return;
+    }
+    
+    setPdfPreviewLoading(true);
+    
+    try {
+      const pdfData = {
+        cliente_nombre: client.legal_name || client.fantasy_name || '',
+        cliente_rif: client.rif || '',
+        cliente_contacto: client.contact_name || '',
+        cliente_address: client.address || '',
+        quote_type: quoteData.quote_type,
+        pricing_model: quoteData.pricing_model,
+        cantidad_cajas: quoteData.cantidad_cajas || 1,
+        quote_number: '',
+        template_type: isPaymentGateway ? 'payment_gateway' : 'vpos_pyme',
+        integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
+        integrator_app_name: quoteData.integrator_app_name || '',
+        pinpad_model: '',
+        sponsor_bank_name: '',
+        setup_items: quoteData.setup_items.map(item => ({
+          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0, bank_name: item.bank_name || null
+        })),
+        recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
+          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0
+        })),
+        recurring_other_items: quoteData.recurring_other_items.map(item => ({
+          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0
+        })),
+        additional_items: [],
+        pg_setup_items: pgSetupItems.map(item => ({
+          concepto: item.concepto, costo: item.costo || 0, banco: item.banco || '', observacion: item.observacion || ''
+        })),
+        production_items: productionItems.map(item => ({
+          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1, tarifa: parseFloat(item.tarifa) || 0
+        })),
+        descuento: quoteData.descuento || 0,
+        descuento_setup: quoteData.descuento_setup || 0,
+        descuento_recurrente: quoteData.descuento_recurrente || 0,
+        notes: quoteData.notes || '',
+        is_production_client: isProductionClient
+      };
+      
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      
+      const response = await fetch(`${backendUrl}/api/quotes/preview-pdf-with-template`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/pdf' },
+        body: JSON.stringify(pdfData)
+      });
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        try { toast.error(JSON.parse(errText).detail || 'Error al previsualizar'); } catch { toast.error('Error al generar previsualización'); }
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+      setPdfPreviewOpen(true);
+    } catch (error) {
+      console.error('Error previewing PDF:', error);
+      toast.error('Error al previsualizar el PDF');
+    } finally {
+      setPdfPreviewLoading(false);
     }
   };
 
@@ -2760,7 +2847,7 @@ export const Quotes = () => {
                             concepto: 'Persona Jurídica',
                             costo: pjCost,
                             banco: 'N/A',
-                            observacion: 'Costo base - cargado automáticamente',
+                            observacion: 'Costo Base',
                             fixed: true
                           }]);
                         }
@@ -4077,20 +4164,30 @@ export const Quotes = () => {
 
                     <div className="mt-4 flex justify-end gap-3">
                       <Button
+                        onClick={previewCurrentQuotePDF}
+                        variant="outline"
+                        disabled={pdfPreviewLoading}
+                        className="border-slate-400 text-slate-600 hover:bg-slate-50 px-5 py-3 text-base"
+                        data-testid="preview-pdf-button"
+                      >
+                        <Eye size={18} className="mr-2" />
+                        {pdfPreviewLoading ? 'Generando...' : 'Previsualizar PDF'}
+                      </Button>
+                      <Button
                         onClick={exportCurrentQuoteToPDF}
                         variant="outline"
-                        className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50 px-6 py-3 text-lg"
+                        className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50 px-5 py-3 text-base"
                         data-testid="export-pdf-button"
                       >
-                        <Download size={20} className="mr-2" />
+                        <Download size={18} className="mr-2" />
                         Exportar PDF
                       </Button>
                       <Button
                         onClick={handleSubmitQuote}
-                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white px-8 py-3 text-lg"
+                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white px-6 py-3 text-base"
                         data-testid="submit-quote-button"
                       >
-                        <CheckCircle2 size={20} className="mr-2" />
+                        <CheckCircle2 size={18} className="mr-2" />
                         Guardar Cotización
                       </Button>
                     </div>
@@ -4113,19 +4210,30 @@ export const Quotes = () => {
                   />
                   <div className="mt-4 flex justify-end gap-3">
                     <Button
+                      onClick={previewCurrentQuotePDF}
                       variant="outline"
-                      onClick={() => { setWizardOpen(false); resetQuoteForm(); }}
-                      className="px-6 py-3 text-lg"
-                      data-testid="pg-cancel-button"
+                      disabled={pdfPreviewLoading}
+                      className="border-slate-400 text-slate-600 hover:bg-slate-50 px-5 py-3 text-base"
+                      data-testid="pg-preview-pdf-button"
                     >
-                      Cancelar
+                      <Eye size={18} className="mr-2" />
+                      {pdfPreviewLoading ? 'Generando...' : 'Previsualizar PDF'}
+                    </Button>
+                    <Button
+                      onClick={exportCurrentQuoteToPDF}
+                      variant="outline"
+                      className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50 px-5 py-3 text-base"
+                      data-testid="pg-export-pdf-button"
+                    >
+                      <Download size={18} className="mr-2" />
+                      Exportar PDF
                     </Button>
                     <Button
                       onClick={handleSubmitPGQuote}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-base"
                       data-testid="pg-submit-quote-button"
                     >
-                      <CheckCircle2 size={20} className="mr-2" />
+                      <CheckCircle2 size={18} className="mr-2" />
                       Guardar Cotización PG
                     </Button>
                   </div>
@@ -4140,6 +4248,48 @@ export const Quotes = () => {
                   <p className="text-sm mt-1">Seleccione un banco y medio de pago para comenzar</p>
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal de Previsualización PDF */}
+          <Dialog open={pdfPreviewOpen} onOpenChange={(open) => { 
+            if (!open && pdfPreviewUrl) { window.URL.revokeObjectURL(pdfPreviewUrl); setPdfPreviewUrl(null); }
+            setPdfPreviewOpen(open); 
+          }}>
+            <DialogContent className="max-w-[90vw] max-h-[95vh] w-[900px] p-0" data-testid="pdf-preview-modal">
+              <div className="flex items-center justify-between p-4 border-b bg-slate-50">
+                <h3 className="text-lg font-semibold text-slate-800">Previsualización del PDF</h3>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (pdfPreviewUrl) {
+                        const a = document.createElement('a');
+                        a.href = pdfPreviewUrl;
+                        a.download = `preview_cotizacion_${new Date().toISOString().split('T')[0]}.pdf`;
+                        a.click();
+                      }
+                    }}
+                    data-testid="pdf-preview-download"
+                  >
+                    <Download size={16} className="mr-1" /> Descargar
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPdfPreviewOpen(false)} data-testid="pdf-preview-close">
+                    Cerrar
+                  </Button>
+                </div>
+              </div>
+              <div className="w-full" style={{height: 'calc(95vh - 80px)'}}>
+                {pdfPreviewUrl && (
+                  <iframe
+                    src={pdfPreviewUrl}
+                    title="PDF Preview"
+                    className="w-full h-full border-0"
+                    data-testid="pdf-preview-iframe"
+                  />
+                )}
+              </div>
             </DialogContent>
           </Dialog>
 
