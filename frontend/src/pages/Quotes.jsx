@@ -226,6 +226,9 @@ export const Quotes = () => {
 
   // Auto-calcular campo "Bancos" para conceptos con autoBancos: true
   useEffect(() => {
+    // No auto-calcular durante carga de edición (prioridad absoluta a datos de BD)
+    if (isLoadingEdit) return;
+    
     if (quoteData.setup_items.length > 0) {
       const totalMediosPago = quoteData.additional_items.length;
       
