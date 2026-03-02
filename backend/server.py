@@ -2776,6 +2776,12 @@ class QuoteCreateWithPDF(BaseModel):
     pg_setup_items: List[dict] = []
     pg_recurring_cost: Optional[dict] = None
     pg_transaction_range: Optional[int] = None
+    # Descuentos independientes
+    descuento_setup: float = 0
+    descuento_recurrente: float = 0
+    # Cliente en producción
+    is_production_client: bool = False
+    production_items: List[dict] = []
 
 @api_router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
