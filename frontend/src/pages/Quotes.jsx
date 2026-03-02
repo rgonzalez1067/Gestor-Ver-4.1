@@ -249,22 +249,38 @@ export const Quotes = () => {
   }, [quoteData.additional_items.length]);
 
   // Sincronizar valores de Cajas y Bancos de la cabecera con los conceptos base
-  // NOTA: Solo propaga cuando el usuario MANUALMENTE cambia el header, NO durante carga inicial
+  // REGLA DE ORO: Solo propaga cuando el USUARIO cambia manualmente el header
+  // NO durante carga de edición (los datos guardados tienen prioridad absoluta)
   useEffect(() => {
-    // No propagar durante carga inicial de edición
+    const cajas = quoteData.cantidad_cajas;
+    const bancos = quoteData.cantidad_bancos;
+    
+    // Durante carga de edición: solo actualizar refs, no propagar
     if (isLoadingEdit) {
+      prevCajasRef.current = cajas;
+      prevBancosRef.current = bancos;
       return;
     }
     
-    const { cantidad_cajas, cantidad_bancos, setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
+    // Si los valores no cambiaron respecto al ref anterior, no propagar
+    // Esto evita la propagación cuando isLoadingEdit pasa de true a false
+    if (prevCajasRef.current === cajas && prevBancosRef.current === bancos) {
+      return;
+    }
+    
+    // Actualizar refs con los nuevos valores del usuario
+    prevCajasRef.current = cajas;
+    prevBancosRef.current = bancos;
+    
+    const { setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
     
     if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0 && (additional_items || []).length === 0) {
       return; // No hay items para actualizar
     }
     
     let needsUpdate = false;
-    const newCajas = cantidad_cajas || 1;
-    const newBancos = cantidad_bancos || 1;
+    const newCajas = cajas || 1;
+    const newBancos = bancos || 1;
     
     // Actualizar Setup items
     // CAJAS: Se propaga a TODOS
