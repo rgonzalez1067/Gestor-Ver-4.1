@@ -1129,27 +1129,35 @@ export const Quotes = () => {
           item_name: item.medio_pago_name || item.name,
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || calcularTotal(item),
+          total_usd: item.totalOverride || calcularTotal(item),
           cantidad_cajas: item.cantidad_cajas || 1,
-          cantidad_bancos: item.cantidad_bancos || 1
+          cantidad_bancos: item.cantidad_bancos || 1,
+          // Metadatos para restaurar correctamente al editar
+          lockBancos: item.lockBancos || false,
+          autoBancos: item.autoBancos || false,
+          bancosOverride: item.bancosOverride || null,
+          totalOverride: item.totalOverride || null
         })),
         ...quoteData.recurring_basic_items.map(item => ({
           item_type: 'recurring_basic',
           item_name: item.medio_pago_name || item.name,
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || calcularTotal(item),
+          total_usd: calcularTotal(item),
           cantidad_cajas: item.cantidad_cajas || 1,
-          cantidad_bancos: item.cantidad_bancos || 1
+          cantidad_bancos: item.cantidad_bancos || 1,
+          lockBancos: item.lockBancos || false,
+          isAutoLinked: item.isAutoLinked || false
         })),
         ...quoteData.recurring_other_items.map(item => ({
           item_type: 'recurring_other',
           item_name: item.medio_pago_name || item.name,
           quantity: (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1),
           unit_price_usd: item.tarifa || item.unit_price_usd || 0,
-          total_usd: item.total_usd || calcularTotal(item),
+          total_usd: calcularTotal(item),
           cantidad_cajas: item.cantidad_cajas || 1,
-          cantidad_bancos: item.cantidad_bancos || 1
+          cantidad_bancos: item.cantidad_bancos || 1,
+          lockBancos: item.lockBancos || false
         })),
         ...quoteData.additional_items.map(item => ({
           item_type: 'additional',
