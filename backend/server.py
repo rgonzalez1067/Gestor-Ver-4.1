@@ -3617,6 +3617,7 @@ class TemplateQuotePDFRequest(BaseModel):
     recurring_other_items: List[QuotePDFItem] = []
     additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
     production_items: List[QuotePDFItem] = []  # Items de cliente en producción
+    pg_setup_items: List[dict] = []  # Items de setup PG: {concepto, costo, banco, observacion}
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
