@@ -286,6 +286,12 @@ class QuoteItem(BaseModel):
     bank_name: Optional[str] = None
     tarifa_setup: Optional[float] = None
     tarifa_recurrente: Optional[float] = None
+    # Metadatos de comportamiento (para restaurar correctamente al editar)
+    lockBancos: Optional[bool] = None
+    autoBancos: Optional[bool] = None
+    bancosOverride: Optional[int] = None
+    totalOverride: Optional[float] = None
+    isAutoLinked: Optional[bool] = None
 
 # Modelo para items de cotización de equipos
 class EquipmentQuoteItem(BaseModel):
