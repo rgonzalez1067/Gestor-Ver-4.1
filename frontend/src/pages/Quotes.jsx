@@ -953,10 +953,14 @@ export const Quotes = () => {
     }
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank) {
-      const existingConceptos = new Set(pgSetupItems.map(i => i.concepto));
-      // Double filter: gateway_available=true AND not already added
+      // Filtro Muchos-a-Muchos: bloquear solo si mismo Concepto + mismo Banco
+      const existingForBank = new Set(
+        pgSetupItems
+          .filter(i => i.banco === bank.name)
+          .map(i => i.concepto)
+      );
       const filtered = (bank.products || []).filter(p => 
-        p.gateway_available && !existingConceptos.has(p.product_name)
+        p.gateway_available && !existingForBank.has(p.product_name)
       );
       setPgFilteredProducts(filtered);
     }
