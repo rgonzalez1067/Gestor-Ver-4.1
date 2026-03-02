@@ -1524,6 +1524,13 @@ export const Quotes = () => {
       descuento_recurrente: quoteData.descuento_recurrente || 0,
       notes: quoteData.notes || '',
       is_production_client: isProductionClient,
+      // PG setup items para el PDF de Payment Gateway
+      pg_setup_items: pgSetupItems.map(item => ({
+        concepto: item.concepto,
+        costo: item.costo || 0,
+        banco: item.banco || '',
+        observacion: item.observacion || ''
+      })),
       production_items: productionItems.map(item => ({
         concepto: item.medio_pago_name,
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
