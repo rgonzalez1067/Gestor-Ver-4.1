@@ -225,7 +225,9 @@ class TestIteration53EditPersistence:
         
         create_resp = self.session.post(f"{BASE_URL}/api/quotes/create-with-pdf", json=create_payload)
         assert create_resp.status_code in [200, 201]
-        quote_id = create_resp.json()["quote_id"]
+        response_data = create_resp.json()
+        quote_data = response_data.get("quote", response_data)
+        quote_id = quote_data["quote_id"]
         self.created_quote_id = quote_id
         
         # Update with new descuento values
