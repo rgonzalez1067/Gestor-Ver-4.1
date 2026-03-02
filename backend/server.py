@@ -6528,6 +6528,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@app.on_event("startup")
+async def create_indexes():
+    """Crear índices de MongoDB para optimizar búsquedas"""
+    try:
+        await db.clients.create_index([("fantasy_name", 1)])
+        await db.clients.create_index([("legal_name", 1)])
+        await db.clients.create_index([("rif", 1)])
+        await db.clients.create_index([("client_id", 1)], unique=True)
+        await db.quotes.create_index([("quote_id", 1)], unique=True)
+        await db.quotes.create_index([("client_id", 1)])
+        await db.quotes.create_index([("quote_number", 1)])
+        logging.info("MongoDB indexes created successfully")
+    except Exception as e:
+        logging.warning(f"Error creating indexes: {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
