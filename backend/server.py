@@ -4044,6 +4044,11 @@ class DynamicQuotePDFGenerator:
     
     def generate(self):
         """Generar el PDF completo con flujo dinámico"""
+        if self.data.quote_type == 'GATEWAY':
+            return self.generate_pg()
+        return self.generate_vpos()
+    
+    def generate_vpos(self):
         
         # Meses en español
         MESES_ES = {
