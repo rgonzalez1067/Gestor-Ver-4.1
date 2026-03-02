@@ -3143,12 +3143,17 @@ class QuoteUpdate(BaseModel):
     subtotal_usd: Optional[float] = None
     total_usd: Optional[float] = None
     descuento: Optional[float] = None
+    descuento_setup: Optional[float] = None
+    descuento_recurrente: Optional[float] = None
     exchange_rate: Optional[float] = None
     total_bs: Optional[float] = None
     notes: Optional[str] = None
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
+    # Cliente en producción
+    is_production_client: Optional[bool] = None
+    production_items: Optional[List[dict]] = None
 
 @api_router.put("/quotes/{quote_id}")
 async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):
