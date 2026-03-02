@@ -383,6 +383,12 @@ class QuoteCreate(BaseModel):
     pg_setup_items: List[dict] = []
     pg_recurring_cost: Optional[dict] = None
     pg_transaction_range: Optional[int] = None
+    # Descuentos independientes
+    descuento_setup: float = 0
+    descuento_recurrente: float = 0
+    # Cliente en producción
+    is_production_client: bool = False
+    production_items: List[dict] = []
 QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
 
 # Flujo de transiciones permitidas por categoría
