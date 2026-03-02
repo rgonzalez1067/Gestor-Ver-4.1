@@ -1841,24 +1841,36 @@ export const Quotes = () => {
     // Filtrar por categoría (puede ser 'category' o 'item_type')
     const getCategory = (s) => s.category || s.item_type || '';
     
-    // Mapear setup items preservando lockBancos
+    # Mapear setup items preservando lockBancos
     const setupItems = services.filter(s => getCategory(s) === 'setup').map(s => {
-      // Buscar concepto por defecto que coincida
-      const concept = SETUP_CONCEPTS.find(c => 
-        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
-        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
-      );
+      // Buscar concepto por defecto - matching más preciso
+      const concept = SETUP_CONCEPTS.find(c => {
+        const itemLower = (s.item_name || '').toLowerCase();
+        const conceptLower = c.name.toLowerCase();
+        return itemLower === conceptLower || 
+               itemLower.includes(conceptLower) || 
+               conceptLower.includes(itemLower);
+      });
       return mapService(s, concept, false);
     });
     
     // Mapear recurrentes básicos preservando lockBancos
-    // Detectar si es auto-vinculado: si el nombre contiene "Recurrente" pero NO tiene un concepto base exacto
+    // Matching más preciso: primero intentar coincidencia exacta, luego parcial
     const recurringBasicItems = services.filter(s => getCategory(s) === 'recurring_basic').map(s => {
       const itemName = s.item_name || '';
-      const concept = RECURRING_BASIC_CONCEPTS.find(c => 
-        itemName.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
-        c.name.toLowerCase().includes(itemName.toLowerCase().substring(0, 20))
-      );
+      const itemLower = itemName.toLowerCase();
+      // Primero buscar coincidencia exacta
+      let concept = RECURRING_BASIC_CONCEPTS.find(c => c.name.toLowerCase() === itemLower);
+      // Si no hay coincidencia exacta, buscar la coincidencia más larga (más específica)
+      if (!concept) {
+        const matches = RECURRING_BASIC_CONCEPTS.filter(c => 
+          itemLower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(itemLower)
+        );
+        // Elegir la coincidencia más larga (más específica)
+        if (matches.length > 0) {
+          concept = matches.reduce((a, b) => a.name.length > b.name.length ? a : b);
+        }
+      }
       // Es auto-vinculado si fue agregado automáticamente (generalmente tiene isAutoLinked en BD)
       // o si su nombre contiene patrones típicos de items auto-vinculados
       const isAutoLinked = s.isAutoLinked || 
