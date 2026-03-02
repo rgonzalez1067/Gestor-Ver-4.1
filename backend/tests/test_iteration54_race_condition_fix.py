@@ -210,7 +210,9 @@ class TestRaceConditionFix:
         )
         assert create_resp.status_code == 200, f"Failed to create quote: {create_resp.text}"
         
-        created_quote = create_resp.json()
+        create_data = create_resp.json()
+        # Response can be wrapped in "quote" key or be the quote directly
+        created_quote = create_data.get("quote", create_data)
         quote_id = created_quote["quote_id"]
         
         # Verify the metadata was persisted by fetching the quote
