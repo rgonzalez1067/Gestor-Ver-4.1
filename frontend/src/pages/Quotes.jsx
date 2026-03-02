@@ -1838,7 +1838,10 @@ export const Quotes = () => {
         isDefault: isBaseDefault,
         isAutoLinked: isAutoLinkedItem || s.isAutoLinked || false,
         lockBancos: isLocked,
-        autoBancos: isAuto
+        autoBancos: isAuto,
+        // Restaurar overrides guardados
+        bancosOverride: s.bancosOverride || null,
+        totalOverride: s.totalOverride || null
       };
     };
     
