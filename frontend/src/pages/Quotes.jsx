@@ -2176,7 +2176,8 @@ export const Quotes = () => {
     }
   };
 
-  const selectedClient = clients.find(c => c.client_id === quoteData.client_id);
+  const selectedClient = clients.find(c => c.client_id === quoteData.client_id) || 
+    clientSearchResults.find(c => c.client_id === quoteData.client_id);
   const selectedIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
   // Campos opcionales - no buscar si el valor es "none"
   const selectedPinpad = quoteData.pinpad_id && quoteData.pinpad_id !== 'none' 
