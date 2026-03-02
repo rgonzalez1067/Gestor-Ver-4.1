@@ -1881,10 +1881,16 @@ export const Quotes = () => {
     
     // Mapear otros recurrentes preservando lockBancos
     const recurringOtherItems = services.filter(s => getCategory(s) === 'recurring_other').map(s => {
-      const concept = RECURRING_OTHER_CONCEPTS.find(c => 
-        s.item_name?.toLowerCase().includes(c.name.toLowerCase().substring(0, 20)) ||
-        c.name.toLowerCase().includes((s.item_name || '').toLowerCase().substring(0, 20))
-      );
+      const itemLower = (s.item_name || '').toLowerCase();
+      let concept = RECURRING_OTHER_CONCEPTS.find(c => c.name.toLowerCase() === itemLower);
+      if (!concept) {
+        const matches = RECURRING_OTHER_CONCEPTS.filter(c => 
+          itemLower.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(itemLower)
+        );
+        if (matches.length > 0) {
+          concept = matches.reduce((a, b) => a.name.length > b.name.length ? a : b);
+        }
+      }
       return mapService(s, concept, false);
     });
     
