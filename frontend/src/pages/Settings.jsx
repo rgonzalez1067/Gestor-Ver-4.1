@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -33,8 +33,8 @@ export const Settings = () => {
   
   // Correos por sede
   const [emailsBySede, setEmailsBySede] = useState({
-    TBP: { admin: '', warehouse: '' },
-    LCH: { admin: '', warehouse: '' }
+    TBP: { admin: '', warehouse: '', sales: '' },
+    LCH: { admin: '', warehouse: '', sales: '' }
   });
   const [implementationEmail, setImplementationEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
@@ -63,11 +63,13 @@ export const Settings = () => {
       setEmailsBySede({
         TBP: {
           admin: response.data.emails_by_sede?.TBP?.admin || response.data.admin_email || '',
-          warehouse: response.data.emails_by_sede?.TBP?.warehouse || response.data.warehouse_email || ''
+          warehouse: response.data.emails_by_sede?.TBP?.warehouse || response.data.warehouse_email || '',
+          sales: response.data.emails_by_sede?.TBP?.sales || ''
         },
         LCH: {
           admin: response.data.emails_by_sede?.LCH?.admin || '',
-          warehouse: response.data.emails_by_sede?.LCH?.warehouse || ''
+          warehouse: response.data.emails_by_sede?.LCH?.warehouse || '',
+          sales: response.data.emails_by_sede?.LCH?.sales || ''
         }
       });
       
@@ -525,6 +527,27 @@ export const Settings = () => {
                         placeholder={`almacen.${sede.id.toLowerCase()}@empresa.com`}
                         className="bg-white"
                         data-testid={`warehouse-email-${sede.id}`}
+                      />
+                    </div>
+
+                    {/* Email de Ventas - Sede */}
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp size={16} className="text-green-600" />
+                        <Label className="text-sm font-semibold text-green-800">
+                          Correo de Ventas - Sede {sede.shortName}
+                        </Label>
+                      </div>
+                      <p className="text-xs text-green-700 mb-2">
+                        Recibe notificaciones cuando una cotización es <strong>Aprobada</strong> o <strong>Facturada</strong>. Para seguimiento comercial de la sede.
+                      </p>
+                      <Input
+                        type="email"
+                        value={emailsBySede[sede.id]?.sales || ''}
+                        onChange={(e) => updateSedeEmail(sede.id, 'sales', e.target.value)}
+                        placeholder={`ventas.${sede.id.toLowerCase()}@empresa.com`}
+                        className="bg-white"
+                        data-testid={`sales-email-${sede.id}`}
                       />
                     </div>
                   </div>

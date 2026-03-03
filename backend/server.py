@@ -4845,17 +4845,20 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     # Obtener configuración de correos
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    admin_email = config.get("admin_email") if config else None
+    quote_sede = quote.get("sede", "TBP")
+    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+    sede_emails = emails_by_sede.get(quote_sede, {})
+    admin_email = sede_emails.get("admin") or config.get("admin_email") if config else None
+    sales_email = sede_emails.get("sales") if sede_emails else None
     
     email_sent = False
-    if admin_email and RESEND_AVAILABLE:
+    sales_notified = False
+    if RESEND_AVAILABLE:
         try:
-            # Obtener API key de BD o env
             api_key = await get_resend_api_key()
             if api_key:
                 resend.api_key = api_key
                 
-                # Obtener plantilla de correo
                 template = await db.email_templates.find_one({"template_id": "quote_approved"}, {"_id": 0})
                 if not template:
                     template = {
@@ -4880,21 +4883,34 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
                 subject = render_email_template(template["subject"], template_vars)
                 html_content = render_email_template(template["body_html"], template_vars)
                 
-                resend.emails.send({
-                    "from": SENDER_EMAIL,
-                    "to": [admin_email],
-                    "subject": subject,
-                    "html": html_content
-                })
-                email_sent = True
+                # Notificar a administración de la sede
+                if admin_email:
+                    resend.emails.send({
+                        "from": SENDER_EMAIL,
+                        "to": [admin_email],
+                        "subject": subject,
+                        "html": html_content
+                    })
+                    email_sent = True
+                
+                # Notificar a ventas de la sede
+                if sales_email:
+                    resend.emails.send({
+                        "from": SENDER_EMAIL,
+                        "to": [sales_email],
+                        "subject": f"[VENTAS] {subject}",
+                        "html": html_content
+                    })
+                    sales_notified = True
         except Exception as e:
-            print(f"Error enviando email a administración: {e}")
+            print(f"Error enviando email a administración/ventas: {e}")
     
     return {
         "message": "Cotización aprobada exitosamente",
         "quote_id": quote_id,
         "new_status": "Aprobada",
         "admin_notified": email_sent,
+        "sales_notified": sales_notified,
         "admin_email": admin_email if email_sent else None
     }
 
@@ -5143,20 +5159,22 @@ async def invoice_quote(
     
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_data})
     
-    # Enviar notificación a administración usando plantilla
+    # Enviar notificación a administración y ventas usando plantilla por sede
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    admin_email = config.get('admin_email') if config else None
+    quote_sede = quote.get("sede", "TBP")
+    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+    sede_emails = emails_by_sede.get(quote_sede, {})
+    admin_email = sede_emails.get("admin") or config.get("admin_email") if config else None
+    sales_email = sede_emails.get("sales") if sede_emails else None
     
-    if admin_email and RESEND_AVAILABLE and RESEND_API_KEY:
+    if RESEND_AVAILABLE and RESEND_API_KEY:
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
         client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
         
-        # Obtener plantilla
         template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
         if not template:
             template = DEFAULT_EMAIL_TEMPLATES["invoice"]
         
-        # Preparar variables
         template_vars = {
             "quote_number": quote.get('quote_number', ''),
             "client_name": client_name,
@@ -5168,16 +5186,31 @@ async def invoice_quote(
         subject = render_email_template(template["subject"], template_vars)
         html_content = render_email_template(template["body_html"], template_vars)
         
-        try:
-            params = {
-                "from": SENDER_EMAIL,
-                "to": [admin_email],
-                "subject": subject,
-                "html": html_content
-            }
-            await asyncio.to_thread(resend.Emails.send, params)
-        except Exception as e:
-            logger.error(f"Error enviando notificación de factura: {str(e)}")
+        # Notificar a administración de la sede
+        if admin_email:
+            try:
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [admin_email],
+                    "subject": subject,
+                    "html": html_content
+                }
+                await asyncio.to_thread(resend.Emails.send, params)
+            except Exception as e:
+                logger.error(f"Error enviando notificación de factura a admin: {str(e)}")
+        
+        # Notificar a ventas de la sede
+        if sales_email:
+            try:
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [sales_email],
+                    "subject": f"[VENTAS] {subject}",
+                    "html": html_content
+                }
+                await asyncio.to_thread(resend.Emails.send, params)
+            except Exception as e:
+                logger.error(f"Error enviando notificación de factura a ventas: {str(e)}")
     
     return {
         "message": "Cotización facturada exitosamente",
@@ -5218,7 +5251,10 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     if quote_category == "equipment":
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        warehouse_email = config.get('warehouse_email') if config else None
+        quote_sede = quote.get("sede", "TBP")
+        emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+        sede_emails = emails_by_sede.get(quote_sede, {})
+        warehouse_email = sede_emails.get("warehouse") or config.get("warehouse_email") if config else None
         
         if warehouse_email and RESEND_AVAILABLE and RESEND_API_KEY:
             client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
@@ -6053,6 +6089,7 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
 class SedeEmails(BaseModel):
     admin: Optional[EmailStr] = None
     warehouse: Optional[EmailStr] = None
+    sales: Optional[EmailStr] = None
 
 class EmailsBySede(BaseModel):
     TBP: Optional[SedeEmails] = None
@@ -6077,8 +6114,8 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
             "admin_email": None, 
             "warehouse_email": None,
             "emails_by_sede": {
-                "TBP": {"admin": "", "warehouse": ""},
-                "LCH": {"admin": "", "warehouse": ""}
+                "TBP": {"admin": "", "warehouse": "", "sales": ""},
+                "LCH": {"admin": "", "warehouse": "", "sales": ""}
             },
             "resend_api_key_configured": False
         }
@@ -6089,14 +6126,22 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     if resend_key:
         resend_key_masked = f"{'*' * (len(resend_key) - 4)}{resend_key[-4:]}" if len(resend_key) > 4 else "****"
     
+    # Normalizar emails_by_sede para incluir siempre el campo 'sales'
+    raw_ebs = config.get("emails_by_sede", {})
+    emails_by_sede = {}
+    for sede_id in ["TBP", "LCH"]:
+        sede_data = raw_ebs.get(sede_id, {})
+        emails_by_sede[sede_id] = {
+            "admin": sede_data.get("admin", config.get("admin_email", "") if sede_id == "TBP" else ""),
+            "warehouse": sede_data.get("warehouse", config.get("warehouse_email", "") if sede_id == "TBP" else ""),
+            "sales": sede_data.get("sales", "")
+        }
+    
     return {
         "implementation_email": config.get("implementation_email"),
         "admin_email": config.get("admin_email"),
         "warehouse_email": config.get("warehouse_email"),
-        "emails_by_sede": config.get("emails_by_sede", {
-            "TBP": {"admin": config.get("admin_email", ""), "warehouse": config.get("warehouse_email", "")},
-            "LCH": {"admin": "", "warehouse": ""}
-        }),
+        "emails_by_sede": emails_by_sede,
         "resend_api_key_configured": bool(resend_key),
         "resend_api_key_masked": resend_key_masked
     }
