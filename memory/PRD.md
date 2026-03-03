@@ -32,6 +32,13 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - Concept matching exacto/mas-largo
 - MongoDB Indexes en clients y quotes
 
+### Correos de Notificacion por Sede (Nuevo - 2026-03-03)
+- Correo de Ventas por sede: TBP y LCH tienen su propio campo de correo de ventas
+- Backend: approve_quote y invoice_quote notifican al correo de ventas de la sede correspondiente
+- Backend: collect_quote usa warehouse email per-sede
+- Frontend: Settings.jsx muestra inputs de correo de ventas por sede (tema verde)
+- Resend integrado para envio real de correos
+
 ## Pendientes
 - P0: Refactorizacion backend server.py (6800+ lineas)
 - P1: Refactorizacion frontend Quotes.jsx (4300+ lineas)
@@ -40,5 +47,5 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - P2: Modulo de Reportes
 
 ## Test Reports
-- iteration_51-55: Optimizaciones, busqueda, PDF fix, persistencia, PG module
-- iteration_56: PDF Preview + PG buttons (9/9 backend, code review frontend)
+- iteration_51-56: Optimizaciones, busqueda, PDF fix, persistencia, PG module
+- iteration_57: Sales email per sede (11/11 backend, 6/6 frontend - ALL PASSED)
