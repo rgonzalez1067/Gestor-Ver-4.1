@@ -23,8 +23,8 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - Previsualizacion PDF: Modal con iframe, botones Descargar/Cerrar
 - Botones agrupados: [Previsualizar PDF] | [Exportar PDF] | [Guardar Cotizacion]
 - PDF PG 4 paginas: Portada, Matriz Configuracion, Recurrentes (centrada), T&C (clon VPOS)
+- PDF VPOS con template dinamico + 3 paginas estaticas al final (Info General, Condiciones de Pago, Datos para el Pago)
 - Limpieza observaciones: "Persona Juridica" muestra "Costo Base"
-- PDF VPOS con template dinamico
 
 ### Persistencia y Edicion
 - Race condition fix con refs prevCajasRef/prevBancosRef
@@ -32,12 +32,18 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - Concept matching exacto/mas-largo
 - MongoDB Indexes en clients y quotes
 
-### Correos de Notificacion por Sede (Nuevo - 2026-03-03)
+### Correos de Notificacion por Sede (2026-03-03)
 - Correo de Ventas por sede: TBP y LCH tienen su propio campo de correo de ventas
 - Backend: approve_quote y invoice_quote notifican al correo de ventas de la sede correspondiente
 - Backend: collect_quote usa warehouse email per-sede
 - Frontend: Settings.jsx muestra inputs de correo de ventas por sede (tema verde)
 - Resend integrado para envio real de correos
+
+### Paginas Estaticas PDF VPOS (2026-03-03)
+- 3 PDFs estaticos en /backend/static_pdfs/ (page6, page7, page8)
+- Se agregan automaticamente al final de cada PDF VPOS (export, preview, creacion)
+- PDFs de Payment Gateway NO se ven afectados
+- Funcion append_vpos_static_pages() usa PyPDF2 para merge
 
 ## Pendientes
 - P0: Refactorizacion backend server.py (6800+ lineas)
