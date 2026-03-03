@@ -7,46 +7,41 @@ El usuario solicitó una aplicación de cotizaciones para una plataforma de pago
 5.  **Importación Avanzada de Clientes:** Desde Excel, con descarga de plantilla.
 6.  **Nomenclatura Definitiva de Cotizaciones:** Con contadores correlativos independientes por mes y sede.
 7.  **Reestructuración del Modelo de Cotizaciones:** Se consolidó VPOS/MPOS, se creó un nuevo flujo Payment Gateway (PG) con costos recurrentes, se mejoró la búsqueda de clientes y se dividieron los descuentos.
-
-**La solicitud actual y pendiente es implementar 3 optimizaciones finales en el flujo de cotización:**
-1.  **Flexibilidad en Setup:** Para el ítem #4 (Configuración Medio de Pago / Banco en MServer, por PDV), el campo Bancos o entes debe ser editable manualmente, y el Total se recalculará automáticamente. Un ícono debe indicar si el valor fue modificado.
-2.  **Simplificar Búsqueda de Clientes:** Eliminar el filtro por Sucursal en el buscador de clientes del módulo de cotizaciones, dejando solo la búsqueda por Nombre y RIF.
-3.  **Validación de Cliente en Producción:** Añadir una pregunta (Sí/No) después de la sección de costos recurrentes. Si la respuesta es Sí, se debe desbloquear una nueva sección que permita agregar conceptos recurrentes adicionales desde la base de datos.
+8.  **Optimizaciones del Flujo de Cotización:** Se implementó la flexibilidad en el setup del ítem #4 (editable), se simplificó la búsqueda de clientes y se añadió la validación de Cliente en Producción.
+9.  **Correcciones de Persistencia:** Se solucionaron múltiples errores en el flujo de edición de cotizaciones, donde los datos guardados no se cargaban correctamente.
+10. **Implementación de PDF:** Se crearon y corrigieron múltiples plantillas de PDF, incluyendo una específica para Payment Gateway y un modal de previsualización.
+11. **Integración de Correos:** Se configuró y validó la API de Resend para el envío de notificaciones.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, MongoDB) muy avanzada. Incluye un flujo completo para cotizaciones de hardware y un nuevo flujo para Payment Gateway (PG). El flujo de PG tiene una lógica de setup dinámico (con ítems precargados como Persona Jurídica), filtrado de productos por banco, precios basados en un catálogo de outsourcing y un motor que genera una tabla de costos recurrentes. La UI/UX ha sido refinada con un buscador de clientes predictivo y descuentos separados para setup y recurrentes. El backend sigue siendo un archivo monolítico () y el frontend tiene un componente principal () extremadamente grande y complejo.
+La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, MongoDB) funcional y robusta. El núcleo del sistema, la creación y edición de cotizaciones (tanto para Hardware como para Payment Gateway), ha sido extensamente depurado y mejorado. Se han corregido errores críticos de persistencia de datos en el modo de edición, se ha solucionado un bug que impedía la generación de PDFs y se ha optimizado la búsqueda de clientes para manejar grandes volúmenes de datos mediante una búsqueda del lado del servidor. Además, la integración con Resend para el envío de correos está configurada y operativa. A pesar de las mejoras funcionales, la arquitectura sigue presentando un riesgo técnico significativo: el backend consiste en un único archivo monolítico () y el componente principal del frontend () es extremadamente grande y complejo, lo que dificulta el mantenimiento.
 
 **Last working item**:
-- Last item agent was working: El agente estaba comenzando el análisis de la última solicitud del usuario, que consiste en 3 optimizaciones para el flujo de cotización. Acababa de revisar el archivo  para entender la implementación actual antes de planificar los nuevos cambios.
-- Status: NOT STARTED
+- Last item agent was working: El agente estaba comenzando a implementar una nueva solicitud del usuario: añadir campos en la configuración para especificar correos de notificación de ventas distintos para cada sede ( y ). El agente ya ha analizado el código relevante en el backend () y frontend () para entender cómo se guardan y leen los correos de notificación existentes, pero aún no ha comenzado a escribir el código para los nuevos campos.
+- Status: IN PROGRESS
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Implementar las 3 optimizaciones del flujo de cotización. (P0 - HIGHEST)
--   Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - Recurrente)
+- Issue 1: Implementar correos de notificación de ventas por sede. (P0 - HIGHEST)
+- Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - LOW)
 
 **Issues Detail:**
--   **Issue 1: Implementar las 3 optimizaciones del flujo de cotización**
-    -   **Attempted fixes**: Ninguno.
+-   **Issue 1: Implementar correos de notificación de ventas por sede**
+    -   **Attempted fixes**: Ninguno. Análisis inicial completado.
     -   **Next debug checklist**:
-        1.  **Frontend ():**
-            -   **Búsqueda de Clientes:** Modificar la lógica del componente Combobox para que el filtrado de  solo considere  y .
-            -   **Ítem #4 Editable:**
-                -   Localizar el renderizado del ítem de setup Configuración Medio de Pago / Banco en MServer, por PDV.
-                -   Reemplazar el campo Bancos o entes por un componente .
-                -   Añadir un estado para rastrear el valor original y el editado, y mostrar condicionalmente un ícono de candado abierto.
-                -   Asegurar que el  del ítem se recalcule automáticamente cuando el campo editable cambie.
-            -   **Validación Cliente en Producción:**
-                -   Añadir un nuevo estado (ej. ) y botones de Sí/No después de la tabla de costos recurrentes.
-                -   Si  es , renderizar una nueva sección que permita al usuario seleccionar y añadir ítems de la base de datos  cuyo  sea .
-        2.  **Backend ():**
-            -   Verificar si el endpoint de guardar cotización necesita ser modificado para aceptar la lista de nuevos conceptos recurrentes.
-    -   **Why fix this issue and what will be achieved with the fix?**: Aportará flexibilidad final al proceso de venta, simplificará la UI y añadirá una lógica de negocio clave para clientes existentes.
-    -   **Status**: NOT STARTED
+        1.  **Backend ():**
+            -   Modificar el modelo Pydantic  para añadir dos nuevos campos opcionales:  y .
+            -   Actualizar el endpoint  para que pueda recibir y guardar estos nuevos campos en la colección .
+        2.  **Frontend ():**
+            -   Añadir dos nuevos  en la sección Configuración de Correos de Notificación.
+            -   Vincular estos inputs a nuevos estados y modificar la función  para enviar los nuevos valores al backend.
+        3.  **Backend ():**
+            -   Localizar la lógica de envío de correos (probablemente en la función que cambia el estado de la cotización) y modificarla para que, si existen los correos de ventas por sede, se notifique a la dirección correspondiente según la  de la cotización.
+    -   **Why fix this issue and what will be achieved with the fix?**: Cumple un requisito de negocio para dirigir las notificaciones de ventas al equipo correcto según la ubicación, mejorando la eficiencia operativa.
+    -   **Status**: IN PROGRESS
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on other issue**: None
@@ -63,91 +58,98 @@ La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, Mo
     -   **Blocked on other issue**: None
 
 **In progress Task List**:
--   **Task 1: Implementación de optimizaciones en el flujo de cotización**
-    -   **Where to resume**: En el archivo , comenzando por el cambio más sencillo: modificar el filtro del buscador de clientes para eliminar la búsqueda por Sucursal.
-    -   **What will be achieved with this?**: Un proceso de cotización más ágil y alineado con los últimos requerimientos de negocio.
-    -   **Status**: NOT STARTED
+-   **Task 1: Implementar correos de notificación de ventas por sede**
+    -   **Where to resume**: En el archivo , modificando el modelo Pydantic  para añadir los nuevos campos.
+    -   **What will be achieved with this?**: Un sistema de notificaciones de ventas más granular y alineado con la estructura organizativa del usuario.
+    -   **Status**: IN PROGRESS
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Refactorización del Backend (P0 - CRÍTICO):** Dividir el monolito . Es el mayor riesgo técnico del proyecto y debe ser la siguiente propuesta.
--   **Verificación de Email (P1)**: Pendiente de API Key de Resend.
--   **Recuperación de Contraseña (P1)**: Pendiente de API Key de Resend.
+-   **Refactorización del Backend (P0 - CRÍTICO):** Dividir el monolito  en una estructura de carpetas modular (e.g., , , ). Este es el mayor riesgo técnico del proyecto y debe ser la siguiente propuesta importante.
+-   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar los flujos de usuario para la verificación de correo al registrarse y la recuperación de contraseña. La integración con Resend ya está funcional, por lo que esta tarea está desbloqueada.
 
 Future Tasks:
--   **Refactorización del Frontend (P1):** Descomponer .
--   **Módulo de Reportes (P2):** Desarrollar una nueva sección de reportes.
+-   **Refactorización del Frontend (P1):** Descomponer el componente masivo  en subcomponentes más pequeños y manejables (e.g., , , , ).
+-   **Módulo de Reportes (P2):** Desarrollar una nueva sección en la aplicación para generar y visualizar reportes de ventas y cotizaciones.
 
 **Completed work in this session**
--   **Reestructuración del Modelo de Cotizaciones (Fases 1, 2 y 3):** Se implementó y refinó por completo el nuevo flujo Payment Gateway, incluyendo la consolidación de tipos de cotización, lógica de setup dinámica, cálculo de costos recurrentes y la actualización de los PDFs.
--   **Mejoras de Usabilidad en Cotizaciones:** Se actualizó el selector de clientes a un buscador predictivo (Combobox), se dividió el descuento global en  y , y se implementó la edición de campos de setup.
+-   **Flujo de Edición de Cotizaciones (CORREGIDO):** Se solucionó un error crítico de race condition y se arregló la persistencia de datos para que al editar una cotización se carguen correctamente todos los valores guardados (descuentos, cantidades, bancos, ítems de producción, etc.).
+-   **Generación de PDFs (CORREGIDO):** Se arregló un  que impedía generar PDFs y se implementó una nueva plantilla para Payment Gateway, clonando y adaptando la estructura del PDF de VPOS.
+-   **Previsualización de PDF:** Se implementó un modal en el frontend para previsualizar los PDFs antes de exportarlos o guardarlos.
+-   **Búsqueda de Clientes Optimizada:** Se reemplazó el filtro del lado del cliente por una búsqueda del lado del servidor con debounce, solucionando problemas de rendimiento con grandes volúmenes de clientes.
+-   **Validación de Conceptos Mejorada:** Se ajustó la lógica para permitir una relación muchos a muchos entre conceptos y bancos en las cotizaciones de PG.
+-   **Persistencia de Datos en BD:** Se añadieron los campos , , , y  a los modelos de la base de datos para asegurar que se guarden permanentemente.
+-   **Integración de Resend (COMPLETADA):** Se configuró y probó con éxito el envío de correos electrónicos a través de Resend, usando la API key proporcionada por el usuario.
+-   **Indexación de MongoDB:** Se crearon índices en la colección de clientes para mejorar el rendimiento de las búsquedas.
 
 **Earlier issues found/mentioned but not fixed**
--   El bug de los contadores del dashboard sigue pendiente.
+-   **Contadores del Dashboard:** El bug que causa que los contadores del dashboard muestren cifras incorrectas sigue pendiente de resolución.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La base de datos de MongoDB se vacía en cada sesión.
+-   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se vacía en cada sesión.
 -   **Recurrence count**: 3+
--   **Status**: NOT STARTED
+-   **Status**: NOT STARTED (Es una característica del entorno de desarrollo, no un bug a arreglar).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, MongoDB. Lógica compleja en  para manejar diferentes tipos de cotización ( vs ), nuevos modelos Pydantic, nuevos endpoints (, ) y modificación extensiva de la lógica de creación/edición de cotizaciones y generación de PDFs.
--   **Frontend:** React.  es un componente con una enorme cantidad de estados y lógica condicional para renderizar diferentes UIs basadas en el tipo de cotización. Se usan los componentes  y  de Shadcn para el buscador de clientes.
+-   **Backend:** FastAPI, MongoDB (con Pydantic). La lógica se ha expandido para incluir persistencia de metadatos de UI, búsqueda por texto indexada, y endpoints de previsualización de PDF.
+-   **Frontend:** React. Se ha implementado lógica compleja para manejar la edición de datos ( con  para prevenir race conditions), búsqueda asíncrona con debounce (), y modales para previsualización de PDFs en iframes.
+-   **Integración:** Resend para envío de correos.
 
 **key DB schema**
--   **quotes:** Se añadieron y utilizan los campos , , , .
--   **bank_products:** Se usa el campo  para filtrar productos.
--   **services_catalog:** Se usa el campo  para los precios de setup en PG.
+-   **quotes:** Se añadieron y utilizan los campos , , , . Dentro de los items de  se persisten , , , .
+-   **settings:** La colección contiene un documento para . Se van a añadir los campos  y .
+-   **clients:** Se ha creado un índice de texto en los campos ,  y  para optimizar las búsquedas.
 
 **changes in tech stack**
 -   Ninguno.
 
 **All files of reference**
--   : Modificado extensamente para añadir toda la lógica del flujo de Payment Gateway y los descuentos divididos.
--   : Prácticamente reescrito en varias secciones para implementar el nuevo flujo de PG, el buscador de clientes, los descuentos divididos y la edición de ítems.
+-   : Modificado extensamente para añadir nuevos campos a los modelos, corregir la generación de PDFs, añadir un endpoint de búsqueda de clientes y persistir metadatos.
+-   : Modificado extensamente para corregir el flujo de edición, implementar la búsqueda de clientes del lado del servidor y añadir el modal de previsualización de PDF.
+-   : Archivo a modificar para la tarea actual de correos por sede.
 
 **Areas that need refactoring**:
--   ** (CRÍTICO URGENTE):** El archivo es insostenible. Proponer refactorización inmediata después de la tarea actual.
--   ** (CRÍTICO URGENTE):** El componente es demasiado grande y complejo. Debe ser descompuesto en componentes más pequeños y especializados (ej. , , , ).
+-   ** (CRÍTICO URGENTE):** El archivo es insostenible con más de 5500 líneas. Proponer la refactorización a una arquitectura modular inmediatamente después de la tarea actual.
+-   ** (CRÍTICO URGENTE):** El componente supera las 2800 líneas. Debe ser descompuesto para mejorar la mantenibilidad.
 
 **key api endpoints**
--   : (Nuevo) Obtiene ítems de setup por defecto para PG.
--   , : Modificados para manejar  y los nuevos campos de descuento.
+-   : (Nuevo) Endpoint para la búsqueda de clientes del lado del servidor.
+-   , : Modificados para manejar y persistir los nuevos campos (, , , metadatos de items).
+-   : Endpoint utilizado para generar el PDF en base64 para el modal de previsualización.
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación con el usuario debe ser exclusivamente en **español**.
--   **Tarea Prioritaria:** Implementar las 3 optimizaciones finales del flujo de cotización.
--   **Proponer Refactorización (URGENTE):** Inmediatamente después, proponer la refactorización crítica de  y .
--   **Base de Datos Volátil:** Recuerda registrar un nuevo usuario al inicio de la sesión. El primer usuario es .
+-   **Tarea Prioritaria:** Implementar los campos para correos de notificación de ventas por sede.
+-   **Proponer Refactorización (URGENTE):** Inmediatamente después, proponer la refactorización crítica de . Es la mayor deuda técnica del proyecto.
+-   **Base de Datos Volátil:** Al inicio de cada sesión, es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado se convierte en .
+-   **Limitación de Resend:** La cuenta de Resend es gratuita y solo permite enviar correos desde  a la dirección verificada del usuario ().
 
 **documents and test reports created in this job**
--   
--   
--   
--   
--   
+-   Se actualizaron múltiples veces los reportes de prueba. Los más recientes son los últimos generados en la sesión.
+-    fue actualizado al finalizar cada tarea importante.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  User: (Request) Solicita correcciones en el flujo de PG (Filtros y Precios).
-2.  Agent: (Plan) Propone plan para implementar los filtros y precios de outsourcing.
-3.  User: (Approval) Aprueba el plan.
-4.  Agent: (Finish) Completa la implementación de filtros y precios.
-5.  User: (Request) Envía la solicitud final de 3 optimizaciones (ítem #4 editable, búsqueda de clientes simplificada, trigger de Cliente en Producción).
-6.  Agent: (Plan) Propone el plan para implementar las 3 optimizaciones.
-7.  User: (Approval) si, aprobado.
-8.  Agent: (Analysis) Comienza a analizar los archivos relevantes para la implementación.
+1.  User: (Bug Report) Reporta que al editar una cotización, los valores guardados (cajas, bancos, descuentos) se resetean a los valores por defecto.
+2.  Agent: (Plan) Propone un plan para arreglar el race condition en el frontend que causa el reseteo de datos y asegurar la persistencia de los metadatos.
+3.  User: (Approval) Listo.
+4.  Agent: (Finish) Completa la corrección, prueba el flujo de edición completo y finaliza la tarea.
+5.  User: (Feedback) Listo.
+6.  User: (Info) Informa que la API Key de Resend ya fue cargada.
+7.  Agent: (Action) Investiga, descubre que la base de datos volátil la borró, pide la key de nuevo, la configura y prueba exitosamente el envío de correos.
+8.  User: (Request) Solicita crear en la configuración un espacio para configurar un correo de ventas para la sede Torre Banco Plaza y otro para Los Chaguaramos.
+9.  Agent: (Analysis) Comienza a analizar el código para implementar la nueva solicitud.
 
 **Project Health Check:**
--   **Broken**: La funcionalidad de los contadores del dashboard.
--   **Mocked**: La integración con Resend para envío de correos (verificación, recuperación de contraseña) está pendiente de API Keys.
+-   **Broken**: La funcionalidad de los contadores del dashboard sigue reportando datos incorrectos.
+-   **Mocked**: Ninguna. La integración con Resend está completamente configurada y funcional.
 
 **3rd Party Integrations**
--   **Resend**: Pendiente de configuración de API Key.
+-   **Resend**: Configurado y funcionando para enviar notificaciones por correo (con las limitaciones del plan gratuito).
 -   **reportlab**: Para generación de PDF.
 -   **Shadcn/UI & Radix UI**: Componentes de React.
 -   **bcrypt**: Hashing de contraseñas.
@@ -157,11 +159,11 @@ Future Tasks:
 **Testing status**
 -   Testing agent used after significant changes: YES
 -   Troubleshoot agent used after agent stuck in loop: NO
--   Test files created: []
--   Known regressions: La base de datos se borra en cada sesión.
+-   Test files created: Múltiples reportes en .
+-   Known regressions: Ninguna introducida en esta sesión; al contrario, se han corregido varias regresiones previas.
 
 **Credentials to test flow:**
-No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado será .
+No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado será . Para probar el envío de correos, se debe usar  como destinatario.
 
 **What agent forgot to execute**
--   El problema recurrente de los contadores del dashboard no ha sido abordado, ya que se ha dado prioridad a las nuevas funcionalidades solicitadas por el usuario.</analysis>
+-   El problema recurrente de los contadores del dashboard no ha sido abordado. Se ha priorizado consistentemente la implementación de nuevas funcionalidades y la corrección de bugs más críticos solicitados por el usuario.</analysis>
