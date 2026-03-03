@@ -74,6 +74,46 @@ app = FastAPI(title="Cotizador Merchant Server API")
 # Create uploads directory for logo
 UPLOADS_DIR = ROOT_DIR / "uploads"
 UPLOADS_DIR.mkdir(exist_ok=True)
+
+# Directorio de PDFs estáticos (páginas anexas para cotizaciones VPOS)
+STATIC_PDFS_DIR = ROOT_DIR / "static_pdfs"
+
+def append_vpos_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
+    """Agrega las páginas estáticas (6, 7, 8) al final del PDF VPOS generado"""
+    if not PYPDF2_AVAILABLE:
+        return pdf_buffer
+    
+    static_files = [
+        STATIC_PDFS_DIR / "vpos_page6.pdf",
+        STATIC_PDFS_DIR / "vpos_page7.pdf",
+        STATIC_PDFS_DIR / "vpos_page8.pdf",
+    ]
+    
+    # Verificar que existan los archivos estáticos
+    existing_files = [f for f in static_files if f.exists()]
+    if not existing_files:
+        return pdf_buffer
+    
+    writer = PdfWriter()
+    
+    # Agregar páginas del PDF generado
+    pdf_buffer.seek(0)
+    reader = PdfReader(pdf_buffer)
+    for page in reader.pages:
+        writer.add_page(page)
+    
+    # Agregar páginas estáticas
+    for static_file in existing_files:
+        static_reader = PdfReader(str(static_file))
+        for page in static_reader.pages:
+            writer.add_page(page)
+    
+    # Escribir el resultado
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
 api_router = APIRouter(prefix="/api")
 
 async def generate_quote_number(sede: str) -> str:
@@ -2845,6 +2885,9 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Generar PDF
                 pdf_buffer = generator.generate()
                 
+                # Agregar páginas estáticas para VPOS
+                pdf_buffer = append_vpos_static_pages(pdf_buffer)
+                
                 # Guardar PDF en el servidor
                 pdf_filename = f"{quote_number}_Cotizacion.pdf"
                 pdf_path = UPLOADS_DIR / pdf_filename
@@ -4555,6 +4598,10 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         # Generar PDF
         pdf_buffer = generator.generate()
         
+        # Agregar páginas estáticas para VPOS
+        if data.quote_type != 'GATEWAY':
+            pdf_buffer = append_vpos_static_pages(pdf_buffer)
+        
         # Nombre del archivo
         filename = f"cotizacion_{data.cliente_nombre.replace(' ', '_').replace('.', '')}_{data.quote_number or datetime.now().strftime('%Y%m%d')}.pdf"
         
@@ -4592,6 +4639,10 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         
         # Generar PDF
         pdf_buffer = generator.generate()
+        
+        # Agregar páginas estáticas para VPOS
+        if data.quote_type != 'GATEWAY':
+            pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
         return Response(
             content=pdf_buffer.getvalue(),
@@ -5677,6 +5728,12 @@ async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     
     doc.build(elements)
     buffer.seek(0)
+    
+    # Agregar páginas estáticas para cotizaciones VPOS
+    quote_type = quote.get('quote_type', '')
+    if quote_type not in ('GATEWAY',):
+        buffer = append_vpos_static_pages(buffer)
+    
     return buffer
 
 # ==================== INTEGRATORS ENDPOINTS ====================
