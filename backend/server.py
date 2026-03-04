@@ -79,19 +79,12 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 STATIC_PDFS_DIR = ROOT_DIR / "static_pdfs"
 
 def append_vpos_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
-    """Agrega las páginas estáticas (6, 7, 8) al final del PDF VPOS generado"""
+    """Agrega las páginas del anexo VPOS al final del PDF generado"""
     if not PYPDF2_AVAILABLE:
         return pdf_buffer
     
-    static_files = [
-        STATIC_PDFS_DIR / "vpos_page6.pdf",
-        STATIC_PDFS_DIR / "vpos_page7.pdf",
-        STATIC_PDFS_DIR / "vpos_page8.pdf",
-    ]
-    
-    # Verificar que existan los archivos estáticos
-    existing_files = [f for f in static_files if f.exists()]
-    if not existing_files:
+    anexo_path = STATIC_PDFS_DIR / "anexo_vpos.pdf"
+    if not anexo_path.exists():
         return pdf_buffer
     
     writer = PdfWriter()
@@ -102,11 +95,10 @@ def append_vpos_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     for page in reader.pages:
         writer.add_page(page)
     
-    # Agregar páginas estáticas
-    for static_file in existing_files:
-        static_reader = PdfReader(str(static_file))
-        for page in static_reader.pages:
-            writer.add_page(page)
+    # Agregar páginas del anexo
+    anexo_reader = PdfReader(str(anexo_path))
+    for page in anexo_reader.pages:
+        writer.add_page(page)
     
     # Escribir el resultado
     output = io.BytesIO()
