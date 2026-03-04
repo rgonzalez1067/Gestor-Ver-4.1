@@ -25,6 +25,7 @@ import csv
 import base64
 import hashlib
 import secrets
+import re
 
 # PyPDF2 para manipulación de plantillas PDF
 try:
@@ -1252,6 +1253,68 @@ async def get_departamentos(authorization: Optional[str] = Header(None)):
     return DEPARTAMENTOS
 
 # ==================== CLIENTS ENDPOINTS ====================
+
+@api_router.post("/clients/parse-rif")
+async def parse_rif_pdf(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Extrae datos del RIF Digital (PDF SENIAT) y verifica duplicados"""
+    await get_current_user(authorization)
+    
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF")
+    
+    content = await file.read()
+    
+    try:
+        pdf_reader = PdfReader(io.BytesIO(content))
+        text = ""
+        for page in pdf_reader.pages:
+            text += (page.extract_text() or "") + "\n"
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer el PDF: {str(e)}")
+    
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="No se pudo extraer texto del PDF. Verifique que sea un RIF Digital válido.")
+    
+    # Extraer RIF: patrón [JGVEP] seguido de 9 dígitos
+    rif_match = re.search(r'([JGVEP]\d{9})', text)
+    rif = rif_match.group(1) if rif_match else None
+    
+    if not rif:
+        raise HTTPException(status_code=400, detail="No se encontró un código RIF válido en el documento")
+    
+    # Formatear RIF: J-XXXXXXXXX-X → J-12345678-9
+    rif_formatted = f"{rif[0]}-{rif[1:9]}-{rif[9]}" if len(rif) == 10 else rif
+    
+    # Extraer Razón Social: texto en la misma línea después del RIF
+    legal_name = ""
+    for line in text.split('\n'):
+        if rif in line:
+            after_rif = line.split(rif, 1)[1].strip()
+            if after_rif:
+                legal_name = after_rif.strip()
+            break
+    
+    # Extraer Dirección Fiscal: todo después de "DOMICILIO FISCAL" hasta "FECHA DE"
+    address = ""
+    domicilio_match = re.search(r'DOMICILIO\s+FISCAL\s+(.*?)(?=FECHA\s+DE)', text, re.DOTALL | re.IGNORECASE)
+    if domicilio_match:
+        addr_raw = domicilio_match.group(1).strip()
+        # Limpiar saltos de línea y espacios múltiples
+        address = re.sub(r'\s+', ' ', addr_raw).strip()
+    
+    # Verificar duplicados en BD
+    existing_clients = []
+    cursor = db.clients.find({"rif": {"$regex": rif[1:9], "$options": "i"}}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1, "sucursal": 1})
+    async for doc in cursor:
+        existing_clients.append(doc)
+    
+    return {
+        "rif": rif_formatted,
+        "legal_name": legal_name,
+        "address": address,
+        "is_duplicate": len(existing_clients) > 0,
+        "existing_clients": existing_clients
+    }
 
 @api_router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):

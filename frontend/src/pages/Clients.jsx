@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -46,6 +46,15 @@ export const Clients = () => {
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState(null);
+
+  // RIF Digital parsing
+  const [rifDialogOpen, setRifDialogOpen] = useState(false);
+  const [rifFile, setRifFile] = useState(null);
+  const [rifParsing, setRifParsing] = useState(false);
+  const [rifProgress, setRifProgress] = useState(0);
+  const [rifResult, setRifResult] = useState(null);
+  const [rifHighlightFields, setRifHighlightFields] = useState(new Set());
+  const rifFileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     rif: '',
@@ -287,6 +296,91 @@ export const Clients = () => {
 
   const closeImportDialog = () => { setImportDialogOpen(false); setImportFile(null); setImportResult(null); };
 
+  // --- RIF Digital parsing ---
+  const handleRifFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRifFile(file);
+      setRifResult(null);
+    }
+  };
+
+  const executeRifParse = async () => {
+    if (!rifFile) { toast.error('Seleccione un archivo PDF'); return; }
+    setRifParsing(true);
+    setRifProgress(0);
+    setRifResult(null);
+
+    // Simular barra de progreso
+    const progressInterval = setInterval(() => {
+      setRifProgress(prev => prev < 85 ? prev + Math.random() * 15 : prev);
+    }, 200);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', rifFile);
+      const response = await api.post('/clients/parse-rif', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      clearInterval(progressInterval);
+      setRifProgress(100);
+      setRifResult(response.data);
+    } catch (err) {
+      clearInterval(progressInterval);
+      setRifProgress(0);
+      toast.error(err.response?.data?.detail || 'Error al procesar el RIF Digital');
+    } finally {
+      setRifParsing(false);
+    }
+  };
+
+  const applyRifDataToForm = (addBranch = false) => {
+    if (!rifResult) return;
+    const highlighted = new Set();
+
+    const newData = {
+      rif: rifResult.rif || '',
+      legal_name: rifResult.legal_name || '',
+      fantasy_name: rifResult.legal_name || '',
+      segment: 'Pymes',
+      address: rifResult.address || '',
+      sucursal: addBranch ? '' : 'Principal',
+      contacts: [emptyContact()]
+    };
+
+    if (newData.rif) highlighted.add('rif');
+    if (newData.legal_name) highlighted.add('legal_name');
+    if (newData.fantasy_name) highlighted.add('fantasy_name');
+    if (newData.address) highlighted.add('address');
+
+    setRifHighlightFields(highlighted);
+    setFormData(newData);
+    setEditingClient(null);
+    setRifDialogOpen(false);
+    setRifFile(null);
+    setRifResult(null);
+    setRifProgress(0);
+    setDialogOpen(true);
+
+    if (addBranch) {
+      toast.info('Complete el nombre de la sucursal para este cliente existente');
+    } else {
+      toast.success('Datos extraídos del RIF. Verifique y complete los campos antes de guardar.');
+    }
+  };
+
+  const closeRifDialog = () => {
+    setRifDialogOpen(false);
+    setRifFile(null);
+    setRifResult(null);
+    setRifProgress(0);
+    if (rifFileInputRef.current) rifFileInputRef.current.value = '';
+  };
+
+  // Limpiar highlight al guardar
+  const handleSubmitWithHighlight = async (e) => {
+    await handleSubmit(e);
+    setRifHighlightFields(new Set());
+  };
+
   const handleFileImport = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -354,6 +448,9 @@ export const Clients = () => {
             </div>
             <div className="flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv,.xlsx,.xls" className="hidden" />
+              <Button variant="outline" onClick={() => setRifDialogOpen(true)} className="border-amber-500 text-amber-600 hover:bg-amber-50" data-testid="load-rif-btn">
+                <ScanLine size={18} className="mr-2" />Cargar desde RIF Digital
+              </Button>
               <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="border-brand-blue-600 text-brand-blue-600" data-testid="import-clients-btn">
                 <Upload size={18} className="mr-2" />Importar
               </Button>
@@ -373,13 +470,23 @@ export const Clients = () => {
                   <DialogHeader>
                     <DialogTitle className="font-manrope text-2xl">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <form onSubmit={handleSubmitWithHighlight} className="space-y-6">
+                    {/* Banner de campos auto-completados */}
+                    {rifHighlightFields.size > 0 && (
+                      <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="rif-auto-fill-banner">
+                        <ScanLine size={18} className="text-amber-600 shrink-0" />
+                        <p className="text-sm text-amber-800">
+                          Los campos resaltados en <span className="font-semibold text-amber-700">amarillo</span> fueron extraídos automáticamente del RIF Digital. Verifique antes de guardar.
+                        </p>
+                      </div>
+                    )}
                     {/* Datos del cliente */}
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <Label htmlFor="rif">RIF</Label>
                         <Input id="rif" data-testid="client-rif-input" value={formData.rif}
-                          onChange={(e) => setFormData({ ...formData, rif: e.target.value })} required />
+                          onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
+                          className={rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
                       </div>
                       <div>
                         <Label htmlFor="sucursal">Sucursal</Label>
@@ -401,18 +508,21 @@ export const Clients = () => {
                       <div>
                         <Label htmlFor="legal_name">Nombre Jurídico</Label>
                         <Input id="legal_name" data-testid="client-legal-name-input" value={formData.legal_name}
-                          onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })} required />
+                          onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
+                          className={rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
                       </div>
                       <div>
                         <Label htmlFor="fantasy_name">Nombre de Fantasía</Label>
                         <Input id="fantasy_name" data-testid="client-fantasy-name-input" value={formData.fantasy_name}
-                          onChange={(e) => setFormData({ ...formData, fantasy_name: e.target.value })} required />
+                          onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
+                          className={rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="address">Dirección Fiscal</Label>
                       <Input id="address" data-testid="client-address-input" value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
+                        className={rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}
                         placeholder="Av. Principal, Edificio X, Caracas" />
                     </div>
 
@@ -639,6 +749,111 @@ export const Clients = () => {
 
         {/* Delete confirmation */}
         <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+
+        {/* RIF Digital Dialog */}
+        <Dialog open={rifDialogOpen} onOpenChange={closeRifDialog}>
+          <DialogContent className="max-w-lg" data-testid="rif-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ScanLine className="text-amber-500" size={22} />
+                Cargar desde RIF Digital
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800 mb-1"><strong>Instrucciones:</strong></p>
+                <p className="text-sm text-amber-700">Suba el archivo PDF del RIF Digital emitido por el SENIAT. El sistema extraerá automáticamente el <strong>RIF</strong>, la <strong>Razón Social</strong> y la <strong>Dirección Fiscal</strong>.</p>
+              </div>
+
+              <div>
+                <Label>Archivo RIF Digital (PDF)</Label>
+                <div className="mt-2">
+                  <Input ref={rifFileInputRef} type="file" accept=".pdf" onChange={handleRifFileSelect}
+                    data-testid="rif-file-input" />
+                </div>
+                {rifFile && <p className="text-sm text-slate-600 mt-1">Archivo: <strong>{rifFile.name}</strong></p>}
+              </div>
+
+              {/* Barra de progreso */}
+              {rifParsing && (
+                <div className="space-y-2" data-testid="rif-progress">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600" />
+                    <span className="text-sm text-amber-700 font-medium">Escaneando documento...</span>
+                  </div>
+                  <div className="w-full bg-amber-100 rounded-full h-2.5">
+                    <div className="bg-amber-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${rifProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Resultado */}
+              {rifResult && (
+                <div className="space-y-3" data-testid="rif-result">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 size={18} className="text-green-600" />
+                      <span className="font-medium text-green-800">Datos extraídos exitosamente</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex"><span className="font-medium text-slate-700 w-28">RIF:</span><span className="text-slate-900">{rifResult.rif}</span></div>
+                      <div className="flex"><span className="font-medium text-slate-700 w-28">Razón Social:</span><span className="text-slate-900">{rifResult.legal_name}</span></div>
+                      <div className="flex flex-col"><span className="font-medium text-slate-700">Dirección Fiscal:</span><span className="text-slate-900 mt-0.5">{rifResult.address}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Alerta de duplicado */}
+                  {rifResult.is_duplicate && (
+                    <div className="bg-orange-50 border border-orange-300 rounded-lg p-4" data-testid="rif-duplicate-alert">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircle size={18} className="text-orange-600" />
+                        <span className="font-semibold text-orange-800">RIF ya registrado</span>
+                      </div>
+                      <p className="text-sm text-orange-700 mb-3">
+                        Este RIF ya existe en la base de datos con las siguientes sucursales:
+                      </p>
+                      <div className="space-y-1 mb-3">
+                        {rifResult.existing_clients.map((ec, i) => (
+                          <div key={i} className="text-sm text-orange-900 bg-orange-100 rounded px-2 py-1">
+                            <strong>{ec.rif}</strong> — {ec.legal_name || ec.fantasy_name} ({ec.sucursal || 'Principal'})
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => applyRifDataToForm(true)}
+                          className="bg-orange-600 hover:bg-orange-700 text-white" data-testid="rif-add-branch-btn">
+                          <Plus size={14} className="mr-1" />Agregar Nueva Sucursal
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón para cliente nuevo */}
+                  {!rifResult.is_duplicate && (
+                    <Button onClick={() => applyRifDataToForm(false)}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white" data-testid="rif-create-client-btn">
+                      <UserPlus size={16} className="mr-2" />Crear Cliente Nuevo
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2 border-t">
+                <Button variant="outline" onClick={closeRifDialog}>Cerrar</Button>
+                {!rifResult && (
+                  <Button onClick={executeRifParse} disabled={!rifFile || rifParsing}
+                    className="bg-amber-500 hover:bg-amber-600 text-white" data-testid="rif-scan-btn">
+                    {rifParsing ? (
+                      <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Escaneando...</>
+                    ) : (
+                      <><ScanLine size={16} className="mr-2" />Escanear RIF</>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>¿Eliminar Cliente?</AlertDialogTitle>

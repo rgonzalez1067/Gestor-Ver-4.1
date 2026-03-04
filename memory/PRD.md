@@ -21,37 +21,34 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 
 ### PDF y Previsualizacion
 - Previsualizacion PDF: Modal con iframe, botones Descargar/Cerrar
-- Botones agrupados: [Previsualizar PDF] | [Exportar PDF] | [Guardar Cotizacion]
-- PDF PG 4 paginas: Portada, Matriz Configuracion, Recurrentes (centrada), T&C (clon VPOS)
-- PDF VPOS con template dinamico + 3 paginas estaticas al final (Info General, Condiciones de Pago, Datos para el Pago)
-- Limpieza observaciones: "Persona Juridica" muestra "Costo Base"
+- PDF VPOS con template dinamico + 4 paginas anexo estatico (Info relevante, Condiciones contratacion, Condiciones pago, Datos pago)
+- PDF PG 4 paginas: Portada, Matriz Configuracion, Recurrentes (centrada), T&C
 
 ### Persistencia y Edicion
 - Race condition fix con refs prevCajasRef/prevBancosRef
 - Metadata persistence: lockBancos, autoBancos, bancosOverride, totalOverride
-- Concept matching exacto/mas-largo
 - MongoDB Indexes en clients y quotes
 
 ### Correos de Notificacion por Sede (2026-03-03)
-- Correo de Ventas por sede: TBP y LCH tienen su propio campo de correo de ventas
-- Backend: approve_quote y invoice_quote notifican al correo de ventas de la sede correspondiente
+- Correo de Ventas por sede: TBP y LCH con campo propio
+- Backend: approve_quote, invoice_quote notifican a ventas de la sede
 - Backend: collect_quote usa warehouse email per-sede
-- Frontend: Settings.jsx muestra inputs de correo de ventas por sede (tema verde)
-- Resend integrado para envio real de correos
 
 ### Paginas Estaticas PDF VPOS (2026-03-03)
-- 3 PDFs estaticos en /backend/static_pdfs/ (page6, page7, page8)
-- Se agregan automaticamente al final de cada PDF VPOS (export, preview, creacion)
+- Anexo VPOS 4 paginas en /backend/static_pdfs/anexo_vpos.pdf
+- Se agregan automaticamente al final de cada PDF VPOS
 - PDFs de Payment Gateway NO se ven afectados
-- Funcion append_vpos_static_pages() usa PyPDF2 para merge
+
+### Extraccion Automatica de RIF Digital (2026-03-04)
+- Endpoint POST /api/clients/parse-rif: sube PDF SENIAT, extrae RIF, Razon Social, Direccion Fiscal
+- Parsing con PyPDF2 + regex (patron [JGVEP]\d{9}, texto post-RIF, texto post "DOMICILIO FISCAL")
+- Validacion de duplicados: si RIF existe, ofrece agregar nueva sucursal
+- Frontend: boton "Cargar desde RIF Digital", barra de progreso, auto-fill con resaltado amarillo
+- Testing: 6/6 backend + todos los elementos UI verificados (iteration_58)
 
 ## Pendientes
-- P0: Refactorizacion backend server.py (6800+ lineas)
+- P0: Refactorizacion backend server.py (6900+ lineas)
 - P1: Refactorizacion frontend Quotes.jsx (4300+ lineas)
 - P1: Verificacion Email / Recuperacion Contrasena (Resend API)
 - P2: Bug contadores Dashboard
 - P2: Modulo de Reportes
-
-## Test Reports
-- iteration_51-56: Optimizaciones, busqueda, PDF fix, persistencia, PG module
-- iteration_57: Sales email per sede (11/11 backend, 6/6 frontend - ALL PASSED)
