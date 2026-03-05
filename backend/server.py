@@ -3774,6 +3774,7 @@ class TemplateQuotePDFRequest(BaseModel):
     additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
     production_items: List[QuotePDFItem] = []  # Items de cliente en producción
     pg_setup_items: List[dict] = []  # Items de setup PG: {concepto, costo, banco, observacion}
+    pg_recurring_cost: Optional[dict] = None  # {rangos: [{rango_label, costo_base_total, precio_tope}], num_products: int}
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
@@ -4662,73 +4663,97 @@ class DynamicQuotePDFGenerator:
         
         elements.append(Spacer(1, 20))
         
-        # Costos Recurrentes
+        # Costos Recurrentes - Tabla de Rangos
         elements.append(Paragraph("COSTOS RECURRENTES MENSUALES", self.styles['SeccionHeader']))
-        elements.append(Spacer(1, 8))
+        elements.append(Spacer(1, 4))
         
-        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
-        
-        if all_recurring:
-            rec_concepto_style = ParagraphStyle(
-                'PGRecConceptoCell',
-                fontName='Helvetica',
-                fontSize=8,
-                leading=10,
-                wordWrap='LTR'
-            )
+        pg_rc = self.data.pg_recurring_cost
+        if pg_rc and (pg_rc.get('rangos') or pg_rc.get('table')):
+            num_products = pg_rc.get('num_products', 1)
+            elements.append(Paragraph(
+                f"Calculado para <b>{num_products}</b> medio(s) de pago",
+                ParagraphStyle('CalcPara', parent=self.styles['TextoNormal'], fontSize=9, spaceAfter=6)
+            ))
             
+            rec_table_data = [['Rango', 'Transacciones', 'Total Base', 'Precio Tope por\nrango']]
+            
+            # Soportar ambos formatos: rangos (guardado) y table (frontend)
+            rangos = pg_rc.get('rangos', [])
+            if not rangos and pg_rc.get('table'):
+                rangos = [{
+                    'rango_label': r.get('label', ''),
+                    'costo_base_total': r.get('base', 0),
+                    'precio_tope': r.get('tope', 0)
+                } for r in pg_rc['table']]
+            for idx, rango in enumerate(rangos, 1):
+                costo_base = rango.get('costo_base_total', 0)
+                precio_tope = rango.get('precio_tope', 0)
+                label = rango.get('rango_label', str(idx))
+                
+                base_str = f"${costo_base:.2f}" if costo_base and costo_base > 0 else "Negociable"
+                tope_str = f"${precio_tope:.6f}" if precio_tope else ""
+                
+                rec_table_data.append([str(idx), label, base_str, tope_str])
+            
+            col_widths = [55, 140, 120, 130]
+            rec_table = Table(rec_table_data, colWidths=col_widths, repeatRows=1)
+            
+            header_bg = self.COLOR_AZUL
+            alt_row_bg = colors.HexColor("#DCE6F1")
+            
+            base_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 1), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#B0B0B0")),
+            ]
+            
+            rec_table.setStyle(TableStyle(base_style))
+            
+            for i in range(1, len(rec_table_data)):
+                if i % 2 == 0:
+                    rec_table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), alt_row_bg)]))
+            
+            elements.append(rec_table)
+        elif all_recurring:
+            # Fallback: tabla simple si no hay rangos
+            rec_concepto_style = ParagraphStyle(
+                'PGRecConceptoCell', fontName='Helvetica', fontSize=8, leading=10, wordWrap='LTR'
+            )
             rec_table_data = [['N°', 'Concepto', 'Cant.', 'Tarifa (USD)', 'Total (USD)']]
             subtotal_rec = 0
-            
             for idx, item in enumerate(all_recurring, 1):
                 cant = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1)
                 total_item = cant * (item.tarifa or 0)
                 subtotal_rec += total_item
-                rec_table_data.append([
-                    str(idx),
-                    Paragraph(item.concepto, rec_concepto_style),
-                    str(cant),
-                    f"${item.tarifa:.2f}",
-                    f"${total_item:.2f}"
-                ])
-            
-            iva = subtotal_rec * 0.16
-            total_con_iva = subtotal_rec + iva
-            rec_table_data.append(['', 'SUBTOTAL RECURRENTE', '', '', f"${subtotal_rec:.2f}"])
-            rec_table_data.append(['', 'IVA (16%)', '', '', f"${iva:.2f}"])
-            rec_table_data.append(['', 'TOTAL RECURRENTE MENSUAL', '', '', f"${total_con_iva:.2f}"])
-            
+                rec_table_data.append([str(idx), Paragraph(item.concepto, rec_concepto_style), str(cant), f"${item.tarifa:.2f}", f"${total_item:.2f}"])
+            rec_table_data.append(['', 'TOTAL RECURRENTE', '', '', f"${subtotal_rec:.2f}"])
             col_widths = [25, None, 35, 70, 80]
             rec_table = Table(rec_table_data, colWidths=col_widths, repeatRows=1, hAlign='CENTER')
-            
             rec_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_VERDE),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 8),
                 ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('TOPPADDING', (0, 0), (-1, 0), 6),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('ALIGN', (0, 1), (0, -1), 'CENTER'),
                 ('ALIGN', (2, 1), (4, -1), 'RIGHT'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 1), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
-                ('BACKGROUND', (0, -3), (-1, -3), self.COLOR_VERDE_CLARO),
-                ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
-                ('FONTNAME', (0, -2), (-1, -2), 'Helvetica'),
                 ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_VERDE),
                 ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
                 ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
             ]))
-            
-            for i in range(1, len(rec_table_data) - 3):
-                if i % 2 == 0:
-                    rec_table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
-            
             elements.append(rec_table)
         
         if self.data.notes:

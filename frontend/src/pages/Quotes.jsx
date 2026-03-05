@@ -1547,7 +1547,16 @@ export const Quotes = () => {
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
         tarifa: parseFloat(item.tarifa) || 0
-      }))
+      })),
+      // PG Recurring costs (tabla de rangos)
+      pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
+        num_products: Math.min(pgMediosPagoCount, 11),
+        rangos: getPgFullRecurringTable().map(r => ({
+          rango_label: r.label,
+          costo_base_total: r.base,
+          precio_tope: r.tope
+        }))
+      } : null
     };
 
     try {
@@ -1698,7 +1707,15 @@ export const Quotes = () => {
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
         notes: quoteData.notes || '',
-        is_production_client: isProductionClient
+        is_production_client: isProductionClient,
+        pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
+          num_products: Math.min(pgMediosPagoCount, 11),
+          rangos: getPgFullRecurringTable().map(r => ({
+            rango_label: r.label,
+            costo_base_total: r.base,
+            precio_tope: r.tope
+          }))
+        } : null
       };
       
       const token = localStorage.getItem('session_token');
