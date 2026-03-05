@@ -4667,6 +4667,7 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph("COSTOS RECURRENTES MENSUALES", self.styles['SeccionHeader']))
         elements.append(Spacer(1, 4))
         
+        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
         pg_rc = self.data.pg_recurring_cost
         if pg_rc and (pg_rc.get('rangos') or pg_rc.get('table')):
             num_products = pg_rc.get('num_products', 1)
