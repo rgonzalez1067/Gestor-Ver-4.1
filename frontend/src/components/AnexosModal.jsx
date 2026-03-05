@@ -201,11 +201,11 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                               {formatFileSize(att.file_size)} · {att.uploaded_by_name || att.uploaded_by} · {new Date(att.uploaded_at).toLocaleDateString('es-VE')}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 shrink-0">
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600"
+                              className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                               onClick={() => handleDownload(att)}
                               data-testid={`anexo-download-${att.attachment_id}`}
                             >
@@ -214,7 +214,7 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-slate-500 hover:text-red-600"
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
                               onClick={() => handleDelete(att.attachment_id, att.filename)}
                               data-testid={`anexo-delete-${att.attachment_id}`}
                             >
