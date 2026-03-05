@@ -44,11 +44,22 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - Parsing con PyPDF2 + regex (patron [JGVEP]\d{9}, texto post-RIF, texto post "DOMICILIO FISCAL")
 - Validacion de duplicados: si RIF existe, ofrece agregar nueva sucursal
 - Frontend: boton "Cargar desde RIF Digital", barra de progreso, auto-fill con resaltado amarillo
-- Testing: 6/6 backend + todos los elementos UI verificados (iteration_58)
+
+### Selector Multivariable de Productos y Medios de Pago (2026-03-05)
+- Componente MultiProductSelector: dropdown con checkboxes, busqueda, "Seleccionar Todo"
+- Integrado en cotizaciones VPOS y PG (reemplaza dropdown simple)
+- Permite seleccionar y agregar multiples productos de un banco en un solo clic
+- Deteccion de duplicados: productos ya agregados aparecen grises con badge "Ya agregado"
+- Funciones batch: addMultipleMediosPago (VPOS) y addMultiplePgSetupItems (PG)
+- Fix cliente: shouldFilter={false} en Command + functional state update
+
+### Dashboard Stats Fix (2026-03-05)
+- Nuevo endpoint GET /api/dashboard/stats con count_documents (eficiente)
+- Reemplaza 6+ llamadas individuales por una sola
+- Filtro por sede en cotizaciones para usuarios no-admin
 
 ## Pendientes
-- P0: Refactorizacion backend server.py (6900+ lineas)
-- P1: Refactorizacion frontend Quotes.jsx (4300+ lineas)
+- P0: Refactorizacion backend server.py (7200+ lineas)
+- P1: Refactorizacion frontend Quotes.jsx (4400+ lineas)
 - P1: Verificacion Email / Recuperacion Contrasena (Resend API)
-- P2: Bug contadores Dashboard
 - P2: Modulo de Reportes
