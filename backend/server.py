@@ -107,6 +107,31 @@ def append_vpos_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     output.seek(0)
     return output
 
+def append_pg_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
+    """Agrega las páginas del anexo PG al final del PDF generado"""
+    if not PYPDF2_AVAILABLE:
+        return pdf_buffer
+    
+    anexo_path = STATIC_PDFS_DIR / "anexo_pg.pdf"
+    if not anexo_path.exists():
+        return pdf_buffer
+    
+    writer = PdfWriter()
+    
+    pdf_buffer.seek(0)
+    reader = PdfReader(pdf_buffer)
+    for page in reader.pages:
+        writer.add_page(page)
+    
+    anexo_reader = PdfReader(str(anexo_path))
+    for page in anexo_reader.pages:
+        writer.add_page(page)
+    
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
 api_router = APIRouter(prefix="/api")
 
 async def generate_quote_number(sede: str) -> str:
@@ -2940,8 +2965,11 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Generar PDF
                 pdf_buffer = generator.generate()
                 
-                # Agregar páginas estáticas para VPOS
-                pdf_buffer = append_vpos_static_pages(pdf_buffer)
+                # Agregar páginas estáticas según tipo
+                if quote_data.get('quote_type') == 'GATEWAY':
+                    pdf_buffer = append_pg_static_pages(pdf_buffer)
+                else:
+                    pdf_buffer = append_vpos_static_pages(pdf_buffer)
                 
                 # Guardar PDF en el servidor
                 pdf_filename = f"{quote_number}_Cotizacion.pdf"
@@ -4399,7 +4427,7 @@ class DynamicQuotePDFGenerator:
         return self.buffer
     
     def generate_pg(self):
-        """Generar el PDF para Payment Gateway (4 páginas) - Clonado de VPOS con adaptaciones"""
+        """Generar el PDF para Payment Gateway - Unificado con estética VPOS"""
         
         MESES_ES = {
             1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -4420,14 +4448,16 @@ class DynamicQuotePDFGenerator:
         now = datetime.now()
         fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
         
-        # ==================== PÁGINA 1: PORTADA PG (Clonada de VPOS) ====================
+        # ==================== PÁGINA 1: PORTADA (Base VPOS) ====================
         elements.append(Spacer(1, 80))
-        elements.append(Paragraph("Payment Gateway - Merchant Server", self.styles['TituloPortada']))
+        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
         elements.append(Spacer(1, 10))
+        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 6))
         elements.append(Paragraph("Payment Gateway", self.styles['Subtitulo']))
         elements.append(Spacer(1, 40))
         
-        # Información del proyecto (adaptada para PG)
+        # Información del proyecto
         info_portada = [
             ("Cliente", self.data.cliente_nombre),
             ("RIF", self.data.cliente_rif),
@@ -4445,7 +4475,7 @@ class DynamicQuotePDFGenerator:
         
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 2: MATRIZ DE CONFIGURACIÓN (Clonada de VPOS pág 2) ====================
+        # ==================== PÁGINA 2: RESUMEN EJECUTIVO ====================
         # Carta de presentación (idéntica a VPOS)
         carta_header = f"""
         <b>Señores:</b> {self.data.cliente_nombre}<br/>
@@ -4463,15 +4493,92 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph(carta_body, self.styles['TextoNormal']))
         elements.append(Spacer(1, 15))
         
-        # MATRIZ DE CONFIGURACIÓN PG (reemplaza "Resumen Ejecutivo" de VPOS)
-        elements.append(Paragraph("MATRIZ DE CONFIGURACIÓN", self.styles['SeccionHeader']))
+        # Título Resumen Ejecutivo
+        elements.append(Paragraph("RESUMEN EJECUTIVO", self.styles['SeccionHeader']))
         elements.append(Spacer(1, 8))
         
-        # Obtener items de setup PG
+        # Tabla de Bancos y Productos (sin "Persona Jurídica")
+        producto_style = ParagraphStyle(
+            'PGProductoCell',
+            fontName='Helvetica',
+            fontSize=7.5,
+            leading=9,
+            wordWrap='LTR'
+        )
+        
+        bank_product_map = {}
         if self.data.pg_setup_items:
             pg_items = self.data.pg_setup_items
         else:
-            pg_items = [{"concepto": i.concepto, "costo": i.tarifa, "banco": i.bank_name or "", "observacion": ""} for i in self.data.setup_items]
+            pg_items = [{"concepto": i.concepto, "costo": i.tarifa, "banco": i.bank_name or ""} for i in self.data.setup_items]
+        
+        for item in pg_items:
+            concepto = str(item.get('concepto', ''))
+            # Filtrar "Persona Jurídica"
+            if 'persona jur' in concepto.lower():
+                continue
+            banco = str(item.get('banco', ''))
+            if not banco:
+                continue
+            key = banco
+            if key not in bank_product_map:
+                bank_product_map[key] = {'bank': banco, 'products': set()}
+            bank_product_map[key]['products'].add(concepto)
+        
+        if bank_product_map:
+            table_data = [['Bancos', 'Productos']]
+            for data_entry in bank_product_map.values():
+                products_str = ', '.join(data_entry['products'])
+                table_data.append([data_entry['bank'], Paragraph(products_str, producto_style)])
+            
+            table = Table(table_data, colWidths=[180, 310])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (0, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 1), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ]))
+            for i in range(1, len(table_data)):
+                if i % 2 == 0:
+                    table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
+            elements.append(table)
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 3: DETALLE DE INVERSIÓN ====================
+        elements.append(Paragraph("INVERSIÓN EN SETUP / ARRANQUE", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 8))
+        
+        concepto_style = ParagraphStyle(
+            'PGConceptoCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
+        banco_style = ParagraphStyle(
+            'PGBancoCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
+        obs_style = ParagraphStyle(
+            'PGObsCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
         
         if pg_items:
             pg_table_data = [['N°', 'Concepto', 'Costo (USD)', 'Banco', 'Observación']]
@@ -4480,16 +4587,15 @@ class DynamicQuotePDFGenerator:
             for idx, item in enumerate(pg_items, 1):
                 costo = item.get('costo', 0) or 0
                 subtotal_setup += costo
-                # Limpieza de observaciones
                 obs = str(item.get('observacion', '') or '')
                 if 'cargado automáticamente' in obs.lower():
                     obs = 'Costo Base'
                 pg_table_data.append([
                     str(idx),
-                    str(item.get('concepto', ''))[:45],
+                    Paragraph(str(item.get('concepto', '')), concepto_style),
                     f"${costo:.2f}",
-                    str(item.get('banco', ''))[:25],
-                    obs[:35]
+                    Paragraph(str(item.get('banco', '')), banco_style),
+                    Paragraph(obs, obs_style)
                 ])
             
             pg_table_data.append(['', 'TOTAL SETUP', f"${subtotal_setup:.2f}", '', ''])
@@ -4524,15 +4630,23 @@ class DynamicQuotePDFGenerator:
             
             elements.append(pg_table)
         
-        elements.append(PageBreak())
+        elements.append(Spacer(1, 20))
         
-        # ==================== PÁGINA 3: COSTOS RECURRENTES (centrada, auto-width) ====================
+        # Costos Recurrentes
         elements.append(Paragraph("COSTOS RECURRENTES MENSUALES", self.styles['SeccionHeader']))
         elements.append(Spacer(1, 8))
         
         all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
         
         if all_recurring:
+            rec_concepto_style = ParagraphStyle(
+                'PGRecConceptoCell',
+                fontName='Helvetica',
+                fontSize=8,
+                leading=10,
+                wordWrap='LTR'
+            )
+            
             rec_table_data = [['N°', 'Concepto', 'Cant.', 'Tarifa (USD)', 'Total (USD)']]
             subtotal_rec = 0
             
@@ -4542,20 +4656,18 @@ class DynamicQuotePDFGenerator:
                 subtotal_rec += total_item
                 rec_table_data.append([
                     str(idx),
-                    item.concepto[:50],
+                    Paragraph(item.concepto, rec_concepto_style),
                     str(cant),
                     f"${item.tarifa:.2f}",
                     f"${total_item:.2f}"
                 ])
             
-            # Filas de totales
             iva = subtotal_rec * 0.16
             total_con_iva = subtotal_rec + iva
             rec_table_data.append(['', 'SUBTOTAL RECURRENTE', '', '', f"${subtotal_rec:.2f}"])
             rec_table_data.append(['', 'IVA (16%)', '', '', f"${iva:.2f}"])
             rec_table_data.append(['', 'TOTAL RECURRENTE MENSUAL', '', '', f"${total_con_iva:.2f}"])
             
-            # Columnas auto-ajustadas al contenido
             col_widths = [25, None, 35, 70, 80]
             rec_table = Table(rec_table_data, colWidths=col_widths, repeatRows=1, hAlign='CENTER')
             
@@ -4575,12 +4687,9 @@ class DynamicQuotePDFGenerator:
                 ('TOPPADDING', (0, 1), (-1, -1), 4),
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
-                # Subtotal
                 ('BACKGROUND', (0, -3), (-1, -3), self.COLOR_VERDE_CLARO),
                 ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
-                # IVA
                 ('FONTNAME', (0, -2), (-1, -2), 'Helvetica'),
-                # Total
                 ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_VERDE),
                 ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
                 ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
@@ -4598,8 +4707,14 @@ class DynamicQuotePDFGenerator:
         
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 4: TÉRMINOS Y CONDICIONES (Clonación exacta VPOS) ====================
-        elements.append(Paragraph("TÉRMINOS Y CONDICIONES", self.styles['TituloPortada']))
+        # ==================== PÁGINA 4: TÉRMINOS DE LA COTIZACIÓN ====================
+        elements.append(Paragraph("TÉRMINOS DE LA COTIZACIÓN", ParagraphStyle(
+            'PGTerminosTitulo',
+            parent=self.styles['TituloPortada'],
+            fontSize=18,
+            alignment=1,
+            spaceAfter=10
+        )))
         elements.append(Spacer(1, 20))
         
         vigencia_date = now + timedelta(days=5)
@@ -4668,8 +4783,10 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas para VPOS
-        if data.quote_type != 'GATEWAY':
+        # Agregar páginas estáticas según tipo
+        if data.quote_type == 'GATEWAY':
+            pdf_buffer = append_pg_static_pages(pdf_buffer)
+        else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
         # Nombre del archivo
@@ -4710,8 +4827,10 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas para VPOS
-        if data.quote_type != 'GATEWAY':
+        # Agregar páginas estáticas según tipo
+        if data.quote_type == 'GATEWAY':
+            pdf_buffer = append_pg_static_pages(pdf_buffer)
+        else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
         return Response(
@@ -5799,9 +5918,11 @@ async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     doc.build(elements)
     buffer.seek(0)
     
-    # Agregar páginas estáticas para cotizaciones VPOS
+    # Agregar páginas estáticas según tipo de cotización
     quote_type = quote.get('quote_type', '')
-    if quote_type not in ('GATEWAY',):
+    if quote_type == 'GATEWAY':
+        buffer = append_pg_static_pages(buffer)
+    elif quote_type not in ('GATEWAY',):
         buffer = append_vpos_static_pages(buffer)
     
     return buffer
