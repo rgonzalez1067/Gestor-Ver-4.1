@@ -1552,6 +1552,36 @@ async def toggle_log_complete(log_id: str, authorization: Optional[str] = Header
 
 # ==================== DASHBOARD ALERTS ====================
 
+@api_router.get("/dashboard/stats")
+async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
+    """Retorna los contadores del dashboard en una sola llamada"""
+    current_user = await get_current_user(authorization)
+    
+    # Para cotizaciones: filtrar por sede si no es admin
+    quotes_query = {}
+    if current_user.get("role") != "admin":
+        user_sede = current_user.get("sede", "TBP")
+        quotes_query["sede"] = user_sede
+    
+    quotes_count = await db.quotes.count_documents(quotes_query)
+    clients_count = await db.clients.count_documents({})
+    banks_count = await db.banks.count_documents({})
+    services_count = await db.services.count_documents({})
+    hardware_count = await db.hardware.count_documents({})
+    
+    # Tasa de cambio
+    rate_doc = await db.exchange_rates.find_one({"active": True}, {"_id": 0})
+    exchange_rate = rate_doc.get("rate", 0) if rate_doc else 0
+    
+    return {
+        "totalQuotes": quotes_count,
+        "totalClients": clients_count,
+        "totalBanks": banks_count,
+        "totalMediosPago": services_count,
+        "totalHardware": hardware_count,
+        "exchangeRate": exchange_rate
+    }
+
 @api_router.get("/dashboard/alerts")
 async def get_dashboard_alerts(authorization: Optional[str] = Header(None)):
     """Obtiene alertas de seguimiento para el dashboard"""

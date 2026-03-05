@@ -15,6 +15,7 @@ import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Bui
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
+import { MultiProductSelector } from '../components/MultiProductSelector';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -753,6 +754,75 @@ export const Quotes = () => {
     setAvailableMediosPago([]);
   };
 
+  // Agregar múltiples medios de pago de una vez (VPOS)
+  const addMultipleMediosPago = (selectedProducts) => {
+    if (!selectedBankId || selectedProducts.length === 0) return;
+    const bank = banks.find(b => b.bank_id === selectedBankId);
+    if (!bank) return;
+
+    let newAdditionalItems = [...quoteData.additional_items];
+    let newRecurringBasicItems = [...quoteData.recurring_basic_items];
+    let addedCount = 0;
+
+    for (const medioPago of selectedProducts) {
+      const exists = newAdditionalItems.some(
+        item => item.bank_id === selectedBankId && item.medio_pago_name === medioPago.product_name
+      );
+      if (exists) continue;
+
+      const prices = findServicePrice(medioPago.product_name);
+      const newItem = {
+        id: `${selectedBankId}_${medioPago.product_name}`,
+        bank_id: selectedBankId,
+        bank_name: bank.name,
+        medio_pago_name: medioPago.product_name,
+        description: medioPago.description || '',
+        cantidad_cajas: quoteData.cantidad_cajas,
+        cantidad_bancos: 1,
+        tarifa_setup: prices.setup_cost,
+        tarifa_recurrente: prices.monthly_cost,
+        application_type: prices.application_type,
+        isDefault: false,
+        linked_recurring_service_id: prices.linked_recurring_service_id
+      };
+      newAdditionalItems.push(newItem);
+      addedCount++;
+
+      if (prices.linked_recurring_service_id) {
+        const linkedService = getServiceById(prices.linked_recurring_service_id);
+        if (linkedService) {
+          const isOutsourcing = quoteData.pricing_model === 'outsourcing';
+          const linkedMonthlyPrice = isOutsourcing
+            ? (linkedService.monthly_cost_outsourcing || 0)
+            : (linkedService.monthly_cost_conventional || 0);
+          newRecurringBasicItems.push({
+            id: `auto_linked_${newItem.id}_${linkedService.service_id}`,
+            medio_pago_name: linkedService.name,
+            linkedTo: medioPago.product_name,
+            bank_name: bank.name,
+            cantidad_cajas: quoteData.cantidad_cajas,
+            cantidad_bancos: 1,
+            tarifa: linkedMonthlyPrice,
+            isDefault: false,
+            isAutoLinked: true,
+            sourceServiceId: newItem.id,
+            type: 'recurring_basic'
+          });
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      const consolidatedRecurring = consolidateRecurringItems(newRecurringBasicItems);
+      setQuoteData({
+        ...quoteData,
+        additional_items: newAdditionalItems,
+        recurring_basic_items: consolidatedRecurring
+      });
+      toast.success(`${addedCount} medio(s) de pago agregado(s)`);
+    }
+  };
+
   const removeAdditionalItem = (index) => {
     const itemToRemove = quoteData.additional_items[index];
     
@@ -958,15 +1028,8 @@ export const Quotes = () => {
     }
     const bank = banks.find(b => b.bank_id === bankId);
     if (bank) {
-      // Filtro Muchos-a-Muchos: bloquear solo si mismo Concepto + mismo Banco
-      const existingForBank = new Set(
-        pgSetupItems
-          .filter(i => i.banco === bank.name)
-          .map(i => i.concepto)
-      );
-      const filtered = (bank.products || []).filter(p => 
-        p.gateway_available && !existingForBank.has(p.product_name)
-      );
+      // Solo filtrar por gateway_available, las duplicaciones las maneja MultiProductSelector
+      const filtered = (bank.products || []).filter(p => p.gateway_available);
       setPgFilteredProducts(filtered);
     }
   };
@@ -1007,6 +1070,38 @@ export const Quotes = () => {
     setPgFilteredProducts([]);
     setPgShowRecurringTable(false);
     toast.success('Medio de pago agregado al setup');
+  };
+
+  // Agregar múltiples medios de pago de una vez (PG)
+  const addMultiplePgSetupItems = (selectedProducts) => {
+    if (!pgSelectedBankId || selectedProducts.length === 0) return;
+    const bank = banks.find(b => b.bank_id === pgSelectedBankId);
+    if (!bank) return;
+
+    let newItems = [...pgSetupItems];
+    let addedCount = 0;
+
+    for (const product of selectedProducts) {
+      const exists = newItems.some(item => item.concepto === product.product_name && item.banco === bank.name);
+      if (exists) continue;
+
+      const outsourcingCost = getPgOutsourcingPrice(product.product_name);
+      newItems.push({
+        concepto: product.product_name,
+        costo: outsourcingCost,
+        banco: bank.name,
+        observacion: ''
+      });
+      addedCount++;
+    }
+
+    if (addedCount > 0) {
+      setPgSetupItems(newItems);
+      setPgShowRecurringTable(false);
+      toast.success(`${addedCount} medio(s) de pago agregado(s) al setup`);
+    }
+    setPgSelectedBankId('');
+    setPgFilteredProducts([]);
   };
 
   const updatePgSetupItem = (index, field, value) => {
@@ -3183,10 +3278,10 @@ export const Quotes = () => {
                     </div>
                   )}
 
-                  {/* Agregar medio de pago: BANCO primero, luego CONCEPTO filtrado */}
+                  {/* Agregar medio de pago: BANCO primero, luego selector múltiple */}
                   <div className="bg-slate-50 rounded-lg p-4 border mb-4">
                     <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wide">Agregar Medio de Pago</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                       <div>
                         <Label className="text-sm font-medium text-slate-700 mb-2 block">1. Banco</Label>
                         <Select value={pgSelectedBankId} onValueChange={handlePgBankChange}>
@@ -3201,21 +3296,18 @@ export const Quotes = () => {
                         </Select>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-slate-700 mb-2 block">2. Concepto (Medio de Pago)</Label>
-                        <Select value={pgSelectedMedioPago} onValueChange={setPgSelectedMedioPago} disabled={!pgSelectedBankId}>
-                          <SelectTrigger data-testid="pg-select-medio-pago">
-                            <SelectValue placeholder={pgSelectedBankId ? "Seleccione medio de pago..." : "Seleccione banco primero"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pgFilteredProducts.map((mp) => (
-                              <SelectItem key={mp.product_name} value={mp.product_name}>{mp.product_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">2. Concepto(s) (Medio de Pago)</Label>
+                        <MultiProductSelector
+                          products={pgFilteredProducts}
+                          existingItems={pgSetupItems}
+                          bankName={banks.find(b => b.bank_id === pgSelectedBankId)?.name || ''}
+                          onAdd={addMultiplePgSetupItems}
+                          disabled={!pgSelectedBankId}
+                          duplicateKey="product_name"
+                          existingKey="concepto"
+                          existingBankKey="banco"
+                        />
                       </div>
-                      <Button onClick={addPgSetupItem} data-testid="pg-add-item-btn" className="bg-emerald-600 hover:bg-emerald-700" disabled={!pgSelectedBankId || !pgSelectedMedioPago}>
-                        <Plus size={16} className="mr-2" /> Agregar Medio de Pago
-                      </Button>
                     </div>
                   </div>
 
@@ -3367,7 +3459,7 @@ export const Quotes = () => {
                   </h3>
                   
                   <div className="bg-slate-50 rounded-lg p-4 border mb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                       <div>
                         <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                           <Building2 size={16} className="text-brand-blue-600" />
@@ -3390,35 +3482,19 @@ export const Quotes = () => {
                       <div>
                         <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                           <CreditCard size={16} className="text-brand-green-600" />
-                          Medio de Pago
+                          Medios de Pago
                         </Label>
-                        <Select 
-                          value={selectedMedioPagoId} 
-                          onValueChange={setSelectedMedioPagoId}
-                          disabled={!selectedBankId || availableMediosPago.length === 0}
-                        >
-                          <SelectTrigger data-testid="select-medio-pago">
-                            <SelectValue placeholder={!selectedBankId ? "Primero seleccione banco" : "Seleccione medio..."} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableMediosPago.map((mp) => (
-                              <SelectItem key={mp.product_name} value={mp.product_name}>
-                                {mp.product_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <MultiProductSelector
+                          products={availableMediosPago}
+                          existingItems={quoteData.additional_items}
+                          bankName={banks.find(b => b.bank_id === selectedBankId)?.name || ''}
+                          onAdd={addMultipleMediosPago}
+                          disabled={!selectedBankId}
+                          duplicateKey="product_name"
+                          existingKey="medio_pago_name"
+                          existingBankKey="bank_name"
+                        />
                       </div>
-
-                      <Button
-                        onClick={addMedioPagoItem}
-                        disabled={!selectedBankId || !selectedMedioPagoId}
-                        className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white h-10"
-                        data-testid="add-medio-pago-btn"
-                      >
-                        <Plus size={16} className="mr-2" />
-                        Agregar
-                      </Button>
                     </div>
                   </div>
                 </div>

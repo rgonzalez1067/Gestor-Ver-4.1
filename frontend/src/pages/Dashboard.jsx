@@ -21,18 +21,22 @@ export const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      let quotesCount = 0, clientsCount = 0, banksCount = 0, servicesCount = 0, hardwareCount = 0, exchangeRate = 0;
+      // Obtener stats y recientes en paralelo
+      const [statsRes, quotesRes, alertsRes] = await Promise.allSettled([
+        api.get('/dashboard/stats'),
+        api.get('/quotes'),
+        api.get('/dashboard/alerts')
+      ]);
 
-      try { const r = await api.get('/quotes'); quotesCount = Array.isArray(r.data) ? r.data.length : 0; setRecentQuotes(Array.isArray(r.data) ? r.data.slice(0, 5) : []); } catch {}
-      try { const r = await api.get('/clients'); clientsCount = Array.isArray(r.data) ? r.data.length : 0; } catch {}
-      try { const r = await api.get('/banks'); banksCount = Array.isArray(r.data) ? r.data.length : 0; } catch {}
-      try { const r = await api.get('/services'); servicesCount = Array.isArray(r.data) ? r.data.length : 0; } catch {}
-      try { const r = await api.get('/hardware'); hardwareCount = Array.isArray(r.data) ? r.data.length : 0; } catch {}
-      try { const r = await api.get('/exchange-rate/current'); exchangeRate = r.data?.rate || 0; } catch {}
-      try { const r = await api.get('/dashboard/alerts'); setAlerts(r.data); } catch {}
-
-      setStats({ totalQuotes: quotesCount, totalClients: clientsCount, totalBanks: banksCount,
-        totalMediosPago: servicesCount, totalHardware: hardwareCount, exchangeRate });
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data);
+      }
+      if (quotesRes.status === 'fulfilled') {
+        setRecentQuotes(Array.isArray(quotesRes.value.data) ? quotesRes.value.data.slice(0, 5) : []);
+      }
+      if (alertsRes.status === 'fulfilled') {
+        setAlerts(alertsRes.value.data);
+      }
     } catch {
       toast.error('Error al cargar datos del dashboard');
     } finally {
