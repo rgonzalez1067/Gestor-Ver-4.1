@@ -3006,6 +3006,12 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                                     bank_name=""
                                 ))
                     
+                    # Preparar pg_recurring_cost para el generador
+                    pg_rc_data = None
+                    if data.pg_recurring_cost:
+                        rc = data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else data.pg_recurring_cost.dict()
+                        pg_rc_data = rc
+                    
                     pdf_request = TemplateQuotePDFRequest(
                         quote_type="GATEWAY",
                         quote_number=quote_number,
@@ -3015,6 +3021,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                         integrator_name=data.integrator_name or '',
                         integrator_app_name=data.integrator_app_name or '',
                         pg_setup_items=pg_setup_list,
+                        pg_recurring_cost=pg_rc_data,
                         recurring_basic_items=rec_basic,
                         recurring_other_items=rec_other,
                         production_items=[],
