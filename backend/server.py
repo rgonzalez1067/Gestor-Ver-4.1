@@ -4098,8 +4098,17 @@ class DynamicQuotePDFGenerator:
         # Crear tabla de Bancos/Productos/Cajas con colores de encabezado
         table_data = [['Bancos', 'Productos', 'Cantidad de Cajas']]
         
+        # Estilo para celdas de productos (text wrap para evitar desbordamiento)
+        producto_style = ParagraphStyle(
+            'ProductoCell',
+            fontName='Helvetica',
+            fontSize=7.5,
+            leading=9,
+            wordWrap='LTR'
+        )
+        
         for data in bank_product_map.values():
-            table_data.append([data['bank'], data['product'], str(data['cajas'])])
+            table_data.append([data['bank'], Paragraph(data['product'], producto_style), str(data['cajas'])])
         
         table = Table(table_data, colWidths=[160, 230, 90])
         table.setStyle(TableStyle([
@@ -4347,8 +4356,14 @@ class DynamicQuotePDFGenerator:
         # Salto de página para Términos
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 5: TÉRMINOS Y CONDICIONES ====================
-        elements.append(Paragraph("TÉRMINOS Y CONDICIONES", self.styles['TituloPortada']))
+        # ==================== PÁGINA 5: TÉRMINOS DE LA COTIZACIÓN ====================
+        elements.append(Paragraph("TÉRMINOS DE LA COTIZACIÓN", ParagraphStyle(
+            'TerminosTitulo',
+            parent=self.styles['TituloPortada'],
+            fontSize=18,
+            alignment=1,  # Centrado
+            spaceAfter=10
+        )))
         elements.append(Spacer(1, 20))
         
         # Fecha de vigencia en español
@@ -4365,7 +4380,7 @@ class DynamicQuotePDFGenerator:
         bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
         
         <b>3. Forma de Pago</b><br/>
-        - Costos de Setup: 100% al momento de la instalación<br/>
+        - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
         - Costos Recurrentes: Facturación mensual vencida<br/><br/>
         
         <b>4. Soporte Técnico</b><br/>
@@ -4600,7 +4615,7 @@ class DynamicQuotePDFGenerator:
         bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
         
         <b>3. Forma de Pago</b><br/>
-        - Costos de Setup: 100% al momento de la instalación<br/>
+        - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
         - Costos Recurrentes: Facturación mensual vencida<br/><br/>
         
         <b>4. Soporte Técnico</b><br/>
