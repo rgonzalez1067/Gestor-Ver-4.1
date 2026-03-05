@@ -2984,28 +2984,58 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 logging.error(f"Error generando PDF: {str(e)}")
                 # Continuar sin PDF si falla la generación
         elif data.quote_type == "GATEWAY" and data.pg_setup_items:
-            # Generar PDF para Payment Gateway usando el generador por defecto
+            # Generar PDF para Payment Gateway usando DynamicQuotePDFGenerator
             try:
                 client = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0})
                 if client:
-                    quote_dict = {
-                        "quote_number": quote_number,
-                        "quote_type": "GATEWAY",
-                        "pg_setup_items": [item if isinstance(item, dict) else item.dict() for item in data.pg_setup_items],
-                        "pg_recurring_cost": data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else (data.pg_recurring_cost.dict() if data.pg_recurring_cost else None),
-                        "total_usd": total_usd,
-                        "notes": data.notes,
-                        "integrator_name": data.integrator_name,
-                        "integrator_app_name": data.integrator_app_name,
-                        "created_at": datetime.now(timezone.utc).isoformat()
-                    }
-                    pdf_buffer = await generate_quote_pdf_buffer(quote_dict, client)
+                    # Construir TemplateQuotePDFRequest desde los datos disponibles
+                    pg_setup_list = [item if isinstance(item, dict) else item.dict() for item in data.pg_setup_items]
+                    
+                    # Construir items recurrentes
+                    rec_basic = []
+                    rec_other = []
+                    if data.pg_recurring_cost:
+                        rc = data.pg_recurring_cost if isinstance(data.pg_recurring_cost, dict) else data.pg_recurring_cost.dict()
+                        if rc.get('rangos'):
+                            for rango in rc['rangos']:
+                                rec_basic.append(QuotePDFItem(
+                                    concepto=f"Rango {rango.get('rango_label', 'N/A')} - Precio tope: ${rango.get('precio_tope', 0):.2f}",
+                                    cantidad_cajas=1,
+                                    cantidad_bancos=1,
+                                    tarifa=rango.get('costo_base_total', 0),
+                                    bank_name=""
+                                ))
+                    
+                    pdf_request = TemplateQuotePDFRequest(
+                        quote_type="GATEWAY",
+                        quote_number=quote_number,
+                        cliente_nombre=client.get('legal_name', client.get('fantasy_name', '')),
+                        cliente_rif=client.get('rif', ''),
+                        cliente_contacto=client.get('contacts', [{}])[0].get('name', '') if client.get('contacts') else '',
+                        integrator_name=data.integrator_name or '',
+                        integrator_app_name=data.integrator_app_name or '',
+                        pg_setup_items=pg_setup_list,
+                        recurring_basic_items=rec_basic,
+                        recurring_other_items=rec_other,
+                        production_items=[],
+                        notes=data.notes or '',
+                    )
+                    
+                    logo_path = None
+                    logo_file = UPLOADS_DIR / "logo.png"
+                    if logo_file.exists():
+                        logo_path = str(logo_file)
+                    
+                    generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
+                    pdf_buffer = generator.generate()
+                    pdf_buffer = append_pg_static_pages(pdf_buffer)
+                    
                     pdf_filename = f"{quote_number}_Cotizacion.pdf"
                     pdf_path = UPLOADS_DIR / pdf_filename
                     with open(pdf_path, 'wb') as f:
                         f.write(pdf_buffer.getvalue())
                     quote_pdf_url = f"/uploads/{pdf_filename}"
-                    logging.info(f"PDF PG generado: {quote_pdf_url}")
+                    logging.info(f"PDF PG generado con DynamicGenerator: {quote_pdf_url}")
             except Exception as e:
                 logging.error(f"Error generando PDF PG: {str(e)}")
                 import traceback
