@@ -2592,7 +2592,7 @@ export const Quotes = () => {
                           {displayType}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-900">{client?.fantasy_name || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
                       <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>

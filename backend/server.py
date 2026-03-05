@@ -487,6 +487,7 @@ class Quote(BaseModel):
     quote_id: str = Field(default_factory=lambda: f"quo_{uuid.uuid4().hex[:12]}")
     quote_number: str
     client_id: str
+    client_name: Optional[str] = None  # Nombre del cliente para visualización rápida
     quote_category: str = "implementation"  # "implementation", "equipment" o "repair"
     quote_type: str = "VPOS"  # Para implementaciones
     equipment_type: Optional[str] = None  # "Dispositivo" o "Accesorio" para equipos
@@ -3063,11 +3064,16 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 "content_type": "application/pdf"
             })
         
+        # Obtener nombre del cliente
+        client_doc = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0, "legal_name": 1, "fantasy_name": 1})
+        client_display_name = (client_doc.get("fantasy_name") or client_doc.get("legal_name", "")) if client_doc else ""
+        
         # Crear la cotización
         quote = Quote(
             quote_id=quote_id,
             quote_number=quote_number,
             client_id=data.client_id,
+            client_name=client_display_name,
             quote_category=data.quote_category or "implementation",
             quote_type=data.quote_type or "VPOS",
             equipment_type=data.equipment_type,
@@ -3167,12 +3173,26 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
         query["sede"] = user_sede
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Cache de clientes para resolver nombres
+    client_ids_missing = set()
     for quote in quotes:
         if isinstance(quote['created_at'], str):
             quote['created_at'] = datetime.fromisoformat(quote['created_at'])
-        # Asegurar que cotizaciones antiguas sin sede tengan valor por defecto
         if 'sede' not in quote:
             quote['sede'] = 'TBP'
+        if not quote.get('client_name') and quote.get('client_id'):
+            client_ids_missing.add(quote['client_id'])
+    
+    # Resolver nombres de clientes faltantes
+    if client_ids_missing:
+        client_docs = {}
+        async for c in db.clients.find({"client_id": {"$in": list(client_ids_missing)}}, {"_id": 0, "client_id": 1, "legal_name": 1, "fantasy_name": 1}):
+            client_docs[c['client_id']] = c.get('fantasy_name') or c.get('legal_name', '')
+        for quote in quotes:
+            if not quote.get('client_name') and quote.get('client_id'):
+                quote['client_name'] = client_docs.get(quote['client_id'], 'N/A')
+    
     return quotes
 
 @api_router.get("/quotes/{quote_id}", response_model=Quote)
@@ -4592,7 +4612,7 @@ class DynamicQuotePDFGenerator:
         
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 3: DETALLE DE INVERSIÓN ====================
+        # ==================== PÁGINA 3: INVERSIÓN EN SETUP ====================
         elements.append(Paragraph("INVERSIÓN EN SETUP / ARRANQUE", self.styles['SeccionHeader']))
         elements.append(Spacer(1, 8))
         
@@ -4668,9 +4688,9 @@ class DynamicQuotePDFGenerator:
             
             elements.append(pg_table)
         
-        elements.append(Spacer(1, 20))
+        elements.append(PageBreak())
         
-        # Costos Recurrentes - Tabla de Rangos
+        # ==================== PÁGINA 4: COSTOS RECURRENTES ====================
         elements.append(Paragraph("COSTOS RECURRENTES MENSUALES", self.styles['SeccionHeader']))
         elements.append(Spacer(1, 4))
         
@@ -4770,7 +4790,7 @@ class DynamicQuotePDFGenerator:
         
         elements.append(PageBreak())
         
-        # ==================== PÁGINA 4: TÉRMINOS DE LA COTIZACIÓN ====================
+        # ==================== PÁGINA 5: TÉRMINOS DE LA COTIZACIÓN ====================
         elements.append(Paragraph("TÉRMINOS DE LA COTIZACIÓN", ParagraphStyle(
             'PGTerminosTitulo',
             parent=self.styles['TituloPortada'],

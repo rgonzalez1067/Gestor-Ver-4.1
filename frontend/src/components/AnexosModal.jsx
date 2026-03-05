@@ -102,13 +102,21 @@ export function AnexosModal({ open, onClose, quoteId, quoteNumber }) {
       });
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = attachment.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(a.href);
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // Abrir en nueva pestaña para previsualizar PDF
+      if (attachment.filename.toLowerCase().endsWith('.pdf')) {
+        window.open(blobUrl, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = attachment.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
     } catch (err) {
       toast.error('Error al descargar el archivo');
     }
