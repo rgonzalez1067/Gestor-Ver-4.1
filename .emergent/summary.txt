@@ -1,46 +1,46 @@
 <analysis>**original_problem_statement:**
 El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo de la sesión, se implementaron las siguientes funcionalidades:
-1.  **Módulo Anexos:** Centralización de todos los documentos de una cotización.
-2.  **Flujo de Estados Basado en Evidencias:** Bloqueo de cambio de estado si no se ha cargado el documento de respaldo.
-3.  **Módulo de Clientes & CRM:** Múltiples sedes por cliente, matriz de contactos y bitácora de eventos.
-4.  **Dashboard de Alertas:** Widget con alertas de seguimiento de clientes.
-5.  **Importación Avanzada de Clientes:** Desde Excel, con descarga de plantilla.
-6.  **Nomenclatura Definitiva de Cotizaciones:** Con contadores correlativos independientes por mes y sede.
-7.  **Reestructuración del Modelo de Cotizaciones:** Se consolidó VPOS/MPOS, se creó un nuevo flujo Payment Gateway (PG) con costos recurrentes, se mejoró la búsqueda de clientes y se dividieron los descuentos.
-8.  **Optimizaciones del Flujo de Cotización:** Se implementó la flexibilidad en el setup del ítem #4 (editable), se simplificó la búsqueda de clientes y se añadió la validación de Cliente en Producción.
-9.  **Correcciones de Persistencia:** Se solucionaron múltiples errores en el flujo de edición de cotizaciones, donde los datos guardados no se cargaban correctamente.
-10. **Implementación de PDF:** Se crearon y corrigieron múltiples plantillas de PDF, incluyendo una específica para Payment Gateway y un modal de previsualización.
-11. **Integración de Correos:** Se configuró y validó la API de Resend para el envío de notificaciones.
+1.  **Correos de Notificación por Sede**: Se añadieron campos en la configuración para especificar correos de notificación de ventas distintos para cada sede.
+2.  **Generación de PDFs (VPOS y PG)**: Se realizaron múltiples y extensas modificaciones a los PDFs generados para las cotizaciones de tipo VPOS y Payment Gateway. Esto incluyó:
+    *   Anexar, eliminar y reemplazar páginas estáticas desde archivos PDF proporcionados por el usuario.
+    *   Ajustar el formato, corregir desbordamientos de texto y cambiar títulos y contenido específico.
+    *   Reestructurar completamente el PDF de Payment Gateway para que coincida con la estética del VPOS, incluyendo la portada, el resumen ejecutivo, el detalle de inversión, los términos y los anexos.
+    *   Implementar una tabla de costos recurrentes por rangos en el PDF de PG.
+    *   Separar las tablas de costos de Setup y Recurrentes en páginas distintas en el PDF de PG.
+3.  **Extracción Automática de RIF Digital**: Se implementó una herramienta que permite cargar un archivo PDF de RIF Digital, extrae con OCR el RIF, la razón social y la dirección fiscal, y autocompleta el formulario de creación de clientes.
+4.  **Corrección de Bugs Críticos**:
+    *   Se solucionó un problema que impedía descargar los PDFs desde el modal de Anexos.
+    *   Se arregló un bug que causaba que el nombre del cliente no se guardara ni se mostrara en la lista de cotizaciones.
+    *   Se depuraron múltiples problemas de generación de PDF, incluyendo un error donde un generador de PDF obsoleto se estaba utilizando en lugar del código actualizado.
+    *   Se atendieron repetidos problemas de inicio de sesión reportados por el usuario.
+
+El último requerimiento del usuario es: **Selector Multivariable de Productos y Medios de Pago**, para permitir elegir varios productos simultáneamente para un banco e inyectarlos masivamente en la cotización.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, MongoDB) funcional y robusta. El núcleo del sistema, la creación y edición de cotizaciones (tanto para Hardware como para Payment Gateway), ha sido extensamente depurado y mejorado. Se han corregido errores críticos de persistencia de datos en el modo de edición, se ha solucionado un bug que impedía la generación de PDFs y se ha optimizado la búsqueda de clientes para manejar grandes volúmenes de datos mediante una búsqueda del lado del servidor. Además, la integración con Resend para el envío de correos está configurada y operativa. A pesar de las mejoras funcionales, la arquitectura sigue presentando un riesgo técnico significativo: el backend consiste en un único archivo monolítico () y el componente principal del frontend () es extremadamente grande y complejo, lo que dificulta el mantenimiento.
+La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, MongoDB) con funcionalidades avanzadas. Permite la gestión de clientes (con carga desde Excel y parsing de RIF digital), creación de cotizaciones para Hardware (VPOS) y Payment Gateway (PG), y la generación de PDFs altamente personalizados para ambos tipos. Las integraciones con Resend (correos) y PyPDF2 (parsing de PDF) están operativas. Se han corregido numerosos errores críticos relacionados con la generación de PDFs y la persistencia de datos. Sin embargo, la arquitectura del backend sigue siendo un monolito en  y el componente principal del frontend () es excesivamente grande, representando una deuda técnica significativa.
 
 **Last working item**:
-- Last item agent was working: El agente estaba comenzando a implementar una nueva solicitud del usuario: añadir campos en la configuración para especificar correos de notificación de ventas distintos para cada sede ( y ). El agente ya ha analizado el código relevante en el backend () y frontend () para entender cómo se guardan y leen los correos de notificación existentes, pero aún no ha comenzado a escribir el código para los nuevos campos.
+- Last item agent was working: El agente estaba comenzando a implementar el nuevo requerimiento del usuario: un Selector Multivariable de Productos y Medios de Pago. El agente analizó el flujo actual de adición de productos en las cotizaciones VPOS y PG, revisando el código en  y . La última acción fue crear el archivo para el nuevo componente reutilizable: .
 - Status: IN PROGRESS
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- Issue 1: Implementar correos de notificación de ventas por sede. (P0 - HIGHEST)
-- Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - LOW)
+-   Issue 1: Implementar el Selector Multivariable de Productos y Medios de Pago. (P0 - HIGHEST)
+-   Issue 2: Los contadores del Dashboard no suman los registros correctamente. (P2 - LOW)
 
 **Issues Detail:**
--   **Issue 1: Implementar correos de notificación de ventas por sede**
-    -   **Attempted fixes**: Ninguno. Análisis inicial completado.
+-   **Issue 1: Implementar el Selector Multivariable de Productos y Medios de Pago**
+    -   **Attempted fixes**: Ninguno. Análisis inicial completado y archivo de componente creado.
     -   **Next debug checklist**:
-        1.  **Backend ():**
-            -   Modificar el modelo Pydantic  para añadir dos nuevos campos opcionales:  y .
-            -   Actualizar el endpoint  para que pueda recibir y guardar estos nuevos campos en la colección .
+        1.  **Frontend ():** Desarrollar el componente con un combobox que incluya checkboxes, un campo de búsqueda y un botón de Seleccionar todo.
         2.  **Frontend ():**
-            -   Añadir dos nuevos  en la sección Configuración de Correos de Notificación.
-            -   Vincular estos inputs a nuevos estados y modificar la función  para enviar los nuevos valores al backend.
-        3.  **Backend ():**
-            -   Localizar la lógica de envío de correos (probablemente en la función que cambia el estado de la cotización) y modificarla para que, si existen los correos de ventas por sede, se notifique a la dirección correspondiente según la  de la cotización.
-    -   **Why fix this issue and what will be achieved with the fix?**: Cumple un requisito de negocio para dirigir las notificaciones de ventas al equipo correcto según la ubicación, mejorando la eficiencia operativa.
+            -   Integrar el  en las secciones de VPOS y PG, reemplazando los menús desplegables actuales.
+            -   Modificar las funciones  (VPOS) y  (PG) para que acepten un array de productos y los añadan en un bucle, validando duplicados.
+    -   **Why fix this issue and what will be achieved with the fix?**: Mejorará drásticamente la eficiencia y la experiencia de usuario al crear cotizaciones con múltiples productos, reduciendo el número de clics.
     -   **Status**: IN PROGRESS
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?**: both
@@ -58,31 +58,29 @@ La aplicación es una herramienta de cotizaciones full-stack (React, FastAPI, Mo
     -   **Blocked on other issue**: None
 
 **In progress Task List**:
--   **Task 1: Implementar correos de notificación de ventas por sede**
-    -   **Where to resume**: En el archivo , modificando el modelo Pydantic  para añadir los nuevos campos.
-    -   **What will be achieved with this?**: Un sistema de notificaciones de ventas más granular y alineado con la estructura organizativa del usuario.
+-   **Task 1: Implementar el Selector Multivariable de Productos y Medios de Pago**
+    -   **Where to resume**: En el archivo , comenzando el desarrollo del componente.
+    -   **What will be achieved with this?**: Una interfaz de usuario más rápida e intuitiva para agregar productos a las cotizaciones.
     -   **Status**: IN PROGRESS
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Refactorización del Backend (P0 - CRÍTICO):** Dividir el monolito  en una estructura de carpetas modular (e.g., , , ). Este es el mayor riesgo técnico del proyecto y debe ser la siguiente propuesta importante.
--   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar los flujos de usuario para la verificación de correo al registrarse y la recuperación de contraseña. La integración con Resend ya está funcional, por lo que esta tarea está desbloqueada.
+-   **Refactorización del Backend (P0 - CRÍTICO):** Dividir el monolito  en una estructura de carpetas modular (e.g., , , ). Este es el mayor riesgo técnico del proyecto.
+-   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar los flujos de usuario para la verificación de correo al registrarse y la recuperación de contraseña.
 
 Future Tasks:
--   **Refactorización del Frontend (P1):** Descomponer el componente masivo  en subcomponentes más pequeños y manejables (e.g., , , , ).
+-   **Refactorización del Frontend (P1):** Descomponer el componente masivo  en subcomponentes más pequeños y manejables.
 -   **Módulo de Reportes (P2):** Desarrollar una nueva sección en la aplicación para generar y visualizar reportes de ventas y cotizaciones.
 
 **Completed work in this session**
--   **Flujo de Edición de Cotizaciones (CORREGIDO):** Se solucionó un error crítico de race condition y se arregló la persistencia de datos para que al editar una cotización se carguen correctamente todos los valores guardados (descuentos, cantidades, bancos, ítems de producción, etc.).
--   **Generación de PDFs (CORREGIDO):** Se arregló un  que impedía generar PDFs y se implementó una nueva plantilla para Payment Gateway, clonando y adaptando la estructura del PDF de VPOS.
--   **Previsualización de PDF:** Se implementó un modal en el frontend para previsualizar los PDFs antes de exportarlos o guardarlos.
--   **Búsqueda de Clientes Optimizada:** Se reemplazó el filtro del lado del cliente por una búsqueda del lado del servidor con debounce, solucionando problemas de rendimiento con grandes volúmenes de clientes.
--   **Validación de Conceptos Mejorada:** Se ajustó la lógica para permitir una relación muchos a muchos entre conceptos y bancos en las cotizaciones de PG.
--   **Persistencia de Datos en BD:** Se añadieron los campos , , , y  a los modelos de la base de datos para asegurar que se guarden permanentemente.
--   **Integración de Resend (COMPLETADA):** Se configuró y probó con éxito el envío de correos electrónicos a través de Resend, usando la API key proporcionada por el usuario.
--   **Indexación de MongoDB:** Se crearon índices en la colección de clientes para mejorar el rendimiento de las búsquedas.
+-   **Correos de Notificación por Sede (DONE):** Implementado y probado el sistema para configurar correos de ventas específicos para cada sede.
+-   **Extracción de RIF Digital (DONE):** Implementada y probada la funcionalidad para cargar un PDF de RIF y autocompletar el formulario de cliente.
+-   **Reestructuración y Corrección de PDFs (DONE):** Se realizaron múltiples iteraciones de cambios en los PDFs de VPOS y PG, corrigiendo errores de generación, actualizando contenido y anexos, y rediseñando por completo el PDF de PG.
+-   **Fix: Descarga de Anexos (DONE):** Se corrigió un bug que hacía invisibles los botones de descarga en el modal de anexos. Ahora son siempre visibles y abren el PDF en una nueva pestaña.
+-   **Fix: Nombre del Cliente en Cotizaciones (DONE):** Se solucionó un bug por el cual el nombre del cliente no se guardaba ni se mostraba en la lista de cotizaciones. El fix se aplicó para cotizaciones nuevas y existentes.
+-   **Depuración de Login (DONE):** Se atendieron reportes de Credenciales inválidas del usuario, recreando y verificando la cuenta de prueba.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Contadores del Dashboard:** El bug que causa que los contadores del dashboard muestren cifras incorrectas sigue pendiente de resolución.
@@ -96,74 +94,81 @@ Future Tasks:
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, MongoDB (con Pydantic). La lógica se ha expandido para incluir persistencia de metadatos de UI, búsqueda por texto indexada, y endpoints de previsualización de PDF.
--   **Frontend:** React. Se ha implementado lógica compleja para manejar la edición de datos ( con  para prevenir race conditions), búsqueda asíncrona con debounce (), y modales para previsualización de PDFs en iframes.
--   **Integración:** Resend para envío de correos.
+-   **Backend:** FastAPI, MongoDB (con Pydantic). Lógica de PDF extendida con  y  para manipulación (parsing y merging).
+-   **Frontend:** React. Lógica compleja para manejar formularios dinámicos, modales, y ahora un componente de selección múltiple.
+-   **Integraciones:** Resend (correos),  (lectura de PDF para RIF), / (importación de Excel).
 
 **key DB schema**
--   **quotes:** Se añadieron y utilizan los campos , , , . Dentro de los items de  se persisten , , , .
--   **settings:** La colección contiene un documento para . Se van a añadir los campos  y .
--   **clients:** Se ha creado un índice de texto en los campos ,  y  para optimizar las búsquedas.
+-   **quotes:** Se añadió el campo . La lógica de la aplicación fue actualizada para poblarlo al crear y recuperarlo al listar.
+-   **settings:** El documento  ahora usa una estructura anidada por sede: .
+-   **clients:** Sin cambios de esquema, pero se implementó un flujo de creación basado en el parsing de RIF.
 
 **changes in tech stack**
--   Ninguno.
+-   Se introdujo formalmente la librería  para el parsing de PDFs en el backend, aunque ya estuviera instalada.
 
 **All files of reference**
--   : Modificado extensamente para añadir nuevos campos a los modelos, corregir la generación de PDFs, añadir un endpoint de búsqueda de clientes y persistir metadatos.
--   : Modificado extensamente para corregir el flujo de edición, implementar la búsqueda de clientes del lado del servidor y añadir el modal de previsualización de PDF.
--   : Archivo a modificar para la tarea actual de correos por sede.
+-   : Modificado extensamente para todos los cambios en la lógica de generación de PDF, la extracción de RIF, la resolución del nombre del cliente y los emails por sede.
+-   : Modificado para la corrección de la descarga de PDF, la visualización del nombre del cliente y es el objetivo principal de la nueva tarea.
+-   : Modificado para agregar el botón y modal de Cargar desde RIF Digital.
+-   : Modificado para agregar los campos de correo de ventas por sede.
+-   : Creado para la tarea actual.
 
 **Areas that need refactoring**:
--   ** (CRÍTICO URGENTE):** El archivo es insostenible con más de 5500 líneas. Proponer la refactorización a una arquitectura modular inmediatamente después de la tarea actual.
--   ** (CRÍTICO URGENTE):** El componente supera las 2800 líneas. Debe ser descompuesto para mejorar la mantenibilidad.
+-   ** (CRÍTICO URGENTE):** El archivo ha crecido aún más y es insostenible. La refactorización es la máxima prioridad después de la tarea actual.
+-   ** (CRÍTICO URGENTE):** El componente sigue siendo masivo y complejo. Debe ser descompuesto.
 
 **key api endpoints**
--   : (Nuevo) Endpoint para la búsqueda de clientes del lado del servidor.
--   , : Modificados para manejar y persistir los nuevos campos (, , , metadatos de items).
--   : Endpoint utilizado para generar el PDF en base64 para el modal de previsualización.
+-   : (Nuevo) Endpoint para parsear el PDF de un RIF.
+-   : Modificado para hacer un lookup y devolver el .
+-    y : Modificados para guardar el .
+-   , : Endpoints de PDF modificados para usar la lógica unificada de  y manejar los nuevos formatos.
+-   : Modificado para aceptar la nueva estructura anidada de correos por sede.
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación con el usuario debe ser exclusivamente en **español**.
--   **Tarea Prioritaria:** Implementar los campos para correos de notificación de ventas por sede.
--   **Proponer Refactorización (URGENTE):** Inmediatamente después, proponer la refactorización crítica de . Es la mayor deuda técnica del proyecto.
+-   **Tarea Prioritaria:** Implementar el Selector Multivariable de Productos y Medios de Pago.
+-   **Proponer Refactorización (URGENTE):** Inmediatamente después de la tarea actual, proponer la refactorización crítica de . Es la mayor deuda técnica del proyecto.
 -   **Base de Datos Volátil:** Al inicio de cada sesión, es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado se convierte en .
--   **Limitación de Resend:** La cuenta de Resend es gratuita y solo permite enviar correos desde  a la dirección verificada del usuario ().
+-   **Problemas de Login:** El usuario ha reportado problemas de login (Credenciales inválidas) de forma recurrente. Aunque se han aplicado fixes, podría estar relacionado con la volatilidad de la BD. Estar preparado para guiar al usuario a recrear su cuenta.
+-   **Lógica de PDF Compleja:** La generación de PDF es ahora muy compleja y depende de múltiples funciones y archivos estáticos en . Prestar atención a los tipos de cotización (VPOS vs. PG) ya que cada uno tiene su propia lógica y anexos.
 
 **documents and test reports created in this job**
--   Se actualizaron múltiples veces los reportes de prueba. Los más recientes son los últimos generados en la sesión.
--    fue actualizado al finalizar cada tarea importante.
+-   : Reporte de la prueba del RIF parser.
+-   : Reporte de la prueba de los correos por sede.
+-   Nuevos archivos PDF estáticos en :  y .
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  User: (Bug Report) Reporta que al editar una cotización, los valores guardados (cajas, bancos, descuentos) se resetean a los valores por defecto.
-2.  Agent: (Plan) Propone un plan para arreglar el race condition en el frontend que causa el reseteo de datos y asegurar la persistencia de los metadatos.
-3.  User: (Approval) Listo.
-4.  Agent: (Finish) Completa la corrección, prueba el flujo de edición completo y finaliza la tarea.
-5.  User: (Feedback) Listo.
-6.  User: (Info) Informa que la API Key de Resend ya fue cargada.
-7.  Agent: (Action) Investiga, descubre que la base de datos volátil la borró, pide la key de nuevo, la configura y prueba exitosamente el envío de correos.
-8.  User: (Request) Solicita crear en la configuración un espacio para configurar un correo de ventas para la sede Torre Banco Plaza y otro para Los Chaguaramos.
-9.  Agent: (Analysis) Comienza a analizar el código para implementar la nueva solicitud.
+1.  **User:** Reporta que el nombre del cliente no se guarda en la cotización y pide separar las tablas de costos en el PDF de PG en páginas diferentes.
+2.  **Agent:** Confirma ambos fixes.
+3.  **Agent:** Implementa la solución para el nombre del cliente (en listado y al crear) y para la separación de páginas en el PDF.
+4.  **Agent:** Confirma que ambos fixes están aplicados y probados, detallando el nuevo número de páginas del PDF.
+5.  **User:** Envía un nuevo requerimiento: Selector Multivariable de Productos y Medios de Pago.
+6.  **Agent:** Presenta un plan para implementar el nuevo componente .
+7.  **User:** Si (aprueba el plan).
+8.  **Agent:** Comienza el análisis del código existente para entender dónde integrar el nuevo selector.
+9.  **Agent:** Finaliza el análisis de  y .
+10. **Agent:** Crea el nuevo archivo de componente  para comenzar la implementación.
 
 **Project Health Check:**
 -   **Broken**: La funcionalidad de los contadores del dashboard sigue reportando datos incorrectos.
--   **Mocked**: Ninguna. La integración con Resend está completamente configurada y funcional.
+-   **Mocked**: Ninguna.
 
 **3rd Party Integrations**
--   **Resend**: Configurado y funcionando para enviar notificaciones por correo (con las limitaciones del plan gratuito).
+-   **Resend**: Para envío de notificaciones por correo.
 -   **reportlab**: Para generación de PDF.
+-   **PyPDF2**: Para leer y combinar archivos PDF (parsing de RIF y anexos).
 -   **Shadcn/UI & Radix UI**: Componentes de React.
 -   **bcrypt**: Hashing de contraseñas.
--   **openpyxl**: Manejo de archivos Excel.
--   **pandas**: Manipulación de datos en importación.
+-   **openpyxl & pandas**: Manejo de archivos Excel.
 
 **Testing status**
--   Testing agent used after significant changes: YES
+-   Testing agent used after significant changes: YES (para emails por sede y RIF parser).
 -   Troubleshoot agent used after agent stuck in loop: NO
--   Test files created: Múltiples reportes en .
--   Known regressions: Ninguna introducida en esta sesión; al contrario, se han corregido varias regresiones previas.
+-   Test files created: , .
+-   Known regressions: Ninguna.
 
 **Credentials to test flow:**
-No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El primer usuario registrado será . Para probar el envío de correos, se debe usar  como destinatario.
+No hay credenciales predefinidas. Es necesario registrar un nuevo usuario desde la UI en . El usuario ha solicitado previamente la creación de  con clave .
 
 **What agent forgot to execute**
 -   El problema recurrente de los contadores del dashboard no ha sido abordado. Se ha priorizado consistentemente la implementación de nuevas funcionalidades y la corrección de bugs más críticos solicitados por el usuario.</analysis>
