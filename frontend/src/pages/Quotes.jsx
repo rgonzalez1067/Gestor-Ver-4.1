@@ -3000,7 +3000,7 @@ export const Quotes = () => {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[400px] p-0" align="start">
-                        <Command>
+                        <Command shouldFilter={false}>
                           <CommandInput
                             placeholder="Buscar cliente..."
                             value={clientSearchQuery}
@@ -3016,7 +3016,7 @@ export const Quotes = () => {
                                     key={client.client_id}
                                     value={`${client.fantasy_name} ${client.rif}`}
                                     onSelect={() => {
-                                      setQuoteData({ ...quoteData, client_id: client.client_id });
+                                      setQuoteData(prev => ({ ...prev, client_id: client.client_id }));
                                       setClientSearchOpen(false);
                                       setClientSearchQuery('');
                                     }}
