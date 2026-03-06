@@ -51,10 +51,30 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
             detail=f"Transición no permitida: '{current_status}' → '{status_update.new_status}'. Transiciones válidas: {allowed_next_states}"
         )
     
+    # Timestamp según el nuevo estado
+    timestamp_map = {
+        "Enviada": "sent_to_client_at",
+        "Aprobada": "approved_at",
+        "Facturada": "invoiced_at",
+        "Pagada": "paid_at",
+        "Entregada": "delivered_at",
+        "Enviada a Imple": "sent_to_implementation_at",
+    }
+    update_fields = {"quote_status": status_update.new_status, "updated_at": datetime.now(timezone.utc).isoformat()}
+    if status_update.new_status in timestamp_map:
+        update_fields[timestamp_map[status_update.new_status]] = datetime.now(timezone.utc).isoformat()
+
     await db.quotes.update_one(
         {"quote_id": quote_id},
-        {"$set": {"quote_status": status_update.new_status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": update_fields}
     )
+
+    # === TRIGGER: Crear Proyecto al enviar a Implementación ===
+    if status_update.new_status == "Enviada a Imple":
+        try:
+            await _create_project_from_quote(quote, quote_id)
+        except Exception as e:
+            logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
     
     return {"message": f"Estado actualizado a '{status_update.new_status}'", "previous_status": current_status, "new_status": status_update.new_status}
 
@@ -491,3 +511,93 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
     await get_current_user(authorization)
     logs = await db.email_logs.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
     return {"email_logs": logs, "count": len(logs)}
+
+
+# ==================== PROJECT TRIGGER ====================
+
+async def _create_project_from_quote(quote: dict, quote_id: str):
+    """Crea un proyecto a partir de una cotización enviada a implementación"""
+    # Verificar que no exista ya un proyecto para esta cotización
+    existing = await db.projects.find_one({"quote_id": quote_id})
+    if existing:
+        logger.info(f"Proyecto ya existe para cotización {quote_id}")
+        return
+
+    # Obtener datos del cliente
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    client_name = client.get("legal_name", "") if client else quote.get("client_name", "")
+    client_rif = client.get("rif", "") if client else ""
+    client_sede = client.get("sucursal", "") if client else ""
+
+    # Generar número de proyecto secuencial
+    count = await db.projects.count_documents({})
+    project_number = f"PRY-{datetime.now(timezone.utc).strftime('%Y')}-{str(count + 1).zfill(4)}"
+
+    # Extraer bancos de la cotización (items con bank_name)
+    banks = []
+    for item in quote.get("services", []):
+        bn = item.get("bank_name")
+        if bn and bn not in [b.get("bank_name") for b in banks]:
+            banks.append({"bank_name": bn})
+    if quote.get("sponsor_bank_name"):
+        if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
+            banks.append({"bank_name": quote["sponsor_bank_name"]})
+
+    project = {
+        "project_id": f"prj_{uuid.uuid4().hex[:12]}",
+        "project_number": project_number,
+        "quote_id": quote_id,
+        "quote_number": quote.get("quote_number", ""),
+        "quote_pdf_url": quote.get("quote_pdf_url"),
+        "client_id": quote.get("client_id", ""),
+        "client_name": client_name,
+        "client_rif": client_rif,
+        "client_sede": client_sede,
+        "quote_category": quote.get("quote_category", "implementation"),
+        "quote_type": quote.get("quote_type", "VPOS"),
+        "services": quote.get("services", []),
+        "hardware": quote.get("hardware", []),
+        "equipment_items": quote.get("equipment_items", []),
+        "pg_setup_items": quote.get("pg_setup_items", []),
+        "banks": banks,
+        "integrator_name": quote.get("integrator_name"),
+        "integrator_app_name": quote.get("integrator_app_name"),
+        "pinpad_model": quote.get("pinpad_model"),
+        "sponsor_bank_name": quote.get("sponsor_bank_name"),
+        "total_usd": quote.get("total_usd", 0),
+        "total_bs": quote.get("total_bs", 0),
+        "status": "Pendiente por Asignar",
+        "priority": "Normal",
+        "notes": [{
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Proyecto creado automáticamente desde cotización {quote.get('quote_number', quote_id)}",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    await db.projects.insert_one(project)
+    logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")
+
+    # Notificar al Gerente de Implementación
+    try:
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        impl_manager_email = config.get("implementation_manager_email") if config else None
+        if impl_manager_email:
+            subject = f"Nuevo Proyecto: {project_number} - {client_name}"
+            body = f"""
+            <h2>Nuevo Proyecto Pendiente de Asignación</h2>
+            <p><strong>Proyecto:</strong> {project_number}</p>
+            <p><strong>Cliente:</strong> {client_name} ({client_rif})</p>
+            <p><strong>Sede:</strong> {client_sede}</p>
+            <p><strong>Cotización:</strong> {quote.get('quote_number', '')}</p>
+            <p><strong>Tipo:</strong> {quote.get('quote_type', 'VPOS')}</p>
+            <p><strong>Total USD:</strong> ${quote.get('total_usd', 0):,.2f}</p>
+            <hr>
+            <p>Ingrese al sistema para asignar este proyecto a un implementador.</p>
+            """
+            await send_email(to=impl_manager_email, subject=subject, html_content=body, quote_id=quote_id)
+    except Exception as e:
+        logger.warning(f"Error enviando notificación al gerente de implementación: {e}")

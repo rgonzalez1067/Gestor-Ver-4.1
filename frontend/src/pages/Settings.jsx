@@ -37,6 +37,7 @@ export const Settings = () => {
     LCH: { admin: '', warehouse: '', sales: '' }
   });
   const [implementationEmail, setImplementationEmail] = useState('');
+  const [implManagerEmail, setImplManagerEmail] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
   
   // Resend API Key state
@@ -62,6 +63,7 @@ export const Settings = () => {
       const [settingsRes] = await Promise.all([api.get('/config/settings')]);
       const response = settingsRes;
       setImplementationEmail(response.data.implementation_email || '');
+      setImplManagerEmail(response.data.implementation_manager_email || '');
       
       // Cargar correos por sede
       setEmailsBySede({
@@ -103,6 +105,7 @@ export const Settings = () => {
     try {
       await api.put('/config/settings', { 
         implementation_email: implementationEmail || null,
+        implementation_manager_email: implManagerEmail || null,
         emails_by_sede: emailsBySede,
         resend_api_key: resendApiKey
       });
@@ -123,6 +126,7 @@ export const Settings = () => {
     try {
       await api.put('/config/settings', { 
         implementation_email: implementationEmail || null,
+        implementation_manager_email: implManagerEmail || null,
         emails_by_sede: emailsBySede
       });
       toast.success('Configuración de correos guardada');
@@ -586,6 +590,28 @@ export const Settings = () => {
                   placeholder="implementacion@empresa.com"
                   className="bg-white"
                   data-testid="implementation-email-input"
+                />
+              </div>
+
+              {/* Correo Gerente de Implementación */}
+              <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Mail size={16} className="text-purple-600" />
+                  <Label className="text-sm font-semibold text-purple-800">
+                    Correo Gerente de Implementación
+                  </Label>
+                </div>
+                <p className="text-sm text-purple-700 mb-3">
+                  Recibe una alerta automática cada vez que una cotización pasa a ser un <strong>Proyecto</strong>.
+                  El Gerente puede asignar implementadores desde el módulo de Proyectos.
+                </p>
+                <Input
+                  type="email"
+                  value={implManagerEmail}
+                  onChange={(e) => setImplManagerEmail(e.target.value)}
+                  placeholder="gerente.implementacion@empresa.com"
+                  className="bg-white"
+                  data-testid="impl-manager-email-input"
                 />
               </div>
 

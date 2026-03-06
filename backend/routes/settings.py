@@ -27,9 +27,10 @@ class EmailsBySede(BaseModel):
 
 class AppSettings(BaseModel):
     implementation_email: Optional[EmailStr] = None
-    admin_email: Optional[EmailStr] = None  # LEGACY: Mantener para compatibilidad
-    warehouse_email: Optional[EmailStr] = None  # LEGACY: Mantener para compatibilidad
-    emails_by_sede: Optional[dict] = None  # NUEVO: Correos por sede {TBP: {admin, warehouse}, LCH: {admin, warehouse}}
+    implementation_manager_email: Optional[EmailStr] = None  # Correo Gerente de Implementación
+    admin_email: Optional[EmailStr] = None  # LEGACY
+    warehouse_email: Optional[EmailStr] = None  # LEGACY
+    emails_by_sede: Optional[dict] = None
     resend_api_key: Optional[str] = None
 
 @router.get("/config/settings")
@@ -69,6 +70,7 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     
     return {
         "implementation_email": config.get("implementation_email"),
+        "implementation_manager_email": config.get("implementation_manager_email"),
         "admin_email": config.get("admin_email"),
         "warehouse_email": config.get("warehouse_email"),
         "emails_by_sede": emails_by_sede,
@@ -85,6 +87,7 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
     update_data = {
         "type": "app_settings",
         "implementation_email": settings.implementation_email,
+        "implementation_manager_email": settings.implementation_manager_email,
         "emails_by_sede": settings.emails_by_sede or {},
         "updated_at": datetime.now(timezone.utc).isoformat()
     }

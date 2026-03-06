@@ -22,6 +22,7 @@ from routes.attachments import router as attachments_router
 from routes.integrators import router as integrators_router
 from routes.settings import router as settings_router
 from routes.seed_and_templates import router as seed_templates_router
+from routes.projects import router as projects_router
 
 app = FastAPI(title="Cotizador Merchant Server API")
 
@@ -53,6 +54,7 @@ api_router.include_router(attachments_router)
 api_router.include_router(integrators_router)
 api_router.include_router(settings_router)
 api_router.include_router(seed_templates_router)
+api_router.include_router(projects_router)
 
 app.include_router(api_router)
 
@@ -67,6 +69,9 @@ async def create_indexes():
         await db.quotes.create_index([("quote_id", 1)], unique=True)
         await db.quotes.create_index([("client_id", 1)])
         await db.quotes.create_index([("quote_number", 1)])
+        await db.projects.create_index([("project_id", 1)], unique=True)
+        await db.projects.create_index([("quote_id", 1)])
+        await db.projects.create_index([("status", 1)])
         logging.info("MongoDB indexes created successfully")
     except Exception as e:
         logging.warning(f"Error creating indexes: {e}")

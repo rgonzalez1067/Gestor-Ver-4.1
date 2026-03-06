@@ -437,6 +437,59 @@ class ExchangeRate(BaseModel):
     date: datetime
     source: str = "BCV"
 
+# ==================== PROJECT MODELS ====================
+
+PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "Detenido por Cliente/Banco", "Finalizado / Producción"]
+
+class ProjectNote(BaseModel):
+    note_id: str = Field(default_factory=lambda: f"pn_{uuid.uuid4().hex[:8]}")
+    text: str
+    created_by: str = ""
+    created_by_name: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class Project(BaseModel):
+    project_id: str = Field(default_factory=lambda: f"prj_{uuid.uuid4().hex[:12]}")
+    project_number: str = ""
+    # Relación con cotización
+    quote_id: str
+    quote_number: str = ""
+    quote_pdf_url: Optional[str] = None
+    # Datos heredados del cliente
+    client_id: str
+    client_name: str = ""
+    client_rif: str = ""
+    client_sede: str = ""
+    # Datos heredados de la cotización
+    quote_category: str = "implementation"
+    quote_type: str = "VPOS"
+    services: List[dict] = []
+    hardware: List[dict] = []
+    equipment_items: List[dict] = []
+    pg_setup_items: List[dict] = []
+    banks: List[dict] = []
+    integrator_name: Optional[str] = None
+    integrator_app_name: Optional[str] = None
+    pinpad_model: Optional[str] = None
+    sponsor_bank_name: Optional[str] = None
+    total_usd: float = 0
+    total_bs: float = 0
+    # Estado y asignación
+    status: str = "Pendiente por Asignar"
+    assigned_to_user_id: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    assigned_by_user_id: Optional[str] = None
+    assigned_by_name: Optional[str] = None
+    assigned_at: Optional[str] = None
+    estimated_delivery_date: Optional[str] = None
+    priority: str = "Normal"  # Baja, Normal, Alta, Urgente
+    # Notas e historial
+    notes: List[ProjectNote] = []
+    # Timestamps
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
 # Modelo para generar PDF desde frontend
 class QuotePDFItem(BaseModel):
     concepto: str

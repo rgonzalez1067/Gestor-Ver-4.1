@@ -14,6 +14,7 @@ import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
 import AdminUsers from './pages/AdminUsers';
 import UserManagement from './pages/UserManagement';
+import Projects from './pages/Projects';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -61,6 +62,11 @@ function AppRouter() {
       <Route path="/quotes" element={
         <ProtectedRoute>
           <Quotes />
+        </ProtectedRoute>
+      } />
+      <Route path="/projects" element={
+        <ProtectedRoute>
+          <Projects />
         </ProtectedRoute>
       } />
       <Route path="/exchange-rate" element={
