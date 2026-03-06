@@ -51,12 +51,23 @@ Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack:
 - Permite seleccionar y agregar multiples productos de un banco en un solo clic
 - Deteccion de duplicados: productos ya agregados aparecen grises con badge "Ya agregado"
 - Funciones batch: addMultipleMediosPago (VPOS) y addMultiplePgSetupItems (PG)
-- Fix cliente: shouldFilter={false} en Command + functional state update
 
 ### Dashboard Stats Fix (2026-03-05)
 - Nuevo endpoint GET /api/dashboard/stats con count_documents (eficiente)
 - Reemplaza 6+ llamadas individuales por una sola
 - Filtro por sede en cotizaciones para usuarios no-admin
+
+### Fix PDF Generation Bug (2026-03-06)
+- Bug: server.py linea 3000 usaba variable inexistente 'quote_data' en vez de 'data'
+- Esto causaba que TODOS los PDFs de VPOS fallaran silenciosamente al crear cotizacion
+- PDFs de PG no se afectaban porque usan un path de fallback diferente (linea 3017)
+- Fix: cambiado 'quote_data.get("quote_type")' a 'data.quote_type'
+- Verificado: PDFs VPOS (889KB) y PG (875KB) se generan correctamente
+
+### Fix Client Selection Bug (2026-03-05)
+- Bug: seleccion de cliente en combobox no persistia al crear cotizacion
+- Causa: cmdk filtraba internamente los items interfiriendo con busqueda server-side
+- Fix: shouldFilter={false} en Command + functional state update (setQuoteData(prev => ...))
 
 ## Pendientes
 - P0: Refactorizacion backend server.py (7200+ lineas)
