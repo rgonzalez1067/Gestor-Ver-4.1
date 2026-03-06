@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -55,6 +55,15 @@ export const Clients = () => {
   const [rifResult, setRifResult] = useState(null);
   const [rifHighlightFields, setRifHighlightFields] = useState(new Set());
   const rifFileInputRef = useRef(null);
+
+  // Update RIF for existing client
+  const [updateRifDialogOpen, setUpdateRifDialogOpen] = useState(false);
+  const [updateRifClient, setUpdateRifClient] = useState(null);
+  const [updateRifFile, setUpdateRifFile] = useState(null);
+  const [updateRifLoading, setUpdateRifLoading] = useState(false);
+  const [updateRifProgress, setUpdateRifProgress] = useState(0);
+  const [updateRifResult, setUpdateRifResult] = useState(null);
+  const updateRifFileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     rif: '',
@@ -375,6 +384,79 @@ export const Clients = () => {
     if (rifFileInputRef.current) rifFileInputRef.current.value = '';
   };
 
+  // --- Update RIF for existing client ---
+  const openUpdateRifDialog = (client) => {
+    setUpdateRifClient(client);
+    setUpdateRifFile(null);
+    setUpdateRifResult(null);
+    setUpdateRifProgress(0);
+    setUpdateRifDialogOpen(true);
+  };
+
+  const executeUpdateRif = async () => {
+    if (!updateRifFile || !updateRifClient) return;
+    setUpdateRifLoading(true);
+    setUpdateRifProgress(0);
+    setUpdateRifResult(null);
+
+    const progressInterval = setInterval(() => {
+      setUpdateRifProgress(prev => prev < 85 ? prev + Math.random() * 15 : prev);
+    }, 200);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', updateRifFile);
+      const response = await api.post(`/clients/${updateRifClient.client_id}/update-from-rif`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      clearInterval(progressInterval);
+      setUpdateRifProgress(100);
+      setUpdateRifResult(response.data);
+      toast.success('Cliente actualizado exitosamente desde RIF');
+      fetchClients();
+    } catch (err) {
+      clearInterval(progressInterval);
+      setUpdateRifProgress(0);
+      toast.error(err.response?.data?.detail || 'Error al procesar el RIF');
+    } finally {
+      setUpdateRifLoading(false);
+    }
+  };
+
+  const closeUpdateRifDialog = () => {
+    setUpdateRifDialogOpen(false);
+    setUpdateRifClient(null);
+    setUpdateRifFile(null);
+    setUpdateRifResult(null);
+    setUpdateRifProgress(0);
+    if (updateRifFileInputRef.current) updateRifFileInputRef.current.value = '';
+  };
+
+  const downloadRifDocument = async (client) => {
+    try {
+      const token = localStorage.getItem('session_token');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${backendUrl}/api/clients/${client.client_id}/rif-document`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || 'Error al descargar');
+      }
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = client.rif_document_filename || `RIF_${client.rif}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast.success('Documento RIF descargado');
+    } catch (err) {
+      toast.error(err.message || 'Error al descargar el documento RIF');
+    }
+  };
+
   // Limpiar highlight al guardar
   const handleSubmitWithHighlight = async (e) => {
     await handleSubmit(e);
@@ -642,6 +724,16 @@ export const Clients = () => {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
+                          <Button size="sm" variant="outline" onClick={() => openUpdateRifDialog(client)}
+                            data-testid={`update-rif-client-${client.client_id}`} className="text-amber-600 h-8 px-2" title="Escanear RIF">
+                            <ScanLine size={14} />
+                          </Button>
+                          {client.rif_document_url && (
+                            <Button size="sm" variant="outline" onClick={() => downloadRifDocument(client)}
+                              data-testid={`download-rif-client-${client.client_id}`} className="text-green-600 h-8 px-2" title="Descargar RIF">
+                              <Download size={14} />
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => openBitacora(client)}
                             data-testid={`bitacora-client-${client.client_id}`} className="text-blue-600 h-8 px-2">
                             <BookOpen size={14} className="mr-1" />Bitácora
@@ -762,13 +854,13 @@ export const Clients = () => {
             <div className="space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <p className="text-sm text-amber-800 mb-1"><strong>Instrucciones:</strong></p>
-                <p className="text-sm text-amber-700">Suba el archivo PDF del RIF Digital emitido por el SENIAT. El sistema extraerá automáticamente el <strong>RIF</strong>, la <strong>Razón Social</strong> y la <strong>Dirección Fiscal</strong>.</p>
+                <p className="text-sm text-amber-700">Suba el archivo del RIF Digital emitido por el SENIAT (PDF, JPG o PNG). El sistema extraerá automáticamente el <strong>RIF</strong>, la <strong>Razón Social</strong> y la <strong>Dirección Fiscal</strong>.</p>
               </div>
 
               <div>
-                <Label>Archivo RIF Digital (PDF)</Label>
+                <Label>Archivo RIF Digital (PDF, JPG, PNG)</Label>
                 <div className="mt-2">
-                  <Input ref={rifFileInputRef} type="file" accept=".pdf" onChange={handleRifFileSelect}
+                  <Input ref={rifFileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleRifFileSelect}
                     data-testid="rif-file-input" />
                 </div>
                 {rifFile && <p className="text-sm text-slate-600 mt-1">Archivo: <strong>{rifFile.name}</strong></p>}
@@ -945,6 +1037,105 @@ export const Clients = () => {
                 })
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Update RIF Dialog for existing clients */}
+        <Dialog open={updateRifDialogOpen} onOpenChange={closeUpdateRifDialog}>
+          <DialogContent className="max-w-lg" data-testid="update-rif-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="text-amber-500" size={22} />
+                Actualizar Cliente desde RIF
+              </DialogTitle>
+            </DialogHeader>
+            {updateRifClient && (
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <p className="text-sm text-slate-600">Cliente seleccionado:</p>
+                  <p className="font-semibold text-slate-900">{updateRifClient.legal_name || updateRifClient.fantasy_name}</p>
+                  <p className="text-sm font-mono text-slate-500">{updateRifClient.rif} — {updateRifClient.sucursal || 'Principal'}</p>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">Suba el archivo del RIF (PDF, JPG o PNG). El sistema extraerá los datos, actualizará la información del cliente y archivará el documento.</p>
+                </div>
+
+                <div>
+                  <Label>Archivo RIF (PDF, JPG, PNG)</Label>
+                  <div className="mt-2">
+                    <Input ref={updateRifFileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => { setUpdateRifFile(e.target.files?.[0] || null); setUpdateRifResult(null); }}
+                      data-testid="update-rif-file-input" />
+                  </div>
+                  {updateRifFile && <p className="text-sm text-slate-600 mt-1">Archivo: <strong>{updateRifFile.name}</strong></p>}
+                </div>
+
+                {updateRifLoading && (
+                  <div className="space-y-2" data-testid="update-rif-progress">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-600" />
+                      <span className="text-sm text-amber-700 font-medium">Escaneando y actualizando...</span>
+                    </div>
+                    <div className="w-full bg-amber-100 rounded-full h-2.5">
+                      <div className="bg-amber-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${updateRifProgress}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {updateRifResult && (
+                  <div className="space-y-3" data-testid="update-rif-result">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle2 size={18} className="text-green-600" />
+                        <span className="font-medium text-green-800">{updateRifResult.message}</span>
+                      </div>
+
+                      <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Comparación de datos</p>
+                      <div className="space-y-2">
+                        {['rif', 'legal_name', 'address'].map(field => {
+                          const labels = { rif: 'RIF', legal_name: 'Razón Social', address: 'Dirección Fiscal' };
+                          const prev = updateRifResult.previous_data?.[field] || '—';
+                          const next = updateRifResult.updated_data?.[field] || '—';
+                          const changed = prev !== next;
+                          return (
+                            <div key={field} className={`text-sm rounded p-2 ${changed ? 'bg-amber-50 border border-amber-200' : 'bg-white border border-slate-100'}`}>
+                              <span className="font-medium text-slate-700 block text-xs mb-1">{labels[field]}</span>
+                              {changed ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="line-through text-red-400">{prev}</span>
+                                  <ArrowRight size={14} className="text-slate-400 shrink-0" />
+                                  <span className="text-green-700 font-medium">{next}</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-600">{prev}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-3">Formato origen: {updateRifResult.source_format}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                  <Button variant="outline" onClick={closeUpdateRifDialog}>
+                    {updateRifResult ? 'Cerrar' : 'Cancelar'}
+                  </Button>
+                  {!updateRifResult && (
+                    <Button onClick={executeUpdateRif} disabled={!updateRifFile || updateRifLoading}
+                      className="bg-amber-500 hover:bg-amber-600 text-white" data-testid="update-rif-scan-btn">
+                      {updateRifLoading ? (
+                        <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Procesando...</>
+                      ) : (
+                        <><ScanLine size={16} className="mr-2" />Escanear y Actualizar</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </main>
