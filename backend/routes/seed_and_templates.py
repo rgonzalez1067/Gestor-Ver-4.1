@@ -487,11 +487,5 @@ async def reset_email_template(template_id: str, authorization: Optional[str] = 
     return {"message": "Plantilla restablecida a valores predeterminados", "template": default_template}
 
 # Función auxiliar para renderizar plantillas con variables
-def render_email_template(template_body: str, variables: dict) -> str:
-    """Reemplaza las variables en la plantilla con valores reales"""
-    result = template_body
-    for key, value in variables.items():
-        placeholder = "{" + key + "}"
-        result = result.replace(placeholder, str(value) if value else "N/A")
-    return result
+
 

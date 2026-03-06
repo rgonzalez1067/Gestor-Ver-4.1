@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -45,6 +45,8 @@ export const Settings = () => {
   const [resendApiKeyMasked, setResendApiKeyMasked] = useState('');
   const [showResendKey, setShowResendKey] = useState(false);
   const [savingResendKey, setSavingResendKey] = useState(false);
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
 
@@ -52,11 +54,13 @@ export const Settings = () => {
     fetchLogo();
     fetchTemplates();
     fetchSettings();
+    fetchEmailLogs();
   }, []);
 
   const fetchSettings = async () => {
     try {
-      const response = await api.get('/config/settings');
+      const [settingsRes] = await Promise.all([api.get('/config/settings')]);
+      const response = settingsRes;
       setImplementationEmail(response.data.implementation_email || '');
       
       // Cargar correos por sede
@@ -78,6 +82,15 @@ export const Settings = () => {
     } catch (error) {
       console.error('Error fetching settings:', error);
     }
+  };
+
+  const fetchEmailLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const res = await api.get('/email-logs?limit=50');
+      setEmailLogs(res.data.email_logs || []);
+    } catch { /* silently fail */ }
+    finally { setLoadingLogs(false); }
   };
 
   const handleSaveResendKey = async () => {
@@ -699,6 +712,84 @@ export const Settings = () => {
               <strong>Nota:</strong> Solo se aceptan archivos en formato PDF. El tamaño máximo recomendado es 10MB.
             </p>
           </div>
+        </div>
+
+        {/* Historial de Correos */}
+        <div className="bg-white rounded-lg border border-slate-200 p-6 mb-8" data-testid="email-logs-section">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <Mail size={20} className="text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Historial de Correos</h2>
+                <p className="text-sm text-slate-500">Correos enviados y simulados del sistema</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchEmailLogs} disabled={loadingLogs} data-testid="refresh-email-logs">
+              <RefreshCw size={14} className={`mr-1 ${loadingLogs ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+          </div>
+
+          {emailLogs.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              <Mail size={32} className="mx-auto mb-2 opacity-50" />
+              <p>No hay correos registrados</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" data-testid="email-logs-table">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Estado</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Acción</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Destinatario</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Asunto</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Cotización</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {emailLogs.map((log) => {
+                    const statusConfig = {
+                      sent: { label: 'Enviado', color: 'bg-green-100 text-green-700' },
+                      simulated: { label: 'Simulado', color: 'bg-amber-100 text-amber-700' },
+                      error: { label: 'Error', color: 'bg-red-100 text-red-700' },
+                    };
+                    const st = statusConfig[log.status] || statusConfig.error;
+                    const actionLabels = {
+                      send_to_client: 'Enviar al Cliente',
+                      approve_admin: 'Aprobar (Admin)',
+                      approve_sales: 'Aprobar (Ventas)',
+                      approve_no_config: 'Aprobar (Sin config)',
+                      invoice_admin: 'Facturar (Admin)',
+                      invoice_sales: 'Facturar (Ventas)',
+                      invoice_no_config: 'Facturar (Sin config)',
+                      collect_warehouse: 'Cobrar (Almacén)',
+                      send_to_implementation: 'Enviar a Imple',
+                    };
+
+                    return (
+                      <tr key={log.email_log_id} className="hover:bg-slate-50" data-testid={`email-log-${log.email_log_id}`}>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${st.color}`}>{st.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{actionLabels[log.action] || log.action}</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono text-xs">{(log.to || []).join(', ')}</td>
+                        <td className="px-4 py-3 text-slate-700 max-w-[200px] truncate">{log.subject}</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono text-xs">{log.quote_number || '-'}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                          <Clock size={12} className="inline mr-1" />
+                          {new Date(log.created_at).toLocaleString('es-VE')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </main>
     </div>

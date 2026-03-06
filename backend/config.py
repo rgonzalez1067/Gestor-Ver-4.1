@@ -175,5 +175,8 @@ def append_pg_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
 def render_email_template(template_body: str, variables: dict) -> str:
     result = template_body
     for key, value in variables.items():
+        # Soportar {{key}}, {key}, y #{key}
         result = result.replace(f"{{{{{key}}}}}", str(value))
+        result = result.replace(f"#{{{key}}}", str(value))
+        result = result.replace(f"{{{key}}}", str(value))
     return result
