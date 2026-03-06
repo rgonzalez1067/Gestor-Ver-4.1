@@ -2997,7 +2997,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 pdf_buffer = generator.generate()
                 
                 # Agregar páginas estáticas según tipo
-                if quote_data.get('quote_type') == 'GATEWAY':
+                if data.quote_type == 'GATEWAY':
                     pdf_buffer = append_pg_static_pages(pdf_buffer)
                 else:
                     pdf_buffer = append_vpos_static_pages(pdf_buffer)
