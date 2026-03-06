@@ -172,6 +172,7 @@ async def update_client_from_rif(client_id: str, file: UploadFile = File(...), a
     update_fields = {
         "rif": scanned["rif"],
         "legal_name": scanned["legal_name"],
+        "address": scanned["address"],
         "fiscal_address": scanned["address"],
         "rif_document_url": rif_url,
         "rif_document_filename": file.filename,
@@ -179,9 +180,6 @@ async def update_client_from_rif(client_id: str, file: UploadFile = File(...), a
         "rif_updated_by": current_user.get("email", "unknown"),
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
-    # También actualizar 'address' si estaba vacío
-    if not client.get("address"):
-        update_fields["address"] = scanned["address"]
 
     await db.clients.update_one({"client_id": client_id}, {"$set": update_fields})
 

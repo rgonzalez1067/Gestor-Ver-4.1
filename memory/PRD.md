@@ -23,16 +23,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - Selector multivariable de productos
 - Alertas y regeneración de PDFs faltantes
 
-### Digitalización RIF (Completado - 2026-03-06)
-- **Parseo de RIF**: Extracción OCR de datos desde PDF, JPG, PNG (`POST /api/clients/parse-rif`)
-- **Actualización de cliente desde RIF**: Escanea documento, actualiza datos y archiva archivo (`POST /api/clients/{id}/update-from-rif`)
-- **Descarga de RIF archivado**: Permite descargar el documento RIF del expediente digital (`GET /api/clients/{id}/rif-document`)
-- **Frontend**: Botón de escaneo RIF por cliente en tabla, diálogo de actualización con comparación de datos, botón de descarga para clientes con RIF archivado
-- **Testing**: 100% backend (16/16 tests) y frontend verificados
-
-### Refactorización
-- Backend refactorizado de monolito a arquitectura modular (routes/, services/)
-- Frontend parcialmente refactorizado (QuoteFilters, QuotesTable, MultiProductSelector extraídos)
+- **Digitalización RIF**: Parseo OCR (PDF/JPG/PNG), actualización de cliente (RIF, razón social, **dirección**), archivo de documento, descarga
 
 ## Tareas Pendientes
 
