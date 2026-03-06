@@ -3,74 +3,64 @@
 ## Descripcion
 Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack: FastAPI + React + MongoDB.
 
+## Arquitectura Backend (Refactorizado 2026-03-06)
+```
+backend/
+├── server.py              → 77 líneas. Solo init FastAPI + montar routers.
+├── config.py              → 179 líneas. DB, auth helpers, PDF helpers.
+├── models.py              → 536 líneas. Todos los modelos Pydantic.
+├── routes/
+│   ├── auth.py            → 566 líneas. Registro, login, admin users.
+│   ├── clients.py         → 288 líneas. CRUD clientes, import, RIF.
+│   ├── dashboard.py       → 506 líneas. Stats, alerts, missing PDFs.
+│   ├── banks.py           → 260 líneas. CRUD bancos.
+│   ├── hardware.py        → 390 líneas. CRUD hardware.
+│   ├── services.py        → 373 líneas. CRUD servicios, tasa cambio.
+│   ├── quotes.py          → 1221 líneas. CRUD cotizaciones, PDF generation.
+│   ├── quote_actions.py   → 653 líneas. Workflow (approve, invoice, collect).
+│   ├── attachments.py     → 323 líneas. Gestión anexos.
+│   ├── integrators.py     → 423 líneas. CRUD integradores.
+│   ├── settings.py        → 257 líneas. Configuración app.
+│   └── seed_and_templates.py → 497 líneas. Seed bancos, email templates.
+├── services/
+│   └── pdf_generator.py   → 1079 líneas. DynamicQuotePDFGenerator.
+└── uploads/               → PDFs estáticos y generados.
+```
+
 ## Funcionalidades Implementadas
 
 ### Modulos Core
 1. Autenticacion: Registro/Login, roles (admin/user), sedes (TBP/LCH)
-2. Gestion de Clientes (CRM): Multi-sede, contactos, bitacora, importacion Excel, busqueda server-side
+2. Gestion de Clientes: Multi-sede, contactos, bitacora, importacion Excel, RIF Digital
 3. Bancos y Medios de Pago: CRUD con productos, gateway_available flag
 4. Integradores: Gestion, filtro por modalidad PG
 5. Hardware: Pinpads, dispositivos, accesorios
 
 ### Sistema de Cotizaciones
-6. Tipos: VPOS/MPOS, Payment Gateway, Link de Pago (desactivado)
-7. Payment Gateway: Filtro integradores PG, validacion concepto-banco muchos-a-muchos, PDF 4 paginas
-8. Nomenclatura: COT-AAAA-MM-NNN-SEDE atomica
-9. Anexos y Workflow de Estados
-10. Dashboard con alertas
+6. Tipos: VPOS/MPOS, Payment Gateway, Equipos
+7. Nomenclatura: COT-AAAA-MM-NNN-SEDE atomica
+8. Anexos y Workflow de Estados
+9. Dashboard con alertas y stats
 
 ### PDF y Previsualizacion
-- Previsualizacion PDF: Modal con iframe, botones Descargar/Cerrar
-- PDF VPOS con template dinamico + 4 paginas anexo estatico (Info relevante, Condiciones contratacion, Condiciones pago, Datos pago)
-- PDF PG 4 paginas: Portada, Matriz Configuracion, Recurrentes (centrada), T&C
+- PDF VPOS dinamico + 4 paginas anexo estatico
+- PDF PG 4 paginas: Portada, Matriz Configuracion, Recurrentes, T&C
 
-### Persistencia y Edicion
-- Race condition fix con refs prevCajasRef/prevBancosRef
-- Metadata persistence: lockBancos, autoBancos, bancosOverride, totalOverride
-- MongoDB Indexes en clients y quotes
+### Selector Multivariable (2026-03-05)
+- MultiProductSelector: dropdown con checkboxes, busqueda, "Seleccionar Todo"
+- Integrado en VPOS y PG
 
-### Correos de Notificacion por Sede (2026-03-03)
-- Correo de Ventas por sede: TBP y LCH con campo propio
-- Backend: approve_quote, invoice_quote notifican a ventas de la sede
-- Backend: collect_quote usa warehouse email per-sede
+### Dashboard Alertas de PDFs Faltantes (2026-03-06)
+- GET /api/dashboard/missing-pdfs: detecta cotizaciones sin PDF
+- POST /api/quotes/{id}/regenerate-pdf: regenera PDF individual
+- Widget en Dashboard con botones "Regenerar" y "Regenerar Todos"
 
-### Paginas Estaticas PDF VPOS (2026-03-03)
-- Anexo VPOS 4 paginas en /backend/static_pdfs/anexo_vpos.pdf
-- Se agregan automaticamente al final de cada PDF VPOS
-- PDFs de Payment Gateway NO se ven afectados
-
-### Extraccion Automatica de RIF Digital (2026-03-04)
-- Endpoint POST /api/clients/parse-rif: sube PDF SENIAT, extrae RIF, Razon Social, Direccion Fiscal
-- Parsing con PyPDF2 + regex (patron [JGVEP]\d{9}, texto post-RIF, texto post "DOMICILIO FISCAL")
-- Validacion de duplicados: si RIF existe, ofrece agregar nueva sucursal
-- Frontend: boton "Cargar desde RIF Digital", barra de progreso, auto-fill con resaltado amarillo
-
-### Selector Multivariable de Productos y Medios de Pago (2026-03-05)
-- Componente MultiProductSelector: dropdown con checkboxes, busqueda, "Seleccionar Todo"
-- Integrado en cotizaciones VPOS y PG (reemplaza dropdown simple)
-- Permite seleccionar y agregar multiples productos de un banco en un solo clic
-- Deteccion de duplicados: productos ya agregados aparecen grises con badge "Ya agregado"
-- Funciones batch: addMultipleMediosPago (VPOS) y addMultiplePgSetupItems (PG)
-
-### Dashboard Stats Fix (2026-03-05)
-- Nuevo endpoint GET /api/dashboard/stats con count_documents (eficiente)
-- Reemplaza 6+ llamadas individuales por una sola
-- Filtro por sede en cotizaciones para usuarios no-admin
-
-### Fix PDF Generation Bug (2026-03-06)
-- Bug: server.py linea 3000 usaba variable inexistente 'quote_data' en vez de 'data'
-- Esto causaba que TODOS los PDFs de VPOS fallaran silenciosamente al crear cotizacion
-- PDFs de PG no se afectaban porque usan un path de fallback diferente (linea 3017)
-- Fix: cambiado 'quote_data.get("quote_type")' a 'data.quote_type'
-- Verificado: PDFs VPOS (889KB) y PG (875KB) se generan correctamente
-
-### Fix Client Selection Bug (2026-03-05)
-- Bug: seleccion de cliente en combobox no persistia al crear cotizacion
-- Causa: cmdk filtraba internamente los items interfiriendo con busqueda server-side
-- Fix: shouldFilter={false} en Command + functional state update (setQuoteData(prev => ...))
+### Refactorizacion Backend (2026-03-06)
+- Dividido server.py (7,375 lineas) en 16 archivos modulares
+- server.py ahora es solo 77 lineas (entrypoint)
+- 12 archivos de rutas, 1 servicio PDF, 1 config, 1 models
 
 ## Pendientes
-- P0: Refactorizacion backend server.py (7200+ lineas)
 - P1: Refactorizacion frontend Quotes.jsx (4400+ lineas)
 - P1: Verificacion Email / Recuperacion Contrasena (Resend API)
 - P2: Modulo de Reportes
