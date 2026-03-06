@@ -1,48 +1,58 @@
 # PRD - Cotizador Merchant Server
 
-## Descripcion
-Sistema integral de cotizaciones para plataformas de medios de pago. Full-stack: FastAPI + React + MongoDB.
+## Problema Original
+Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionalidades clave: generación de PDFs, extracción de datos de RIF mediante OCR, correos de notificación por sede, selector de productos múltiple, gestión de clientes con bitácora.
 
-## Arquitectura Backend (Refactorizado 2026-03-06)
-```
-backend/
-├── server.py              → 77 líneas. Init FastAPI + montar routers.
-├── config.py              → 179 líneas. DB, auth, PDF helpers, render_email_template.
-├── models.py              → 536 líneas. Todos los modelos Pydantic.
-├── routes/
-│   ├── auth.py, clients.py, dashboard.py, banks.py, hardware.py,
-│   ├── services.py, quotes.py, quote_actions.py, attachments.py,
-│   ├── integrators.py, settings.py, seed_and_templates.py
-├── services/
-│   ├── pdf_generator.py   → 1079 líneas. DynamicQuotePDFGenerator.
-│   └── email_service.py   → Servicio email unificado con fallback simulado.
-└── uploads/
-```
+## Arquitectura
+- **Backend**: FastAPI + MongoDB (motor async) - Arquitectura modular (routes/, services/, models.py, config.py)
+- **Frontend**: React + Shadcn/UI + Tailwind CSS
+- **OCR**: pytesseract + pdf2image (Tesseract con soporte español)
+- **PDF**: reportlab + PyPDF2
+- **Email**: Resend (modo simulado activo)
 
 ## Funcionalidades Implementadas
 
-### Modulos Core
-1. Autenticacion, Clientes, Bancos, Integradores, Hardware, Medios de Pago
-2. Dashboard con stats, alertas, PDFs faltantes
+### Core
+- CRUD de clientes con validación RIF+Sucursal
+- CRUD de cotizaciones con asistente multi-paso
+- Generación de PDFs complejos para cotizaciones
+- Sistema de correos por sede (modo simulado)
+- Dashboard con estadísticas y alertas
+- Importación/exportación de clientes (Excel, CSV, PDF)
+- Bitácora de seguimiento por cliente
+- Selector multivariable de productos
+- Alertas y regeneración de PDFs faltantes
 
-### Sistema de Cotizaciones
-- Tipos: VPOS/MPOS, Payment Gateway, Equipos
-- Nomenclatura atomica, Anexos, Workflow de Estados completo
-- Selector Multivariable de Productos (2026-03-05)
+### Digitalización RIF (Completado - 2026-03-06)
+- **Parseo de RIF**: Extracción OCR de datos desde PDF, JPG, PNG (`POST /api/clients/parse-rif`)
+- **Actualización de cliente desde RIF**: Escanea documento, actualiza datos y archiva archivo (`POST /api/clients/{id}/update-from-rif`)
+- **Descarga de RIF archivado**: Permite descargar el documento RIF del expediente digital (`GET /api/clients/{id}/rif-document`)
+- **Frontend**: Botón de escaneo RIF por cliente en tabla, diálogo de actualización con comparación de datos, botón de descarga para clientes con RIF archivado
+- **Testing**: 100% backend (16/16 tests) y frontend verificados
 
-### Motor de Correos Simulados (2026-03-06)
-- services/email_service.py: intenta Resend, si falla -> modo simulado en BD
-- Todas las acciones (send-to-client, approve, invoice, collect, send-to-implementation) usan send_email()
-- GET /api/email-logs: historial de correos
-- Panel en Settings: tabla con estado, acción, destinatario, asunto, cotización, fecha
-- render_email_template: soporta {key}, #{key}, {{key}}
-- Flujo completo probado: Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Enviada a Imple
+### Refactorización
+- Backend refactorizado de monolito a arquitectura modular (routes/, services/)
+- Frontend parcialmente refactorizado (QuoteFilters, QuotesTable, MultiProductSelector extraídos)
 
-### Refactorizaciones (2026-03-06)
-- Backend: server.py 7375 -> 77 líneas (16 módulos)
-- Frontend: Quotes.jsx 4444 -> 4043 líneas (3 componentes extraídos)
+## Tareas Pendientes
 
-## Pendientes
-- P1: Verificación Email / Recuperación Contraseña
-- P2: Módulo de Reportes
-- P2: Seguir descomponiendo Quotes.jsx
+### P0 - Ninguna
+
+### P1 - Próximas
+- Verificación de Email y Recuperación de Contraseña
+- Refactorización Frontend Fase 2: Descomponer asistente de Quotes.jsx en QuoteFormDialog, QuoteFormHeader, VPOSSection, PGSection
+
+### P2 - Futuro
+- Módulo de Reportes (ventas y cotizaciones)
+
+## Schema DB Relevante
+- **clients**: `{ client_id, rif, legal_name, fantasy_name, segment, address, sucursal, contacts[], rif_document_url?, rif_document_filename?, rif_updated_at?, rif_updated_by? }`
+- **simulated_emails**: `{ subject, to, body, status, quote_id, created_at }`
+
+## Credenciales de Prueba
+- Email: rgonzalez@megasoft.com.ve / Contraseña: Avila*0226*02
+- BD volátil: registrar usuario al inicio de cada sesión
+
+## Notas
+- Servicio de correo intencionalmente en modo simulado (logs en BD, visible en Configuración)
+- Idioma de comunicación: Español
