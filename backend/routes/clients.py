@@ -7,47 +7,67 @@ import uuid
 import logging
 import io
 import os
-
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
-from models import *
 import re
+import shutil
+
+from config import db, get_current_user, UPLOADS_DIR
+from models import *
+
+try:
+    from PyPDF2 import PdfReader
+except ImportError:
+    PdfReader = None
+
+try:
+    import pytesseract
+    from PIL import Image
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-# ==================== CLIENTS ENDPOINTS ====================
+# Directorio para documentos RIF
+RIF_DOCS_DIR = UPLOADS_DIR / "rif_documents"
+RIF_DOCS_DIR.mkdir(exist_ok=True)
 
-@router.post("/clients/parse-rif")
-async def parse_rif_pdf(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
-    """Extrae datos del RIF Digital (PDF SENIAT) y verifica duplicados"""
-    await get_current_user(authorization)
-    
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF")
-    
-    content = await file.read()
-    
-    try:
-        pdf_reader = PdfReader(io.BytesIO(content))
-        text = ""
-        for page in pdf_reader.pages:
-            text += (page.extract_text() or "") + "\n"
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al leer el PDF: {str(e)}")
-    
+ALLOWED_RIF_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png'}
+
+
+def extract_text_from_pdf(content: bytes) -> str:
+    if not PdfReader:
+        raise HTTPException(status_code=500, detail="PyPDF2 no disponible")
+    pdf_reader = PdfReader(io.BytesIO(content))
+    text = ""
+    for page in pdf_reader.pages:
+        text += (page.extract_text() or "") + "\n"
+    return text
+
+
+def extract_text_from_image(content: bytes) -> str:
+    if not TESSERACT_AVAILABLE:
+        raise HTTPException(status_code=500, detail="pytesseract no disponible para OCR de imágenes")
+    image = Image.open(io.BytesIO(content))
+    text = pytesseract.image_to_string(image, lang='spa')
+    return text
+
+
+def parse_rif_data(text: str) -> dict:
+    """Extrae RIF, razón social y dirección fiscal del texto"""
     if not text.strip():
-        raise HTTPException(status_code=400, detail="No se pudo extraer texto del PDF. Verifique que sea un RIF Digital válido.")
-    
+        raise HTTPException(status_code=400, detail="No se pudo extraer texto del documento. Verifique que sea un RIF válido.")
+
     # Extraer RIF: patrón [JGVEP] seguido de 9 dígitos
     rif_match = re.search(r'([JGVEP]\d{9})', text)
     rif = rif_match.group(1) if rif_match else None
-    
     if not rif:
         raise HTTPException(status_code=400, detail="No se encontró un código RIF válido en el documento")
-    
-    # Formatear RIF: J-XXXXXXXXX-X → J-12345678-9
+
+    # Formatear RIF: J-12345678-9
     rif_formatted = f"{rif[0]}-{rif[1:9]}-{rif[9]}" if len(rif) == 10 else rif
-    
-    # Extraer Razón Social: texto en la misma línea después del RIF
+
+    # Extraer Razón Social
     legal_name = ""
     for line in text.split('\n'):
         if rif in line:
@@ -55,28 +75,151 @@ async def parse_rif_pdf(file: UploadFile = File(...), authorization: Optional[st
             if after_rif:
                 legal_name = after_rif.strip()
             break
-    
-    # Extraer Dirección Fiscal: todo después de "DOMICILIO FISCAL" hasta "FECHA DE"
+
+    # Extraer Dirección Fiscal
     address = ""
     domicilio_match = re.search(r'DOMICILIO\s+FISCAL\s+(.*?)(?=FECHA\s+DE)', text, re.DOTALL | re.IGNORECASE)
     if domicilio_match:
         addr_raw = domicilio_match.group(1).strip()
-        # Limpiar saltos de línea y espacios múltiples
         address = re.sub(r'\s+', ' ', addr_raw).strip()
-    
-    # Verificar duplicados en BD
+
+    return {"rif": rif_formatted, "legal_name": legal_name, "address": address}
+
+
+@router.post("/clients/parse-rif")
+async def parse_rif_document(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Extrae datos del RIF (PDF o imagen) y verifica duplicados"""
+    await get_current_user(authorization)
+
+    ext = os.path.splitext(file.filename or '')[1].lower()
+    if ext not in ALLOWED_RIF_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Formato no soportado. Use: {', '.join(ALLOWED_RIF_EXTENSIONS)}")
+
+    content = await file.read()
+
+    try:
+        if ext == '.pdf':
+            text = extract_text_from_pdf(content)
+        else:
+            text = extract_text_from_image(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar el documento: {str(e)}")
+
+    data = parse_rif_data(text)
+
+    # Verificar duplicados
+    rif_digits = re.sub(r'[^0-9]', '', data["rif"])
     existing_clients = []
-    cursor = db.clients.find({"rif": {"$regex": rif[1:9], "$options": "i"}}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1, "sucursal": 1})
+    cursor = db.clients.find({"rif": {"$regex": rif_digits[-8:], "$options": "i"}}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1, "sucursal": 1})
     async for doc in cursor:
         existing_clients.append(doc)
-    
+
     return {
-        "rif": rif_formatted,
-        "legal_name": legal_name,
-        "address": address,
+        **data,
         "is_duplicate": len(existing_clients) > 0,
-        "existing_clients": existing_clients
+        "existing_clients": existing_clients,
+        "source_format": ext.replace('.', '').upper()
     }
+
+
+@router.post("/clients/{client_id}/update-from-rif")
+async def update_client_from_rif(client_id: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Escanea RIF, extrae datos, actualiza cliente y archiva documento"""
+    current_user = await get_current_user(authorization)
+
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    ext = os.path.splitext(file.filename or '')[1].lower()
+    if ext not in ALLOWED_RIF_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Formato no soportado. Use: {', '.join(ALLOWED_RIF_EXTENSIONS)}")
+
+    content = await file.read()
+
+    # Extraer texto
+    try:
+        if ext == '.pdf':
+            text = extract_text_from_pdf(content)
+        else:
+            text = extract_text_from_image(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar el documento: {str(e)}")
+
+    scanned = parse_rif_data(text)
+
+    # Datos actuales para comparación
+    current_data = {
+        "rif": client.get("rif", ""),
+        "legal_name": client.get("legal_name", ""),
+        "address": client.get("address", client.get("fiscal_address", ""))
+    }
+
+    # Guardar documento RIF
+    safe_rif = re.sub(r'[^a-zA-Z0-9]', '', scanned["rif"])
+    rif_filename = f"{client_id}_{safe_rif}_rif{ext}"
+    rif_path = RIF_DOCS_DIR / rif_filename
+    with open(rif_path, "wb") as f:
+        f.write(content)
+
+    rif_url = f"/uploads/rif_documents/{rif_filename}"
+
+    # Actualizar cliente en BD
+    update_fields = {
+        "rif": scanned["rif"],
+        "legal_name": scanned["legal_name"],
+        "fiscal_address": scanned["address"],
+        "rif_document_url": rif_url,
+        "rif_document_filename": file.filename,
+        "rif_updated_at": datetime.now(timezone.utc).isoformat(),
+        "rif_updated_by": current_user.get("email", "unknown"),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    # También actualizar 'address' si estaba vacío
+    if not client.get("address"):
+        update_fields["address"] = scanned["address"]
+
+    await db.clients.update_one({"client_id": client_id}, {"$set": update_fields})
+
+    return {
+        "message": "Cliente actualizado exitosamente desde RIF",
+        "previous_data": current_data,
+        "updated_data": scanned,
+        "rif_document_url": rif_url,
+        "source_format": ext.replace('.', '').upper()
+    }
+
+
+@router.get("/clients/{client_id}/rif-document")
+async def download_rif_document(client_id: str, authorization: Optional[str] = Header(None)):
+    """Descarga el documento RIF archivado del cliente"""
+    await get_current_user(authorization)
+
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    rif_url = client.get("rif_document_url")
+    if not rif_url:
+        raise HTTPException(status_code=404, detail="Este cliente no tiene un documento RIF archivado")
+
+    file_path = UPLOADS_DIR / rif_url.replace("/uploads/", "")
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Archivo RIF no encontrado en el servidor")
+
+    ext = file_path.suffix.lower()
+    content_types = {'.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png'}
+    content_type = content_types.get(ext, 'application/octet-stream')
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=content_type,
+        filename=client.get("rif_document_filename", f"RIF_{client.get('rif', 'unknown')}{ext}")
+    )
 
 @router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):

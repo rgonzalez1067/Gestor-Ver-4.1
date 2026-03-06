@@ -14,7 +14,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://quote-products-batch.preview.emergentagent.com"
+    BASE_URL = "https://client-ocr-hub.preview.emergentagent.com"
 
 class TestIteration53EditPersistence:
     """Tests for the edit/modify quote persistence bug fixes"""
