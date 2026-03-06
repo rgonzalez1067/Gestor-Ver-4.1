@@ -4,18 +4,19 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command';
-// Tabs removidos - ahora usamos panel único de gestión
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, MoreHorizontal, Pencil, Mail, CheckCircle, Send, Package, Settings2, Filter, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye } from 'lucide-react';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
 import { MultiProductSelector } from '../components/MultiProductSelector';
+import { QuoteFilters } from '../components/quotes/QuoteFilters';
+import { QuotesTable } from '../components/quotes/QuotesTable';
+import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -90,13 +91,6 @@ const QUOTE_CATEGORY_LABELS = {
   'repair': 'Reparaciones'
 };
 
-// Categorías para filtro según nueva estructura jerárquica
-const QUOTE_FILTER_CATEGORIES = [
-  { id: 'implementation', name: 'Implementaciones', description: 'Servicios de instalación, configuración o puesta en marcha' },
-  { id: 'equipment', name: 'Equipos', description: 'Venta de hardware principal (Laptops, Servidores, etc.)' },
-  { id: 'accessory', name: 'Accesorios', description: 'Periféricos y complementos (Mouses, cables, teclados)' },
-  { id: 'repair', name: 'Reparaciones', description: 'Mano de obra técnica y servicios de mantenimiento correctivo' }
-];
 
 export const Quotes = () => {
   const [quotes, setQuotes] = useState([]);
@@ -2501,410 +2495,47 @@ export const Quotes = () => {
           </div>
 
           {/* Filtros Rápidos */}
-          <div className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-200">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter size={18} className="text-slate-500" />
-              <span className="font-medium text-slate-700">Filtros Rápidos</span>
-              {(filterClient || filterStatus || filterCategory || filterDateFrom || filterDateTo) && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => {
-                    setFilterClient('');
-                    setFilterStatus('');
-                    setFilterCategory('');
-                    setFilterDateFrom('');
-                    setFilterDateTo('');
-                  }}
-                  className="text-red-500 hover:text-red-700 ml-auto"
-                  data-testid="clear-filters-btn"
-                >
-                  <X size={14} className="mr-1" />
-                  Limpiar filtros
-                </Button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              {/* Filtro por Cliente */}
-              <div>
-                <Label className="text-xs text-slate-500 mb-1 block">Cliente</Label>
-                <Select value={filterClient} onValueChange={setFilterClient}>
-                  <SelectTrigger className="h-9 bg-white" data-testid="filter-client">
-                    <SelectValue placeholder="Todos los clientes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los clientes</SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem key={client.client_id} value={client.client_id}>
-                        {client.fantasy_name || client.legal_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Filtro por Estado */}
-              <div>
-                <Label className="text-xs text-slate-500 mb-1 block">Estado</Label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="h-9 bg-white" data-testid="filter-status">
-                    <SelectValue placeholder="Todos los estados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los estados</SelectItem>
-                    <SelectItem value="Borrador">Borrador</SelectItem>
-                    <SelectItem value="Enviada">Enviada</SelectItem>
-                    <SelectItem value="Aprobada">Aprobada</SelectItem>
-                    <SelectItem value="Facturada">Facturada</SelectItem>
-                    <SelectItem value="Pagada">Pagada</SelectItem>
-                    <SelectItem value="Entregada">Entregada (Equipos)</SelectItem>
-                    <SelectItem value="Enviada a Imple">Enviada a Imple</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Filtro por Categoría - Actualizado según nueva estructura */}
-              <div>
-                <Label className="text-xs text-slate-500 mb-1 block">Categoría</Label>
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className="h-9 bg-white" data-testid="filter-category">
-                    <SelectValue placeholder="Todas las categorías" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las categorías</SelectItem>
-                    {QUOTE_FILTER_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Filtro por Fecha Desde */}
-              <div>
-                <Label className="text-xs text-slate-500 mb-1 block">Desde</Label>
-                <Input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="h-9 bg-white"
-                  data-testid="filter-date-from"
-                />
-              </div>
-
-              {/* Filtro por Fecha Hasta */}
-              <div>
-                <Label className="text-xs text-slate-500 mb-1 block">Hasta</Label>
-                <Input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="h-9 bg-white"
-                  data-testid="filter-date-to"
-                />
-              </div>
-            </div>
-          </div>
+          <QuoteFilters
+            clients={clients}
+            filterClient={filterClient} setFilterClient={setFilterClient}
+            filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+            filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            filterDateFrom={filterDateFrom} setFilterDateFrom={setFilterDateFrom}
+            filterDateTo={filterDateTo} setFilterDateTo={setFilterDateTo}
+          />
 
           {/* Panel de Gestión Único - Todas las Cotizaciones */}
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full" data-testid="quotes-unified-table">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Categoría</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
-                  <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
-                  <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {quotes
-                  .filter(quote => {
-                    // Filtro por cliente
-                    if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
-                    
-                    // Filtro por estado
-                    if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
-                    
-                    // Filtro por categoría
-                    if (filterCategory && filterCategory !== 'all') {
-                      const isEquipment = quote.quote_category === 'equipment';
-                      if (filterCategory === 'equipment' && !isEquipment) return false;
-                      if (filterCategory === 'implementation' && isEquipment) return false;
-                    }
-                    
-                    // Filtro por fecha desde
-                    if (filterDateFrom) {
-                      const quoteDate = new Date(quote.created_at);
-                      const fromDate = new Date(filterDateFrom);
-                      if (quoteDate < fromDate) return false;
-                    }
-                    
-                    // Filtro por fecha hasta
-                    if (filterDateTo) {
-                      const quoteDate = new Date(quote.created_at);
-                      const toDate = new Date(filterDateTo);
-                      toDate.setHours(23, 59, 59, 999); // Incluir todo el día
-                      if (quoteDate > toDate) return false;
-                    }
-                    
-                    return true;
-                  })
-                  .map((quote) => {
-                  const client = clients.find(c => c.client_id === quote.client_id);
-                  const statusColor = STATUS_COLORS[quote.quote_status] || STATUS_COLORS['Borrador'];
-                  const isLoading = actionLoading === quote.quote_id;
-                  const isEquipment = quote.quote_category === 'equipment';
-                  
-                  // Determinar el tipo a mostrar
-                  const displayType = isEquipment 
-                    ? (quote.equipment_type || 'Equipos')
-                    : getQuoteTypeName(quote.quote_type);
-                  
-                  // Color de categoría
-                  const categoryColor = isEquipment 
-                    ? 'bg-amber-100 text-amber-700' 
-                    : 'bg-green-100 text-green-700';
-                  
-                  // Color de tipo según si es equipo o implementación
-                  const typeColor = isEquipment
-                    ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
-                    : 'bg-brand-blue-50 text-brand-blue-600';
-                  
-                  return (
-                    <tr key={quote.quote_id} className="hover:bg-slate-50" data-testid={`quote-row-${quote.quote_id}`}>
-                      <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
-                          {isEquipment ? 'Equipos' : 'Implementación'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>
-                          {displayType}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                          {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => {
-                              setAnexosQuoteId(quote.quote_id);
-                              setAnexosQuoteNumber(quote.quote_number);
-                              setAnexosOpen(true);
-                            }}
-                            className="text-brand-blue-600"
-                            disabled={isLoading}
-                            data-testid={`quote-anexos-btn-${quote.quote_id}`}
-                          >
-                            <FolderOpen size={16} className="mr-1" />Anexos
-                          </Button>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="px-2"
-                                disabled={isLoading}
-                                data-testid={`quote-actions-${quote.quote_id}`}
-                              >
-                                {isLoading ? (
-                                  <div className="animate-spin h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full" />
-                                ) : (
-                                  <MoreHorizontal size={16} />
-                                )}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              {/* Descargar PDF */}
-                              <DropdownMenuItem 
-                                onSelect={() => downloadPDF(quote.quote_id)}
-                                className="cursor-pointer"
-                              >
-                                <Download size={16} className="mr-2 text-slate-500" />
-                                Descargar PDF
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
-                              
-                              {/* Modificar - Crea nueva versión */}
-                              <DropdownMenuItem 
-                                onSelect={() => handleEditQuote(quote)}
-                                className="cursor-pointer"
-                              >
-                                <RefreshCw size={16} className="mr-2 text-slate-500" />
-                                Modificar (Nueva Versión)
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
-                              
-                              {/* Enviar al Cliente - Borrador -> Enviada */}
-                              <DropdownMenuItem 
-                                onSelect={() => handleSendToClient(quote.quote_id)}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status !== 'Borrador'}
-                              >
-                                <Mail size={16} className="mr-2 text-blue-500" />
-                                Enviar al Cliente
-                                {quote.sent_to_client_at && (
-                                  <span className="ml-auto text-xs text-slate-400">✓</span>
-                                )}
-                              </DropdownMenuItem>
-                              
-                              {/* Aprobar - Enviada -> Aprobada */}
-                              <DropdownMenuItem 
-                                onSelect={() => {
-                                  console.log('SELECT APROBAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
-                                  openApproveConfirm(quote.quote_id);
-                                }}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status !== 'Enviada'}
-                              >
-                                <CheckCircle size={16} className="mr-2 text-green-500" />
-                                Aprobar
-                                {quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">●</span>}
-                              </DropdownMenuItem>
-                              
-                              {/* Facturar - Aprobada -> Facturada */}
-                              <DropdownMenuItem 
-                                onSelect={() => openInvoiceModal(quote.quote_id)}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status !== 'Aprobada'}
-                              >
-                                <Receipt size={16} className="mr-2 text-purple-500" />
-                                Facturar
-                              </DropdownMenuItem>
-                              
-                              {/* Cobrar - Facturada -> Pagada */}
-                              <DropdownMenuItem 
-                                onSelect={() => {
-                                  console.log('SELECT COBRAR - quote_id:', quote.quote_id, 'status:', quote.quote_status);
-                                  openCollectConfirm(quote.quote_id);
-                                }}
-                                className="cursor-pointer"
-                                disabled={quote.quote_status !== 'Facturada'}
-                              >
-                                <Banknote size={16} className="mr-2 text-emerald-500" />
-                                Cobrar
-                                {quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">●</span>}
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
-                              
-                              {/* Acciones finales según categoría */}
-                              {isEquipment ? (
-                                <DropdownMenuItem 
-                                  onSelect={() => handleDeliverQuote(quote.quote_id)}
-                                  className="cursor-pointer"
-                                  disabled={quote.quote_status !== 'Pagada'}
-                                >
-                                  <Truck size={16} className="mr-2 text-teal-500" />
-                                  Marcar como Entregada
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem 
-                                  onSelect={() => handleSendToImplementation(quote.quote_id)}
-                                  className="cursor-pointer"
-                                  disabled={quote.quote_status !== 'Pagada'}
-                                >
-                                  <Send size={16} className="mr-2 text-amber-500" />
-                                  Enviar a Implementación
-                                </DropdownMenuItem>
-                              )}
-                              
-                              <DropdownMenuSeparator />
-                              
-                              {/* Eliminar - Función de mantenimiento, disponible en cualquier estado */}
-                              <DropdownMenuItem 
-                                onSelect={() => {
-                                  console.log('SELECT ELIMINAR - quote_id:', quote.quote_id, 'quote_number:', quote.quote_number);
-                                  openDeleteConfirm(quote.quote_id, quote.quote_number);
-                                }}
-                                className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 size={16} className="mr-2" />
-                                Eliminar Cotización
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {/* Mensaje cuando no hay cotizaciones o no hay resultados */}
-            {(() => {
-              const filteredQuotes = quotes.filter(quote => {
-                if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
-                if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
-                if (filterCategory && filterCategory !== 'all') {
-                  const isEquipment = quote.quote_category === 'equipment';
-                  if (filterCategory === 'equipment' && !isEquipment) return false;
-                  if (filterCategory === 'implementation' && isEquipment) return false;
-                }
-                if (filterDateFrom) {
-                  const quoteDate = new Date(quote.created_at);
-                  const fromDate = new Date(filterDateFrom);
-                  if (quoteDate < fromDate) return false;
-                }
-                if (filterDateTo) {
-                  const quoteDate = new Date(quote.created_at);
-                  const toDate = new Date(filterDateTo);
-                  toDate.setHours(23, 59, 59, 999);
-                  if (quoteDate > toDate) return false;
-                }
-                return true;
-              });
-              
-              if (quotes.length === 0) {
-                return (
-                  <div className="text-center py-12 text-slate-500">
-                    <FileText size={48} className="mx-auto mb-4 text-slate-300" />
-                    <p>No hay cotizaciones registradas</p>
-                    <p className="text-sm mt-2">Cree una cotización de Implementación o Equipos para comenzar</p>
-                  </div>
-                );
-              } else if (filteredQuotes.length === 0) {
-                return (
-                  <div className="text-center py-12 text-slate-500">
-                    <Search size={48} className="mx-auto mb-4 text-slate-300" />
-                    <p>No se encontraron cotizaciones</p>
-                    <p className="text-sm mt-2">Intente ajustar los filtros de búsqueda</p>
-                    <Button 
-                      variant="outline" 
-                      className="mt-4"
-                      onClick={() => {
-                        setFilterClient('');
-                        setFilterStatus('');
-                        setFilterCategory('');
-                        setFilterDateFrom('');
-                        setFilterDateTo('');
-                      }}
-                    >
-                      <X size={16} className="mr-2" />
-                      Limpiar filtros
-                    </Button>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-          </div>
+          <QuotesTable
+            quotes={quotes}
+            clients={clients}
+            filterClient={filterClient}
+            filterStatus={filterStatus}
+            filterCategory={filterCategory}
+            filterDateFrom={filterDateFrom}
+            filterDateTo={filterDateTo}
+            actionLoading={actionLoading}
+            onOpenAnexos={(quote) => {
+              setAnexosQuoteId(quote.quote_id);
+              setAnexosQuoteNumber(quote.quote_number);
+              setAnexosOpen(true);
+            }}
+            onDownloadPDF={downloadPDF}
+            onEditQuote={handleEditQuote}
+            onSendToClient={handleSendToClient}
+            onApprove={openApproveConfirm}
+            onInvoice={openInvoiceModal}
+            onCollect={openCollectConfirm}
+            onDeliver={handleDeliverQuote}
+            onSendToImplementation={handleSendToImplementation}
+            onDelete={openDeleteConfirm}
+            clearFilters={() => {
+              setFilterClient('');
+              setFilterStatus('');
+              setFilterCategory('');
+              setFilterDateFrom('');
+              setFilterDateTo('');
+            }}
+          />
 
           {/* Dialog de Nueva Cotización */}
           <Dialog open={wizardOpen} onOpenChange={(open) => {
@@ -4345,46 +3976,15 @@ export const Quotes = () => {
           </Dialog>
 
           {/* Modal de Previsualización PDF */}
-          <Dialog open={pdfPreviewOpen} onOpenChange={(open) => { 
-            if (!open && pdfPreviewUrl) { window.URL.revokeObjectURL(pdfPreviewUrl); setPdfPreviewUrl(null); }
-            setPdfPreviewOpen(open); 
-          }}>
-            <DialogContent className="max-w-[90vw] max-h-[95vh] w-[900px] p-0" data-testid="pdf-preview-modal">
-              <div className="flex items-center justify-between p-4 border-b bg-slate-50">
-                <h3 className="text-lg font-semibold text-slate-800">Previsualización del PDF</h3>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (pdfPreviewUrl) {
-                        const a = document.createElement('a');
-                        a.href = pdfPreviewUrl;
-                        a.download = `preview_cotizacion_${new Date().toISOString().split('T')[0]}.pdf`;
-                        a.click();
-                      }
-                    }}
-                    data-testid="pdf-preview-download"
-                  >
-                    <Download size={16} className="mr-1" /> Descargar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPdfPreviewOpen(false)} data-testid="pdf-preview-close">
-                    Cerrar
-                  </Button>
-                </div>
-              </div>
-              <div className="w-full" style={{height: 'calc(95vh - 80px)'}}>
-                {pdfPreviewUrl && (
-                  <iframe
-                    src={pdfPreviewUrl}
-                    title="PDF Preview"
-                    className="w-full h-full border-0"
-                    data-testid="pdf-preview-iframe"
-                  />
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+          <PdfPreviewModal
+            open={pdfPreviewOpen}
+            onOpenChange={(open) => {
+              if (!open && pdfPreviewUrl) { window.URL.revokeObjectURL(pdfPreviewUrl); setPdfPreviewUrl(null); }
+              setPdfPreviewOpen(open);
+            }}
+            pdfUrl={pdfPreviewUrl}
+            loading={pdfPreviewLoading}
+          />
 
           {/* Wizard de Equipos y Accesorios */}
           <EquipmentQuoteWizard
