@@ -25,6 +25,12 @@ try:
 except ImportError:
     TESSERACT_AVAILABLE = False
 
+try:
+    from pdf2image import convert_from_bytes
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,14 @@ def extract_text_from_pdf(content: bytes) -> str:
     text = ""
     for page in pdf_reader.pages:
         text += (page.extract_text() or "") + "\n"
+    # Si PyPDF2 no extrajo texto útil, intentar OCR sobre las imágenes del PDF
+    if not text.strip() and TESSERACT_AVAILABLE and PDF2IMAGE_AVAILABLE:
+        try:
+            images = convert_from_bytes(content, dpi=300)
+            for img in images:
+                text += pytesseract.image_to_string(img, lang='spa') + "\n"
+        except Exception as e:
+            logger.warning(f"OCR fallback para PDF falló: {e}")
     return text
 
 
@@ -58,23 +72,66 @@ def parse_rif_data(text: str) -> dict:
     if not text.strip():
         raise HTTPException(status_code=400, detail="No se pudo extraer texto del documento. Verifique que sea un RIF válido.")
 
-    # Extraer RIF: patrón [JGVEP] seguido de 9 dígitos
-    rif_match = re.search(r'([JGVEP]\d{9})', text)
-    rif = rif_match.group(1) if rif_match else None
+    # Correcciones comunes de OCR para la letra del RIF
+    OCR_CORRECTIONS = {'3': 'J', '1': 'J', 'I': 'J', '0': 'G', '6': 'G'}
+
+    rif = None
+    legal_name = ""
+
+    lines = text.split('\n')
+
+    # Estrategia 1: Buscar RIF en la línea posterior a "REGISTRO ÚNICO DE INFORMACIÓN FISCAL"
+    for i, line in enumerate(lines):
+        if re.search(r'REGISTRO\s+.{0,10}NICO.*FISCAL', line, re.IGNORECASE):
+            for next_line in lines[i+1:i+4]:
+                # Patrón exacto: [JGVEP] + 9 dígitos
+                m = re.match(r'\s*([JGVEP]\d{9})\s+(.*)', next_line)
+                if m:
+                    rif = m.group(1)
+                    legal_name = m.group(2).strip()
+                    break
+                # Patrón OCR: cualquier carácter + 9 dígitos al inicio de línea
+                m = re.match(r'\s*(\S)(\d{9})\s+(.*)', next_line)
+                if m:
+                    first_char = m.group(1).upper()
+                    if first_char in OCR_CORRECTIONS:
+                        first_char = OCR_CORRECTIONS[first_char]
+                    if first_char in 'JGVEP':
+                        rif = first_char + m.group(2)
+                        legal_name = m.group(3).strip()
+                        break
+            break
+
+    # Estrategia 2 (fallback): Buscar línea que EMPIECE con el patrón RIF
+    if not rif:
+        for line in lines:
+            m = re.match(r'\s*([JGVEP]\d{9})\s+(.*)', line)
+            if m:
+                rif = m.group(1)
+                legal_name = m.group(2).strip()
+                break
+
+    # Estrategia 3 (último recurso): Buscar el patrón en cualquier parte, pero excluir líneas de comprobante
+    if not rif:
+        for line in lines:
+            if re.search(r'COMPROBANTE', line, re.IGNORECASE):
+                continue
+            rif_match = re.search(r'([JGVEP]\d{9})', line)
+            if rif_match:
+                rif = rif_match.group(1)
+                after_rif = line.split(rif, 1)[1].strip()
+                if after_rif:
+                    legal_name = after_rif
+                break
+
     if not rif:
         raise HTTPException(status_code=400, detail="No se encontró un código RIF válido en el documento")
 
     # Formatear RIF: J-12345678-9
     rif_formatted = f"{rif[0]}-{rif[1:9]}-{rif[9]}" if len(rif) == 10 else rif
 
-    # Extraer Razón Social
-    legal_name = ""
-    for line in text.split('\n'):
-        if rif in line:
-            after_rif = line.split(rif, 1)[1].strip()
-            if after_rif:
-                legal_name = after_rif.strip()
-            break
+    # Limpiar razón social: remover "FECHA DE..." que puede quedar pegado
+    legal_name = re.split(r'\s*FECHA\s+DE', legal_name, flags=re.IGNORECASE)[0].strip()
 
     # Extraer Dirección Fiscal
     address = ""

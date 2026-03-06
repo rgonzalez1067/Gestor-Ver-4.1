@@ -23,7 +23,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - Selector multivariable de productos
 - Alertas y regeneración de PDFs faltantes
 
-- **Digitalización RIF**: Parseo OCR (PDF/JPG/PNG), actualización de cliente (RIF, razón social, **dirección**), archivo de documento, descarga
+- **Digitalización RIF**: Parseo OCR (PDF/JPG/PNG), actualización de cliente (RIF, razón social, **dirección**), archivo de documento, descarga. Soporta PDFs de texto y PDFs escaneados (imagen) con fallback OCR automático. Parser con 3 estrategias de extracción + corrección de errores OCR comunes.
 
 ## Tareas Pendientes
 
