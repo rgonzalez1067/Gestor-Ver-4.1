@@ -1,0 +1,1079 @@
+"""
+Generador de PDFs dinámico para cotizaciones VPOS y Payment Gateway.
+"""
+from pydantic import BaseModel
+from typing import List, Optional
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Frame, PageTemplate, BaseDocTemplate, PageBreak
+from reportlab.lib.units import inch, cm, mm
+from reportlab.pdfgen import canvas
+import io
+import os
+from datetime import datetime, timedelta
+
+from models import QuotePDFItem
+
+class TemplateQuotePDFRequest(BaseModel):
+    """Modelo para generar PDF usando plantilla configurada"""
+    template_type: str = "vpos_pyme"  # Tipo de plantilla a usar
+    # Datos del cliente (campos amarillos Página 1 y 2)
+    cliente_nombre: str
+    cliente_rif: str = ""
+    cliente_contacto: str = ""  # Persona de contacto
+    cliente_address: str = ""
+    # Datos de la solicitud (campos amarillos)
+    integrator_name: str = ""
+    integrator_app_name: str = ""  # Nombre del Aplicativo de Caja
+    pinpad_model: str = ""
+    sponsor_bank_name: str = ""  # Patrocinador
+    cantidad_cajas: int = 1
+    # Número de cotización
+    quote_number: str = ""
+    # Items de cotización
+    setup_items: List[QuotePDFItem] = []
+    recurring_basic_items: List[QuotePDFItem] = []
+    recurring_other_items: List[QuotePDFItem] = []
+    additional_items: List[QuotePDFItem] = []  # Items de sesión setup (medios de pago con banco)
+    production_items: List[QuotePDFItem] = []  # Items de cliente en producción
+    pg_setup_items: List[dict] = []  # Items de setup PG: {concepto, costo, banco, observacion}
+    pg_recurring_cost: Optional[dict] = None  # {rangos: [{rango_label, costo_base_total, precio_tope}], num_products: int}
+    descuento: float = 0
+    descuento_setup: float = 0
+    descuento_recurrente: float = 0
+    notes: str = ""
+    pricing_model: str = "conventional"
+    quote_type: str = "VPOS_MPOS"
+    is_production_client: bool = False
+
+
+# ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================
+
+class DynamicQuotePDFGenerator:
+    """Generador de PDF con flujo dinámico y salto de página automático"""
+    
+    # Colores corporativos
+    COLOR_AZUL = colors.HexColor("#00447C")
+    COLOR_VERDE = colors.HexColor("#28A745") 
+    COLOR_VERDE_CLARO = colors.HexColor("#E8F5E9")
+    COLOR_AZUL_CLARO = colors.HexColor("#E3F2FD")
+    COLOR_GRIS = colors.HexColor("#F5F5F5")
+    COLOR_TEXTO = colors.HexColor("#333333")
+    
+    def __init__(self, data: TemplateQuotePDFRequest, logo_path: Optional[str] = None):
+        self.data = data
+        self.logo_path = logo_path
+        self.buffer = io.BytesIO()
+        self.page_width, self.page_height = letter
+        self.margin = 50
+        self.styles = self._create_styles()
+        
+    def _create_styles(self):
+        """Crear estilos personalizados para el documento"""
+        styles = getSampleStyleSheet()
+        
+        # Título principal
+        styles.add(ParagraphStyle(
+            name='TituloPortada',
+            fontName='Helvetica-Bold',
+            fontSize=28,
+            textColor=self.COLOR_AZUL,
+            alignment=1,  # Centro
+            spaceAfter=15
+        ))
+        
+        # Subtítulo (más grande pero menor que el título)
+        styles.add(ParagraphStyle(
+            name='Subtitulo',
+            fontName='Helvetica-Bold',
+            fontSize=18,  # Aumentado de 14 a 18
+            textColor=self.COLOR_AZUL,
+            alignment=1,
+            spaceAfter=10
+        ))
+        
+        # Encabezado de sección
+        styles.add(ParagraphStyle(
+            name='SeccionHeader',
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=self.COLOR_AZUL,
+            spaceBefore=15,
+            spaceAfter=8
+        ))
+        
+        # Texto normal
+        styles.add(ParagraphStyle(
+            name='TextoNormal',
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=self.COLOR_TEXTO,
+            leading=14,
+            spaceAfter=6
+        ))
+        
+        # Campo etiqueta
+        styles.add(ParagraphStyle(
+            name='CampoEtiqueta',
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            textColor=self.COLOR_AZUL
+        ))
+        
+        # Campo valor
+        styles.add(ParagraphStyle(
+            name='CampoValor',
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=self.COLOR_TEXTO
+        ))
+        
+        # Pie de página
+        styles.add(ParagraphStyle(
+            name='PiePagina',
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.gray,
+            alignment=1
+        ))
+        
+        return styles
+    
+    def _header_footer(self, canvas, doc):
+        """Añadir encabezado y pie de página a cada página"""
+        canvas.saveState()
+        
+        # Encabezado - Logo y título
+        if self.logo_path and os.path.exists(self.logo_path):
+            try:
+                canvas.drawImage(self.logo_path, self.margin, self.page_height - 70, 
+                               width=120, height=50, preserveAspectRatio=True)
+            except:
+                pass
+        
+        # Línea de encabezado
+        canvas.setStrokeColor(self.COLOR_AZUL)
+        canvas.setLineWidth(2)
+        canvas.line(self.margin, self.page_height - 80, 
+                   self.page_width - self.margin, self.page_height - 80)
+        
+        # Número de cotización en encabezado (derecha)
+        if self.data.quote_number:
+            canvas.setFont('Helvetica-Bold', 10)
+            canvas.setFillColor(self.COLOR_AZUL)
+            canvas.drawRightString(self.page_width - self.margin, self.page_height - 65, 
+                                  f"Cotización: {self.data.quote_number}")
+        
+        # Pie de página
+        canvas.setStrokeColor(self.COLOR_GRIS)
+        canvas.setLineWidth(1)
+        canvas.line(self.margin, 40, self.page_width - self.margin, 40)
+        
+        canvas.setFont('Helvetica', 8)
+        canvas.setFillColor(colors.gray)
+        canvas.drawCentredString(self.page_width / 2, 25, 
+                                f"Cotizador Merchant Server - {datetime.now().strftime('%d/%m/%Y')}")
+        canvas.drawRightString(self.page_width - self.margin, 25, f"Página {doc.page}")
+        
+        canvas.restoreState()
+    
+    def _create_info_table(self, data_pairs, col_widths=None):
+        """Crear tabla de información con etiquetas y valores"""
+        if col_widths is None:
+            col_widths = [150, 300]
+        
+        table_data = []
+        for label, value in data_pairs:
+            table_data.append([
+                Paragraph(f"<b>{label}:</b>", self.styles['CampoEtiqueta']),
+                Paragraph(str(value) if value else "—", self.styles['CampoValor'])
+            ])
+        
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        return table
+    
+    def _create_items_table(self, items, title, header_color, show_tax=True):
+        """Crear tabla de items de cotización con desglose fiscal"""
+        elements = []
+        
+        # Título de la sección
+        elements.append(Paragraph(title, self.styles['SeccionHeader']))
+        
+        if not items:
+            elements.append(Paragraph("No hay items en esta sección.", self.styles['TextoNormal']))
+            return elements, 0
+        
+        # Preparar datos de la tabla
+        table_data = [['N°', 'Concepto', 'Cajas', 'Bancos', 'Tarifa', 'Total']]
+        
+        subtotal = 0
+        for i, item in enumerate(items, 1):
+            total_item = item.cantidad_cajas * item.cantidad_bancos * item.tarifa
+            subtotal += total_item
+            
+            table_data.append([
+                str(i),
+                item.concepto[:45] + ('...' if len(item.concepto) > 45 else ''),
+                str(item.cantidad_cajas),
+                str(item.cantidad_bancos),
+                f"${item.tarifa:.2f}",
+                f"${total_item:.2f}"
+            ])
+        
+        # Crear tabla de items
+        col_widths = [25, 230, 45, 45, 65, 75]
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        
+        # Estilos de la tabla
+        style = TableStyle([
+            # Encabezado
+            ('BACKGROUND', (0, 0), (-1, 0), header_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
+            
+            # Cuerpo
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # N°
+            ('ALIGN', (2, 1), (5, -1), 'CENTER'),  # Números
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            
+            # Bordes
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+        ])
+        
+        # Alternar colores de filas
+        for i in range(1, len(table_data)):
+            if i % 2 == 0:
+                style.add('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)
+        
+        table.setStyle(style)
+        elements.append(table)
+        
+        # Tabla de totales fiscales (si show_tax es True)
+        if show_tax:
+            iva = subtotal * 0.16
+            total_con_iva = subtotal + iva
+            
+            totals_data = [
+                ['Subtotal:', f"${subtotal:.2f}"],
+                ['IVA (16%):', f"${iva:.2f}"],
+                ['Total:', f"${total_con_iva:.2f}"]
+            ]
+            
+            totals_table = Table(totals_data, colWidths=[405, 75])
+            totals_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEABOVE', (0, 0), (-1, 0), 1, header_color),
+                ('BACKGROUND', (0, -1), (-1, -1), header_color),
+                ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+            ]))
+            elements.append(totals_table)
+        
+        elements.append(Spacer(1, 10))
+        
+        return elements, subtotal
+    
+    def _create_bank_products_table(self):
+        """Crear tabla de Bancos/Productos/Cajas para el resumen (estilo igual al frontend)
+        IMPORTANTE: Usa SOLO additional_items (items de Sesion Setup con bank_name)"""
+        elements = []
+        
+        # Colores para las celdas (igual que el frontend)
+        COLOR_AMARILLO = colors.HexColor("#FBBF24")  # bg-amber-400
+        COLOR_AZUL_CLARO = colors.HexColor("#BFDBFE")  # bg-blue-200
+        COLOR_VERDE_CLARO = colors.HexColor("#BBF7D0")  # bg-green-200
+        
+        # ===== FILA 1: Cliente y Cantidad de Cajas en la misma fila (2 columnas) =====
+        row1_data = [[
+            # Celda 1: Cliente
+            Table(
+                [[Paragraph("<b>Cliente</b>", self.styles['CampoEtiqueta']), self.data.cliente_nombre]],
+                colWidths=[90, 150]
+            ),
+            # Celda 2: Cantidad de Cajas
+            Table(
+                [[Paragraph("<b>Cantidad de Cajas</b>", self.styles['CampoEtiqueta']), str(self.data.cantidad_cajas)]],
+                colWidths=[110, 120]
+            )
+        ]]
+        
+        # Crear tabla externa para la fila 1
+        row1_table = Table(row1_data, colWidths=[245, 235])
+        row1_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        
+        # Estilizar las subtablas internas
+        cliente_table = row1_data[0][0]
+        cliente_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_AMARILLO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        cajas_table = row1_data[0][1]
+        cajas_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_AZUL_CLARO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(row1_table)
+        elements.append(Spacer(1, 5))
+        
+        # ===== FILA 2: Dirección Fiscal (puede ser de 2 líneas si es muy larga) =====
+        direccion = self.data.cliente_address or "No especificada"
+        # Si la dirección es muy larga (más de 60 caracteres), permitir que fluya en múltiples líneas
+        direccion_style = ParagraphStyle(
+            'DireccionStyle',
+            fontName='Helvetica',
+            fontSize=9,
+            leading=11,
+            wordWrap='LTR'
+        )
+        
+        direccion_data = [[
+            Paragraph("<b>Dirección Fiscal</b>", self.styles['CampoEtiqueta']),
+            Paragraph(direccion, direccion_style)
+        ]]
+        
+        direccion_table = Table(direccion_data, colWidths=[100, 380])
+        direccion_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_VERDE_CLARO),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(direccion_table)
+        elements.append(Spacer(1, 12))
+        
+        # ===== TABLA DE BANCOS/PRODUCTOS/CAJAS =====
+        # Usar SOLO additional_items (items de Sesion Setup con banco)
+        bank_product_map = {}
+        total_cajas = 0
+        
+        for item in self.data.additional_items:
+            if item.bank_name:  # Solo items con banco asociado
+                bank_name = item.bank_name
+                # Usar el concepto completo como nombre del producto
+                producto = item.concepto
+                key = f"{bank_name}-{producto}"
+                
+                if key not in bank_product_map:
+                    bank_product_map[key] = {
+                        'bank': bank_name,
+                        'product': producto,
+                        'cajas': 0
+                    }
+                bank_product_map[key]['cajas'] += item.cantidad_cajas or 1
+        
+        # Calcular total de cajas
+        for data in bank_product_map.values():
+            total_cajas += data['cajas']
+        
+        # Si no hay items con banco, mostrar mensaje
+        if not bank_product_map:
+            elements.append(Paragraph("No hay medios de pago seleccionados", self.styles['TextoNormal']))
+            elements.append(Spacer(1, 15))
+            return elements
+        
+        # Crear tabla de Bancos/Productos/Cajas con colores de encabezado
+        table_data = [['Bancos', 'Productos', 'Cantidad de Cajas']]
+        
+        # Estilo para celdas de productos (text wrap para evitar desbordamiento)
+        producto_style = ParagraphStyle(
+            'ProductoCell',
+            fontName='Helvetica',
+            fontSize=7.5,
+            leading=9,
+            wordWrap='LTR'
+        )
+        
+        for data in bank_product_map.values():
+            table_data.append([data['bank'], Paragraph(data['product'], producto_style), str(data['cajas'])])
+        
+        table = Table(table_data, colWidths=[160, 230, 90])
+        table.setStyle(TableStyle([
+            # Encabezados con colores
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_VERDE_CLARO),  # Bancos - verde
+            ('BACKGROUND', (1, 0), (1, 0), COLOR_AZUL_CLARO),   # Productos - azul
+            ('BACKGROUND', (2, 0), (2, 0), COLOR_AMARILLO),     # Cantidad - amarillo
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        # Alternar colores de filas
+        for i in range(1, len(table_data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
+        
+        elements.append(table)
+        
+        # Total de terminales virtuales
+        total_display = total_cajas if total_cajas > 0 else self.data.cantidad_cajas
+        total_data = [['Total de Terminales Virtuales:', str(total_display)]]
+        total_table = Table(total_data, colWidths=[390, 90])
+        total_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),  # bg-slate-100
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('LINEABOVE', (0, 0), (-1, 0), 2, colors.HexColor("#94A3B8")),
+        ]))
+        elements.append(total_table)
+        elements.append(Spacer(1, 15))
+        
+        return elements
+    
+    def generate(self):
+        """Generar el PDF completo con flujo dinámico"""
+        if self.data.quote_type == 'GATEWAY':
+            return self.generate_pg()
+        return self.generate_vpos()
+    
+    def generate_vpos(self):
+        
+        # Meses en español
+        MESES_ES = {
+            1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+            5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+            9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+        }
+        
+        # Crear documento con flujo automático
+        doc = SimpleDocTemplate(
+            self.buffer,
+            pagesize=letter,
+            leftMargin=self.margin,
+            rightMargin=self.margin,
+            topMargin=100,  # Espacio para encabezado
+            bottomMargin=60  # Espacio para pie de página
+        )
+        
+        elements = []
+        
+        # Fecha actual en español
+        now = datetime.now()
+        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        
+        # ==================== PÁGINA 1: PORTADA ====================
+        elements.append(Spacer(1, 80))
+        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 10))  # Salto de línea entre título y subtítulo
+        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 40))
+        
+        # Información del proyecto
+        info_portada = [
+            ("Cliente", self.data.cliente_nombre),
+            ("RIF", self.data.cliente_rif),
+            ("Cantidad de Cajas", str(self.data.cantidad_cajas)),
+            ("Integrador", self.data.integrator_name),
+            ("Aplicativo de Caja", self.data.integrator_app_name),
+            ("Modelo Pinpad", self.data.pinpad_model),
+            ("Banco Patrocinador", self.data.sponsor_bank_name),
+        ]
+        elements.append(self._create_info_table(info_portada))
+        elements.append(Spacer(1, 30))
+        
+        # Número de cotización (autogenerado) y fecha en español
+        elements.append(Paragraph(
+            f"<b>Número de Cotización:</b> {self.data.quote_number}", 
+            self.styles['TextoNormal']
+        ))
+        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
+        
+        # Salto de página
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 2: CUERPO DEL DOCUMENTO ====================
+        # Carta de presentación
+        carta_header = f"""
+        <b>Señores:</b> {self.data.cliente_nombre}<br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/>
+        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        """
+        elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
+        
+        # Texto corregido según solicitud del usuario
+        carta_body = f"""
+        Por medio de la presente, nos complace presentarle nuestra propuesta comercial para la implementación 
+        de terminales virtuales de pago en sus puntos de venta. La solución propuesta se implementa con la 
+        integración del Merchant Server con el aplicativo <b>{self.data.integrator_app_name}</b> desarrollado 
+        por <b>{self.data.integrator_name}</b>, garantizando una experiencia de cobro segura y eficiente.
+        """
+        elements.append(Paragraph(carta_body, self.styles['TextoNormal']))
+        elements.append(Spacer(1, 15))
+        
+        # RESUMEN EJECUTIVO (inmediatamente después del párrafo)
+        elements.append(Paragraph("RESUMEN EJECUTIVO", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 8))
+        
+        # Tabla de resumen con estilo igual al frontend (Cliente/Cajas/Dirección + Bancos/Productos)
+        elements.extend(self._create_bank_products_table())
+        
+        # Salto de página
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 3: COSTOS ====================
+        # Costos de Setup con desglose fiscal
+        setup_elements, subtotal_setup = self._create_items_table(
+            self.data.setup_items, 
+            "COSTOS DE IMPLEMENTACIÓN (SETUP)", 
+            self.COLOR_AZUL,
+            show_tax=True
+        )
+        elements.extend(setup_elements)
+        
+        # Costos Recurrentes con desglose fiscal
+        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
+        recurring_elements, subtotal_recurrente = self._create_items_table(
+            all_recurring, 
+            "COSTOS RECURRENTES MENSUALES", 
+            self.COLOR_VERDE,
+            show_tax=True
+        )
+        elements.extend(recurring_elements)
+        
+        # Notas (si existen) - van en esta página
+        if self.data.notes:
+            elements.append(Spacer(1, 8))
+            elements.append(Paragraph(f"<b>Notas:</b> {self.data.notes}", self.styles['TextoNormal']))
+        
+        # Salto de página para el Resumen de Inversión
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 4: RESUMEN DE LA INVERSIÓN ====================
+        elements.append(Paragraph("RESUMEN DE LA INVERSIÓN", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 20))
+        
+        # Calcular totales con IVA
+        iva_setup = subtotal_setup * 0.16
+        iva_recurrente = subtotal_recurrente * 0.16
+        
+        # Manejar descuentos independientes
+        desc_setup_val = getattr(self.data, 'descuento_setup', 0) or 0
+        desc_recurrente_val = getattr(self.data, 'descuento_recurrente', 0) or 0
+        # Fallback to old single descuento for backward compatibility
+        if desc_setup_val == 0 and desc_recurrente_val == 0:
+            desc_setup_val = self.data.descuento or 0
+        # Setup discount (percentage-based)
+        monto_desc_setup = subtotal_setup * (desc_setup_val / 100) if desc_setup_val <= 100 else desc_setup_val
+        subtotal_setup_con_descuento = subtotal_setup - monto_desc_setup
+        iva_setup_con_descuento = subtotal_setup_con_descuento * 0.16
+        total_setup_final = subtotal_setup_con_descuento + iva_setup_con_descuento
+        
+        # Recurrente discount (percentage-based)
+        monto_desc_recurrente = subtotal_recurrente * (desc_recurrente_val / 100) if desc_recurrente_val <= 100 else desc_recurrente_val
+        subtotal_recurrente_con_descuento = subtotal_recurrente - monto_desc_recurrente
+        iva_recurrente_con_descuento = subtotal_recurrente_con_descuento * 0.16
+        total_recurrente_final = subtotal_recurrente_con_descuento + iva_recurrente_con_descuento
+        
+        # Construir tabla de resumen
+        resumen_data = [['Concepto', 'Monto (USD)']]
+        
+        # Setup
+        resumen_data.append(['Subtotal Setup', f"${subtotal_setup:.2f}"])
+        if monto_desc_setup > 0:
+            resumen_data.append([f'Descuento Setup ({desc_setup_val}%)', f"-${monto_desc_setup:.2f}"])
+            resumen_data.append(['Subtotal con Descuento', f"${subtotal_setup_con_descuento:.2f}"])
+            resumen_data.append(['IVA Setup (16%)', f"${iva_setup_con_descuento:.2f}"])
+        else:
+            resumen_data.append(['IVA Setup (16%)', f"${iva_setup:.2f}"])
+        resumen_data.append(['TOTAL SETUP (Pago Único)', f"${total_setup_final:.2f}"])
+        
+        # Recurrentes
+        resumen_data.append(['', ''])  # Fila vacía separadora
+        resumen_data.append(['Subtotal Recurrente', f"${subtotal_recurrente:.2f}"])
+        if monto_desc_recurrente > 0:
+            resumen_data.append([f'Descuento Recurrente ({desc_recurrente_val}%)', f"-${monto_desc_recurrente:.2f}"])
+            resumen_data.append(['Subtotal con Descuento', f"${subtotal_recurrente_con_descuento:.2f}"])
+            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente_con_descuento:.2f}"])
+        else:
+            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
+        resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
+        
+        # Gran total
+        resumen_data.append(['', ''])
+        resumen_data.append(['INVERSIÓN INICIAL (Setup)', f"${total_setup_final:.2f}"])
+        resumen_data.append(['COSTO MENSUAL RECURRENTE', f"${total_recurrente_final:.2f}"])
+        
+        resumen_table = Table(resumen_data, colWidths=[360, 120])
+        
+        # Determinar índices de filas importantes
+        idx_total_setup = 5 if monto_desc_setup <= 0 else 6
+        idx_total_mensual = idx_total_setup + 5
+        
+        resumen_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            # Destacar total setup
+            ('BACKGROUND', (0, idx_total_setup), (-1, idx_total_setup), self.COLOR_AZUL_CLARO),
+            ('FONTNAME', (0, idx_total_setup), (-1, idx_total_setup), 'Helvetica-Bold'),
+            # Destacar total mensual
+            ('BACKGROUND', (0, -3), (-1, -3), self.COLOR_VERDE_CLARO),
+            ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
+            # Destacar filas finales
+            ('BACKGROUND', (0, -2), (-1, -1), colors.HexColor("#1E293B")),  # slate-800
+            ('TEXTCOLOR', (0, -2), (-1, -1), colors.white),
+            ('FONTNAME', (0, -2), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        
+        elements.append(resumen_table)
+        
+        # Salto de página para Términos
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 5: TÉRMINOS DE LA COTIZACIÓN ====================
+        elements.append(Paragraph("TÉRMINOS DE LA COTIZACIÓN", ParagraphStyle(
+            'TerminosTitulo',
+            parent=self.styles['TituloPortada'],
+            fontSize=18,
+            alignment=1,  # Centrado
+            spaceAfter=10
+        )))
+        elements.append(Spacer(1, 20))
+        
+        # Fecha de vigencia en español
+        vigencia_date = now + timedelta(days=5)
+        vigencia_fecha = f"{vigencia_date.day} de {MESES_ES[vigencia_date.month]} de {vigencia_date.year}"
+        
+        terminos = f"""
+        <b>1. Vigencia de la Propuesta</b><br/>
+        La presente oferta económica tiene una vigencia de <b>5 días hábiles</b> a partir de su emisión.
+        Fecha de vencimiento: <b>{vigencia_fecha}</b><br/><br/>
+        
+        <b>2. Tiempo de Implementación</b><br/>
+        El tiempo estimado de implementación queda sujeto a la prontitud con la que las entidades 
+        bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
+        
+        <b>3. Forma de Pago</b><br/>
+        - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
+        - Costos Recurrentes: Facturación mensual vencida<br/><br/>
+        
+        <b>4. Soporte Técnico</b><br/>
+        Se incluye soporte técnico 24/7 para incidencias relacionadas con la plataforma de pagos.<br/><br/>
+        
+        <b>5. Confidencialidad</b><br/>
+        Toda la información contenida en este documento es confidencial y de uso exclusivo
+        del destinatario.
+        """
+        elements.append(Paragraph(terminos, self.styles['TextoNormal']))
+        
+        # Construir documento con encabezado y pie de página
+        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        
+        self.buffer.seek(0)
+        return self.buffer
+    
+    def generate_pg(self):
+        """Generar el PDF para Payment Gateway - Unificado con estética VPOS"""
+        
+        MESES_ES = {
+            1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+            5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+            9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+        }
+        
+        doc = SimpleDocTemplate(
+            self.buffer,
+            pagesize=letter,
+            leftMargin=self.margin,
+            rightMargin=self.margin,
+            topMargin=100,
+            bottomMargin=60
+        )
+        
+        elements = []
+        now = datetime.now()
+        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        
+        # ==================== PÁGINA 1: PORTADA (Base VPOS) ====================
+        elements.append(Spacer(1, 80))
+        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph("Payment Gateway", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 40))
+        
+        # Información del proyecto
+        info_portada = [
+            ("Cliente", self.data.cliente_nombre),
+            ("RIF", self.data.cliente_rif),
+            ("Integrador", self.data.integrator_name or "Sin integrador por el momento"),
+            ("Aplicativo", self.data.integrator_app_name),
+        ]
+        elements.append(self._create_info_table(info_portada))
+        elements.append(Spacer(1, 30))
+        
+        elements.append(Paragraph(
+            f"<b>Número de Cotización:</b> {self.data.quote_number}", 
+            self.styles['TextoNormal']
+        ))
+        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 2: RESUMEN EJECUTIVO ====================
+        # Carta de presentación (idéntica a VPOS)
+        carta_header = f"""
+        <b>Señores:</b> {self.data.cliente_nombre}<br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/>
+        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        """
+        elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
+        
+        integrator_text = f'el aplicativo <b>{self.data.integrator_app_name}</b> desarrollado por <b>{self.data.integrator_name}</b>' if self.data.integrator_name and self.data.integrator_name != 'Sin integrador por el momento' else 'su plataforma de e-commerce'
+        carta_body = f"""
+        Por medio de la presente, nos complace presentarle nuestra propuesta comercial para la implementación 
+        del servicio de <b>Payment Gateway</b> a través del Merchant Server. La solución propuesta se integra con 
+        {integrator_text}, garantizando una experiencia de cobro segura y eficiente para transacciones en línea.
+        """
+        elements.append(Paragraph(carta_body, self.styles['TextoNormal']))
+        elements.append(Spacer(1, 15))
+        
+        # Título Resumen Ejecutivo
+        elements.append(Paragraph("RESUMEN EJECUTIVO", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 8))
+        
+        # Tabla de Bancos y Productos (sin "Persona Jurídica")
+        producto_style = ParagraphStyle(
+            'PGProductoCell',
+            fontName='Helvetica',
+            fontSize=7.5,
+            leading=9,
+            wordWrap='LTR'
+        )
+        
+        bank_product_map = {}
+        if self.data.pg_setup_items:
+            pg_items = self.data.pg_setup_items
+        else:
+            pg_items = [{"concepto": i.concepto, "costo": i.tarifa, "banco": i.bank_name or ""} for i in self.data.setup_items]
+        
+        for item in pg_items:
+            concepto = str(item.get('concepto', ''))
+            # Filtrar "Persona Jurídica"
+            if 'persona jur' in concepto.lower():
+                continue
+            banco = str(item.get('banco', ''))
+            if not banco:
+                continue
+            key = banco
+            if key not in bank_product_map:
+                bank_product_map[key] = {'bank': banco, 'products': set()}
+            bank_product_map[key]['products'].add(concepto)
+        
+        if bank_product_map:
+            table_data = [['Bancos', 'Productos']]
+            for data_entry in bank_product_map.values():
+                products_str = ', '.join(data_entry['products'])
+                table_data.append([data_entry['bank'], Paragraph(products_str, producto_style)])
+            
+            table = Table(table_data, colWidths=[180, 310])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (0, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 1), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+            ]))
+            for i in range(1, len(table_data)):
+                if i % 2 == 0:
+                    table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
+            elements.append(table)
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 3: INVERSIÓN EN SETUP ====================
+        elements.append(Paragraph("INVERSIÓN EN SETUP / ARRANQUE", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 8))
+        
+        concepto_style = ParagraphStyle(
+            'PGConceptoCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
+        banco_style = ParagraphStyle(
+            'PGBancoCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
+        obs_style = ParagraphStyle(
+            'PGObsCell',
+            fontName='Helvetica',
+            fontSize=7,
+            leading=9,
+            wordWrap='LTR'
+        )
+        
+        if pg_items:
+            pg_table_data = [['N°', 'Concepto', 'Costo (USD)', 'Banco', 'Observación']]
+            subtotal_setup = 0
+            
+            for idx, item in enumerate(pg_items, 1):
+                costo = item.get('costo', 0) or 0
+                subtotal_setup += costo
+                obs = str(item.get('observacion', '') or '')
+                if 'cargado automáticamente' in obs.lower():
+                    obs = 'Costo Base'
+                pg_table_data.append([
+                    str(idx),
+                    Paragraph(str(item.get('concepto', '')), concepto_style),
+                    f"${costo:.2f}",
+                    Paragraph(str(item.get('banco', '')), banco_style),
+                    Paragraph(obs, obs_style)
+                ])
+            
+            pg_table_data.append(['', 'TOTAL SETUP', f"${subtotal_setup:.2f}", '', ''])
+            
+            col_widths = [25, 165, 75, 115, 110]
+            pg_table = Table(pg_table_data, colWidths=col_widths, repeatRows=1)
+            
+            pg_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+                ('ALIGN', (2, 1), (2, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 1), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+                ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_AZUL_CLARO),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, -1), (-1, -1), 8),
+            ]))
+            
+            for i in range(1, len(pg_table_data) - 1):
+                if i % 2 == 0:
+                    pg_table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
+            
+            elements.append(pg_table)
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 4: COSTOS RECURRENTES ====================
+        elements.append(Paragraph("COSTOS RECURRENTES MENSUALES", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 4))
+        
+        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
+        pg_rc = self.data.pg_recurring_cost
+        if pg_rc and (pg_rc.get('rangos') or pg_rc.get('table')):
+            num_products = pg_rc.get('num_products', 1)
+            elements.append(Paragraph(
+                f"Calculado para <b>{num_products}</b> medio(s) de pago",
+                ParagraphStyle('CalcPara', parent=self.styles['TextoNormal'], fontSize=9, spaceAfter=6)
+            ))
+            
+            rec_table_data = [['Rango', 'Transacciones', 'Total Base', 'Precio Tope por\nrango']]
+            
+            # Soportar ambos formatos: rangos (guardado) y table (frontend)
+            rangos = pg_rc.get('rangos', [])
+            if not rangos and pg_rc.get('table'):
+                rangos = [{
+                    'rango_label': r.get('label', ''),
+                    'costo_base_total': r.get('base', 0),
+                    'precio_tope': r.get('tope', 0)
+                } for r in pg_rc['table']]
+            for idx, rango in enumerate(rangos, 1):
+                costo_base = rango.get('costo_base_total', 0)
+                precio_tope = rango.get('precio_tope', 0)
+                label = rango.get('rango_label', str(idx))
+                
+                base_str = f"${costo_base:.2f}" if costo_base and costo_base > 0 else "Negociable"
+                tope_str = f"${precio_tope:.6f}" if precio_tope else ""
+                
+                rec_table_data.append([str(idx), label, base_str, tope_str])
+            
+            col_widths = [55, 140, 120, 130]
+            rec_table = Table(rec_table_data, colWidths=col_widths, repeatRows=1)
+            
+            header_bg = self.COLOR_AZUL
+            alt_row_bg = colors.HexColor("#DCE6F1")
+            
+            base_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 1), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#B0B0B0")),
+            ]
+            
+            rec_table.setStyle(TableStyle(base_style))
+            
+            for i in range(1, len(rec_table_data)):
+                if i % 2 == 0:
+                    rec_table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), alt_row_bg)]))
+            
+            elements.append(rec_table)
+        elif all_recurring:
+            # Fallback: tabla simple si no hay rangos
+            rec_concepto_style = ParagraphStyle(
+                'PGRecConceptoCell', fontName='Helvetica', fontSize=8, leading=10, wordWrap='LTR'
+            )
+            rec_table_data = [['N°', 'Concepto', 'Cant.', 'Tarifa (USD)', 'Total (USD)']]
+            subtotal_rec = 0
+            for idx, item in enumerate(all_recurring, 1):
+                cant = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1)
+                total_item = cant * (item.tarifa or 0)
+                subtotal_rec += total_item
+                rec_table_data.append([str(idx), Paragraph(item.concepto, rec_concepto_style), str(cant), f"${item.tarifa:.2f}", f"${total_item:.2f}"])
+            rec_table_data.append(['', 'TOTAL RECURRENTE', '', '', f"${subtotal_rec:.2f}"])
+            col_widths = [25, None, 35, 70, 80]
+            rec_table = Table(rec_table_data, colWidths=col_widths, repeatRows=1, hAlign='CENTER')
+            rec_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_VERDE),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ALIGN', (2, 1), (4, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+                ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_VERDE),
+                ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            elements.append(rec_table)
+        
+        if self.data.notes:
+            elements.append(Spacer(1, 8))
+            elements.append(Paragraph(f"<b>Notas:</b> {self.data.notes}", self.styles['TextoNormal']))
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 5: TÉRMINOS DE LA COTIZACIÓN ====================
+        elements.append(Paragraph("TÉRMINOS DE LA COTIZACIÓN", ParagraphStyle(
+            'PGTerminosTitulo',
+            parent=self.styles['TituloPortada'],
+            fontSize=18,
+            alignment=1,
+            spaceAfter=10
+        )))
+        elements.append(Spacer(1, 20))
+        
+        vigencia_date = now + timedelta(days=5)
+        vigencia_fecha = f"{vigencia_date.day} de {MESES_ES[vigencia_date.month]} de {vigencia_date.year}"
+        
+        terminos = f"""
+        <b>1. Vigencia de la Propuesta</b><br/>
+        La presente oferta económica tiene una vigencia de <b>5 días hábiles</b> a partir de su emisión.
+        Fecha de vencimiento: <b>{vigencia_fecha}</b><br/><br/>
+        
+        <b>2. Tiempo de Implementación</b><br/>
+        El tiempo estimado de implementación queda sujeto a la prontitud con la que las entidades 
+        bancarias remitan la información técnica de afiliados y terminales de los productos seleccionados.<br/><br/>
+        
+        <b>3. Forma de Pago</b><br/>
+        - Costos de Setup: 100% después de aprobar la propuesta para dar inicio al Proyecto<br/>
+        - Costos Recurrentes: Facturación mensual vencida<br/><br/>
+        
+        <b>4. Soporte Técnico</b><br/>
+        Se incluye soporte técnico 24/7 para incidencias relacionadas con la plataforma de pagos.<br/><br/>
+        
+        <b>5. Confidencialidad</b><br/>
+        Toda la información contenida en este documento es confidencial y de uso exclusivo
+        del destinatario.
+        """
+        elements.append(Paragraph(terminos, self.styles['TextoNormal']))
+        
+        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        
+        self.buffer.seek(0)
+        return self.buffer
+
+
+def create_overlay_pdf(data: TemplateQuotePDFRequest, page_width: float, page_height: float, page_num: int):
+    """[LEGACY] Crea un PDF overlay para el modo de plantilla base - Solo para compatibilidad"""
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+

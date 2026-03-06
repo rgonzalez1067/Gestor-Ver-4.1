@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -15,17 +15,19 @@ export const Dashboard = () => {
   });
   const [recentQuotes, setRecentQuotes] = useState([]);
   const [alerts, setAlerts] = useState({ overdue: [], today: [], upcoming: [], total: 0 });
+  const [missingPdfs, setMissingPdfs] = useState([]);
+  const [regenerating, setRegenerating] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchDashboardData(); }, []);
 
   const fetchDashboardData = async () => {
     try {
-      // Obtener stats y recientes en paralelo
-      const [statsRes, quotesRes, alertsRes] = await Promise.allSettled([
+      const [statsRes, quotesRes, alertsRes, missingRes] = await Promise.allSettled([
         api.get('/dashboard/stats'),
         api.get('/quotes'),
-        api.get('/dashboard/alerts')
+        api.get('/dashboard/alerts'),
+        api.get('/dashboard/missing-pdfs')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -37,11 +39,45 @@ export const Dashboard = () => {
       if (alertsRes.status === 'fulfilled') {
         setAlerts(alertsRes.value.data);
       }
+      if (missingRes.status === 'fulfilled') {
+        setMissingPdfs(missingRes.value.data.missing_pdfs || []);
+      }
     } catch {
       toast.error('Error al cargar datos del dashboard');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRegeneratePdf = async (quoteId, quoteNumber) => {
+    setRegenerating(prev => ({ ...prev, [quoteId]: true }));
+    try {
+      await api.post(`/quotes/${quoteId}/regenerate-pdf`);
+      toast.success(`PDF regenerado: ${quoteNumber}`);
+      setMissingPdfs(prev => prev.filter(q => q.quote_id !== quoteId));
+    } catch (err) {
+      toast.error(`Error regenerando PDF: ${err.response?.data?.detail || 'Error desconocido'}`);
+    } finally {
+      setRegenerating(prev => ({ ...prev, [quoteId]: false }));
+    }
+  };
+
+  const handleRegenerateAll = async () => {
+    const toRegenerate = [...missingPdfs];
+    let successCount = 0;
+    for (const quote of toRegenerate) {
+      setRegenerating(prev => ({ ...prev, [quote.quote_id]: true }));
+      try {
+        await api.post(`/quotes/${quote.quote_id}/regenerate-pdf`);
+        successCount++;
+        setMissingPdfs(prev => prev.filter(q => q.quote_id !== quote.quote_id));
+      } catch {
+        // continue with next
+      } finally {
+        setRegenerating(prev => ({ ...prev, [quote.quote_id]: false }));
+      }
+    }
+    if (successCount > 0) toast.success(`${successCount} PDF(s) regenerado(s)`);
   };
 
   const statCards = [
@@ -151,6 +187,55 @@ export const Dashboard = () => {
                     </div>
                     <span className="text-xs text-green-600 font-medium shrink-0 bg-green-50 px-2 py-0.5 rounded">{a.follow_up_date}</span>
                   </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Missing PDFs Alert */}
+          {missingPdfs.length > 0 && (
+            <div className="mb-8 bg-white rounded-lg border border-amber-200 overflow-hidden" data-testid="missing-pdfs-widget">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-amber-100 bg-amber-50">
+                <div className="flex items-center gap-2">
+                  <FileWarning size={18} className="text-amber-600" />
+                  <h2 className="text-base font-semibold text-slate-900">Cotizaciones sin PDF</h2>
+                  <span className="text-xs bg-amber-200 text-amber-800 rounded-full px-2 py-0.5 ml-1">{missingPdfs.length}</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleRegenerateAll}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-8"
+                  data-testid="regenerate-all-pdfs-btn"
+                >
+                  <RefreshCw size={14} className="mr-1" />
+                  Regenerar Todos
+                </Button>
+              </div>
+              <div className="divide-y divide-amber-100 max-h-64 overflow-y-auto">
+                {missingPdfs.map(q => (
+                  <div key={q.quote_id} className="flex items-center justify-between px-6 py-3 hover:bg-amber-50/30 transition-colors"
+                    data-testid={`missing-pdf-${q.quote_id}`}>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <FileText size={16} className="text-amber-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900">{q.quote_number}</p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {q.client_name || 'Sin cliente'} · {q.quote_type} · {q.quote_status || 'Borrador'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRegeneratePdf(q.quote_id, q.quote_number)}
+                      disabled={regenerating[q.quote_id]}
+                      className="text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-50"
+                      data-testid={`regenerate-pdf-${q.quote_id}`}
+                    >
+                      <RefreshCw size={12} className={`mr-1 ${regenerating[q.quote_id] ? 'animate-spin' : ''}`} />
+                      {regenerating[q.quote_id] ? 'Generando...' : 'Regenerar'}
+                    </Button>
+                  </div>
                 ))}
               </div>
             </div>
