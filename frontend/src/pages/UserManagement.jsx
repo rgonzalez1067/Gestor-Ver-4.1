@@ -25,7 +25,24 @@ const ROLES = [
 ];
 
 // Departamentos
-const DEPARTAMENTOS = ['Administración', 'Almacén', 'Ventas', 'TI', 'Implementación', 'Gerencia'];
+const DEPARTAMENTOS = ['Implementación', 'Infraestructura', 'Ventas Pyme', 'Ventas Corporativas', 'Administración', 'Dirección'];
+
+// Cargos
+const CARGOS = [
+  'Gerente de Ventas Pyme',
+  'Gerente de Ventas Corporativas',
+  'Ejecutivo de Ventas Pyme',
+  'Ejecutivo de Ventas Corporativas',
+  'Gerente de Administración',
+  'Coordinador de Administración',
+  'Asistente Administrativo (Almacén)',
+  'Técnico de Infraestructura',
+  'Gerente de Implementación',
+  'Coordinador de Implementación',
+  'Implementador',
+  'Director',
+  'Gerente de Infraestructura',
+];
 
 export const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -572,13 +589,18 @@ export const UserManagement = () => {
                   <Briefcase size={14} />
                   Cargo
                 </Label>
-                <Input
+                <select
                   id="cargo"
                   value={formData.cargo}
                   onChange={(e) => setFormData({...formData, cargo: e.target.value})}
-                  placeholder="Ej: Analista de Ventas"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2"
                   data-testid="input-cargo"
-                />
+                >
+                  <option value="">Seleccionar...</option>
+                  {CARGOS.map(cargo => (
+                    <option key={cargo} value={cargo}>{cargo}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Departamento */}

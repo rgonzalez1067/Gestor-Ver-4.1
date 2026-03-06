@@ -13,6 +13,7 @@ from models import *
 import secrets
 import hashlib
 import re
+import httpx
 
 router = APIRouter()
 
@@ -563,4 +564,10 @@ async def get_departamentos(authorization: Optional[str] = Header(None)):
     """Obtener lista de departamentos disponibles"""
     await get_current_user(authorization)
     return DEPARTAMENTOS
+
+@router.get("/admin/cargos")
+async def get_cargos(authorization: Optional[str] = Header(None)):
+    """Obtener lista de cargos disponibles"""
+    await get_current_user(authorization)
+    return CARGOS
 

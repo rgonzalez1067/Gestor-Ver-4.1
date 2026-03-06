@@ -473,7 +473,24 @@ class UserRegister(BaseModel):
     sede: str = Field(default="TBP", description="Sede del usuario: TBP o LCH")
 
 # Departamentos disponibles
-DEPARTAMENTOS = ["Administración", "Almacén", "Ventas", "TI", "Implementación", "Gerencia"]
+DEPARTAMENTOS = ["Implementación", "Infraestructura", "Ventas Pyme", "Ventas Corporativas", "Administración", "Dirección"]
+
+# Cargos disponibles
+CARGOS = [
+    "Gerente de Ventas Pyme",
+    "Gerente de Ventas Corporativas",
+    "Ejecutivo de Ventas Pyme",
+    "Ejecutivo de Ventas Corporativas",
+    "Gerente de Administración",
+    "Coordinador de Administración",
+    "Asistente Administrativo (Almacén)",
+    "Técnico de Infraestructura",
+    "Gerente de Implementación",
+    "Coordinador de Implementación",
+    "Implementador",
+    "Director",
+    "Gerente de Infraestructura",
+]
 
 class UserLogin(BaseModel):
     """Modelo para login de usuario"""
