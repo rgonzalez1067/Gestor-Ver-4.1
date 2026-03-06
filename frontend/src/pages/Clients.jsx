@@ -14,11 +14,19 @@ import { toast } from 'sonner';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Mixto'];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
+const CATEGORIAS_COMERCIALES = [
+  'Supermercados', 'Abastos', 'Restaurantes', 'Panaderías', 'Bares', 'Discotecas',
+  'Comida Rápida', 'Cafeterías', 'Tiendas de Ropa', 'Boutique', 'Salón de Belleza',
+  'Barbería', 'Spa/Salud', 'Gimnasios', 'Cosmética', 'Tiendas de Calzados',
+  'Mueblerías', 'Ferretería', 'Tiendas de Electrodomésticos', 'Jardinería',
+  'Joyerías', 'Tienda de Electrónica', 'Venta de Software', 'Jugueterías',
+  'Librerías', 'Tiendas por Departamento', 'Colegios', 'Universidades',
+  'Inmobiliarias', 'Clínicas',
+];
 
 const emptyContact = () => ({
   contact_id: '',
-  first_name: '',
-  last_name: '',
+  full_name: '',
   phone: '',
   email: '',
   role: 'Administrativo'
@@ -71,6 +79,8 @@ export const Clients = () => {
     fantasy_name: '',
     segment: 'Pymes',
     address: '',
+    branch_address: '',
+    categoria_comercial: '',
     sucursal: 'Principal',
     contacts: [emptyContact()]
   });
@@ -110,13 +120,13 @@ export const Clients = () => {
     // Ensure legacy fields for backwards compat
     if (payload.contacts?.length >= 1) {
       const c = payload.contacts[0];
-      payload.contact1 = { name: `${c.first_name} ${c.last_name}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
+      payload.contact1 = { name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
     } else {
       payload.contact1 = { name: 'N/A', phone: 'N/A', email: 'na@na.com' };
     }
     if (payload.contacts?.length >= 2) {
       const c = payload.contacts[1];
-      payload.contact2 = { name: `${c.first_name} ${c.last_name}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
+      payload.contact2 = { name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: c.phone, email: c.email || 'n/a@n.com' };
     } else {
       payload.contact2 = { name: 'N/A', phone: 'N/A', email: 'na@na.com' };
     }
@@ -164,28 +174,29 @@ export const Clients = () => {
     let contacts = client.contacts || [];
     if (contacts.length === 0 && (client.contact1 || client.contact2)) {
       if (client.contact1?.name && client.contact1.name !== 'N/A') {
-        const parts = client.contact1.name.split(' ');
         contacts.push({
           contact_id: '',
-          first_name: parts[0] || '',
-          last_name: parts.slice(1).join(' ') || '',
+          full_name: client.contact1.name,
           phone: client.contact1.phone || '',
           email: client.contact1.email || '',
           role: 'Administrativo'
         });
       }
       if (client.contact2?.name && client.contact2.name !== 'N/A') {
-        const parts = client.contact2.name.split(' ');
         contacts.push({
           contact_id: '',
-          first_name: parts[0] || '',
-          last_name: parts.slice(1).join(' ') || '',
+          full_name: client.contact2.name,
           phone: client.contact2.phone || '',
           email: client.contact2.email || '',
           role: 'Financiero'
         });
       }
     }
+    // Migrate old first_name/last_name to full_name
+    contacts = contacts.map(c => ({
+      ...c,
+      full_name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || ''
+    }));
     if (contacts.length === 0) contacts = [emptyContact()];
 
     setFormData({
@@ -194,6 +205,8 @@ export const Clients = () => {
       fantasy_name: client.fantasy_name,
       segment: client.segment || 'Pymes',
       address: client.address || '',
+      branch_address: client.branch_address || '',
+      categoria_comercial: client.categoria_comercial || '',
       sucursal: client.sucursal || 'Principal',
       contacts
     });
@@ -203,7 +216,7 @@ export const Clients = () => {
   const resetForm = () => {
     setFormData({
       rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes',
-      address: '', sucursal: 'Principal', contacts: [emptyContact()]
+      address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal', contacts: [emptyContact()]
     });
     setEditingClient(null);
   };
@@ -351,6 +364,8 @@ export const Clients = () => {
       fantasy_name: rifResult.legal_name || '',
       segment: 'Pymes',
       address: rifResult.address || '',
+      branch_address: '',
+      categoria_comercial: '',
       sucursal: addBranch ? '' : 'Principal',
       contacts: [emptyContact()]
     };
@@ -607,6 +622,24 @@ export const Clients = () => {
                         className={rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}
                         placeholder="Av. Principal, Edificio X, Caracas" />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="branch_address">Dirección de la Sucursal</Label>
+                        <Input id="branch_address" data-testid="client-branch-address-input" value={formData.branch_address}
+                          onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
+                          placeholder="Dirección física de la sucursal" />
+                      </div>
+                      <div>
+                        <Label htmlFor="categoria_comercial">Categoría Comercial</Label>
+                        <Select value={formData.categoria_comercial || '_none_'} onValueChange={(v) => setFormData({ ...formData, categoria_comercial: v === '_none_' ? '' : v })}>
+                          <SelectTrigger data-testid="client-categoria-select"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none_">Seleccionar...</SelectItem>
+                            {CATEGORIAS_COMERCIALES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
                     {/* Matriz de Contactos Dinámica */}
                     <div className="border-t pt-4">
@@ -618,22 +651,17 @@ export const Clients = () => {
                       </div>
                       {formData.contacts.map((contact, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2 mb-3 items-end p-3 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
-                          <div className="col-span-2">
-                            <Label className="text-xs">Nombre</Label>
-                            <Input value={contact.first_name} onChange={(e) => updateContact(idx, 'first_name', e.target.value)}
-                              placeholder="Nombre" className="h-9 text-sm" required />
-                          </div>
-                          <div className="col-span-2">
-                            <Label className="text-xs">Apellido</Label>
-                            <Input value={contact.last_name} onChange={(e) => updateContact(idx, 'last_name', e.target.value)}
-                              placeholder="Apellido" className="h-9 text-sm" />
+                          <div className="col-span-3">
+                            <Label className="text-xs">Nombre y Apellidos</Label>
+                            <Input value={contact.full_name} onChange={(e) => updateContact(idx, 'full_name', e.target.value)}
+                              placeholder="Nombre completo" className="h-9 text-sm" data-testid={`contact-full-name-${idx}`} required />
                           </div>
                           <div className="col-span-2">
                             <Label className="text-xs">Teléfono</Label>
                             <Input value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
                               placeholder="0412..." className="h-9 text-sm" />
                           </div>
-                          <div className="col-span-2">
+                          <div className="col-span-3">
                             <Label className="text-xs">Email</Label>
                             <Input value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
                               placeholder="email@..." className="h-9 text-sm" type="email" />
@@ -689,6 +717,7 @@ export const Clients = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Jurídico</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Fantasía</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Segmento</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Categoría</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Contacto Principal</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                 </tr>
@@ -709,10 +738,11 @@ export const Clients = () => {
                           client.segment === 'Pymes' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}>{client.segment || 'N/A'}</span>
                       </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{client.categoria_comercial || '—'}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {mainContact ? (
                           <div>
-                            <p className="font-medium">{mainContact.first_name} {mainContact.last_name}</p>
+                            <p className="font-medium">{mainContact.full_name || `${mainContact.first_name || ''} ${mainContact.last_name || ''}`.trim() || '—'}</p>
                             <p className="text-xs text-slate-400">{mainContact.role} · {mainContact.phone}</p>
                           </div>
                         ) : legacyContact ? (

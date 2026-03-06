@@ -15,11 +15,23 @@ class Contact(BaseModel):
 
 class ContactCRM(BaseModel):
     contact_id: str = Field(default_factory=lambda: f"cnt_{uuid.uuid4().hex[:8]}")
-    first_name: str
-    last_name: str
+    full_name: str = ""
+    first_name: Optional[str] = None  # Legacy
+    last_name: Optional[str] = None   # Legacy
     phone: str = ""
     email: str = ""
     role: Literal["Administrativo", "Financiero", "Técnico", "Cuentas por Pagar", "Operativo"] = "Administrativo"
+
+# Categorías Comerciales disponibles
+CATEGORIAS_COMERCIALES = [
+    "Supermercados", "Abastos", "Restaurantes", "Panaderías", "Bares", "Discotecas",
+    "Comida Rápida", "Cafeterías", "Tiendas de Ropa", "Boutique", "Salón de Belleza",
+    "Barbería", "Spa/Salud", "Gimnasios", "Cosmética", "Tiendas de Calzados",
+    "Mueblerías", "Ferretería", "Tiendas de Electrodomésticos", "Jardinería",
+    "Joyerías", "Tienda de Electrónica", "Venta de Software", "Jugueterías",
+    "Librerías", "Tiendas por Departamento", "Colegios", "Universidades",
+    "Inmobiliarias", "Clínicas",
+]
 
 class ClientCreate(BaseModel):
     rif: str
@@ -27,6 +39,8 @@ class ClientCreate(BaseModel):
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
     address: Optional[str] = None
+    branch_address: Optional[str] = None  # Dirección de la Sucursal
+    categoria_comercial: Optional[str] = None  # Categoría Comercial
     sucursal: str = "Principal"
     contacts: List[ContactCRM] = []
     # Legacy support
@@ -40,6 +54,8 @@ class Client(BaseModel):
     fantasy_name: str
     segment: Literal["Pymes", "Corporativo", "Mixto"]
     address: Optional[str] = None
+    branch_address: Optional[str] = None
+    categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
