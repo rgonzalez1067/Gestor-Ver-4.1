@@ -570,35 +570,23 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
         if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
-    # Construir matriz de implementación (Bancos × Medios de Pago cotizados)
-    # Solo incluir ítems de tipo recurring (medios de pago que necesitan implementación por banco)
-    IMPLEMENTATION_ITEM_TYPES = {"recurring_basic", "recurring_other"}
-    
-    payment_methods = []
-    seen = set()
-    for item in quote.get("services", []):
-        item_type = item.get("item_type", "")
-        name = item.get("item_name", "")
-        if name and name not in seen and item_type in IMPLEMENTATION_ITEM_TYPES:
-            payment_methods.append(item)
-            seen.add(name)
-
-    bank_names = [b["bank_name"] for b in banks if b.get("bank_name")]
-    if not bank_names and quote.get("sponsor_bank_name"):
-        bank_names = [quote["sponsor_bank_name"]]
-
-    # Cruzar: cada banco con los medios de pago que le corresponden
+    # Construir matriz de implementación desde los items 'additional'
+    # Los items 'additional' son los medios de pago que el usuario seleccionó
+    # explícitamente para cada banco (ej: "TDD/TDC Suscripción" para "Banco Mercantil").
+    # NO usar recurring_basic/recurring_other ya que incluyen tarifas base y costos
+    # de infraestructura que NO representan implementaciones por banco.
     implementation_matrix = {}
-    for bn in bank_names:
-        implementation_matrix[bn] = {}
-        for item in payment_methods:
-            name = item.get("item_name", "")
-            # Si lockBancos=true y cantidad_bancos=1, solo aplica al banco patrocinador
-            if item.get("lockBancos") and item.get("cantidad_bancos", 1) == 1:
-                if bn == quote.get("sponsor_bank_name"):
-                    implementation_matrix[bn][name] = {}
-            else:
-                implementation_matrix[bn][name] = {}
+    for item in quote.get("services", []):
+        if item.get("item_type") != "additional":
+            continue
+        bn = item.get("bank_name", "")
+        name = item.get("item_name", "")
+        if not bn or not name:
+            continue
+        if bn not in implementation_matrix:
+            implementation_matrix[bn] = {}
+        if name not in implementation_matrix[bn]:
+            implementation_matrix[bn][name] = {}
 
     # Heredar anexos de la cotización
     attachments = []

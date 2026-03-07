@@ -250,3 +250,38 @@ async def get_bitacora(project_id: str, authorization: Optional[str] = Header(No
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return project.get("bitacora", [])
+
+
+
+@router.post("/projects/migrate-matrix")
+async def migrate_project_matrices(authorization: Optional[str] = Header(None)):
+    """Reconstruye las matrices de implementación de todos los proyectos
+    usando solo los items 'additional' (medios de pago seleccionados por banco)."""
+    await get_current_user(authorization)
+    
+    projects = await db.projects.find({}, {"_id": 0}).to_list(None)
+    updated = 0
+    
+    for p in projects:
+        services = p.get("services", [])
+        new_matrix = {}
+        for item in services:
+            if item.get("item_type") != "additional":
+                continue
+            bn = item.get("bank_name", "")
+            name = item.get("item_name", "")
+            if not bn or not name:
+                continue
+            if bn not in new_matrix:
+                new_matrix[bn] = {}
+            if name not in new_matrix[bn]:
+                new_matrix[bn][name] = {}
+        
+        if new_matrix != p.get("implementation_matrix", {}):
+            await db.projects.update_one(
+                {"project_id": p["project_id"]},
+                {"$set": {"implementation_matrix": new_matrix}}
+            )
+            updated += 1
+    
+    return {"message": f"Matrices actualizadas: {updated} proyectos"}
