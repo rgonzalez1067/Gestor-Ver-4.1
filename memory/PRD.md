@@ -17,7 +17,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - CRUD de cotizaciones con asistente multi-paso, selector multivariable de productos
 - Generación de PDFs complejos, alertas de PDFs faltantes
 - Sistema de correos por sede (modo simulado)
-- Dashboard con estadísticas y alertas
+- Dashboard con estadísticas, alertas y KPI de proyectos
 - Importación/exportación de clientes (Excel, CSV, PDF)
 - Bitácora de seguimiento por cliente
 - Digitalización RIF (OCR PDF/JPG/PNG, 3 estrategias de extracción)
@@ -29,10 +29,15 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - **Prioridad**: Alta, Media, Normal (dropdown inline en tabla)
 - **Asignación**: Selección de implementador + fecha estimada + notificación por email
 - **Anexos**: Herencia automática de archivos de la cotización al proyecto
-- **Matriz de Implementación**: Bancos × Productos × 5 fases (Notificado, Recibido, Configurado, Testeado, En Producción) con checkboxes interactivos
+- **Matriz de Implementación**: Bancos × Productos Cotizados (solo recurring_basic/recurring_other) × 5 fases con checkboxes interactivos
 - **Bitácora de Seguimiento**: Entradas con fecha de ejecución y observaciones
 - **Configuración**: Campo "Correo Gerente de Implementación" en Settings
 - **Detalle**: Pantalla separada `/projects/:id` con cabecera técnica (Pinpad, Banco Patrocinador)
+
+### Dashboard KPI de Proyectos (Completado - 2026-03-07)
+- Card de "Proyectos Activos" con total y desglose por estado
+- Clickeable para navegar a /projects
+- Consume endpoint `/api/projects/stats`
 
 ## Tareas Pendientes
 

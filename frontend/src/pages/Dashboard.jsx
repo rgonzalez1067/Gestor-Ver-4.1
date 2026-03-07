@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ export const Dashboard = () => {
     totalQuotes: 0, totalClients: 0, totalBanks: 0,
     totalMediosPago: 0, totalHardware: 0, exchangeRate: 0
   });
+  const [projectStats, setProjectStats] = useState({ total: 0, pending: 0, in_progress: 0, blocked: 0, completed: 0 });
   const [recentQuotes, setRecentQuotes] = useState([]);
   const [alerts, setAlerts] = useState({ overdue: [], today: [], upcoming: [], total: 0 });
   const [missingPdfs, setMissingPdfs] = useState([]);
@@ -23,11 +24,12 @@ export const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, quotesRes, alertsRes, missingRes] = await Promise.allSettled([
+      const [statsRes, quotesRes, alertsRes, missingRes, projStatsRes] = await Promise.allSettled([
         api.get('/dashboard/stats'),
         api.get('/quotes'),
         api.get('/dashboard/alerts'),
-        api.get('/dashboard/missing-pdfs')
+        api.get('/dashboard/missing-pdfs'),
+        api.get('/projects/stats')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -41,6 +43,9 @@ export const Dashboard = () => {
       }
       if (missingRes.status === 'fulfilled') {
         setMissingPdfs(missingRes.value.data.missing_pdfs || []);
+      }
+      if (projStatsRes.status === 'fulfilled') {
+        setProjectStats(projStatsRes.value.data);
       }
     } catch {
       toast.error('Error al cargar datos del dashboard');
@@ -135,6 +140,45 @@ export const Dashboard = () => {
                 </div>
               );
             })}
+          </div>
+
+          {/* Project KPI Card */}
+          <div className="mb-8 bg-white rounded-lg border border-slate-200 p-6 card-hover cursor-pointer"
+            onClick={() => navigate('/projects')} data-testid="projects-kpi-card">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-indigo-100 text-indigo-700">
+                  <FolderKanban size={24} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wide">Proyectos Activos</h3>
+                  <p className="text-3xl font-bold text-slate-900 font-manrope">
+                    {projectStats.total - projectStats.completed}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right text-sm text-slate-500">
+                Total: <span className="font-semibold text-slate-700">{projectStats.total}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center" data-testid="kpi-pending">
+                <p className="text-2xl font-bold text-amber-700">{projectStats.pending}</p>
+                <p className="text-xs text-amber-600 font-medium mt-1">Por Asignar</p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center" data-testid="kpi-in-progress">
+                <p className="text-2xl font-bold text-blue-700">{projectStats.in_progress}</p>
+                <p className="text-xs text-blue-600 font-medium mt-1">En Proceso</p>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center" data-testid="kpi-blocked">
+                <p className="text-2xl font-bold text-red-700">{projectStats.blocked}</p>
+                <p className="text-xs text-red-600 font-medium mt-1">Detenidos</p>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center" data-testid="kpi-completed">
+                <p className="text-2xl font-bold text-emerald-700">{projectStats.completed}</p>
+                <p className="text-xs text-emerald-600 font-medium mt-1">Finalizados</p>
+              </div>
+            </div>
           </div>
 
           {/* Alerts Widget */}
