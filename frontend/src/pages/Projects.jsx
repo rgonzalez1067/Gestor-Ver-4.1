@@ -1,16 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { toast } from 'sonner';
 import {
-  FolderKanban, Search, UserCheck, Calendar, Clock, AlertTriangle,
-  CheckCircle2, Pause, ChevronDown, ChevronUp, FileText, Send,
-  ArrowRight, MessageSquarePlus, Filter, Building2
+  FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
+  FileText, Filter, Paperclip, Eye, ArrowRight, X
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -20,20 +19,16 @@ const STATUS_CONFIG = {
   'Finalizado / Producción': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
 };
 
-const PRIORITY_CONFIG = {
-  'Baja': 'text-slate-500',
-  'Normal': 'text-blue-600',
-  'Alta': 'text-orange-600 font-semibold',
-  'Urgente': 'text-red-600 font-bold',
-};
+const PRIORITY_OPTIONS = ['Alta', 'Media', 'Normal'];
+const PRIORITY_COLORS = { 'Alta': 'text-red-600 font-semibold', 'Media': 'text-orange-600', 'Normal': 'text-blue-600' };
 
 const Projects = () => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [expandedProject, setExpandedProject] = useState(null);
 
   // Assign dialog
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -42,41 +37,24 @@ const Projects = () => {
   const [assignForm, setAssignForm] = useState({ assigned_to_user_id: '', estimated_delivery_date: '' });
   const [assignLoading, setAssignLoading] = useState(false);
 
-  // Status change dialog
-  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [statusProject, setStatusProject] = useState(null);
-  const [newStatus, setNewStatus] = useState('');
-  const [statusNote, setStatusNote] = useState('');
-
-  // Note dialog
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [noteProject, setNoteProject] = useState(null);
-  const [noteText, setNoteText] = useState('');
+  // Anexos dialog
+  const [anexosDialogOpen, setAnexosDialogOpen] = useState(false);
+  const [anexosProject, setAnexosProject] = useState(null);
 
   const fetchProjects = useCallback(async () => {
     try {
-      const [projRes, statsRes] = await Promise.all([
-        api.get('/projects'),
-        api.get('/projects/stats')
-      ]);
+      const [projRes, statsRes] = await Promise.all([api.get('/projects'), api.get('/projects/stats')]);
       setProjects(projRes.data);
       setStats(statsRes.data);
-    } catch (err) {
-      toast.error('Error cargando proyectos');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { toast.error('Error cargando proyectos'); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
   const fetchImplementers = async () => {
-    try {
-      const res = await api.get('/projects/implementers/list');
-      setImplementers(res.data);
-    } catch (err) {
-      toast.error('Error cargando implementadores');
-    }
+    try { const res = await api.get('/projects/implementers/list'); setImplementers(res.data); }
+    catch { toast.error('Error cargando implementadores'); }
   };
 
   const openAssignDialog = (project) => {
@@ -94,48 +72,24 @@ const Projects = () => {
       toast.success('Proyecto asignado exitosamente');
       setAssignDialogOpen(false);
       fetchProjects();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al asignar');
-    } finally {
-      setAssignLoading(false);
-    }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al asignar'); }
+    finally { setAssignLoading(false); }
   };
 
-  const openStatusDialog = (project) => {
-    setStatusProject(project);
-    setNewStatus('');
-    setStatusNote('');
-    setStatusDialogOpen(true);
-  };
-
-  const handleStatusChange = async () => {
-    if (!newStatus) return;
+  const handlePriorityChange = async (projectId, priority) => {
     try {
-      await api.put(`/projects/${statusProject.project_id}/status`, { new_status: newStatus, note: statusNote || null });
-      toast.success(`Estado cambiado a "${newStatus}"`);
-      setStatusDialogOpen(false);
+      await api.put(`/projects/${projectId}/priority`, { priority });
+      toast.success(`Prioridad: ${priority}`);
       fetchProjects();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al cambiar estado');
-    }
+    } catch (err) { toast.error('Error al cambiar prioridad'); }
   };
 
-  const openNoteDialog = (project) => {
-    setNoteProject(project);
-    setNoteText('');
-    setNoteDialogOpen(true);
-  };
-
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return;
+  const handleStatusChange = async (projectId, newStatus) => {
     try {
-      await api.post(`/projects/${noteProject.project_id}/notes`, { text: noteText });
-      toast.success('Nota agregada');
-      setNoteDialogOpen(false);
+      await api.put(`/projects/${projectId}/status`, { new_status: newStatus });
+      toast.success(`Estado: ${newStatus}`);
       fetchProjects();
-    } catch (err) {
-      toast.error('Error al agregar nota');
-    }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
   };
 
   const filtered = projects.filter(p => {
@@ -164,7 +118,6 @@ const Projects = () => {
       <Sidebar />
       <main className="flex-1 p-8" data-testid="projects-page">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Proyectos</h1>
             <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
@@ -234,15 +187,71 @@ const Projects = () => {
                   {filtered.map(project => {
                     const stCfg = STATUS_CONFIG[project.status] || STATUS_CONFIG['Pendiente por Asignar'];
                     const StIcon = stCfg.icon;
-                    const isExpanded = expandedProject === project.project_id;
                     return (
-                      <ProjectRow key={project.project_id} project={project} stCfg={stCfg} StIcon={StIcon}
-                        isExpanded={isExpanded}
-                        onToggleExpand={() => setExpandedProject(isExpanded ? null : project.project_id)}
-                        onAssign={() => openAssignDialog(project)}
-                        onStatusChange={() => openStatusDialog(project)}
-                        onAddNote={() => openNoteDialog(project)}
-                      />
+                      <tr key={project.project_id} className="hover:bg-slate-50 transition-colors"
+                        data-testid={`project-row-${project.project_id}`}>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
+                          <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium text-slate-800">{project.client_name}</p>
+                          <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border ${stCfg.color}`}>
+                            <StIcon size={12} />{project.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {project.assigned_to_name || <span className="text-slate-400 italic">Sin asignar</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Select value={project.priority || 'Normal'} onValueChange={v => handlePriorityChange(project.project_id, v)}>
+                            <SelectTrigger className={`h-7 w-24 text-xs border-0 bg-transparent ${PRIORITY_COLORS[project.priority] || ''}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PRIORITY_OPTIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{project.estimated_delivery_date || '—'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button size="sm" variant="outline" onClick={() => openAssignDialog(project)} title="Asignar"
+                              className="h-8 px-2 text-blue-600" data-testid={`assign-btn-${project.project_id}`}>
+                              <UserCheck size={14} />
+                            </Button>
+                            <Button size="sm" variant="outline" title="Anexos"
+                              onClick={() => { setAnexosProject(project); setAnexosDialogOpen(true); }}
+                              className="h-8 px-2 text-amber-600" data-testid={`anexos-btn-${project.project_id}`}>
+                              <Paperclip size={14} />
+                            </Button>
+                            <Button size="sm" variant="outline" title="Detalle del Proyecto"
+                              onClick={() => navigate(`/projects/${project.project_id}`)}
+                              className="h-8 px-2 text-emerald-600" data-testid={`detail-btn-${project.project_id}`}>
+                              <Eye size={14} />
+                            </Button>
+                            {/* Status quick actions */}
+                            {project.status === 'Pendiente por Asignar' && (
+                              <Button size="sm" variant="outline" title="Marcar En Proceso"
+                                onClick={() => handleStatusChange(project.project_id, 'Asignado / En Proceso')}
+                                className="h-8 px-2 text-blue-600" data-testid={`quick-status-${project.project_id}`}>
+                                <ArrowRight size={14} />
+                              </Button>
+                            )}
+                            {project.status === 'Asignado / En Proceso' && (
+                              <Button size="sm" variant="outline" title="Marcar Finalizado"
+                                onClick={() => handleStatusChange(project.project_id, 'Finalizado / Producción')}
+                                className="h-8 px-2 text-emerald-600">
+                                <CheckCircle2 size={14} />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
@@ -264,7 +273,7 @@ const Projects = () => {
                   <p className="text-sm text-slate-500">{assignProject.client_name} — {assignProject.client_rif}</p>
                 </div>
                 <div>
-                  <Label>Implementador</Label>
+                  <label className="text-sm font-medium">Implementador</label>
                   <Select value={assignForm.assigned_to_user_id} onValueChange={v => setAssignForm({ ...assignForm, assigned_to_user_id: v })}>
                     <SelectTrigger data-testid="select-implementer"><SelectValue placeholder="Seleccionar implementador..." /></SelectTrigger>
                     <SelectContent>
@@ -277,7 +286,7 @@ const Projects = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Fecha Estimada de Entrega</Label>
+                  <label className="text-sm font-medium">Fecha Estimada de Entrega</label>
                   <Input type="date" value={assignForm.estimated_delivery_date}
                     onChange={e => setAssignForm({ ...assignForm, estimated_delivery_date: e.target.value })}
                     data-testid="assign-delivery-date" />
@@ -294,180 +303,49 @@ const Projects = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Status Change Dialog */}
-        <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-          <DialogContent className="max-w-md" data-testid="status-dialog">
+        {/* Anexos Dialog */}
+        <Dialog open={anexosDialogOpen} onOpenChange={setAnexosDialogOpen}>
+          <DialogContent className="max-w-lg" data-testid="anexos-dialog">
             <DialogHeader>
-              <DialogTitle>Cambiar Estado del Proyecto</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Paperclip className="text-amber-500" size={20} />Anexos del Proyecto</DialogTitle>
             </DialogHeader>
-            {statusProject && (
-              <div className="space-y-4">
-                <div className="bg-slate-50 border rounded-lg p-3">
-                  <p className="font-semibold">{statusProject.project_number}</p>
-                  <p className="text-sm text-slate-500">Estado actual: <span className="font-medium">{statusProject.status}</span></p>
-                </div>
-                <div>
-                  <Label>Nuevo Estado</Label>
-                  <Select value={newStatus} onValueChange={setNewStatus}>
-                    <SelectTrigger data-testid="select-new-status"><SelectValue placeholder="Seleccionar estado..." /></SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(STATUS_CONFIG).filter(s => s !== statusProject.status).map(s => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Nota (opcional)</Label>
-                  <Input value={statusNote} onChange={e => setStatusNote(e.target.value)}
-                    placeholder="Motivo del cambio..." data-testid="status-note-input" />
-                </div>
-                <div className="flex justify-end gap-3 pt-2 border-t">
-                  <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={handleStatusChange} disabled={!newStatus}
-                    className="bg-brand-green-600 hover:bg-brand-green-700 text-white" data-testid="status-confirm-btn">
-                    Actualizar Estado
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Add Note Dialog */}
-        <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-          <DialogContent className="max-w-md" data-testid="note-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><MessageSquarePlus size={18} />Agregar Nota</DialogTitle>
-            </DialogHeader>
-            {noteProject && (
-              <div className="space-y-4">
-                <div className="bg-slate-50 border rounded-lg p-3">
-                  <p className="font-semibold">{noteProject.project_number} — {noteProject.client_name}</p>
-                </div>
-                <div>
-                  <Label>Nota</Label>
-                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
-                    placeholder="Escriba una nota o avance..." rows={3}
-                    className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm" data-testid="note-text-input" />
-                </div>
-                <div className="flex justify-end gap-3 pt-2 border-t">
-                  <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={handleAddNote} disabled={!noteText.trim()}
-                    className="bg-brand-green-600 hover:bg-brand-green-700 text-white" data-testid="note-confirm-btn">
-                    Agregar Nota
-                  </Button>
-                </div>
+            {anexosProject && (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-500">{anexosProject.project_number} — {anexosProject.client_name}</p>
+                {(anexosProject.attachments || []).length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-lg">
+                    <Paperclip size={32} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm text-slate-400">No hay anexos en este proyecto</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {(anexosProject.attachments || []).map((att, i) => (
+                      <div key={att.attachment_id || i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          <FileText size={18} className="text-blue-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">{att.filename}</p>
+                            <p className="text-xs text-slate-400">
+                              {att.category} · {att.uploaded_by_name || att.uploaded_by}
+                              {att.inherited_from && <span className="ml-1 text-amber-600">(heredado de cotización)</span>}
+                            </p>
+                          </div>
+                        </div>
+                        {att.url && (
+                          <a href={att.url.startsWith('http') ? att.url : `${process.env.REACT_APP_BACKEND_URL}${att.url}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-sm shrink-0">Descargar</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
         </Dialog>
       </main>
     </div>
-  );
-};
-
-// Sub-component: Project Row with expandable detail
-const ProjectRow = ({ project, stCfg, StIcon, isExpanded, onToggleExpand, onAssign, onStatusChange, onAddNote }) => {
-  return (
-    <>
-      <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={onToggleExpand}
-        data-testid={`project-row-${project.project_id}`}>
-        <td className="px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
-            <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <p className="text-sm font-medium text-slate-800">{project.client_name}</p>
-          <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
-        </td>
-        <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
-        <td className="px-4 py-3">
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border ${stCfg.color}`}>
-            <StIcon size={12} />{project.status}
-          </span>
-        </td>
-        <td className="px-4 py-3 text-sm text-slate-600">{project.assigned_to_name || <span className="text-slate-400 italic">Sin asignar</span>}</td>
-        <td className="px-4 py-3">
-          <span className={`text-sm ${PRIORITY_CONFIG[project.priority] || ''}`}>{project.priority}</span>
-        </td>
-        <td className="px-4 py-3 text-sm text-slate-600">{project.estimated_delivery_date || '—'}</td>
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-            <Button size="sm" variant="outline" onClick={onAssign} title="Asignar"
-              className="h-8 px-2 text-blue-600" data-testid={`assign-btn-${project.project_id}`}>
-              <UserCheck size={14} />
-            </Button>
-            <Button size="sm" variant="outline" onClick={onStatusChange} title="Cambiar Estado"
-              className="h-8 px-2 text-amber-600" data-testid={`status-btn-${project.project_id}`}>
-              <ArrowRight size={14} />
-            </Button>
-            <Button size="sm" variant="outline" onClick={onAddNote} title="Agregar Nota"
-              className="h-8 px-2 text-slate-600" data-testid={`note-btn-${project.project_id}`}>
-              <MessageSquarePlus size={14} />
-            </Button>
-            {isExpanded ? <ChevronUp size={16} className="text-slate-400 ml-1" /> : <ChevronDown size={16} className="text-slate-400 ml-1" />}
-          </div>
-        </td>
-      </tr>
-      {isExpanded && (
-        <tr data-testid={`project-detail-${project.project_id}`}>
-          <td colSpan={8} className="bg-slate-50 px-6 py-4 border-t border-slate-100">
-            <div className="grid grid-cols-3 gap-6">
-              {/* Left: Quote info */}
-              <div>
-                <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Datos de Cotización</h4>
-                <div className="space-y-1 text-sm">
-                  <p><span className="text-slate-500">Tipo:</span> {project.quote_type} ({project.quote_category})</p>
-                  <p><span className="text-slate-500">Total USD:</span> ${project.total_usd?.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</p>
-                  {project.integrator_name && <p><span className="text-slate-500">Integrador:</span> {project.integrator_name}</p>}
-                  {project.pinpad_model && <p><span className="text-slate-500">Pinpad:</span> {project.pinpad_model}</p>}
-                  {project.sponsor_bank_name && <p><span className="text-slate-500">Banco:</span> {project.sponsor_bank_name}</p>}
-                  {project.quote_pdf_url && (
-                    <a href={project.quote_pdf_url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-600 hover:underline mt-1">
-                      <FileText size={14} />Ver PDF Cotización
-                    </a>
-                  )}
-                </div>
-              </div>
-              {/* Center: Products/Services */}
-              <div>
-                <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Productos / Servicios</h4>
-                <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
-                  {(project.services || []).map((s, i) => (
-                    <p key={i} className="text-slate-700">{s.concepto || s.name || `Servicio ${i + 1}`}</p>
-                  ))}
-                  {(project.hardware || []).map((h, i) => (
-                    <p key={`hw-${i}`} className="text-slate-700">{h.concepto || h.name || `Hardware ${i + 1}`}</p>
-                  ))}
-                  {(project.banks || []).length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-slate-400 font-medium">Bancos:</p>
-                      {project.banks.map((b, i) => <p key={i} className="text-slate-600 flex items-center gap-1"><Building2 size={12} />{b.bank_name}</p>)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {/* Right: Notes */}
-              <div>
-                <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Historial / Notas ({(project.notes || []).length})</h4>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {(project.notes || []).slice().reverse().map(note => (
-                    <div key={note.note_id} className="text-sm bg-white border border-slate-100 rounded p-2">
-                      <p className="text-slate-800">{note.text}</p>
-                      <p className="text-xs text-slate-400 mt-1">{note.created_by_name} · {new Date(note.created_at).toLocaleString('es-VE')}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
   );
 };
 

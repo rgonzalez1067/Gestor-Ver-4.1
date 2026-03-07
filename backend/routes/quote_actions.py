@@ -517,7 +517,6 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
 
 async def _create_project_from_quote(quote: dict, quote_id: str):
     """Crea un proyecto a partir de una cotización enviada a implementación"""
-    # Verificar que no exista ya un proyecto para esta cotización
     existing = await db.projects.find_one({"quote_id": quote_id})
     if existing:
         logger.info(f"Proyecto ya existe para cotización {quote_id}")
@@ -527,13 +526,32 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
     client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
     client_name = client.get("legal_name", "") if client else quote.get("client_name", "")
     client_rif = client.get("rif", "") if client else ""
-    client_sede = client.get("sucursal", "") if client else ""
+    client_sede = client.get("sucursal", "Principal") if client else "Principal"
 
-    # Generar número de proyecto secuencial
-    count = await db.projects.count_documents({})
-    project_number = f"PRY-{datetime.now(timezone.utc).strftime('%Y')}-{str(count + 1).zfill(4)}"
+    # Código de sede para nomenclatura
+    sede_code = client_sede[:3].upper() if client_sede else "PRI"
+    now = datetime.now(timezone.utc)
+    year = now.strftime('%Y')
+    month = now.strftime('%m')
 
-    # Extraer bancos de la cotización (items con bank_name)
+    # Consecutivo mensual
+    month_prefix = f"PRY-{year}-{month}-"
+    last_project = await db.projects.find_one(
+        {"project_number": {"$regex": f"^{month_prefix}"}},
+        sort=[("project_number", -1)]
+    )
+    if last_project:
+        try:
+            last_num = int(last_project["project_number"].split("-")[3])
+            next_num = last_num + 1
+        except (IndexError, ValueError):
+            next_num = 1
+    else:
+        next_num = 1
+
+    project_number = f"PRY-{year}-{month}-{str(next_num).zfill(3)}-{sede_code}"
+
+    # Extraer bancos de la cotización
     banks = []
     for item in quote.get("services", []):
         bn = item.get("bank_name")
@@ -542,6 +560,30 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
     if quote.get("sponsor_bank_name"):
         if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
             banks.append({"bank_name": quote["sponsor_bank_name"]})
+
+    # Construir matriz de implementación (Bancos × Productos)
+    implementation_matrix = {}
+    for item in quote.get("services", []):
+        bn = item.get("bank_name", quote.get("sponsor_bank_name", "General"))
+        product_name = item.get("concepto") or item.get("name") or item.get("description", "Servicio")
+        if bn:
+            if bn not in implementation_matrix:
+                implementation_matrix[bn] = {}
+            implementation_matrix[bn][product_name] = {}
+
+    # Heredar anexos de la cotización
+    attachments = []
+    for att in quote.get("attachments", []):
+        attachments.append({
+            "attachment_id": att.get("attachment_id", f"att_{uuid.uuid4().hex[:12]}"),
+            "filename": att.get("filename", ""),
+            "url": att.get("url", ""),
+            "category": att.get("category", "Cotización"),
+            "uploaded_by": att.get("uploaded_by", "system"),
+            "uploaded_by_name": att.get("uploaded_by_name", "Sistema"),
+            "uploaded_at": att.get("uploaded_at", now.isoformat()),
+            "inherited_from": "cotización",
+        })
 
     project = {
         "project_id": f"prj_{uuid.uuid4().hex[:12]}",
@@ -568,18 +610,25 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
         "total_bs": quote.get("total_bs", 0),
         "status": "Pendiente por Asignar",
         "priority": "Normal",
+        "implementation_matrix": implementation_matrix,
+        "attachments": attachments,
+        "bitacora": [],
         "notes": [{
             "note_id": f"pn_{uuid.uuid4().hex[:8]}",
-            "text": f"Proyecto creado automáticamente desde cotización {quote.get('quote_number', quote_id)}",
+            "text": f"Proyecto creado desde cotización {quote.get('quote_number', quote_id)}",
             "created_by": "system",
             "created_by_name": "Sistema",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now.isoformat(),
         }],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
     }
 
     await db.projects.insert_one(project)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")
+
+    # Eliminar la cotización origen
+    await db.quotes.delete_one({"quote_id": quote_id})
+    logger.info(f"Cotización {quote_id} eliminada tras conversión a proyecto {project_number}")
 
     # Notificar al Gerente de Implementación
     try:
@@ -592,7 +641,7 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
             <p><strong>Proyecto:</strong> {project_number}</p>
             <p><strong>Cliente:</strong> {client_name} ({client_rif})</p>
             <p><strong>Sede:</strong> {client_sede}</p>
-            <p><strong>Cotización:</strong> {quote.get('quote_number', '')}</p>
+            <p><strong>Cotización origen:</strong> {quote.get('quote_number', '')}</p>
             <p><strong>Tipo:</strong> {quote.get('quote_type', 'VPOS')}</p>
             <p><strong>Total USD:</strong> ${quote.get('total_usd', 0):,.2f}</p>
             <hr>
@@ -600,4 +649,4 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
             """
             await send_email(to=impl_manager_email, subject=subject, html_content=body, quote_id=quote_id)
     except Exception as e:
-        logger.warning(f"Error enviando notificación al gerente de implementación: {e}")
+        logger.warning(f"Error notificando gerente de implementación: {e}")
