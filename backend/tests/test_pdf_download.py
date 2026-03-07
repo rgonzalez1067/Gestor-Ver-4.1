@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://client-ocr-hub.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://project-kpi-dash.preview.emergentagent.com')
 SESSION_TOKEN = "test_session_pdf_12345"
 
 @pytest.fixture

@@ -570,37 +570,35 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
         if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
-    # Construir matriz de implementación (Bancos × Productos)
-    # Extraer nombres únicos de productos/servicios
-    product_names = []
+    # Construir matriz de implementación (Bancos × Medios de Pago cotizados)
+    # Solo incluir ítems de tipo recurring (medios de pago que necesitan implementación por banco)
+    IMPLEMENTATION_ITEM_TYPES = {"recurring_basic", "recurring_other"}
+    
+    payment_methods = []
     seen = set()
     for item in quote.get("services", []):
-        name = item.get("item_name") or item.get("concepto") or item.get("name") or item.get("description", "")
-        if name and name not in seen:
-            product_names.append(name)
-            seen.add(name)
-    for item in quote.get("hardware", []):
-        name = item.get("item_name") or item.get("concepto") or item.get("name", "")
-        if name and name not in seen:
-            product_names.append(name)
-            seen.add(name)
-    for item in quote.get("equipment_items", []):
-        name = item.get("item_name") or item.get("concepto") or item.get("name", "")
-        if name and name not in seen:
-            product_names.append(name)
+        item_type = item.get("item_type", "")
+        name = item.get("item_name", "")
+        if name and name not in seen and item_type in IMPLEMENTATION_ITEM_TYPES:
+            payment_methods.append(item)
             seen.add(name)
 
-    # Extraer nombres de bancos
     bank_names = [b["bank_name"] for b in banks if b.get("bank_name")]
     if not bank_names and quote.get("sponsor_bank_name"):
         bank_names = [quote["sponsor_bank_name"]]
 
-    # Cruzar: cada banco con cada producto
+    # Cruzar: cada banco con los medios de pago que le corresponden
     implementation_matrix = {}
     for bn in bank_names:
         implementation_matrix[bn] = {}
-        for pn in product_names:
-            implementation_matrix[bn][pn] = {}
+        for item in payment_methods:
+            name = item.get("item_name", "")
+            # Si lockBancos=true y cantidad_bancos=1, solo aplica al banco patrocinador
+            if item.get("lockBancos") and item.get("cantidad_bancos", 1) == 1:
+                if bn == quote.get("sponsor_bank_name"):
+                    implementation_matrix[bn][name] = {}
+            else:
+                implementation_matrix[bn][name] = {}
 
     # Heredar anexos de la cotización
     attachments = []
