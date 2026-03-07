@@ -9,6 +9,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - **OCR**: pytesseract + pdf2image
 - **PDF**: reportlab + PyPDF2
 - **Email**: Resend (modo simulado activo)
+- **Imágenes**: Pillow (PIL) para resize de logos
 
 ## Funcionalidades Implementadas
 
@@ -22,21 +23,22 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - Bitácora de seguimiento por cliente
 - Digitalización RIF (OCR PDF/JPG/PNG, 3 estrategias de extracción)
 
+### Módulo de Bancos (Rediseñado 2026-03-07)
+- **Layout horizontal**: Filas con 4 bloques (Logo, Info Fiscal, Chips Medios de Pago, Contacto+Acciones)
+- **Upload de Logo**: Drag & drop + click, auto-resize a 100x100px (PIL), almacenamiento local
+- **Información Fiscal**: Campos RIF y Código Bancario
+- **Contacto Institucional**: Nombre, Teléfono, Email
+- **Chips de Medios de Pago**: Badges visuales de servicios activos por banco
+- **CRUD completo**: Crear, editar, eliminar con validación de integridad referencial
+- **Import/Export**: CSV/Excel/PDF
+
 ### Módulo de Proyectos (Completado)
-- **Trigger**: Cotización "Enviada a Imple" → crea Proyecto, elimina cotización
-- **Nomenclatura**: PRY-YYYY-MM-NNN-SEDE (ej: PRY-2026-03-001-PRI)
-- **4 estados**: Pendiente por Asignar → Asignado/En Proceso → Detenido → Finalizado
-- **Prioridad**: Alta, Media, Normal
-- **Asignación**: Selección de implementador + fecha estimada + notificación por email
-- **Anexos**: Herencia automática de archivos de la cotización al proyecto
-- **Matriz de Implementación (CORREGIDA 2026-03-07)**: Construida EXCLUSIVAMENTE desde items `additional` (medios de pago seleccionados por banco). NO incluye defaults recurrentes (Derecho de uso MServer, Comunicación Backend, Procesamiento).
-- **Bitácora de Seguimiento**: Entradas con fecha de ejecución y observaciones
-- **Endpoint de migración**: POST /api/projects/migrate-matrix para reconstruir matrices existentes
+- Trigger: Cotización "Enviada a Imple" → crea Proyecto
+- Matriz de Implementación: Construida desde items `additional` (medios de pago por banco)
+- Bitácora de Seguimiento, 4 estados, prioridades, asignación
 
 ### Dashboard KPI de Proyectos (Completado 2026-03-07)
-- Card "Proyectos Activos" con desglose por estado (Por Asignar, En Proceso, Detenidos, Finalizados)
-- Clickeable para navegar a /projects
-- Consume endpoint `/api/projects/stats`
+- Card "Proyectos Activos" con desglose por estado
 
 ## Lógica de Negocio Clave
 
@@ -48,6 +50,12 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 | recurring_basic (auto-linked) | Recurrentes vinculados | NO |
 | recurring_other | Comunicación/Procesamiento | NO |
 | **additional** | **Medios de pago por banco** | **SÍ** |
+
+## Endpoints Clave
+- `POST /api/banks/upload-logo` - Upload de logo con resize
+- `POST /api/projects/migrate-matrix` - Migración de matrices
+- `GET /api/projects/stats` - KPIs de proyectos
+- `POST /api/quotes/{id}/send-to-implementation` - Trigger de proyectos
 
 ## Tareas Pendientes
 
