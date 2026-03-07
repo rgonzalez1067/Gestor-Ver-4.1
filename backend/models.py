@@ -82,6 +82,12 @@ class BankCreate(BaseModel):
     name: str
     type: str
     country: str
+    rif: Optional[str] = None
+    bank_code: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
 
 class Bank(BaseModel):
@@ -89,6 +95,12 @@ class Bank(BaseModel):
     name: str
     type: str
     country: str
+    rif: Optional[str] = None
+    bank_code: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

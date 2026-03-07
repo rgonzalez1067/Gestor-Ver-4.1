@@ -14,6 +14,44 @@ from models import *
 
 router = APIRouter()
 
+# ==================== BANK LOGO UPLOAD ====================
+
+@router.post("/banks/upload-logo")
+async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos de imagen (PNG, JPG, WEBP)")
+    
+    ext = file.filename.rsplit(".", 1)[-1].lower() if file.filename else "png"
+    if ext not in ("png", "jpg", "jpeg", "webp"):
+        ext = "png"
+    
+    filename = f"bank_logo_{uuid.uuid4().hex[:8]}.{ext}"
+    logo_dir = os.path.join(UPLOADS_DIR, "bank_logos")
+    os.makedirs(logo_dir, exist_ok=True)
+    filepath = os.path.join(logo_dir, filename)
+    
+    content = await file.read()
+    
+    # Resize to 100x100 using PIL
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(content))
+        img = img.convert("RGBA" if ext == "png" else "RGB")
+        img.thumbnail((100, 100), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG" if ext == "png" else "JPEG", quality=90)
+        content = buf.getvalue()
+    except Exception:
+        pass  # If PIL fails, save original
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    logo_url = f"/api/uploads/bank_logos/{filename}"
+    return {"logo_url": logo_url}
+
 # ==================== BANKS ENDPOINTS ====================
 
 @router.post("/banks", response_model=Bank)
