@@ -133,6 +133,7 @@ class Hardware(BaseModel):
 class ServiceCreate(BaseModel):
     category: str
     name: str
+    service_type: Literal["Producto", "Servicio"] = "Servicio"
     application_type: Literal["setup", "recurring", "both"] = "both"
     vpos_enabled: bool = True
     gateway_enabled: bool = True
@@ -149,6 +150,7 @@ class Service(BaseModel):
     service_id: str = Field(default_factory=lambda: f"srv_{uuid.uuid4().hex[:12]}")
     category: str
     name: str
+    service_type: str = "Servicio"
     application_type: str = "both"
     vpos_enabled: bool = True
     gateway_enabled: bool = True

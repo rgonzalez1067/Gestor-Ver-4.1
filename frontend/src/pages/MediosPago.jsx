@@ -9,7 +9,12 @@ import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench } from 'lucide-react';
+
+const SERVICE_TYPES = [
+  { id: 'Producto', name: 'Producto', icon: Box, description: 'Tangible, requiere despacho (Pinpads, Cables, etc.)' },
+  { id: 'Servicio', name: 'Servicio', icon: Wrench, description: 'Intangible o configuración (Mantenimiento, Licencia, etc.)' }
+];
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -36,6 +41,7 @@ export const MediosPago = () => {
   const [deleteMedioPagoData, setDeleteMedioPagoData] = useState({ id: null, name: null });
   const [formData, setFormData] = useState({
     name: '',
+    service_type: '',
     application_type: '',
     vpos_enabled: true,
     gateway_enabled: true,
@@ -82,6 +88,11 @@ export const MediosPago = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!formData.service_type) {
+      toast.error('Seleccione el tipo: Producto o Servicio');
+      return;
+    }
+
     if (!formData.application_type) {
       toast.error('Seleccione el tipo de aplicación');
       return;
@@ -96,6 +107,7 @@ export const MediosPago = () => {
       const payload = {
         ...formData,
         category: 'General',
+        service_type: formData.service_type,
         setup_cost_conventional: formData.application_type !== 'recurring' ? (parseFloat(formData.setup_cost_conventional) || 0) : 0,
         monthly_cost_conventional: formData.application_type !== 'setup' ? (parseFloat(formData.monthly_cost_conventional) || 0) : 0,
         setup_cost_outsourcing: formData.application_type !== 'recurring' ? (parseFloat(formData.setup_cost_outsourcing) || 0) : 0,
@@ -154,6 +166,7 @@ export const MediosPago = () => {
     setEditingMedioPago(medioPago);
     setFormData({
       name: medioPago.name,
+      service_type: medioPago.service_type || 'Servicio',
       application_type: medioPago.application_type || 'both',
       vpos_enabled: medioPago.vpos_enabled !== false,
       gateway_enabled: medioPago.gateway_enabled !== false,
@@ -172,6 +185,7 @@ export const MediosPago = () => {
   const resetForm = () => {
     setFormData({
       name: '',
+      service_type: '',
       application_type: '',
       vpos_enabled: true,
       gateway_enabled: true,
@@ -238,11 +252,12 @@ export const MediosPago = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Nombre', 'Tipo Aplicación', 'VPOS', 'Gateway', 'MPOS', 'Link', 'Setup Conv.', 'Mensual Conv.', 'Setup Outs.', 'Mensual Outs.', 'Descripción'];
+    const headers = ['Nombre', 'Tipo', 'Tipo Aplicación', 'VPOS', 'Gateway', 'MPOS', 'Link', 'Setup Conv.', 'Mensual Conv.', 'Setup Outs.', 'Mensual Outs.', 'Descripción'];
     const csvContent = [
       headers.join(','),
       ...mediosPago.map(s => [
         `"${s.name}"`,
+        `"${s.service_type || 'Servicio'}"`,
         `"${s.application_type || 'both'}"`,
         s.vpos_enabled !== false ? 'Sí' : 'No',
         s.gateway_enabled !== false ? 'Sí' : 'No',
@@ -403,6 +418,39 @@ export const MediosPago = () => {
                         placeholder="Ej: Tarjeta de Crédito, Débito Bancario, etc."
                         required
                       />
+                    </div>
+
+                    {/* Tipo: Producto o Servicio */}
+                    <div>
+                      <Label className="text-base font-semibold text-slate-900 mb-2 block">
+                        Tipo <span className="text-red-500">*</span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {SERVICE_TYPES.map((type) => {
+                          const Icon = type.icon;
+                          const isSelected = formData.service_type === type.id;
+                          return (
+                            <div
+                              key={type.id}
+                              onClick={() => setFormData({ ...formData, service_type: type.id })}
+                              className={`p-3 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-3 ${
+                                isSelected
+                                  ? 'border-slate-800 bg-slate-50'
+                                  : 'border-slate-200 hover:border-slate-300'
+                              }`}
+                              data-testid={`service-type-${type.id.toLowerCase()}`}
+                            >
+                              <div className={`p-2 rounded-lg ${isSelected ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <Icon size={18} />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium text-slate-900 text-sm">{type.name}</p>
+                                <p className="text-xs text-slate-500">{type.description}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Compatibilidad con Productos */}
@@ -619,7 +667,7 @@ export const MediosPago = () => {
                         type="submit"
                         data-testid="save-medio-pago-button"
                         className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                        disabled={!formData.application_type}
+                        disabled={!formData.application_type || !formData.service_type}
                       >
                         {editingMedioPago ? 'Actualizar' : 'Guardar'}
                       </Button>
@@ -643,6 +691,9 @@ export const MediosPago = () => {
                     Medio de Pago / Servicio
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Productos
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
@@ -659,6 +710,7 @@ export const MediosPago = () => {
                   </th>
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200">
+                  <th></th>
                   <th></th>
                   <th></th>
                   <th></th>
@@ -685,6 +737,17 @@ export const MediosPago = () => {
                             <LinkIcon size={12} className="text-purple-500" />
                             <span className="text-xs text-purple-600">{linkedServiceName}</span>
                           </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {medioPago.service_type === 'Producto' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded">
+                            <Box size={12} />Producto
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">
+                            <Wrench size={12} />Servicio
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-3">
