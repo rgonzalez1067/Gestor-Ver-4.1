@@ -14,48 +14,34 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 ## Funcionalidades Implementadas
 
 ### Core
-- CRUD de clientes con validación RIF+Sucursal, campos Dirección Sucursal, Categoría Comercial
+- CRUD de clientes con validación RIF+Sucursal, Dirección Sucursal, Categoría Comercial
 - CRUD de cotizaciones con asistente multi-paso, selector multivariable de productos
-- Generación de PDFs complejos, alertas de PDFs faltantes
+- Generación de PDFs, alertas de PDFs faltantes
 - Sistema de correos por sede (modo simulado)
 - Dashboard con estadísticas, alertas y KPI de proyectos
 - Importación/exportación de clientes (Excel, CSV, PDF)
 - Bitácora de seguimiento por cliente
-- Digitalización RIF (OCR PDF/JPG/PNG, 3 estrategias de extracción)
+- Digitalización RIF (OCR PDF/JPG/PNG)
 
 ### Módulo de Bancos (Rediseñado 2026-03-07)
-- **Layout horizontal**: Filas con 4 bloques (Logo, Info Fiscal, Chips Medios de Pago, Contacto+Acciones)
-- **Upload de Logo**: Drag & drop + click, auto-resize a 100x100px (PIL), almacenamiento local
-- **Información Fiscal**: Campos RIF y Código Bancario
-- **Contacto Institucional**: Nombre, Teléfono, Email
-- **Chips de Medios de Pago**: Badges visuales de servicios activos por banco
-- **CRUD completo**: Crear, editar, eliminar con validación de integridad referencial
-- **Import/Export**: CSV/Excel/PDF
+- Layout horizontal: Logo, Info Fiscal (RIF, Código), Chips Medios de Pago, Contacto+Acciones
+- Upload de Logo: Drag & drop, auto-resize 100x100px
+- Contacto Institucional: Nombre, Teléfono, Email
 
-### Módulo de Proyectos (Completado)
+### Módulo de Medios de Pago (Actualizado 2026-03-07)
+- **Campo "Tipo" (Producto/Servicio)**: Categorización obligatoria
+  - Producto: Tangible, requiere despacho (Pinpads, Cables)
+  - Servicio: Intangible (Mantenimiento, Licencia, Instalación)
+- Badge visual en tabla (naranja=Producto, cyan=Servicio)
+- Selector visual en formulario con iconos y descripción
+
+### Módulo de Proyectos
 - Trigger: Cotización "Enviada a Imple" → crea Proyecto
-- Matriz de Implementación: Construida desde items `additional` (medios de pago por banco)
-- Bitácora de Seguimiento, 4 estados, prioridades, asignación
+- Matriz de Implementación: Items `additional` (medios de pago por banco)
+- Bitácora, 4 estados, prioridades, asignación
 
-### Dashboard KPI de Proyectos (Completado 2026-03-07)
+### Dashboard KPI
 - Card "Proyectos Activos" con desglose por estado
-
-## Lógica de Negocio Clave
-
-### Tipos de items en una cotización:
-| item_type | Descripción | En Matriz? |
-|-----------|-------------|------------|
-| setup | Costos de configuración fijos | NO |
-| recurring_basic (default) | Derechos de uso MServer | NO |
-| recurring_basic (auto-linked) | Recurrentes vinculados | NO |
-| recurring_other | Comunicación/Procesamiento | NO |
-| **additional** | **Medios de pago por banco** | **SÍ** |
-
-## Endpoints Clave
-- `POST /api/banks/upload-logo` - Upload de logo con resize
-- `POST /api/projects/migrate-matrix` - Migración de matrices
-- `GET /api/projects/stats` - KPIs de proyectos
-- `POST /api/quotes/{id}/send-to-implementation` - Trigger de proyectos
 
 ## Tareas Pendientes
 
