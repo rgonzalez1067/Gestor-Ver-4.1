@@ -296,7 +296,16 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
         {"quote_id": quote_id},
         {"$set": {"sent_to_implementation_at": datetime.now(timezone.utc).isoformat(), "quote_status": "Enviada a Imple"}}
     )
-    
+
+    # TRIGGER: Crear Proyecto y eliminar cotización
+    try:
+        # Re-leer la cotización antes de eliminarla para tener todos los datos
+        quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+        if quote_for_project:
+            await _create_project_from_quote(quote_for_project, quote_id)
+    except Exception as e:
+        logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
+
     return {"message": f"Enviado a implementación: {implementation_email}", "new_status": "Enviada a Imple", **email_result}
 
 
