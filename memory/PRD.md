@@ -22,36 +22,42 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft). Funcionali
 - Bitácora de seguimiento por cliente
 - Digitalización RIF (OCR PDF/JPG/PNG, 3 estrategias de extracción)
 
-### Módulo de Proyectos (Completado - 2026-03-07)
+### Módulo de Proyectos (Completado)
 - **Trigger**: Cotización "Enviada a Imple" → crea Proyecto, elimina cotización
 - **Nomenclatura**: PRY-YYYY-MM-NNN-SEDE (ej: PRY-2026-03-001-PRI)
 - **4 estados**: Pendiente por Asignar → Asignado/En Proceso → Detenido → Finalizado
-- **Prioridad**: Alta, Media, Normal (dropdown inline en tabla)
+- **Prioridad**: Alta, Media, Normal
 - **Asignación**: Selección de implementador + fecha estimada + notificación por email
 - **Anexos**: Herencia automática de archivos de la cotización al proyecto
-- **Matriz de Implementación**: Bancos × Productos Cotizados (solo recurring_basic/recurring_other) × 5 fases con checkboxes interactivos
+- **Matriz de Implementación (CORREGIDA 2026-03-07)**: Construida EXCLUSIVAMENTE desde items `additional` (medios de pago seleccionados por banco). NO incluye defaults recurrentes (Derecho de uso MServer, Comunicación Backend, Procesamiento).
 - **Bitácora de Seguimiento**: Entradas con fecha de ejecución y observaciones
-- **Configuración**: Campo "Correo Gerente de Implementación" en Settings
-- **Detalle**: Pantalla separada `/projects/:id` con cabecera técnica (Pinpad, Banco Patrocinador)
+- **Endpoint de migración**: POST /api/projects/migrate-matrix para reconstruir matrices existentes
 
-### Dashboard KPI de Proyectos (Completado - 2026-03-07)
-- Card de "Proyectos Activos" con total y desglose por estado
+### Dashboard KPI de Proyectos (Completado 2026-03-07)
+- Card "Proyectos Activos" con desglose por estado (Por Asignar, En Proceso, Detenidos, Finalizados)
 - Clickeable para navegar a /projects
 - Consume endpoint `/api/projects/stats`
+
+## Lógica de Negocio Clave
+
+### Tipos de items en una cotización:
+| item_type | Descripción | En Matriz? |
+|-----------|-------------|------------|
+| setup | Costos de configuración fijos | NO |
+| recurring_basic (default) | Derechos de uso MServer | NO |
+| recurring_basic (auto-linked) | Recurrentes vinculados | NO |
+| recurring_other | Comunicación/Procesamiento | NO |
+| **additional** | **Medios de pago por banco** | **SÍ** |
 
 ## Tareas Pendientes
 
 ### P1 - Próximas
 - Verificación de Email y Recuperación de Contraseña
 - Refactorización Frontend Fase 2: Descomponer `Quotes.jsx`
-- Lógica de roles por módulo (Ventas solo lectura, Gerente asigna, Implementador actualiza)
 
 ### P2 - Futuro
 - Módulo de Reportes (ventas y cotizaciones)
-
-## Schema DB
-- **projects**: `{ project_id, project_number, quote_id, client_id, client_name, client_rif, client_sede, status, priority, assigned_to_*, implementation_matrix: {bank: {product: {phase: {completed, updated_at}}}}, attachments[], bitacora[], notes[], services[], banks[], pinpad_model, sponsor_bank_name }`
-- **clients**: `{ client_id, rif, legal_name, branch_address, categoria_comercial, contacts[{full_name}] }`
+- Lógica de roles por módulo
 
 ## Credenciales de Prueba
 - Email: rgonzalez@megasoft.com.ve / Contraseña: Avila*0226*02
