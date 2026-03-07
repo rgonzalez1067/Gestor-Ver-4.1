@@ -571,14 +571,36 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
     # Construir matriz de implementación (Bancos × Productos)
-    implementation_matrix = {}
+    # Extraer nombres únicos de productos/servicios
+    product_names = []
+    seen = set()
     for item in quote.get("services", []):
-        bn = item.get("bank_name", quote.get("sponsor_bank_name", "General"))
-        product_name = item.get("concepto") or item.get("name") or item.get("description", "Servicio")
-        if bn:
-            if bn not in implementation_matrix:
-                implementation_matrix[bn] = {}
-            implementation_matrix[bn][product_name] = {}
+        name = item.get("item_name") or item.get("concepto") or item.get("name") or item.get("description", "")
+        if name and name not in seen:
+            product_names.append(name)
+            seen.add(name)
+    for item in quote.get("hardware", []):
+        name = item.get("item_name") or item.get("concepto") or item.get("name", "")
+        if name and name not in seen:
+            product_names.append(name)
+            seen.add(name)
+    for item in quote.get("equipment_items", []):
+        name = item.get("item_name") or item.get("concepto") or item.get("name", "")
+        if name and name not in seen:
+            product_names.append(name)
+            seen.add(name)
+
+    # Extraer nombres de bancos
+    bank_names = [b["bank_name"] for b in banks if b.get("bank_name")]
+    if not bank_names and quote.get("sponsor_bank_name"):
+        bank_names = [quote["sponsor_bank_name"]]
+
+    # Cruzar: cada banco con cada producto
+    implementation_matrix = {}
+    for bn in bank_names:
+        implementation_matrix[bn] = {}
+        for pn in product_names:
+            implementation_matrix[bn][pn] = {}
 
     # Heredar anexos de la cotización
     attachments = []
