@@ -103,25 +103,42 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
         raise HTTPException(status_code=404, detail="Integrator not found")
     return {"message": "Integrador eliminado exitosamente"}
 
-# Export integrators to Excel
+# Export integrators to Excel (with certification matrix)
 @router.get("/integrators/export/excel")
 async def export_integrators_excel(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
-    integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(5000)
     
     if not integrators:
         raise HTTPException(status_code=404, detail="No integrators to export")
     
     import pandas as pd
     
-    df = pd.DataFrame(integrators)
-    if 'created_at' in df.columns:
-        df['created_at'] = pd.to_datetime(df['created_at']).dt.strftime('%Y-%m-%d %H:%M')
+    # Fetch products for cert columns
+    cert_products = await db.services.find(
+        {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
+        {"_id": 0, "service_id": 1, "name": 1}
+    ).sort("name", 1).to_list(1000)
     
-    # Reorder columns
-    columns_order = ['integrator_id', 'name', 'integrator_type', 'app_name', 'integration_modality', 'integrator_status', 'created_at']
-    df = df[[c for c in columns_order if c in df.columns]]
+    rows = []
+    for intg in integrators:
+        row = {
+            'Nombre': intg.get('name', ''),
+            'Tipo': intg.get('integrator_type', ''),
+            'Aplicativo': intg.get('app_name', ''),
+            'Modalidad': intg.get('integration_modality', ''),
+            'Estatus': intg.get('integrator_status', ''),
+            'Tipo Integración': intg.get('integration_type', ''),
+            'Gestor': intg.get('gestor', ''),
+            'Categoría': intg.get('categoria', ''),
+        }
+        certs = intg.get('certifications', {})
+        for prod in cert_products:
+            row[prod['name']] = certs.get(prod['service_id'], 'N/A')
+        rows.append(row)
+    
+    df = pd.DataFrame(rows)
     
     buffer = io.BytesIO()
     df.to_excel(buffer, index=False, sheet_name='Integradores')
@@ -183,14 +200,21 @@ async def export_integrators_pdf(authorization: Optional[str] = Header(None)):
         headers={"Content-Disposition": "attachment; filename=integradores.pdf"}
     )
 
-# Import template for integrators
+# Import template for integrators (dynamic product columns)
 @router.get("/integrators/import/template")
 async def get_integrators_import_template(authorization: Optional[str] = Header(None)):
-    """Descargar plantilla de importación para integradores"""
+    """Descargar plantilla de importación con columnas dinámicas de productos"""
     await get_current_user(authorization)
     
     import pandas as pd
     
+    # Fetch all cert products for dynamic columns
+    cert_products = await db.services.find(
+        {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
+        {"_id": 0, "service_id": 1, "name": 1}
+    ).sort("name", 1).to_list(1000)
+    
+    # Base data with 3 example rows
     data = {
         'Nombre': ['TechPay Solutions', 'ComercioApp', 'GatewayVe'],
         'Tipo': ['Integrador', 'Comercio', 'Integrador'],
@@ -202,52 +226,55 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS']
     }
     
+    # Add dynamic product columns with sample cert values
+    sample_vals = ['C', 'P', 'N/A']
+    for i, prod in enumerate(cert_products):
+        data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
+    
     df = pd.DataFrame(data)
     
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Plantilla')
         
-        info_data = {
-            'Campo': ['Nombre *', 'Tipo *', 'Aplicativo *', 'Modalidad *', 'Estatus',
-                       'Tipo Integración', 'Gestor', 'Categoría'],
-            'Descripción': [
-                'Nombre del integrador (obligatorio)',
-                'Integrador o Comercio (obligatorio)',
-                'Nombre del aplicativo (obligatorio)',
-                'Modalidad de integración (obligatorio)',
-                'Estado actual (def: En proceso)',
-                'Tipo de integración: CR, LP, PG, MP, TK',
-                'Nombre del gestor asignado (debe existir en el sistema)',
-                'Categoría del integrador'
-            ],
-            'Obligatorio': ['Sí', 'Sí', 'Sí', 'Sí', 'No', 'No', 'No', 'No'],
-            'Ejemplo': ['TechPay Solutions', 'Integrador', 'PaymentHub v3', 'PG Universal',
-                        'En proceso', 'PG', 'Juan Pérez', 'Cliente/Integrador nuevo PG']
-        }
-        pd.DataFrame(info_data).to_excel(writer, index=False, sheet_name='Instrucciones')
+        # Instructions sheet - base fields + product columns info
+        base_fields = [
+            {'Campo': 'Nombre *', 'Descripción': 'Nombre del integrador (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'TechPay Solutions'},
+            {'Campo': 'Tipo *', 'Descripción': 'Integrador o Comercio (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'Integrador'},
+            {'Campo': 'Aplicativo *', 'Descripción': 'Nombre del aplicativo (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PaymentHub v3'},
+            {'Campo': 'Modalidad *', 'Descripción': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Universal'},
+            {'Campo': 'Estatus', 'Descripción': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
+            {'Campo': 'Tipo Integración', 'Descripción': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
+            {'Campo': 'Gestor', 'Descripción': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Pérez'},
+            {'Campo': 'Categoría', 'Descripción': 'Categoría del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
+            {'Campo': '--- COLUMNAS DE PRODUCTOS ---', 'Descripción': 'Las siguientes columnas corresponden a la Matriz de Certificación', 'Obligatorio': '---', 'Ejemplo': '---'},
+        ]
+        for prod in cert_products:
+            base_fields.append({
+                'Campo': prod['name'],
+                'Descripción': f'Estado de certificación para {prod["name"]}. Valores: C, P, N/A',
+                'Obligatorio': 'No',
+                'Ejemplo': 'C / P / N/A'
+            })
+        pd.DataFrame(base_fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
+        # Valid values sheet
+        max_len = max(8, len(cert_products))
+        pad = lambda lst: lst + [''] * (max_len - len(lst))
         values_data = {
-            'Tipos de Integrador': ['Integrador', 'Comercio', '', '', '', '', '', ''],
-            'Modalidades': ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone', '', ''],
-            'Tipos de Integración': ['CR — Caja Registradora', 'LP — Link de Pago', 'PG — Payment Gateway',
-                                     'MP — Android (Mobile POS)', 'TK — Tokenizador', '', '', ''],
-            'Estatus': ['Certificado', 'En proceso', 'Suspendido', '', '', '', '', ''],
-            'Categorías': [
-                'Cliente/Integrador actual de PG', 'Cliente/Integrador actual de VPOS',
-                'Cliente/Integrador actual Tokenizador', 'Cliente/Integrador nuevo Link de Pago',
-                'Cliente/Integrador nuevo Mpos', 'Cliente/Integrador nuevo PG',
-                'Cliente/Integrador nuevo VPOS', 'Cliente/Integrador MobilePOS'
-            ],
-            'Notas': [
+            'Tipos de Integrador': pad(['Integrador', 'Comercio']),
+            'Modalidades': pad(['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone']),
+            'Tipos de Integración': pad(['CR — Caja Registradora', 'LP — Link de Pago', 'PG — Payment Gateway', 'MP — Android (Mobile POS)', 'TK — Tokenizador']),
+            'Estatus': pad(['Certificado', 'En proceso', 'Suspendido']),
+            'Valores de Certificación': pad(['C — Certificado', 'P — Pendiente', 'N/A — No Aplica', '(vacío) — Se asigna N/A']),
+            'Notas': pad([
                 'La clave única es Nombre + Tipo Integración',
-                'Si un registro ya existe, se actualizan sus datos',
-                'La Matriz de Certificación se crea automáticamente',
+                'Si un registro ya existe, se actualizan sus datos y su matriz',
                 'Los campos marcados con * son obligatorios',
                 'Si no indica estatus, se asigna "En proceso"',
-                'El gestor debe estar registrado en el sistema',
-                '', ''
-            ]
+                'Celdas vacías en productos se asignan como N/A',
+                'Se aceptan mayúsculas y minúsculas (c, p, n/a)',
+            ])
         }
         pd.DataFrame(values_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
     
@@ -259,7 +286,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         headers={"Content-Disposition": "attachment; filename=plantilla_integradores.xlsx"}
     )
 
-# Import integrators from Excel/CSV with Upsert logic and detailed validation
+# Import integrators from Excel/CSV with Upsert logic, certification matrix, and detailed validation
 @router.post("/integrators/import", response_model=ImportResult)
 async def import_integrators(
     file: UploadFile = File(...),
@@ -275,12 +302,13 @@ async def import_integrators(
     success_count = 0
     updated_count = 0
     skipped_count = 0
+    cert_updates_count = 0
     
     file_ext = file.filename.split('.')[-1].lower() if file.filename else ''
     if file_ext not in ['csv', 'xlsx', 'xls']:
         return ImportResult(
             status='error', total_processed=0, success_count=0, updated_count=0,
-            error_count=1, skipped_count=0,
+            cert_updates_count=0, error_count=1, skipped_count=0,
             errors=[ImportError(row=0, column='archivo', value=file.filename,
                 error_type='format', message='Formato de archivo no soportado',
                 suggested_action='Utilice archivos .xlsx, .xls o .csv')],
@@ -298,45 +326,33 @@ async def import_integrators(
         if total_rows == 0:
             return ImportResult(
                 status='error', total_processed=0, success_count=0, updated_count=0,
-                error_count=1, skipped_count=0,
+                cert_updates_count=0, error_count=1, skipped_count=0,
                 errors=[ImportError(row=0, column='archivo', value=file.filename,
                     error_type='format', message='El archivo está vacío',
                     suggested_action='Agregue registros al archivo antes de importar')],
                 message='Error: El archivo no contiene datos'
             )
         
-        # Normalize column names
-        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        # Keep original column names for product matching before normalizing
+        original_columns = list(df.columns.str.strip())
+        df.columns = [c.strip() for c in df.columns]
         
+        # Normalize base column names
         column_mapping = {
-            'nombre': 'name', 'nombre_del_integrador': 'name',
-            'tipo': 'integrator_type', 'tipo_de_integrador': 'integrator_type',
+            'Nombre': 'name', 'nombre': 'name', 'nombre_del_integrador': 'name',
+            'Tipo': 'integrator_type', 'tipo': 'integrator_type', 'tipo_de_integrador': 'integrator_type',
+            'Tipo Integración': 'integration_type', 'tipo_integración': 'integration_type',
             'tipo_de_integración': 'integration_type', 'tipo_de_integracion': 'integration_type',
-            'tipo_integración': 'integration_type', 'tipo_integracion': 'integration_type',
-            'aplicativo': 'app_name', 'nombre_del_aplicativo': 'app_name',
-            'modalidad': 'integration_modality', 'modalidad_de_integración': 'integration_modality',
-            'modalidad_de_integracion': 'integration_modality',
-            'estatus': 'integrator_status', 'estado': 'integrator_status',
-            'gestor': 'gestor', 'gestor_asignado': 'gestor',
-            'categoría': 'categoria', 'categoria': 'categoria'
+            'tipo_integracion': 'integration_type',
+            'Aplicativo': 'app_name', 'aplicativo': 'app_name', 'nombre_del_aplicativo': 'app_name',
+            'Modalidad': 'integration_modality', 'modalidad': 'integration_modality',
+            'modalidad_de_integración': 'integration_modality', 'modalidad_de_integracion': 'integration_modality',
+            'Estatus': 'integrator_status', 'estatus': 'integrator_status', 'estado': 'integrator_status',
+            'Gestor': 'gestor', 'gestor_asignado': 'gestor',
+            'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria'
         }
-        df.rename(columns=column_mapping, inplace=True)
         
-        required_columns = ['name', 'integrator_type', 'app_name', 'integration_modality']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            return ImportResult(
-                status='error', total_processed=0, success_count=0, updated_count=0,
-                error_count=1, skipped_count=0,
-                errors=[ImportError(row=0, column=', '.join(missing_columns), value=None,
-                    error_type='missing',
-                    message=f'Columnas requeridas no encontradas: {", ".join(missing_columns)}',
-                    suggested_action='Asegúrese de que el archivo tenga las columnas: Nombre, Tipo, Aplicativo, Modalidad')],
-                message=f'Error: Faltan columnas requeridas ({", ".join(missing_columns)})'
-            )
-        
-        # Pre-load users and products for validation and cert initialization
+        # Pre-load users and products
         all_users = await db.users.find({"is_active": True}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1}).to_list(1000)
         user_names = set()
         for u in all_users:
@@ -346,11 +362,49 @@ async def import_integrators(
         
         cert_products = await db.services.find(
             {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
-            {"_id": 0, "service_id": 1}
+            {"_id": 0, "service_id": 1, "name": 1}
         ).to_list(1000)
         default_certs = {p["service_id"]: "N/A" for p in cert_products}
         
+        # Build product name -> service_id mapping (case-insensitive)
+        product_name_to_id = {}
+        for p in cert_products:
+            product_name_to_id[p["name"].strip().lower()] = p["service_id"]
+        
+        # Identify which columns in the file are product columns
+        base_column_names = set(column_mapping.keys())
+        product_columns = {}  # original_col_name -> service_id
+        for col in df.columns:
+            col_stripped = col.strip()
+            if col_stripped.lower() in [k.lower() for k in base_column_names]:
+                continue
+            # Check if this column matches a product name
+            if col_stripped.lower() in product_name_to_id:
+                product_columns[col] = product_name_to_id[col_stripped.lower()]
+        
+        # Rename base columns
+        rename_map = {}
+        for col in df.columns:
+            if col in column_mapping:
+                rename_map[col] = column_mapping[col]
+        df.rename(columns=rename_map, inplace=True)
+        
+        required_columns = ['name', 'integrator_type', 'app_name', 'integration_modality']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            return ImportResult(
+                status='error', total_processed=0, success_count=0, updated_count=0,
+                cert_updates_count=0, error_count=1, skipped_count=0,
+                errors=[ImportError(row=0, column=', '.join(missing_columns), value=None,
+                    error_type='missing',
+                    message=f'Columnas requeridas no encontradas: {", ".join(missing_columns)}',
+                    suggested_action='Asegúrese de que el archivo tenga las columnas: Nombre, Tipo, Aplicativo, Modalidad')],
+                message=f'Error: Faltan columnas requeridas ({", ".join(missing_columns)})'
+            )
+        
         valid_integration_types = ['CR', 'LP', 'PG', 'MP', 'TK']
+        valid_cert_values = {'c': 'C', 'p': 'P', 'n/a': 'N/A', 'na': 'N/A', '': 'N/A'}
         
         for idx, row in df.iterrows():
             row_num = idx + 2
@@ -402,10 +456,31 @@ async def import_integrators(
                 if integrator_status not in INTEGRATOR_STATUSES:
                     integrator_status = "En proceso"
                 
+                # Parse certification columns
+                row_certs = {}
+                cert_has_errors = False
+                for col_name, service_id in product_columns.items():
+                    raw_val = str(row.get(col_name, '')).strip() if pd.notna(row.get(col_name)) else ''
+                    normalized = valid_cert_values.get(raw_val.lower(), None)
+                    if normalized is None:
+                        row_errors.append(ImportError(row=row_num, column=col_name,
+                            value=raw_val, error_type='invalid',
+                            message=f'Valor de certificación "{raw_val}" no válido en columna "{col_name}"',
+                            suggested_action='Use solo: C (Certificado), P (Pendiente) o N/A (No Aplica)'))
+                        cert_has_errors = True
+                    else:
+                        row_certs[service_id] = normalized
+                
                 if row_errors:
                     errors.extend(row_errors)
-                    skipped_count += 1
-                    continue
+                    if cert_has_errors or not name or not app_name or integrator_type not in INTEGRATOR_TYPES or integration_modality not in INTEGRATION_MODALITIES:
+                        skipped_count += 1
+                        continue
+                
+                # Build full certifications: start with defaults, overlay with file data
+                full_certs = dict(default_certs)
+                for sid, val in row_certs.items():
+                    full_certs[sid] = val
                 
                 # Composite key for upsert: name + integration_type
                 composite_query = {"name": name}
@@ -417,7 +492,6 @@ async def import_integrators(
                 existing = await db.integrators.find_one(composite_query, {"_id": 0})
                 
                 if existing and mode == "insert_only":
-                    # In insert_only mode, skip existing records
                     errors.append(ImportError(row=row_num, column='Nombre/Tipo Int.',
                         value=f'{name} / {integration_type or "N/A"}',
                         error_type='duplicate',
@@ -425,7 +499,7 @@ async def import_integrators(
                         suggested_action='Use el modo "Upsert" para actualizar registros existentes'))
                     skipped_count += 1
                 elif existing:
-                    # UPSERT mode: UPDATE existing record, preserve certifications
+                    # UPSERT: update basic data + overwrite certifications from file
                     update_data = {
                         "integrator_type": integrator_type,
                         "app_name": app_name,
@@ -439,13 +513,20 @@ async def import_integrators(
                     if categoria:
                         update_data["categoria"] = categoria
                     
+                    # Merge certs: existing certs as base, overlay with file data
+                    if product_columns:
+                        existing_certs = existing.get("certifications", {})
+                        merged_certs = {**existing_certs, **row_certs}
+                        update_data["certifications"] = merged_certs
+                        cert_updates_count += len(row_certs)
+                    
                     await db.integrators.update_one(
                         {"integrator_id": existing["integrator_id"]},
                         {"$set": update_data}
                     )
                     updated_count += 1
                 else:
-                    # CREATE new integrator with default certifications
+                    # CREATE new integrator with full certifications
                     new_integrator = Integrator(
                         name=name,
                         integrator_type=integrator_type,
@@ -455,12 +536,13 @@ async def import_integrators(
                         integrator_status=integrator_status,
                         gestor=gestor or None,
                         categoria=categoria or None,
-                        certifications=dict(default_certs)
+                        certifications=full_certs
                     )
                     doc = new_integrator.model_dump()
                     doc['created_at'] = doc['created_at'].isoformat()
                     await db.integrators.insert_one(doc)
                     success_count += 1
+                    cert_updates_count += len(full_certs)
                 
             except Exception as e:
                 errors.append(ImportError(row=row_num, column='General', value=None,
@@ -477,6 +559,8 @@ async def import_integrators(
                 parts.append(f'{success_count} creados')
             if updated_count > 0:
                 parts.append(f'{updated_count} actualizados')
+            if cert_updates_count > 0:
+                parts.append(f'{cert_updates_count} certificaciones procesadas')
             message = f'Importación exitosa: {", ".join(parts)}'
         elif total_ok > 0:
             result_status = 'partial'
@@ -485,6 +569,8 @@ async def import_integrators(
                 parts.append(f'{success_count} creados')
             if updated_count > 0:
                 parts.append(f'{updated_count} actualizados')
+            if cert_updates_count > 0:
+                parts.append(f'{cert_updates_count} certificaciones')
             message = f'Importación parcial: {", ".join(parts)}, {skipped_count} con errores'
         else:
             result_status = 'error'
@@ -495,6 +581,7 @@ async def import_integrators(
             total_processed=total_rows,
             success_count=success_count,
             updated_count=updated_count,
+            cert_updates_count=cert_updates_count,
             error_count=len(errors),
             skipped_count=skipped_count,
             errors=errors[:50],
@@ -504,7 +591,7 @@ async def import_integrators(
     except Exception as e:
         return ImportResult(
             status='error', total_processed=0, success_count=0, updated_count=0,
-            error_count=1, skipped_count=0,
+            cert_updates_count=0, error_count=1, skipped_count=0,
             errors=[ImportError(row=0, column='archivo', value=file.filename,
                 error_type='format', message=f'Error al procesar archivo: {str(e)}',
                 suggested_action='Verifique que el archivo no esté dañado y tenga el formato correcto')],

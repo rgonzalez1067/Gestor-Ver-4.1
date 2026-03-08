@@ -204,6 +204,7 @@ class ImportResult(BaseModel):
     total_processed: int
     success_count: int
     updated_count: int = 0
+    cert_updates_count: int = 0
     error_count: int
     skipped_count: int
     errors: List[ImportError]

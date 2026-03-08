@@ -83,6 +83,12 @@ export const ImportResultPanel = ({ result, onClose }) => {
             <div className="text-xs text-blue-600">Actualizados</div>
           </div>
         )}
+        {(result.cert_updates_count > 0) && (
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">{result.cert_updates_count}</div>
+            <div className="text-xs text-purple-600">Certificaciones</div>
+          </div>
+        )}
         <div className="text-center">
           <div className="text-2xl font-bold text-red-600">{result.error_count}</div>
           <div className="text-xs text-red-600">Con errores</div>
