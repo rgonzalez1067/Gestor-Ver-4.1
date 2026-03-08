@@ -340,7 +340,25 @@ async def import_integrators(
     
     try:
         if file_ext == 'csv':
-            df = pd.read_csv(io.BytesIO(content))
+            # Auto-detect separator: try comma, semicolon, tab
+            for sep in [',', ';', '\t']:
+                try:
+                    df = pd.read_csv(io.BytesIO(content), sep=sep, encoding='utf-8')
+                    if len(df.columns) >= 4:
+                        break
+                except Exception:
+                    continue
+            else:
+                # Fallback: try latin-1 encoding
+                for sep in [',', ';', '\t']:
+                    try:
+                        df = pd.read_csv(io.BytesIO(content), sep=sep, encoding='latin-1')
+                        if len(df.columns) >= 4:
+                            break
+                    except Exception:
+                        continue
+                else:
+                    df = pd.read_csv(io.BytesIO(content))
         else:
             df = pd.read_excel(io.BytesIO(content))
         
@@ -461,47 +479,47 @@ async def import_integrators(
                     if parsed_date is None:
                         row_errors.append(ImportError(row=row_num, column='Último Contacto',
                             value=last_contact_raw, error_type='invalid',
-                            message=f'Formato de fecha "{last_contact_raw}" no reconocido',
-                            suggested_action='Use formato DD/MM/AAAA (ej: 15/01/2026)'))
+                            message=f'El formato de fecha "{last_contact_raw}" no es reconocido. Formatos aceptados: DD/MM/AAAA, AAAA-MM-DD.',
+                            suggested_action='Corrija la fecha en la columna "Último Contacto". Ejemplo: 15/01/2026'))
                     elif parsed_date > date_type.today():
                         row_errors.append(ImportError(row=row_num, column='Último Contacto',
                             value=last_contact_raw, error_type='invalid',
-                            message='La fecha de último contacto no puede ser futura',
-                            suggested_action='Ingrese una fecha igual o anterior a hoy'))
+                            message=f'La fecha {last_contact_raw} es posterior a hoy ({date_type.today().strftime("%d/%m/%Y")}). No se permiten fechas futuras.',
+                            suggested_action='Ingrese una fecha igual o anterior a la fecha actual'))
                     else:
                         last_contact_date = parsed_date.isoformat()
                 
                 if not name:
                     row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
-                        error_type='missing', message='El nombre del integrador es obligatorio',
-                        suggested_action='Ingrese un nombre válido para el integrador'))
+                        error_type='missing', message='El campo "Nombre" está vacío. Cada integrador debe tener un nombre único.',
+                        suggested_action='Ingrese el nombre del integrador en la columna "Nombre"'))
                 
                 if not app_name:
                     row_errors.append(ImportError(row=row_num, column='Aplicativo', value='(vacío)',
-                        error_type='missing', message='El nombre del aplicativo es obligatorio',
-                        suggested_action='Ingrese el nombre del aplicativo'))
+                        error_type='missing', message='El campo "Aplicativo" está vacío. Es obligatorio indicar el nombre del sistema o aplicación.',
+                        suggested_action='Ingrese el nombre del aplicativo en la columna "Aplicativo"'))
                 
                 if integrator_type not in INTEGRATOR_TYPES:
                     row_errors.append(ImportError(row=row_num, column='Tipo', value=integrator_type or '(vacío)',
-                        error_type='invalid', message='Tipo de integrador no válido',
-                        suggested_action=f'Use uno de: {", ".join(INTEGRATOR_TYPES)}'))
+                        error_type='invalid', message=f'El tipo "{integrator_type or "(vacío)"}" no es válido. Solo se aceptan: {", ".join(INTEGRATOR_TYPES)}.',
+                        suggested_action=f'Corrija el valor en la columna "Tipo". Opciones válidas: {", ".join(INTEGRATOR_TYPES)}'))
                 
                 if integration_modality not in INTEGRATION_MODALITIES:
                     row_errors.append(ImportError(row=row_num, column='Modalidad', value=integration_modality or '(vacío)',
-                        error_type='invalid', message='Modalidad de integración no válida',
-                        suggested_action=f'Use una de: {", ".join(INTEGRATION_MODALITIES)}'))
+                        error_type='invalid', message=f'La modalidad "{integration_modality or "(vacío)"}" no es válida. Opciones: {", ".join(INTEGRATION_MODALITIES)}.',
+                        suggested_action=f'Corrija el valor en la columna "Modalidad". Verifique que coincida exactamente con una de las opciones permitidas'))
                 
                 if integration_type and integration_type not in valid_integration_types:
                     row_errors.append(ImportError(row=row_num, column='Tipo Integración',
                         value=integration_type, error_type='invalid',
-                        message=f'Tipo de integración "{integration_type}" no válido',
-                        suggested_action=f'Use uno de: {", ".join(valid_integration_types)}'))
+                        message=f'El tipo de integración "{integration_type}" no es válido. Solo se aceptan: {", ".join(valid_integration_types)}.',
+                        suggested_action=f'Corrija el valor en la columna "Tipo Integración". Use: {", ".join(valid_integration_types)}'))
                 
                 if gestor and gestor.lower() not in user_names:
                     row_errors.append(ImportError(row=row_num, column='Gestor', value=gestor,
                         error_type='invalid',
-                        message=f'El gestor "{gestor}" no existe en la base de datos de usuarios',
-                        suggested_action='Verifique el nombre o email del gestor'))
+                        message=f'El gestor "{gestor}" no está registrado en el sistema. Solo se pueden asignar usuarios existentes.',
+                        suggested_action='Verifique que el nombre o email del gestor esté dado de alta en la sección de Usuarios'))
                 
                 if integrator_status not in INTEGRATOR_STATUSES:
                     integrator_status = "En proceso"
@@ -515,8 +533,8 @@ async def import_integrators(
                     if normalized is None:
                         row_errors.append(ImportError(row=row_num, column=col_name,
                             value=raw_val, error_type='invalid',
-                            message=f'Valor de certificación "{raw_val}" no válido en columna "{col_name}"',
-                            suggested_action='Use solo: C (Certificado), P (Pendiente) o N/A (No Aplica)'))
+                            message=f'El valor "{raw_val}" no es un estado de certificación válido en la columna "{col_name}". Solo se aceptan: C (Certificado), P (Pendiente) o N/A (No Aplica).',
+                            suggested_action=f'Corrija el valor en la columna "{col_name}". Use: C, P o N/A. Las celdas vacías se asignan como N/A automáticamente'))
                         cert_has_errors = True
                     else:
                         row_certs[service_id] = normalized
