@@ -68,6 +68,14 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
   - Validación de tipo de integración (CR/LP/PG/MP/TK)
 - **Reporte mejorado**: Creados / Actualizados / Fallidos con detalle por fila
 
+### Integradores — Asistente de Importación Homologado (Implementado 2026-03-08)
+- **Modal 3 pasos**: 1) Descarga plantilla Excel (.xlsx con 3 hojas: Plantilla, Instrucciones, Valores Válidos) 2) Drag & Drop 3) Selector de modo
+- **Modos de procesamiento**: Upsert (recomendado) / Solo insertar nuevos
+- **Endpoint plantilla**: `GET /api/integrators/import/template`
+- **Import con mode**: `POST /api/integrators/import` acepta form field `mode` (upsert/insert_only)
+- **Validaciones**: Gestor contra BD de usuarios, tipo de integración (CR/LP/PG/MP/TK)
+- **Reporte mejorado**: Creados / Actualizados / Fallidos con detalle por fila
+
 ## Tareas Pendientes
 
 ### P1
