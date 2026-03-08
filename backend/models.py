@@ -203,6 +203,7 @@ class ImportResult(BaseModel):
     status: str  # 'success', 'partial', 'error'
     total_processed: int
     success_count: int
+    updated_count: int = 0
     error_count: int
     skipped_count: int
     errors: List[ImportError]

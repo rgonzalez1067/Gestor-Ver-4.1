@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -31,7 +31,7 @@ const CATEGORIAS = [
   'Cliente/Integrador nuevo VPOS',
   'Cliente/Integrador MobilePOS'
 ];
-const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 border-amber-300' }, C: { label: 'C', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }, 'N/A': { label: 'N/A', color: 'bg-slate-100 text-slate-400 border-slate-200' } };
+const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 border-amber-300' }, C: { label: 'C', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }, 'N/A': { label: 'N/A', color: 'bg-[#E3F2FD] text-[#0D47A1] border-[#90CAF9]' } };
 const CERT_CYCLE = ['P', 'C', 'N/A'];
 
 export const Integrators = () => {
@@ -83,11 +83,18 @@ export const Integrators = () => {
       toast.error('Complete los campos obligatorios'); return;
     }
     try {
+      const payload = { ...formData };
+      // Auto-initialize all certifications to N/A on create
+      if (!editingIntegrator) {
+        const initCerts = {};
+        certProducts.forEach(p => { initCerts[p.service_id] = 'N/A'; });
+        payload.certifications = initCerts;
+      }
       if (editingIntegrator) {
-        await api.put(`/integrators/${editingIntegrator.integrator_id}`, formData);
+        await api.put(`/integrators/${editingIntegrator.integrator_id}`, payload);
         toast.success('Integrador actualizado');
       } else {
-        await api.post('/integrators', formData);
+        await api.post('/integrators', payload);
         toast.success('Integrador creado');
       }
       setDialogOpen(false); resetForm(); fetchData();
@@ -329,99 +336,124 @@ export const Integrators = () => {
 
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Nombre</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo Int.</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Aplicativo</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Modalidad</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
-                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredIntegrators.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
-                ) : filteredIntegrators.map((intg) => (
-                  <tr key={intg.integrator_id}>
-                    <td colSpan={9} className="p-0">
-                      {/* Main row */}
-                      <div className="flex items-center hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
-                        <div className="px-3 py-2.5 min-w-[180px] flex-shrink-0"><p className="font-medium text-slate-900 text-sm">{intg.name}</p></div>
-                        <div className="px-3 py-2.5 w-[80px] text-center">
-                          {intg.integration_type && <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-700">{intg.integration_type}</span>}
-                        </div>
-                        <div className="px-3 py-2.5 w-[90px] text-center">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1050px' }}>
+                <colgroup>
+                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '8%' }} />
+                </colgroup>
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Nombre</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo Int.</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Aplicativo</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Modalidad</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredIntegrators.length === 0 ? (
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                  ) : filteredIntegrators.map((intg) => (
+                    <Fragment key={intg.integrator_id}>
+                      <tr className="hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
+                        <td className="px-3 py-2.5">
+                          <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {intg.integration_type ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-700">{intg.integration_type}</span> : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${intg.integrator_type === 'Integrador' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{intg.integrator_type}</span>
-                        </div>
-                        <div className="px-3 py-2.5 min-w-[120px]"><p className="text-sm text-slate-700">{intg.app_name}</p></div>
-                        <div className="px-3 py-2.5 w-[120px] text-center"><span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">{intg.integration_modality}</span></div>
-                        <div className="px-3 py-2.5 min-w-[100px]"><p className="text-xs text-slate-600 truncate">{intg.gestor || '—'}</p></div>
-                        <div className="px-3 py-2.5 w-[140px] text-center"><span className="text-[10px] text-slate-500 truncate block">{intg.categoria ? intg.categoria.replace('Cliente/Integrador ', '') : '—'}</span></div>
-                        <div className="px-3 py-2.5 w-[110px] text-center">{getStatusBadge(intg.integrator_status)}</div>
-                        <div className="px-3 py-2.5 w-[120px] flex items-center justify-center gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
-                            className="text-purple-600 hover:bg-purple-50 h-7 px-2" data-testid={`detail-${intg.integrator_id}`}>
-                            <Award size={14} className="mr-1" />{expandedRow === intg.integrator_id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={14} /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={14} /></Button>
-                        </div>
-                      </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <p className="text-sm text-slate-700 truncate" title={intg.app_name}>{intg.app_name}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">{intg.integration_modality}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <p className="text-xs text-slate-600 truncate" title={intg.gestor || ''}>{intg.gestor || '—'}</p>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-[10px] text-slate-500 truncate block" title={intg.categoria || ''}>{intg.categoria ? intg.categoria.replace('Cliente/Integrador ', '') : '—'}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">{getStatusBadge(intg.integrator_status)}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <div className="flex items-center justify-center gap-0.5">
+                            <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
+                              className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
+                              <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>
+                          </div>
+                        </td>
+                      </tr>
                       {/* Expanded certification matrix */}
                       {expandedRow === intg.integrator_id && (
-                        <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
-                          <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                            <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}
-                          </h4>
-                          {certProducts.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <div className="flex items-start gap-0" style={{ minWidth: certProducts.length * 90 + 160 }}>
-                                {/* Sticky name col */}
-                                <div className="sticky left-0 z-10 bg-slate-50 pr-2 min-w-[160px]">
-                                  <div className="h-16 flex items-end pb-1"><span className="text-xs font-semibold text-slate-700">Producto</span></div>
-                                  <div className="h-10 flex items-center"><span className="text-xs font-medium text-slate-500">Estado</span></div>
-                                </div>
-                                {certProducts.map((prod) => {
-                                  const val = (intg.certifications || {})[prod.service_id] || 'N/A';
-                                  const cfg = CERT_STATES[val] || CERT_STATES['N/A'];
-                                  return (
-                                    <div key={prod.service_id} className="min-w-[85px] text-center px-1">
-                                      <div className="h-16 flex items-end pb-1 justify-center">
-                                        <span className="text-[10px] text-slate-600 leading-tight line-clamp-3">{prod.name}</span>
-                                      </div>
-                                      <div className="h-10 flex items-center justify-center">
-                                        <button
-                                          onClick={() => toggleCert(intg.integrator_id, prod.service_id, val)}
-                                          className={`px-3 py-1 rounded border text-xs font-bold transition-colors cursor-pointer ${cfg.color}`}
-                                          data-testid={`cert-${intg.integrator_id}-${prod.service_id}`}
-                                          title={`Click para cambiar: P→C→N/A`}
-                                        >{cfg.label}</button>
-                                      </div>
+                        <tr>
+                          <td colSpan={9} className="p-0">
+                            <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
+                              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                                <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}
+                              </h4>
+                              {certProducts.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <div className="flex items-start gap-0" style={{ minWidth: certProducts.length * 90 + 160 }}>
+                                    <div className="sticky left-0 z-10 bg-slate-50 pr-2 min-w-[160px]">
+                                      <div className="h-16 flex items-end pb-1"><span className="text-xs font-semibold text-slate-700">Producto</span></div>
+                                      <div className="h-10 flex items-center"><span className="text-xs font-medium text-slate-500">Estado</span></div>
                                     </div>
-                                  );
-                                })}
+                                    {certProducts.map((prod) => {
+                                      const val = (intg.certifications || {})[prod.service_id] || 'N/A';
+                                      const cfg = CERT_STATES[val] || CERT_STATES['N/A'];
+                                      return (
+                                        <div key={prod.service_id} className="min-w-[85px] text-center px-1">
+                                          <div className="h-16 flex items-end pb-1 justify-center">
+                                            <span className="text-[10px] text-slate-600 leading-tight line-clamp-3" title={prod.name}>{prod.name}</span>
+                                          </div>
+                                          <div className="h-10 flex items-center justify-center">
+                                            <button
+                                              onClick={() => toggleCert(intg.integrator_id, prod.service_id, val)}
+                                              className={`px-3 py-1 rounded border text-xs font-bold transition-colors cursor-pointer ${cfg.color}`}
+                                              data-testid={`cert-${intg.integrator_id}-${prod.service_id}`}
+                                              title="Click para cambiar: P / C / N/A"
+                                            >{cfg.label}</button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-400 italic">No hay productos tipo "Producto" con aplicación "Setup" o "Both" en el catálogo</p>
+                              )}
+                              <div className="flex gap-4 mt-3 text-[10px] text-slate-500">
+                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold mr-1">P</span>Pendiente</span>
+                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold mr-1">C</span>Certificado</span>
+                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-[#E3F2FD] text-[#0D47A1] font-bold mr-1">N/A</span>No aplica</span>
                               </div>
                             </div>
-                          ) : (
-                            <p className="text-xs text-slate-400 italic">No hay productos tipo "Producto" con aplicación "Setup" o "Both" en el catálogo</p>
-                          )}
-                          <div className="flex gap-4 mt-3 text-[10px] text-slate-500">
-                            <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold mr-1">P</span>Pendiente</span>
-                            <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold mr-1">C</span>Certificado</span>
-                            <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-slate-100 text-slate-400 font-bold mr-1">N/A</span>No aplica</span>
-                          </div>
-                        </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
