@@ -68,6 +68,7 @@ class ClientLogCreate(BaseModel):
     detail: str
     action: str = ""
     follow_up_date: Optional[str] = None
+    contacted_person: Optional[str] = None
 
 class BankProduct(BaseModel):
     product_name: str

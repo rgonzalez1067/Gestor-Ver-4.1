@@ -45,9 +45,10 @@ export const Clients = () => {
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logClientId, setLogClientId] = useState(null);
   const [logClientName, setLogClientName] = useState('');
+  const [logClientContacts, setLogClientContacts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [newLog, setNewLog] = useState({ detail: '', action: '', follow_up_date: '' });
+  const [newLog, setNewLog] = useState({ detail: '', action: '', follow_up_date: '', contacted_person: '' });
 
   // Import dialog
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -241,6 +242,11 @@ export const Clients = () => {
   const openBitacora = async (client) => {
     setLogClientId(client.client_id);
     setLogClientName(client.fantasy_name || client.legal_name);
+    const contacts = (client.contacts || []).map(c => {
+      const name = c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
+      return { id: c.contact_id, name, role: c.role || '' };
+    });
+    setLogClientContacts(contacts);
     setLogModalOpen(true);
     setLogsLoading(true);
     try {
@@ -257,10 +263,11 @@ export const Clients = () => {
         client_id: logClientId,
         detail: newLog.detail,
         action: newLog.action,
-        follow_up_date: newLog.follow_up_date || null
+        follow_up_date: newLog.follow_up_date || null,
+        contacted_person: newLog.contacted_person || null
       });
       setLogs(prev => [res.data, ...prev]);
-      setNewLog({ detail: '', action: '', follow_up_date: '' });
+      setNewLog({ detail: '', action: '', follow_up_date: '', contacted_person: '' });
       toast.success('Entrada de bitácora registrada');
     } catch { toast.error('Error al registrar la entrada'); }
   };
@@ -1017,6 +1024,23 @@ export const Clients = () => {
                     placeholder="Ej: Llamar para confirmar recepción" data-testid="log-action-input" />
                 </div>
                 <div>
+                  <Label className="text-xs">Persona contactada</Label>
+                  <Select value={newLog.contacted_person} onValueChange={(v) => setNewLog(p => ({ ...p, contacted_person: v }))}>
+                    <SelectTrigger data-testid="log-contact-select" className="h-9">
+                      <SelectValue placeholder="Seleccione contacto..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {logClientContacts.map(c => (
+                        <SelectItem key={c.id} value={c.name}>
+                          {c.name}{c.role ? ` (${c.role})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <Label className="text-xs">Fecha de seguimiento</Label>
                   <Input type="date" value={newLog.follow_up_date} onChange={(e) => setNewLog(p => ({ ...p, follow_up_date: e.target.value }))}
                     data-testid="log-followup-input" />
@@ -1050,6 +1074,9 @@ export const Clients = () => {
                           <p className={`text-sm ${log.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{log.detail}</p>
                           {log.action && (
                             <p className="text-xs text-blue-600 mt-1 font-medium">Acción: {log.action}</p>
+                          )}
+                          {log.contacted_person && (
+                            <p className="text-xs text-purple-600 mt-0.5 font-medium">Contacto: {log.contacted_person}</p>
                           )}
                           <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
                             <span>Contacto: {log.contact_date}</span>

@@ -463,6 +463,7 @@ async def create_client_log(client_id: str, log_data: ClientLogCreate, authoriza
         "detail": log_data.detail,
         "action": log_data.action,
         "follow_up_date": log_data.follow_up_date,
+        "contacted_person": log_data.contacted_person,
         "is_completed": False,
         "created_by": current_user.get("email", "unknown"),
         "created_by_name": current_user.get("full_name", current_user.get("email", "")),
