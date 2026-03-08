@@ -17,21 +17,28 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - Import/Export (Excel, CSV, PDF), Bitácora por cliente
 
 ### Módulo de Bancos — Visor 360°
-- Lista horizontal: Logo (150x150), Info Fiscal, Chips Medios de Pago, Contacto+Acciones
+- Lista horizontal: Logo (150x150), Info Fiscal, Chips, Contacto+Acciones
 - Contadores `[X Activos | Y en Integración]`
 - Upload de Logo: Drag & drop, resize 150x150px, hover Cambiar/Eliminar
-- **Toggles de Componentes**: VPOS, MPOS, PG, Link clickeables por producto por banco
-  - Permite desactivar componentes específicos por banco aunque el producto global los soporte
-  - Afecta la disponibilidad en cotizaciones (lógica de negocio)
-- Pantalla Detalle `/banks/:bankId`: Sección A (VPOS/MPOS), B (PG/Link), C (Roadmap Integraciones)
-- Gestión de Integraciones: CRUD con flujo Negoc. → DESA → SQA → Imple. → PreProd → Completado
+- Toggles de Componentes: VPOS, MPOS, PG, Link clickeables por producto por banco
+- Pantalla Detalle `/banks/:bankId`: Secciones VPOS/MPOS, PG/Link, Roadmap Integraciones
+- Gestión de Integraciones: CRUD, flujo Negoc. → DESA → SQA → Imple. → PreProd → Completado
+
+### Reporte Global de Integraciones (Implementado 2026-03-08)
+- Ruta: `/banks/integrations/report`
+- Endpoint: `GET /api/banks/integrations/report` (consolidado de todas las integraciones)
+- Tabla: Banco, Producto, Componente, Fase (Estatus), Notas
+- Cards de resumen por fase con semáforo (gris, azul, amarillo, verde)
+- Filtro por fase (dropdown + click en cards)
+- Ordenado por fase más avanzada primero (PreProd → SQA → DESA → Negoc.)
+- Click en fila navega al detalle del banco
+- Botón de acceso prominente en página de Bancos
 
 ### Módulo de Medios de Pago
 - Campo "Tipo" obligatorio: Producto / Servicio
 
 ### Módulo de Proyectos
 - Trigger desde cotizaciones, Matriz con items `additional`
-- Bitácora, estados, prioridades, asignación
 
 ### Dashboard KPI
 - Proyectos Activos con desglose por estado
@@ -40,7 +47,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 
 ### P1
 - Verificación de Email y Recuperación de Contraseña
-- Refactorización Frontend Fase 2: Descomponer `Quotes.jsx`
+- Refactorización Frontend: Descomponer `Quotes.jsx`
 
 ### P2
 - Módulo de Reportes
