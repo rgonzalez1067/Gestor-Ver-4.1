@@ -114,10 +114,11 @@ async def register_user(user_data: UserRegister):
     if existing_user:
         raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
     
-    # Verificar si la cédula ya existe
-    existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
-    if existing_cedula:
-        raise HTTPException(status_code=400, detail="La cédula ya está registrada")
+    # Verificar si la cédula ya existe (solo si se proporcionó)
+    if user_data.cedula:
+        existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
+        if existing_cedula:
+            raise HTTPException(status_code=400, detail="La cédula ya está registrada")
     
     # Crear usuario
     user_id = f"user_{uuid.uuid4().hex[:12]}"
@@ -504,10 +505,11 @@ async def admin_create_user(user_data: UserRegister, authorization: Optional[str
     if existing_user:
         raise HTTPException(status_code=400, detail="Ya existe un usuario con ese correo electrónico")
     
-    # Verificar si la cédula ya existe
-    existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
-    if existing_cedula:
-        raise HTTPException(status_code=400, detail="Ya existe un usuario con esa cédula")
+    # Verificar si la cédula ya existe (solo si se proporcionó)
+    if user_data.cedula:
+        existing_cedula = await db.users.find_one({"cedula": user_data.cedula}, {"_id": 0})
+        if existing_cedula:
+            raise HTTPException(status_code=400, detail="Ya existe un usuario con esa cédula")
     
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     password_hash = hash_password(user_data.password)
@@ -543,6 +545,7 @@ async def admin_create_user(user_data: UserRegister, authorization: Optional[str
     }
     
     await db.users.insert_one(user_doc)
+    user_doc.pop('_id', None)
     
     # Registrar auditoría
     audit_log = {

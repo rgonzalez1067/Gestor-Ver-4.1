@@ -571,7 +571,7 @@ class UserRegister(BaseModel):
     """Modelo para registro de usuario"""
     first_name: str = Field(..., min_length=2, max_length=50)
     last_name: str = Field(..., min_length=2, max_length=50)
-    cedula: str = Field(..., min_length=6, max_length=15)  # Cédula de identidad
+    cedula: Optional[str] = Field(default=None, min_length=6, max_length=15)  # Cédula de identidad (opcional)
     email: EmailStr
     password: str = Field(..., min_length=8)  # Mínimo 8 caracteres
     phone: Optional[str] = None  # Teléfono
