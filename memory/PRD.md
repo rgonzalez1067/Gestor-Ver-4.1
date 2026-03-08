@@ -84,6 +84,13 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - **Reporte mejorado**: Incluye `cert_updates_count` (cruces producto/integrador procesados)
 - **Exportación mejorada**: Excel ahora incluye 25 columnas de productos con valores C/P/N/A
 
+### Integradores — Fecha de Contacto, Estética y Filtros (Implementado 2026-03-08)
+- **Fecha de Último Contacto**: Campo `last_contact_date` con datepicker inline (Popover+Calendar), PATCH endpoint, validación fechas futuras
+- **Importación/Exportación**: Columna "Último Contacto" en plantilla y exportación, parseo DD/MM/AAAA
+- **Corrección estética**: 10 columnas con `table-layout: fixed`, `min-width: 140px` en Acciones, sin solapamiento
+- **Filtros inteligentes**: 6 filtros (búsqueda, Tipo Int., Estatus, Tipo, Modalidad, Gestor) + botón Limpiar
+- **Bienes y Servicios**: Filtro toggle [Todos | Productos | Servicios] + búsqueda por nombre
+
 ## Tareas Pendientes
 
 ### P1
