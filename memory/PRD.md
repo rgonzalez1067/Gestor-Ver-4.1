@@ -57,6 +57,17 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - Stats cards: Total, Certificados, En proceso, Suspendidos
 - Import/Export (Excel, CSV, PDF)
 
+### Integradores — Estructuración y Carga Masiva (Implementado 2026-03-08)
+- **UI Grilla Fija**: table-layout:fixed con colgroup, truncado con tooltip, campos vacíos muestran "—"
+- **Auto-inicialización**: Al crear integrador, todas las certificaciones se inicializan en N/A
+- **Estilo N/A**: Fondo #E3F2FD, texto #0D47A1, bordes redondeados (azul claro)
+- **Importación Upsert**: Clave compuesta (nombre + tipo_integración)
+  - Si no existe → Crea nuevo con todas las certificaciones en N/A
+  - Si ya existe → Actualiza datos, preserva certificaciones
+  - Validación de gestor contra BD de usuarios
+  - Validación de tipo de integración (CR/LP/PG/MP/TK)
+- **Reporte mejorado**: Creados / Actualizados / Fallidos con detalle por fila
+
 ## Tareas Pendientes
 
 ### P1
