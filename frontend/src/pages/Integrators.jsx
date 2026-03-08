@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -54,6 +54,12 @@ export const Integrators = () => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importStep, setImportStep] = useState(1);
+  const [importMode, setImportMode] = useState('upsert');
+  const [importFile, setImportFile] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const dropRef = useRef(null);
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -173,19 +179,52 @@ export const Integrators = () => {
     } catch { toast.error('Error al exportar'); }
   };
 
-  const handleImport = async (event) => {
-    const file = event.target.files?.[0]; if (!file) return;
-    const fd = new FormData(); fd.append('file', file);
+  const handleDownloadTemplate = async () => {
     try {
-      toast.loading('Procesando...', { id: 'imp' });
+      const res = await api.get('/integrators/import/template', { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([res.data]));
+      link.download = 'plantilla_integradores.xlsx'; link.click();
+      toast.success('Plantilla descargada');
+    } catch { toast.error('Error al descargar plantilla'); }
+  };
+
+  const handleImportFileDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+      toast.error('Solo archivos .xlsx, .xls o .csv'); return;
+    }
+    setImportFile(file);
+    setImportStep(3);
+  };
+
+  const handleImportExecute = async () => {
+    if (!importFile) return;
+    setImportLoading(true);
+    const fd = new FormData();
+    fd.append('file', importFile);
+    fd.append('mode', importMode);
+    try {
       const res = await api.post('/integrators/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      toast.dismiss('imp');
       setImportResult(res.data); setShowImportResult(true);
-      if (res.data.status === 'success') toast.success(`${res.data.success_count} importados`);
-      else if (res.data.status === 'partial') toast.warning(`Parcial: ${res.data.success_count} ok, ${res.data.error_count} errores`);
+      if (res.data.status === 'success') toast.success(res.data.message);
+      else if (res.data.status === 'partial') toast.warning(res.data.message);
+      else toast.error(res.data.message);
       fetchData();
-    } catch { toast.dismiss('imp'); toast.error('Error al importar'); }
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch { toast.error('Error al importar archivo'); }
+    finally { setImportLoading(false); }
+  };
+
+  const closeImportDialog = () => {
+    setImportDialogOpen(false);
+    setImportStep(1);
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportResult(false);
+    setImportMode('upsert');
   };
 
   const getStatusBadge = (s) => {
@@ -219,8 +258,7 @@ export const Integrators = () => {
               <p className="text-slate-500 mt-1">Aliados técnicos, certificación de productos y gestores asignados</p>
             </div>
             <div className="flex gap-2">
-              <input type="file" ref={fileInputRef} onChange={handleImport} accept=".xlsx,.xls,.csv" className="hidden" />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>
+              <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
               <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
@@ -472,6 +510,145 @@ export const Integrators = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Import Wizard Dialog */}
+        <Dialog open={importDialogOpen} onOpenChange={(o) => { if (!o) closeImportDialog(); else setImportDialogOpen(true); }}>
+          <DialogContent className="max-w-xl" data-testid="import-wizard-dialog">
+            <DialogHeader>
+              <DialogTitle className="font-manrope text-xl flex items-center gap-2">
+                <Upload size={20} className="text-brand-blue-600" />Asistente de Importación
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Step Indicator */}
+            {!showImportResult && (
+              <div className="flex items-center gap-2 mb-4">
+                {[1, 2, 3].map(s => (
+                  <div key={s} className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${importStep >= s ? 'bg-brand-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>{s}</div>
+                    <span className={`text-xs font-medium ${importStep >= s ? 'text-slate-700' : 'text-slate-400'}`}>
+                      {s === 1 ? 'Plantilla' : s === 2 ? 'Archivo' : 'Procesar'}
+                    </span>
+                    {s < 3 && <div className={`w-8 h-0.5 ${importStep > s ? 'bg-brand-blue-600' : 'bg-slate-200'}`} />}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Step 1: Download Template */}
+            {!showImportResult && importStep === 1 && (
+              <div className="space-y-4" data-testid="import-step-1">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
+                    <FileDown size={16} />Descargar Plantilla Modelo
+                  </h3>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Descargue la plantilla Excel con las columnas correctas, ejemplos de datos y valores válidos.
+                    Esto evita errores de formato y acelera la carga masiva.
+                  </p>
+                  <Button onClick={handleDownloadTemplate} variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100" data-testid="download-template-btn">
+                    <Download size={14} className="mr-1.5" />Descargar Plantilla (.xlsx)
+                  </Button>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={() => setImportStep(2)} data-testid="import-next-step-2">
+                    Siguiente <ChevronDown size={14} className="ml-1 rotate-[-90deg]" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: File Upload (Drag & Drop) */}
+            {!showImportResult && importStep === 2 && (
+              <div className="space-y-4" data-testid="import-step-2">
+                <div
+                  ref={dropRef}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleImportFileDrop}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${importFile ? 'border-green-400 bg-green-50' : 'border-slate-300 hover:border-brand-blue-400 hover:bg-slate-50'}`}
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="import-drop-zone"
+                >
+                  <input type="file" ref={fileInputRef} onChange={handleImportFileDrop} accept=".xlsx,.xls,.csv" className="hidden" />
+                  {importFile ? (
+                    <div className="space-y-2">
+                      <CheckCircle size={32} className="mx-auto text-green-600" />
+                      <p className="text-sm font-medium text-green-700">{importFile.name}</p>
+                      <p className="text-xs text-green-600">{(importFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Upload size={32} className="mx-auto text-slate-400" />
+                      <p className="text-sm font-medium text-slate-600">Arrastre y suelte su archivo aquí</p>
+                      <p className="text-xs text-slate-400">o haga clic para buscar — .xlsx, .xls, .csv</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between">
+                  <Button variant="ghost" onClick={() => setImportStep(1)}>Atrás</Button>
+                  <Button onClick={() => setImportStep(3)} disabled={!importFile} data-testid="import-next-step-3">
+                    Siguiente <ChevronDown size={14} className="ml-1 rotate-[-90deg]" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Processing Options */}
+            {!showImportResult && importStep === 3 && (
+              <div className="space-y-4" data-testid="import-step-3">
+                <div>
+                  <Label className="text-sm font-semibold mb-2 block">Modo de Procesamiento</Label>
+                  <div className="space-y-2">
+                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${importMode === 'upsert' ? 'border-brand-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`} data-testid="import-mode-upsert">
+                      <input type="radio" name="importMode" value="upsert" checked={importMode === 'upsert'} onChange={() => setImportMode('upsert')} className="mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                          <RefreshCw size={13} className="text-blue-600" />Actualizar existentes y cargar nuevos
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">RECOMENDADO</span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Si un integrador ya existe (mismo nombre + tipo), se actualizan sus datos preservando la Matriz de Certificación.</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${importMode === 'insert_only' ? 'border-brand-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`} data-testid="import-mode-insert-only">
+                      <input type="radio" name="importMode" value="insert_only" checked={importMode === 'insert_only'} onChange={() => setImportMode('insert_only')} className="mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+                          <AlertCircle size={13} className="text-amber-600" />Solo insertar nuevos
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Omite los registros que ya existen. No modifica datos existentes.</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+                {importFile && (
+                  <div className="bg-slate-50 rounded-lg p-3 flex items-center gap-3 border border-slate-200">
+                    <FileSpreadsheet size={20} className="text-green-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{importFile.name}</p>
+                      <p className="text-xs text-slate-500">{(importFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <Button variant="ghost" onClick={() => setImportStep(2)}>Atrás</Button>
+                  <Button onClick={handleImportExecute} disabled={importLoading} className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="import-execute-btn">
+                    {importLoading ? <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Procesando...</> : <>Procesar Importación</>}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Import Results */}
+            {showImportResult && importResult && (
+              <div data-testid="import-results-panel">
+                <ImportResultPanel result={importResult} />
+                <div className="flex justify-end mt-4">
+                  <Button variant="outline" onClick={closeImportDialog}>Cerrar</Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

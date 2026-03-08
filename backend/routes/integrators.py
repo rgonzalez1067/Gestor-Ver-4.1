@@ -183,9 +183,89 @@ async def export_integrators_pdf(authorization: Optional[str] = Header(None)):
         headers={"Content-Disposition": "attachment; filename=integradores.pdf"}
     )
 
+# Import template for integrators
+@router.get("/integrators/import/template")
+async def get_integrators_import_template(authorization: Optional[str] = Header(None)):
+    """Descargar plantilla de importación para integradores"""
+    await get_current_user(authorization)
+    
+    import pandas as pd
+    
+    data = {
+        'Nombre': ['TechPay Solutions', 'ComercioApp', 'GatewayVe'],
+        'Tipo': ['Integrador', 'Comercio', 'Integrador'],
+        'Aplicativo': ['PaymentHub v3', 'MiTienda App', 'GW-Connect'],
+        'Modalidad': ['PG Universal', 'MPOS', 'REST'],
+        'Estatus': ['En proceso', 'Certificado', 'En proceso'],
+        'Tipo Integración': ['PG', 'MP', 'CR'],
+        'Gestor': ['', '', ''],
+        'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS']
+    }
+    
+    df = pd.DataFrame(data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Plantilla')
+        
+        info_data = {
+            'Campo': ['Nombre *', 'Tipo *', 'Aplicativo *', 'Modalidad *', 'Estatus',
+                       'Tipo Integración', 'Gestor', 'Categoría'],
+            'Descripción': [
+                'Nombre del integrador (obligatorio)',
+                'Integrador o Comercio (obligatorio)',
+                'Nombre del aplicativo (obligatorio)',
+                'Modalidad de integración (obligatorio)',
+                'Estado actual (def: En proceso)',
+                'Tipo de integración: CR, LP, PG, MP, TK',
+                'Nombre del gestor asignado (debe existir en el sistema)',
+                'Categoría del integrador'
+            ],
+            'Obligatorio': ['Sí', 'Sí', 'Sí', 'Sí', 'No', 'No', 'No', 'No'],
+            'Ejemplo': ['TechPay Solutions', 'Integrador', 'PaymentHub v3', 'PG Universal',
+                        'En proceso', 'PG', 'Juan Pérez', 'Cliente/Integrador nuevo PG']
+        }
+        pd.DataFrame(info_data).to_excel(writer, index=False, sheet_name='Instrucciones')
+        
+        values_data = {
+            'Tipos de Integrador': ['Integrador', 'Comercio', '', '', '', '', '', ''],
+            'Modalidades': ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone', '', ''],
+            'Tipos de Integración': ['CR — Caja Registradora', 'LP — Link de Pago', 'PG — Payment Gateway',
+                                     'MP — Android (Mobile POS)', 'TK — Tokenizador', '', '', ''],
+            'Estatus': ['Certificado', 'En proceso', 'Suspendido', '', '', '', '', ''],
+            'Categorías': [
+                'Cliente/Integrador actual de PG', 'Cliente/Integrador actual de VPOS',
+                'Cliente/Integrador actual Tokenizador', 'Cliente/Integrador nuevo Link de Pago',
+                'Cliente/Integrador nuevo Mpos', 'Cliente/Integrador nuevo PG',
+                'Cliente/Integrador nuevo VPOS', 'Cliente/Integrador MobilePOS'
+            ],
+            'Notas': [
+                'La clave única es Nombre + Tipo Integración',
+                'Si un registro ya existe, se actualizan sus datos',
+                'La Matriz de Certificación se crea automáticamente',
+                'Los campos marcados con * son obligatorios',
+                'Si no indica estatus, se asigna "En proceso"',
+                'El gestor debe estar registrado en el sistema',
+                '', ''
+            ]
+        }
+        pd.DataFrame(values_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_integradores.xlsx"}
+    )
+
 # Import integrators from Excel/CSV with Upsert logic and detailed validation
 @router.post("/integrators/import", response_model=ImportResult)
-async def import_integrators(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+async def import_integrators(
+    file: UploadFile = File(...),
+    mode: str = Form("upsert"),
+    authorization: Optional[str] = Header(None)
+):
     await get_current_user(authorization)
     
     import pandas as pd
@@ -336,8 +416,16 @@ async def import_integrators(file: UploadFile = File(...), authorization: Option
                 
                 existing = await db.integrators.find_one(composite_query, {"_id": 0})
                 
-                if existing:
-                    # UPDATE existing record, preserve certifications
+                if existing and mode == "insert_only":
+                    # In insert_only mode, skip existing records
+                    errors.append(ImportError(row=row_num, column='Nombre/Tipo Int.',
+                        value=f'{name} / {integration_type or "N/A"}',
+                        error_type='duplicate',
+                        message='Ya existe un integrador con este nombre y tipo de integración',
+                        suggested_action='Use el modo "Upsert" para actualizar registros existentes'))
+                    skipped_count += 1
+                elif existing:
+                    # UPSERT mode: UPDATE existing record, preserve certifications
                     update_data = {
                         "integrator_type": integrator_type,
                         "app_name": app_name,
