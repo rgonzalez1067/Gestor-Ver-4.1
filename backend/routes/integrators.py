@@ -450,6 +450,10 @@ async def import_integrators(
                 rename_map[col] = column_mapping[col]
         df.rename(columns=rename_map, inplace=True)
         
+        # Deduplicate columns after renaming (keep first occurrence)
+        # This prevents "truth value of a Series is ambiguous" errors
+        df = df.loc[:, ~df.columns.duplicated()]
+        
         required_columns = ['name', 'integrator_type', 'app_name', 'integration_modality']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
@@ -467,19 +471,28 @@ async def import_integrators(
         valid_integration_types = ['CR', 'LP', 'PG', 'MP', 'TK']
         valid_cert_values = {'c': 'C', 'p': 'P', 'n/a': 'N/A', 'na': 'N/A', '': 'N/A'}
         
+        def _safe_val(row, col, default=''):
+            """Safely extract a scalar value from a row, handling duplicate columns."""
+            val = row.get(col, default)
+            if isinstance(val, pd.Series):
+                val = val.iloc[0]
+            if pd.isna(val):
+                return default
+            return str(val).strip()
+        
         for idx, row in df.iterrows():
             row_num = idx + 2
             
             try:
-                name = str(row.get('name', '')).strip() if pd.notna(row.get('name')) else ''
-                integrator_type = str(row.get('integrator_type', '')).strip() if pd.notna(row.get('integrator_type')) else ''
-                app_name = str(row.get('app_name', '')).strip() if pd.notna(row.get('app_name')) else ''
-                integration_modality = str(row.get('integration_modality', '')).strip() if pd.notna(row.get('integration_modality')) else ''
-                integrator_status = str(row.get('integrator_status', 'En proceso')).strip() if pd.notna(row.get('integrator_status')) else 'En proceso'
-                integration_type = str(row.get('integration_type', '')).strip() if pd.notna(row.get('integration_type')) else ''
-                gestor = str(row.get('gestor', '')).strip() if pd.notna(row.get('gestor')) else ''
-                categoria = str(row.get('categoria', '')).strip() if pd.notna(row.get('categoria')) else ''
-                last_contact_raw = str(row.get('last_contact_date', '')).strip() if pd.notna(row.get('last_contact_date')) else ''
+                name = _safe_val(row, 'name')
+                integrator_type = _safe_val(row, 'integrator_type')
+                app_name = _safe_val(row, 'app_name')
+                integration_modality = _safe_val(row, 'integration_modality')
+                integrator_status = _safe_val(row, 'integrator_status', 'En proceso')
+                integration_type = _safe_val(row, 'integration_type')
+                gestor = _safe_val(row, 'gestor')
+                categoria = _safe_val(row, 'categoria')
+                last_contact_raw = _safe_val(row, 'last_contact_date')
                 
                 row_errors = []
                 
@@ -544,7 +557,7 @@ async def import_integrators(
                 row_certs = {}
                 cert_has_errors = False
                 for col_name, service_id in product_columns.items():
-                    raw_val = str(row.get(col_name, '')).strip() if pd.notna(row.get(col_name)) else ''
+                    raw_val = _safe_val(row, col_name)
                     normalized = valid_cert_values.get(raw_val.lower(), None)
                     if normalized is None:
                         col_letter = chr(ord('J') + list(product_columns.keys()).index(col_name)) if list(product_columns.keys()).index(col_name) < 16 else f'Col {10 + list(product_columns.keys()).index(col_name)}'

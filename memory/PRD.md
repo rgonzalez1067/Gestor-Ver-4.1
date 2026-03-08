@@ -94,6 +94,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 ### Bug Fixes (2026-03-08)
 - **Import Error Display (P0)**: Corregido — Los errores detallados de importación ahora se muestran correctamente en el panel ImportResultPanel dentro del diálogo de importación. Se eliminó panel duplicado fuera del diálogo.
 - **DELETE Integrator Dead Code (P0)**: Corregido — La función `delete_integrator` ahora ejecuta la eliminación real. El código estaba como dead code después del `return` de otra función.
+- **Import "Series is ambiguous" (P0)**: Corregido — Archivos con columnas duplicadas (ej: "Tipo" en dos columnas) causaban que pandas devolviera Series en vez de escalares, provocando error "The truth value of a Series is ambiguous" en TODAS las filas. Fix: deduplicación de columnas post-renombrado + función `_safe_val` para extracción segura.
 
 ## Tareas Pendientes
 
