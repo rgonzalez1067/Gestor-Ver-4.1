@@ -76,6 +76,14 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - **Validaciones**: Gestor contra BD de usuarios, tipo de integración (CR/LP/PG/MP/TK)
 - **Reporte mejorado**: Creados / Actualizados / Fallidos con detalle por fila
 
+### Integradores — Importación con Matriz de Certificación (Implementado 2026-03-08)
+- **Plantilla Dinámica**: 8 columnas base + 25 columnas de productos generadas desde BD
+- **Motor de Importación**: Lee columnas de productos, mapea nombre→service_id, valida C/P/N/A (case-insensitive, vacío=N/A)
+- **Rechazo de inválidos**: Valores como "Listo" rechazan la fila con error detallado (columna + valor)
+- **Upsert de certs**: Crea nuevos con defaults N/A + overlay, actualiza existentes sobrescribiendo certs
+- **Reporte mejorado**: Incluye `cert_updates_count` (cruces producto/integrador procesados)
+- **Exportación mejorada**: Excel ahora incluye 25 columnas de productos con valores C/P/N/A
+
 ## Tareas Pendientes
 
 ### P1
