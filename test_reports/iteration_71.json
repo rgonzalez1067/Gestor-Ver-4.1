@@ -1,0 +1,92 @@
+{
+  "summary": "Iteration 71 - Bank Logo Upload (150x150) and Component Toggles Feature - All backend (9/9) and frontend tests passed. Features implemented: 1) Logo upload area is 150x150px with hover overlay showing Cambiar/Eliminar buttons, 2) Component toggles (VPOS, MPOS, PG, Link) are clickable and change color correctly, 3) Toggle states persist after saving bank, 4) Bank Detail (Visor 360°) correctly filters products by component type.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/banks/upload-logo",
+        "issue": "Code comment says 'Resize to 100x100' but code actually resizes to 150x150 - comment should be updated",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Bank Detail (Visor 360°)",
+        "issues": ["Logo shows as broken image alt text when uploads directory is volatile (expected in preview env)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration71_bank_logo_toggles.py",
+    "/app/test_reports/pytest/pytest_results_iteration71.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: Line 37 in banks.py has outdated comment '# Resize to 100x100 using PIL' but code uses 150x150"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration71_bank_logo_toggles.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "rgonzalez@megasoft.com.ve",
+    "password": "Avila*0226*02"
+  },
+  "seed_data_creation": "No seed data created - tests use existing Banco de Venezuela (bnk_3997d471d939) and revert changes after testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bank logo and component toggle features verified. Key points: 1) Logo upload area uses inline style for 150x150px, 2) Hover overlay shows Cambiar/Eliminar buttons only when logo exists, 3) Component toggles use data-testid format: toggle-{vpos|mpos|gw|link}-{index}, 4) Active toggles have colored bg (blue-500, purple-500, green-500, amber-500), inactive have bg-slate-200 with line-through, 5) New product toggles appear after selecting a medio de pago and use data-testid: new-toggle-{vpos_available|mpos_available|gateway_available|link_available}, 6) Bank Detail page at /banks/:bankId shows 3 sections filtering products by component type.",
+  "verified_features": {
+    "logo_upload_150x150": {
+      "status": "PASSED",
+      "description": "Logo upload area is exactly 150x150px (verified via JS offsetWidth/offsetHeight)"
+    },
+    "logo_hover_overlay": {
+      "status": "PASSED",
+      "description": "Hovering on logo shows overlay with Cambiar and Eliminar buttons"
+    },
+    "eliminar_clears_logo": {
+      "status": "PASSED",
+      "description": "API test confirms bank_logo_url can be cleared (set to empty string)"
+    },
+    "upload_resizes_to_150": {
+      "status": "PASSED",
+      "description": "Backend uses PIL thumbnail((150, 150)) to resize uploaded images"
+    },
+    "component_toggles_clickable": {
+      "status": "PASSED",
+      "description": "All 4 toggles (VPOS, MPOS, PG, Link) are clickable and change state"
+    },
+    "toggle_color_changes": {
+      "status": "PASSED",
+      "description": "Active=colored bg (blue/purple/green/amber), Inactive=gray with line-through"
+    },
+    "toggle_persistence": {
+      "status": "PASSED",
+      "description": "Toggle states persist after PUT /api/banks/{id} update"
+    },
+    "new_product_defaults": {
+      "status": "PASSED",
+      "description": "New product inherits component availability from selected service"
+    },
+    "new_product_toggles_clickable": {
+      "status": "PASSED",
+      "description": "Component toggles for new products are clickable before adding"
+    },
+    "visor_360_filtering": {
+      "status": "PASSED",
+      "description": "Bank detail page shows VPOS/MPOS products in one section, PG/Link in another"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Resend email service"]
+  }
+}

@@ -39,7 +39,7 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
         from PIL import Image
         img = Image.open(io.BytesIO(content))
         img = img.convert("RGBA" if ext == "png" else "RGB")
-        img.thumbnail((100, 100), Image.LANCZOS)
+        img.thumbnail((150, 150), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="PNG" if ext == "png" else "JPEG", quality=90)
         content = buf.getvalue()

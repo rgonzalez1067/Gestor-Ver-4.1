@@ -21,8 +21,9 @@ const COMPONENT_TYPES = [
   { id: 'link_available', name: 'Link', icon: Link, description: 'Links de cobro' }
 ];
 
-const LogoUpload = ({ logoUrl, onUpload }) => {
+const LogoUpload = ({ logoUrl, onUpload, onRemove }) => {
   const [dragging, setDragging] = useState(false);
+  const [hovering, setHovering] = useState(false);
   const inputRef = useRef(null);
 
   const handleFile = useCallback(async (file) => {
@@ -50,20 +51,37 @@ const LogoUpload = ({ logoUrl, onUpload }) => {
 
   return (
     <div
-      className={`relative w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${dragging ? 'border-sky-500 bg-sky-50' : 'border-slate-300 bg-slate-50 hover:border-slate-400'}`}
+      className={`relative rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-all ${dragging ? 'border-sky-500 bg-sky-50' : 'border-slate-300 bg-slate-50 hover:border-slate-400'}`}
+      style={{ width: 150, height: 150 }}
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
-      onClick={() => inputRef.current?.click()}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
       data-testid="logo-upload-area"
     >
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       {logoUrl ? (
-        <img src={`${API_URL}${logoUrl}`} alt="Logo" className="w-20 h-20 object-contain rounded" />
+        <>
+          <img src={`${API_URL}${logoUrl}`} alt="Logo" className="w-[130px] h-[130px] object-contain rounded-lg" />
+          {hovering && (
+            <div className="absolute inset-0 bg-black/50 rounded-xl flex flex-col items-center justify-center gap-2">
+              <button type="button" onClick={() => inputRef.current?.click()} className="px-3 py-1.5 text-xs font-medium bg-white text-slate-800 rounded-md hover:bg-slate-100 transition-colors">
+                Cambiar
+              </button>
+              {onRemove && (
+                <button type="button" onClick={onRemove} className="px-3 py-1.5 text-xs font-medium bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors">
+                  Eliminar
+                </button>
+              )}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="text-center">
-          <ImagePlus size={24} className="mx-auto text-slate-400" />
-          <p className="text-[10px] text-slate-400 mt-1">Subir Logo</p>
+        <div className="text-center" onClick={() => inputRef.current?.click()}>
+          <ImagePlus size={32} className="mx-auto text-slate-400" />
+          <p className="text-xs text-slate-400 mt-2">Subir Logo</p>
+          <p className="text-[10px] text-slate-300 mt-0.5">PNG o JPG</p>
         </div>
       )}
     </div>
@@ -155,6 +173,12 @@ export const Banks = () => {
     if (!newProduct.product_name) { toast.error('Seleccione un medio de pago'); return; }
     setFormData({ ...formData, products: [...formData.products, { ...newProduct }] });
     setNewProduct({ product_name: '', description: '', service_id: '', vpos_available: false, gateway_available: false, mpos_available: false, link_available: false });
+  };
+
+  const toggleProductComponent = (index, field) => {
+    const updated = [...formData.products];
+    updated[index] = { ...updated[index], [field]: !updated[index][field] };
+    setFormData({ ...formData, products: updated });
   };
 
   const removeProduct = (index) => {
@@ -290,7 +314,11 @@ export const Banks = () => {
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Logo + Basic Info */}
                     <div className="flex gap-5 items-start">
-                      <LogoUpload logoUrl={formData.bank_logo_url} onUpload={(url) => setFormData({ ...formData, bank_logo_url: url })} />
+                      <LogoUpload
+                        logoUrl={formData.bank_logo_url}
+                        onUpload={(url) => setFormData({ ...formData, bank_logo_url: url })}
+                        onRemove={() => setFormData({ ...formData, bank_logo_url: '' })}
+                      />
                       <div className="flex-1 grid grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <Label htmlFor="name">Nombre de la Entidad</Label>
@@ -366,19 +394,25 @@ export const Banks = () => {
                       </h3>
                       <div className="space-y-2 mb-4">
                         {formData.products.map((product, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="text-sm font-medium text-slate-800 truncate">{product.product_name}</span>
-                              <div className="flex gap-1 flex-wrap">
-                                {product.vpos_available && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">VPOS</span>}
-                                {product.gateway_available && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-green-100 text-green-700">GW</span>}
-                                {product.mpos_available && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-100 text-purple-700">MPOS</span>}
-                                {product.link_available && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-700">Link</span>}
-                              </div>
+                          <div key={index} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border">
+                            <span className="text-sm font-medium text-slate-800 truncate min-w-0 flex-shrink mr-3">{product.product_name}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button type="button" onClick={() => toggleProductComponent(index, 'vpos_available')}
+                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.vpos_available ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                data-testid={`toggle-vpos-${index}`}>VPOS</button>
+                              <button type="button" onClick={() => toggleProductComponent(index, 'mpos_available')}
+                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.mpos_available ? 'bg-purple-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                data-testid={`toggle-mpos-${index}`}>MPOS</button>
+                              <button type="button" onClick={() => toggleProductComponent(index, 'gateway_available')}
+                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.gateway_available ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                data-testid={`toggle-gw-${index}`}>PG</button>
+                              <button type="button" onClick={() => toggleProductComponent(index, 'link_available')}
+                                className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${product.link_available ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-400 line-through'}`}
+                                data-testid={`toggle-link-${index}`}>Link</button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => removeProduct(index)} className="text-red-500 h-7 w-7 p-0 ml-1">
+                                <Trash2 size={14} />
+                              </Button>
                             </div>
-                            <Button type="button" size="sm" variant="ghost" onClick={() => removeProduct(index)} className="text-red-500 h-7 w-7 p-0">
-                              <Trash2 size={14} />
-                            </Button>
                           </div>
                         ))}
                       </div>
@@ -403,9 +437,12 @@ export const Banks = () => {
                               const Icon = c.icon;
                               const on = newProduct[c.id];
                               return (
-                                <div key={c.id} className={`flex items-center gap-1.5 p-2 rounded border text-xs ${on ? 'border-green-400 bg-green-50 text-green-700' : 'border-slate-200 bg-white text-slate-400'}`}>
+                                <button type="button" key={c.id}
+                                  onClick={() => setNewProduct({ ...newProduct, [c.id]: !on })}
+                                  className={`flex items-center gap-1.5 p-2 rounded border text-xs transition-colors ${on ? 'border-green-400 bg-green-50 text-green-700' : 'border-slate-200 bg-white text-slate-400'}`}
+                                  data-testid={`new-toggle-${c.id}`}>
                                   <Icon size={14} />{c.name}
-                                </div>
+                                </button>
                               );
                             })}
                           </div>
@@ -439,12 +476,12 @@ export const Banks = () => {
                   className="bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition-all flex items-center gap-5">
                   
                   {/* Block 1: Logo */}
-                  <div className="shrink-0 w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer"
+                  <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer"
                     onClick={() => navigate(`/banks/${bank.bank_id}`)}>
                     {bank.bank_logo_url ? (
-                      <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-14 h-14 object-contain" />
+                      <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-[70px] h-[70px] object-contain" />
                     ) : (
-                      <Building2 size={24} className="text-slate-400" />
+                      <Building2 size={28} className="text-slate-400" />
                     )}
                   </div>
 
