@@ -230,7 +230,39 @@ export const Integrators = () => {
       else if (res.data.status === 'partial') toast.warning(res.data.message);
       else toast.error(res.data.message);
       fetchData();
-    } catch { toast.error('Error al importar archivo'); }
+    } catch (err) {
+      const errData = err?.response?.data;
+      if (errData && errData.errors) {
+        // Backend returned an ImportResult with errors
+        setImportResult(errData); setShowImportResult(true);
+        toast.error(errData.message || 'Error en la importación');
+      } else if (errData?.detail) {
+        // Pydantic validation or HTTPException
+        const detail = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+        setImportResult({
+          status: 'error', total_processed: 0, success_count: 0, updated_count: 0,
+          cert_updates_count: 0, error_count: 1, skipped_count: 0,
+          errors: [{ row: 0, column: 'Sistema', value: null, error_type: 'format',
+            message: `Error del servidor: ${detail}`,
+            suggested_action: 'Verifique el formato del archivo y que contenga las columnas requeridas. Descargue la plantilla modelo como referencia.' }],
+          message: `Error técnico: ${detail}`
+        });
+        setShowImportResult(true);
+        toast.error(`Error: ${detail}`);
+      } else {
+        const msg = err?.message || 'Error desconocido al importar archivo';
+        setImportResult({
+          status: 'error', total_processed: 0, success_count: 0, updated_count: 0,
+          cert_updates_count: 0, error_count: 1, skipped_count: 0,
+          errors: [{ row: 0, column: 'Conexión', value: null, error_type: 'format',
+            message: `Error de conexión: ${msg}`,
+            suggested_action: 'Verifique su conexión a internet e intente nuevamente. Si el problema persiste, descargue la plantilla y verifique el formato.' }],
+          message: `Error de conexión: ${msg}`
+        });
+        setShowImportResult(true);
+        toast.error(msg);
+      }
+    }
     finally { setImportLoading(false); }
   };
 
@@ -408,8 +440,6 @@ export const Integrators = () => {
             <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">En proceso</div><div className="text-xl font-bold text-amber-700">{integrators.filter(i => i.integrator_status === 'En proceso').length}</div></div>
             <div className="bg-white rounded-lg border border-red-200 p-3"><div className="text-xs text-red-600">Suspendidos</div><div className="text-xl font-bold text-red-700">{integrators.filter(i => i.integrator_status === 'Suspendido').length}</div></div>
           </div>
-
-          {showImportResult && importResult && <ImportResultPanel result={importResult} onClose={() => { setShowImportResult(false); setImportResult(null); }} />}
 
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
@@ -701,7 +731,7 @@ export const Integrators = () => {
             {/* Import Results */}
             {showImportResult && importResult && (
               <div data-testid="import-results-panel">
-                <ImportResultPanel result={importResult} />
+                <ImportResultPanel result={importResult} onClose={closeImportDialog} />
                 <div className="flex justify-end mt-4">
                   <Button variant="outline" onClick={closeImportDialog}>Cerrar</Button>
                 </div>

@@ -97,6 +97,11 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
             status_code=400, 
             detail=f"No se puede eliminar el integrador porque está asociado a {quotes_with_integrator} cotización(es). Elimine primero las cotizaciones asociadas."
         )
+    
+    result = await db.integrators.delete_one({"integrator_id": integrator_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Integrator not found")
+    return {"message": "Integrador eliminado exitosamente"}
 
 @router.patch("/integrators/{integrator_id}/contact-date")
 async def update_contact_date(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
@@ -117,11 +122,6 @@ async def update_contact_date(integrator_id: str, body: dict, authorization: Opt
         {"$set": {"last_contact_date": date_val}}
     )
     return {"status": "ok", "last_contact_date": date_val}
-    
-    result = await db.integrators.delete_one({"integrator_id": integrator_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Integrator not found")
-    return {"message": "Integrador eliminado exitosamente"}
 
 # Export integrators to Excel (with certification matrix)
 @router.get("/integrators/export/excel")
