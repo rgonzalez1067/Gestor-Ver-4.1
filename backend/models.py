@@ -178,7 +178,7 @@ class Service(BaseModel):
 
 # ==================== INTEGRATOR MODELS ====================
 INTEGRATOR_TYPES = ["Integrador", "Comercio"]
-INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal"]
+INTEGRATION_MODALITIES = ["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal", "Wrapper"]
 INTEGRATOR_STATUSES = ["Certificado", "En proceso", "Suspendido"]
 
 # ==================== IMPORT RESPONSE MODELS ====================
@@ -215,7 +215,7 @@ class IntegratorCreate(BaseModel):
     integrator_type: Literal["Integrador", "Comercio"]
     integration_type: Optional[str] = None  # CR, LP, PG, MP, TK
     app_name: str
-    integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal"]
+    integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal", "Wrapper"]
     integrator_status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
     gestor: Optional[str] = None
     categoria: Optional[str] = None

@@ -21,7 +21,7 @@ const INTEGRATION_TYPE_OPTIONS = [
   { id: 'MP', label: 'MP — Android (Mobile POS)' },
   { id: 'TK', label: 'TK — Tokenizador' }
 ];
-const INTEGRATION_MODALITIES = ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone', 'TKN No Universal', 'TKN Universal', 'Web Link de Pago Modalidad No Universal', 'Web Link de Pago Modalidad Universal'];
+const INTEGRATION_MODALITIES = ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone', 'TKN No Universal', 'TKN Universal', 'Web Link de Pago Modalidad No Universal', 'Web Link de Pago Modalidad Universal', 'Wrapper'];
 const INTEGRATOR_STATUSES = ['Certificado', 'En proceso', 'Suspendido'];
 const CATEGORIAS = [
   'Cliente/Integrador actual de PG',
