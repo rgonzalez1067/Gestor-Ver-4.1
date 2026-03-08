@@ -108,6 +108,76 @@ async def delete_bank(bank_id: str, authorization: Optional[str] = Header(None))
         raise HTTPException(status_code=404, detail="Bank not found")
     return {"message": "Banco eliminado exitosamente"}
 
+# ==================== BANK INTEGRATIONS ====================
+
+@router.get("/banks/{bank_id}/detail")
+async def get_bank_detail(bank_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene el detalle completo de un banco incluyendo sus medios de pago activos."""
+    await get_current_user(authorization)
+    bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Banco no encontrado")
+    if isinstance(bank.get('created_at'), str):
+        bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+    return bank
+
+@router.post("/banks/{bank_id}/integrations")
+async def add_bank_integration(bank_id: str, integration: BankIntegration, authorization: Optional[str] = Header(None)):
+    """Agrega una nueva integración en curso a un banco."""
+    await get_current_user(authorization)
+    bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Banco no encontrado")
+    
+    doc = integration.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.banks.update_one(
+        {"bank_id": bank_id},
+        {"$push": {"integrations": doc}}
+    )
+    return doc
+
+@router.put("/banks/{bank_id}/integrations/{integration_id}")
+async def update_bank_integration(bank_id: str, integration_id: str, update_data: dict, authorization: Optional[str] = Header(None)):
+    """Actualiza el estatus o datos de una integración."""
+    await get_current_user(authorization)
+    bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Banco no encontrado")
+    
+    integrations = bank.get("integrations", [])
+    found = False
+    for i, intg in enumerate(integrations):
+        if intg.get("integration_id") == integration_id:
+            for key, val in update_data.items():
+                if key in ("status", "notes", "service_name", "component_type"):
+                    integrations[i][key] = val
+            found = True
+            break
+    
+    if not found:
+        raise HTTPException(status_code=404, detail="Integración no encontrada")
+    
+    await db.banks.update_one(
+        {"bank_id": bank_id},
+        {"$set": {"integrations": integrations}}
+    )
+    return integrations[i]
+
+@router.delete("/banks/{bank_id}/integrations/{integration_id}")
+async def delete_bank_integration(bank_id: str, integration_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina una integración de un banco."""
+    await get_current_user(authorization)
+    
+    result = await db.banks.update_one(
+        {"bank_id": bank_id},
+        {"$pull": {"integrations": {"integration_id": integration_id}}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Integración no encontrada")
+    return {"message": "Integración eliminada"}
+
 @router.post("/banks/import", response_model=ImportResult)
 async def import_banks(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)

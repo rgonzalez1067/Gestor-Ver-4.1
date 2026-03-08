@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -7,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -70,6 +71,7 @@ const LogoUpload = ({ logoUrl, onUpload }) => {
 };
 
 export const Banks = () => {
+  const navigate = useNavigate();
   const [banks, setBanks] = useState([]);
   const [mediosPago, setMediosPago] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -431,12 +433,14 @@ export const Banks = () => {
           <div className="space-y-3" data-testid="banks-list">
             {banks.map((bank) => {
               const chips = getProductChips(bank.products);
+              const integrationsCount = (bank.integrations || []).filter(i => i.status !== 'Completado').length;
               return (
                 <div key={bank.bank_id} data-testid={`bank-row-${bank.bank_id}`}
                   className="bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition-all flex items-center gap-5">
                   
                   {/* Block 1: Logo */}
-                  <div className="shrink-0 w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                  <div className="shrink-0 w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer"
+                    onClick={() => navigate(`/banks/${bank.bank_id}`)}>
                     {bank.bank_logo_url ? (
                       <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-14 h-14 object-contain" />
                     ) : (
@@ -446,7 +450,8 @@ export const Banks = () => {
 
                   {/* Block 2: Fiscal Info */}
                   <div className="min-w-[200px] shrink-0">
-                    <h3 className="text-base font-semibold text-slate-900 font-manrope leading-tight">{bank.name}</h3>
+                    <h3 className="text-base font-semibold text-slate-900 font-manrope leading-tight cursor-pointer hover:text-brand-blue-600 transition-colors"
+                      onClick={() => navigate(`/banks/${bank.bank_id}`)}>{bank.name}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600">{bank.type}</span>
                       {bank.bank_code && (
@@ -458,17 +463,30 @@ export const Banks = () => {
                     {bank.rif && <p className="text-xs text-slate-500 mt-0.5">{bank.rif}</p>}
                   </div>
 
-                  {/* Block 3: Payment Methods Chips */}
+                  {/* Block 3: Payment Methods Chips + Counters */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
                       {chips.length > 0 ? (
-                        chips.map((p, i) => (
+                        chips.slice(0, 5).map((p, i) => (
                           <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
                             {p.product_name}
                           </span>
                         ))
                       ) : (
                         <span className="text-xs text-slate-400 italic">Sin medios de pago</span>
+                      )}
+                      {chips.length > 5 && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                          +{chips.length - 5} más
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-3 text-xs">
+                      <span className="text-emerald-600 font-medium">{chips.length} Activos</span>
+                      {integrationsCount > 0 && (
+                        <span className="text-purple-600 font-medium flex items-center gap-0.5">
+                          <Rocket size={10} />{integrationsCount} en Integración
+                        </span>
                       )}
                     </div>
                   </div>
@@ -483,6 +501,9 @@ export const Banks = () => {
                       </div>
                     )}
                     <div className="flex gap-1.5">
+                      <Button size="sm" variant="outline" data-testid={`view-bank-${bank.bank_id}`} onClick={() => navigate(`/banks/${bank.bank_id}`)} className="h-8 w-8 p-0 text-brand-blue-600 hover:text-brand-blue-700 hover:border-brand-blue-300">
+                        <Eye size={14} />
+                      </Button>
                       <Button size="sm" variant="outline" data-testid={`edit-bank-${bank.bank_id}`} onClick={() => openEditDialog(bank)} className="h-8 w-8 p-0">
                         <Pencil size={14} />
                       </Button>

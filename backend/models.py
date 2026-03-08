@@ -78,6 +78,15 @@ class BankProduct(BaseModel):
     link_available: bool = False
     pg_setup_cost: float = 0  # Costo de setup para Payment Gateway
 
+class BankIntegration(BaseModel):
+    """Integración en curso con un banco"""
+    integration_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:8]}")
+    service_name: str
+    component_type: str  # "VPOS/MPOS" o "PG/Link"
+    status: Literal["Negoc.", "DESA", "SQA", "Imple.", "PreProd", "Completado"] = "Negoc."
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class BankCreate(BaseModel):
     name: str
     type: str
@@ -89,6 +98,7 @@ class BankCreate(BaseModel):
     contact_email: Optional[str] = None
     bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
+    integrations: List[BankIntegration] = []
 
 class Bank(BaseModel):
     bank_id: str = Field(default_factory=lambda: f"bnk_{uuid.uuid4().hex[:12]}")
@@ -102,6 +112,7 @@ class Bank(BaseModel):
     contact_email: Optional[str] = None
     bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
+    integrations: List[BankIntegration] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ComponentTypeCreate(BaseModel):
