@@ -91,6 +91,10 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - **Filtros inteligentes**: 6 filtros (búsqueda, Tipo Int., Estatus, Tipo, Modalidad, Gestor) + botón Limpiar
 - **Bienes y Servicios**: Filtro toggle [Todos | Productos | Servicios] + búsqueda por nombre
 
+### Bug Fixes (2026-03-08)
+- **Import Error Display (P0)**: Corregido — Los errores detallados de importación ahora se muestran correctamente en el panel ImportResultPanel dentro del diálogo de importación. Se eliminó panel duplicado fuera del diálogo.
+- **DELETE Integrator Dead Code (P0)**: Corregido — La función `delete_integrator` ahora ejecuta la eliminación real. El código estaba como dead code después del `return` de otra función.
+
 ## Tareas Pendientes
 
 ### P1
