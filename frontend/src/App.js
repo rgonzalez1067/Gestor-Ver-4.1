@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Clients } from './pages/Clients';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
+import IntegrationReport from './pages/IntegrationReport';
 import Hardware from './pages/Hardware';
 import MediosPago from './pages/MediosPago';
 import Integrators from './pages/Integrators';
@@ -44,6 +45,11 @@ function AppRouter() {
       <Route path="/banks" element={
         <ProtectedRoute>
           <Banks />
+        </ProtectedRoute>
+      } />
+      <Route path="/banks/integrations/report" element={
+        <ProtectedRoute>
+          <IntegrationReport />
         </ProtectedRoute>
       } />
       <Route path="/banks/:bankId" element={

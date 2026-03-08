@@ -1,0 +1,184 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Sidebar } from '../components/Sidebar';
+import { Button } from '../components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { ArrowLeft, Building2, Rocket, Filter } from 'lucide-react';
+import api from '../utils/api';
+import { toast } from 'sonner';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const STATUS_CONFIG = {
+  'Negoc.':     { label: 'Negoc.',    full: 'En Negociación',    color: 'bg-slate-100 text-slate-700 border-slate-300',   dot: 'bg-slate-400' },
+  'DESA':       { label: 'DESA',      full: 'Desarrollo',        color: 'bg-blue-100 text-blue-700 border-blue-300',       dot: 'bg-blue-500' },
+  'SQA':        { label: 'SQA',       full: 'Control de Calidad',color: 'bg-amber-100 text-amber-700 border-amber-300',    dot: 'bg-amber-500' },
+  'Imple.':     { label: 'Imple.',    full: 'Implementación',    color: 'bg-amber-100 text-amber-700 border-amber-300',    dot: 'bg-amber-500' },
+  'PreProd':    { label: 'PreProd',   full: 'Pre-Producción',    color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' },
+  'Completado': { label: 'Completado',full: 'Completado',        color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' }
+};
+
+const getStatus = (s) => STATUS_CONFIG[s] || STATUS_CONFIG['Negoc.'];
+
+const FILTER_OPTIONS = [
+  { value: 'all', label: 'Todas las Fases' },
+  { value: 'Negoc.', label: 'Negociación' },
+  { value: 'DESA', label: 'Desarrollo' },
+  { value: 'SQA', label: 'Control de Calidad' },
+  { value: 'Imple.', label: 'Implementación' },
+  { value: 'PreProd', label: 'Pre-Producción' },
+  { value: 'Completado', label: 'Completado' }
+];
+
+export const IntegrationReport = () => {
+  const navigate = useNavigate();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        const res = await api.get('/banks/integrations/report');
+        setData(res.data);
+      } catch { toast.error('Error al cargar reporte'); }
+      finally { setLoading(false); }
+    };
+    fetchReport();
+  }, []);
+
+  const filtered = statusFilter === 'all' ? data : data.filter(r => r.status === statusFilter);
+
+  // Group counts by status
+  const statusCounts = {};
+  data.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center bg-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen bg-white">
+      <Sidebar />
+      <main className="flex-1 p-8" data-testid="integration-report-page">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center gap-4 mb-6">
+            <Button variant="outline" size="sm" onClick={() => navigate('/banks')} data-testid="back-to-banks-btn">
+              <ArrowLeft size={16} className="mr-1" />Bancos
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-slate-900 font-manrope">Proyectos en Proceso de Integración</h1>
+              <p className="text-slate-500 text-sm mt-1">Radar consolidado de todas las integraciones bancarias en desarrollo</p>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-6 gap-3 mb-6">
+            {FILTER_OPTIONS.slice(1).map(opt => {
+              const count = statusCounts[opt.value] || 0;
+              const cfg = getStatus(opt.value);
+              const isActive = statusFilter === opt.value;
+              return (
+                <button key={opt.value} onClick={() => setStatusFilter(isActive ? 'all' : opt.value)}
+                  data-testid={`filter-${opt.value.toLowerCase().replace('.','')}`}
+                  className={`p-3 rounded-lg border-2 text-center transition-all ${isActive ? 'border-slate-800 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <div className={`w-3 h-3 rounded-full mx-auto mb-1.5 ${cfg.dot}`} />
+                  <p className="text-2xl font-bold text-slate-900">{count}</p>
+                  <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">{opt.label}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Filter bar */}
+          <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <Filter size={16} className="text-slate-500" />
+            <span className="text-sm text-slate-600 font-medium">Filtrar por Fase:</span>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[220px] h-8 text-sm bg-white" data-testid="status-filter-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FILTER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-slate-400 ml-auto">{filtered.length} de {data.length} integraciones</span>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrations-table">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Banco</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Producto</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Componente</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Fase (Estatus)</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length > 0 ? filtered.map((row) => {
+                  const cfg = getStatus(row.status);
+                  return (
+                    <tr key={`${row.bank_id}-${row.integration_id}`}
+                      onClick={() => navigate(`/banks/${row.bank_id}`)}
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+                      data-testid={`report-row-${row.integration_id}`}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                            {row.bank_logo_url ? (
+                              <img src={`${API_URL}${row.bank_logo_url}`} alt="" className="w-7 h-7 object-contain" />
+                            ) : (
+                              <Building2 size={14} className="text-slate-400" />
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-slate-900">{row.bank_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-sm text-slate-800">{row.service_name}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{row.component_type}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border ${cfg.color}`}>
+                          <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-slate-500 truncate max-w-[200px] block">{row.notes || '—'}</span>
+                      </td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center">
+                      <Rocket size={32} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-400">
+                        {statusFilter === 'all' ? 'No hay integraciones registradas' : `No hay integraciones en fase "${statusFilter}"`}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default IntegrationReport;

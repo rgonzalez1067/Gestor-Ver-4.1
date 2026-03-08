@@ -466,6 +466,16 @@ export const Banks = () => {
             <ImportResultPanel result={importResult} onClose={() => { setShowImportResult(false); setImportResult(null); }} />
           )}
 
+          {/* Integration Report Button */}
+          <div className="mb-6">
+            <Button onClick={() => navigate('/banks/integrations/report')}
+              data-testid="integration-report-btn"
+              className="bg-purple-600 hover:bg-purple-700 text-white w-full justify-center py-3 text-sm font-semibold">
+              <Rocket size={18} className="mr-2" />
+              Consulta de Proyectos en Proceso de Integración
+            </Button>
+          </div>
+
           {/* Bank Rows - Horizontal Layout */}
           <div className="space-y-3" data-testid="banks-list">
             {banks.map((bank) => {

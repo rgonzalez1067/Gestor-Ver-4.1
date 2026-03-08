@@ -52,6 +52,41 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
     logo_url = f"/api/uploads/bank_logos/{filename}"
     return {"logo_url": logo_url}
 
+# ==================== INTEGRATION REPORT ====================
+
+@router.get("/banks/integrations/report")
+async def get_integrations_report(authorization: Optional[str] = Header(None)):
+    """Reporte global consolidado de todas las integraciones en curso de todos los bancos."""
+    await get_current_user(authorization)
+    
+    # Phase priority order: most advanced first
+    PHASE_ORDER = {"Completado": 0, "PreProd": 1, "Imple.": 2, "SQA": 3, "DESA": 4, "Negoc.": 5}
+    
+    banks = await db.banks.find(
+        {"integrations": {"$exists": True, "$ne": []}},
+        {"_id": 0, "bank_id": 1, "name": 1, "bank_logo_url": 1, "integrations": 1}
+    ).to_list(None)
+    
+    report = []
+    for bank in banks:
+        for intg in bank.get("integrations", []):
+            report.append({
+                "bank_id": bank["bank_id"],
+                "bank_name": bank["name"],
+                "bank_logo_url": bank.get("bank_logo_url"),
+                "integration_id": intg.get("integration_id"),
+                "service_name": intg.get("service_name"),
+                "component_type": intg.get("component_type"),
+                "status": intg.get("status"),
+                "notes": intg.get("notes"),
+                "created_at": intg.get("created_at")
+            })
+    
+    # Sort by phase priority (most advanced first)
+    report.sort(key=lambda x: PHASE_ORDER.get(x["status"], 99))
+    
+    return report
+
 # ==================== BANKS ENDPOINTS ====================
 
 @router.post("/banks", response_model=Bank)
