@@ -220,6 +220,7 @@ class IntegratorCreate(BaseModel):
     gestor: Optional[str] = None
     categoria: Optional[str] = None
     certifications: Optional[dict] = None  # {service_id: "P"|"C"|"N/A"}
+    last_contact_date: Optional[str] = None  # ISO date string
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
@@ -232,6 +233,7 @@ class Integrator(BaseModel):
     gestor: Optional[str] = None
     categoria: Optional[str] = None
     certifications: Optional[dict] = None
+    last_contact_date: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

@@ -6,8 +6,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -47,9 +49,12 @@ export const Integrators = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
+  const [filterIntType, setFilterIntType] = useState('');
+  const [filterModality, setFilterModality] = useState('');
+  const [filterGestor, setFilterGestor] = useState('');
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
-    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}
+    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: ''
   });
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
@@ -130,13 +135,14 @@ export const Integrators = () => {
       integration_type: intg.integration_type || '', app_name: intg.app_name,
       integration_modality: intg.integration_modality, integrator_status: intg.integrator_status,
       gestor: intg.gestor || '', categoria: intg.categoria || '',
-      certifications: intg.certifications || {}
+      certifications: intg.certifications || {},
+      last_contact_date: intg.last_contact_date || ''
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {} });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '' });
     setEditingIntegrator(null);
   };
 
@@ -156,11 +162,21 @@ export const Integrators = () => {
         integrator_status: intg.integrator_status,
         gestor: intg.gestor || null,
         categoria: intg.categoria || null,
+        last_contact_date: intg.last_contact_date || null,
         certifications: certs
       };
       await api.put(`/integrators/${integratorId}`, payload);
       setIntegrators(prev => prev.map(i => i.integrator_id === integratorId ? { ...i, certifications: certs } : i));
     } catch { toast.error('Error al actualizar certificación'); }
+  };
+
+  const updateContactDate = async (integratorId, date) => {
+    const dateStr = date ? date.toISOString().split('T')[0] : null;
+    try {
+      await api.patch(`/integrators/${integratorId}/contact-date`, { last_contact_date: dateStr });
+      setIntegrators(prev => prev.map(i => i.integrator_id === integratorId ? { ...i, last_contact_date: dateStr } : i));
+      toast.success('Fecha actualizada');
+    } catch { toast.error('Error al actualizar fecha'); }
   };
 
   const handleExportExcel = async () => {
@@ -235,9 +251,12 @@ export const Integrators = () => {
   };
 
   const filteredIntegrators = integrators.filter(intg => {
+    if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
+    if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
+    if (filterGestor && filterGestor !== 'all' && intg.gestor !== filterGestor) return false;
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
-    return intg.name?.toLowerCase().includes(s) || intg.app_name?.toLowerCase().includes(s) || intg.integration_modality?.toLowerCase().includes(s);
+    return intg.name?.toLowerCase().includes(s) || intg.app_name?.toLowerCase().includes(s) || intg.integration_modality?.toLowerCase().includes(s) || intg.gestor?.toLowerCase().includes(s);
   });
 
   if (loading) return (
@@ -336,28 +355,48 @@ export const Integrators = () => {
 
           {/* Filters */}
           <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex-1 min-w-[200px] relative">
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex-1 min-w-[180px] relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" data-testid="search-input" />
+                <Input placeholder="Buscar nombre, aplicativo, gestor..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-sm" data-testid="search-input" />
               </div>
-              <Filter size={14} className="text-slate-400" />
+              <Select value={filterIntType} onValueChange={setFilterIntType}>
+                <SelectTrigger className="w-[110px] h-9 text-xs" data-testid="filter-int-type"><SelectValue placeholder="Tipo Int." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.id}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[140px]" data-testid="filter-status"><SelectValue placeholder="Estatus" /></SelectTrigger>
+                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-status"><SelectValue placeholder="Estatus" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-[140px]" data-testid="filter-type"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                <SelectTrigger className="w-[115px] h-9 text-xs" data-testid="filter-type"><SelectValue placeholder="Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {INTEGRATOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {(filterStatus || filterType || searchTerm) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFilterStatus('all'); setFilterType('all'); setSearchTerm(''); }}>Limpiar</Button>
+              <Select value={filterModality} onValueChange={setFilterModality}>
+                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-modality"><SelectValue placeholder="Modalidad" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {INTEGRATION_MODALITIES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filterGestor} onValueChange={setFilterGestor}>
+                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-gestor"><SelectValue placeholder="Gestor" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {(filterStatus || filterType || filterIntType || filterModality || filterGestor || searchTerm) && (
+                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setFilterStatus('all'); setFilterType('all'); setFilterIntType('all'); setFilterModality('all'); setFilterGestor('all'); setSearchTerm(''); }} data-testid="clear-filters-btn">Limpiar</Button>
               )}
             </div>
           </div>
@@ -375,61 +414,82 @@ export const Integrators = () => {
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1050px' }}>
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1150px' }}>
                 <colgroup>
-                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '5%' }} />
                   <col style={{ width: '7%' }} />
-                  <col style={{ width: '8%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '11%' }} />
                   <col style={{ width: '12%' }} />
                   <col style={{ width: '9%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '9%' }} />
                   <col style={{ width: '8%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '14%' }} />
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Nombre</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo Int.</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Aplicativo</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Modalidad</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">T.Int</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Tipo</th>
+                    <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Aplicativo</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Modalidad</th>
+                    <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Últ. Contacto</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase" style={{ minWidth: '140px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => (
                     <Fragment key={intg.integrator_id}>
                       <tr className="hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-2">
                           <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          {intg.integration_type ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-700">{intg.integration_type}</span> : <span className="text-slate-300">—</span>}
+                        <td className="px-2 py-2 text-center">
+                          {intg.integration_type ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">{intg.integration_type}</span> : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${intg.integrator_type === 'Integrador' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{intg.integrator_type}</span>
+                        <td className="px-2 py-2 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${intg.integrator_type === 'Integrador' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{intg.integrator_type === 'Integrador' ? 'Int.' : 'Com.'}</span>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <p className="text-sm text-slate-700 truncate" title={intg.app_name}>{intg.app_name}</p>
+                        <td className="px-2 py-2">
+                          <p className="text-xs text-slate-700 truncate" title={intg.app_name}>{intg.app_name}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-center">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">{intg.integration_modality}</span>
+                        <td className="px-2 py-2 text-center">
+                          <span className="text-[10px] text-slate-600 truncate block" title={intg.integration_modality}>{intg.integration_modality}</span>
                         </td>
-                        <td className="px-3 py-2.5">
-                          <p className="text-xs text-slate-600 truncate" title={intg.gestor || ''}>{intg.gestor || '—'}</p>
+                        <td className="px-2 py-2">
+                          <p className="text-[10px] text-slate-600 truncate" title={intg.gestor || ''}>{intg.gestor || '—'}</p>
                         </td>
-                        <td className="px-3 py-2.5 text-center">
+                        <td className="px-2 py-2 text-center">
                           <span className="text-[10px] text-slate-500 truncate block" title={intg.categoria || ''}>{intg.categoria ? intg.categoria.replace('Cliente/Integrador ', '') : '—'}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-center">{getStatusBadge(intg.integrator_status)}</td>
-                        <td className="px-3 py-2.5 text-center">
-                          <div className="flex items-center justify-center gap-0.5">
+                        <td className="px-2 py-2 text-center">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="inline-flex items-center gap-1 text-[10px] text-slate-600 hover:text-brand-blue-600 cursor-pointer hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors" data-testid={`date-${intg.integrator_id}`}>
+                                <CalendarDays size={11} />
+                                {intg.last_contact_date ? new Date(intg.last_contact_date + 'T12:00:00').toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="center">
+                              <Calendar
+                                mode="single"
+                                selected={intg.last_contact_date ? new Date(intg.last_contact_date + 'T12:00:00') : undefined}
+                                onSelect={(date) => updateContactDate(intg.integrator_id, date)}
+                                disabled={(date) => date > new Date()}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </td>
+                        <td className="px-2 py-2 text-center overflow-hidden">{getStatusBadge(intg.integrator_status)}</td>
+                        <td className="px-2 py-2" style={{ minWidth: '140px' }}>
+                          <div className="flex items-center justify-center gap-1">
                             <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
                               className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
                               <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
@@ -442,7 +502,7 @@ export const Integrators = () => {
                       {/* Expanded certification matrix */}
                       {expandedRow === intg.integrator_id && (
                         <tr>
-                          <td colSpan={9} className="p-0">
+                          <td colSpan={10} className="p-0">
                             <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
                               <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                                 <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}

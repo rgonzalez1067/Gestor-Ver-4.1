@@ -97,6 +97,26 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
             status_code=400, 
             detail=f"No se puede eliminar el integrador porque está asociado a {quotes_with_integrator} cotización(es). Elimine primero las cotizaciones asociadas."
         )
+
+@router.patch("/integrators/{integrator_id}/contact-date")
+async def update_contact_date(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualizar solo la fecha de último contacto (inline edit)"""
+    await get_current_user(authorization)
+    date_val = body.get("last_contact_date")
+    if date_val:
+        from datetime import date as date_type
+        try:
+            parsed = datetime.strptime(date_val, "%Y-%m-%d").date()
+            if parsed > date_type.today():
+                raise HTTPException(status_code=400, detail="La fecha no puede ser futura")
+            date_val = parsed.isoformat()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD)")
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {"last_contact_date": date_val}}
+    )
+    return {"status": "ok", "last_contact_date": date_val}
     
     result = await db.integrators.delete_one({"integrator_id": integrator_id})
     if result.deleted_count == 0:
@@ -132,8 +152,9 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
             'Tipo Integración': intg.get('integration_type', ''),
             'Gestor': intg.get('gestor', ''),
             'Categoría': intg.get('categoria', ''),
+            'Último Contacto': intg.get('last_contact_date', ''),
         }
-        certs = intg.get('certifications', {})
+        certs = intg.get('certifications') or {}
         for prod in cert_products:
             row[prod['name']] = certs.get(prod['service_id'], 'N/A')
         rows.append(row)
@@ -223,7 +244,8 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Estatus': ['En proceso', 'Certificado', 'En proceso'],
         'Tipo Integración': ['PG', 'MP', 'CR'],
         'Gestor': ['', '', ''],
-        'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS']
+        'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
+        'Último Contacto': ['15/01/2026', '28/02/2026', '']
     }
     
     # Add dynamic product columns with sample cert values
@@ -247,6 +269,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Tipo Integración', 'Descripción': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
             {'Campo': 'Gestor', 'Descripción': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Pérez'},
             {'Campo': 'Categoría', 'Descripción': 'Categoría del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
+            {'Campo': 'Último Contacto', 'Descripción': 'Fecha del último contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
             {'Campo': '--- COLUMNAS DE PRODUCTOS ---', 'Descripción': 'Las siguientes columnas corresponden a la Matriz de Certificación', 'Obligatorio': '---', 'Ejemplo': '---'},
         ]
         for prod in cert_products:
@@ -349,7 +372,9 @@ async def import_integrators(
             'modalidad_de_integración': 'integration_modality', 'modalidad_de_integracion': 'integration_modality',
             'Estatus': 'integrator_status', 'estatus': 'integrator_status', 'estado': 'integrator_status',
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
-            'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria'
+            'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria',
+            'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
+            'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date'
         }
         
         # Pre-load users and products
@@ -418,8 +443,33 @@ async def import_integrators(
                 integration_type = str(row.get('integration_type', '')).strip() if pd.notna(row.get('integration_type')) else ''
                 gestor = str(row.get('gestor', '')).strip() if pd.notna(row.get('gestor')) else ''
                 categoria = str(row.get('categoria', '')).strip() if pd.notna(row.get('categoria')) else ''
+                last_contact_raw = str(row.get('last_contact_date', '')).strip() if pd.notna(row.get('last_contact_date')) else ''
                 
                 row_errors = []
+                
+                # Parse last_contact_date
+                last_contact_date = None
+                if last_contact_raw:
+                    from datetime import date as date_type
+                    parsed_date = None
+                    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+                        try:
+                            parsed_date = datetime.strptime(last_contact_raw, fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                    if parsed_date is None:
+                        row_errors.append(ImportError(row=row_num, column='Último Contacto',
+                            value=last_contact_raw, error_type='invalid',
+                            message=f'Formato de fecha "{last_contact_raw}" no reconocido',
+                            suggested_action='Use formato DD/MM/AAAA (ej: 15/01/2026)'))
+                    elif parsed_date > date_type.today():
+                        row_errors.append(ImportError(row=row_num, column='Último Contacto',
+                            value=last_contact_raw, error_type='invalid',
+                            message='La fecha de último contacto no puede ser futura',
+                            suggested_action='Ingrese una fecha igual o anterior a hoy'))
+                    else:
+                        last_contact_date = parsed_date.isoformat()
                 
                 if not name:
                     row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
@@ -512,6 +562,8 @@ async def import_integrators(
                         update_data["gestor"] = gestor
                     if categoria:
                         update_data["categoria"] = categoria
+                    if last_contact_date:
+                        update_data["last_contact_date"] = last_contact_date
                     
                     # Merge certs: existing certs as base, overlay with file data
                     if product_columns:
@@ -536,6 +588,7 @@ async def import_integrators(
                         integrator_status=integrator_status,
                         gestor=gestor or None,
                         categoria=categoria or None,
+                        last_contact_date=last_contact_date,
                         certifications=full_certs
                     )
                     doc = new_integrator.model_dump()

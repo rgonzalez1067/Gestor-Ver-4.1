@@ -9,7 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench, Search } from 'lucide-react';
 
 const SERVICE_TYPES = [
   { id: 'Producto', name: 'Producto', icon: Box, description: 'Tangible, requiere despacho (Pinpads, Cables, etc.)' },
@@ -57,6 +57,8 @@ export const MediosPago = () => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
+  const [filterServiceType, setFilterServiceType] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchMediosPago();
@@ -683,6 +685,31 @@ export const MediosPago = () => {
             <ImportResultPanel result={importResult} onClose={closeImportResult} />
           )}
 
+          {/* Filter Bar */}
+          <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="flex-1 min-w-[200px] relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input placeholder="Buscar por nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-sm" data-testid="search-medios" />
+              </div>
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-service-type">
+                {['all', 'Producto', 'Servicio'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setFilterServiceType(t)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${filterServiceType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    data-testid={`filter-type-${t}`}
+                  >
+                    {t === 'all' ? 'Todos' : t === 'Producto' ? 'Productos' : 'Servicios'}
+                  </button>
+                ))}
+              </div>
+              {(searchTerm || filterServiceType !== 'all') && (
+                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setSearchTerm(''); setFilterServiceType('all'); }}>Limpiar</Button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -722,7 +749,13 @@ export const MediosPago = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {mediosPago.map((medioPago) => {
+                {mediosPago
+                  .filter(m => {
+                    if (filterServiceType !== 'all' && m.service_type !== filterServiceType) return false;
+                    if (searchTerm && !m.name?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+                    return true;
+                  })
+                  .map((medioPago) => {
                   const productBadges = getProductBadges(medioPago);
                   const linkedServiceName = getLinkedServiceName(medioPago.linked_recurring_service_id);
                   return (
