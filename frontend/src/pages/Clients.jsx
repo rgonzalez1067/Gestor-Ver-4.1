@@ -1019,7 +1019,7 @@ export const Clients = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Acción resultante</Label>
+                  <Label className="text-xs">Acción resultante / Compromiso adquirido</Label>
                   <Input value={newLog.action} onChange={(e) => setNewLog(p => ({ ...p, action: e.target.value }))}
                     placeholder="Ej: Llamar para confirmar recepción" data-testid="log-action-input" />
                 </div>
@@ -1073,7 +1073,7 @@ export const Clients = () => {
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm ${log.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{log.detail}</p>
                           {log.action && (
-                            <p className="text-xs text-blue-600 mt-1 font-medium">Acción: {log.action}</p>
+                            <p className="text-xs text-blue-600 mt-1 font-medium">Acción/Compromiso: {log.action}</p>
                           )}
                           {log.contacted_person && (
                             <p className="text-xs text-purple-600 mt-0.5 font-medium">Contacto: {log.contacted_person}</p>
