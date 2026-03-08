@@ -43,6 +43,20 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 ### Dashboard KPI
 - Proyectos Activos con desglose por estado
 
+### Módulo de Integradores — Evolución (Implementado 2026-03-08)
+- Nuevos campos: `integration_type` (CR/LP/PG/MP/TK), `gestor` (dropdown usuarios), `categoria` (8 opciones)
+- Endpoint `/api/auth/users` para cargar usuarios activos en selector de Gestor
+- Tabla con 9 columnas: Nombre, Tipo Int., Tipo, Aplicativo, Modalidad, Gestor, Categoría, Estatus, Acciones
+- Formulario completo de creación/edición con todos los nuevos campos
+- **Matriz de Certificación Dinámica**: Vista expandible por integrador (botón Award)
+  - Columnas generadas dinámicamente desde productos (service_type=Producto, application_type=setup/both)
+  - 25 productos como columnas, primera columna sticky
+  - Cada celda: botón click-cycle P(Pendiente) → C(Certificado) → N/A
+  - Persistencia inmediata via PUT /api/integrators/{id}
+- Filtros por estatus/tipo + búsqueda por nombre/aplicativo/modalidad
+- Stats cards: Total, Certificados, En proceso, Suspendidos
+- Import/Export (Excel, CSV, PDF)
+
 ## Tareas Pendientes
 
 ### P1
@@ -52,7 +66,8 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 ### P2
 - Módulo de Reportes
 - Lógica de roles por módulo
-- Al completar integración, sugerir crear ítem en Medios de Pago
+- Lógica de "Completado" en Roadmap de Bancos (mover a Activos)
 
 ## Credenciales de Prueba
+- Email: admin@test.com / Contraseña: admin1234
 - Email: rgonzalez@megasoft.com.ve / Contraseña: Avila*0226*02
