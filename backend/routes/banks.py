@@ -34,7 +34,7 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
     
     content = await file.read()
     
-    # Resize to 100x100 using PIL
+    # Resize to 150x150 using PIL
     try:
         from PIL import Image
         img = Image.open(io.BytesIO(content))
