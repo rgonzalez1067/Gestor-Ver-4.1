@@ -13,7 +13,7 @@ const MODULES = [
   { id: 'clientes', name: 'Clientes' },
   { id: 'bancos', name: 'Bancos' },
   { id: 'medios_pago', name: 'Medios de Pago' },
-  { id: 'dispositivos', name: 'Dispositivos' },
+  { id: 'dispositivos', name: 'Bienes y Servicios' },
   { id: 'integradores', name: 'Integradores' },
   { id: 'configuracion', name: 'Configuración' }
 ];

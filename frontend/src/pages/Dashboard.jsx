@@ -90,7 +90,7 @@ export const Dashboard = () => {
     { title: 'Clientes', value: stats.totalClients, icon: Users, color: 'bg-emerald-100 text-emerald-700' },
     { title: 'Bancos', value: stats.totalBanks, icon: Building2, color: 'bg-purple-100 text-purple-700' },
     { title: 'Medios de Pago', value: stats.totalMediosPago, icon: CreditCard, color: 'bg-rose-100 text-rose-700' },
-    { title: 'Dispositivos', value: stats.totalHardware, icon: Package, color: 'bg-orange-100 text-orange-700' },
+    { title: 'Bienes y Servicios', value: stats.totalHardware, icon: Package, color: 'bg-orange-100 text-orange-700' },
     { title: 'Tasa BCV', value: stats.exchangeRate ? `${stats.exchangeRate.toFixed(2)} Bs/$` : '-', icon: TrendingUp, color: 'bg-amber-100 text-amber-700' }
   ];
 

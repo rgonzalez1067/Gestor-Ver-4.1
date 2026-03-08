@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 // Categorías principales
 const CATEGORIES = [
-  { id: 'dispositivos', name: 'Dispositivos', description: 'Hardware y equipos' },
+  { id: 'dispositivos', name: 'Bienes y Servicios', description: 'Hardware y equipos' },
   { id: 'servicios', name: 'Servicios', description: 'Mantenimiento, licencias, consultorías' },
   { id: 'repuestos', name: 'Repuestos', description: 'Componentes y piezas de reemplazo' }
 ];
@@ -354,7 +354,7 @@ export const Hardware = () => {
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">
                 Bienes y Servicios
               </h1>
-              <p className="text-slate-600">Catálogo de dispositivos, accesorios y servicios</p>
+              <p className="text-slate-600">Catálogo de bienes y servicios de la empresa</p>
             </div>
             
             <div className="flex gap-2">
