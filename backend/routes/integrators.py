@@ -281,22 +281,40 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             })
         pd.DataFrame(base_fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
-        # Valid values sheet
-        max_len = max(8, len(cert_products))
+        # Valid values sheet — COMPLETE reference
+        all_modalities = ['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST',
+                          'Stand Alone', 'TKN No Universal', 'TKN Universal',
+                          'Web Link de Pago Modalidad No Universal', 'Web Link de Pago Modalidad Universal', 'Wrapper']
+        all_categories = [
+            'Cliente/Integrador actual de PG', 'Cliente/Integrador actual de VPOS',
+            'Cliente/Integrador actual Tokenizador', 'Cliente/Integrador nuevo Link de Pago',
+            'Cliente/Integrador nuevo Mpos', 'Cliente/Integrador nuevo PG',
+            'Cliente/Integrador nuevo VPOS', 'Cliente/Integrador MobilePOS'
+        ]
+        max_len = max(len(all_modalities), len(all_categories), len(cert_products), 12)
         pad = lambda lst: lst + [''] * (max_len - len(lst))
         values_data = {
-            'Tipos de Integrador': pad(['Integrador', 'Comercio']),
-            'Modalidades': pad(['Bridge PG', 'MPOS', 'PG Universal', 'PG No universal', 'REST', 'Stand Alone']),
-            'Tipos de Integración': pad(['CR — Caja Registradora', 'LP — Link de Pago', 'PG — Payment Gateway', 'MP — Android (Mobile POS)', 'TK — Tokenizador']),
-            'Estatus': pad(['Certificado', 'En proceso', 'Suspendido']),
-            'Valores de Certificación': pad(['C — Certificado', 'P — Pendiente', 'N/A — No Aplica', '(vacío) — Se asigna N/A']),
-            'Notas': pad([
-                'La clave única es Nombre + Tipo Integración',
-                'Si un registro ya existe, se actualizan sus datos y su matriz',
-                'Los campos marcados con * son obligatorios',
-                'Si no indica estatus, se asigna "En proceso"',
-                'Celdas vacías en productos se asignan como N/A',
-                'Se aceptan mayúsculas y minúsculas (c, p, n/a)',
+            'Tipos de Integrador (Col B)': pad(['Integrador', 'Comercio']),
+            'Modalidades (Col D)': pad(all_modalities),
+            'Tipos de Integración (Col F)': pad(['CR — Caja Registradora', 'LP — Link de Pago',
+                'PG — Payment Gateway', 'MP — Android (Mobile POS)', 'TK — Tokenizador']),
+            'Estatus (Col E)': pad(['Certificado', 'En proceso', 'Suspendido']),
+            'Categorías (Col H)': pad(all_categories),
+            'Valores de Certificación': pad(['C — Certificado', 'P — Pendiente', 'N/A — No Aplica',
+                '(vacío) — Se asigna N/A automáticamente', 'Se aceptan mayúsculas y minúsculas (c, p, n/a)']),
+            'Formato de Fechas (Col I)': pad(['DD/MM/AAAA (ej: 15/01/2026)', 'AAAA-MM-DD (ej: 2026-01-15)',
+                'DD-MM-AAAA (ej: 15-01-2026)', 'No se permiten fechas futuras']),
+            'Reglas de Importación': pad([
+                '1. La clave única es: Nombre + Tipo Integración',
+                '2. Si un registro ya existe (misma clave), se ACTUALIZAN sus datos',
+                '3. La Matriz de Certificación existente se preserva al actualizar',
+                '4. Los campos marcados con * son OBLIGATORIOS',
+                '5. Si no indica Estatus, se asigna "En proceso" por defecto',
+                '6. El Gestor debe estar registrado en el sistema (Nombre completo o Email)',
+                '7. Las columnas de productos (J en adelante) son opcionales',
+                '8. Celdas vacías en productos se asignan como N/A',
+                '9. Se aceptan archivos .xlsx, .xls y .csv (separador: coma, punto y coma o tab)',
+                '10. Los valores deben coincidir EXACTAMENTE con los de esta hoja (respetar mayúsculas)',
             ])
         }
         pd.DataFrame(values_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
@@ -477,49 +495,47 @@ async def import_integrators(
                         except ValueError:
                             continue
                     if parsed_date is None:
-                        row_errors.append(ImportError(row=row_num, column='Último Contacto',
+                        row_errors.append(ImportError(row=row_num, column='Último Contacto (Col I)',
                             value=last_contact_raw, error_type='invalid',
-                            message=f'El formato de fecha "{last_contact_raw}" no es reconocido. Formatos aceptados: DD/MM/AAAA, AAAA-MM-DD.',
-                            suggested_action='Corrija la fecha en la columna "Último Contacto". Ejemplo: 15/01/2026'))
+                            message=f'Fila {row_num}, Columna I (Último Contacto): El formato "{last_contact_raw}" no es reconocido. Formatos aceptados: DD/MM/AAAA (ej: 15/01/2026) o AAAA-MM-DD (ej: 2026-01-15).',
+                            suggested_action=f'Corrija la celda I{row_num}. Use formato de fecha estándar: 15/01/2026'))
                     elif parsed_date > date_type.today():
-                        row_errors.append(ImportError(row=row_num, column='Último Contacto',
+                        row_errors.append(ImportError(row=row_num, column='Último Contacto (Col I)',
                             value=last_contact_raw, error_type='invalid',
-                            message=f'La fecha {last_contact_raw} es posterior a hoy ({date_type.today().strftime("%d/%m/%Y")}). No se permiten fechas futuras.',
-                            suggested_action='Ingrese una fecha igual o anterior a la fecha actual'))
+                            message=f'Fila {row_num}, Columna I (Último Contacto): La fecha {last_contact_raw} es posterior a hoy ({date_type.today().strftime("%d/%m/%Y")}). No se permiten fechas futuras.',
+                            suggested_action=f'Corrija la celda I{row_num}. Ingrese una fecha igual o anterior a hoy'))
                     else:
                         last_contact_date = parsed_date.isoformat()
                 
                 if not name:
-                    row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
-                        error_type='missing', message='El campo "Nombre" está vacío. Cada integrador debe tener un nombre único.',
-                        suggested_action='Ingrese el nombre del integrador en la columna "Nombre"'))
+                    row_errors.append(ImportError(row=row_num, column='Nombre (Col A)', value='(vacío)',
+                        error_type='missing', message=f'Fila {row_num}, Columna A (Nombre): El campo está vacío. Cada integrador debe tener un nombre único que lo identifique.',
+                        suggested_action='Complete la celda A{0} con el nombre del integrador. Este campo es obligatorio (*).'.format(row_num)))
                 
                 if not app_name:
-                    row_errors.append(ImportError(row=row_num, column='Aplicativo', value='(vacío)',
-                        error_type='missing', message='El campo "Aplicativo" está vacío. Es obligatorio indicar el nombre del sistema o aplicación.',
-                        suggested_action='Ingrese el nombre del aplicativo en la columna "Aplicativo"'))
+                    row_errors.append(ImportError(row=row_num, column='Aplicativo (Col C)', value='(vacío)',
+                        error_type='missing', message=f'Fila {row_num}, Columna C (Aplicativo): El campo está vacío. Es obligatorio indicar el nombre del sistema o aplicación del integrador.',
+                        suggested_action='Complete la celda C{0} con el nombre del aplicativo. Este campo es obligatorio (*).'.format(row_num)))
                 
                 if integrator_type not in INTEGRATOR_TYPES:
-                    row_errors.append(ImportError(row=row_num, column='Tipo', value=integrator_type or '(vacío)',
-                        error_type='invalid', message=f'El tipo "{integrator_type or "(vacío)"}" no es válido. Solo se aceptan: {", ".join(INTEGRATOR_TYPES)}.',
-                        suggested_action=f'Corrija el valor en la columna "Tipo". Opciones válidas: {", ".join(INTEGRATOR_TYPES)}'))
+                    row_errors.append(ImportError(row=row_num, column='Tipo (Col B)', value=integrator_type or '(vacío)',
+                        error_type='invalid', message=f'Fila {row_num}, Columna B (Tipo): Se recibió "{integrator_type or "(vacío)"}" pero solo se aceptan: {", ".join(INTEGRATOR_TYPES)}. El valor debe coincidir exactamente.',
+                        suggested_action='Corrija la celda B{0}. Copie el valor exacto de la hoja "Valores Válidos", columna "Tipos de Integrador".'.format(row_num)))
                 
                 if integration_modality not in INTEGRATION_MODALITIES:
-                    row_errors.append(ImportError(row=row_num, column='Modalidad', value=integration_modality or '(vacío)',
-                        error_type='invalid', message=f'La modalidad "{integration_modality or "(vacío)"}" no es válida. Opciones: {", ".join(INTEGRATION_MODALITIES)}.',
-                        suggested_action=f'Corrija el valor en la columna "Modalidad". Verifique que coincida exactamente con una de las opciones permitidas'))
+                    row_errors.append(ImportError(row=row_num, column='Modalidad (Col D)', value=integration_modality or '(vacío)',
+                        error_type='invalid', message=f'Fila {row_num}, Columna D (Modalidad): Se recibió "{integration_modality or "(vacío)"}" pero no coincide con ninguna modalidad válida. Verifique mayúsculas y espacios.',
+                        suggested_action='Corrija la celda D{0}. Consulte la hoja "Valores Válidos", columna "Modalidades" para ver las {1} opciones disponibles.'.format(row_num, len(INTEGRATION_MODALITIES))))
                 
                 if integration_type and integration_type not in valid_integration_types:
-                    row_errors.append(ImportError(row=row_num, column='Tipo Integración',
-                        value=integration_type, error_type='invalid',
-                        message=f'El tipo de integración "{integration_type}" no es válido. Solo se aceptan: {", ".join(valid_integration_types)}.',
-                        suggested_action=f'Corrija el valor en la columna "Tipo Integración". Use: {", ".join(valid_integration_types)}'))
+                    row_errors.append(ImportError(row=row_num, column='Tipo Integración (Col F)', value=integration_type,
+                        error_type='invalid', message=f'Fila {row_num}, Columna F (Tipo Integración): Se recibió "{integration_type}" pero solo se aceptan: {", ".join(valid_integration_types)}.',
+                        suggested_action='Corrija la celda F{0}. Use exactamente: {1}.'.format(row_num, ", ".join(valid_integration_types))))
                 
                 if gestor and gestor.lower() not in user_names:
-                    row_errors.append(ImportError(row=row_num, column='Gestor', value=gestor,
-                        error_type='invalid',
-                        message=f'El gestor "{gestor}" no está registrado en el sistema. Solo se pueden asignar usuarios existentes.',
-                        suggested_action='Verifique que el nombre o email del gestor esté dado de alta en la sección de Usuarios'))
+                    row_errors.append(ImportError(row=row_num, column='Gestor (Col G)', value=gestor,
+                        error_type='invalid', message=f'Fila {row_num}, Columna G (Gestor): El usuario "{gestor}" no está registrado en el sistema. No se puede asignar como gestor.',
+                        suggested_action='Corrija la celda G{0}. El gestor debe ser un usuario activo del sistema (nombre completo o email). Verifique en el módulo de Usuarios.'.format(row_num)))
                 
                 if integrator_status not in INTEGRATOR_STATUSES:
                     integrator_status = "En proceso"
@@ -531,10 +547,11 @@ async def import_integrators(
                     raw_val = str(row.get(col_name, '')).strip() if pd.notna(row.get(col_name)) else ''
                     normalized = valid_cert_values.get(raw_val.lower(), None)
                     if normalized is None:
-                        row_errors.append(ImportError(row=row_num, column=col_name,
+                        col_letter = chr(ord('J') + list(product_columns.keys()).index(col_name)) if list(product_columns.keys()).index(col_name) < 16 else f'Col {10 + list(product_columns.keys()).index(col_name)}'
+                        row_errors.append(ImportError(row=row_num, column=f'{col_name} ({col_letter})',
                             value=raw_val, error_type='invalid',
-                            message=f'El valor "{raw_val}" no es un estado de certificación válido en la columna "{col_name}". Solo se aceptan: C (Certificado), P (Pendiente) o N/A (No Aplica).',
-                            suggested_action=f'Corrija el valor en la columna "{col_name}". Use: C, P o N/A. Las celdas vacías se asignan como N/A automáticamente'))
+                            message=f'Fila {row_num}, {col_letter} ({col_name}): Se recibió "{raw_val}" pero solo se aceptan valores de certificación: C (Certificado), P (Pendiente) o N/A (No Aplica). Las celdas vacías se asignan como N/A.',
+                            suggested_action=f'Corrija la celda en la fila {row_num}, columna "{col_name}". Use exactamente: C, P o N/A'))
                         cert_has_errors = True
                     else:
                         row_certs[service_id] = normalized
