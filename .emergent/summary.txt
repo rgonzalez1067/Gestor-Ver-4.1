@@ -1,68 +1,73 @@
 <analysis>**original_problem_statement:**
-El usuario solicitó una aplicación de cotizaciones para una plataforma de pagos. A lo largo de la sesión, la aplicación ha evolucionado significativamente con la adición de múltiples funcionalidades, correcciones de errores y refactorizaciones.
+El usuario ha solicitado una serie de evoluciones y mejoras en la aplicación de gestión de cotizaciones y proyectos. Las solicitudes más recientes se centran en refinar y expandir la funcionalidad de los módulos existentes.
 
-Los requerimientos más recientes se centran en el módulo de Proyectos (Post-Venta):
-1.  **Corrección Crítica (Matriz de Proyectos):** La matriz de implementación en la pantalla de Detalle del Proyecto muestra incorrectamente un catálogo general de todos los productos de la empresa. Se requiere que muestre **única y exclusivamente los productos que fueron incluidos en la cotización original** que dio origen al proyecto, permitiendo un seguimiento personalizado de las fases de implementación para cada producto cotizado.
-2.  **Nuevo Requerimiento (Dashboard KPI):** Para mejorar la visibilidad gerencial, se debe agregar un nuevo indicador (Card) en el Dashboard principal que muestre el **número total de proyectos activos**, preferiblemente con un desglose por estado (ej. En Curso, Por Iniciar).
+1.  **Módulo de Bitácora (Proyectos):**
+    *   Agregar un campo para seleccionar la persona contactada desde la lista de contactos del cliente asociado al proyecto.
+    *   Cambiar la etiqueta del campo Acción resultante a Acción resultante / Compromiso adquirido.
+
+2.  **Módulo de Integradores (Evolución Mayor):**
+    *   **Nuevos Campos:** Añadir campos de cabecera para especializar la ficha del integrador:
+        *   : Selector obligatorio (CR, LP, PG, MP, TK).
+        *   : Menú desplegable para asignar un usuario del sistema como responsable.
+        *   : Selector de valores (Oro, Plata, Bronce, etc.).
+    *   **Matriz Dinámica de Certificación:** Implementar una nueva sección de Detalle en la lista de integradores.
+        *   Al hacer clic en Detalle, la vista debe expandirse para mostrar una matriz.
+        *   Las **columnas** de la matriz deben generarse dinámicamente a partir de todos los Medios de Pago cuyo tipo sea Producto o Setup.
+        *   La **primera columna** (Nombre del Integrador) debe ser fija (sticky) durante el scroll horizontal.
+        *   Cada **celda** (cruce Integrador-Producto) debe ser un control que permita establecer uno de tres estados:  (Pendiente),  (Certificado), o  (No Aplica).
+
+3.  **UI/UX y Nomenclatura:**
+    *   Cambiar el nombre del módulo Dispositivos a Catálogo de Bienes y Servicios en toda la aplicación (menús, títulos, etc.).
+    *   Rediseñar los botones de acción principal para que sean más compactos (menos padding, fuente más pequeña).
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una herramienta full-stack (React, FastAPI, MongoDB) para la gestión de cotizaciones y proyectos. El backend está refactorizado en una arquitectura modular (, , ). Se ha implementado un completo módulo de Proyectos que se crean automáticamente cuando una cotización es aprobada para implementación. Este módulo tiene su propia lógica de estados, una pantalla de listado principal () y una pantalla de detalle () que contiene la matriz de implementación y una bitácora de seguimiento. También existen funcionalidades de OCR para procesar documentos de identidad fiscal (RIF), gestión de usuarios con roles y un modo de correo simulado para pruebas.
+La aplicación es una plataforma full-stack (React, FastAPI, MongoDB) para la gestión de cotizaciones, clientes, bancos, productos y proyectos. El agente anterior completó con éxito varias tareas: corrigió la matriz de implementación de proyectos, agregó KPIs al dashboard, rediseñó el módulo de bancos con un Visor 360°, implementó reportes globales de integraciones, y añadió mejoras a la bitácora de proyectos y a la categorización de servicios. El backend sigue una arquitectura modular y el frontend utiliza componentes de Shadcn/UI.
 
 **Last working item**:
--   **Last item agent was working**: El agente estaba abordando dos requerimientos del usuario: la corrección crítica de la matriz de implementación y la adición de un KPI de proyectos al dashboard. El agente diagnosticó que el problema de la matriz se debía a que se incluían todos los productos del catálogo en lugar de solo los ítems cotizados relevantes (medios de pago). Se reescribió la lógica en el trigger de creación de proyectos () y se creó un script de migración () para corregir los datos de los proyectos ya existentes. El agente se detuvo justo después de crear el script de migración, sin haberlo ejecutado aún.
+-   **Last item agent was working**: El agente estaba en medio de una reestructuración completa del módulo de Integradores para cumplir con el requerimiento de evolución. Ya había modificado el backend (, ) para incluir los nuevos campos (, , ) y el subdocumento  para la matriz. Luego, procedió a reescribir por completo el componente de frontend  para implementar la nueva interfaz, incluyendo el formulario con los nuevos campos y la lógica para la tabla con la vista expandible de la matriz de certificación.
 -   **Status**: IN PROGRESS
 -   **Agent Testing Done**: N
 -   **Which testing method agent to use?**: both
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: La Matriz de Implementación de Proyectos muestra todos los productos en lugar de solo los productos cotizados. (P0 - HIGHEST)
-
-**Issues Detail:**
--   **Issue 1: La Matriz de Implementación de Proyectos muestra todos los productos en lugar de solo los productos cotizados.**
-    -   **Attempted fixes**: El agente identificó que el trigger de creación de proyectos no filtraba correctamente los ítems. Se modificó la función  en  para que la matriz de implementación se construya únicamente con los servicios cotizados relevantes (medios de pago). Se creó un script de una sola ejecución  para reparar los datos de los proyectos existentes.
-    -   **Next debug checklist**:
-        1.  **Ejecutar Migración (Backend):** Ejecutar el script  para corregir las matrices de los proyectos existentes en la base de datos.
-        2.  **Probar Trigger (Backend):** Crear una nueva cotización, marcarla como Enviada a Implementación y verificar que el nuevo proyecto se cree con la matriz correctamente filtrada (solo productos cotizados).
-        3.  **Probar UI (Frontend):** Navegar a la página de Detalle del Proyecto () y confirmar visualmente que la matriz ahora solo muestra las filas correspondientes a los productos de la cotización original.
-        4.  **Implementar KPI (Frontend):** Proceder con la implementación de la Tarea 1 (KPI en el Dashboard).
-    -   **Why fix this issue and what will be achieved with the fix?**: La matriz es actualmente inútil para el seguimiento, ya que está sobrecargada con productos irrelevantes. La corrección la convertirá en una herramienta de checklist precisa y personalizada para el equipo de implementación.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?**: both
-    -   **Blocked on other issue**: None
+-   No hay issues o bugs pendientes reportados. El trabajo actual es la implementación de una nueva funcionalidad.
 
 **In progress Task List**:
--   **Task 1: Agregar KPI de Proyectos al Dashboard** (P0)
-    -   **Where to resume**: .
-    -   **What will be achieved with this?**: Proporcionará a la gerencia una visión general inmediata de la carga de trabajo de proyectos directamente desde la pantalla principal.
-    -   **Status**: NOT STARTED
-    -   **Should Test frontend/backend/both after fix?**: both (revisar si el endpoint  necesita ser modificado en el backend, y luego implementar el componente en el frontend).
-    -   **Blocked on something**: La resolución del Issue 1 para asegurar que los datos del proyecto son correctos.
+-   **Task 1: Evolución del Módulo de Integradores** (P0 - HIGHEST)
+    -   **Where to resume**: El archivo  fue recreado desde cero con la nueva estructura. El agente debe continuar la implementación dentro de este archivo, conectando los nuevos estados y lógica de la interfaz (formulario, tabla, vista expandida de la matriz) con los endpoints del backend que ya fueron actualizados. Se debe implementar la carga de usuarios para el selector Gestor y la carga de productos para las columnas de la matriz.
+    -   **What will be achieved with this?**: Se especializará la gestión de integradores, permitiendo su categorización, asignación de responsables y un control técnico detallado sobre qué productos están certificados por cada uno.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: both
+    -   **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar flujos estándar para la verificación de correo al registrarse y la recuperación de contraseña.
+-   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar flujos estándar de autenticación.
 
 Future Tasks:
--   **Refactorización del Frontend - Fase 2 (P1):** Descomponer la lógica del asistente de creación/edición de cotizaciones, que aún reside en , en subcomponentes más pequeños.
--   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar y visualizar reportes de ventas y cotizaciones.
+-   **Refactorización del Frontend -  (P1):** Descomponer el asistente monolítico de creación/edición de cotizaciones en subcomponentes.
+-   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes de ventas.
+-   **Lógica de Completado en Roadmap de Bancos (P2):** Implementar la sugerencia de mover un ítem del roadmap a Activos cuando su estatus sea Completada.
 
 **Completed work in this session**
--   **Funcionalidad de Actualización de Cliente por RIF (DONE):** Se implementó un flujo completo para actualizar datos de clientes cargando un archivo RIF (PDF o imagen), usando OCR para extraer los datos y almacenar el documento.
--   **Corrección de Parsing de RIF (DONE):** Se mejoró el parser de RIF para manejar PDFs escaneados (basados en imagen), corregir errores comunes de OCR y evitar la captura de números incorrectos del documento.
--   **Roles y Departamentos de Usuario (DONE):** Se actualizaron los campos Cargo y Departamento en el formulario de gestión de usuarios, pasando de ser campos de texto libre a selectores con opciones predefinidas.
--   **Mejoras en Ficha de Cliente (DONE):** Se añadieron los campos Dirección de la Sucursal y Categoría Comercial, y se unificaron los campos de contacto Nombre y Apellido en Nombre y Apellidos.
--   **Módulo de Proyectos - Implementación Inicial y Refinamientos (DONE):** Se construyó el módulo de proyectos desde cero, incluyendo la creación automática a partir de cotizaciones, la nueva nomenclatura de IDs, la herencia de anexos, la eliminación de la cotización original y la creación de las pantallas principal y de detalle con su matriz y bitácora.
--   **Corrección del Trigger de Proyectos (DONE):** Se solucionó un bug donde el frontend llamaba a un endpoint que no activaba la creación del proyecto.
+-   **Corrección de Matriz de Proyectos (DONE):** Se corrigió el trigger de creación de proyectos para que la matriz de implementación solo muestre los productos () de la cotización original.
+-   **KPI de Proyectos en Dashboard (DONE):** Se añadió una card al dashboard que muestra el total de proyectos activos y su desglose por estado.
+-   **Rediseño del Módulo de Bancos (DONE):** Se implementó un layout de lista horizontal, carga y visualización de logos, y campos de contacto.
+-   **Categorización de Medios de Pago (DONE):** Se añadió el campo Tipo (: Producto/Servicio) al módulo de Bienes y Servicios.
+-   **Visor 360° de Bancos y Roadmap (DONE):** Se creó una vista de detalle para cada banco con 3 secciones: productos VPOS/MPOS activos, productos PG/Link activos y un roadmap de integraciones en curso.
+-   **Refinamiento de Bancos (DONE):** Se implementaron logos más grandes y toggles para activar/desactivar componentes (VPOS, PG) por producto para cada banco.
+-   **Reporte Global de Integraciones (DONE):** Se creó una nueva página que consolida todos los proyectos de integración en curso de todos los bancos, con filtros y semáforos de estado.
+-   **Optimización de UI/UX (DONE):** Se renombró Dispositivos a Catálogo de Bienes y Servicios y se aplicó un estilo más compacto a los botones principales.
+-   **Mejora de Bitácora de Proyectos (DONE):** Se añadió un campo para seleccionar la persona contactada desde los contactos del cliente y se actualizó una etiqueta de texto.
 
 **Earlier issues found/mentioned but not fixed**
 -   None.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se reinicia en cada sesión.
+-   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se reinicia en cada sesión del pod.
 -   **Recurrence count**: 3+
 -   **Status**: NOT STARTED (Es una característica del entorno de desarrollo, no un bug a solucionar).
 
@@ -70,78 +75,81 @@ Future Tasks:
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB (),  (PDFs), / (OCR).
--   **Frontend:** React, /, Shadcn/UI.
--   **Lógica de Negocio:** El concepto clave reciente es la clonación inteligente de una cotización a un proyecto, la herencia de datos (anexos, productos) y la generación de una matriz de seguimiento dinámica (Productos vs. Bancos vs. Fases).
+-   **Backend:** FastAPI, Pydantic, MongoDB.
+-   **Frontend:** React, /, Shadcn/UI,  (o similar para la matriz).
+-   **Lógica de Negocio:** Generación de UI dinámica (columnas de la matriz basadas en datos de la BD), vistas expandibles/colapsables, estado de certificación (P, C, N/A).
 
 **key DB schema**
--   ****: Colección principal del módulo de proyectos. El subdocumento  es el foco del trabajo actual; debe contener un array de ítems que refleje fielmente los productos de la cotización original.
--   ****: Las cotizaciones con estado Pagada y tipo implementation son la fuente para la creación de proyectos. Son eliminadas después de la conversión.
+-   ****:
+    -   : String (Enum: 'CR', 'LP', 'PG', 'MP', 'TK')
+    -   : String (ObjectId referenciando )
+    -   : String
+    -   : Array de Objetos  (Almacena el estado 'P', 'C' o 'N/A' para cada producto certificado).
+-   ****: Usada para poblar el dropdown de Gestor.
+-   ****: Usada para poblar las columnas dinámicas de la matriz de certificación (filtrando por  Producto o Setup).
 
 **changes in tech stack**
--   Se instalaron , , y  para habilitar el OCR sobre imágenes y PDFs escaneados.
+-    fue instalado para el redimensionamiento de imágenes (logos de bancos).
 
 **All files of reference**
--   : **(Recién creado)** Script de migración de datos que debe ejecutarse.
--   : **(Recién modificado)** Contiene la lógica del trigger que se corrigió.
--   : **(Necesita verificación)** La interfaz de la matriz cuyo contenido debe ser validado.
--   : **(Trabajo pendiente)** Archivo a modificar para agregar el nuevo KPI.
--   : **(Trabajo pendiente)** Endpoint que posiblemente necesite ser actualizado para el nuevo KPI.
--   : Contiene los endpoints que soportan el módulo de Proyectos.
--   : Define la estructura de datos para Proyectos, incluyendo la matriz.
+-   : **(Trabajo principal pendiente)** Archivo que fue reescrito y necesita ser completado.
+-   : **(Modificado)** Contiene la nueva estructura del modelo .
+-   : **(Modificado)** Contiene los endpoints CRUD actualizados para .
+-   : Necesario para obtener la lista de gestores.
+-   : Necesario para obtener la lista de productos para la matriz.
 
 **Areas that need refactoring**:
--   ****: Sigue conteniendo lógica monolítica para el asistente de creación de cotizaciones, lo cual es una deuda técnica identificada para una futura fase de refactorización.
+-   ****: Sigue siendo una deuda técnica pendiente para una futura fase de refactorización.
 
 **key api endpoints**
--   : Actualiza el estado de los checkboxes en la matriz de implementación.
--   : Obtiene los detalles de un proyecto, incluyendo los datos para la matriz.
--   : El endpoint que dispara la creación de un proyecto desde una cotización.
--   : Endpoint para los KPIs del dashboard, que necesita ser revisado y potencialmente actualizado para incluir las estadísticas de proyectos.
+-   : Obtiene la lista de integradores.
+-   : Actualiza un integrador, incluyendo su matriz de certificaciones.
+-   : Endpoint para obtener la lista de usuarios que pueden ser gestores.
+-   : Endpoint para obtener los productos que serán las columnas de la matriz.
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación debe ser exclusivamente en **español**.
--   **Tarea Prioritaria:** La máxima prioridad es doble: 1) Arreglar la matriz de implementación para que solo muestre productos cotizados, y 2) Añadir el KPI de proyectos al dashboard.
--   **Plan de Acción Inmediato:** El trabajo está a medio camino. Debes empezar por **ejecutar el script de migración** () que el agente anterior ya preparó. Luego, prueba exhaustivamente que la corrección de la matriz funciona tanto para proyectos nuevos como para los existentes. Finalmente, implementa el nuevo KPI en el dashboard.
--   **Base de Datos Volátil:** La base de datos se reinicia en cada sesión. Deberás crear un usuario y luego crear datos de prueba (clientes, cotizaciones) para poder verificar el flujo de conversión a proyecto.
+-   **Tarea Prioritaria:** Completar la implementación de la nueva funcionalidad del módulo de Integradores. El backend está mayormente listo, pero el foco principal es el frontend.
+-   **Punto de Partida:** Retomar el trabajo en . El archivo fue borrado y recreado con una nueva estructura básica. Debes implementar toda la lógica de estado, la obtención de datos (integradores, usuarios, servicios), el renderizado de la tabla, el formulario de edición y, crucialmente, la vista de detalle expandible con la matriz de certificación dinámica y editable.
+-   **Base de Datos Volátil:** Recuerda que deberás crear datos de prueba (usuarios, servicios/productos, e integradores) para poder desarrollar y probar la nueva funcionalidad.
 
 **documents and test reports created in this job**
--   Múltiples reportes de pruebas en . El último fue , que pasó pero fue antes de que el usuario reportara los últimos bugs.
+-    fue actualizado con las funcionalidades completadas.
+-   Múltiples reportes de  fueron generados para las tareas completadas, ej. en .
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reporta que la matriz de proyectos muestra un catálogo general de productos en lugar de solo los ítems cotizados. Requiere un fix crítico para que la matriz sea útil.
-2.  **User:** Solicita un nuevo requerimiento: añadir un KPI (contador) de proyectos en el dashboard principal para visibilidad gerencial.
-3.  **User:** Aprueba el plan propuesto por el agente para corregir la matriz y añadir el KPI.
-4.  **User:** Reporta que la función de mover la cotización a Proyecto no se está ejecutando al usar la acción Enviar a Implementación. (Este bug fue corregido).
-5.  **User:** Aprueba el plan para la Fase 2 de optimización del módulo de proyectos (nueva nomenclatura, herencia de anexos, pantalla de detalle).
-6.  **User:** Proporciona especificaciones detalladas para la Fase 2 del módulo de proyectos.
-7.  **User:** Aprueba el plan para la creación inicial del módulo de Proyectos.
-8.  **User:** Proporciona especificaciones detalladas para el nuevo módulo de Proyectos (Post-Venta).
-9.  **User:** Solicita añadir/modificar campos en la ficha de cliente y fusionar campos de contacto. (Implementado).
-10. **User:** Solicita cambiar campos de texto a selectores para Cargo y Departamento en la creación de usuarios. (Implementado).
+1.  **User:** Define el requerimiento para la evolución del módulo de Integradores (nuevos campos y matriz de certificación).
+2.  **User:** Solicita cambiar el label en la bitácora a Acción resultante / Compromiso adquirido.
+3.  **User:** Solicita agregar un campo a la bitácora para seleccionar la persona contactada.
+4.  **User:** Define el requerimiento para cambiar nomenclatura (Dispositivos -> Catálogo de Bienes y Servicios) y hacer los botones más compactos.
+5.  **User:** Solicita borrar la base de datos de proyectos.
+6.  **User:** Define el requerimiento para el Reporte Global de Integraciones Bancarias.
+7.  **User:** Define el refinamiento del visor de bancos (logos más grandes y gestión de herencia de componentes con toggles).
+8.  **User:** Define el requerimiento para la optimización del módulo de bancos (Visor de Capacidades / 360°).
+9.  **User:** Define el requerimiento para agregar la categorización por Tipo (Producto/Servicio) en Medios de Pago.
+10. **User:** Define el requerimiento para rediseñar la estructura de filas del módulo de Bancos y añadir campos de contacto.
 
 **Project Health Check:**
--   **Broken**: La funcionalidad de la Matriz de Implementación en el módulo de Proyectos está rota, ya que muestra datos incorrectos (todos los productos en lugar de solo los cotizados), haciéndola inservible.
--   **Mocked**: El servicio de envío de correos (Resend) está intencionalmente configurado en modo simulado.
+-   **Broken**: La página  está rota, ya que el archivo  está en medio de una reescritura completa y no es funcional.
+-   **Mocked**: El servicio de envío de correos (Resend) sigue en modo simulado.
 
 **3rd Party Integrations**
--   **Resend**: Envío de correos (en modo simulado).
--   **reportlab**: Generación de PDF.
--   **PyPDF2**: Manipulación de PDF.
--   **pytesseract** & **pdf2image**: OCR de documentos (PDFs e imágenes).
--   **Shadcn/UI & Radix UI**: Componentes de React.
--   **bcrypt**: Hashing de contraseñas.
--   **openpyxl & pandas**: Lectura de archivos Excel.
+-   **Resend**: Envío de correos (simulado).
+-   **reportlab**, **PyPDF2**: Generación/Manipulación de PDF.
+-   **pytesseract**, **pdf2image**, **poppler-utils**: OCR.
+-   **Shadcn/UI**, **Radix UI**: Componentes React.
+-   **bcrypt**: Hashing.
+-   **openpyxl**, **pandas**: Lectura de Excel.
+-   **Pillow**: Procesamiento de imágenes.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, fue utilizado tras cada entrega de funcionalidad mayor. Sin embargo, los últimos bugs fueron reportados por el usuario después de la última ejecución del agente de pruebas.
+-   **Testing agent used after significant changes**: YES, se usó para validar todas las funcionalidades completadas en esta sesión.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: Múltiples reportes en .
--   **Known regressions**: El problema con la matriz de proyectos es una regresión o una implementación inicial incorrecta que necesita ser corregida.
+-   **Test files created**: Múltiples reportes de prueba en .
+-   **Known regressions**: Ninguna.
 
 **Credentials to test flow:**
-No hay credenciales fijas. Se debe registrar un nuevo usuario en la UI (). El primer usuario creado es administrador. Se puede usar  con la clave  como se ha hecho en sesiones anteriores.
+No hay credenciales fijas. Se debe registrar un nuevo usuario en la UI (). El primer usuario creado es administrador por defecto.
 
 **What agent forgot to execute**
--   El agente creó el script de migración  para corregir los datos de los proyectos existentes, pero **olvidó ejecutarlo**.
--   El agente no comenzó la implementación del KPI de proyectos en el dashboard, que fue solicitado junto con la corrección de la matriz.</analysis>
+-   El agente no completó la reescritura del archivo . El trabajo está a medio camino, con el archivo creado pero la lógica funcional aún por implementar.</analysis>

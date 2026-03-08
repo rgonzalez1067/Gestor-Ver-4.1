@@ -254,6 +254,20 @@ async def login_user(credentials: UserLogin):
         "user": user_response
     }
 
+# ==================== USERS LIST (para dropdowns) ====================
+
+@router.get("/auth/users")
+async def get_users_list(authorization: Optional[str] = Header(None)):
+    """Obtener lista ligera de usuarios para selectores (gestor, asignación, etc.)"""
+    await get_current_user(authorization)
+    users = await db.users.find(
+        {"is_active": True},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1}
+    ).to_list(1000)
+    for u in users:
+        u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+    return users
+
 # ==================== ADMIN ENDPOINTS ====================
 
 @router.get("/admin/users")

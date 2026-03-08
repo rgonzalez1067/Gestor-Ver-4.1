@@ -211,17 +211,25 @@ class ImportResult(BaseModel):
 class IntegratorCreate(BaseModel):
     name: str
     integrator_type: Literal["Integrador", "Comercio"]
+    integration_type: Optional[str] = None  # CR, LP, PG, MP, TK
     app_name: str
     integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone"]
     integrator_status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
+    gestor: Optional[str] = None
+    categoria: Optional[str] = None
+    certifications: Optional[dict] = None  # {service_id: "P"|"C"|"N/A"}
 
 class Integrator(BaseModel):
     integrator_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:12]}")
     name: str
     integrator_type: str
+    integration_type: Optional[str] = None
     app_name: str
     integration_modality: str
     integrator_status: str = "En proceso"
+    gestor: Optional[str] = None
+    categoria: Optional[str] = None
+    certifications: Optional[dict] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):
