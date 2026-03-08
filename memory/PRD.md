@@ -96,6 +96,8 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - **DELETE Integrator Dead Code (P0)**: Corregido — La función `delete_integrator` ahora ejecuta la eliminación real. El código estaba como dead code después del `return` de otra función.
 - **Import "Series is ambiguous" (P0)**: Corregido — Archivos con columnas duplicadas (ej: "Tipo" en dos columnas) causaban que pandas devolviera Series en vez de escalares, provocando error "The truth value of a Series is ambiguous" en TODAS las filas. Fix: deduplicación de columnas post-renombrado + función `_safe_val` para extracción segura.
 
+- **Export Errores a Excel (2026-03-08)**: Botón "Exportar errores a Excel" en ImportResultPanel genera archivo .xlsx con dos hojas: "Errores" (Fila, Columna, Valor, Tipo, Detalle, Acción sugerida) y "Resumen" (estadísticas de la importación). Usa librería `xlsx` (SheetJS) del lado cliente.
+
 ## Tareas Pendientes
 
 ### P1

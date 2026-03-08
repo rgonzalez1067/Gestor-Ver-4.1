@@ -1,5 +1,51 @@
-import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Info, X, FileSpreadsheet } from 'lucide-react';
 import { Button } from './ui/button';
+import * as XLSX from 'xlsx';
+
+const exportErrorsToExcel = (result) => {
+  const rows = (result.errors || []).map((err) => ({
+    'Fila': err.row,
+    'Columna': err.column,
+    'Valor recibido': err.value || '(vacío)',
+    'Tipo de error': err.error_type === 'missing' ? 'Campo requerido vacío'
+      : err.error_type === 'invalid' ? 'Valor no válido'
+      : err.error_type === 'format' ? 'Formato incorrecto'
+      : err.error_type === 'duplicate' ? 'Registro duplicado'
+      : err.error_type,
+    'Detalle del error': err.message,
+    'Acción sugerida': err.suggested_action,
+  }));
+
+  const summaryRows = [
+    { Campo: 'Estado', Valor: result.status === 'error' ? 'Error' : result.status === 'partial' ? 'Parcial' : 'Éxito' },
+    { Campo: 'Total procesados', Valor: result.total_processed },
+    { Campo: 'Creados', Valor: result.success_count },
+    { Campo: 'Actualizados', Valor: result.updated_count || 0 },
+    { Campo: 'Certificaciones procesadas', Valor: result.cert_updates_count || 0 },
+    { Campo: 'Con errores', Valor: result.error_count },
+    { Campo: 'Omitidos', Valor: result.skipped_count },
+    { Campo: 'Mensaje', Valor: result.message },
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const wsErrors = XLSX.utils.json_to_sheet(rows);
+  const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+
+  // Set column widths for readability
+  wsErrors['!cols'] = [
+    { wch: 6 },  // Fila
+    { wch: 22 }, // Columna
+    { wch: 18 }, // Valor recibido
+    { wch: 22 }, // Tipo de error
+    { wch: 60 }, // Detalle del error
+    { wch: 50 }, // Acción sugerida
+  ];
+  wsSummary['!cols'] = [{ wch: 28 }, { wch: 60 }];
+
+  XLSX.utils.book_append_sheet(wb, wsErrors, 'Errores');
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+  XLSX.writeFile(wb, `reporte_errores_importacion_${new Date().toISOString().slice(0, 10)}.xlsx`);
+};
 
 export const ImportResultPanel = ({ result, onClose }) => {
   if (!result) return null;
@@ -62,9 +108,11 @@ export const ImportResultPanel = ({ result, onClose }) => {
             <p className="text-slate-600 mt-1">{result.message}</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-500 hover:text-slate-700">
-          <X size={18} />
-        </Button>
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-500 hover:text-slate-700">
+            <X size={18} />
+          </Button>
+        )}
       </div>
       
       {/* Contadores */}
@@ -102,10 +150,22 @@ export const ImportResultPanel = ({ result, onClose }) => {
       {/* Log de Errores */}
       {result.errors && result.errors.length > 0 && (
         <div className="mt-4 pt-4 border-t border-slate-200">
-          <h4 className="font-medium text-slate-800 mb-2 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-600" />
-            Detalle de Errores ({result.errors.length})
-          </h4>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-slate-800 flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-600" />
+              Detalle de Errores ({result.errors.length})
+            </h4>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportErrorsToExcel(result)}
+              className="text-xs h-7 border-slate-300 hover:bg-white"
+              data-testid="export-errors-excel-btn"
+            >
+              <FileSpreadsheet size={13} className="mr-1.5 text-green-600" />
+              Exportar errores a Excel
+            </Button>
+          </div>
           <div className="max-h-48 overflow-y-auto bg-white rounded border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 sticky top-0">
