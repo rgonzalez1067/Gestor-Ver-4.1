@@ -233,7 +233,7 @@ export const EmailTemplatesEditor = () => {
       client_rif: 'J-12345678-9',
       quote_type: 'VPOS',
       total_usd: '1,500.00',
-      company_name: 'Merchant Server',
+      company_name: 'Gestor WFPI',
       invoice_number: 'FAC-001234',
       client_address: 'Av. Principal, Edificio Centro, Piso 3',
       integrator_name: 'Integrador Demo (App Demo)',

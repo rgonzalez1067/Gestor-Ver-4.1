@@ -145,8 +145,8 @@ export const Sidebar = () => {
         <div className={`border-b border-slate-200 flex-shrink-0 flex items-center ${collapsed ? 'px-2 py-4 justify-center' : 'px-4 py-4 justify-between'}`}>
           {!collapsed && (
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-slate-900 font-manrope leading-tight">Cotizador</h1>
-              <p className="text-xs text-slate-400 mt-0.5">Merchant Server</p>
+              <h1 className="text-lg font-bold text-slate-900 font-manrope leading-tight">Gestor</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Work Flow de Procesos Integrales</p>
             </div>
           )}
           <div className={`flex items-center ${collapsed ? 'gap-0' : 'gap-1'}`}>

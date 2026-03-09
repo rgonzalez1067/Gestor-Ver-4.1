@@ -53,8 +53,8 @@ export const Login = () => {
               <span className="text-4xl font-bold text-slate-400">MS</span>
             </div>
           )}
-          <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizador</h1>
-          <h2 className="text-2xl font-semibold text-slate-700 font-manrope mb-6">Merchant Server</h2>
+          <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Gestor</h1>
+          <h2 className="text-2xl font-semibold text-slate-700 font-manrope mb-6">Work Flow de Procesos Integrales</h2>
           <p className="text-lg text-slate-600 leading-relaxed">
             Sistema integral de cotizaciones para plataformas de medios de pago.
             Gestione bancos, hardware y genere cotizaciones profesionales.
@@ -76,7 +76,7 @@ export const Login = () => {
                 <span className="text-2xl font-bold text-slate-400">MS</span>
               </div>
             )}
-            <h1 className="text-2xl font-bold text-slate-900 font-manrope">Cotizador Merchant Server</h1>
+            <h1 className="text-2xl font-bold text-slate-900 font-manrope">Gestor - Work Flow de Procesos Integrales</h1>
           </div>
 
           <div className="text-center mb-8">

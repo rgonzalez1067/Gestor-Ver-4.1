@@ -157,8 +157,8 @@ export const Auth = () => {
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
           {/* Logo y Título dentro del card */}
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-slate-800">Cotizador</h1>
-            <p className="text-slate-600 mt-1">Merchant Server</p>
+            <h1 className="text-3xl font-bold text-slate-800">Gestor</h1>
+            <p className="text-slate-600 mt-1">Work Flow de Procesos Integrales</p>
           </div>
           
           {/* Mode Selector */}
