@@ -17,14 +17,17 @@ IMPLEMENTATION_PHASES = ["Notificado", "Recibido", "Configurado", "Testeado", "E
 PROJECT_PRIORITIES = ["Alta", "Media", "Normal"]
 
 
-class ProjectAssign(BaseModel):
-    assigned_to_user_id: str
-    estimated_delivery_date: Optional[str] = None
-
-
 class ProjectStatusUpdate(BaseModel):
     new_status: str
     note: Optional[str] = None
+    change_date: Optional[str] = None
+
+
+class ProjectAssign(BaseModel):
+    assigned_to_user_id: str
+    estimated_delivery_date: Optional[str] = None
+    reassignment_comment: Optional[str] = None
+    reassignment_date: Optional[str] = None
 
 
 class PhaseUpdate(BaseModel):
@@ -112,9 +115,22 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
     if assignment.estimated_delivery_date:
         update_data["estimated_delivery_date"] = assignment.estimated_delivery_date
 
+    previous_assignee = project.get("assigned_to_name", "")
+    is_reassignment = bool(previous_assignee)
+    
+    note_text = f"Proyecto {'reasignado' if is_reassignment else 'asignado'} a {implementer_name}."
+    if is_reassignment and previous_assignee:
+        note_text += f" (Anterior: {previous_assignee})"
+    if assignment.reassignment_date:
+        note_text += f" Fecha: {assignment.reassignment_date}."
+    if assignment.reassignment_comment:
+        note_text += f" Motivo: {assignment.reassignment_comment}"
+    if assignment.estimated_delivery_date:
+        note_text += f" Fecha estimada: {assignment.estimated_delivery_date}"
+
     note = {
         "note_id": f"pn_{uuid.uuid4().hex[:8]}",
-        "text": f"Proyecto asignado a {implementer_name}." + (f" Fecha estimada: {assignment.estimated_delivery_date}" if assignment.estimated_delivery_date else ""),
+        "text": note_text,
         "created_by": current_user.get("user_id", ""),
         "created_by_name": assigner_name,
         "created_at": now,
@@ -155,8 +171,10 @@ async def update_project_status(project_id: str, status_update: ProjectStatusUpd
 
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
     note_text = f"Estado cambiado a '{status_update.new_status}'"
+    if status_update.change_date:
+        note_text += f" (Fecha: {status_update.change_date})"
     if status_update.note:
-        note_text += f": {status_update.note}"
+        note_text += f" — {status_update.note}"
 
     note = {"note_id": f"pn_{uuid.uuid4().hex[:8]}", "text": note_text, "created_by": current_user.get("user_id", ""), "created_by_name": user_name, "created_at": now}
     await db.projects.update_one({"project_id": project_id}, {"$set": update_data, "$push": {"notes": note}})

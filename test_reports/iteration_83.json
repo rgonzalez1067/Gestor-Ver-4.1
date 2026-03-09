@@ -1,0 +1,126 @@
+{
+  "summary": "Iteration 83 - Dynamic Action Buttons for Projects. All features verified: Status change button (RefreshCw icon) with dialog showing current status and available transitions (excluding current), date/comment fields after selection. Assign/Reasignar button shows 'Reasignar' text with purple color for projects with assignee, shows 'RESPONSABLE ACTUAL' section with current assignee name, required fields (Fecha de Reasignación, Motivo de la Reasignación) with asterisks, confirm button disabled until comment filled. Old quick-status buttons (ArrowRight) confirmed removed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration83_project_actions.py",
+    "/app/test_reports/pytest/pytest_results_iteration83.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iteration83_project_actions.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "test@test.com",
+    "password": "Test1234!"
+  },
+  "seed_data_creation": "Used existing project PRY-2026-03-001-PRI assigned to Admin Test",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 83 complete - Dynamic Action Buttons for Projects. Key findings: 1) Status change button (data-testid='status-btn-{id}') uses RefreshCw icon, orange color. 2) Status dialog (data-testid='status-change-dialog') shows 'ESTADO ACTUAL:' (uppercase) with current status badge, and 'Nuevo Estado' section with clickable button cards. 3) Current status excluded from options (if 'Asignado / En Proceso', shows 'Detenido por Cliente/Banco' and 'Finalizado / Producción'). 4) Date field auto-fills with today's date. 5) Assign button (data-testid='assign-btn-{id}') shows 'Reasignar' in purple when project has assignee, 'Asignar' in blue otherwise. 6) Reasignar dialog shows 'RESPONSABLE ACTUAL' section with purple background. 7) Reassignment fields (data-testid='reassign-date', 'reassign-comment') have asterisks for required indicators. 8) Confirm button disabled until both implementer selected AND comment filled. 9) Old quick-status buttons removed - only 4 action buttons in actions column (Status, Assign, Anexos, Detail).",
+  "verified_features": {
+    "status_change_button": {
+      "status": "PASSED",
+      "testid": "status-btn-{id}",
+      "icon": "RefreshCw",
+      "color": "text-orange-600"
+    },
+    "status_change_dialog": {
+      "status": "PASSED",
+      "testid": "status-change-dialog",
+      "shows_current_status": true,
+      "current_status_label": "ESTADO ACTUAL:",
+      "new_status_label": "Nuevo Estado"
+    },
+    "status_options_exclude_current": {
+      "status": "PASSED",
+      "current_status": "Asignado / En Proceso",
+      "available_options": ["Detenido por Cliente/Banco", "Finalizado / Producción"],
+      "excluded_current": true
+    },
+    "status_date_field": {
+      "status": "PASSED",
+      "testid": "status-change-date",
+      "auto_fills_today": true
+    },
+    "status_comment_field": {
+      "status": "PASSED",
+      "testid": "status-change-comment"
+    },
+    "status_confirm_button": {
+      "status": "PASSED",
+      "testid": "status-change-confirm-btn",
+      "disabled_initially": true,
+      "enabled_after_selection": true
+    },
+    "assign_button_text_color": {
+      "status": "PASSED",
+      "testid": "assign-btn-{id}",
+      "text_with_assignee": "Reasignar",
+      "color_with_assignee": "text-purple-600",
+      "text_without_assignee": "Asignar",
+      "color_without_assignee": "text-blue-600"
+    },
+    "reasignar_dialog": {
+      "status": "PASSED",
+      "testid": "assign-dialog",
+      "title": "Reasignar Proyecto"
+    },
+    "current_assignee_info": {
+      "status": "PASSED",
+      "testid": "current-assignee-info",
+      "shows_label": "RESPONSABLE ACTUAL",
+      "shows_name": true,
+      "shows_date": true
+    },
+    "reassignment_required_fields": {
+      "status": "PASSED",
+      "date_testid": "reassign-date",
+      "comment_testid": "reassign-comment",
+      "has_asterisks": true
+    },
+    "reasignar_confirm_disabled_until_comment": {
+      "status": "PASSED",
+      "testid": "assign-confirm-btn",
+      "disabled_no_comment": true,
+      "enabled_with_comment": true
+    },
+    "old_quick_status_buttons_removed": {
+      "status": "PASSED",
+      "arrow_right_present": false,
+      "action_buttons_count": 4
+    },
+    "backend_status_endpoint": {
+      "status": "PASSED",
+      "endpoint": "PUT /api/projects/{id}/status",
+      "accepts": ["new_status", "note", "change_date"]
+    },
+    "backend_assign_endpoint": {
+      "status": "PASSED",
+      "endpoint": "PUT /api/projects/{id}/assign",
+      "accepts": ["assigned_to_user_id", "estimated_delivery_date", "reassignment_comment", "reassignment_date"]
+    },
+    "backend_notes_contain_reassignment_info": {
+      "status": "PASSED",
+      "includes_previous_assignee": true,
+      "includes_date": true,
+      "includes_comment": true
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Resend email service"]
+  }
+}
