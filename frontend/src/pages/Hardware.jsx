@@ -526,6 +526,24 @@ export const Hardware = () => {
             </div>
           </div>
 
+          {/* Filter Bar */}
+          <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-hw-category">
+              <button onClick={() => setSelectedCategory('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedCategory === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                data-testid="filter-hw-all">Todas</button>
+              {HARDWARE_TYPES.map(t => (
+                <button key={t.id} onClick={() => setSelectedCategory(t.id)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedCategory === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  data-testid={`filter-hw-${t.id}`}>{t.name}</button>
+              ))}
+              {selectedCategory !== 'all' && (
+                <button onClick={() => setSelectedCategory('all')}
+                  className="ml-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-600">Limpiar</button>
+              )}
+            </div>
+          </div>
+
           {/* Tabla de Dispositivos - Estilo MediosPago */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
@@ -535,7 +553,7 @@ export const Hardware = () => {
                     Dispositivo / Accesorio
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Tipo
+                    Categoría
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-emerald-600 uppercase tracking-wider">
                     Precio Efectivo
@@ -549,7 +567,9 @@ export const Hardware = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {hardwareList.map((hardware) => (
+                {hardwareList
+                  .filter(h => selectedCategory === 'all' || h.type === selectedCategory)
+                  .map((hardware) => (
                   <tr key={hardware.hardware_id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{hardware.name}</p>
