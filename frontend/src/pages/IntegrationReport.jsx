@@ -160,14 +160,14 @@ export const IntegrationReport = () => {
           {/* FLAT VIEW (no grouping) */}
           {groupBy === 'none' && (
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrations-table">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Banco</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Producto</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Componente</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Fase (Estatus)</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Notas</th>
+                    <th className="w-[22%] px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Banco</th>
+                    <th className="w-[25%] px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Producto</th>
+                    <th className="w-[13%] px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Componente</th>
+                    <th className="w-[15%] px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Fase (Estatus)</th>
+                    <th className="w-[25%] px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Notas</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -253,7 +253,14 @@ export const IntegrationReport = () => {
                         </div>
 
                         {/* Group Table */}
-                        <table className="w-full">
+                        <table className="w-full table-fixed">
+                          <colgroup>
+                            {groupBy !== 'bank' && <col style={{ width: '28%' }} />}
+                            {groupBy !== 'product' && <col style={{ width: '30%' }} />}
+                            <col style={{ width: '15%' }} />
+                            {groupBy !== 'phase' && <col style={{ width: '15%' }} />}
+                            <col style={{ width: groupBy === 'phase' ? '55%' : '27%' }} />
+                          </colgroup>
                           <thead>
                             <tr className="bg-white border-b border-slate-100">
                               {groupBy !== 'bank' && <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Banco</th>}
@@ -272,7 +279,7 @@ export const IntegrationReport = () => {
                                   className="hover:bg-slate-50 cursor-pointer transition-colors"
                                   data-testid={`grouped-row-${row.integration_id}`}>
                                   {groupBy !== 'bank' && (
-                                    <td className="px-4 py-2.5">
+                                    <td className="px-4 py-2.5 overflow-hidden">
                                       <div className="flex items-center gap-2">
                                         <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                                           {row.bank_logo_url ? (
@@ -281,28 +288,28 @@ export const IntegrationReport = () => {
                                             <Building2 size={10} className="text-slate-400" />
                                           )}
                                         </div>
-                                        <span className="text-xs font-medium text-slate-800">{row.bank_name}</span>
+                                        <span className="text-xs font-medium text-slate-800 truncate">{row.bank_name}</span>
                                       </div>
                                     </td>
                                   )}
                                   {groupBy !== 'product' && (
-                                    <td className="px-4 py-2.5">
-                                      <span className="text-xs text-slate-800">{row.service_name}</span>
+                                    <td className="px-4 py-2.5 overflow-hidden">
+                                      <span className="text-xs text-slate-800 truncate block">{row.service_name}</span>
                                     </td>
                                   )}
-                                  <td className="px-4 py-2.5">
+                                  <td className="px-4 py-2.5 overflow-hidden">
                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{row.component_type}</span>
                                   </td>
                                   {groupBy !== 'phase' && (
-                                    <td className="px-4 py-2.5 text-center">
+                                    <td className="px-4 py-2.5 text-center overflow-hidden">
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${cfg.color}`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                                         {cfg.label}
                                       </span>
                                     </td>
                                   )}
-                                  <td className="px-4 py-2.5">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-[180px] block">{row.notes || '—'}</span>
+                                  <td className="px-4 py-2.5 overflow-hidden">
+                                    <span className="text-[10px] text-slate-500 truncate block">{row.notes || '—'}</span>
                                   </td>
                                 </tr>
                               );
