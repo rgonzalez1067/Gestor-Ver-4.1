@@ -63,7 +63,7 @@ const LogoUpload = ({ logoUrl, onUpload, onRemove }) => {
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       {logoUrl ? (
         <>
-          <img src={`${API_URL}${logoUrl}`} alt="Logo" className="w-[130px] h-[130px] object-contain rounded-lg" />
+          <img src={`${API_URL}${logoUrl}`} alt="Logo" className="w-[130px] h-[130px] object-contain rounded-lg bg-white" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
           {hovering && (
             <div className="absolute inset-0 bg-black/50 rounded-xl flex flex-col items-center justify-center gap-2">
               <button type="button" onClick={() => inputRef.current?.click()} className="px-3 py-1.5 text-xs font-medium bg-white text-slate-800 rounded-md hover:bg-slate-100 transition-colors">
@@ -489,7 +489,7 @@ export const Banks = () => {
                   <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer"
                     onClick={() => navigate(`/banks/${bank.bank_id}`)}>
                     {bank.bank_logo_url ? (
-                      <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-[70px] h-[70px] object-contain" />
+                      <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-[70px] h-[70px] object-contain" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
                     ) : (
                       <Building2 size={28} className="text-slate-400" />
                     )}

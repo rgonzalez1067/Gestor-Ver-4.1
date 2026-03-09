@@ -27,7 +27,7 @@ from routes.projects import router as projects_router
 app = FastAPI(title="Cotizador Merchant Server API")
 
 # Mount uploads
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # CORS
 app.add_middleware(

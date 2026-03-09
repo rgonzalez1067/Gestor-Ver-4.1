@@ -141,10 +141,9 @@ export const BankDetail = () => {
             <div className="flex items-center gap-4 flex-1">
               <div className="w-14 h-14 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                 {bank.bank_logo_url ? (
-                  <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-12 h-12 object-contain" />
-                ) : (
-                  <Building2 size={24} className="text-slate-400" />
-                )}
+                  <img src={`${API_URL}${bank.bank_logo_url}`} alt={bank.name} className="w-12 h-12 object-contain" onError={(e) => { e.target.onerror = null; e.target.src = ''; e.target.style.display = 'none'; }} />
+                ) : null}
+                {!bank.bank_logo_url && <Building2 size={24} className="text-slate-400" />}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-slate-900 font-manrope">{bank.name}</h1>
