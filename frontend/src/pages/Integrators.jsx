@@ -5,11 +5,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -54,7 +55,8 @@ export const Integrators = () => {
   const [filterGestor, setFilterGestor] = useState('');
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
-    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: ''
+    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '',
+    contacts: []
   });
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
@@ -66,6 +68,12 @@ export const Integrators = () => {
   const [importLoading, setImportLoading] = useState(false);
   const dropRef = useRef(null);
   const [certFilters, setCertFilters] = useState({});
+  // Bitácora
+  const [bitacoraOpen, setBitacoraOpen] = useState(false);
+  const [bitacoraIntegrator, setBitacoraIntegrator] = useState(null);
+  const [bitacoraEntries, setBitacoraEntries] = useState([]);
+  const [bitacoraLoading, setBitacoraLoading] = useState(false);
+  const [bitacoraForm, setBitacoraForm] = useState({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -137,13 +145,14 @@ export const Integrators = () => {
       integration_modality: intg.integration_modality, integrator_status: intg.integrator_status,
       gestor: intg.gestor || '', categoria: intg.categoria || '',
       certifications: intg.certifications || {},
-      last_contact_date: intg.last_contact_date || ''
+      last_contact_date: intg.last_contact_date || '',
+      contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '' });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [] });
     setEditingIntegrator(null);
   };
 
@@ -304,6 +313,63 @@ export const Integrators = () => {
     });
   };
 
+  // Contact management helpers
+  const addContact = () => {
+    setFormData(prev => ({ ...prev, contacts: [...(prev.contacts || []), { contact_id: `ctc_${Date.now().toString(36)}`, name: '', email: '', phone: '' }] }));
+  };
+  const removeContact = (idx) => {
+    setFormData(prev => ({ ...prev, contacts: prev.contacts.filter((_, i) => i !== idx) }));
+  };
+  const updateContact = (idx, field, value) => {
+    setFormData(prev => {
+      const contacts = [...prev.contacts];
+      contacts[idx] = { ...contacts[idx], [field]: value };
+      return { ...prev, contacts };
+    });
+  };
+
+  // Bitácora functions
+  const openBitacora = async (intg) => {
+    setBitacoraIntegrator(intg);
+    setBitacoraOpen(true);
+    setBitacoraLoading(true);
+    setBitacoraForm({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
+    try {
+      const res = await api.get(`/integrators/${intg.integrator_id}/bitacora`);
+      setBitacoraEntries(res.data);
+    } catch { toast.error('Error al cargar bitácora'); }
+    finally { setBitacoraLoading(false); }
+  };
+
+  const saveBitacoraEntry = async () => {
+    if (!bitacoraForm.description.trim()) { toast.error('Describa la gestión realizada'); return; }
+    try {
+      await api.post(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora`, bitacoraForm);
+      toast.success('Gestión registrada');
+      setBitacoraForm({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
+      const res = await api.get(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora`);
+      setBitacoraEntries(res.data);
+      fetchData();
+    } catch { toast.error('Error al guardar'); }
+  };
+
+  const toggleCommitmentComplete = async (entry) => {
+    try {
+      await api.patch(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora/${entry.entry_id}`, { commitment_completed: !entry.commitment_completed });
+      const res = await api.get(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora`);
+      setBitacoraEntries(res.data);
+      fetchData();
+    } catch { toast.error('Error al actualizar'); }
+  };
+
+  const deleteBitacoraEntry = async (entryId) => {
+    try {
+      await api.delete(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora/${entryId}`);
+      setBitacoraEntries(prev => prev.filter(e => e.entry_id !== entryId));
+      toast.success('Entrada eliminada');
+    } catch { toast.error('Error al eliminar'); }
+  };
+
   const filteredIntegrators = integrators.filter(intg => {
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
@@ -396,6 +462,34 @@ export const Integrators = () => {
                           <SelectContent>{INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    {/* Contactos Técnicos */}
+                    <div className="border-t border-slate-200 pt-3 mt-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-semibold text-slate-700">Responsables Técnicos</Label>
+                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addContact} data-testid="add-contact-btn">
+                          <UserPlus size={13} className="mr-1" /> Agregar responsable
+                        </Button>
+                      </div>
+                      {(formData.contacts || []).length === 0 && (
+                        <p className="text-xs text-slate-400 italic mb-2">Sin responsables técnicos asignados</p>
+                      )}
+                      {(formData.contacts || []).map((c, idx) => (
+                        <div key={c.contact_id || idx} className="flex items-center gap-2 mb-2 bg-slate-50 rounded-lg p-2" data-testid={`contact-row-${idx}`}>
+                          <Input value={c.name} onChange={(e) => updateContact(idx, 'name', e.target.value)} placeholder="Nombre completo" className="h-8 text-xs flex-1" />
+                          <div className="relative flex-1">
+                            <Mail size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Input value={c.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} placeholder="correo@empresa.com" className="h-8 text-xs pl-7" type="email" />
+                          </div>
+                          <div className="relative w-[140px]">
+                            <Phone size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Input value={c.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)} placeholder="+58 412..." className="h-8 text-xs pl-7" />
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeContact(idx)}>
+                            <X size={14} />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
                       <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancelar</Button>
@@ -545,6 +639,11 @@ export const Integrators = () => {
                             <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
                               className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
                               <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openBitacora(intg)}
+                              className={`h-7 w-7 p-0 ${intg.has_overdue_commitments ? 'text-amber-500 hover:bg-amber-50 animate-pulse' : 'text-slate-500 hover:bg-slate-100'}`}
+                              data-testid={`bitacora-${intg.integrator_id}`} title="Bitácora de gestión">
+                              <BookOpen size={13} />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>
                             <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>
@@ -791,6 +890,111 @@ export const Integrators = () => {
           </DialogContent>
         </Dialog>
       </main>
+
+      {/* Bitácora Modal */}
+      <Dialog open={bitacoraOpen} onOpenChange={(o) => { if (!o) setBitacoraOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="bitacora-modal">
+          <DialogHeader>
+            <DialogTitle className="font-manrope text-xl flex items-center gap-2">
+              <BookOpen size={20} className="text-slate-600" />
+              Bitácora — {bitacoraIntegrator?.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* New Entry Form */}
+          <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Nueva Gestión</p>
+            <Textarea value={bitacoraForm.description} onChange={(e) => setBitacoraForm(p => ({ ...p, description: e.target.value }))}
+              placeholder="Describa la gestión realizada (llamada, reunión, correo de seguimiento...)" className="text-sm min-h-[60px]" data-testid="bitacora-description" />
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-[10px] text-slate-500">Persona contactada</Label>
+                <Select value={bitacoraForm.contact_id} onValueChange={(v) => {
+                  const c = (bitacoraIntegrator?.contacts || []).find(ct => ct.contact_id === v);
+                  setBitacoraForm(p => ({ ...p, contact_id: v, contact_name: c?.name || '' }));
+                }}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {(bitacoraIntegrator?.contacts || []).map(c => (
+                      <SelectItem key={c.contact_id} value={c.contact_id}>{c.name}</SelectItem>
+                    ))}
+                    {(!bitacoraIntegrator?.contacts || bitacoraIntegrator.contacts.length === 0) && (
+                      <SelectItem value="_none" disabled>Sin contactos registrados</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Fecha de gestión</Label>
+                <Input type="date" value={bitacoraForm.date} onChange={(e) => setBitacoraForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Fecha límite compromiso</Label>
+                <Input type="date" value={bitacoraForm.commitment_deadline} onChange={(e) => setBitacoraForm(p => ({ ...p, commitment_deadline: e.target.value }))} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-[10px] text-slate-500">Compromiso establecido</Label>
+              <Input value={bitacoraForm.commitment} onChange={(e) => setBitacoraForm(p => ({ ...p, commitment: e.target.value }))}
+                placeholder="Ej: Enviar credenciales de prueba" className="h-8 text-xs" data-testid="bitacora-commitment" />
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" className="h-8 text-xs bg-brand-green-600 hover:bg-brand-green-700" onClick={saveBitacoraEntry} data-testid="bitacora-save-btn">
+                <Plus size={13} className="mr-1" /> Registrar Gestión
+              </Button>
+            </div>
+          </div>
+
+          {/* Entries Timeline */}
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Historial ({bitacoraEntries.length})</p>
+            {bitacoraLoading ? (
+              <p className="text-sm text-slate-400 text-center py-4">Cargando...</p>
+            ) : bitacoraEntries.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4 italic">Sin gestiones registradas</p>
+            ) : (
+              <div className="space-y-2 max-h-[350px] overflow-y-auto">
+                {bitacoraEntries.map(entry => {
+                  const isOverdue = entry.commitment_deadline && !entry.commitment_completed && entry.commitment_deadline < new Date().toISOString().slice(0, 10);
+                  return (
+                    <div key={entry.entry_id} className={`border rounded-lg p-3 transition-all ${isOverdue ? 'border-amber-300 bg-amber-50' : entry.commitment_completed ? 'border-green-200 bg-green-50/50' : 'border-slate-200 bg-white'}`} data-testid={`bitacora-entry-${entry.entry_id}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-slate-800">{entry.description}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 rounded"><CalendarDays size={10} />{entry.date}</span>
+                            {entry.contact_name && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded"><Users size={10} />{entry.contact_name}</span>}
+                          </div>
+                          {entry.commitment && (
+                            <div className={`mt-2 flex items-start gap-2 p-2 rounded text-xs ${isOverdue ? 'bg-amber-100/70' : entry.commitment_completed ? 'bg-green-100/70' : 'bg-slate-50'}`}>
+                              <button onClick={() => toggleCommitmentComplete(entry)} className="mt-0.5 flex-shrink-0" data-testid={`toggle-commitment-${entry.entry_id}`}>
+                                {entry.commitment_completed
+                                  ? <CheckCircle size={14} className="text-green-600" />
+                                  : <Clock size={14} className={isOverdue ? 'text-amber-600' : 'text-slate-400'} />}
+                              </button>
+                              <div className="min-w-0">
+                                <p className={`font-medium ${entry.commitment_completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{entry.commitment}</p>
+                                {entry.commitment_deadline && (
+                                  <p className={`text-[10px] mt-0.5 ${isOverdue ? 'text-amber-700 font-semibold' : 'text-slate-400'}`}>
+                                    {isOverdue ? 'Vencido: ' : 'Fecha límite: '}{entry.commitment_deadline}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteBitacoraEntry(entry.entry_id)}>
+                          <Trash2 size={12} />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

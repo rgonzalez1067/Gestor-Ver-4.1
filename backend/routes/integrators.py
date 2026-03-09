@@ -33,9 +33,24 @@ async def get_integrators(
         query['integrator_type'] = integrator_type
     
     integrators = await db.integrators.find(query, {"_id": 0}).to_list(1000)
+    
+    # Check for overdue commitments per integrator
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    integrator_ids = [i['integrator_id'] for i in integrators]
+    overdue_map = {}
+    if integrator_ids:
+        overdue_entries = await db.bitacora.find({
+            "integrator_id": {"$in": integrator_ids},
+            "commitment_completed": False,
+            "commitment_deadline": {"$lt": today, "$ne": None, "$ne": ""}
+        }, {"_id": 0, "integrator_id": 1}).to_list(5000)
+        for e in overdue_entries:
+            overdue_map[e['integrator_id']] = True
+    
     for intg in integrators:
         if isinstance(intg.get('created_at'), str):
             intg['created_at'] = datetime.fromisoformat(intg['created_at'])
+        intg['has_overdue_commitments'] = overdue_map.get(intg['integrator_id'], False)
     return integrators
 
 @router.post("/integrators", response_model=Integrator)
@@ -122,6 +137,81 @@ async def update_contact_date(integrator_id: str, body: dict, authorization: Opt
         {"$set": {"last_contact_date": date_val}}
     )
     return {"status": "ok", "last_contact_date": date_val}
+
+# ==================== BITACORA ENDPOINTS ====================
+
+@router.get("/integrators/{integrator_id}/bitacora")
+async def get_bitacora(integrator_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    entries = await db.bitacora.find(
+        {"integrator_id": integrator_id}, {"_id": 0}
+    ).sort("date", -1).to_list(500)
+    for e in entries:
+        if isinstance(e.get('created_at'), str):
+            e['created_at'] = datetime.fromisoformat(e['created_at'])
+    return entries
+
+@router.post("/integrators/{integrator_id}/bitacora")
+async def add_bitacora_entry(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrador no encontrado")
+    
+    entry = BitacoraEntry(
+        integrator_id=integrator_id,
+        description=body.get("description", ""),
+        contact_id=body.get("contact_id"),
+        contact_name=body.get("contact_name"),
+        date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+        commitment=body.get("commitment"),
+        commitment_deadline=body.get("commitment_deadline"),
+        commitment_completed=body.get("commitment_completed", False),
+    )
+    doc = entry.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.bitacora.insert_one(doc)
+    doc.pop('_id', None)
+    
+    # Auto-update last_contact_date
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {"last_contact_date": entry.date}}
+    )
+    
+    return doc
+
+@router.patch("/integrators/{integrator_id}/bitacora/{entry_id}")
+async def update_bitacora_entry(integrator_id: str, entry_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    
+    update_fields = {}
+    for field in ["description", "contact_id", "contact_name", "date", "commitment", "commitment_deadline", "commitment_completed"]:
+        if field in body:
+            update_fields[field] = body[field]
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+    
+    result = await db.bitacora.update_one(
+        {"entry_id": entry_id, "integrator_id": integrator_id},
+        {"$set": update_fields}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    
+    updated = await db.bitacora.find_one({"entry_id": entry_id}, {"_id": 0})
+    return updated
+
+@router.delete("/integrators/{integrator_id}/bitacora/{entry_id}")
+async def delete_bitacora_entry(integrator_id: str, entry_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    result = await db.bitacora.delete_one({"entry_id": entry_id, "integrator_id": integrator_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    return {"message": "Entrada eliminada"}
+
 
 # Export integrators to Excel (with certification matrix)
 @router.get("/integrators/export/excel")
