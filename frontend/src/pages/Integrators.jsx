@@ -56,7 +56,7 @@ export const Integrators = () => {
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '',
-    contacts: [], integration_phase: 'Negociación'
+    contacts: []
   });
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
@@ -79,7 +79,7 @@ export const Integrators = () => {
   const [evoIntegrator, setEvoIntegrator] = useState(null);
   const [evoEntries, setEvoEntries] = useState([]);
   const [evoLoading, setEvoLoading] = useState(false);
-  const [evoForm, setEvoForm] = useState({ comment: '', phase: '', date: new Date().toISOString().slice(0, 10) });
+  const [evoForm, setEvoForm] = useState({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
   const [evoEditing, setEvoEditing] = useState(null);
   // Summary
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -158,14 +158,13 @@ export const Integrators = () => {
       gestor: intg.gestor || '', categoria: intg.categoria || '',
       certifications: intg.certifications || {},
       last_contact_date: intg.last_contact_date || '',
-      contacts: intg.contacts || [],
-      integration_phase: intg.integration_phase || 'Negociación'
+      contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [], integration_phase: 'Negociación' });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [] });
     setEditingIntegrator(null);
   };
 
@@ -391,7 +390,7 @@ export const Integrators = () => {
     setEvoIntegrator(intg);
     setEvoOpen(true);
     setEvoLoading(true);
-    setEvoForm({ comment: '', phase: intg.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) });
+    setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
     setEvoEditing(null);
     try {
       const res = await api.get(`/integrators/${intg.integrator_id}/evolution`);
@@ -411,7 +410,7 @@ export const Integrators = () => {
         toast.success('Hito registrado');
       }
       setEvoEditing(null);
-      setEvoForm({ comment: '', phase: evoIntegrator.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) });
+      setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
       const res = await api.get(`/integrators/${evoIntegrator.integrator_id}/evolution`);
       setEvoEntries(res.data);
     } catch { toast.error('Error al guardar'); }
@@ -419,7 +418,7 @@ export const Integrators = () => {
 
   const startEditEvo = (entry) => {
     setEvoEditing(entry.entry_id);
-    setEvoForm({ comment: entry.comment, phase: entry.phase, date: entry.date });
+    setEvoForm({ comment: entry.comment, contact_person: entry.contact_person || '', date: entry.date });
   };
 
   const deleteEvoEntry = async (entryId) => {
@@ -523,7 +522,7 @@ export const Integrators = () => {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
                         <Label>Gestor Asignado</Label>
                         <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
@@ -543,13 +542,6 @@ export const Integrators = () => {
                         <Select value={formData.integrator_status} onValueChange={(v) => setFormData({ ...formData, integrator_status: v })}>
                           <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
                           <SelectContent>{INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Fase de Integración</Label>
-                        <Select value={formData.integration_phase} onValueChange={(v) => setFormData({ ...formData, integration_phase: v })}>
-                          <SelectTrigger data-testid="phase-select"><SelectValue /></SelectTrigger>
-                          <SelectContent>{PHASES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -650,18 +642,17 @@ export const Integrators = () => {
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1150px' }}>
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1050px' }}>
                 <colgroup>
-                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '20%' }} />
                   <col style={{ width: '5%' }} />
                   <col style={{ width: '7%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '8%' }} />
-                  <col style={{ width: '10%' }} />
                   <col style={{ width: '14%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '12%' }} />
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -673,14 +664,12 @@ export const Integrators = () => {
                     <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Últ. Contacto</th>
-                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Fase</th>
-                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
-                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase" style={{ minWidth: '160px' }}>Acciones</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
-                    <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => (
                     <Fragment key={intg.integrator_id}>
                       <tr className="hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
@@ -723,10 +712,6 @@ export const Integrators = () => {
                               />
                             </PopoverContent>
                           </Popover>
-                        </td>
-                        <td className="px-2 py-2 text-center overflow-hidden">{getStatusBadge(intg.integrator_status)}</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${PHASE_COLORS[intg.integration_phase] || 'bg-slate-100 text-slate-600 border-slate-300'}`}>{intg.integration_phase || '—'}</span>
                         </td>
                         <td className="px-2 py-2" style={{ minWidth: '160px' }}>
                           <div className="flex items-center justify-center gap-1">
@@ -1008,20 +993,21 @@ export const Integrators = () => {
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-[10px] text-slate-500">Persona contactada</Label>
-                <Select value={bitacoraForm.contact_id} onValueChange={(v) => {
-                  const c = (bitacoraIntegrator?.contacts || []).find(ct => ct.contact_id === v);
-                  setBitacoraForm(p => ({ ...p, contact_id: v, contact_name: c?.name || '' }));
-                }}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
+                <div className="relative">
+                  <Input
+                    value={bitacoraForm.contact_name}
+                    onChange={(e) => setBitacoraForm(p => ({ ...p, contact_name: e.target.value, contact_id: '' }))}
+                    list={`bitacora-contacts-${bitacoraIntegrator?.integrator_id}`}
+                    placeholder="Escriba o seleccione..."
+                    className="h-8 text-xs"
+                    data-testid="bitacora-contact-input"
+                  />
+                  <datalist id={`bitacora-contacts-${bitacoraIntegrator?.integrator_id}`}>
                     {(bitacoraIntegrator?.contacts || []).map(c => (
-                      <SelectItem key={c.contact_id} value={c.contact_id}>{c.name}</SelectItem>
+                      <option key={c.contact_id} value={c.name} />
                     ))}
-                    {(!bitacoraIntegrator?.contacts || bitacoraIntegrator.contacts.length === 0) && (
-                      <SelectItem value="_none" disabled>Sin contactos registrados</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                  </datalist>
+                </div>
               </div>
               <div>
                 <Label className="text-[10px] text-slate-500">Fecha de gestión</Label>
@@ -1102,7 +1088,6 @@ export const Integrators = () => {
             <DialogTitle className="font-manrope text-xl flex items-center gap-2">
               <FileText size={20} className="text-purple-600" />
               Historial de Avance — {evoIntegrator?.name}
-              {evoIntegrator?.integration_phase && <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium border ${PHASE_COLORS[evoIntegrator.integration_phase] || ''}`}>{evoIntegrator.integration_phase}</span>}
             </DialogTitle>
           </DialogHeader>
 
@@ -1112,11 +1097,20 @@ export const Integrators = () => {
               placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="evo-comment" />
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[10px] text-slate-500">Fase</Label>
-                <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
-                  <SelectTrigger className="h-8 text-xs" data-testid="evo-phase-select"><SelectValue /></SelectTrigger>
-                  <SelectContent>{PHASES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                </Select>
+                <Label className="text-[10px] text-slate-500">Persona de Contacto</Label>
+                <Input
+                  value={evoForm.contact_person}
+                  onChange={(e) => setEvoForm(p => ({ ...p, contact_person: e.target.value }))}
+                  list={`evo-contacts-${evoIntegrator?.integrator_id}`}
+                  placeholder="Escriba o seleccione..."
+                  className="h-8 text-xs"
+                  data-testid="evo-contact-input"
+                />
+                <datalist id={`evo-contacts-${evoIntegrator?.integrator_id}`}>
+                  {(evoIntegrator?.contacts || []).map(c => (
+                    <option key={c.contact_id} value={c.name} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <Label className="text-[10px] text-slate-500">Fecha</Label>
@@ -1124,7 +1118,7 @@ export const Integrators = () => {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              {evoEditing && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setEvoEditing(null); setEvoForm({ comment: '', phase: evoIntegrator?.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) }); }}>Cancelar</Button>}
+              {evoEditing && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setEvoEditing(null); setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) }); }}>Cancelar</Button>}
               <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700" onClick={saveEvoEntry} data-testid="evo-save-btn">
                 {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
               </Button>
@@ -1142,12 +1136,12 @@ export const Integrators = () => {
                 <div className="absolute left-[10px] top-2 bottom-2 w-0.5 bg-slate-200" />
                 {evoEntries.map((entry) => (
                   <div key={entry.entry_id} className="relative pb-4" data-testid={`evo-entry-${entry.entry_id}`}>
-                    <div className={`absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 ${PHASE_COLORS[entry.phase]?.includes('emerald') ? 'bg-emerald-500 border-emerald-300' : PHASE_COLORS[entry.phase]?.includes('blue') ? 'bg-blue-500 border-blue-300' : PHASE_COLORS[entry.phase]?.includes('amber') ? 'bg-amber-500 border-amber-300' : PHASE_COLORS[entry.phase]?.includes('orange') ? 'bg-orange-500 border-orange-300' : 'bg-purple-500 border-purple-300'}`} />
+                    <div className="absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 bg-purple-500 border-purple-300" />
                     <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${PHASE_COLORS[entry.phase] || 'bg-slate-100 text-slate-600 border-slate-300'}`}>{entry.phase}</span>
+                            {entry.contact_person && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200"><Users size={10} />{entry.contact_person}</span>}
                             <span className="text-[10px] text-slate-400">{entry.date}</span>
                             {entry.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
                           </div>

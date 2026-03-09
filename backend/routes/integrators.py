@@ -265,7 +265,8 @@ async def add_evolution_entry(integrator_id: str, body: dict, authorization: Opt
     entry = EvolutionEntry(
         integrator_id=integrator_id,
         comment=body.get("comment", ""),
-        phase=body.get("phase", existing.get("integration_phase", "Negociación")),
+        phase=body.get("phase", ""),
+        contact_person=body.get("contact_person", ""),
         date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
     )
     doc = entry.model_dump()
@@ -278,7 +279,7 @@ async def add_evolution_entry(integrator_id: str, body: dict, authorization: Opt
 async def update_evolution_entry(integrator_id: str, entry_id: str, body: dict, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     update_fields = {}
-    for field in ["comment", "phase", "date"]:
+    for field in ["comment", "phase", "date", "contact_person"]:
         if field in body:
             update_fields[field] = body[field]
     if not update_fields:

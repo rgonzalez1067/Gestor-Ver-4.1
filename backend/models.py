@@ -204,7 +204,8 @@ class EvolutionEntry(BaseModel):
     entry_id: str = Field(default_factory=lambda: f"evo_{uuid.uuid4().hex[:8]}")
     integrator_id: str
     comment: str
-    phase: str  # Negociación, Desarrollo, QA, SQA, Producción
+    phase: str = ""  # Deprecated but kept for backwards compatibility
+    contact_person: str = ""  # Persona de contacto (nombre libre o del CRM)
     date: str  # ISO date
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
