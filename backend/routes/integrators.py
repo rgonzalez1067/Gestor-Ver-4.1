@@ -73,6 +73,38 @@ async def create_integrator(integrator: IntegratorCreate, authorization: Optiona
     doc.pop('_id', None)
     return doc
 
+
+@router.get("/integrators/summary")
+async def get_integrations_summary(group_by: str = "phase", authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(5000)
+    services = await db.services.find({}, {"_id": 0}).to_list(500)
+    service_map = {s['service_id']: s['name'] for s in services}
+    groups = {}
+    if group_by == "phase":
+        for intg in integrators:
+            key = intg.get('integration_phase') or 'Sin fase'
+            groups.setdefault(key, {"label": key, "count": 0, "items": []})
+            groups[key]["count"] += 1
+            groups[key]["items"].append({"integrator_id": intg['integrator_id'], "name": intg['name'], "app_name": intg.get('app_name', ''), "integration_modality": intg.get('integration_modality', ''), "integrator_status": intg.get('integrator_status', ''), "integration_phase": intg.get('integration_phase', ''), "gestor": intg.get('gestor', '')})
+    elif group_by == "product":
+        for intg in integrators:
+            for sid, status in (intg.get('certifications') or {}).items():
+                if status in ('C', 'P'):
+                    pname = service_map.get(sid, sid)
+                    groups.setdefault(pname, {"label": pname, "count": 0, "certified": 0, "pending": 0, "items": []})
+                    groups[pname]["count"] += 1
+                    groups[pname]["certified" if status == 'C' else "pending"] += 1
+                    groups[pname]["items"].append({"integrator_id": intg['integrator_id'], "name": intg['name'], "status": status, "integration_phase": intg.get('integration_phase', '')})
+    elif group_by == "modality":
+        for intg in integrators:
+            key = intg.get('integration_modality') or 'Sin modalidad'
+            groups.setdefault(key, {"label": key, "count": 0, "items": []})
+            groups[key]["count"] += 1
+            groups[key]["items"].append({"integrator_id": intg['integrator_id'], "name": intg['name'], "app_name": intg.get('app_name', ''), "integrator_status": intg.get('integrator_status', ''), "integration_phase": intg.get('integration_phase', '')})
+    return {"group_by": group_by, "total": len(integrators), "groups": groups}
+
+
 @router.get("/integrators/{integrator_id}", response_model=Integrator)
 async def get_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
@@ -211,6 +243,63 @@ async def delete_bitacora_entry(integrator_id: str, entry_id: str, authorization
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Entrada no encontrada")
     return {"message": "Entrada eliminada"}
+
+
+# ==================== EVOLUTION LOG ENDPOINTS ====================
+
+@router.get("/integrators/{integrator_id}/evolution")
+async def get_evolution_log(integrator_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    entries = await db.evolution_log.find(
+        {"integrator_id": integrator_id}, {"_id": 0}
+    ).sort("date", -1).to_list(500)
+    return entries
+
+@router.post("/integrators/{integrator_id}/evolution")
+async def add_evolution_entry(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    existing = await db.integrators.find_one({"integrator_id": integrator_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Integrador no encontrado")
+    
+    entry = EvolutionEntry(
+        integrator_id=integrator_id,
+        comment=body.get("comment", ""),
+        phase=body.get("phase", existing.get("integration_phase", "Negociación")),
+        date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+    )
+    doc = entry.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.evolution_log.insert_one(doc)
+    doc.pop('_id', None)
+    return doc
+
+@router.patch("/integrators/{integrator_id}/evolution/{entry_id}")
+async def update_evolution_entry(integrator_id: str, entry_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    update_fields = {}
+    for field in ["comment", "phase", "date"]:
+        if field in body:
+            update_fields[field] = body[field]
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.evolution_log.update_one(
+        {"entry_id": entry_id, "integrator_id": integrator_id}, {"$set": update_fields}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    updated = await db.evolution_log.find_one({"entry_id": entry_id}, {"_id": 0})
+    return updated
+
+@router.delete("/integrators/{integrator_id}/evolution/{entry_id}")
+async def delete_evolution_entry(integrator_id: str, entry_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    result = await db.evolution_log.delete_one({"entry_id": entry_id, "integrator_id": integrator_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    return {"message": "Entrada eliminada"}
+
 
 
 # Export integrators to Excel (with certification matrix)

@@ -56,7 +56,7 @@ export const Integrators = () => {
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '',
-    contacts: []
+    contacts: [], integration_phase: 'Negociación'
   });
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
@@ -74,6 +74,18 @@ export const Integrators = () => {
   const [bitacoraEntries, setBitacoraEntries] = useState([]);
   const [bitacoraLoading, setBitacoraLoading] = useState(false);
   const [bitacoraForm, setBitacoraForm] = useState({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
+  // Evolution log
+  const [evoOpen, setEvoOpen] = useState(false);
+  const [evoIntegrator, setEvoIntegrator] = useState(null);
+  const [evoEntries, setEvoEntries] = useState([]);
+  const [evoLoading, setEvoLoading] = useState(false);
+  const [evoForm, setEvoForm] = useState({ comment: '', phase: '', date: new Date().toISOString().slice(0, 10) });
+  const [evoEditing, setEvoEditing] = useState(null);
+  // Summary
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryGroupBy, setSummaryGroupBy] = useState('phase');
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -146,13 +158,14 @@ export const Integrators = () => {
       gestor: intg.gestor || '', categoria: intg.categoria || '',
       certifications: intg.certifications || {},
       last_contact_date: intg.last_contact_date || '',
-      contacts: intg.contacts || []
+      contacts: intg.contacts || [],
+      integration_phase: intg.integration_phase || 'Negociación'
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [], integration_phase: 'Negociación' });
     setEditingIntegrator(null);
   };
 
@@ -370,6 +383,75 @@ export const Integrators = () => {
     } catch { toast.error('Error al eliminar'); }
   };
 
+  // Evolution log functions
+  const PHASES = ['Negociación', 'Desarrollo', 'QA', 'SQA', 'Producción'];
+  const PHASE_COLORS = { 'Negociación': 'bg-purple-100 text-purple-700 border-purple-300', 'Desarrollo': 'bg-blue-100 text-blue-700 border-blue-300', 'QA': 'bg-amber-100 text-amber-700 border-amber-300', 'SQA': 'bg-orange-100 text-orange-700 border-orange-300', 'Producción': 'bg-emerald-100 text-emerald-700 border-emerald-300' };
+
+  const openEvolution = async (intg) => {
+    setEvoIntegrator(intg);
+    setEvoOpen(true);
+    setEvoLoading(true);
+    setEvoForm({ comment: '', phase: intg.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) });
+    setEvoEditing(null);
+    try {
+      const res = await api.get(`/integrators/${intg.integrator_id}/evolution`);
+      setEvoEntries(res.data);
+    } catch { toast.error('Error al cargar historial'); }
+    finally { setEvoLoading(false); }
+  };
+
+  const saveEvoEntry = async () => {
+    if (!evoForm.comment.trim()) { toast.error('Escriba un comentario'); return; }
+    try {
+      if (evoEditing) {
+        await api.patch(`/integrators/${evoIntegrator.integrator_id}/evolution/${evoEditing}`, evoForm);
+        toast.success('Entrada actualizada');
+      } else {
+        await api.post(`/integrators/${evoIntegrator.integrator_id}/evolution`, evoForm);
+        toast.success('Hito registrado');
+      }
+      setEvoEditing(null);
+      setEvoForm({ comment: '', phase: evoIntegrator.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) });
+      const res = await api.get(`/integrators/${evoIntegrator.integrator_id}/evolution`);
+      setEvoEntries(res.data);
+    } catch { toast.error('Error al guardar'); }
+  };
+
+  const startEditEvo = (entry) => {
+    setEvoEditing(entry.entry_id);
+    setEvoForm({ comment: entry.comment, phase: entry.phase, date: entry.date });
+  };
+
+  const deleteEvoEntry = async (entryId) => {
+    try {
+      await api.delete(`/integrators/${evoIntegrator.integrator_id}/evolution/${entryId}`);
+      setEvoEntries(prev => prev.filter(e => e.entry_id !== entryId));
+      toast.success('Entrada eliminada');
+    } catch { toast.error('Error al eliminar'); }
+  };
+
+  // Summary functions
+  const openSummary = async (groupBy = 'phase') => {
+    setSummaryOpen(true);
+    setSummaryGroupBy(groupBy);
+    setSummaryLoading(true);
+    try {
+      const res = await api.get(`/integrators/summary?group_by=${groupBy}`);
+      setSummaryData(res.data);
+    } catch { toast.error('Error al cargar resumen'); }
+    finally { setSummaryLoading(false); }
+  };
+
+  const changeSummaryGroup = async (groupBy) => {
+    setSummaryGroupBy(groupBy);
+    setSummaryLoading(true);
+    try {
+      const res = await api.get(`/integrators/summary?group_by=${groupBy}`);
+      setSummaryData(res.data);
+    } catch { toast.error('Error al cargar resumen'); }
+    finally { setSummaryLoading(false); }
+  };
+
   const filteredIntegrators = integrators.filter(intg => {
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
@@ -397,6 +479,7 @@ export const Integrators = () => {
               <p className="text-slate-500 mt-1">Aliados técnicos, certificación de productos y gestores asignados</p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
               <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
@@ -440,7 +523,7 @@ export const Integrators = () => {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-4 gap-3">
                       <div>
                         <Label>Gestor Asignado</Label>
                         <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
@@ -460,6 +543,13 @@ export const Integrators = () => {
                         <Select value={formData.integrator_status} onValueChange={(v) => setFormData({ ...formData, integrator_status: v })}>
                           <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
                           <SelectContent>{INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Fase de Integración</Label>
+                        <Select value={formData.integration_phase} onValueChange={(v) => setFormData({ ...formData, integration_phase: v })}>
+                          <SelectTrigger data-testid="phase-select"><SelectValue /></SelectTrigger>
+                          <SelectContent>{PHASES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -583,13 +673,14 @@ export const Integrators = () => {
                     <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Últ. Contacto</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Fase</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Estatus</th>
-                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase" style={{ minWidth: '140px' }}>Acciones</th>
+                    <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase" style={{ minWidth: '160px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
-                    <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                    <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => (
                     <Fragment key={intg.integrator_id}>
                       <tr className="hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
@@ -634,11 +725,19 @@ export const Integrators = () => {
                           </Popover>
                         </td>
                         <td className="px-2 py-2 text-center overflow-hidden">{getStatusBadge(intg.integrator_status)}</td>
-                        <td className="px-2 py-2" style={{ minWidth: '140px' }}>
+                        <td className="px-2 py-2 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${PHASE_COLORS[intg.integration_phase] || 'bg-slate-100 text-slate-600 border-slate-300'}`}>{intg.integration_phase || '—'}</span>
+                        </td>
+                        <td className="px-2 py-2" style={{ minWidth: '160px' }}>
                           <div className="flex items-center justify-center gap-1">
                             <Button size="sm" variant="ghost" onClick={() => setExpandedRow(expandedRow === intg.integrator_id ? null : intg.integrator_id)}
                               className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
                               <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openEvolution(intg)}
+                              className="text-purple-500 hover:bg-purple-50 h-7 w-7 p-0"
+                              data-testid={`evolution-${intg.integrator_id}`} title="Historial de avance">
+                              <FileText size={13} />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => openBitacora(intg)}
                               className={`h-7 w-7 p-0 ${intg.has_overdue_commitments ? 'text-amber-500 hover:bg-amber-50 animate-pulse' : 'text-slate-500 hover:bg-slate-100'}`}
@@ -665,7 +764,7 @@ export const Integrators = () => {
                         ];
                         return (
                         <tr>
-                          <td colSpan={10} className="p-0">
+                          <td colSpan={11} className="p-0">
                             <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
                               <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                                 <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}
@@ -993,6 +1092,155 @@ export const Integrators = () => {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Evolution Timeline Modal */}
+      <Dialog open={evoOpen} onOpenChange={(o) => { if (!o) { setEvoOpen(false); setEvoEditing(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="evolution-modal">
+          <DialogHeader>
+            <DialogTitle className="font-manrope text-xl flex items-center gap-2">
+              <FileText size={20} className="text-purple-600" />
+              Historial de Avance — {evoIntegrator?.name}
+              {evoIntegrator?.integration_phase && <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium border ${PHASE_COLORS[evoIntegrator.integration_phase] || ''}`}>{evoIntegrator.integration_phase}</span>}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
+            <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
+              placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="evo-comment" />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px] text-slate-500">Fase</Label>
+                <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
+                  <SelectTrigger className="h-8 text-xs" data-testid="evo-phase-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>{PHASES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px] text-slate-500">Fecha</Label>
+                <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              {evoEditing && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setEvoEditing(null); setEvoForm({ comment: '', phase: evoIntegrator?.integration_phase || 'Negociación', date: new Date().toISOString().slice(0, 10) }); }}>Cancelar</Button>}
+              <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700" onClick={saveEvoEntry} data-testid="evo-save-btn">
+                {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Línea de Tiempo ({evoEntries.length})</p>
+            {evoLoading ? (
+              <p className="text-sm text-slate-400 text-center py-4">Cargando...</p>
+            ) : evoEntries.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-4 italic">Sin hitos registrados</p>
+            ) : (
+              <div className="relative pl-6 space-y-0">
+                <div className="absolute left-[10px] top-2 bottom-2 w-0.5 bg-slate-200" />
+                {evoEntries.map((entry) => (
+                  <div key={entry.entry_id} className="relative pb-4" data-testid={`evo-entry-${entry.entry_id}`}>
+                    <div className={`absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 ${PHASE_COLORS[entry.phase]?.includes('emerald') ? 'bg-emerald-500 border-emerald-300' : PHASE_COLORS[entry.phase]?.includes('blue') ? 'bg-blue-500 border-blue-300' : PHASE_COLORS[entry.phase]?.includes('amber') ? 'bg-amber-500 border-amber-300' : PHASE_COLORS[entry.phase]?.includes('orange') ? 'bg-orange-500 border-orange-300' : 'bg-purple-500 border-purple-300'}`} />
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${PHASE_COLORS[entry.phase] || 'bg-slate-100 text-slate-600 border-slate-300'}`}>{entry.phase}</span>
+                            <span className="text-[10px] text-slate-400">{entry.date}</span>
+                            {entry.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
+                          </div>
+                          <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.comment}</p>
+                        </div>
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(entry)} title="Editar">
+                            <Pencil size={11} />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(entry.entry_id)}>
+                            <Trash2 size={11} />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Summary Modal */}
+      <Dialog open={summaryOpen} onOpenChange={(o) => { if (!o) setSummaryOpen(false); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="summary-modal">
+          <DialogHeader>
+            <DialogTitle className="font-manrope text-xl">Resumen de Integraciones</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-slate-500 font-medium">Agrupar por:</span>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+              {[
+                { key: 'phase', label: 'Fase' },
+                { key: 'product', label: 'Producto' },
+                { key: 'modality', label: 'Modalidad' },
+              ].map(g => (
+                <button key={g.key} onClick={() => changeSummaryGroup(g.key)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${summaryGroupBy === g.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  data-testid={`summary-group-${g.key}`}>{g.label}</button>
+              ))}
+            </div>
+            {summaryData && <span className="text-xs text-slate-400 ml-auto">Total: {summaryData.total} integraciones</span>}
+          </div>
+          {summaryLoading ? (
+            <p className="text-sm text-slate-400 text-center py-8">Cargando resumen...</p>
+          ) : summaryData ? (
+            <div className="space-y-3">
+              {Object.values(summaryData.groups).sort((a, b) => b.count - a.count).map(group => (
+                <div key={group.label} className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+                    <h3 className="font-semibold text-sm text-slate-800">{group.label}</h3>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-bold text-slate-700">{group.count}</span>
+                      {group.certified !== undefined && (
+                        <>
+                          <span className="text-emerald-600">C: {group.certified}</span>
+                          <span className="text-amber-600">P: {group.pending}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-slate-100">
+                      {group.items.slice(0, 15).map((item, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-4 py-1.5 font-medium text-slate-800 text-xs">{item.name}</td>
+                          {item.app_name !== undefined && <td className="px-3 py-1.5 text-xs text-slate-500">{item.app_name}</td>}
+                          {item.status !== undefined && (
+                            <td className="px-3 py-1.5 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${item.status === 'C' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.status}</span>
+                            </td>
+                          )}
+                          {item.integration_phase && (
+                            <td className="px-3 py-1.5 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${PHASE_COLORS[item.integration_phase] || 'bg-slate-100'}`}>{item.integration_phase}</span>
+                            </td>
+                          )}
+                          {item.integration_modality && <td className="px-3 py-1.5 text-xs text-slate-500 text-right">{item.integration_modality}</td>}
+                        </tr>
+                      ))}
+                      {group.items.length > 15 && (
+                        <tr><td colSpan={5} className="px-4 py-1.5 text-xs text-slate-400 text-center">...y {group.items.length - 15} más</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+              {Object.keys(summaryData.groups).length === 0 && (
+                <p className="text-sm text-slate-400 text-center py-8 italic">Sin datos para agrupar</p>
+              )}
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
