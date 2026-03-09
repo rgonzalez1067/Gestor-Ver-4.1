@@ -58,6 +58,8 @@ export const MediosPago = () => {
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
   const [filterServiceType, setFilterServiceType] = useState('all');
+  const [filterComponent, setFilterComponent] = useState('all');
+  const [filterAppType, setFilterAppType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -688,24 +690,42 @@ export const MediosPago = () => {
           {/* Filter Bar */}
           <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
             <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex-1 min-w-[200px] relative">
+              <div className="flex-1 min-w-[180px] relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input placeholder="Buscar por nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-sm" data-testid="search-medios" />
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-service-type">
+              {/* Filtro Categoría */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-categoria">
                 {['all', 'Producto', 'Servicio'].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setFilterServiceType(t)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${filterServiceType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    data-testid={`filter-type-${t}`}
-                  >
-                    {t === 'all' ? 'Todos' : t === 'Producto' ? 'Productos' : 'Servicios'}
+                  <button key={t} onClick={() => setFilterServiceType(t)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterServiceType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    data-testid={`filter-cat-${t}`}>
+                    {t === 'all' ? 'Categoría' : t === 'Producto' ? 'Productos' : 'Servicios'}
                   </button>
                 ))}
               </div>
-              {(searchTerm || filterServiceType !== 'all') && (
-                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setSearchTerm(''); setFilterServiceType('all'); }}>Limpiar</Button>
+              {/* Filtro Componente */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-componente">
+                {['all', 'vpos', 'gateway', 'mpos', 'link'].map(t => (
+                  <button key={t} onClick={() => setFilterComponent(t)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterComponent === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    data-testid={`filter-comp-${t}`}>
+                    {t === 'all' ? 'Componente' : t === 'vpos' ? 'VPOS' : t === 'gateway' ? 'Gateway' : t === 'mpos' ? 'MPOS' : 'Link'}
+                  </button>
+                ))}
+              </div>
+              {/* Filtro Tipo */}
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" data-testid="filter-tipo">
+                {['all', 'setup', 'recurring', 'both'].map(t => (
+                  <button key={t} onClick={() => setFilterAppType(t)}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${filterAppType === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    data-testid={`filter-tipo-${t}`}>
+                    {t === 'all' ? 'Tipo' : t === 'setup' ? 'Setup' : t === 'recurring' ? 'Recurrente' : 'Ambos'}
+                  </button>
+                ))}
+              </div>
+              {(searchTerm || filterServiceType !== 'all' || filterComponent !== 'all' || filterAppType !== 'all') && (
+                <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => { setSearchTerm(''); setFilterServiceType('all'); setFilterComponent('all'); setFilterAppType('all'); }}>Limpiar</Button>
               )}
             </div>
           </div>
@@ -718,10 +738,10 @@ export const MediosPago = () => {
                     Medio de Pago / Servicio
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Tipo
+                    Categoría
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
-                    Productos
+                    Componente
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Tipo
@@ -752,6 +772,11 @@ export const MediosPago = () => {
                 {mediosPago
                   .filter(m => {
                     if (filterServiceType !== 'all' && m.service_type !== filterServiceType) return false;
+                    if (filterComponent !== 'all') {
+                      const key = filterComponent === 'vpos' ? 'vpos_enabled' : filterComponent === 'gateway' ? 'gateway_enabled' : filterComponent === 'mpos' ? 'mpos_enabled' : 'link_enabled';
+                      if (m[key] === false) return false;
+                    }
+                    if (filterAppType !== 'all' && (m.application_type || 'both') !== filterAppType) return false;
                     if (searchTerm && !m.name?.toLowerCase().includes(searchTerm.toLowerCase())) return false;
                     return true;
                   })
