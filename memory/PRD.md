@@ -96,6 +96,7 @@ Aplicación de cotizaciones para una plataforma de pagos (Mega Soft).
 - **DELETE Integrator Dead Code (P0)**: Corregido — La función `delete_integrator` ahora ejecuta la eliminación real. El código estaba como dead code después del `return` de otra función.
 - **Import "Series is ambiguous" (P0)**: Corregido — Archivos con columnas duplicadas (ej: "Tipo" en dos columnas) causaban que pandas devolviera Series en vez de escalares, provocando error "The truth value of a Series is ambiguous" en TODAS las filas. Fix: deduplicación de columnas post-renombrado + función `_safe_val` para extracción segura.
 
+- **Leyenda Interactiva y Filtro de Certificación (2026-03-09)**: Pills interactivas C/P/N/A con contadores reemplazan la leyenda estática. Click filtra columnas de la matriz, multi-filtro acumulativo, botón "Ver Todos", indicador "Mostrando X de Y". Efecto glow en pills activas.
 - **Export Errores a Excel (2026-03-08)**: Botón "Exportar errores a Excel" en ImportResultPanel genera archivo .xlsx con dos hojas: "Errores" (Fila, Columna, Valor, Tipo, Detalle, Acción sugerida) y "Resumen" (estadísticas de la importación). Usa librería `xlsx` (SheetJS) del lado cliente.
 
 ## Tareas Pendientes

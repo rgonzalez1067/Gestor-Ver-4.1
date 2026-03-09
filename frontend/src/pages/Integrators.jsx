@@ -65,6 +65,7 @@ export const Integrators = () => {
   const [importFile, setImportFile] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const dropRef = useRef(null);
+  const [certFilters, setCertFilters] = useState({});
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -280,6 +281,27 @@ export const Integrators = () => {
     const icons = { 'Certificado': CheckCircle, 'En proceso': Clock, 'Suspendido': XCircle };
     const Icon = icons[s] || Clock;
     return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${map[s] || 'bg-slate-100 text-slate-600'}`}><Icon size={12} />{s}</span>;
+  };
+
+  const toggleCertFilter = (integratorId, status) => {
+    setCertFilters(prev => {
+      const current = prev[integratorId] || new Set();
+      const next = new Set(current);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return { ...prev, [integratorId]: next };
+    });
+  };
+
+  const clearCertFilter = (integratorId) => {
+    setCertFilters(prev => {
+      const copy = { ...prev };
+      delete copy[integratorId];
+      return copy;
+    });
   };
 
   const filteredIntegrators = integrators.filter(intg => {
@@ -530,7 +552,19 @@ export const Integrators = () => {
                         </td>
                       </tr>
                       {/* Expanded certification matrix */}
-                      {expandedRow === intg.integrator_id && (
+                      {expandedRow === intg.integrator_id && (() => {
+                        const certs = intg.certifications || {};
+                        const counts = { C: 0, P: 0, 'N/A': 0 };
+                        certProducts.forEach(p => { counts[certs[p.service_id] || 'N/A']++; });
+                        const af = certFilters[intg.integrator_id];
+                        const hasFilter = af && af.size > 0;
+                        const visible = hasFilter ? certProducts.filter(p => af.has(certs[p.service_id] || 'N/A')) : certProducts;
+                        const pills = [
+                          { key: 'C', label: 'Certificados', count: counts.C, idle: 'bg-emerald-100 text-emerald-700 border-emerald-300', on: 'bg-emerald-500 text-white border-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.5)]' },
+                          { key: 'P', label: 'Pendientes', count: counts.P, idle: 'bg-amber-100 text-amber-700 border-amber-300', on: 'bg-amber-500 text-white border-amber-600 shadow-[0_0_8px_rgba(245,158,11,0.5)]' },
+                          { key: 'N/A', label: 'No Aplica', count: counts['N/A'], idle: 'bg-[#E3F2FD] text-[#0D47A1] border-[#90CAF9]', on: 'bg-[#1565C0] text-white border-[#0D47A1] shadow-[0_0_8px_rgba(21,101,192,0.5)]' },
+                        ];
+                        return (
                         <tr>
                           <td colSpan={10} className="p-0">
                             <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
@@ -538,45 +572,62 @@ export const Integrators = () => {
                                 <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}
                               </h4>
                               {certProducts.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                  <div className="flex items-start gap-0" style={{ minWidth: certProducts.length * 90 + 160 }}>
-                                    <div className="sticky left-0 z-10 bg-slate-50 pr-2 min-w-[160px]">
-                                      <div className="h-16 flex items-end pb-1"><span className="text-xs font-semibold text-slate-700">Producto</span></div>
-                                      <div className="h-10 flex items-center"><span className="text-xs font-medium text-slate-500">Estado</span></div>
-                                    </div>
-                                    {certProducts.map((prod) => {
-                                      const val = (intg.certifications || {})[prod.service_id] || 'N/A';
-                                      const cfg = CERT_STATES[val] || CERT_STATES['N/A'];
+                                <>
+                                  <div className="flex items-center flex-wrap gap-2 mb-3" data-testid={`cert-filter-${intg.integrator_id}`}>
+                                    {pills.map(f => {
+                                      const active = hasFilter && af.has(f.key);
                                       return (
-                                        <div key={prod.service_id} className="min-w-[85px] text-center px-1">
-                                          <div className="h-16 flex items-end pb-1 justify-center">
-                                            <span className="text-[10px] text-slate-600 leading-tight line-clamp-3" title={prod.name}>{prod.name}</span>
-                                          </div>
-                                          <div className="h-10 flex items-center justify-center">
-                                            <button
-                                              onClick={() => toggleCert(intg.integrator_id, prod.service_id, val)}
-                                              className={`px-3 py-1 rounded border text-xs font-bold transition-colors cursor-pointer ${cfg.color}`}
-                                              data-testid={`cert-${intg.integrator_id}-${prod.service_id}`}
-                                              title="Click para cambiar: P / C / N/A"
-                                            >{cfg.label}</button>
-                                          </div>
-                                        </div>
+                                        <button key={f.key} onClick={() => toggleCertFilter(intg.integrator_id, f.key)}
+                                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold transition-all cursor-pointer hover:scale-105 ${active ? f.on : f.idle}`}
+                                          data-testid={`cert-filter-${intg.integrator_id}-${f.key}`}>
+                                          {f.key} <span className="font-normal">{f.label}</span>
+                                          <span className={`ml-0.5 px-1.5 rounded-full text-[10px] font-bold ${active ? 'bg-white/30' : 'bg-black/10'}`}>{f.count}</span>
+                                        </button>
                                       );
                                     })}
+                                    {hasFilter && (
+                                      <button onClick={() => clearCertFilter(intg.integrator_id)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-300 text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 transition-all cursor-pointer"
+                                        data-testid={`cert-filter-${intg.integrator_id}-clear`}>
+                                        Ver Todos
+                                      </button>
+                                    )}
+                                    {hasFilter && <span className="text-[10px] text-slate-400 ml-1">Mostrando {visible.length} de {certProducts.length}</span>}
                                   </div>
-                                </div>
+                                  <div className="overflow-x-auto">
+                                    <div className="flex items-start gap-0" style={{ minWidth: visible.length * 90 + 160 }}>
+                                      <div className="sticky left-0 z-10 bg-slate-50 pr-2 min-w-[160px]">
+                                        <div className="h-16 flex items-end pb-1"><span className="text-xs font-semibold text-slate-700">Producto</span></div>
+                                        <div className="h-10 flex items-center"><span className="text-xs font-medium text-slate-500">Estado</span></div>
+                                      </div>
+                                      {visible.map((prod) => {
+                                        const val = certs[prod.service_id] || 'N/A';
+                                        const cfg = CERT_STATES[val] || CERT_STATES['N/A'];
+                                        return (
+                                          <div key={prod.service_id} className="min-w-[85px] text-center px-1">
+                                            <div className="h-16 flex items-end pb-1 justify-center">
+                                              <span className="text-[10px] text-slate-600 leading-tight line-clamp-3" title={prod.name}>{prod.name}</span>
+                                            </div>
+                                            <div className="h-10 flex items-center justify-center">
+                                              <button onClick={() => toggleCert(intg.integrator_id, prod.service_id, val)}
+                                                className={`px-3 py-1 rounded border text-xs font-bold transition-colors cursor-pointer ${cfg.color}`}
+                                                data-testid={`cert-${intg.integrator_id}-${prod.service_id}`}
+                                                title="Click para cambiar: P / C / N/A">{cfg.label}</button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </>
                               ) : (
                                 <p className="text-xs text-slate-400 italic">No hay productos tipo "Producto" con aplicación "Setup" o "Both" en el catálogo</p>
                               )}
-                              <div className="flex gap-4 mt-3 text-[10px] text-slate-500">
-                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-bold mr-1">P</span>Pendiente</span>
-                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold mr-1">C</span>Certificado</span>
-                                <span><span className="inline-block w-5 text-center px-1 py-0.5 rounded bg-[#E3F2FD] text-[#0D47A1] font-bold mr-1">N/A</span>No aplica</span>
-                              </div>
                             </div>
                           </td>
                         </tr>
-                      )}
+                        );
+                      })()}
                     </Fragment>
                   ))}
                 </tbody>
