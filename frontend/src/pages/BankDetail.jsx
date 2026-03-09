@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package } from 'lucide-react';
+import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package, FileText, Pencil } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -21,6 +22,15 @@ const INTEGRATION_STATUSES = [
   { id: 'PreProd', label: 'PreProd', full: 'Pre-Producción', color: 'bg-orange-100 text-orange-700 border-orange-300' },
   { id: 'Completado', label: 'Completado', full: 'Completado', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }
 ];
+
+const PHASE_DOT_COLORS = {
+  'Negoc.': 'bg-slate-400 border-slate-300',
+  'DESA': 'bg-amber-500 border-amber-300',
+  'SQA': 'bg-blue-500 border-blue-300',
+  'Imple.': 'bg-purple-500 border-purple-300',
+  'PreProd': 'bg-orange-500 border-orange-300',
+  'Completado': 'bg-emerald-500 border-emerald-300'
+};
 
 const getStatusStyle = (status) => INTEGRATION_STATUSES.find(s => s.id === status) || INTEGRATION_STATUSES[0];
 
@@ -52,6 +62,14 @@ export const BankDetail = () => {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
   const [newIntegration, setNewIntegration] = useState({ service_name: '', component_type: '', status: 'Negoc.', notes: '' });
+
+  // Evolution log state
+  const [evoOpen, setEvoOpen] = useState(false);
+  const [evoIntegration, setEvoIntegration] = useState(null);
+  const [evoEntries, setEvoEntries] = useState([]);
+  const [evoLoading, setEvoLoading] = useState(false);
+  const [evoForm, setEvoForm] = useState({ comment: '', phase: '', date: new Date().toISOString().slice(0, 10) });
+  const [evoEditing, setEvoEditing] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -113,6 +131,50 @@ export const BankDetail = () => {
       const comp = (svc.vpos_enabled || svc.mpos_enabled) ? 'VPOS/MPOS' : 'PG/Link';
       setNewIntegration({ ...newIntegration, service_name: svc.name, component_type: comp });
     }
+  };
+
+  // ==================== EVOLUTION LOG FUNCTIONS ====================
+  const openEvolution = async (intg) => {
+    setEvoIntegration(intg);
+    setEvoOpen(true);
+    setEvoLoading(true);
+    setEvoEditing(null);
+    setEvoForm({ comment: '', phase: intg.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+    try {
+      const res = await api.get(`/banks/${bankId}/integrations/${intg.integration_id}/evolution`);
+      setEvoEntries(res.data);
+    } catch { toast.error('Error al cargar historial'); }
+    finally { setEvoLoading(false); }
+  };
+
+  const saveEvoEntry = async () => {
+    if (!evoForm.comment.trim()) { toast.error('Escriba un comentario'); return; }
+    try {
+      if (evoEditing) {
+        await api.patch(`/banks/${bankId}/integrations/${evoIntegration.integration_id}/evolution/${evoEditing}`, evoForm);
+        toast.success('Entrada actualizada');
+      } else {
+        await api.post(`/banks/${bankId}/integrations/${evoIntegration.integration_id}/evolution`, evoForm);
+        toast.success('Hito registrado');
+      }
+      setEvoEditing(null);
+      setEvoForm({ comment: '', phase: evoIntegration.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+      const res = await api.get(`/banks/${bankId}/integrations/${evoIntegration.integration_id}/evolution`);
+      setEvoEntries(res.data);
+    } catch { toast.error('Error al guardar'); }
+  };
+
+  const startEditEvo = (entry) => {
+    setEvoEditing(entry.entry_id);
+    setEvoForm({ comment: entry.comment, phase: entry.phase, date: entry.date });
+  };
+
+  const deleteEvoEntry = async (entryId) => {
+    try {
+      await api.delete(`/banks/${bankId}/integrations/${evoIntegration.integration_id}/evolution/${entryId}`);
+      setEvoEntries(prev => prev.filter(e => e.entry_id !== entryId));
+      toast.success('Entrada eliminada');
+    } catch { toast.error('Error al eliminar'); }
   };
 
   if (loading) {
@@ -279,6 +341,12 @@ export const BankDetail = () => {
                       </Select>
                     </div>
                     {intg.notes && <p className="text-xs text-slate-500 flex-1 truncate">{intg.notes}</p>}
+                    <Button size="sm" variant="ghost" title="Historial de Evolución"
+                      onClick={() => openEvolution(intg)}
+                      className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 shrink-0"
+                      data-testid={`evo-btn-${intg.integration_id}`}>
+                      <FileText size={14} />
+                    </Button>
                     <Button size="sm" variant="ghost"
                       onClick={() => setDeleteConfirm({ open: true, id: intg.integration_id, name: intg.service_name })}
                       className="h-7 w-7 p-0 text-red-500 hover:text-red-700 shrink-0"
@@ -376,6 +444,98 @@ export const BankDetail = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Evolution Timeline Modal */}
+        <Dialog open={evoOpen} onOpenChange={(o) => { if (!o) { setEvoOpen(false); setEvoEditing(null); } }}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="product-evolution-modal">
+            <DialogHeader>
+              <DialogTitle className="font-manrope text-xl flex items-center gap-2">
+                <FileText size={20} className="text-purple-600" />
+                Bitácora de Evolución — {evoIntegration?.service_name}
+                {evoIntegration?.status && (
+                  <span className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getStatusStyle(evoIntegration.status).color}`}>
+                    {evoIntegration.status}
+                  </span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Form */}
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
+              <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
+                placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="product-evo-comment" />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] text-slate-500">Fase</Label>
+                  <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
+                    <SelectTrigger className="h-8 text-xs" data-testid="product-evo-phase-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INTEGRATION_STATUSES.map(s => <SelectItem key={s.id} value={s.id}>{s.label} — {s.full}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[10px] text-slate-500">Fecha</Label>
+                  <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" data-testid="product-evo-date" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                {evoEditing && (
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
+                    setEvoEditing(null);
+                    setEvoForm({ comment: '', phase: evoIntegration?.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+                  }}>Cancelar Edición</Button>
+                )}
+                <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white" onClick={saveEvoEntry} data-testid="product-evo-save-btn">
+                  {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Timeline */}
+            <div className="mt-2">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Línea de Tiempo ({evoEntries.length})</p>
+              {evoLoading ? (
+                <p className="text-sm text-slate-400 text-center py-4">Cargando...</p>
+              ) : evoEntries.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4 italic">Sin hitos registrados para esta integración</p>
+              ) : (
+                <div className="relative pl-6 space-y-0">
+                  <div className="absolute left-[10px] top-2 bottom-2 w-0.5 bg-slate-200" />
+                  {evoEntries.map((entry) => {
+                    const dotColor = PHASE_DOT_COLORS[entry.phase] || 'bg-slate-400 border-slate-300';
+                    return (
+                      <div key={entry.entry_id} className="relative pb-4" data-testid={`product-evo-entry-${entry.entry_id}`}>
+                        <div className={`absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 ${dotColor}`} />
+                        <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${getStatusStyle(entry.phase).color}`}>{entry.phase}</span>
+                                <span className="text-[10px] text-slate-400">{entry.date}</span>
+                                {entry.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
+                              </div>
+                              <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.comment}</p>
+                            </div>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(entry)} title="Editar" data-testid={`product-evo-edit-${entry.entry_id}`}>
+                                <Pencil size={11} />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(entry.entry_id)} data-testid={`product-evo-delete-${entry.entry_id}`}>
+                                <Trash2 size={11} />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

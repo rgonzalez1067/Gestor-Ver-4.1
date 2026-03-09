@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ArrowLeft, Building2, Rocket, Filter } from 'lucide-react';
+import { ArrowLeft, Building2, Rocket, Filter, Layers } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -30,28 +30,54 @@ const FILTER_OPTIONS = [
   { value: 'Completado', label: 'Completado' }
 ];
 
+const GROUP_OPTIONS = [
+  { key: 'none', label: 'Sin Agrupar' },
+  { key: 'bank', label: 'Por Banco' },
+  { key: 'product', label: 'Por Producto' },
+  { key: 'phase', label: 'Por Fase' },
+];
+
 export const IntegrationReport = () => {
   const navigate = useNavigate();
-  const [data, setData] = useState([]);
+  const [flatData, setFlatData] = useState([]);
+  const [groupedData, setGroupedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [groupBy, setGroupBy] = useState('none');
 
   useEffect(() => {
     const fetchReport = async () => {
+      setLoading(true);
       try {
-        const res = await api.get('/banks/integrations/report');
-        setData(res.data);
+        if (groupBy === 'none') {
+          const res = await api.get('/banks/integrations/report');
+          setFlatData(res.data);
+          setGroupedData(null);
+        } else {
+          const res = await api.get(`/banks/integrations/report?group_by=${groupBy}`);
+          setGroupedData(res.data);
+          setFlatData([]);
+        }
       } catch { toast.error('Error al cargar reporte'); }
       finally { setLoading(false); }
     };
     fetchReport();
-  }, []);
+  }, [groupBy]);
 
-  const filtered = statusFilter === 'all' ? data : data.filter(r => r.status === statusFilter);
+  // Flat mode: apply status filter
+  const filtered = statusFilter === 'all' ? flatData : flatData.filter(r => r.status === statusFilter);
 
-  // Group counts by status
+  // Count statuses from flat data or grouped data
   const statusCounts = {};
-  data.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+  if (groupBy === 'none') {
+    flatData.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+  } else if (groupedData) {
+    Object.values(groupedData.groups || {}).forEach(g => {
+      g.items.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+    });
+  }
+
+  const totalCount = groupBy === 'none' ? flatData.length : (groupedData?.total || 0);
 
   if (loading) {
     return (
@@ -98,83 +124,197 @@ export const IntegrationReport = () => {
             })}
           </div>
 
-          {/* Filter bar */}
-          <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-            <Filter size={16} className="text-slate-500" />
-            <span className="text-sm text-slate-600 font-medium">Filtrar por Fase:</span>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[220px] h-8 text-sm bg-white" data-testid="status-filter-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-slate-400 ml-auto">{filtered.length} de {data.length} integraciones</span>
+          {/* Toolbar: Group By + Filter */}
+          <div className="flex items-center gap-4 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            {/* Group by selector */}
+            <div className="flex items-center gap-2">
+              <Layers size={16} className="text-slate-500" />
+              <span className="text-sm text-slate-600 font-medium">Agrupar por:</span>
+              <div className="flex items-center gap-1 bg-white rounded-lg p-0.5 border border-slate-200">
+                {GROUP_OPTIONS.map(g => (
+                  <button key={g.key} onClick={() => setGroupBy(g.key)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${groupBy === g.key ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                    data-testid={`group-by-${g.key}`}>{g.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter (only for flat mode) */}
+            {groupBy === 'none' && (
+              <div className="flex items-center gap-2 ml-auto">
+                <Filter size={16} className="text-slate-500" />
+                <span className="text-sm text-slate-600 font-medium">Filtrar:</span>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[200px] h-8 text-sm bg-white" data-testid="status-filter-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FILTER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <span className="text-sm text-slate-400 ml-auto">{groupBy === 'none' ? `${filtered.length} de ${flatData.length}` : `${totalCount} total`} integraciones</span>
           </div>
 
-          {/* Table */}
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrations-table">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Banco</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Producto</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Componente</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Fase (Estatus)</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Notas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length > 0 ? filtered.map((row) => {
-                  const cfg = getStatus(row.status);
-                  return (
-                    <tr key={`${row.bank_id}-${row.integration_id}`}
-                      onClick={() => navigate(`/banks/${row.bank_id}`)}
-                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
-                      data-testid={`report-row-${row.integration_id}`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                            {row.bank_logo_url ? (
-                              <img src={`${API_URL}${row.bank_logo_url}`} alt="" className="w-7 h-7 object-contain" />
-                            ) : (
-                              <Building2 size={14} className="text-slate-400" />
-                            )}
+          {/* FLAT VIEW (no grouping) */}
+          {groupBy === 'none' && (
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrations-table">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Banco</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Producto</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Componente</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Fase (Estatus)</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length > 0 ? filtered.map((row) => {
+                    const cfg = getStatus(row.status);
+                    return (
+                      <tr key={`${row.bank_id}-${row.integration_id}`}
+                        onClick={() => navigate(`/banks/${row.bank_id}`)}
+                        className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+                        data-testid={`report-row-${row.integration_id}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                              {row.bank_logo_url ? (
+                                <img src={`${API_URL}${row.bank_logo_url}`} alt="" className="w-7 h-7 object-contain" />
+                              ) : (
+                                <Building2 size={14} className="text-slate-400" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-slate-900">{row.bank_name}</span>
                           </div>
-                          <span className="text-sm font-medium text-slate-900">{row.bank_name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-sm text-slate-800">{row.service_name}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{row.component_type}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border ${cfg.color}`}>
-                          <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-slate-500 truncate max-w-[200px] block">{row.notes || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-sm text-slate-800">{row.service_name}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded">{row.component_type}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border ${cfg.color}`}>
+                            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-slate-500 truncate max-w-[200px] block">{row.notes || '—'}</span>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center">
+                        <Rocket size={32} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-sm text-slate-400">
+                          {statusFilter === 'all' ? 'No hay integraciones registradas' : `No hay integraciones en fase "${statusFilter}"`}
+                        </p>
                       </td>
                     </tr>
-                  );
-                }) : (
-                  <tr>
-                    <td colSpan={5} className="py-12 text-center">
-                      <Rocket size={32} className="mx-auto text-slate-300 mb-2" />
-                      <p className="text-sm text-slate-400">
-                        {statusFilter === 'all' ? 'No hay integraciones registradas' : `No hay integraciones en fase "${statusFilter}"`}
-                      </p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* GROUPED VIEW */}
+          {groupBy !== 'none' && groupedData && (
+            <div className="space-y-4" data-testid="grouped-view">
+              {Object.values(groupedData.groups || {}).length === 0 ? (
+                <div className="text-center py-12">
+                  <Rocket size={32} className="mx-auto text-slate-300 mb-2" />
+                  <p className="text-sm text-slate-400">No hay integraciones registradas</p>
+                </div>
+              ) : (
+                Object.values(groupedData.groups)
+                  .sort((a, b) => b.count - a.count)
+                  .map(group => {
+                    // Apply status filter inside groups
+                    const groupItems = statusFilter === 'all'
+                      ? group.items
+                      : group.items.filter(i => i.status === statusFilter);
+                    if (groupItems.length === 0) return null;
+
+                    return (
+                      <div key={group.label} className="border border-slate-200 rounded-lg overflow-hidden" data-testid={`group-${group.label}`}>
+                        {/* Group Header */}
+                        <div className="bg-slate-50 px-4 py-3 flex items-center justify-between border-b border-slate-200">
+                          <div className="flex items-center gap-3">
+                            {groupBy === 'bank' && <Building2 size={16} className="text-slate-500" />}
+                            {groupBy === 'phase' && <div className={`w-3 h-3 rounded-full ${getStatus(group.items[0]?.status).dot}`} />}
+                            <h3 className="font-semibold text-sm text-slate-800">{group.label}</h3>
+                          </div>
+                          <span className="text-xs font-bold text-slate-600 bg-slate-200 px-2.5 py-1 rounded-full">{groupItems.length}</span>
+                        </div>
+
+                        {/* Group Table */}
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-white border-b border-slate-100">
+                              {groupBy !== 'bank' && <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Banco</th>}
+                              {groupBy !== 'product' && <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Producto</th>}
+                              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Componente</th>
+                              {groupBy !== 'phase' && <th className="px-4 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase">Fase</th>}
+                              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Notas</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {groupItems.map((row) => {
+                              const cfg = getStatus(row.status);
+                              return (
+                                <tr key={`${row.bank_id}-${row.integration_id}`}
+                                  onClick={() => navigate(`/banks/${row.bank_id}`)}
+                                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                                  data-testid={`grouped-row-${row.integration_id}`}>
+                                  {groupBy !== 'bank' && (
+                                    <td className="px-4 py-2.5">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                          {row.bank_logo_url ? (
+                                            <img src={`${API_URL}${row.bank_logo_url}`} alt="" className="w-5 h-5 object-contain" />
+                                          ) : (
+                                            <Building2 size={10} className="text-slate-400" />
+                                          )}
+                                        </div>
+                                        <span className="text-xs font-medium text-slate-800">{row.bank_name}</span>
+                                      </div>
+                                    </td>
+                                  )}
+                                  {groupBy !== 'product' && (
+                                    <td className="px-4 py-2.5">
+                                      <span className="text-xs text-slate-800">{row.service_name}</span>
+                                    </td>
+                                  )}
+                                  <td className="px-4 py-2.5">
+                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{row.component_type}</span>
+                                  </td>
+                                  {groupBy !== 'phase' && (
+                                    <td className="px-4 py-2.5 text-center">
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full border ${cfg.color}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                        {cfg.label}
+                                      </span>
+                                    </td>
+                                  )}
+                                  <td className="px-4 py-2.5">
+                                    <span className="text-[10px] text-slate-500 truncate max-w-[180px] block">{row.notes || '—'}</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

@@ -209,6 +209,17 @@ class EvolutionEntry(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
 
+class ProductEvolutionEntry(BaseModel):
+    """Entrada de bitácora de evolución para una integración de producto bancario."""
+    entry_id: str = Field(default_factory=lambda: f"pev_{uuid.uuid4().hex[:8]}")
+    bank_id: str
+    integration_id: str
+    comment: str
+    phase: str  # Negoc., DESA, SQA, Imple., PreProd, Completado
+    date: str  # ISO date
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
 # ==================== IMPORT RESPONSE MODELS ====================
 class ImportError(BaseModel):
     row: int

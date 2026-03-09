@@ -55,12 +55,13 @@ async def upload_bank_logo(file: UploadFile = File(...), authorization: Optional
 # ==================== INTEGRATION REPORT ====================
 
 @router.get("/banks/integrations/report")
-async def get_integrations_report(authorization: Optional[str] = Header(None)):
-    """Reporte global consolidado de todas las integraciones en curso de todos los bancos."""
+async def get_integrations_report(group_by: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Reporte global consolidado de todas las integraciones en curso de todos los bancos.
+    Soporta agrupación dinámica: group_by=bank|product|phase (o None para lista plana)."""
     await get_current_user(authorization)
     
-    # Phase priority order: most advanced first
     PHASE_ORDER = {"Completado": 0, "PreProd": 1, "Imple.": 2, "SQA": 3, "DESA": 4, "Negoc.": 5}
+    PHASE_LABELS = {"Negoc.": "En Negociación", "DESA": "Desarrollo", "SQA": "Control de Calidad", "Imple.": "Implementación", "PreProd": "Pre-Producción", "Completado": "Completado"}
     
     banks = await db.banks.find(
         {"integrations": {"$exists": True, "$ne": []}},
@@ -82,10 +83,95 @@ async def get_integrations_report(authorization: Optional[str] = Header(None)):
                 "created_at": intg.get("created_at")
             })
     
-    # Sort by phase priority (most advanced first)
     report.sort(key=lambda x: PHASE_ORDER.get(x["status"], 99))
     
-    return report
+    if not group_by:
+        return report
+    
+    groups = {}
+    for item in report:
+        if group_by == "bank":
+            key = item["bank_name"]
+            label = item["bank_name"]
+        elif group_by == "product":
+            key = item["service_name"]
+            label = item["service_name"]
+        elif group_by == "phase":
+            key = item["status"]
+            label = PHASE_LABELS.get(item["status"], item["status"])
+        else:
+            return report
+        
+        if key not in groups:
+            groups[key] = {"label": label, "count": 0, "items": []}
+        groups[key]["count"] += 1
+        groups[key]["items"].append(item)
+    
+    return {"group_by": group_by, "total": len(report), "groups": groups}
+
+# ==================== PRODUCT EVOLUTION LOG ====================
+
+@router.get("/banks/{bank_id}/integrations/{integration_id}/evolution")
+async def get_product_evolution(bank_id: str, integration_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene el historial de evolución de una integración de producto."""
+    await get_current_user(authorization)
+    entries = await db.bank_evolution_log.find(
+        {"bank_id": bank_id, "integration_id": integration_id}, {"_id": 0}
+    ).sort("date", -1).to_list(500)
+    return entries
+
+@router.post("/banks/{bank_id}/integrations/{integration_id}/evolution")
+async def add_product_evolution(bank_id: str, integration_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Agrega una entrada de evolución a una integración de producto."""
+    await get_current_user(authorization)
+    bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
+    if not bank:
+        raise HTTPException(status_code=404, detail="Banco no encontrado")
+    
+    intg = next((i for i in bank.get("integrations", []) if i.get("integration_id") == integration_id), None)
+    if not intg:
+        raise HTTPException(status_code=404, detail="Integración no encontrada")
+    
+    entry = ProductEvolutionEntry(
+        bank_id=bank_id,
+        integration_id=integration_id,
+        comment=body.get("comment", ""),
+        phase=body.get("phase", intg.get("status", "Negoc.")),
+        date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+    )
+    doc = entry.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.bank_evolution_log.insert_one(doc)
+    doc.pop('_id', None)
+    return doc
+
+@router.patch("/banks/{bank_id}/integrations/{integration_id}/evolution/{entry_id}")
+async def update_product_evolution(bank_id: str, integration_id: str, entry_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualiza una entrada de evolución de producto."""
+    await get_current_user(authorization)
+    update_fields = {}
+    for field in ["comment", "phase", "date"]:
+        if field in body:
+            update_fields[field] = body[field]
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.bank_evolution_log.update_one(
+        {"entry_id": entry_id, "bank_id": bank_id, "integration_id": integration_id}, {"$set": update_fields}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    updated = await db.bank_evolution_log.find_one({"entry_id": entry_id}, {"_id": 0})
+    return updated
+
+@router.delete("/banks/{bank_id}/integrations/{integration_id}/evolution/{entry_id}")
+async def delete_product_evolution(bank_id: str, integration_id: str, entry_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina una entrada de evolución de producto."""
+    await get_current_user(authorization)
+    result = await db.bank_evolution_log.delete_one({"entry_id": entry_id, "bank_id": bank_id, "integration_id": integration_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Entrada no encontrada")
+    return {"message": "Entrada eliminada"}
 
 # ==================== BANKS ENDPOINTS ====================
 

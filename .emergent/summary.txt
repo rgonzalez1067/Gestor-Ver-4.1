@@ -1,45 +1,50 @@
 <analysis>**original_problem_statement:**
-El usuario ha solicitado una serie de evoluciones y mejoras en la aplicación de gestión de cotizaciones y proyectos. Las solicitudes más recientes se centran en refinar y expandir la funcionalidad de los módulos existentes.
+El usuario ha solicitado la implementación de dos funcionalidades clave para mejorar el seguimiento y la gestión de proyectos de integración:
 
-1.  **Módulo de Bitácora (Proyectos):**
-    *   Agregar un campo para seleccionar la persona contactada desde la lista de contactos del cliente asociado al proyecto.
-    *   Cambiar la etiqueta del campo Acción resultante a Acción resultante / Compromiso adquirido.
+1.  **Bitácora de Evolución por Producto:**
+    *   **Objetivo:** Crear un historial de hitos técnicos y comentarios para cada producto dentro del roadmap de integración de un banco.
+    *   **Ubicación:** Dentro de la pantalla de detalle de la integración del producto ().
+    *   **Características:**
+        *   Registro de comentarios en un formato de línea de tiempo (timeline).
+        *   Captura automática de la fase del producto (SQA, DESA, etc.) en el momento del comentario.
+        *   Visualización completa del texto del comentario sin cortes (word-wrap).
+        *   Capacidad de editar comentarios existentes.
 
-2.  **Módulo de Integradores (Evolución Mayor):**
-    *   **Nuevos Campos:** Añadir campos de cabecera para especializar la ficha del integrador:
-        *   : Selector obligatorio (CR, LP, PG, MP, TK).
-        *   : Menú desplegable para asignar un usuario del sistema como responsable.
-        *   : Selector de valores (Oro, Plata, Bronce, etc.).
-    *   **Matriz Dinámica de Certificación:** Implementar una nueva sección de Detalle en la lista de integradores.
-        *   Al hacer clic en Detalle, la vista debe expandirse para mostrar una matriz.
-        *   Las **columnas** de la matriz deben generarse dinámicamente a partir de todos los Medios de Pago cuyo tipo sea Producto o Setup.
-        *   La **primera columna** (Nombre del Integrador) debe ser fija (sticky) durante el scroll horizontal.
-        *   Cada **celda** (cruce Integrador-Producto) debe ser un control que permita establecer uno de tres estados:  (Pendiente),  (Certificado), o  (No Aplica).
-
-3.  **UI/UX y Nomenclatura:**
-    *   Cambiar el nombre del módulo Dispositivos a Catálogo de Bienes y Servicios en toda la aplicación (menús, títulos, etc.).
-    *   Rediseñar los botones de acción principal para que sean más compactos (menos padding, fuente más pequeña).
+2.  **Consulta Global con Agrupamiento Dinámico:**
+    *   **Objetivo:** Transformar la pantalla Proyectos en Proceso de Integración en una herramienta de análisis gerencial.
+    *   **Ubicación:** Pantalla Proyectos en Proceso de Integración ().
+    *   **Características:**
+        *   Añadir una barra de herramientas para Agrupar por:.
+        *   Opciones de agrupación: Por Banco, Por Producto, Por Fase de Integración.
+        *   La tabla se reorganizará visualmente, mostrando encabezados intermedios para cada grupo con sus respectivos totales.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación es una plataforma full-stack (React, FastAPI, MongoDB) para la gestión de cotizaciones, clientes, bancos, productos y proyectos. El agente anterior completó con éxito varias tareas: corrigió la matriz de implementación de proyectos, agregó KPIs al dashboard, rediseñó el módulo de bancos con un Visor 360°, implementó reportes globales de integraciones, y añadió mejoras a la bitácora de proyectos y a la categorización de servicios. El backend sigue una arquitectura modular y el frontend utiliza componentes de Shadcn/UI.
+La aplicación, ahora llamada Gestor - Work Flow de Procesos Integrales, es una plataforma full-stack robusta. El módulo de Integradores ha sido significativamente ampliado con un CRM técnico que incluye gestión de contactos múltiples, una bitácora de actividad, un historial de evolución por integrador y un reporte de resumen con agrupación dinámica. El frontend ha sido mejorado con un menú lateral abatible, filtros interactivos en la matriz de certificación y nuevos filtros en las secciones de Medios de Pago y Bienes y Servicios. Se han corregido múltiples bugs, incluyendo problemas con la importación masiva, la eliminación de integradores y la visualización de logos de bancos.
 
 **Last working item**:
--   **Last item agent was working**: El agente estaba en medio de una reestructuración completa del módulo de Integradores para cumplir con el requerimiento de evolución. Ya había modificado el backend (, ) para incluir los nuevos campos (, , ) y el subdocumento  para la matriz. Luego, procedió a reescribir por completo el componente de frontend  para implementar la nueva interfaz, incluyendo el formulario con los nuevos campos y la lógica para la tabla con la vista expandible de la matriz de certificación.
--   **Status**: IN PROGRESS
+-   **Last item agent was working**: El agente estaba comenzando a trabajar en la nueva solicitud del usuario para implementar la Bitácora de Evolución por Producto y la Consulta Global con Agrupamiento Dinámico. El agente realizó una fase de exploración, identificando correctamente los archivos principales a modificar ( y ) y revisando la arquitectura existente para planificar la implementación.
+-   **Status**: NOT STARTED
 -   **Agent Testing Done**: N
 -   **Which testing method agent to use?**: both
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   No hay issues o bugs pendientes reportados. El trabajo actual es la implementación de una nueva funcionalidad.
+-   No hay issues pendientes. El trabajo actual es la implementación de una nueva funcionalidad.
 
 **In progress Task List**:
--   **Task 1: Evolución del Módulo de Integradores** (P0 - HIGHEST)
-    -   **Where to resume**: El archivo  fue recreado desde cero con la nueva estructura. El agente debe continuar la implementación dentro de este archivo, conectando los nuevos estados y lógica de la interfaz (formulario, tabla, vista expandida de la matriz) con los endpoints del backend que ya fueron actualizados. Se debe implementar la carga de usuarios para el selector Gestor y la carga de productos para las columnas de la matriz.
-    -   **What will be achieved with this?**: Se especializará la gestión de integradores, permitiendo su categorización, asignación de responsables y un control técnico detallado sobre qué productos están certificados por cada uno.
-    -   **Status**: IN PROGRESS
+-   **Task 1: Implementar Bitácora por Producto y Consulta Global Agrupada (P0 - HIGHEST)**
+    -   **Where to resume**:
+        1.  **Backend:**
+            *   Modificar  para añadir un modelo de entrada para la bitácora de evolución del producto () y asociarlo al roadmap de los bancos.
+            *   Crear nuevos endpoints en  o un nuevo archivo de rutas para gestionar (CRUD) estas entradas de bitácora.
+            *   Crear un nuevo endpoint para la Consulta Global que devuelva los datos de los proyectos en proceso.
+        2.  **Frontend:**
+            *   En , implementar la UI para la bitácora de evolución dentro de la sección del roadmap, incluyendo el timeline, el formulario de nueva entrada y la lógica de edición.
+            *   En , añadir la barra de herramientas Agrupar por y la lógica para solicitar y renderizar los datos de forma agrupada.
+    -   **What will be achieved with this?**: Se dotará a la aplicación de una memoria técnica detallada por cada integración de producto y de una potente herramienta de reporte gerencial para la toma de decisiones.
+    -   **Status**: NOT STARTED
     -   **Should Test frontend/backend/both after fix?**: both
     -   **Blocked on something**: None
 
@@ -53,84 +58,87 @@ Future Tasks:
 -   **Lógica de Completado en Roadmap de Bancos (P2):** Implementar la sugerencia de mover un ítem del roadmap a Activos cuando su estatus sea Completada.
 
 **Completed work in this session**
--   **Corrección de Matriz de Proyectos (DONE):** Se corrigió el trigger de creación de proyectos para que la matriz de implementación solo muestre los productos () de la cotización original.
--   **KPI de Proyectos en Dashboard (DONE):** Se añadió una card al dashboard que muestra el total de proyectos activos y su desglose por estado.
--   **Rediseño del Módulo de Bancos (DONE):** Se implementó un layout de lista horizontal, carga y visualización de logos, y campos de contacto.
--   **Categorización de Medios de Pago (DONE):** Se añadió el campo Tipo (: Producto/Servicio) al módulo de Bienes y Servicios.
--   **Visor 360° de Bancos y Roadmap (DONE):** Se creó una vista de detalle para cada banco con 3 secciones: productos VPOS/MPOS activos, productos PG/Link activos y un roadmap de integraciones en curso.
--   **Refinamiento de Bancos (DONE):** Se implementaron logos más grandes y toggles para activar/desactivar componentes (VPOS, PG) por producto para cada banco.
--   **Reporte Global de Integraciones (DONE):** Se creó una nueva página que consolida todos los proyectos de integración en curso de todos los bancos, con filtros y semáforos de estado.
--   **Optimización de UI/UX (DONE):** Se renombró Dispositivos a Catálogo de Bienes y Servicios y se aplicó un estilo más compacto a los botones principales.
--   **Mejora de Bitácora de Proyectos (DONE):** Se añadió un campo para seleccionar la persona contactada desde los contactos del cliente y se actualizó una etiqueta de texto.
+-   **CRM Técnico para Integradores (DONE):** Se implementó un sistema completo para gestionar contactos técnicos múltiples y una bitácora de gestiones por cada integrador, incluyendo alertas de compromisos vencidos.
+-   **Historial de Evolución y Resumen Global de Integradores (DONE):** Se añadió un campo de Fase de Integración y un modal de historial tipo timeline. También se creó un reporte de resumen con agrupación dinámica por fase, producto y modalidad.
+-   **Corrección de Bugs Críticos de Importación (DONE):** Se solucionó el bug que impedía ver los errores detallados de importación en el frontend y un error de Pandas (truth value of a Series is ambiguous) causado por columnas duplicadas.
+-   **Mejoras de UI/UX (DONE):**
+    -   Implementado un menú lateral abatible con estado persistente.
+    -   Añadida una leyenda interactiva con filtros en la matriz de certificación.
+    -   Añadida la capacidad de exportar errores de importación a Excel.
+    -   Renombrada la aplicación a Gestor - Work Flow de Procesos Integrales.
+    -   Añadidos nuevos filtros en las pantallas de Medios de Pago y Bienes y Servicios.
+-   **Corrección de Bugs Adicionales (DONE):** Se corrigió un bug que impedía eliminar integradores y otro que causaba que los logos de los bancos no se visualizaran (error 404).
 
 **Earlier issues found/mentioned but not fixed**
 -   None.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se reinicia en cada sesión del pod.
+-   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil en el entorno de desarrollo y se reinicia con la sesión del pod. Esto es una característica del entorno, no un bug.
 -   **Recurrence count**: 3+
--   **Status**: NOT STARTED (Es una característica del entorno de desarrollo, no un bug a solucionar).
+-   **Status**: NOT STARTED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB.
--   **Frontend:** React, /, Shadcn/UI,  (o similar para la matriz).
--   **Lógica de Negocio:** Generación de UI dinámica (columnas de la matriz basadas en datos de la BD), vistas expandibles/colapsables, estado de certificación (P, C, N/A).
+-   **Backend**: FastAPI, Pydantic, MongoDB, Pandas. Lógica de , generación de plantillas dinámicas, validación de datos, agregación para reportes, importancia del orden de rutas en FastAPI.
+-   **Frontend**: React, Shadcn/UI, /. Gestión de estado complejo con múltiples modales, filtros dinámicos, renderizado condicional, persistencia de estado con .
+-   **Bibliotecas**:  (backend),  (frontend) para manejo de Excel.
 
 **key DB schema**
 -   ****:
-    -   : String (Enum: 'CR', 'LP', 'PG', 'MP', 'TK')
-    -   : String (ObjectId referenciando )
+    -   : Array de 
+    -   : Array de 
+    -   : Array de 
     -   : String
-    -   : Array de Objetos  (Almacena el estado 'P', 'C' o 'N/A' para cada producto certificado).
--   ****: Usada para poblar el dropdown de Gestor.
--   ****: Usada para poblar las columnas dinámicas de la matriz de certificación (filtrando por  Producto o Setup).
+-   ****: Se necesitará añadir un campo  a cada ítem del roadmap.
 
 **changes in tech stack**
--    fue instalado para el redimensionamiento de imágenes (logos de bancos).
+-   Se añadió la biblioteca  al frontend para la exportación a Excel.
 
 **All files of reference**
--   : **(Trabajo principal pendiente)** Archivo que fue reescrito y necesita ser completado.
--   : **(Modificado)** Contiene la nueva estructura del modelo .
--   : **(Modificado)** Contiene los endpoints CRUD actualizados para .
--   : Necesario para obtener la lista de gestores.
--   : Necesario para obtener la lista de productos para la matriz.
+-   : Fichero principal a modificar para la bitácora por producto.
+-   : Fichero principal a modificar para la consulta global.
+-   : Excelente referencia de cómo implementar un timeline y un modal de resumen con agrupación.
+-   : Referencia para la implementación de los endpoints de bitácora y resumen.
+-   : Referencia para la creación de los nuevos modelos de datos.
 
 **Areas that need refactoring**:
--   ****: Sigue siendo una deuda técnica pendiente para una futura fase de refactorización.
+-   : El archivo ha crecido a más de 1500 líneas y es un fuerte candidato a ser descompuesto en componentes más pequeños (ej. , , , ).
+-   : Deuda técnica pendiente de una fase anterior.
 
 **key api endpoints**
--   : Obtiene la lista de integradores.
--   : Actualiza un integrador, incluyendo su matriz de certificaciones.
--   : Endpoint para obtener la lista de usuarios que pueden ser gestores.
--   : Endpoint para obtener los productos que serán las columnas de la matriz.
+-   : Añadir entrada a la bitácora del integrador.
+-   : Añadir hito al historial de evolución del integrador.
+-   : Obtener resumen global de integradores con agrupación.
+-   : Actualizar integrador (incluyendo contactos).
+-   : Obtener lista de integradores (ahora devuelve ).
 
 **Critical Info for New Agent**
 -   **Idioma:** La comunicación debe ser exclusivamente en **español**.
--   **Tarea Prioritaria:** Completar la implementación de la nueva funcionalidad del módulo de Integradores. El backend está mayormente listo, pero el foco principal es el frontend.
--   **Punto de Partida:** Retomar el trabajo en . El archivo fue borrado y recreado con una nueva estructura básica. Debes implementar toda la lógica de estado, la obtención de datos (integradores, usuarios, servicios), el renderizado de la tabla, el formulario de edición y, crucialmente, la vista de detalle expandible con la matriz de certificación dinámica y editable.
--   **Base de Datos Volátil:** Recuerda que deberás crear datos de prueba (usuarios, servicios/productos, e integradores) para poder desarrollar y probar la nueva funcionalidad.
+-   **Tarea Prioritaria:** La implementación de la Bitácora de Evolución por Producto y la Consulta Global con Agrupamiento Dinámico.
+-   **Blueprint:** La implementación reciente del CRM técnico y el resumen en el módulo de  ( y ) sirve como un excelente patrón y referencia de código para las nuevas funcionalidades solicitadas. Reutilice la lógica de modales, timelines y agrupación de datos de allí.
+-   **FastAPI Routing:** Recuerde que en FastAPI, las rutas específicas (ej. ) deben declararse ANTES que las rutas dinámicas (ej. ) para evitar conflictos de enrutamiento.
 
 **documents and test reports created in this job**
--    fue actualizado con las funcionalidades completadas.
--   Múltiples reportes de  fueron generados para las tareas completadas, ej. en .
+-   : Reporte de testing exitoso para el CRM técnico.
+-   : Actualizado con las funcionalidades completadas.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Define el requerimiento para la evolución del módulo de Integradores (nuevos campos y matriz de certificación).
-2.  **User:** Solicita cambiar el label en la bitácora a Acción resultante / Compromiso adquirido.
-3.  **User:** Solicita agregar un campo a la bitácora para seleccionar la persona contactada.
-4.  **User:** Define el requerimiento para cambiar nomenclatura (Dispositivos -> Catálogo de Bienes y Servicios) y hacer los botones más compactos.
-5.  **User:** Solicita borrar la base de datos de proyectos.
-6.  **User:** Define el requerimiento para el Reporte Global de Integraciones Bancarias.
-7.  **User:** Define el refinamiento del visor de bancos (logos más grandes y gestión de herencia de componentes con toggles).
-8.  **User:** Define el requerimiento para la optimización del módulo de bancos (Visor de Capacidades / 360°).
-9.  **User:** Define el requerimiento para agregar la categorización por Tipo (Producto/Servicio) en Medios de Pago.
-10. **User:** Define el requerimiento para rediseñar la estructura de filas del módulo de Bancos y añadir campos de contacto.
+1.  **User:** Solicita un menú lateral abatible.
+2.  *(Agent implementa el menú lateral abatible)*.
+3.  **User:** Solicita renombrar encabezados y añadir filtros en Medios de Pago.
+4.  *(Agent implementa los cambios en Medios de Pago)*.
+5.  **User:** Solicita renombrar encabezado y añadir filtro en Bienes y Servicios.
+6.  *(Agent implementa los cambios en Bienes y Servicios)*.
+-   ... (Múltiples solicitudes de funcionalidades y correcciones implementadas con éxito) ...
+7.  **User:** Inicia una nueva solicitud grande: Bitácora de Evolución por Producto.
+8.  **User:** Continúa la solicitud: también necesita una Consulta Global con Agrupamiento Dinámico, y adjunta una imagen de referencia.
+9.  *(Agent reconoce la solicitud y los dos contextos diferentes: detalle de banco y pantalla de proyectos en proceso)*.
+10. **Agent's last action:** El agente comenzó a explorar los archivos relevantes (, , , ) para preparar la implementación de la nueva funcionalidad.
 
 **Project Health Check:**
--   **Broken**: La página  está rota, ya que el archivo  está en medio de una reescritura completa y no es funcional.
+-   **Broken**: Ninguna funcionalidad está rota actualmente.
 -   **Mocked**: El servicio de envío de correos (Resend) sigue en modo simulado.
 
 **3rd Party Integrations**
@@ -139,17 +147,17 @@ Future Tasks:
 -   **pytesseract**, **pdf2image**, **poppler-utils**: OCR.
 -   **Shadcn/UI**, **Radix UI**: Componentes React.
 -   **bcrypt**: Hashing.
--   **openpyxl**, **pandas**: Lectura de Excel.
+-   **openpyxl**, **pandas**: Lectura/escritura de Excel y CSV.
 -   **Pillow**: Procesamiento de imágenes.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, se usó para validar todas las funcionalidades completadas en esta sesión.
--   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: Múltiples reportes de prueba en .
+-   **Testing agent used after significant changes**: YES. Se utilizó para validar la implementación del CRM técnico en el módulo de integradores.
+-   **Troubleshoot agent used after agent stuck in loop**: NO.
+-   **Test files created**: .
 -   **Known regressions**: Ninguna.
 
 **Credentials to test flow:**
 No hay credenciales fijas. Se debe registrar un nuevo usuario en la UI (). El primer usuario creado es administrador por defecto.
 
 **What agent forgot to execute**
--   El agente no completó la reescritura del archivo . El trabajo está a medio camino, con el archivo creado pero la lógica funcional aún por implementar.</analysis>
+Nada. El agente estaba en la fase inicial de planificación de una nueva y compleja solicitud del usuario cuando la sesión concluyó.</analysis>
