@@ -44,9 +44,10 @@ Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de
 
 ### Módulo de Proyectos
 - Generación automática desde cotizaciones aprobadas
-- Asignación a implementadores
-- Seguimiento de estado y prioridad
-- Notas de seguimiento
+- Asignación a implementadores con lógica dinámica **Asignar/Reasignar** (2026-03-09): muestra responsable actual, requiere fecha y motivo en reasignación
+- **Cambiar Estado rápido** (2026-03-09): diálogo con opciones visuales, fecha y comentario documentado en bitácora automática
+- Seguimiento de estado, prioridad y matriz de implementación
+- Notas de seguimiento y bitácora de proyecto
 
 ### Otros
 - Dashboard con KPIs
