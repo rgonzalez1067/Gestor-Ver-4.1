@@ -21,11 +21,13 @@ Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de
 - Matriz de certificación con filtros interactivos
 
 ### Módulo de Integradores
+- CRUD completo con importación masiva (upsert)
 - CRM técnico con contactos múltiples
-- Bitácora de gestiones con alertas de compromisos vencidos
-- Historial de evolución por integrador (timeline)
-- Reporte de resumen con agrupación dinámica (fase, producto, modalidad)
-- Importación masiva con upsert y validación
+- Bitácora de gestiones con alertas de compromisos vencidos y **combo de contacto** (dropdown + escritura libre)
+- Historial de evolución por integrador con **persona de contacto** (reemplazó campo Fase)
+- Reporte de resumen con agrupación dinámica
+- Tabla simplificada: eliminadas columnas "Estatus" y "Fase" (2026-03-09)
+- Formulario simplificado: eliminado campo "Fase de Integración" (2026-03-09)
 
 ### Módulo de Clientes
 - CRUD completo con contactos CRM
@@ -52,6 +54,13 @@ Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de
 - Menú lateral abatible con estado persistente
 - Tasa de cambio BCV
 
+## Integraciones de Terceros
+- **Resend**: Email (SIMULADO)
+- **reportlab/PyPDF2**: Generación PDF
+- **pytesseract/pdf2image**: OCR
+- **openpyxl/pandas**: Excel
+- **xlsx** (frontend): Exportación Excel
+
 ## Backlog Priorizado
 
 ### P1 (Próximas)
@@ -64,8 +73,3 @@ Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de
 - Refactorización de `Integrators.jsx` (>1500 líneas)
 
 ## Integraciones de Terceros
-- **Resend**: Email (SIMULADO)
-- **reportlab/PyPDF2**: Generación PDF
-- **pytesseract/pdf2image**: OCR
-- **openpyxl/pandas**: Excel
-- **xlsx** (frontend): Exportación Excel
