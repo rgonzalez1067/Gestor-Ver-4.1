@@ -74,13 +74,13 @@ export const Integrators = () => {
   const [bitacoraEntries, setBitacoraEntries] = useState([]);
   const [bitacoraLoading, setBitacoraLoading] = useState(false);
   const [bitacoraForm, setBitacoraForm] = useState({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
-  // Evolution log
-  const [evoOpen, setEvoOpen] = useState(false);
-  const [evoIntegrator, setEvoIntegrator] = useState(null);
-  const [evoEntries, setEvoEntries] = useState([]);
-  const [evoLoading, setEvoLoading] = useState(false);
-  const [evoForm, setEvoForm] = useState({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
-  const [evoEditing, setEvoEditing] = useState(null);
+  // Timeline Viewer (replaces evolution)
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [timelineIntegrator, setTimelineIntegrator] = useState(null);
+  const [timelineEntries, setTimelineEntries] = useState([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineSearch, setTimelineSearch] = useState('');
+  const [timelineExpanded, setTimelineExpanded] = useState({});
   // Summary
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
@@ -382,51 +382,32 @@ export const Integrators = () => {
     } catch { toast.error('Error al eliminar'); }
   };
 
-  // Evolution log functions
-  const PHASES = ['Negociación', 'Desarrollo', 'QA', 'SQA', 'Producción'];
-  const PHASE_COLORS = { 'Negociación': 'bg-purple-100 text-purple-700 border-purple-300', 'Desarrollo': 'bg-blue-100 text-blue-700 border-blue-300', 'QA': 'bg-amber-100 text-amber-700 border-amber-300', 'SQA': 'bg-orange-100 text-orange-700 border-orange-300', 'Producción': 'bg-emerald-100 text-emerald-700 border-emerald-300' };
-
-  const openEvolution = async (intg) => {
-    setEvoIntegrator(intg);
-    setEvoOpen(true);
-    setEvoLoading(true);
-    setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
-    setEvoEditing(null);
+  // Timeline viewer functions
+  const openTimeline = async (intg) => {
+    setTimelineIntegrator(intg);
+    setTimelineOpen(true);
+    setTimelineLoading(true);
+    setTimelineSearch('');
+    setTimelineExpanded({});
     try {
-      const res = await api.get(`/integrators/${intg.integrator_id}/evolution`);
-      setEvoEntries(res.data);
+      const res = await api.get(`/integrators/${intg.integrator_id}/bitacora`);
+      setTimelineEntries(res.data);
     } catch { toast.error('Error al cargar historial'); }
-    finally { setEvoLoading(false); }
+    finally { setTimelineLoading(false); }
   };
 
-  const saveEvoEntry = async () => {
-    if (!evoForm.comment.trim()) { toast.error('Escriba un comentario'); return; }
-    try {
-      if (evoEditing) {
-        await api.patch(`/integrators/${evoIntegrator.integrator_id}/evolution/${evoEditing}`, evoForm);
-        toast.success('Entrada actualizada');
-      } else {
-        await api.post(`/integrators/${evoIntegrator.integrator_id}/evolution`, evoForm);
-        toast.success('Hito registrado');
-      }
-      setEvoEditing(null);
-      setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) });
-      const res = await api.get(`/integrators/${evoIntegrator.integrator_id}/evolution`);
-      setEvoEntries(res.data);
-    } catch { toast.error('Error al guardar'); }
+  const formatTimelineDate = (dateStr) => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (dateStr === today) {
+      const d = new Date(dateStr + 'T12:00:00');
+      return `Hoy (${d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })})`;
+    }
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
-  const startEditEvo = (entry) => {
-    setEvoEditing(entry.entry_id);
-    setEvoForm({ comment: entry.comment, contact_person: entry.contact_person || '', date: entry.date });
-  };
-
-  const deleteEvoEntry = async (entryId) => {
-    try {
-      await api.delete(`/integrators/${evoIntegrator.integrator_id}/evolution/${entryId}`);
-      setEvoEntries(prev => prev.filter(e => e.entry_id !== entryId));
-      toast.success('Entrada eliminada');
-    } catch { toast.error('Error al eliminar'); }
+  const toggleTimelineExpand = (entryId) => {
+    setTimelineExpanded(prev => ({ ...prev, [entryId]: !prev[entryId] }));
   };
 
   // Summary functions
@@ -719,9 +700,9 @@ export const Integrators = () => {
                               className="text-purple-600 hover:bg-purple-50 h-7 px-1.5" data-testid={`detail-${intg.integrator_id}`}>
                               <Award size={13} />{expandedRow === intg.integrator_id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => openEvolution(intg)}
+                            <Button size="sm" variant="ghost" onClick={() => openTimeline(intg)}
                               className="text-purple-500 hover:bg-purple-50 h-7 w-7 p-0"
-                              data-testid={`evolution-${intg.integrator_id}`} title="Historial de avance">
+                              data-testid={`timeline-${intg.integrator_id}`} title="Reporte Histórico">
                               <FileText size={13} />
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => openBitacora(intg)}
@@ -1081,86 +1062,129 @@ export const Integrators = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Evolution Timeline Modal */}
-      <Dialog open={evoOpen} onOpenChange={(o) => { if (!o) { setEvoOpen(false); setEvoEditing(null); } }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="evolution-modal">
-          <DialogHeader>
+      {/* Timeline Viewer Modal (Reporte Histórico) */}
+      <Dialog open={timelineOpen} onOpenChange={(o) => { if (!o) setTimelineOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" data-testid="timeline-modal">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="font-manrope text-xl flex items-center gap-2">
               <FileText size={20} className="text-purple-600" />
-              Historial de Avance — {evoIntegrator?.name}
+              Reporte Histórico — {timelineIntegrator?.name}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
-            <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
-              placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="evo-comment" />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-[10px] text-slate-500">Persona de Contacto</Label>
-                <Input
-                  value={evoForm.contact_person}
-                  onChange={(e) => setEvoForm(p => ({ ...p, contact_person: e.target.value }))}
-                  list={`evo-contacts-${evoIntegrator?.integrator_id}`}
-                  placeholder="Escriba o seleccione..."
-                  className="h-8 text-xs"
-                  data-testid="evo-contact-input"
-                />
-                <datalist id={`evo-contacts-${evoIntegrator?.integrator_id}`}>
-                  {(evoIntegrator?.contacts || []).map(c => (
-                    <option key={c.contact_id} value={c.name} />
-                  ))}
-                </datalist>
-              </div>
-              <div>
-                <Label className="text-[10px] text-slate-500">Fecha</Label>
-                <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              {evoEditing && <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setEvoEditing(null); setEvoForm({ comment: '', contact_person: '', date: new Date().toISOString().slice(0, 10) }); }}>Cancelar</Button>}
-              <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700" onClick={saveEvoEntry} data-testid="evo-save-btn">
-                {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
-              </Button>
-            </div>
+          {/* Search */}
+          <div className="shrink-0 relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={timelineSearch}
+              onChange={(e) => setTimelineSearch(e.target.value)}
+              placeholder="Buscar en gestiones (ej: contrato, credenciales...)"
+              className="pl-9 h-9 text-sm"
+              data-testid="timeline-search"
+            />
           </div>
 
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Línea de Tiempo ({evoEntries.length})</p>
-            {evoLoading ? (
-              <p className="text-sm text-slate-400 text-center py-4">Cargando...</p>
-            ) : evoEntries.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-4 italic">Sin hitos registrados</p>
-            ) : (
-              <div className="relative pl-6 space-y-0">
-                <div className="absolute left-[10px] top-2 bottom-2 w-0.5 bg-slate-200" />
-                {evoEntries.map((entry) => (
-                  <div key={entry.entry_id} className="relative pb-4" data-testid={`evo-entry-${entry.entry_id}`}>
-                    <div className="absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 bg-purple-500 border-purple-300" />
-                    <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            {entry.contact_person && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200"><Users size={10} />{entry.contact_person}</span>}
-                            <span className="text-[10px] text-slate-400">{entry.date}</span>
-                            {entry.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
-                          </div>
-                          <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.comment}</p>
+          {/* Timeline Content */}
+          <div className="flex-1 overflow-y-auto mt-2 min-h-0">
+            {timelineLoading ? (
+              <p className="text-sm text-slate-400 text-center py-8">Cargando historial...</p>
+            ) : (() => {
+              const filtered = timelineEntries.filter(e => {
+                if (!timelineSearch) return true;
+                const s = timelineSearch.toLowerCase();
+                return (e.description || '').toLowerCase().includes(s) ||
+                  (e.contact_name || '').toLowerCase().includes(s) ||
+                  (e.commitment || '').toLowerCase().includes(s);
+              });
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-8">
+                    <BookOpen size={28} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm text-slate-400 italic">
+                      {timelineSearch ? `Sin resultados para "${timelineSearch}"` : 'Sin gestiones registradas para este integrador'}
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-0">
+                  {/* Header row */}
+                  <div className="grid grid-cols-[140px_1fr] gap-4 pb-2 mb-2 border-b border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Hito Temporal</span>
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Detalle de la Gestión</span>
+                  </div>
+                  {filtered.map((entry) => {
+                    const isOverdue = entry.commitment_deadline && !entry.commitment_completed && entry.commitment_deadline < new Date().toISOString().slice(0, 10);
+                    const isCompleted = entry.commitment_completed;
+                    const isExpanded = timelineExpanded[entry.entry_id];
+                    const descriptionLong = (entry.description || '').length > 120;
+                    const borderColor = isOverdue ? 'border-l-red-500' : isCompleted ? 'border-l-emerald-500' : 'border-l-slate-200';
+
+                    return (
+                      <div
+                        key={entry.entry_id}
+                        data-testid={`timeline-entry-${entry.entry_id}`}
+                        className={`grid grid-cols-[140px_1fr] gap-4 border-l-[3px] ${borderColor} bg-white hover:bg-slate-50/50 transition-colors cursor-pointer py-4 px-2`}
+                        onClick={() => descriptionLong && toggleTimelineExpand(entry.entry_id)}
+                      >
+                        {/* Date column */}
+                        <div className="text-right pr-2">
+                          <p className="text-sm font-semibold text-slate-800 leading-snug">{formatTimelineDate(entry.date)}</p>
                         </div>
-                        <div className="flex items-center gap-0.5 flex-shrink-0">
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(entry)} title="Editar">
-                            <Pencil size={11} />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(entry.entry_id)}>
-                            <Trash2 size={11} />
-                          </Button>
+
+                        {/* Detail column */}
+                        <div className="space-y-2">
+                          {entry.contact_name && (
+                            <p className="text-sm">
+                              <span className="font-bold text-slate-700">Interlocutor: </span>
+                              <span className="text-slate-600">{entry.contact_name}</span>
+                            </p>
+                          )}
+                          <div className="text-sm">
+                            <span className="font-bold text-slate-700">Acción: </span>
+                            <span className="text-slate-600">
+                              {!isExpanded && descriptionLong
+                                ? entry.description.slice(0, 120) + '...'
+                                : entry.description}
+                            </span>
+                            {descriptionLong && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleTimelineExpand(entry.entry_id); }}
+                                className="ml-1 text-[10px] text-purple-600 hover:text-purple-800 font-medium"
+                                data-testid={`timeline-expand-${entry.entry_id}`}
+                              >
+                                {isExpanded ? 'ver menos' : 'ver más'}
+                              </button>
+                            )}
+                          </div>
+                          {entry.commitment && (
+                            <p className="text-sm">
+                              <span className={`font-bold ${isOverdue ? 'text-red-600' : isCompleted ? 'text-emerald-600' : 'text-slate-700'}`}>Compromiso: </span>
+                              <span className={`${isCompleted ? 'line-through text-slate-400' : isOverdue ? 'text-red-700' : 'text-slate-600'}`}>
+                                {entry.commitment}
+                                {entry.commitment_deadline && (
+                                  <span className={`ml-1 ${isOverdue ? 'font-semibold' : ''}`}>
+                                    (Límite: {formatTimelineDate(entry.commitment_deadline)})
+                                  </span>
+                                )}
+                              </span>
+                              {isOverdue && <span className="ml-1.5 text-[9px] font-bold text-red-500 uppercase">Vencido</span>}
+                              {isCompleted && <span className="ml-1.5 text-[9px] font-bold text-emerald-500 uppercase">Cumplido</span>}
+                            </p>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
+            <span className="text-[10px] text-slate-400">{timelineEntries.length} gestiones registradas</span>
+            {timelineSearch && <span className="text-[10px] text-purple-500">{timelineEntries.filter(e => { const s = timelineSearch.toLowerCase(); return (e.description || '').toLowerCase().includes(s) || (e.contact_name || '').toLowerCase().includes(s) || (e.commitment || '').toLowerCase().includes(s); }).length} coincidencias</span>}
           </div>
         </DialogContent>
       </Dialog>
