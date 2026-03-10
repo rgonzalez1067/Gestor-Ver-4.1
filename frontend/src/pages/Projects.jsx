@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { toast } from 'sonner';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -132,7 +132,11 @@ const Projects = () => {
       p.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+    const matchStatus = statusFilter === 'all'
+      ? true
+      : statusFilter === 'irregular'
+        ? p.is_irregular === true
+        : p.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
@@ -158,15 +162,19 @@ const Projects = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-6 gap-4 mb-6">
             {[
-              { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700' },
-              { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
-              { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700' },
-              { label: 'Detenidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700' },
-              { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+              { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
+              { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Pendiente por Asignar' },
+              { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'Asignado / En Proceso' },
+              { label: 'Detenidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Detenido por Cliente/Banco' },
+              { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Finalizado / Producción' },
+              { label: 'P. Irregular', value: stats.irregular || 0, cls: 'bg-orange-50 border-orange-300 text-orange-700', filter: 'irregular' },
             ].map(s => (
-              <div key={s.label} className={`p-4 rounded-lg border ${s.cls}`} data-testid={`stat-${s.label.toLowerCase()}`}>
+              <div key={s.label}
+                className={`p-4 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
+                onClick={() => setStatusFilter(s.filter)}
+                data-testid={`stat-${s.label.toLowerCase().replace(/\s/g, '-')}`}>
                 <p className="text-2xl font-bold">{s.value}</p>
                 <p className="text-sm">{s.label}</p>
               </div>
@@ -190,6 +198,7 @@ const Projects = () => {
                 <SelectContent>
                   <SelectItem value="all">Todos los estados</SelectItem>
                   {Object.keys(STATUS_CONFIG).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  <SelectItem value="irregular">Proceso Irregular</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -228,6 +237,11 @@ const Projects = () => {
                         <td className="px-4 py-3">
                           <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
                           <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
+                          {project.is_irregular && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 border border-orange-200" data-testid="project-irregular-badge">
+                              <AlertTriangle size={10} />Irregular
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <p className="text-sm font-medium text-slate-800">{project.client_name}</p>

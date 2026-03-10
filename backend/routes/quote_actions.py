@@ -72,6 +72,11 @@ async def mark_quote_irregular(quote_id, action, reason, regularization_date):
         "regularization_date": regularization_date,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    # Ensure irregular_exceptions is an array (handles null or missing field)
+    await db.quotes.update_one(
+        {"quote_id": quote_id, "$or": [{"irregular_exceptions": None}, {"irregular_exceptions": {"$exists": False}}]},
+        {"$set": {"irregular_exceptions": []}}
+    )
     await db.quotes.update_one({"quote_id": quote_id}, {
         "$set": {"is_irregular": True},
         "$push": {"irregular_exceptions": exception_entry}
@@ -730,6 +735,8 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
         "total_bs": quote.get("total_bs", 0),
         "status": "Pendiente por Asignar",
         "priority": "Normal",
+        "is_irregular": quote.get("is_irregular", False),
+        "irregular_exceptions": quote.get("irregular_exceptions", []) or [],
         "implementation_matrix": implementation_matrix,
         "attachments": attachments,
         "bitacora": [],

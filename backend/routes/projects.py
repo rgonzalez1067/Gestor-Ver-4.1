@@ -63,7 +63,8 @@ async def get_project_stats(authorization: Optional[str] = Header(None)):
     in_progress = await db.projects.count_documents({"status": "Asignado / En Proceso"})
     blocked = await db.projects.count_documents({"status": "Detenido por Cliente/Banco"})
     completed = await db.projects.count_documents({"status": "Finalizado / Producción"})
-    return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed}
+    irregular = await db.projects.count_documents({"is_irregular": True})
+    return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed, "irregular": irregular}
 
 
 @router.get("/projects/implementers/list")
