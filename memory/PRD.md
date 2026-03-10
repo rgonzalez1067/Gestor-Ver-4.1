@@ -38,17 +38,20 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Calculo automatico de costos setup y recurrentes
 - Tabla de costos recurrentes Payment Gateway
 - Workflow de estados (Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Entregada)
-- **Flujo Administrativo Flexible** (2026-03-10): Todos los botones activos sin bloqueo por estado. Modal de Protocolo de Excepcion con justificacion y fecha de regularizacion. Audit log, badge "Irregular" naranja, widget contador
+- **Flujo Administrativo Flexible** (2026-03-10): Todos los botones activos. Modal de Protocolo de Excepcion. Audit log, badge "Irregular", widget contador
 - Generacion de PDF profesional con WeasyPrint + template HTML
+- **Logo de empresa en PDF de equipos** (2026-03-10): El logo de Configuracion se embebe en el header del PDF
 - Sistema de anexos por categoria
-- **Fix: mark_quote_irregular null array** (2026-03-10): Corregido $push sobre campo null en MongoDB
+- **Fix: mark_quote_irregular null array** (2026-03-10)
+- **Fix: PDF de equipos no se guardaba como anexo** (2026-03-10): Endpoint unificado que genera PDF, lo guarda, crea cotizacion y vincula anexo automaticamente
+- **Fix: UI freeze tras generar PDF de equipos** (2026-03-10): resetWizard y onClose en finally block
 
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones aprobadas
-- **Trigger de Conversion: Cotizacion -> Proyecto** (2026-03-10): Al enviar a implementacion, se crea automaticamente un proyecto heredando toda la data tecnica/comercial; la cotizacion se elimina
-- **Persistencia de Proceso Irregular** (2026-03-10): Si la cotizacion es irregular, el proyecto hereda is_irregular y irregular_exceptions. Nueva vista/filtro "P. Irregular" en modulo de Proyectos con tarjeta de stats, badge naranja y filtro en selector
-- Asignacion a implementadores con logica dinamica Asignar/Reasignar (2026-03-09)
-- Cambiar Estado rapido (2026-03-09)
+- **Trigger Cotizacion -> Proyecto** (2026-03-10): Creacion automatica al enviar a implementacion
+- **Persistencia de Proceso Irregular** (2026-03-10): Herencia de is_irregular, filtro y badge en Proyectos
+- Asignacion a implementadores con logica dinamica Asignar/Reasignar
+- Cambiar Estado rapido
 - Seguimiento de estado, prioridad y matriz de implementacion
 - Notas de seguimiento y bitacora de proyecto
 
@@ -63,15 +66,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **WeasyPrint**: Generacion de PDF desde HTML
 - **reportlab/PyPDF2**: Generacion/Manipulacion de PDF
 - **openpyxl/pandas**: Excel
-- **xlsx** (frontend): Exportacion Excel
 
 ## Backlog Priorizado
 
 ### P1 (Proximas)
 - Verificacion de Email y Recuperacion de Contrasena
-- Refactorizacion de `Quotes.jsx`
+- Refactorizacion de `Quotes.jsx` (4200+ lineas)
 
 ### P2 (Futuras)
 - Modulo de Reportes de ventas
-- Logica de "Completado" en Roadmap de Bancos (mover a Activos)
-- Refactorizacion de `Integrators.jsx` (>1500 lineas)
+- Logica de "Completado" en Roadmap de Bancos
+- Refactorizacion de `Integrators.jsx` (1500+ lineas)
