@@ -4,11 +4,12 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -715,18 +716,18 @@ export const Clients = () => {
 
 
           {/* Table */}
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">RIF</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sucursal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase w-[130px]">RIF</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase w-[90px]">Sucursal</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Jurídico</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Nombre Fantasía</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Segmento</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Categoría</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase w-[100px]">Segmento</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase w-[120px]">Categoría</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Contacto Principal</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase w-[120px]">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -735,54 +736,62 @@ export const Clients = () => {
                   const legacyContact = client.contact1;
                   return (
                     <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono text-slate-700">{client.rif}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-700 whitespace-nowrap">{client.rif}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{client.sucursal || 'Principal'}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{client.legal_name}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{client.fantasy_name}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900 max-w-[200px] truncate" title={client.legal_name}>{client.legal_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 max-w-[180px] truncate" title={client.fantasy_name}>{client.fantasy_name}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${
                           client.segment === 'Corporativo' ? 'bg-purple-100 text-purple-700' :
                           client.segment === 'Pymes' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                         }`}>{client.segment || 'N/A'}</span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{client.categoria_comercial || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600 truncate max-w-[120px]" title={client.categoria_comercial}>{client.categoria_comercial || '—'}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {mainContact ? (
                           <div>
-                            <p className="font-medium">{mainContact.full_name || `${mainContact.first_name || ''} ${mainContact.last_name || ''}`.trim() || '—'}</p>
-                            <p className="text-xs text-slate-400">{mainContact.role} · {mainContact.phone}</p>
+                            <p className="font-medium truncate max-w-[160px]">{mainContact.full_name || `${mainContact.first_name || ''} ${mainContact.last_name || ''}`.trim() || '—'}</p>
+                            <p className="text-xs text-slate-400 truncate max-w-[160px]">{mainContact.role} · {mainContact.phone}</p>
                           </div>
                         ) : legacyContact ? (
                           <div>
-                            <p className="font-medium">{legacyContact.name}</p>
-                            <p className="text-xs text-slate-400">{legacyContact.email}</p>
+                            <p className="font-medium truncate max-w-[160px]">{legacyContact.name}</p>
+                            <p className="text-xs text-slate-400 truncate max-w-[160px]">{legacyContact.email}</p>
                           </div>
                         ) : <span className="text-slate-400">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Button size="sm" variant="outline" onClick={() => openUpdateRifDialog(client)}
-                            data-testid={`update-rif-client-${client.client_id}`} className="text-amber-600 h-8 px-2" title="Escanear RIF">
-                            <ScanLine size={14} />
-                          </Button>
-                          {client.rif_document_url && (
-                            <Button size="sm" variant="outline" onClick={() => downloadRifDocument(client)}
-                              data-testid={`download-rif-client-${client.client_id}`} className="text-green-600 h-8 px-2" title="Descargar RIF">
-                              <Download size={14} />
-                            </Button>
-                          )}
                           <Button size="sm" variant="outline" onClick={() => openBitacora(client)}
                             data-testid={`bitacora-client-${client.client_id}`} className="text-blue-600 h-8 px-2">
-                            <BookOpen size={14} className="mr-1" />Bitácora
+                            <BookOpen size={14} />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEditDialog(client)}
-                            data-testid={`edit-client-${client.client_id}`} className="h-8 w-8 p-0">
-                            <Pencil size={14} />
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => handleDelete(client.client_id)}
-                            data-testid={`delete-client-${client.client_id}`} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:border-red-300">
-                            <Trash2 size={14} />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0" data-testid={`client-actions-${client.client_id}`}>
+                                <MoreHorizontal size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem onSelect={() => openUpdateRifDialog(client)} className="cursor-pointer">
+                                <ScanLine size={14} className="mr-2 text-amber-600" /> Escanear RIF
+                              </DropdownMenuItem>
+                              {client.rif_document_url && (
+                                <DropdownMenuItem onSelect={() => downloadRifDocument(client)} className="cursor-pointer">
+                                  <Download size={14} className="mr-2 text-green-600" /> Descargar RIF
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => openEditDialog(client)} className="cursor-pointer">
+                                <Pencil size={14} className="mr-2 text-slate-500" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => handleDelete(client.client_id)}
+                                className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
+                                <Trash2 size={14} className="mr-2" /> Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>

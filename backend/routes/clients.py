@@ -67,6 +67,13 @@ def extract_text_from_image(content: bytes) -> str:
     return text
 
 
+def sanitize_rif(rif_raw: str) -> str:
+    """Limpia el RIF removiendo guiones, espacios y caracteres especiales. J-00000000-0 → J000000000"""
+    if not rif_raw:
+        return rif_raw
+    return re.sub(r'[^A-Za-z0-9]', '', rif_raw).upper()
+
+
 def parse_rif_data(text: str) -> dict:
     """Extrae RIF, razón social y dirección fiscal del texto"""
     if not text.strip():
@@ -127,8 +134,8 @@ def parse_rif_data(text: str) -> dict:
     if not rif:
         raise HTTPException(status_code=400, detail="No se encontró un código RIF válido en el documento")
 
-    # Formatear RIF: J-12345678-9
-    rif_formatted = f"{rif[0]}-{rif[1:9]}-{rif[9]}" if len(rif) == 10 else rif
+    # Formatear RIF: sin guiones ni caracteres especiales
+    rif_clean = sanitize_rif(rif)
 
     # Limpiar razón social: remover "FECHA DE..." que puede quedar pegado
     legal_name = re.split(r'\s*FECHA\s+DE', legal_name, flags=re.IGNORECASE)[0].strip()
@@ -140,7 +147,7 @@ def parse_rif_data(text: str) -> dict:
         addr_raw = domicilio_match.group(1).strip()
         address = re.sub(r'\s+', ' ', addr_raw).strip()
 
-    return {"rif": rif_formatted, "legal_name": legal_name, "address": address}
+    return {"rif": rif_clean, "legal_name": legal_name, "address": address}
 
 
 @router.post("/clients/parse-rif")
@@ -279,6 +286,8 @@ async def download_rif_document(client_id: str, authorization: Optional[str] = H
 @router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    # Sanitizar RIF
+    client_data.rif = sanitize_rif(client_data.rif)
     # Validar unicidad RIF + Sucursal
     existing = await db.clients.find_one(
         {"rif": client_data.rif, "sucursal": client_data.sucursal or "Principal"},
@@ -399,6 +408,8 @@ async def get_client(client_id: str, authorization: Optional[str] = Header(None)
 @router.put("/clients/{client_id}")
 async def update_client(client_id: str, client_data: ClientCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    # Sanitizar RIF
+    client_data.rif = sanitize_rif(client_data.rif)
     # Validar unicidad RIF + Sucursal (excluyendo el propio registro)
     existing = await db.clients.find_one(
         {"rif": client_data.rif, "sucursal": client_data.sucursal or "Principal", "client_id": {"$ne": client_id}},
