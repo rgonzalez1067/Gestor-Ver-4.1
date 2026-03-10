@@ -1116,12 +1116,20 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     """Genera un PDF para cotización de Equipos, Accesorios y Reparaciones usando template HTML."""
     await get_current_user(authorization)
     import weasyprint
+    import base64 as b64mod
 
     now = datetime.now(timezone.utc)
     quote_number = f"EQ-{now.strftime('%Y-%m')}-{uuid.uuid4().hex[:4].upper()}"
     fecha = now.strftime("%d/%m/%Y")
     from datetime import timedelta
     vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
+
+    # Cargar logo de la empresa si existe
+    logo_html = '<div class="brand">Gestor - Work Flow</div><div class="brand-sub">Procesos Integrales</div>'
+    logo_file = UPLOADS_DIR / "logo.png"
+    if logo_file.exists():
+        logo_b64 = b64mod.b64encode(logo_file.read_bytes()).decode()
+        logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height:60px;max-width:200px;object-fit:contain" />'
 
     type_labels = {"POS": "Equipos POS", "Pinpad": "Equipos Pinpad", "Accesorio": "Accesorios", "Reparación": "Reparaciones"}
     type_title = type_labels.get(data.equipment_type, data.equipment_type)
@@ -1186,8 +1194,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 <body>
     <div class="header">
         <div>
-            <div class="brand">Gestor - Work Flow</div>
-            <div class="brand-sub">Procesos Integrales</div>
+            {logo_html}
         </div>
         <div class="quote-meta">
             <div class="quote-id">COTIZACIÓN #{quote_number}</div>
@@ -1205,7 +1212,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         </div>
         <div class="info-block" style="text-align:right">
             <h3>Emitido por:</h3>
-            <strong>Gestor - Work Flow</strong><br>
+            <strong>Mega Soft, C.A.</strong><br>
             <span>Sistema de Cotizaciones</span>
         </div>
     </div>
