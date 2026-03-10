@@ -39,7 +39,8 @@ Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de
 - Cálculo automático de costos setup y recurrentes
 - Tabla de costos recurrentes Payment Gateway
 - Workflow de estados (Borrador → Enviada → Aprobada → Facturada → Pagada → Entregada)
-- Generación de PDF
+- **Flujo Administrativo Flexible** (2026-03-10): Todos los botones activos sin bloqueo por estado. Modal de Protocolo de Excepción con justificación y fecha de regularización. Audit log, badge "Irregular" naranja, widget contador
+- Generación de PDF profesional con WeasyPrint + template HTML
 - Sistema de anexos por categoría
 
 ### Módulo de Proyectos
