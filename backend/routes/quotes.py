@@ -1101,6 +1101,7 @@ class EquipmentPDFItem(BaseModel):
     total_usd: float = 0
 
 class EquipmentQuotePDFRequest(BaseModel):
+    client_id: str = ""
     cliente_nombre: str
     cliente_rif: str = ""
     cliente_address: str = ""
@@ -1113,13 +1114,15 @@ class EquipmentQuotePDFRequest(BaseModel):
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
-    """Genera un PDF para cotización de Equipos, Accesorios y Reparaciones usando template HTML."""
-    await get_current_user(authorization)
+    """Genera PDF, lo guarda en el servidor, crea la cotización y devuelve el PDF."""
+    current_user = await get_current_user(authorization)
     import weasyprint
     import base64 as b64mod
 
     now = datetime.now(timezone.utc)
-    quote_number = f"EQ-{now.strftime('%Y-%m')}-{uuid.uuid4().hex[:4].upper()}"
+    # Obtener sede del usuario
+    user_sede = current_user.get("sede", "TBP")
+    quote_number = await generate_quote_number(user_sede)
     fecha = now.strftime("%d/%m/%Y")
     from datetime import timedelta
     vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
@@ -1249,11 +1252,81 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
 
+    # Guardar PDF en el servidor
+    pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"
+    pdf_path = UPLOADS_DIR / pdf_filename
+    with open(pdf_path, 'wb') as f:
+        f.write(pdf_bytes)
+    quote_pdf_url = f"/uploads/{pdf_filename}"
+    logging.info(f"PDF equipos generado y almacenado: {quote_pdf_url}")
+
+    # Crear anexo automático
+    attachment_entry = {
+        "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+        "category": "Cotización",
+        "filename": pdf_filename,
+        "url": quote_pdf_url,
+        "uploaded_by": current_user.get("email", "system"),
+        "uploaded_by_name": current_user.get("full_name", "Sistema"),
+        "uploaded_at": now.isoformat(),
+        "file_size": len(pdf_bytes),
+        "content_type": "application/pdf"
+    }
+
+    # Crear cotización en BD
+    quote_id = f"quo_{uuid.uuid4().hex[:12]}"
+    quote_category = "repair" if data.equipment_type == "Reparación" else "equipment"
+
+    # Obtener nombre de cliente si hay client_id
+    client_display_name = data.cliente_nombre
+    if data.client_id:
+        client_doc = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0, "legal_name": 1, "fantasy_name": 1})
+        if client_doc:
+            client_display_name = client_doc.get("fantasy_name") or client_doc.get("legal_name", data.cliente_nombre)
+
+    equipment_items_list = [item.model_dump() for item in data.items]
+
+    quote_doc = {
+        "quote_id": quote_id,
+        "quote_number": quote_number,
+        "client_id": data.client_id,
+        "client_name": client_display_name,
+        "quote_category": quote_category,
+        "quote_type": data.equipment_type,
+        "equipment_type": data.equipment_type,
+        "equipment_items": equipment_items_list,
+        "subtotal_usd": subtotal,
+        "total_usd": total,
+        "total_bs": 0,
+        "exchange_rate": 0,
+        "notes": data.notes or "",
+        "repair_description": data.repair_description or None,
+        "equipment_serial_number": data.equipment_serial_number or None,
+        "estimated_delivery_date": data.estimated_delivery_date or None,
+        "quote_status": "Borrador",
+        "quote_pdf_url": quote_pdf_url,
+        "attachments": [attachment_entry],
+        "sede": user_sede,
+        "created_by_user_id": current_user.get("user_id"),
+        "created_at": now.isoformat(),
+        "status_history": [{
+            "status": "Borrador",
+            "timestamp": now.isoformat(),
+            "user": current_user.get("full_name", current_user.get("email", "Sistema"))
+        }]
+    }
+    await db.quotes.insert_one(quote_doc)
+    logging.info(f"Cotización de equipo creada: {quote_id} ({quote_number})")
+
     filename = f"cotizacion_{data.equipment_type.lower().replace(' ', '_')}_{data.cliente_rif or 'cliente'}_{now.strftime('%Y%m%d')}.pdf"
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-Quote-Id": quote_id,
+            "X-Quote-Number": quote_number
+        }
     )
 

@@ -1,0 +1,78 @@
+{
+  "summary": "Iteration 86 - Equipment Quote PDF Bugs Testing. Both critical bugs verified as FIXED. Bug #1: POST /api/quotes/generate-equipment-pdf now creates quote in DB with quote_pdf_url and automatic attachment. Bug #2: UI no longer freezes after PDF generation - wizard closes, table refreshes, page remains interactive.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "QuotesTable",
+        "issues": ["HTML hydration warning: <span> inside <tbody> - cosmetic only, does not affect functionality"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration86_equipment_pdf_bugs.py",
+    "/app/test_reports/pytest/pytest_results_iteration86.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iteration86_equipment_pdf_bugs.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100% - Both bugs verified fixed"
+  },
+  "test_credentials": {
+    "email": "admin@gestor.com",
+    "password": "Admin2026!"
+  },
+  "seed_data_creation": "Created multiple equipment quotes during testing: COT-2026-03-089 to COT-2026-03-107",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 86 - Equipment PDF Bugs Fixed. Key verifications: 1) POST /api/quotes/generate-equipment-pdf returns application/pdf with X-Quote-Id and X-Quote-Number headers. 2) Quote is created in DB with quote_pdf_url=/uploads/xxx_Cotizacion_Equipo.pdf. 3) Automatic attachment created with category='Cotización'. 4) PDF file accessible at /api/uploads/xxx.pdf. 5) EquipmentQuoteWizard.jsx has resetWizard() + onClose() in finally block to ensure dialog closes. 6) Anexos dialog shows the PDF attachment correctly.",
+  "verified_features": {
+    "bug_1_pdf_saved_and_linked": {
+      "status": "FIXED",
+      "endpoint": "POST /api/quotes/generate-equipment-pdf",
+      "verifications": [
+        "Response Content-Type: application/pdf",
+        "Headers: X-Quote-Id, X-Quote-Number present",
+        "Quote created in DB with quote_pdf_url",
+        "Attachment auto-created with category='Cotización'",
+        "PDF file exists on server at /uploads/",
+        "PDF accessible via /api/uploads/ endpoint"
+      ]
+    },
+    "bug_2_ui_freeze_fixed": {
+      "status": "FIXED",
+      "component": "EquipmentQuoteWizard.jsx",
+      "verifications": [
+        "Wizard dialog closes after PDF generation",
+        "Table refreshes showing new quote",
+        "Page remains interactive (no freeze)",
+        "Success toast appears: 'Cotización creada y PDF generado exitosamente'",
+        "resetWizard() + onClose() in finally block ensures cleanup"
+      ]
+    },
+    "anexos_shows_pdf": {
+      "status": "VERIFIED",
+      "behavior": "Clicking 'Anexos' on equipment quote shows Cotización section with generated PDF file",
+      "example_file": "COT-2026-03-107-TBP_Cotizacion_Equipo.pdf (106.1 KB)"
+    }
+  },
+  "equipment_types_tested": [
+    "POS (Dispositivo)",
+    "Pinpad (Dispositivo)",
+    "Accesorio",
+    "Reparación"
+  ],
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Resend email service - simulated"]
+  }
+}

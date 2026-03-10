@@ -7,7 +7,6 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar } from 'lucide-react';
-import api from '../utils/api';
 import { toast } from 'sonner';
 
 // Categorías principales - ACTUALIZADO según nueva estructura jerárquica
@@ -172,45 +171,38 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setLoading(true);
     
     try {
-      // Determinar el tipo de equipo para el PDF y categoría de cotización
+      // Determinar el tipo de equipo para el PDF
       let equipmentTypeForPdf;
-      let quoteCategory;
       
       if (equipmentCategory === 'Dispositivo') {
         equipmentTypeForPdf = deviceSubtype === 'POS' ? 'POS' : 'Pinpad';
-        quoteCategory = 'equipment';
       } else if (equipmentCategory === 'Accesorio') {
         equipmentTypeForPdf = 'Accesorio';
-        quoteCategory = 'equipment';
       } else if (equipmentCategory === 'Reparacion') {
         equipmentTypeForPdf = 'Reparación';
-        quoteCategory = 'repair';
       }
 
       const pdfData = {
+        client_id: selectedClient.client_id,
         cliente_nombre: selectedClient.legal_name || selectedClient.fantasy_name,
         cliente_rif: selectedClient.rif || '',
         cliente_address: selectedClient.address || '',
         equipment_type: equipmentTypeForPdf,
         items: selectedItems,
         notes: notes,
-        // Campos específicos de reparación
         repair_description: repairDescription,
         equipment_serial_number: equipmentSerialNumber,
         estimated_delivery_date: estimatedDeliveryDate
       };
 
-      // Obtener token de autenticación
       const token = localStorage.getItem('session_token');
       if (!token) {
         toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
-        setLoading(false);
         return;
       }
       
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
       
-      // Usar fetch nativo para mejor control de la descarga
       const response = await fetch(`${backendUrl}/api/quotes/generate-equipment-pdf`, {
         method: 'POST',
         headers: {
@@ -221,7 +213,6 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         body: JSON.stringify(pdfData)
       });
       
-      // Verificar respuesta
       if (!response.ok) {
         const errorText = await response.text();
         try {
@@ -230,20 +221,17 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         } catch {
           toast.error(`Error del servidor: ${response.status}`);
         }
-        setLoading(false);
         return;
       }
       
-      // Obtener el blob
       const blob = await response.blob();
       
       if (blob.size === 0) {
         toast.error('El archivo PDF está vacío');
-        setLoading(false);
         return;
       }
       
-      // Crear URL del blob y descargar
+      // Descargar PDF
       const blobUrl = window.URL.createObjectURL(blob);
       const filename = `cotizacion_${equipmentTypeForPdf.toLowerCase()}_${selectedClient.rif || 'cliente'}.pdf`;
       
@@ -251,40 +239,23 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       downloadLink.href = blobUrl;
       downloadLink.download = filename;
       downloadLink.style.display = 'none';
-      
       document.body.appendChild(downloadLink);
       downloadLink.click();
       
       setTimeout(() => {
-        if (downloadLink.parentNode) {
-          document.body.removeChild(downloadLink);
-        }
+        if (downloadLink.parentNode) document.body.removeChild(downloadLink);
         window.URL.revokeObjectURL(blobUrl);
       }, 250);
 
-      toast.success('PDF generado exitosamente');
-      
-      // Guardar cotización en BD con campos de reparación
-      await api.post('/quotes', {
-        client_id: selectedClient.client_id,
-        quote_category: quoteCategory,
-        equipment_type: equipmentTypeForPdf,
-        equipment_items: selectedItems,
-        notes: notes,
-        // Campos de reparación
-        repair_description: repairDescription || null,
-        equipment_serial_number: equipmentSerialNumber || null,
-        estimated_delivery_date: estimatedDeliveryDate || null
-      });
-
+      toast.success('Cotización creada y PDF generado exitosamente');
       onQuoteCreated && onQuoteCreated();
-      resetWizard();
-      onClose();
     } catch (error) {
       console.error('Error generando PDF:', error);
       toast.error('Error al generar la cotización. Verifique su conexión.');
     } finally {
       setLoading(false);
+      resetWizard();
+      onClose();
     }
   };
 
