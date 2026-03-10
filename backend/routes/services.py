@@ -312,62 +312,58 @@ async def get_current_exchange_rate(authorization: Optional[str] = Header(None))
     latest_rate = await db.exchange_rates.find_one({}, {"_id": 0}, sort=[("date", -1)])
     
     if latest_rate:
-        if isinstance(latest_rate['date'], str):
-            latest_rate['date'] = datetime.fromisoformat(latest_rate['date'])
-        
-        rate_age = datetime.now(timezone.utc) - latest_rate['date'].replace(tzinfo=timezone.utc)
-        if rate_age.total_seconds() < 86400:
-            return latest_rate
+        if isinstance(latest_rate.get('date'), str):
+            latest_rate['date'] = latest_rate['date']
+        return latest_rate
     
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as http_client:
-            response = await http_client.get("https://pydolarve.org/api/v1/dollar?page=bcv")
-            response.raise_for_status()
-            data = response.json()
-            
-            if data and len(data) > 0:
-                bcv_rate = float(data[0].get("price", 0))
-                
-                new_rate = {
-                    "rate": bcv_rate,
-                    "date": datetime.now(timezone.utc).isoformat(),
-                    "source": "BCV"
-                }
-                
-                await db.exchange_rates.insert_one(new_rate)
-                
-                new_rate['date'] = datetime.fromisoformat(new_rate['date'])
-                return new_rate
-    except Exception as e:
-        if latest_rate:
-            return latest_rate
-        raise HTTPException(status_code=503, detail=f"Unable to fetch exchange rate: {str(e)}")
+    return {"rate": 0, "source": "Sin datos", "date": datetime.now(timezone.utc).isoformat()}
 
 @router.post("/exchange-rate/update")
 async def update_exchange_rate(authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     
+    rate_value = None
+    source_name = ""
+    
+    # Fuente 1: exchangedyn (datos directos del BCV)
     try:
-        async with httpx.AsyncClient(timeout=10.0) as http_client:
-            response = await http_client.get("https://pydolarve.org/api/v1/dollar?page=bcv")
+        async with httpx.AsyncClient(timeout=15.0) as http_client:
+            response = await http_client.get("https://api.exchangedyn.com/markets/quotes/usdves/bcv")
             response.raise_for_status()
             data = response.json()
-            
-            if data and len(data) > 0:
-                bcv_rate = float(data[0].get("price", 0))
-                
-                new_rate = {
-                    "rate": bcv_rate,
-                    "date": datetime.now(timezone.utc).isoformat(),
-                    "source": "BCV"
-                }
-                
-                await db.exchange_rates.insert_one(new_rate)
-                new_rate['date'] = datetime.fromisoformat(new_rate['date'])
-                
-                return new_rate
-            else:
-                raise HTTPException(status_code=503, detail="No data received from BCV API")
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=503, detail=f"Failed to fetch exchange rate: {str(e)}")
+            bcv_src = data.get("sources", {}).get("BCV", {})
+            rate_value = float(bcv_src["quote"])
+            source_name = "BCV Oficial (exchangedyn)"
+    except Exception as e:
+        logging.warning(f"exchangedyn falló: {e}")
+    
+    # Fuente 2: dolarapi.com (fallback)
+    if not rate_value:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as http_client:
+                response = await http_client.get("https://ve.dolarapi.com/v1/dolares/oficial")
+                response.raise_for_status()
+                data = response.json()
+                rate_value = float(data.get("promedio") or data.get("venta") or data.get("compra") or 0)
+                source_name = "BCV Oficial (dolarapi)"
+        except Exception as e:
+            logging.warning(f"dolarapi falló: {e}")
+    
+    if not rate_value:
+        raise HTTPException(status_code=502, detail="No se pudo obtener la tasa de ninguna fuente BCV")
+    
+    now = datetime.now(timezone.utc)
+    new_rate = {
+        "rate": rate_value,
+        "source": source_name,
+        "date": now.isoformat(),
+        "updated_by": current_user.get("email", "system"),
+        "active": True,
+    }
+    
+    await db.exchange_rates.update_many({"active": True}, {"$set": {"active": False}})
+    await db.exchange_rates.insert_one(new_rate)
+    new_rate.pop("_id", None)
+    
+    return new_rate
 
