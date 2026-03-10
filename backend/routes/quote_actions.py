@@ -91,6 +91,13 @@ async def get_audit_log(authorization: Optional[str] = Header(None)):
     entries = await db.audit_exceptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return entries
 
+@router.get("/quotes/{quote_id}/audit-log")
+async def get_quote_audit_log(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Devuelve el log de auditoría de excepciones para una cotización específica."""
+    await get_current_user(authorization)
+    entries = await db.audit_exceptions.find({"quote_id": quote_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return entries
+
 
 @router.put("/quotes/{quote_id}/status")
 async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, authorization: Optional[str] = Header(None)):
@@ -299,17 +306,22 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
 
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
-async def send_quote_to_implementation(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Envía la cotización al equipo de implementación"""
-    await get_current_user(authorization)
+async def send_quote_to_implementation(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Envía la cotización al equipo de implementación. Soporta flujo irregular."""
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
     current_status = quote.get("quote_status", "Borrador")
-    if current_status != "Pagada":
-        raise HTTPException(status_code=400, detail=f"Solo se pueden enviar a implementación cotizaciones en estado 'Pagada'. Estado actual: {current_status}")
+    is_irregular = current_status != "Pagada"
+    
+    if is_irregular:
+        if not exception_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para enviar a implementación sin pago registrado")
+        await mark_quote_irregular(quote_id, "send-to-implementation", exception_reason, regularization_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "send-to-implementation", "Pagada", current_status, exception_reason, regularization_date, current_user)
     
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'

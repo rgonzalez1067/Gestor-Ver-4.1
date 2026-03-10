@@ -198,6 +198,12 @@ export const Quotes = () => {
   const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
   const [exceptionData, setExceptionData] = useState({ reason: '', regularization_date: '' });
   const [pendingAction, setPendingAction] = useState(null); // { quoteId, action, quote }
+  // Bitácora de Flujo (Historial de Excepciones)
+  const [bitacoraFlujoOpen, setBitacoraFlujoOpen] = useState(false);
+  const [bitacoraFlujoQuoteId, setBitacoraFlujoQuoteId] = useState(null);
+  const [bitacoraFlujoQuoteNumber, setBitacoraFlujoQuoteNumber] = useState('');
+  const [bitacoraFlujoEntries, setBitacoraFlujoEntries] = useState([]);
+  const [bitacoraFlujoLoading, setBitacoraFlujoLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -1935,6 +1941,18 @@ export const Quotes = () => {
     'send-to-implementation': 'Enviar a Implementación',
   };
 
+  const openBitacoraFlujo = async (quoteId, quoteNumber) => {
+    setBitacoraFlujoQuoteId(quoteId);
+    setBitacoraFlujoQuoteNumber(quoteNumber);
+    setBitacoraFlujoOpen(true);
+    setBitacoraFlujoLoading(true);
+    try {
+      const res = await api.get(`/quotes/${quoteId}/audit-log`);
+      setBitacoraFlujoEntries(res.data);
+    } catch { toast.error('Error al cargar historial de excepciones'); }
+    finally { setBitacoraFlujoLoading(false); }
+  };
+
   const checkIrregularAndProceed = (quoteId, action, proceedFn) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const currentStatus = quote?.quote_status || 'Borrador';
@@ -2614,6 +2632,7 @@ export const Quotes = () => {
             onCollect={(id) => checkIrregularAndProceed(id, 'collect', openCollectConfirm)}
             onDeliver={(id) => checkIrregularAndProceed(id, 'deliver', handleDeliverQuote)}
             onSendToImplementation={(id) => checkIrregularAndProceed(id, 'send-to-implementation', handleSendToImplementation)}
+            onOpenBitacoraFlujo={openBitacoraFlujo}
             onDelete={openDeleteConfirm}
             clearFilters={() => {
               setFilterClient('');
@@ -4166,6 +4185,68 @@ export const Quotes = () => {
                   </div>
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal de Bitácora de Flujo (Historial de Excepciones) */}
+          <Dialog open={bitacoraFlujoOpen} onOpenChange={setBitacoraFlujoOpen}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" data-testid="bitacora-flujo-modal">
+              <DialogHeader className="shrink-0">
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle size={20} className="text-orange-500" />
+                  Bitácora de Flujo — {bitacoraFlujoQuoteNumber}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto min-h-0 mt-2">
+                {bitacoraFlujoLoading ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Cargando historial...</p>
+                ) : bitacoraFlujoEntries.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle size={32} className="mx-auto text-emerald-300 mb-2" />
+                    <p className="text-sm text-slate-400">No hay excepciones registradas para esta cotización</p>
+                  </div>
+                ) : (
+                  <div className="relative pl-8 space-y-0">
+                    <div className="absolute left-[12px] top-3 bottom-3 w-0.5 bg-orange-200" />
+                    {bitacoraFlujoEntries.map((entry) => {
+                      const isOverdue = entry.regularization_date && entry.regularization_date < new Date().toISOString().slice(0, 10);
+                      return (
+                        <div key={entry.audit_id} className="relative pb-5" data-testid={`flujo-entry-${entry.audit_id}`}>
+                          <div className={`absolute left-[-22px] top-1.5 w-4 h-4 rounded-full border-2 ${isOverdue ? 'bg-red-500 border-red-300' : 'bg-orange-500 border-orange-300'}`} />
+                          <div className={`bg-white border rounded-lg p-4 ml-1 ${isOverdue ? 'border-red-200' : 'border-slate-200'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+                                {ACTION_LABELS[entry.action] || entry.action}
+                              </span>
+                              <span className="text-[10px] text-slate-400">{entry.created_at?.slice(0, 10)}</span>
+                            </div>
+                            <p className="text-sm text-slate-800 mb-2">
+                              El usuario <strong className="text-slate-900">{entry.user_name}</strong> ejecutó <strong>{ACTION_LABELS[entry.action]}</strong> sin haber completado el paso <strong>"{entry.expected_status}"</strong>.
+                              <span className="text-slate-500"> Estado en el momento: "{entry.actual_status}".</span>
+                            </p>
+                            <div className="bg-slate-50 rounded p-2.5 space-y-1.5">
+                              <p className="text-xs"><span className="font-semibold text-slate-700">Motivo:</span> <span className="text-slate-600">{entry.exception_reason}</span></p>
+                              {entry.regularization_date && (
+                                <p className="text-xs">
+                                  <span className="font-semibold text-slate-700">Compromiso de regularización:</span>{' '}
+                                  <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
+                                    {entry.regularization_date}
+                                    {isOverdue && <span className="ml-1.5 text-[9px] font-bold text-red-500 uppercase">Vencido</span>}
+                                  </span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0 flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
+                <span className="text-[10px] text-slate-400">{bitacoraFlujoEntries.length} excepciones registradas</span>
+                <Button variant="outline" size="sm" onClick={() => setBitacoraFlujoOpen(false)}>Cerrar</Button>
+              </div>
             </DialogContent>
           </Dialog>
         </div>

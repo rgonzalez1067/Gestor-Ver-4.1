@@ -1,5 +1,7 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2 } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '../ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 
 const STATUS_COLORS = {
@@ -33,6 +35,7 @@ export const QuotesTable = ({
   actionLoading,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onDelete,
+  onOpenBitacoraFlujo,
   clearFilters,
 }) => {
   const filteredQuotes = quotes.filter(quote => {
@@ -100,17 +103,48 @@ export const QuotesTable = ({
                       {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
                     </span>
                     {quote.is_irregular && (
-                      <span className="relative group">
-                        <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-orange-100 text-orange-700 border border-orange-300 cursor-help"
-                          data-testid={`irregular-badge-${quote.quote_id}`}>
-                          Irregular
-                        </span>
-                        {quote.irregular_exceptions?.length > 0 && (
-                          <span className="invisible group-hover:visible absolute z-50 left-0 top-full mt-1 w-52 p-2 bg-slate-900 text-white text-[10px] rounded-lg shadow-xl">
-                            Pendiente: {quote.irregular_exceptions[quote.irregular_exceptions.length - 1]?.action} — Tope: {quote.irregular_exceptions[quote.irregular_exceptions.length - 1]?.regularization_date || 'Sin fecha'}
-                          </span>
-                        )}
-                      </span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer hover:bg-orange-200 transition-colors"
+                            data-testid={`irregular-badge-${quote.quote_id}`}>
+                            Irregular <Eye size={10} />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="start">
+                          <div className="bg-orange-50 border-b border-orange-200 px-3 py-2">
+                            <p className="text-xs font-bold text-orange-800">Historial de Excepciones</p>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto p-2 space-y-2">
+                            {(quote.irregular_exceptions || []).map((exc, idx) => {
+                              const ACTION_NAMES = { approve: 'Aprobar', invoice: 'Facturar', collect: 'Cobrar', deliver: 'Entregar', 'send-to-implementation': 'Enviar a Imple.' };
+                              return (
+                                <div key={idx} className="border-l-2 border-orange-400 pl-2 py-1">
+                                  <p className="text-[10px] font-semibold text-orange-700">{ACTION_NAMES[exc.action] || exc.action}</p>
+                                  <p className="text-[10px] text-slate-700 mt-0.5">{exc.reason}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] text-slate-400">{exc.created_at?.slice(0, 10)}</span>
+                                    {exc.regularization_date && (
+                                      <span className="text-[9px] text-red-500 font-medium">Tope: {exc.regularization_date}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {(!quote.irregular_exceptions || quote.irregular_exceptions.length === 0) && (
+                              <p className="text-[10px] text-slate-400 italic py-2 text-center">Sin detalles disponibles</p>
+                            )}
+                          </div>
+                          {onOpenBitacoraFlujo && (
+                            <div className="border-t border-orange-200 px-3 py-1.5">
+                              <button onClick={() => onOpenBitacoraFlujo(quote.quote_id, quote.quote_number)}
+                                className="text-[10px] text-orange-600 hover:text-orange-800 font-medium w-full text-center"
+                                data-testid={`open-bitacora-flujo-${quote.quote_id}`}>
+                                Ver historial completo
+                              </button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                 </td>
