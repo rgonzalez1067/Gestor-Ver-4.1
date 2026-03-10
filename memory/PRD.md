@@ -1,77 +1,77 @@
 # PRD — Gestor: Work Flow de Procesos Integrales
 
-## Descripción
-Plataforma full-stack para gestión de cotizaciones, clientes, bancos, medios de pago, dispositivos, integradores y proyectos de implementación.
+## Descripcion
+Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de pago, dispositivos, integradores y proyectos de implementacion.
 
-## Stack Tecnológico
+## Stack Tecnologico
 - **Backend**: FastAPI + MongoDB (motor_asyncio)
 - **Frontend**: React + Shadcn/UI + Tailwind CSS
 - **Auth**: JWT con bcrypt
 
 ## Funcionalidades Implementadas
 
-### Módulo de Bancos y Entidades
+### Modulo de Bancos y Entidades
 - CRUD completo de bancos con logo upload
-- Gestión de productos bancarios (VPOS, MPOS, PG, Link)
+- Gestion de productos bancarios (VPOS, MPOS, PG, Link)
 - Roadmap de integraciones por banco con pipeline visual de estatus
-- **Bitácora de Evolución por Producto** (2026-03-09): Timeline de hitos técnicos por cada integración, con captura automática de fase, edición y eliminación
-- **Consulta Global con Agrupamiento Dinámico** (2026-03-09): Reporte gerencial con opciones de agrupación (Por Banco, Por Producto, Por Fase) con encabezados intermedios y totales
-- Importación masiva de bancos desde Excel/CSV
-- Exportación a PDF
-- Matriz de certificación con filtros interactivos
+- Bitacora de Evolucion por Producto (2026-03-09)
+- Consulta Global con Agrupamiento Dinamico (2026-03-09)
+- Importacion masiva de bancos desde Excel/CSV
+- Exportacion a PDF
+- Matriz de certificacion con filtros interactivos
 
-### Módulo de Integradores
-- CRUD completo con importación masiva (upsert)
-- CRM técnico con contactos múltiples
-- Bitácora de gestiones con alertas de compromisos vencidos y **combo de contacto** (dropdown + escritura libre)
-- Historial de evolución por integrador con **persona de contacto** (reemplazó campo Fase)
-- Reporte de resumen con agrupación dinámica
-- Tabla simplificada: eliminadas columnas "Estatus" y "Fase" (2026-03-09)
-- Formulario simplificado: eliminado campo "Fase de Integración" (2026-03-09)
+### Modulo de Integradores
+- CRUD completo con importacion masiva (upsert)
+- CRM tecnico con contactos multiples
+- Bitacora de gestiones con alertas de compromisos vencidos y combo de contacto
+- Historial de evolucion por integrador con persona de contacto
+- Reporte de resumen con agrupacion dinamica
+- Tabla simplificada (2026-03-09)
 
-### Módulo de Clientes
+### Modulo de Clientes
 - CRUD completo con contactos CRM
-- Categorización comercial
-- Bitácora de seguimiento
+- Categorizacion comercial
+- Bitacora de seguimiento
 
-### Módulo de Cotizaciones
-- Wizard de creación multi-tipo (Implementación VPOS/PG, Equipos, Reparaciones)
-- Cálculo automático de costos setup y recurrentes
+### Modulo de Cotizaciones
+- Wizard de creacion multi-tipo (VPOS/PG, Equipos, Reparaciones)
+- Calculo automatico de costos setup y recurrentes
 - Tabla de costos recurrentes Payment Gateway
-- Workflow de estados (Borrador → Enviada → Aprobada → Facturada → Pagada → Entregada)
-- **Flujo Administrativo Flexible** (2026-03-10): Todos los botones activos sin bloqueo por estado. Modal de Protocolo de Excepción con justificación y fecha de regularización. Audit log, badge "Irregular" naranja, widget contador
-- Generación de PDF profesional con WeasyPrint + template HTML
-- Sistema de anexos por categoría
+- Workflow de estados (Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Entregada)
+- **Flujo Administrativo Flexible** (2026-03-10): Todos los botones activos sin bloqueo por estado. Modal de Protocolo de Excepcion con justificacion y fecha de regularizacion. Audit log, badge "Irregular" naranja, widget contador
+- Generacion de PDF profesional con WeasyPrint + template HTML
+- Sistema de anexos por categoria
+- **Fix: mark_quote_irregular null array** (2026-03-10): Corregido $push sobre campo null en MongoDB
 
-### Módulo de Proyectos
-- Generación automática desde cotizaciones aprobadas
-- Asignación a implementadores con lógica dinámica **Asignar/Reasignar** (2026-03-09): muestra responsable actual, requiere fecha y motivo en reasignación
-- **Cambiar Estado rápido** (2026-03-09): diálogo con opciones visuales, fecha y comentario documentado en bitácora automática
-- Seguimiento de estado, prioridad y matriz de implementación
-- Notas de seguimiento y bitácora de proyecto
+### Modulo de Proyectos
+- Generacion automatica desde cotizaciones aprobadas
+- **Trigger de Conversion: Cotizacion -> Proyecto** (2026-03-10): Al enviar a implementacion, se crea automaticamente un proyecto heredando toda la data tecnica/comercial; la cotizacion se elimina
+- **Persistencia de Proceso Irregular** (2026-03-10): Si la cotizacion es irregular, el proyecto hereda is_irregular y irregular_exceptions. Nueva vista/filtro "P. Irregular" en modulo de Proyectos con tarjeta de stats, badge naranja y filtro en selector
+- Asignacion a implementadores con logica dinamica Asignar/Reasignar (2026-03-09)
+- Cambiar Estado rapido (2026-03-09)
+- Seguimiento de estado, prioridad y matriz de implementacion
+- Notas de seguimiento y bitacora de proyecto
 
 ### Otros
 - Dashboard con KPIs
-- Gestión de usuarios con roles y permisos
-- Menú lateral abatible con estado persistente
+- Gestion de usuarios con roles y permisos
+- Menu lateral abatible con estado persistente
 - Tasa de cambio BCV
 
 ## Integraciones de Terceros
 - **Resend**: Email (SIMULADO)
-- **reportlab/PyPDF2**: Generación PDF
-- **pytesseract/pdf2image**: OCR
+- **WeasyPrint**: Generacion de PDF desde HTML
+- **reportlab/PyPDF2**: Generacion/Manipulacion de PDF
 - **openpyxl/pandas**: Excel
-- **xlsx** (frontend): Exportación Excel
+- **xlsx** (frontend): Exportacion Excel
 
 ## Backlog Priorizado
 
-### P1 (Próximas)
-- Verificación de Email y Recuperación de Contraseña
-- Refactorización de `Quotes.jsx`
+### P1 (Proximas)
+- Verificacion de Email y Recuperacion de Contrasena
+- Refactorizacion de `Quotes.jsx`
 
 ### P2 (Futuras)
-- Módulo de Reportes de ventas
-- Lógica de "Completado" en Roadmap de Bancos (mover a Activos)
-- Refactorización de `Integrators.jsx` (>1500 líneas)
-
-## Integraciones de Terceros
+- Modulo de Reportes de ventas
+- Logica de "Completado" en Roadmap de Bancos (mover a Activos)
+- Refactorizacion de `Integrators.jsx` (>1500 lineas)
