@@ -95,9 +95,24 @@ export const QuotesTable = ({
                 <td className="px-6 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
                 <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
                 <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                    {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
+                      {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
+                    </span>
+                    {quote.is_irregular && (
+                      <span className="relative group">
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-orange-100 text-orange-700 border border-orange-300 cursor-help"
+                          data-testid={`irregular-badge-${quote.quote_id}`}>
+                          Irregular
+                        </span>
+                        {quote.irregular_exceptions?.length > 0 && (
+                          <span className="invisible group-hover:visible absolute z-50 left-0 top-full mt-1 w-52 p-2 bg-slate-900 text-white text-[10px] rounded-lg shadow-xl">
+                            Pendiente: {quote.irregular_exceptions[quote.irregular_exceptions.length - 1]?.action} — Tope: {quote.irregular_exceptions[quote.irregular_exceptions.length - 1]?.regularization_date || 'Sin fecha'}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
                 <td className="px-6 py-4">
@@ -133,30 +148,30 @@ export const QuotesTable = ({
                           <Mail size={16} className="mr-2 text-blue-500" /> Enviar al Cliente
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-slate-400">&#10003;</span>}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer"
-                          disabled={quote.quote_status !== 'Enviada'}>
+                        <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
                           <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobar
                           {quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
+                          {quote.quote_status !== 'Enviada' && quote.quote_status !== 'Aprobada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer"
-                          disabled={quote.quote_status !== 'Aprobada'}>
+                        <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
                           <Receipt size={16} className="mr-2 text-purple-500" /> Facturar
+                          {quote.quote_status !== 'Aprobada' && quote.quote_status !== 'Facturada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer"
-                          disabled={quote.quote_status !== 'Facturada'}>
+                        <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer">
                           <Banknote size={16} className="mr-2 text-emerald-500" /> Cobrar
                           {quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
+                          {quote.quote_status !== 'Facturada' && quote.quote_status !== 'Pagada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {isEquipment ? (
-                          <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer"
-                            disabled={quote.quote_status !== 'Pagada'}>
+                          <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
+                            {quote.quote_status !== 'Pagada' && quote.quote_status !== 'Entregada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                           </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer"
-                            disabled={quote.quote_status !== 'Pagada'}>
+                          <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer">
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
+                            {quote.quote_status !== 'Pagada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />

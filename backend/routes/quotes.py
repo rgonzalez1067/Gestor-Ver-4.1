@@ -1093,9 +1093,9 @@ async def check_template_availability(template_type: str, authorization: Optiona
 
 # Modelo para PDF de cotización de equipos
 class EquipmentPDFItem(BaseModel):
-    hardware_id: str
+    hardware_id: str = ""
     name: str
-    hardware_type: str
+    hardware_type: str = ""
     quantity: int = 1
     unit_price_usd: float = 0
     total_usd: float = 0
@@ -1104,117 +1104,148 @@ class EquipmentQuotePDFRequest(BaseModel):
     cliente_nombre: str
     cliente_rif: str = ""
     cliente_address: str = ""
-    equipment_type: str = "Dispositivo"  # "Dispositivo" o "Accesorio"
+    equipment_type: str = "Dispositivo"
     items: List[EquipmentPDFItem] = []
     notes: str = ""
+    repair_description: str = ""
+    equipment_serial_number: str = ""
+    estimated_delivery_date: str = ""
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
-    """Genera un PDF para cotización de Equipos y Accesorios"""
+    """Genera un PDF para cotización de Equipos, Accesorios y Reparaciones usando template HTML."""
     await get_current_user(authorization)
-    
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
-    elements = []
-    styles = getSampleStyleSheet()
-    
-    # Título
-    title_style = styles['Title']
-    title_style.fontSize = 18
-    title_style.textColor = colors.Color(0.1, 0.3, 0.5)
-    
-    type_title = "DISPOSITIVOS" if data.equipment_type == "Dispositivo" else "ACCESORIOS"
-    elements.append(Paragraph(f"<b>COTIZACIÓN DE {type_title}</b>", title_style))
-    elements.append(Spacer(1, 0.2*inch))
-    
-    # Información del cliente
-    elements.append(Paragraph("<b>Información del Cliente</b>", styles['Heading2']))
-    
-    info_data = [
-        ["Cliente:", data.cliente_nombre],
-        ["RIF:", data.cliente_rif or "N/A"],
-        ["Dirección:", data.cliente_address or "No especificada"],
-        ["Fecha:", datetime.now().strftime("%d/%m/%Y")],
-    ]
-    
-    info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
-    info_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9)),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 0.3*inch))
-    
-    # Tabla de items
-    elements.append(Paragraph(f"<b>Detalle de {type_title.title()}</b>", styles['Heading2']))
-    elements.append(Spacer(1, 0.1*inch))
-    
-    # Header de la tabla
-    items_data = [["#", "Producto", "Cantidad", "Precio Unit.", "Total USD"]]
-    
-    subtotal = 0
-    for idx, item in enumerate(data.items, 1):
-        total_line = item.quantity * item.unit_price_usd
-        items_data.append([
-            str(idx),
-            item.name,
-            str(item.quantity),
-            f"${item.unit_price_usd:.2f}",
-            f"${total_line:.2f}"
-        ])
-        subtotal += total_line
-    
-    # Fila de subtotal
-    items_data.append(["", "", "", "Subtotal:", f"${subtotal:.2f}"])
-    items_data.append(["", "", "", "TOTAL:", f"${subtotal:.2f}"])
-    
-    items_table = Table(items_data, colWidths=[0.4*inch, 3.5*inch, 0.8*inch, 0.9*inch, 0.9*inch])
-    items_table.setStyle(TableStyle([
-        # Header
-        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.1, 0.4, 0.6)),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-        ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -3), 0.5, colors.grey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -3), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
-        # Subtotal y Total
-        ('FONTNAME', (3, -2), (-1, -1), 'Helvetica-Bold'),
-        ('ALIGN', (3, -2), (-1, -1), 'RIGHT'),
-        ('LINEABOVE', (3, -2), (-1, -2), 1, colors.black),
-        ('BACKGROUND', (3, -1), (-1, -1), colors.Color(0.1, 0.4, 0.6)),
-        ('TEXTCOLOR', (3, -1), (-1, -1), colors.whitesmoke),
-        ('FONTSIZE', (3, -1), (-1, -1), 11),
-    ]))
-    elements.append(items_table)
-    
-    # Notas
+    import weasyprint
+
+    now = datetime.now(timezone.utc)
+    quote_number = f"EQ-{now.strftime('%Y-%m')}-{uuid.uuid4().hex[:4].upper()}"
+    fecha = now.strftime("%d/%m/%Y")
+    from datetime import timedelta
+    vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
+
+    type_labels = {"POS": "Equipos POS", "Pinpad": "Equipos Pinpad", "Accesorio": "Accesorios", "Reparación": "Reparaciones"}
+    type_title = type_labels.get(data.equipment_type, data.equipment_type)
+
+    subtotal = sum(item.quantity * item.unit_price_usd for item in data.items)
+    iva = round(subtotal * 0.16, 2)
+    total = round(subtotal + iva, 2)
+
+    items_html = ""
+    for item in data.items:
+        line_total = item.quantity * item.unit_price_usd
+        items_html += f"""<tr>
+            <td><span class="item-name">{item.name}</span><span class="item-desc">{item.hardware_type}</span></td>
+            <td style="text-align:center">{item.quantity}</td>
+            <td style="text-align:right">${item.unit_price_usd:,.2f}</td>
+            <td style="text-align:right">${line_total:,.2f}</td>
+        </tr>"""
+
+    repair_section = ""
+    if data.equipment_type == "Reparación" and data.repair_description:
+        repair_section = f"""<div style="margin:20px 0;padding:15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+            <strong style="color:#9a3412">Detalle de Reparación</strong><br>
+            <span style="font-size:13px;color:#475569">{data.repair_description}</span>
+            {'<br><span style="font-size:12px;color:#64748b">Serial: ' + data.equipment_serial_number + '</span>' if data.equipment_serial_number else ''}
+            {'<br><span style="font-size:12px;color:#64748b">Entrega Est.: ' + data.estimated_delivery_date + '</span>' if data.estimated_delivery_date else ''}
+        </div>"""
+
+    notes_section = ""
     if data.notes:
-        elements.append(Spacer(1, 0.3*inch))
-        elements.append(Paragraph("<b>Observaciones:</b>", styles['Heading3']))
-        elements.append(Paragraph(data.notes, styles['Normal']))
-    
-    # Footer
-    elements.append(Spacer(1, 0.4*inch))
-    footer_style = styles['Normal']
-    footer_style.fontSize = 8
-    footer_style.textColor = colors.grey
-    elements.append(Paragraph("Esta cotización tiene una validez de 15 días.", footer_style))
-    elements.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} - Cotizador Merchant Server", footer_style))
-    
-    doc.build(elements)
-    buffer.seek(0)
-    
-    filename = f"cotizacion_{type_title.lower()}_{data.cliente_nombre.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
-    
+        notes_section = f'<br><strong>Observaciones:</strong><br><span style="font-size:12px">{data.notes}</span>'
+
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {{ size: letter; margin: 40px; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; color: #475569; margin: 0; padding: 0; font-size: 13px; }}
+        .header {{ display: flex; justify-content: space-between; border-bottom: 2px solid #f8fafc; padding-bottom: 20px; margin-bottom: 30px; }}
+        .brand {{ font-size: 22px; font-weight: bold; color: #1e293b; }}
+        .brand-sub {{ font-size: 11px; color: #94a3b8; margin-top: 4px; }}
+        .quote-meta {{ text-align: right; }}
+        .quote-id {{ font-size: 18px; color: #3b82f6; font-weight: 800; }}
+        .quote-type {{ font-size: 12px; color: #64748b; background: #f1f5f9; padding: 3px 10px; border-radius: 4px; display: inline-block; margin-top: 6px; }}
+        .info-grid {{ display: flex; justify-content: space-between; gap: 40px; margin: 30px 0; }}
+        .info-block {{ flex: 1; }}
+        .info-block h3 {{ font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin: 0 0 6px 0; }}
+        .info-block strong {{ color: #1e293b; font-size: 14px; }}
+        .info-block span {{ font-size: 12px; color: #64748b; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+        th {{ background: #f8fafc; text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }}
+        td {{ padding: 14px 12px; border-bottom: 1px solid #f1f5f9; }}
+        .item-name {{ font-weight: 600; color: #1e293b; display: block; }}
+        .item-desc {{ font-size: 11px; color: #94a3b8; }}
+        .footer {{ margin-top: 40px; display: flex; justify-content: space-between; gap: 40px; }}
+        .totals {{ background: #1e293b; color: white; padding: 20px; border-radius: 8px; min-width: 250px; }}
+        .total-row {{ display: flex; justify-content: space-between; margin: 6px 0; font-size: 13px; }}
+        .grand-total {{ font-size: 20px; font-weight: bold; border-top: 1px solid #334155; padding-top: 10px; margin-top: 10px; }}
+        .terms {{ font-size: 10px; line-height: 1.6; color: #94a3b8; flex: 1; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="brand">Gestor - Work Flow</div>
+            <div class="brand-sub">Procesos Integrales</div>
+        </div>
+        <div class="quote-meta">
+            <div class="quote-id">COTIZACIÓN #{quote_number}</div>
+            <div style="font-size:12px;color:#64748b">Fecha: {fecha}</div>
+            <div style="font-size:12px;color:#64748b">Vence: {vence}</div>
+            <div class="quote-type">{type_title}</div>
+        </div>
+    </div>
+    <div class="info-grid">
+        <div class="info-block">
+            <h3>Preparado para:</h3>
+            <strong>{data.cliente_nombre}</strong><br>
+            <span>RIF: {data.cliente_rif or 'N/A'}</span><br>
+            <span>{data.cliente_address or ''}</span>
+        </div>
+        <div class="info-block" style="text-align:right">
+            <h3>Emitido por:</h3>
+            <strong>Gestor - Work Flow</strong><br>
+            <span>Sistema de Cotizaciones</span>
+        </div>
+    </div>
+    {repair_section}
+    <table>
+        <thead>
+            <tr>
+                <th>Descripción del Equipo/Servicio</th>
+                <th style="text-align:center">Cant.</th>
+                <th style="text-align:right">P. Unitario</th>
+                <th style="text-align:right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {items_html}
+        </tbody>
+    </table>
+    <div class="footer">
+        <div class="terms">
+            <strong>Términos y Condiciones:</strong><br>
+            Los precios están sujetos a cambio sin previo aviso según mercado.
+            La garantía cubre defectos de fábrica por 12 meses. No incluye daños por mal uso.
+            Los equipos se entregan configurados y listos para operar tras la validación del pago.
+            {notes_section}
+        </div>
+        <div class="totals">
+            <div class="total-row"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
+            <div class="total-row"><span>IVA (16%):</span><span>${iva:,.2f}</span></div>
+            <div class="total-row grand-total"><span>TOTAL:</span><span>${total:,.2f}</span></div>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+
+    filename = f"cotizacion_{data.equipment_type.lower().replace(' ', '_')}_{data.cliente_rif or 'cliente'}_{now.strftime('%Y%m%d')}.pdf"
+
     return Response(
-        content=buffer.getvalue(),
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )

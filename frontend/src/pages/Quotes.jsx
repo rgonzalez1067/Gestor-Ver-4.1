@@ -9,7 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle } from 'lucide-react';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
@@ -192,6 +192,12 @@ export const Quotes = () => {
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+
+  // Estado para flujo irregular (Protocolo de Excepción)
+  const [irregularCount, setIrregularCount] = useState(0);
+  const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
+  const [exceptionData, setExceptionData] = useState({ reason: '', regularization_date: '' });
+  const [pendingAction, setPendingAction] = useState(null); // { quoteId, action, quote }
 
   useEffect(() => {
     fetchData();
@@ -386,6 +392,8 @@ export const Quotes = () => {
       setBanks(banksRes.data);
       setServiceCatalog(servicesRes.data);
       setIntegrators(integratorsRes.data);
+      // Irregular count
+      try { const ic = await api.get('/quotes/irregular/count'); setIrregularCount(ic.data.count || 0); } catch {}
       // Guardar todos los hardware
       setAllHardware(hardwareRes.data || []);
       // Filtrar solo dispositivos tipo "Pinpad" para cotizaciones de implementación
@@ -1911,10 +1919,47 @@ export const Quotes = () => {
     }
   };
 
-  // Abrir modal de confirmación para aprobar
+  // ==================== FLUJO IRREGULAR (Protocolo de Excepción) ====================
+  const REGULAR_FLOW_MAP = {
+    'approve': 'Enviada',
+    'invoice': 'Aprobada',
+    'collect': 'Facturada',
+    'deliver': 'Pagada',
+    'send-to-implementation': 'Pagada',
+  };
+  const ACTION_LABELS = {
+    'approve': 'Aprobar',
+    'invoice': 'Facturar',
+    'collect': 'Cobrar',
+    'deliver': 'Entregar',
+    'send-to-implementation': 'Enviar a Implementación',
+  };
+
+  const checkIrregularAndProceed = (quoteId, action, proceedFn) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const currentStatus = quote?.quote_status || 'Borrador';
+    const expectedStatus = REGULAR_FLOW_MAP[action];
+    if (expectedStatus && currentStatus !== expectedStatus) {
+      // Flujo irregular — abrir modal de excepción
+      setPendingAction({ quoteId, action, proceedFn, currentStatus, expectedStatus });
+      setExceptionData({ reason: '', regularization_date: '' });
+      setExceptionModalOpen(true);
+      return;
+    }
+    // Flujo regular — proceder directamente
+    proceedFn(quoteId);
+  };
+
+  const confirmException = () => {
+    if (!exceptionData.reason.trim()) { toast.error('Debe ingresar el motivo de la excepción'); return; }
+    setExceptionModalOpen(false);
+    // Proceed with original action, passing exception data
+    pendingAction.proceedFn(pendingAction.quoteId, exceptionData);
+    setPendingAction(null);
+  };
+
   // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
-  const openApproveConfirm = (quoteId) => {
-    console.log('ABRIR WORKFLOW APROBAR:', quoteId);
+  const openApproveConfirm = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Aprobar Cotización',
@@ -1927,13 +1972,13 @@ export const Quotes = () => {
       actionIcon: <CheckCircle size={20} className="text-green-600" />,
       stateEndpoint: 'approve',
       successMessage: 'Cotización aprobada exitosamente',
+      exceptionHeaders: exceptionInfo || null,
     });
     setWorkflowModalOpen(true);
   };
 
   // Abrir modal de workflow para Cobrar (requiere Comprobante de Pago - múltiple)
-  const openCollectConfirm = (quoteId) => {
-    console.log('ABRIR WORKFLOW COBRAR:', quoteId);
+  const openCollectConfirm = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Registrar Cobro',
@@ -1946,6 +1991,7 @@ export const Quotes = () => {
       actionIcon: <Banknote size={20} className="text-emerald-600" />,
       stateEndpoint: 'collect',
       successMessage: 'Cotización marcada como Pagada',
+      exceptionHeaders: exceptionInfo || null,
     });
     setWorkflowModalOpen(true);
   };
@@ -1958,10 +2004,15 @@ export const Quotes = () => {
   };
 
   // Enviar a implementación
-  const handleSendToImplementation = async (quoteId) => {
+  const handleSendToImplementation = async (quoteId, exceptionInfo) => {
     setActionLoading(quoteId);
     try {
-      const response = await api.post(`/quotes/${quoteId}/send-to-implementation`);
+      const headers = {};
+      if (exceptionInfo) {
+        headers['x-exception-reason'] = exceptionInfo.reason;
+        headers['x-regularization-date'] = exceptionInfo.regularization_date;
+      }
+      const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, {}, { headers });
       
       if (response.data.status === 'simulated') {
         toast.warning(response.data.message);
@@ -2390,6 +2441,19 @@ export const Quotes = () => {
   // Abrir modal de factura
   // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const currentStatus = quote?.quote_status || 'Borrador';
+    const isIrregular = currentStatus !== 'Aprobada';
+    if (isIrregular) {
+      setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus: 'Aprobada' });
+      setExceptionData({ reason: '', regularization_date: '' });
+      setExceptionModalOpen(true);
+      return;
+    }
+    _openInvoiceModalDirect(quoteId);
+  };
+
+  const _openInvoiceModalDirect = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Facturar Cotización',
@@ -2405,22 +2469,32 @@ export const Quotes = () => {
       extraFields: [
         { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
       ],
+      exceptionHeaders: exceptionInfo || null,
     });
     setWorkflowModalOpen(true);
   };
 
   // Entregar cotización (solo equipos)
-  const handleDeliverQuote = async (quoteId) => {
+  const handleDeliverQuote = async (quoteId, exceptionInfo) => {
     if (!window.confirm('¿Confirma que el pedido ha sido entregado?')) return;
     
     setActionLoading(quoteId);
     try {
-      await api.post(`/quotes/${quoteId}/deliver`);
+      const headers = {};
+      if (exceptionInfo) {
+        headers['x-exception-reason'] = exceptionInfo.reason;
+        headers['x-regularization-date'] = exceptionInfo.regularization_date;
+      }
+      await api.post(`/quotes/${quoteId}/deliver`, {}, { headers });
       toast.success('Cotización marcada como Entregada');
       fetchData();
     } catch (error) {
-      console.error('Error delivering quote:', error);
-      toast.error(error.response?.data?.detail || 'Error al marcar como entregada');
+      const detail = error.response?.data?.detail || '';
+      if (detail.startsWith('IRREGULAR:')) {
+        toast.error(detail.replace('IRREGULAR:', ''));
+      } else {
+        toast.error(detail || 'Error al marcar como entregada');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -2504,6 +2578,19 @@ export const Quotes = () => {
             filterDateTo={filterDateTo} setFilterDateTo={setFilterDateTo}
           />
 
+          {/* Widget de Cotizaciones Irregulares */}
+          {irregularCount > 0 && (
+            <div className="mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 cursor-pointer hover:bg-orange-100 transition-colors"
+              onClick={() => { setFilterStatus('all'); /* Future: filter irregular only */ }}
+              data-testid="irregular-widget">
+              <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shrink-0">{irregularCount}</div>
+              <div>
+                <p className="text-sm font-semibold text-orange-800">Cotizaciones en Estado Irregular</p>
+                <p className="text-xs text-orange-600">Tienen pasos saltados pendientes de regularización</p>
+              </div>
+            </div>
+          )}
+
           {/* Panel de Gestión Único - Todas las Cotizaciones */}
           <QuotesTable
             quotes={quotes}
@@ -2522,11 +2609,11 @@ export const Quotes = () => {
             onDownloadPDF={downloadPDF}
             onEditQuote={handleEditQuote}
             onSendToClient={handleSendToClient}
-            onApprove={openApproveConfirm}
+            onApprove={(id) => checkIrregularAndProceed(id, 'approve', openApproveConfirm)}
             onInvoice={openInvoiceModal}
-            onCollect={openCollectConfirm}
-            onDeliver={handleDeliverQuote}
-            onSendToImplementation={handleSendToImplementation}
+            onCollect={(id) => checkIrregularAndProceed(id, 'collect', openCollectConfirm)}
+            onDeliver={(id) => checkIrregularAndProceed(id, 'deliver', handleDeliverQuote)}
+            onSendToImplementation={(id) => checkIrregularAndProceed(id, 'send-to-implementation', handleSendToImplementation)}
             onDelete={openDeleteConfirm}
             clearFilters={() => {
               setFilterClient('');
@@ -4034,6 +4121,53 @@ export const Quotes = () => {
             quoteId={anexosQuoteId}
             quoteNumber={anexosQuoteNumber}
           />
+
+          {/* Modal de Protocolo de Excepción (Flujo Irregular) */}
+          <Dialog open={exceptionModalOpen} onOpenChange={setExceptionModalOpen}>
+            <DialogContent className="max-w-md" data-testid="exception-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-700">
+                  <AlertTriangle size={22} className="text-orange-500" />
+                  Alerta de Flujo Irregular
+                </DialogTitle>
+              </DialogHeader>
+              {pendingAction && (
+                <div className="space-y-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
+                    <p className="text-orange-800">
+                      Detectamos que está intentando <strong>{ACTION_LABELS[pendingAction.action]}</strong> sin haber completado el paso anterior.
+                    </p>
+                    <p className="text-orange-600 mt-1 text-xs">
+                      Estado esperado: <strong>{pendingAction.expectedStatus}</strong> — Estado actual: <strong>{pendingAction.currentStatus}</strong>
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Motivo de la Excepción <span className="text-red-500">*</span></Label>
+                    <Textarea value={exceptionData.reason}
+                      onChange={e => setExceptionData(p => ({ ...p, reason: e.target.value }))}
+                      placeholder="Explique por qué se realiza esta acción fuera del flujo regular..."
+                      className="mt-1 min-h-[70px] text-sm" data-testid="exception-reason" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Compromiso de Regularización</Label>
+                    <Input type="date" value={exceptionData.regularization_date}
+                      onChange={e => setExceptionData(p => ({ ...p, regularization_date: e.target.value }))}
+                      className="mt-1" data-testid="exception-regularization-date" />
+                    <p className="text-[10px] text-slate-400 mt-1">Fecha máxima para completar el paso faltante</p>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2 border-t">
+                    <Button variant="outline" onClick={() => { setExceptionModalOpen(false); setPendingAction(null); }}>Cancelar</Button>
+                    <Button onClick={confirmException}
+                      disabled={!exceptionData.reason.trim()}
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      data-testid="exception-confirm-btn">
+                      Confirmar Acción
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
     </div>

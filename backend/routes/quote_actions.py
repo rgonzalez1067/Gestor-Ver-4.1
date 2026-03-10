@@ -26,6 +26,71 @@ class EmailSendRequest(BaseModel):
     subject: Optional[str] = None
     message: Optional[str] = None
 
+# Flujo regular: Borrador -> Enviada -> Aprobada -> Facturada -> Pagada -> Entregada/Implementación
+REGULAR_FLOW = {
+    'approve': 'Enviada',
+    'invoice': 'Aprobada',
+    'collect': 'Facturada',
+    'deliver': 'Pagada',
+    'send_implementation': 'Pagada',
+}
+
+async def check_irregular_flow(quote, action, current_user):
+    """Verifica si la acción es irregular y registra en audit log si aplica."""
+    expected_status = REGULAR_FLOW.get(action)
+    current_status = quote.get("quote_status", "Borrador")
+    if expected_status and current_status != expected_status:
+        return True
+    return False
+
+async def log_audit_exception(quote_id, quote_number, action, expected_status, actual_status, reason, regularization_date, user):
+    """Registra excepción de flujo en la colección de auditoría."""
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    entry = {
+        "audit_id": f"aud_{uuid.uuid4().hex[:8]}",
+        "quote_id": quote_id,
+        "quote_number": quote_number,
+        "action": action,
+        "expected_status": expected_status,
+        "actual_status": actual_status,
+        "exception_reason": reason,
+        "regularization_date": regularization_date,
+        "user_id": user.get("user_id", ""),
+        "user_name": user_name,
+        "created_at": now
+    }
+    await db.audit_exceptions.insert_one(entry)
+    entry.pop("_id", None)
+    return entry
+
+async def mark_quote_irregular(quote_id, action, reason, regularization_date):
+    """Marca la cotización como irregular y agrega la excepción."""
+    exception_entry = {
+        "action": action,
+        "reason": reason,
+        "regularization_date": regularization_date,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.quotes.update_one({"quote_id": quote_id}, {
+        "$set": {"is_irregular": True},
+        "$push": {"irregular_exceptions": exception_entry}
+    })
+
+@router.get("/quotes/irregular/count")
+async def get_irregular_count(authorization: Optional[str] = Header(None)):
+    """Devuelve el conteo de cotizaciones en estado irregular."""
+    await get_current_user(authorization)
+    count = await db.quotes.count_documents({"is_irregular": True})
+    return {"count": count}
+
+@router.get("/quotes/audit-log")
+async def get_audit_log(authorization: Optional[str] = Header(None)):
+    """Devuelve el log de auditoría de excepciones de flujo."""
+    await get_current_user(authorization)
+    entries = await db.audit_exceptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return entries
+
 
 @router.put("/quotes/{quote_id}/status")
 async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, authorization: Optional[str] = Header(None)):
@@ -80,17 +145,22 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
 
 
 @router.post("/quotes/{quote_id}/approve")
-async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Aprobar una cotización - Requiere anexo de Orden de Compra"""
-    await get_current_user(authorization)
+async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Aprobar una cotización - Requiere anexo de Orden de Compra. Soporta flujo irregular."""
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
     current_status = quote.get("quote_status", "Borrador")
-    if current_status != "Enviada":
-        raise HTTPException(status_code=400, detail=f"Solo se pueden aprobar cotizaciones en estado 'Enviada'. Estado actual: {current_status}")
+    is_irregular = current_status != "Enviada"
+    
+    if is_irregular:
+        if not exception_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para aprobar sin haber enviado al cliente")
+        await mark_quote_irregular(quote_id, "approve", exception_reason, regularization_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "approve", "Enviada", current_status, exception_reason, regularization_date, current_user)
     
     # Validar Orden de Compra
     attachments = quote.get("attachments", [])
@@ -312,16 +382,25 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
 # ==================== FLUJO DE FACTURACIÓN Y COBRO ====================
 
 @router.post("/quotes/{quote_id}/invoice")
-async def invoice_quote(quote_id: str, invoice_number: str = Form(None), authorization: Optional[str] = Header(None)):
-    """Facturar cotización - Requiere anexo de 'Factura'"""
-    await get_current_user(authorization)
+async def invoice_quote(quote_id: str, invoice_number: str = Form(None), exception_reason: str = Form(None), regularization_date: str = Form(None), authorization: Optional[str] = Header(None), x_exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), x_regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Facturar cotización - Requiere anexo de 'Factura'. Soporta flujo irregular."""
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    if quote.get("quote_status") != "Aprobada":
-        raise HTTPException(status_code=400, detail="Solo se pueden facturar cotizaciones en estado 'Aprobada'")
+    current_status = quote.get("quote_status", "Borrador")
+    is_irregular = current_status != "Aprobada"
+    
+    exc_reason = exception_reason or x_exception_reason
+    exc_date = regularization_date or x_regularization_date
+    
+    if is_irregular:
+        if not exc_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para facturar sin aprobar previamente")
+        await mark_quote_irregular(quote_id, "invoice", exc_reason, exc_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "invoice", "Aprobada", current_status, exc_reason, exc_date, current_user)
     
     attachments = quote.get("attachments", [])
     factura_attachments = [a for a in attachments if a.get("category") == "Factura"]
@@ -380,16 +459,22 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), authori
 
 
 @router.post("/quotes/{quote_id}/collect")
-async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Marcar cotización como Pagada - Requiere anexos en categoría 'Pagos'"""
-    await get_current_user(authorization)
+async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Marcar cotización como Pagada - Requiere anexos en categoría 'Pagos'. Soporta flujo irregular."""
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    if quote.get("quote_status") != "Facturada":
-        raise HTTPException(status_code=400, detail="Solo se pueden cobrar cotizaciones en estado 'Facturada'")
+    current_status = quote.get("quote_status", "Borrador")
+    is_irregular = current_status != "Facturada"
+    
+    if is_irregular:
+        if not exception_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para cobrar sin facturar previamente")
+        await mark_quote_irregular(quote_id, "collect", exception_reason, regularization_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "collect", "Facturada", current_status, exception_reason, regularization_date, current_user)
     
     attachments = quote.get("attachments", [])
     payment_proofs = [a for a in attachments if a.get("category") == "Pagos"]
@@ -446,9 +531,9 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
 
 
 @router.post("/quotes/{quote_id}/deliver")
-async def deliver_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Marcar cotización de equipos como Entregada"""
-    await get_current_user(authorization)
+async def deliver_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Marcar cotización de equipos como Entregada. Soporta flujo irregular."""
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
@@ -457,8 +542,14 @@ async def deliver_quote(quote_id: str, authorization: Optional[str] = Header(Non
     if quote.get("quote_category") != "equipment":
         raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos")
     
-    if quote.get("quote_status") != "Pagada":
-        raise HTTPException(status_code=400, detail="Solo se pueden entregar cotizaciones en estado 'Pagada'")
+    current_status = quote.get("quote_status", "Borrador")
+    is_irregular = current_status != "Pagada"
+    
+    if is_irregular:
+        if not exception_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para entregar sin pago registrado")
+        await mark_quote_irregular(quote_id, "deliver", exception_reason, regularization_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "deliver", "Pagada", current_status, exception_reason, regularization_date, current_user)
     
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
         "quote_status": "Entregada",

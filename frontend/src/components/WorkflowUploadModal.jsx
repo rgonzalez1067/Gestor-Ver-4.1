@@ -100,6 +100,11 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
 
       // Step 2: Call the state transition endpoint
       if (config.stateEndpoint) {
+        const exHeaders = {};
+        if (config.exceptionHeaders) {
+          exHeaders['x-exception-reason'] = config.exceptionHeaders.reason;
+          exHeaders['x-regularization-date'] = config.exceptionHeaders.regularization_date || '';
+        }
         if (config.extraFields?.length > 0) {
           // Send extra fields as form data (e.g., invoice_number)
           const formData = new FormData();
@@ -109,10 +114,10 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
             }
           }
           await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form-data', ...exHeaders }
           });
         } else {
-          await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`);
+          await api.post(`/quotes/${quoteId}/${config.stateEndpoint}`, {}, { headers: exHeaders });
         }
       }
 
