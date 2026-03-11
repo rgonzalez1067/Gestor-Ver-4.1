@@ -39,6 +39,7 @@ class ClientCreate(BaseModel):
     fantasy_name: str
     segment: str = "Pymes"
     condicion: str = "Prospecto"
+    referidor: Optional[str] = None
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None
@@ -65,6 +66,7 @@ class Client(BaseModel):
     fantasy_name: str
     segment: str = "Pymes"
     condicion: str = "Prospecto"
+    referidor: Optional[str] = None
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None

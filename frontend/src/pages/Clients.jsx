@@ -15,6 +15,10 @@ import { toast } from 'sonner';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
+const REFERIDOR_OPTIONS = [
+  'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
+  'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
+];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
 const CATEGORIAS_COMERCIALES = [
   'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
@@ -77,7 +81,7 @@ export const Clients = () => {
   const updateRifFileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto',
+    rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto', referidor: '',
     address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
     grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
     cantidad_tiendas: '', cantidad_cajas: '',
@@ -225,6 +229,7 @@ export const Clients = () => {
       fantasy_name: client.fantasy_name,
       segment: client.segment || 'Pymes',
       condicion: client.condicion || 'Prospecto',
+      referidor: client.referidor || '',
       address: client.address || '',
       branch_address: client.branch_address || '',
       categoria_comercial: client.categoria_comercial || '',
@@ -748,6 +753,16 @@ export const Clients = () => {
                               </SelectContent>
                             </Select>
                           </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Referidor</Label>
+                          <Select value={formData.referidor || '_none_'} onValueChange={(v) => setFormData({ ...formData, referidor: v === '_none_' ? '' : v })}>
+                            <SelectTrigger data-testid="client-referidor-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none_">Seleccionar...</SelectItem>
+                              {REFERIDOR_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 
