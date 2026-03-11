@@ -10,58 +10,54 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Funcionalidades Implementadas
 
-### Modulo de Bancos y Entidades
-- CRUD completo de bancos con logo upload
-- Gestion de productos bancarios (VPOS, MPOS, PG, Link)
-- Roadmap de integraciones por banco con pipeline visual de estatus
-- Bitacora de Evolucion por Producto
-- Consulta Global con Agrupamiento Dinamico
-- Importacion masiva de bancos desde Excel/CSV
-- Exportacion a PDF
-- Matriz de certificacion con filtros interactivos
-
-### Modulo de Integradores
-- CRUD completo con importacion masiva (upsert)
-- CRM tecnico con contactos multiples
-- Bitacora de gestiones con alertas de compromisos vencidos
-- Historial de evolucion por integrador
-- Reporte de resumen con agrupacion dinamica
-
 ### Modulo de Clientes
 - CRUD completo con contactos CRM
-- Categorizacion comercial
+- **Ficha Maestra Rediseñada** (2026-03-11): Layout 3 columnas
+  - Bloque A (Identidad Legal): RIF, Nombre Juridico, Fantasia, Grupo Economico, Segmento (Pymes/Corporativo/Emprendedor/Mixto)
+  - Bloque B (Ubicacion): Direccion Fiscal, Nombre Sucursal, Direccion Sucursal
+  - Bloque C (Relacion Comercial): Ejecutivo Propietario, Fecha 1er Contacto, Tipo Contacto (radio: Fisico/Telefonico/Email), Categoria Comercial, Tipo Servicio (multi-select: VPOS/MPOS/Payment Gateway/Link de Pago)
+  - Integrador (dropdown dinamico desde BD) + Aplicativo (condicionado al integrador)
+  - Bitacora de Inicio (boton en modo edicion para registrar primer contacto)
+- Sanitizacion automatica de RIF (sin guiones)
+- Tabla responsiva con DropdownMenu de acciones
+- OCR de RIF Digital
 - Bitacora de seguimiento
-- **OCR de RIF Digital** con sanitizacion automatica
-- **Sanitizacion de RIF** (2026-03-10): Funcion sanitize_rif() elimina guiones, espacios y caracteres especiales. J-00000000-0 -> J000000000. Aplicado en create, update y parse OCR
-- **Tabla responsiva** (2026-03-10): Acciones en DropdownMenu (Escanear RIF, Descargar RIF, Editar, Eliminar) con Bitacora como boton independiente. Columnas con ancho fijo y overflow-x-auto
+- Importacion/Exportacion
+
+### Modulo de Bancos y Entidades
+- CRUD completo con logo upload
+- Productos bancarios, Roadmap, Bitacora de Evolucion
+- Consulta Global con Agrupamiento Dinamico
+- Importacion masiva, Exportacion PDF, Matriz de certificacion
+
+### Modulo de Integradores
+- CRUD con importacion masiva (upsert)
+- CRM tecnico con contactos, Bitacora de gestiones
+- Historial de evolucion, Reporte agrupado
+- **Endpoint dropdown** (2026-03-11): GET /api/integrators/dropdown para selectores ligeros
 
 ### Modulo de Cotizaciones
-- Wizard de creacion multi-tipo (VPOS/PG, Equipos, Reparaciones)
-- Calculo automatico de costos setup y recurrentes
-- Workflow de estados flexible con Protocolo de Excepcion
-- **Flujo Administrativo Flexible**: Todos los botones activos. Modal de excepcion. Audit log, badge "Irregular", widget contador
-- **Flujo de regularizacion** (2026-03-10): Permite facturar/cobrar cotizaciones ya entregadas via excepcion
-- Generacion de PDF profesional con WeasyPrint + logo de empresa
-- **PDF de equipos vinculado como anexo** (2026-03-10): Endpoint unificado genera PDF, lo guarda en servidor y crea cotizacion con anexo automatico
-- **Fix UI freeze** (2026-03-10): resetWizard y onClose en finally block
+- Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
+- Flujo Administrativo Flexible con Protocolo de Excepcion
+- Generacion de PDF con WeasyPrint + logo empresa
+- PDF de equipos vinculado como anexo automatico
+- Flujo de regularizacion (facturar/cobrar post-entrega)
 
 ### Modulo de Proyectos
-- Generacion automatica desde cotizaciones (trigger al enviar a implementacion)
-- Persistencia de Proceso Irregular (herencia de is_irregular, filtro y badge)
-- Asignacion a implementadores con logica dinamica Asignar/Reasignar
-- Cambiar Estado rapido
-- Seguimiento de estado, prioridad y matriz de implementacion
+- Generacion automatica desde cotizaciones
+- Persistencia de Proceso Irregular
+- Asignacion dinamica, Cambiar Estado rapido
 
 ### Otros
 - Dashboard con KPIs
+- **Tasa de Cambio BCV operativa** (2026-03-10): API exchangedyn.com + fallback dolarapi.com
 - Gestion de usuarios con roles y permisos
 - Menu lateral abatible
-- Tasa de cambio BCV
 
 ## Integraciones de Terceros
 - **Resend**: Email (SIMULADO)
 - **WeasyPrint**: PDF desde HTML
-- **reportlab/PyPDF2**: PDF alternativo
+- **exchangedyn.com / dolarapi.com**: Tasa BCV
 - **openpyxl/pandas**: Excel
 
 ## Backlog Priorizado
