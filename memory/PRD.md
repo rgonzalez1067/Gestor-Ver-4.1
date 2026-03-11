@@ -12,61 +12,58 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Clientes
 - CRUD completo con contactos CRM
-- **Ficha Maestra Rediseñada** (2026-03-11): Layout 3 columnas
-  - Bloque A (Identidad Legal): RIF, Nombre Juridico, Fantasia, Grupo Economico, Segmento (Pymes/Corporativo/Emprendedor/Mixto)
-  - Bloque B (Ubicacion): Direccion Fiscal, Nombre Sucursal, Direccion Sucursal
-  - Bloque C (Relacion Comercial): Ejecutivo Propietario, Fecha 1er Contacto, Tipo Contacto (radio: Fisico/Telefonico/Email), Categoria Comercial, Tipo Servicio (multi-select: VPOS/MPOS/Payment Gateway/Link de Pago)
-  - Integrador (dropdown dinamico desde BD) + Aplicativo (condicionado al integrador)
-  - Bitacora de Inicio (boton en modo edicion para registrar primer contacto)
-- Sanitizacion automatica de RIF (sin guiones)
-- Tabla responsiva con DropdownMenu de acciones
-- OCR de RIF Digital
-- Bitacora de seguimiento
-- Importacion/Exportacion
+- **Ficha Maestra v2.0** (2026-03-11): Layout 4 cuadrantes (2x2 grid)
+  - Q1 Estatus y Definicion Legal: Condicion (Prospecto/Cliente con color dinamico verde/amarillo), RIF, Nombre Juridico/Fantasia, Grupo Economico, Segmento
+  - Q2 Capacidad Operativa: Cantidad Tiendas, Cantidad Cajas, Categoria Comercial
+  - Q3 Ubicacion y Sedes: Direccion Fiscal, Sucursal, Direccion Sucursal
+  - Q4 Gestion y Soluciones: Ejecutivo Propietario (dropdown filtrado por cargo Ejecutivo), Integrador/Aplicativo (dropdowns vinculados), Tipo Servicio (multi-select)
+- Bitacora de Inicio (registrar primer contacto)
+- Sanitizacion automatica de RIF
+- Tabla responsiva con DropdownMenu + badge Condicion
+- OCR de RIF Digital, Importacion/Exportacion
 
 ### Modulo de Bancos y Entidades
-- CRUD completo con logo upload
-- Productos bancarios, Roadmap, Bitacora de Evolucion
-- Consulta Global con Agrupamiento Dinamico
-- Importacion masiva, Exportacion PDF, Matriz de certificacion
+- CRUD completo con logo, productos bancarios, Roadmap
+- Bitacora de Evolucion, Consulta Global con Agrupamiento
+- Importacion masiva, Exportacion PDF, Matriz certificacion
 
 ### Modulo de Integradores
-- CRUD con importacion masiva (upsert)
-- CRM tecnico con contactos, Bitacora de gestiones
-- Historial de evolucion, Reporte agrupado
-- **Endpoint dropdown** (2026-03-11): GET /api/integrators/dropdown para selectores ligeros
+- CRUD con importacion masiva, CRM tecnico
+- Bitacora de gestiones, Historial evolucion, Reporte agrupado
+- Endpoint dropdown para selectores ligeros
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
 - Flujo Administrativo Flexible con Protocolo de Excepcion
-- Generacion de PDF con WeasyPrint + logo empresa
-- PDF de equipos vinculado como anexo automatico
+- PDF con WeasyPrint + logo empresa, PDF equipos como anexo automatico
 - Flujo de regularizacion (facturar/cobrar post-entrega)
 
 ### Modulo de Proyectos
-- Generacion automatica desde cotizaciones
-- Persistencia de Proceso Irregular
+- Generacion automatica desde cotizaciones, Persistencia Irregular
 - Asignacion dinamica, Cambiar Estado rapido
 
 ### Otros
-- Dashboard con KPIs
-- **Tasa de Cambio BCV operativa** (2026-03-10): API exchangedyn.com + fallback dolarapi.com
-- Gestion de usuarios con roles y permisos
-- Menu lateral abatible
+- Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
+- Gestion usuarios con roles/permisos, Menu lateral
 
-## Integraciones de Terceros
-- **Resend**: Email (SIMULADO)
-- **WeasyPrint**: PDF desde HTML
-- **exchangedyn.com / dolarapi.com**: Tasa BCV
-- **openpyxl/pandas**: Excel
+## Reglas de Negocio Clave
+- **Condicion cliente**: Define color visual. Prospecto=amarillo, Cliente=verde
+- **Ejecutivo filtrado**: Solo usuarios con cargo 'Ejecutivo de Ventas Pyme' o 'Ejecutivo de Ventas Corporativas'
+- **Cantidad de Cajas**: Se hereda a campo VTID en cotizaciones (pendiente implementar)
+- **Aplicativo condicionado**: Se filtra segun integrador seleccionado
 
-## Backlog Priorizado
+## Integraciones
+- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas
 
-### P1 (Proximas)
-- Verificacion de Email y Recuperacion de Contrasena
-- Refactorizacion de Quotes.jsx (4200+ lineas)
+## Backlog
 
-### P2 (Futuras)
-- Modulo de Reportes de ventas
-- Logica de "Completado" en Roadmap de Bancos
-- Refactorizacion de Integrators.jsx (1500+ lineas)
+### P1
+- Herencia de cantidad_cajas a campo VTID en cotizaciones
+- Verificacion Email y Recuperacion Contrasena
+- Refactorizacion Quotes.jsx (4200+ lineas)
+
+### P2
+- Modulo Reportes de ventas
+- Logica "Completado" en Roadmap Bancos
+- Refactorizacion Integrators.jsx (1500+ lineas)
+- Fix warning HTML en QuotesTable (span/tbody)
