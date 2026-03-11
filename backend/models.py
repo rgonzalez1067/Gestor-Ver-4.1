@@ -37,11 +37,19 @@ class ClientCreate(BaseModel):
     rif: str
     legal_name: str
     fantasy_name: str
-    segment: Literal["Pymes", "Corporativo", "Mixto"]
+    segment: str = "Pymes"
     address: Optional[str] = None
-    branch_address: Optional[str] = None  # Dirección de la Sucursal
-    categoria_comercial: Optional[str] = None  # Categoría Comercial
+    branch_address: Optional[str] = None
+    categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
+    grupo_economico: Optional[str] = None
+    ejecutivo_propietario: Optional[str] = None
+    fecha_primer_contacto: Optional[str] = None
+    tipo_contacto: Optional[str] = None
+    tipo_servicio: List[str] = []
+    integrador_id: Optional[str] = None
+    integrador_name: Optional[str] = None
+    aplicativo: Optional[str] = None
     contacts: List[ContactCRM] = []
     # Legacy support
     contact1: Optional[Contact] = None
@@ -52,11 +60,19 @@ class Client(BaseModel):
     rif: str
     legal_name: str
     fantasy_name: str
-    segment: Literal["Pymes", "Corporativo", "Mixto"]
+    segment: str = "Pymes"
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
+    grupo_economico: Optional[str] = None
+    ejecutivo_propietario: Optional[str] = None
+    fecha_primer_contacto: Optional[str] = None
+    tipo_contacto: Optional[str] = None
+    tipo_servicio: List[str] = []
+    integrador_id: Optional[str] = None
+    integrador_name: Optional[str] = None
+    aplicativo: Optional[str] = None
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None

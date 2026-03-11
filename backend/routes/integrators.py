@@ -105,6 +105,16 @@ async def get_integrations_summary(group_by: str = "phase", authorization: Optio
     return {"group_by": group_by, "total": len(integrators), "groups": groups}
 
 
+
+@router.get("/integrators/dropdown")
+async def get_integrators_dropdown(authorization: Optional[str] = Header(None)):
+    """Retorna lista ligera de integradores para dropdowns con sus aplicativos."""
+    await get_current_user(authorization)
+    integrators = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1, "app_name": 1}).to_list(5000)
+    return [{"integrator_id": i["integrator_id"], "name": i["name"], "app_name": i.get("app_name", "")} for i in integrators]
+
+
+
 @router.get("/integrators/{integrator_id}", response_model=Integrator)
 async def get_integrator(integrator_id: str, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)

@@ -13,7 +13,7 @@ import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, User
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Mixto'];
+const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
 const CATEGORIAS_COMERCIALES = [
   'Supermercados', 'Abastos', 'Restaurantes', 'Panaderías', 'Bares', 'Discotecas',
@@ -22,8 +22,10 @@ const CATEGORIAS_COMERCIALES = [
   'Mueblerías', 'Ferretería', 'Tiendas de Electrodomésticos', 'Jardinería',
   'Joyerías', 'Tienda de Electrónica', 'Venta de Software', 'Jugueterías',
   'Librerías', 'Tiendas por Departamento', 'Colegios', 'Universidades',
-  'Inmobiliarias', 'Clínicas',
+  'Inmobiliarias', 'Clínicas', 'Alimentos', 'Salud', 'Tecnología', 'Servicios',
 ];
+const TIPOS_SERVICIO = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
+const TIPOS_CONTACTO = ['Físico', 'Telefónico', 'Email'];
 
 const emptyContact = () => ({
   contact_id: '',
@@ -84,13 +86,25 @@ export const Clients = () => {
     branch_address: '',
     categoria_comercial: '',
     sucursal: 'Principal',
+    grupo_economico: '',
+    ejecutivo_propietario: '',
+    fecha_primer_contacto: '',
+    tipo_contacto: '',
+    tipo_servicio: [],
+    integrador_id: '',
+    integrador_name: '',
+    aplicativo: '',
     contacts: [emptyContact()]
   });
+
+  const [integrators, setIntegrators] = useState([]);
+  const [bitacoraInicioOpen, setBitacoraInicioOpen] = useState(false);
+  const [bitacoraInicioText, setBitacoraInicioText] = useState('');
 
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => { fetchClients(); fetchIntegrators(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -103,6 +117,13 @@ export const Clients = () => {
       }
     }
   }, [clients, searchParams]);
+
+  const fetchIntegrators = async () => {
+    try {
+      const resp = await api.get('/integrators/dropdown');
+      setIntegrators(resp.data);
+    } catch { /* silently ignore */ }
+  };
 
   const fetchClients = async () => {
     try {
@@ -210,6 +231,14 @@ export const Clients = () => {
       branch_address: client.branch_address || '',
       categoria_comercial: client.categoria_comercial || '',
       sucursal: client.sucursal || 'Principal',
+      grupo_economico: client.grupo_economico || '',
+      ejecutivo_propietario: client.ejecutivo_propietario || '',
+      fecha_primer_contacto: client.fecha_primer_contacto || '',
+      tipo_contacto: client.tipo_contacto || '',
+      tipo_servicio: client.tipo_servicio || [],
+      integrador_id: client.integrador_id || '',
+      integrador_name: client.integrador_name || '',
+      aplicativo: client.aplicativo || '',
       contacts
     });
     setDialogOpen(true);
@@ -218,10 +247,63 @@ export const Clients = () => {
   const resetForm = () => {
     setFormData({
       rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes',
-      address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal', contacts: [emptyContact()]
+      address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
+      grupo_economico: '', ejecutivo_propietario: '', fecha_primer_contacto: '',
+      tipo_contacto: '', tipo_servicio: [], integrador_id: '', integrador_name: '', aplicativo: '',
+      contacts: [emptyContact()]
     });
     setEditingClient(null);
+    setBitacoraInicioText('');
   };
+
+  // Manejar cambio de integrador
+  const handleIntegradorChange = (integradorId) => {
+    const intg = integrators.find(i => i.integrator_id === integradorId);
+    setFormData(prev => ({
+      ...prev,
+      integrador_id: integradorId,
+      integrador_name: intg?.name || '',
+      aplicativo: '' // Reset aplicativo al cambiar integrador
+    }));
+  };
+
+  // Obtener aplicativos filtrados por integrador seleccionado
+  const getAplicativos = () => {
+    if (!formData.integrador_id) return [];
+    const intg = integrators.find(i => i.integrator_id === formData.integrador_id);
+    return intg?.app_name ? [intg.app_name] : [];
+  };
+
+  // Toggle tipo de servicio (multi-select)
+  const toggleTipoServicio = (tipo) => {
+    setFormData(prev => ({
+      ...prev,
+      tipo_servicio: prev.tipo_servicio.includes(tipo)
+        ? prev.tipo_servicio.filter(t => t !== tipo)
+        : [...prev.tipo_servicio, tipo]
+    }));
+  };
+
+  // Bitácora de Inicio - registrar primer contacto
+  const handleBitacoraInicio = async () => {
+    if (!bitacoraInicioText.trim()) { toast.error('Ingrese el resultado del contacto'); return; }
+    const clientId = editingClient?.client_id;
+    if (!clientId) { toast.error('Guarde el cliente primero'); return; }
+    try {
+      await api.post(`/clients/${clientId}/log`, {
+        client_id: clientId,
+        detail: bitacoraInicioText,
+        action: 'Primer Contacto',
+        contact_date: new Date().toISOString().split('T')[0]
+      });
+      toast.success('Bitácora de inicio registrada');
+      setBitacoraInicioOpen(false);
+      setBitacoraInicioText('');
+    } catch (err) {
+      toast.error('Error al registrar bitácora');
+    }
+  };
+
 
   const handleDialogClose = (open) => {
     setDialogOpen(open);
@@ -571,113 +653,213 @@ export const Clients = () => {
                     <Plus size={20} className="mr-2" />Nuevo Cliente
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle className="font-manrope text-2xl">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                    <div className="flex items-center justify-between">
+                      <DialogTitle className="font-manrope text-2xl">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
+                      {editingClient && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setBitacoraInicioOpen(true)}
+                          data-testid="bitacora-inicio-btn" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                          <BookOpen size={14} className="mr-1.5" />Bitácora de Inicio
+                        </Button>
+                      )}
+                    </div>
                   </DialogHeader>
-                  <form onSubmit={handleSubmitWithHighlight} className="space-y-6">
+                  <form onSubmit={handleSubmitWithHighlight} className="space-y-5">
                     {/* Banner de campos auto-completados */}
                     {rifHighlightFields.size > 0 && (
                       <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid="rif-auto-fill-banner">
                         <ScanLine size={18} className="text-amber-600 shrink-0" />
                         <p className="text-sm text-amber-800">
-                          Los campos resaltados en <span className="font-semibold text-amber-700">amarillo</span> fueron extraídos automáticamente del RIF Digital. Verifique antes de guardar.
+                          Los campos resaltados en <span className="font-semibold text-amber-700">amarillo</span> fueron extraídos automáticamente del RIF Digital.
                         </p>
                       </div>
                     )}
-                    {/* Datos del cliente */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="rif">RIF</Label>
-                        <Input id="rif" data-testid="client-rif-input" value={formData.rif}
-                          onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
-                          className={rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
+
+                    {/* === 3 BLOQUES EN GRID === */}
+                    <div className="grid grid-cols-3 gap-5">
+                      {/* BLOQUE A: Identidad Legal y Comercial */}
+                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Identidad Legal</h3>
+                        <div>
+                          <Label htmlFor="rif" className="text-xs">RIF</Label>
+                          <Input id="rif" data-testid="client-rif-input" value={formData.rif}
+                            onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
+                            className={`h-9 ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
+                            placeholder="J000000000" required />
+                        </div>
+                        <div>
+                          <Label htmlFor="legal_name" className="text-xs">Nombre Jurídico</Label>
+                          <Input id="legal_name" data-testid="client-legal-name-input" value={formData.legal_name}
+                            onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
+                            className={`h-9 ${rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
+                        </div>
+                        <div>
+                          <Label htmlFor="fantasy_name" className="text-xs">Nombre de Fantasía</Label>
+                          <Input id="fantasy_name" data-testid="client-fantasy-name-input" value={formData.fantasy_name}
+                            onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
+                            className={`h-9 ${rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
+                        </div>
+                        <div>
+                          <Label htmlFor="grupo_economico" className="text-xs">Grupo Económico</Label>
+                          <Input id="grupo_economico" data-testid="client-grupo-economico-input" value={formData.grupo_economico}
+                            onChange={(e) => setFormData({ ...formData, grupo_economico: e.target.value })}
+                            className="h-9" placeholder="Ej: Grupo Polar" />
+                        </div>
+                        <div>
+                          <Label htmlFor="segment" className="text-xs">Segmento</Label>
+                          <Select value={formData.segment} onValueChange={(value) => setFormData({ ...formData, segment: value })}>
+                            <SelectTrigger data-testid="client-segment-select" className="h-9"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {SEGMENT_OPTIONS.map((seg) => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div>
-                        <Label htmlFor="sucursal">Sucursal</Label>
-                        <Input id="sucursal" data-testid="client-sucursal-input" value={formData.sucursal}
-                          onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
-                          placeholder="Principal, Sede Norte, etc." required />
+
+                      {/* BLOQUE B: Ubicación y Logística */}
+                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Ubicación</h3>
+                        <div>
+                          <Label htmlFor="address" className="text-xs">Dirección Fiscal</Label>
+                          <textarea id="address" data-testid="client-address-input" value={formData.address}
+                            onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
+                            className={`flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[60px] resize-none ${rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
+                            placeholder="Av. Principal, Edificio..." />
+                        </div>
+                        <div>
+                          <Label htmlFor="sucursal" className="text-xs">Nombre de la Sucursal</Label>
+                          <Input id="sucursal" data-testid="client-sucursal-input" value={formData.sucursal}
+                            onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
+                            className="h-9" placeholder="Sede Principal" required />
+                        </div>
+                        <div>
+                          <Label htmlFor="branch_address" className="text-xs">Dirección de la Sucursal</Label>
+                          <textarea id="branch_address" data-testid="client-branch-address-input" value={formData.branch_address}
+                            onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[60px] resize-none"
+                            placeholder="Ubicación física de la operación" />
+                        </div>
                       </div>
-                      <div>
-                        <Label htmlFor="segment">Segmento</Label>
-                        <Select value={formData.segment} onValueChange={(value) => setFormData({ ...formData, segment: value })}>
-                          <SelectTrigger data-testid="client-segment-select"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {SEGMENT_OPTIONS.map((seg) => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="legal_name">Nombre Jurídico</Label>
-                        <Input id="legal_name" data-testid="client-legal-name-input" value={formData.legal_name}
-                          onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
-                          className={rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
-                      </div>
-                      <div>
-                        <Label htmlFor="fantasy_name">Nombre de Fantasía</Label>
-                        <Input id="fantasy_name" data-testid="client-fantasy-name-input" value={formData.fantasy_name}
-                          onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
-                          className={rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''} required />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="address">Dirección Fiscal</Label>
-                      <Input id="address" data-testid="client-address-input" value={formData.address}
-                        onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
-                        className={rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}
-                        placeholder="Av. Principal, Edificio X, Caracas" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="branch_address">Dirección de la Sucursal</Label>
-                        <Input id="branch_address" data-testid="client-branch-address-input" value={formData.branch_address}
-                          onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
-                          placeholder="Dirección física de la sucursal" />
-                      </div>
-                      <div>
-                        <Label htmlFor="categoria_comercial">Categoría Comercial</Label>
-                        <Select value={formData.categoria_comercial || '_none_'} onValueChange={(v) => setFormData({ ...formData, categoria_comercial: v === '_none_' ? '' : v })}>
-                          <SelectTrigger data-testid="client-categoria-select"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">Seleccionar...</SelectItem>
-                            {CATEGORIAS_COMERCIALES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+
+                      {/* BLOQUE C: Relación Comercial y Soluciones */}
+                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Relación Comercial</h3>
+                        <div>
+                          <Label htmlFor="ejecutivo_propietario" className="text-xs">Ejecutivo Propietario</Label>
+                          <Input id="ejecutivo_propietario" data-testid="client-ejecutivo-input" value={formData.ejecutivo_propietario}
+                            onChange={(e) => setFormData({ ...formData, ejecutivo_propietario: e.target.value })}
+                            className="h-9" placeholder="Nombre del ejecutivo" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Fecha de 1er Contacto</Label>
+                          <Input type="date" data-testid="client-fecha-contacto-input" value={formData.fecha_primer_contacto}
+                            onChange={(e) => setFormData({ ...formData, fecha_primer_contacto: e.target.value })}
+                            className="h-9" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Tipo de Contacto</Label>
+                          <div className="flex items-center gap-3 mt-1">
+                            {TIPOS_CONTACTO.map(tc => (
+                              <label key={tc} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                                <input type="radio" name="tipo_contacto" value={tc} checked={formData.tipo_contacto === tc}
+                                  onChange={() => setFormData({ ...formData, tipo_contacto: tc })}
+                                  className="w-3.5 h-3.5 accent-blue-600" data-testid={`tipo-contacto-${tc.toLowerCase()}`} />
+                                {tc}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Categoría Comercial</Label>
+                          <Select value={formData.categoria_comercial || '_none_'} onValueChange={(v) => setFormData({ ...formData, categoria_comercial: v === '_none_' ? '' : v })}>
+                            <SelectTrigger data-testid="client-categoria-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none_">Seleccionar...</SelectItem>
+                              {CATEGORIAS_COMERCIALES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Tipo de Servicio</Label>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {TIPOS_SERVICIO.map(ts => (
+                              <button key={ts} type="button"
+                                onClick={() => toggleTipoServicio(ts)}
+                                data-testid={`tipo-servicio-${ts.toLowerCase().replace(/\s/g, '-')}`}
+                                className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+                                  formData.tipo_servicio.includes(ts)
+                                    ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                    : 'bg-white border-slate-200 text-slate-500 hover:border-blue-200'
+                                }`}>
+                                {ts}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Matriz de Contactos Dinámica */}
+                    {/* === FILA: Integrador + Aplicativo === */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs">Integrador</Label>
+                        <Select value={formData.integrador_id || '_none_'} onValueChange={(v) => v === '_none_' ? setFormData(prev => ({ ...prev, integrador_id: '', integrador_name: '', aplicativo: '' })) : handleIntegradorChange(v)}>
+                          <SelectTrigger data-testid="client-integrador-select" className="h-9"><SelectValue placeholder="Seleccionar integrador..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none_">Sin integrador</SelectItem>
+                            {integrators.map(i => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Aplicativo</Label>
+                        {getAplicativos().length > 0 ? (
+                          <Select value={formData.aplicativo || '_none_'} onValueChange={(v) => setFormData({ ...formData, aplicativo: v === '_none_' ? '' : v })}>
+                            <SelectTrigger data-testid="client-aplicativo-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none_">Seleccionar...</SelectItem>
+                              {getAplicativos().map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input data-testid="client-aplicativo-input" value={formData.aplicativo}
+                            onChange={(e) => setFormData({ ...formData, aplicativo: e.target.value })}
+                            className="h-9" placeholder={formData.integrador_id ? 'Escriba el aplicativo' : 'Seleccione un integrador primero'}
+                            disabled={!formData.integrador_id} />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* === CONTACTOS === */}
                     <div className="border-t pt-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-lg">Contactos</h3>
+                        <h3 className="font-semibold text-sm uppercase tracking-wider text-slate-700">Contactos</h3>
                         <Button type="button" size="sm" variant="outline" onClick={addContact} data-testid="add-contact-btn">
-                          <UserPlus size={14} className="mr-1" />Agregar Contacto
+                          <UserPlus size={14} className="mr-1" />Agregar
                         </Button>
                       </div>
                       {formData.contacts.map((contact, idx) => (
-                        <div key={idx} className="grid grid-cols-12 gap-2 mb-3 items-end p-3 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
+                        <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end p-2.5 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
                           <div className="col-span-3">
-                            <Label className="text-xs">Nombre y Apellidos</Label>
+                            <Label className="text-xs">Nombre</Label>
                             <Input value={contact.full_name} onChange={(e) => updateContact(idx, 'full_name', e.target.value)}
-                              placeholder="Nombre completo" className="h-9 text-sm" data-testid={`contact-full-name-${idx}`} required />
+                              placeholder="Nombre completo" className="h-8 text-sm" data-testid={`contact-full-name-${idx}`} required />
                           </div>
                           <div className="col-span-2">
                             <Label className="text-xs">Teléfono</Label>
                             <Input value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
-                              placeholder="0412..." className="h-9 text-sm" />
+                              placeholder="0412..." className="h-8 text-sm" />
                           </div>
                           <div className="col-span-3">
                             <Label className="text-xs">Email</Label>
                             <Input value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
-                              placeholder="email@..." className="h-9 text-sm" type="email" />
+                              placeholder="email@..." className="h-8 text-sm" type="email" />
                           </div>
                           <div className="col-span-3">
                             <Label className="text-xs">Rol</Label>
                             <Select value={contact.role} onValueChange={(v) => updateContact(idx, 'role', v)}>
-                              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {CONTACT_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                               </SelectContent>
@@ -686,7 +868,7 @@ export const Clients = () => {
                           <div className="col-span-1 flex justify-center">
                             {formData.contacts.length > 1 && (
                               <Button type="button" size="sm" variant="ghost" onClick={() => removeContact(idx)}
-                                className="h-9 w-9 p-0 text-red-500 hover:text-red-700" data-testid={`remove-contact-${idx}`}>
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700" data-testid={`remove-contact-${idx}`}>
                                 <X size={16} />
                               </Button>
                             )}
@@ -695,7 +877,7 @@ export const Clients = () => {
                       ))}
                     </div>
 
-                    <div className="flex justify-end gap-3">
+                    <div className="flex justify-end gap-3 pt-2">
                       <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>Cancelar</Button>
                       <Button type="submit" data-testid="save-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
                         {editingClient ? 'Actualizar' : 'Guardar'}
@@ -1204,6 +1386,27 @@ export const Clients = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Modal Bitácora de Inicio */}
+        <Dialog open={bitacoraInicioOpen} onOpenChange={setBitacoraInicioOpen}>
+          <DialogContent className="max-w-md" data-testid="bitacora-inicio-modal">
+            <DialogHeader>
+              <DialogTitle>Bitácora de Inicio</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500">Registre el resultado del primer contacto con este cliente.</p>
+              <textarea value={bitacoraInicioText} onChange={(e) => setBitacoraInicioText(e.target.value)}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[100px] resize-none"
+                placeholder="Describa el resultado del contacto..." data-testid="bitacora-inicio-text" />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setBitacoraInicioOpen(false)}>Cancelar</Button>
+                <Button type="button" size="sm" onClick={handleBitacoraInicio} data-testid="bitacora-inicio-save"
+                  className="bg-blue-600 hover:bg-blue-700 text-white">Guardar</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );
