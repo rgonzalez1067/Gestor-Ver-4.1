@@ -14,18 +14,17 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
+const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
 const CATEGORIAS_COMERCIALES = [
-  'Supermercados', 'Abastos', 'Restaurantes', 'Panaderías', 'Bares', 'Discotecas',
-  'Comida Rápida', 'Cafeterías', 'Tiendas de Ropa', 'Boutique', 'Salón de Belleza',
-  'Barbería', 'Spa/Salud', 'Gimnasios', 'Cosmética', 'Tiendas de Calzados',
-  'Mueblerías', 'Ferretería', 'Tiendas de Electrodomésticos', 'Jardinería',
-  'Joyerías', 'Tienda de Electrónica', 'Venta de Software', 'Jugueterías',
-  'Librerías', 'Tiendas por Departamento', 'Colegios', 'Universidades',
-  'Inmobiliarias', 'Clínicas', 'Alimentos', 'Salud', 'Tecnología', 'Servicios',
+  'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
+  'Bar / Discoteca', 'Comida Rápida', 'Cafetería', 'Tienda de Ropa', 'Boutique',
+  'Salón de Belleza', 'Barbería', 'Spa / Salud', 'Gimnasio', 'Cosmética',
+  'Calzados', 'Mueblería', 'Ferretería', 'Electrodomésticos', 'Joyería',
+  'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
+  'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
 ];
 const TIPOS_SERVICIO = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
-const TIPOS_CONTACTO = ['Físico', 'Telefónico', 'Email'];
 
 const emptyContact = () => ({
   contact_id: '',
@@ -78,33 +77,24 @@ export const Clients = () => {
   const updateRifFileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    rif: '',
-    legal_name: '',
-    fantasy_name: '',
-    segment: 'Pymes',
-    address: '',
-    branch_address: '',
-    categoria_comercial: '',
-    sucursal: 'Principal',
-    grupo_economico: '',
-    ejecutivo_propietario: '',
-    fecha_primer_contacto: '',
-    tipo_contacto: '',
-    tipo_servicio: [],
-    integrador_id: '',
-    integrador_name: '',
-    aplicativo: '',
+    rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto',
+    address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
+    grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
+    cantidad_tiendas: '', cantidad_cajas: '',
+    fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
+    integrador_id: '', integrador_name: '', aplicativo: '',
     contacts: [emptyContact()]
   });
 
   const [integrators, setIntegrators] = useState([]);
+  const [ejecutivos, setEjecutivos] = useState([]);
   const [bitacoraInicioOpen, setBitacoraInicioOpen] = useState(false);
   const [bitacoraInicioText, setBitacoraInicioText] = useState('');
 
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); fetchIntegrators(); }, []);
+  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -122,6 +112,13 @@ export const Clients = () => {
     try {
       const resp = await api.get('/integrators/dropdown');
       setIntegrators(resp.data);
+    } catch { /* silently ignore */ }
+  };
+
+  const fetchEjecutivos = async () => {
+    try {
+      const resp = await api.get('/auth/ejecutivos');
+      setEjecutivos(resp.data);
     } catch { /* silently ignore */ }
   };
 
@@ -227,12 +224,16 @@ export const Clients = () => {
       legal_name: client.legal_name,
       fantasy_name: client.fantasy_name,
       segment: client.segment || 'Pymes',
+      condicion: client.condicion || 'Prospecto',
       address: client.address || '',
       branch_address: client.branch_address || '',
       categoria_comercial: client.categoria_comercial || '',
       sucursal: client.sucursal || 'Principal',
       grupo_economico: client.grupo_economico || '',
       ejecutivo_propietario: client.ejecutivo_propietario || '',
+      ejecutivo_user_id: client.ejecutivo_user_id || '',
+      cantidad_tiendas: client.cantidad_tiendas ?? '',
+      cantidad_cajas: client.cantidad_cajas ?? '',
       fecha_primer_contacto: client.fecha_primer_contacto || '',
       tipo_contacto: client.tipo_contacto || '',
       tipo_servicio: client.tipo_servicio || [],
@@ -246,14 +247,30 @@ export const Clients = () => {
 
   const resetForm = () => {
     setFormData({
-      rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes',
+      rif: '', legal_name: '', fantasy_name: '', segment: 'Pymes', condicion: 'Prospecto',
       address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
-      grupo_economico: '', ejecutivo_propietario: '', fecha_primer_contacto: '',
-      tipo_contacto: '', tipo_servicio: [], integrador_id: '', integrador_name: '', aplicativo: '',
+      grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
+      cantidad_tiendas: '', cantidad_cajas: '',
+      fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
+      integrador_id: '', integrador_name: '', aplicativo: '',
       contacts: [emptyContact()]
     });
     setEditingClient(null);
     setBitacoraInicioText('');
+  };
+
+  // Manejar cambio de ejecutivo
+  const handleEjecutivoChange = (userId) => {
+    if (userId === '_none_') {
+      setFormData(prev => ({ ...prev, ejecutivo_user_id: '', ejecutivo_propietario: '' }));
+      return;
+    }
+    const ej = ejecutivos.find(e => e.user_id === userId);
+    setFormData(prev => ({
+      ...prev,
+      ejecutivo_user_id: userId,
+      ejecutivo_propietario: ej?.full_name || ''
+    }));
   };
 
   // Manejar cambio de integrador
@@ -676,98 +693,82 @@ export const Clients = () => {
                       </div>
                     )}
 
-                    {/* === 3 BLOQUES EN GRID === */}
-                    <div className="grid grid-cols-3 gap-5">
-                      {/* BLOQUE A: Identidad Legal y Comercial */}
-                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Identidad Legal</h3>
+                    {/* === 4 CUADRANTES === */}
+                    <div className="grid grid-cols-2 gap-5">
+
+                      {/* CUADRANTE 1: Estatus y Definición Legal */}
+                      <div className="space-y-3 p-4 rounded-lg border border-slate-200" style={{ backgroundColor: formData.condicion === 'Cliente' ? '#f0fdf4' : '#fefce8' }}>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider border-b pb-2" style={{ color: formData.condicion === 'Cliente' ? '#15803d' : '#a16207', borderColor: formData.condicion === 'Cliente' ? '#bbf7d0' : '#fde68a' }}>
+                          Estatus y Definición Legal
+                        </h3>
                         <div>
-                          <Label htmlFor="rif" className="text-xs">RIF</Label>
-                          <Input id="rif" data-testid="client-rif-input" value={formData.rif}
-                            onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
-                            className={`h-9 ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
-                            placeholder="J000000000" required />
-                        </div>
-                        <div>
-                          <Label htmlFor="legal_name" className="text-xs">Nombre Jurídico</Label>
-                          <Input id="legal_name" data-testid="client-legal-name-input" value={formData.legal_name}
-                            onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
-                            className={`h-9 ${rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
-                        </div>
-                        <div>
-                          <Label htmlFor="fantasy_name" className="text-xs">Nombre de Fantasía</Label>
-                          <Input id="fantasy_name" data-testid="client-fantasy-name-input" value={formData.fantasy_name}
-                            onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
-                            className={`h-9 ${rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
-                        </div>
-                        <div>
-                          <Label htmlFor="grupo_economico" className="text-xs">Grupo Económico</Label>
-                          <Input id="grupo_economico" data-testid="client-grupo-economico-input" value={formData.grupo_economico}
-                            onChange={(e) => setFormData({ ...formData, grupo_economico: e.target.value })}
-                            className="h-9" placeholder="Ej: Grupo Polar" />
-                        </div>
-                        <div>
-                          <Label htmlFor="segment" className="text-xs">Segmento</Label>
-                          <Select value={formData.segment} onValueChange={(value) => setFormData({ ...formData, segment: value })}>
-                            <SelectTrigger data-testid="client-segment-select" className="h-9"><SelectValue /></SelectTrigger>
+                          <Label className="text-xs">Condición</Label>
+                          <Select value={formData.condicion} onValueChange={(v) => setFormData({ ...formData, condicion: v })}>
+                            <SelectTrigger data-testid="client-condicion-select" className="h-9 font-medium">
+                              <SelectValue />
+                            </SelectTrigger>
                             <SelectContent>
-                              {SEGMENT_OPTIONS.map((seg) => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
+                              {CONDICION_OPTIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
+                        <div>
+                          <Label className="text-xs">RIF</Label>
+                          <Input data-testid="client-rif-input" value={formData.rif}
+                            onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
+                            className={`h-9 font-mono ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
+                            placeholder="J000000000" required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Nombre Jurídico</Label>
+                            <Input data-testid="client-legal-name-input" value={formData.legal_name}
+                              onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
+                              className={`h-9 ${rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Nombre de Fantasía</Label>
+                            <Input data-testid="client-fantasy-name-input" value={formData.fantasy_name}
+                              onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
+                              className={`h-9 ${rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Grupo Económico</Label>
+                            <Input data-testid="client-grupo-economico-input" value={formData.grupo_economico}
+                              onChange={(e) => setFormData({ ...formData, grupo_economico: e.target.value })}
+                              className="h-9" placeholder="Ej: Grupo Polar" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Segmento</Label>
+                            <Select value={formData.segment} onValueChange={(v) => setFormData({ ...formData, segment: v })}>
+                              <SelectTrigger data-testid="client-segment-select" className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {SEGMENT_OPTIONS.map(seg => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* BLOQUE B: Ubicación y Logística */}
+                      {/* CUADRANTE 2: Capacidad Operativa */}
                       <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Ubicación</h3>
-                        <div>
-                          <Label htmlFor="address" className="text-xs">Dirección Fiscal</Label>
-                          <textarea id="address" data-testid="client-address-input" value={formData.address}
-                            onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
-                            className={`flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[60px] resize-none ${rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
-                            placeholder="Av. Principal, Edificio..." />
-                        </div>
-                        <div>
-                          <Label htmlFor="sucursal" className="text-xs">Nombre de la Sucursal</Label>
-                          <Input id="sucursal" data-testid="client-sucursal-input" value={formData.sucursal}
-                            onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
-                            className="h-9" placeholder="Sede Principal" required />
-                        </div>
-                        <div>
-                          <Label htmlFor="branch_address" className="text-xs">Dirección de la Sucursal</Label>
-                          <textarea id="branch_address" data-testid="client-branch-address-input" value={formData.branch_address}
-                            onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
-                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[60px] resize-none"
-                            placeholder="Ubicación física de la operación" />
-                        </div>
-                      </div>
-
-                      {/* BLOQUE C: Relación Comercial y Soluciones */}
-                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Relación Comercial</h3>
-                        <div>
-                          <Label htmlFor="ejecutivo_propietario" className="text-xs">Ejecutivo Propietario</Label>
-                          <Input id="ejecutivo_propietario" data-testid="client-ejecutivo-input" value={formData.ejecutivo_propietario}
-                            onChange={(e) => setFormData({ ...formData, ejecutivo_propietario: e.target.value })}
-                            className="h-9" placeholder="Nombre del ejecutivo" />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Fecha de 1er Contacto</Label>
-                          <Input type="date" data-testid="client-fecha-contacto-input" value={formData.fecha_primer_contacto}
-                            onChange={(e) => setFormData({ ...formData, fecha_primer_contacto: e.target.value })}
-                            className="h-9" />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Tipo de Contacto</Label>
-                          <div className="flex items-center gap-3 mt-1">
-                            {TIPOS_CONTACTO.map(tc => (
-                              <label key={tc} className="flex items-center gap-1.5 cursor-pointer text-sm">
-                                <input type="radio" name="tipo_contacto" value={tc} checked={formData.tipo_contacto === tc}
-                                  onChange={() => setFormData({ ...formData, tipo_contacto: tc })}
-                                  className="w-3.5 h-3.5 accent-blue-600" data-testid={`tipo-contacto-${tc.toLowerCase()}`} />
-                                {tc}
-                              </label>
-                            ))}
+                        <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Capacidad Operativa</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Cantidad de Tiendas</Label>
+                            <Input type="number" min="0" data-testid="client-cantidad-tiendas-input"
+                              value={formData.cantidad_tiendas}
+                              onChange={(e) => setFormData({ ...formData, cantidad_tiendas: e.target.value })}
+                              className="h-9" placeholder="0" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Cantidad de Cajas</Label>
+                            <Input type="number" min="0" data-testid="client-cantidad-cajas-input"
+                              value={formData.cantidad_cajas}
+                              onChange={(e) => setFormData({ ...formData, cantidad_cajas: e.target.value })}
+                              className="h-9" placeholder="0" />
                           </div>
                         </div>
                         <div>
@@ -780,12 +781,85 @@ export const Clients = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      {/* CUADRANTE 3: Ubicación y Sedes */}
+                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Ubicación y Sedes</h3>
+                        <div>
+                          <Label className="text-xs">Dirección Fiscal</Label>
+                          <textarea data-testid="client-address-input" value={formData.address}
+                            onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
+                            className={`flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[56px] resize-none ${rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
+                            placeholder="Av. Principal, Edificio..." />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Nombre de Sucursal</Label>
+                            <Input data-testid="client-sucursal-input" value={formData.sucursal}
+                              onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
+                              className="h-9" placeholder="Sede Principal" required />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Dirección de Sucursal</Label>
+                            <Input data-testid="client-branch-address-input" value={formData.branch_address}
+                              onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
+                              className="h-9" placeholder="Ubicación física" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CUADRANTE 4: Gestión y Soluciones Técnicas */}
+                      <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                        <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Gestión y Soluciones</h3>
+                        <div>
+                          <Label className="text-xs">Ejecutivo Propietario</Label>
+                          <Select value={formData.ejecutivo_user_id || '_none_'} onValueChange={handleEjecutivoChange}>
+                            <SelectTrigger data-testid="client-ejecutivo-select" className="h-9"><SelectValue placeholder="Seleccionar ejecutivo..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none_">Sin asignar</SelectItem>
+                              {ejecutivos.map(ej => (
+                                <SelectItem key={ej.user_id} value={ej.user_id}>
+                                  {ej.full_name} <span className="text-slate-400 text-xs ml-1">({ej.cargo})</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Integrador</Label>
+                            <Select value={formData.integrador_id || '_none_'} onValueChange={(v) => v === '_none_' ? setFormData(prev => ({ ...prev, integrador_id: '', integrador_name: '', aplicativo: '' })) : handleIntegradorChange(v)}>
+                              <SelectTrigger data-testid="client-integrador-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">Sin integrador</SelectItem>
+                                {integrators.map(i => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Aplicativo</Label>
+                            {getAplicativos().length > 0 ? (
+                              <Select value={formData.aplicativo || '_none_'} onValueChange={(v) => setFormData({ ...formData, aplicativo: v === '_none_' ? '' : v })}>
+                                <SelectTrigger data-testid="client-aplicativo-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none_">Seleccionar...</SelectItem>
+                                  {getAplicativos().map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input data-testid="client-aplicativo-input" value={formData.aplicativo}
+                                onChange={(e) => setFormData({ ...formData, aplicativo: e.target.value })}
+                                className="h-9" placeholder={formData.integrador_id ? 'Escriba el aplicativo' : 'Seleccione integrador'}
+                                disabled={!formData.integrador_id} />
+                            )}
+                          </div>
+                        </div>
                         <div>
                           <Label className="text-xs">Tipo de Servicio</Label>
                           <div className="flex flex-wrap gap-2 mt-1">
                             {TIPOS_SERVICIO.map(ts => (
-                              <button key={ts} type="button"
-                                onClick={() => toggleTipoServicio(ts)}
+                              <button key={ts} type="button" onClick={() => toggleTipoServicio(ts)}
                                 data-testid={`tipo-servicio-${ts.toLowerCase().replace(/\s/g, '-')}`}
                                 className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
                                   formData.tipo_servicio.includes(ts)
@@ -797,37 +871,6 @@ export const Clients = () => {
                             ))}
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* === FILA: Integrador + Aplicativo === */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-xs">Integrador</Label>
-                        <Select value={formData.integrador_id || '_none_'} onValueChange={(v) => v === '_none_' ? setFormData(prev => ({ ...prev, integrador_id: '', integrador_name: '', aplicativo: '' })) : handleIntegradorChange(v)}>
-                          <SelectTrigger data-testid="client-integrador-select" className="h-9"><SelectValue placeholder="Seleccionar integrador..." /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="_none_">Sin integrador</SelectItem>
-                            {integrators.map(i => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Aplicativo</Label>
-                        {getAplicativos().length > 0 ? (
-                          <Select value={formData.aplicativo || '_none_'} onValueChange={(v) => setFormData({ ...formData, aplicativo: v === '_none_' ? '' : v })}>
-                            <SelectTrigger data-testid="client-aplicativo-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="_none_">Seleccionar...</SelectItem>
-                              {getAplicativos().map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input data-testid="client-aplicativo-input" value={formData.aplicativo}
-                            onChange={(e) => setFormData({ ...formData, aplicativo: e.target.value })}
-                            className="h-9" placeholder={formData.integrador_id ? 'Escriba el aplicativo' : 'Seleccione un integrador primero'}
-                            disabled={!formData.integrador_id} />
-                        )}
                       </div>
                     </div>
 
@@ -918,7 +961,14 @@ export const Clients = () => {
                   const legacyContact = client.contact1;
                   return (
                     <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono text-slate-700 whitespace-nowrap">{client.rif}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-slate-700 whitespace-nowrap">
+                          {client.rif}
+                          {client.condicion && (
+                            <span className={`ml-2 inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
+                              client.condicion === 'Cliente' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                            }`}>{client.condicion}</span>
+                          )}
+                        </td>
                       <td className="px-4 py-3 text-sm text-slate-600">{client.sucursal || 'Principal'}</td>
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 max-w-[200px] truncate" title={client.legal_name}>{client.legal_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-600 max-w-[180px] truncate" title={client.fantasy_name}>{client.fantasy_name}</td>

@@ -38,12 +38,16 @@ class ClientCreate(BaseModel):
     legal_name: str
     fantasy_name: str
     segment: str = "Pymes"
+    condicion: str = "Prospecto"
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
     grupo_economico: Optional[str] = None
     ejecutivo_propietario: Optional[str] = None
+    ejecutivo_user_id: Optional[str] = None
+    cantidad_tiendas: Optional[int] = None
+    cantidad_cajas: Optional[int] = None
     fecha_primer_contacto: Optional[str] = None
     tipo_contacto: Optional[str] = None
     tipo_servicio: List[str] = []
@@ -51,7 +55,6 @@ class ClientCreate(BaseModel):
     integrador_name: Optional[str] = None
     aplicativo: Optional[str] = None
     contacts: List[ContactCRM] = []
-    # Legacy support
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None
 
@@ -61,12 +64,16 @@ class Client(BaseModel):
     legal_name: str
     fantasy_name: str
     segment: str = "Pymes"
+    condicion: str = "Prospecto"
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None
     sucursal: str = "Principal"
     grupo_economico: Optional[str] = None
     ejecutivo_propietario: Optional[str] = None
+    ejecutivo_user_id: Optional[str] = None
+    cantidad_tiendas: Optional[int] = None
+    cantidad_cajas: Optional[int] = None
     fecha_primer_contacto: Optional[str] = None
     tipo_contacto: Optional[str] = None
     tipo_servicio: List[str] = []
