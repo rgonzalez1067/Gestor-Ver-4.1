@@ -674,12 +674,11 @@ export const Clients = () => {
                   <DialogHeader>
                     <div className="flex items-center justify-between">
                       <DialogTitle className="font-manrope text-2xl">{editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
-                      {editingClient && (
-                        <Button type="button" size="sm" variant="outline" onClick={() => setBitacoraInicioOpen(true)}
-                          data-testid="bitacora-inicio-btn" className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                          <BookOpen size={14} className="mr-1.5" />Bitácora de Inicio
-                        </Button>
-                      )}
+                      <Button type="button" size="sm" variant="outline"
+                        onClick={() => editingClient ? setBitacoraInicioOpen(true) : toast.info('Guarde el cliente primero para registrar la bitácora')}
+                        data-testid="bitacora-inicio-btn" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                        <BookOpen size={14} className="mr-1.5" />Bitácora de Inicio
+                      </Button>
                     </div>
                   </DialogHeader>
                   <form onSubmit={handleSubmitWithHighlight} className="space-y-5">
