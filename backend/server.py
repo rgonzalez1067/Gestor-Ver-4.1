@@ -29,6 +29,7 @@ from routes.integrators import router as integrators_router
 from routes.settings import router as settings_router
 from routes.seed_and_templates import router as seed_templates_router
 from routes.projects import router as projects_router
+from routes.new_products import router as new_products_router
 
 app = FastAPI(title="Cotizador Merchant Server API")
 
@@ -61,6 +62,7 @@ api_router.include_router(integrators_router)
 api_router.include_router(settings_router)
 api_router.include_router(seed_templates_router)
 api_router.include_router(projects_router)
+api_router.include_router(new_products_router)
 
 app.include_router(api_router)
 

@@ -241,7 +241,36 @@ class ProductEvolutionEntry(BaseModel):
     bank_id: str
     integration_id: str
     comment: str
-    phase: str  # Negoc., DESA, SQA, Imple., PreProd, Completado
+    phase: str  # PreProd, Primer Prod, Masificación
+    date: str  # ISO date
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+# ==================== NEW PRODUCTS (R&D Pipeline) ====================
+
+class NewProduct(BaseModel):
+    """Producto nuevo en pipeline de I+D antes de despliegue oficial."""
+    product_id: str = Field(default_factory=lambda: f"npd_{uuid.uuid4().hex[:8]}")
+    service_name: str
+    component_type: str  # "VPOS/MPOS" o "PG/Link"
+    bank_id: str  # Banco patrocinador/socio
+    bank_name: str = ""
+    status: Literal["Negociación", "DESA", "SQA", "IMPLE", "Promovido"] = "Negociación"
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class NewProductCreate(BaseModel):
+    service_name: str
+    component_type: str
+    bank_id: str
+    notes: Optional[str] = None
+
+class NewProductEvolutionEntry(BaseModel):
+    """Entrada de bitácora de evolución para un producto nuevo en pipeline I+D."""
+    entry_id: str = Field(default_factory=lambda: f"npe_{uuid.uuid4().hex[:8]}")
+    product_id: str
+    comment: str
+    phase: str  # Negociación, DESA, SQA, IMPLE
     date: str  # ISO date
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
