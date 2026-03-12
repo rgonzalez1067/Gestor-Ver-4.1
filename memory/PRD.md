@@ -30,6 +30,15 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Notificacion simulada (MOCKED) por email al equipo de ventas al cambiar estado de integracion
 - Migracion automatica de estados antiguos en runtime (STATUS_MIGRATION map)
 
+### Modulo de Nuevos Productos — Pipeline I+D (2026-02-20)
+- CRUD completo de productos en desarrollo pre-despliegue
+- Pipeline de estados: Negociacion → DESA → SQA → IMPLE → Promovido
+- Seleccion de Banco Patrocinador/Socio al crear producto
+- **Hand-off automatico**: Al cambiar a IMPLE, inserta integracion en banco con estado PreProd y marca producto como Promovido
+- Bitacora de Evolucion propia (crear/editar/eliminar hitos)
+- Notificaciones simuladas (MOCKED): email al equipo de ventas en cada cambio + notificacion critica al IMPLE
+- Stats cards por fase + seccion visual de Promovidos
+
 ### Modulo de Integradores
 - CRUD con importacion masiva, CRM tecnico
 - Bitacora de gestiones, Historial evolucion, Reporte agrupado
