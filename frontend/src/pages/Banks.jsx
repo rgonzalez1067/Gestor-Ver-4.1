@@ -480,7 +480,7 @@ export const Banks = () => {
           <div className="space-y-3" data-testid="banks-list">
             {banks.map((bank) => {
               const chips = getProductChips(bank.products);
-              const integrationsCount = (bank.integrations || []).filter(i => i.status !== 'Completado').length;
+              const integrationsCount = (bank.integrations || []).filter(i => i.status !== 'Masificación').length;
               return (
                 <div key={bank.bank_id} data-testid={`bank-row-${bank.bank_id}`}
                   className="bg-white rounded-lg border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition-all flex items-center gap-5">

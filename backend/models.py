@@ -109,7 +109,7 @@ class BankIntegration(BaseModel):
     integration_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:8]}")
     service_name: str
     component_type: str  # "VPOS/MPOS" o "PG/Link"
-    status: Literal["Negoc.", "DESA", "SQA", "Imple.", "PreProd", "Completado"] = "Negoc."
+    status: Literal["PreProd", "Primer Prod", "Masificación"] = "PreProd"
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

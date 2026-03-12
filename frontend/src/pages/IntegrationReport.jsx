@@ -10,24 +10,18 @@ import { toast } from 'sonner';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const STATUS_CONFIG = {
-  'Negoc.':     { label: 'Negoc.',    full: 'En Negociación',    color: 'bg-slate-100 text-slate-700 border-slate-300',   dot: 'bg-slate-400' },
-  'DESA':       { label: 'DESA',      full: 'Desarrollo',        color: 'bg-blue-100 text-blue-700 border-blue-300',       dot: 'bg-blue-500' },
-  'SQA':        { label: 'SQA',       full: 'Control de Calidad',color: 'bg-amber-100 text-amber-700 border-amber-300',    dot: 'bg-amber-500' },
-  'Imple.':     { label: 'Imple.',    full: 'Implementación',    color: 'bg-amber-100 text-amber-700 border-amber-300',    dot: 'bg-amber-500' },
-  'PreProd':    { label: 'PreProd',   full: 'Pre-Producción',    color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' },
-  'Completado': { label: 'Completado',full: 'Completado',        color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' }
+  'PreProd':       { label: 'PreProd',      full: 'Pre-Producción',       color: 'bg-orange-100 text-orange-700 border-orange-300',    dot: 'bg-orange-500' },
+  'Primer Prod':   { label: 'Primer Prod',  full: 'Primera Producción',   color: 'bg-blue-100 text-blue-700 border-blue-300',          dot: 'bg-blue-500' },
+  'Masificación':  { label: 'Masificación', full: 'Masificación',         color: 'bg-emerald-100 text-emerald-700 border-emerald-300', dot: 'bg-emerald-500' }
 };
 
-const getStatus = (s) => STATUS_CONFIG[s] || STATUS_CONFIG['Negoc.'];
+const getStatus = (s) => STATUS_CONFIG[s] || STATUS_CONFIG['PreProd'];
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Todas las Fases' },
-  { value: 'Negoc.', label: 'Negociación' },
-  { value: 'DESA', label: 'Desarrollo' },
-  { value: 'SQA', label: 'Control de Calidad' },
-  { value: 'Imple.', label: 'Implementación' },
   { value: 'PreProd', label: 'Pre-Producción' },
-  { value: 'Completado', label: 'Completado' }
+  { value: 'Primer Prod', label: 'Primera Producción' },
+  { value: 'Masificación', label: 'Masificación' }
 ];
 
 const GROUP_OPTIONS = [

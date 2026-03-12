@@ -60,8 +60,8 @@ async def get_integrations_report(group_by: Optional[str] = None, authorization:
     Soporta agrupación dinámica: group_by=bank|product|phase (o None para lista plana)."""
     await get_current_user(authorization)
     
-    PHASE_ORDER = {"Completado": 0, "PreProd": 1, "Imple.": 2, "SQA": 3, "DESA": 4, "Negoc.": 5}
-    PHASE_LABELS = {"Negoc.": "En Negociación", "DESA": "Desarrollo", "SQA": "Control de Calidad", "Imple.": "Implementación", "PreProd": "Pre-Producción", "Completado": "Completado"}
+    PHASE_ORDER = {"Masificación": 0, "Primer Prod": 1, "PreProd": 2}
+    PHASE_LABELS = {"PreProd": "Pre-Producción", "Primer Prod": "Primera Producción", "Masificación": "Masificación"}
     
     banks = await db.banks.find(
         {"integrations": {"$exists": True, "$ne": []}},
@@ -71,16 +71,18 @@ async def get_integrations_report(group_by: Optional[str] = None, authorization:
     report = []
     for bank in banks:
         for intg in bank.get("integrations", []):
+            # Migrate old status to new 3-state model
+            migrated_intg = migrate_integration_status(intg.copy())
             report.append({
                 "bank_id": bank["bank_id"],
                 "bank_name": bank["name"],
                 "bank_logo_url": bank.get("bank_logo_url"),
-                "integration_id": intg.get("integration_id"),
-                "service_name": intg.get("service_name"),
-                "component_type": intg.get("component_type"),
-                "status": intg.get("status"),
-                "notes": intg.get("notes"),
-                "created_at": intg.get("created_at")
+                "integration_id": migrated_intg.get("integration_id"),
+                "service_name": migrated_intg.get("service_name"),
+                "component_type": migrated_intg.get("component_type"),
+                "status": migrated_intg.get("status"),
+                "notes": migrated_intg.get("notes"),
+                "created_at": migrated_intg.get("created_at")
             })
     
     report.sort(key=lambda x: PHASE_ORDER.get(x["status"], 99))
@@ -136,7 +138,7 @@ async def add_product_evolution(bank_id: str, integration_id: str, body: dict, a
         bank_id=bank_id,
         integration_id=integration_id,
         comment=body.get("comment", ""),
-        phase=body.get("phase", intg.get("status", "Negoc.")),
+        phase=body.get("phase", intg.get("status", "PreProd")),
         date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
     )
     doc = entry.model_dump()
@@ -184,6 +186,24 @@ async def create_bank(bank_data: BankCreate, authorization: Optional[str] = Head
     await db.banks.insert_one(doc)
     return bank
 
+# Status migration map: old states -> new states
+STATUS_MIGRATION = {
+    "Negoc.": "PreProd",
+    "DESA": "PreProd", 
+    "SQA": "Primer Prod",
+    "Imple.": "Primer Prod",
+    "PreProd": "PreProd",
+    "Completado": "Masificación",
+    "Primer Prod": "Primer Prod",
+    "Masificación": "Masificación"
+}
+
+def migrate_integration_status(integration):
+    """Migrate old integration status to new 3-state model"""
+    old_status = integration.get("status", "PreProd")
+    integration["status"] = STATUS_MIGRATION.get(old_status, "PreProd")
+    return integration
+
 @router.get("/banks", response_model=List[Bank])
 async def get_banks(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
@@ -191,6 +211,9 @@ async def get_banks(authorization: Optional[str] = Header(None)):
     for bank in banks:
         if isinstance(bank['created_at'], str):
             bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+        # Migrate old integration statuses to new 3-state model
+        if bank.get("integrations"):
+            bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
     return banks
 
 @router.put("/banks/{bank_id}", response_model=Bank)
@@ -205,6 +228,9 @@ async def update_bank(bank_id: str, bank_data: BankCreate, authorization: Option
     bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
     if isinstance(bank['created_at'], str):
         bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+    # Migrate old integration statuses to new 3-state model
+    if bank.get("integrations"):
+        bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
     return bank
 
 @router.delete("/banks/{bank_id}")
@@ -240,6 +266,9 @@ async def get_bank_detail(bank_id: str, authorization: Optional[str] = Header(No
         raise HTTPException(status_code=404, detail="Banco no encontrado")
     if isinstance(bank.get('created_at'), str):
         bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+    # Migrate old integration statuses to new 3-state model
+    if bank.get("integrations"):
+        bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
     return bank
 
 @router.post("/banks/{bank_id}/integrations")
@@ -261,7 +290,7 @@ async def add_bank_integration(bank_id: str, integration: BankIntegration, autho
 
 @router.put("/banks/{bank_id}/integrations/{integration_id}")
 async def update_bank_integration(bank_id: str, integration_id: str, update_data: dict, authorization: Optional[str] = Header(None)):
-    """Actualiza el estatus o datos de una integración."""
+    """Actualiza el estatus o datos de una integración. Envía notificación simulada al equipo de ventas si cambia el estatus."""
     await get_current_user(authorization)
     bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
     if not bank:
@@ -269,8 +298,10 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
     
     integrations = bank.get("integrations", [])
     found = False
+    old_status = None
     for i, intg in enumerate(integrations):
         if intg.get("integration_id") == integration_id:
+            old_status = intg.get("status")
             for key, val in update_data.items():
                 if key in ("status", "notes", "service_name", "component_type"):
                     integrations[i][key] = val
@@ -284,6 +315,30 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
         {"bank_id": bank_id},
         {"$set": {"integrations": integrations}}
     )
+    
+    # Notificación simulada al equipo de ventas cuando cambia el estatus
+    new_status = update_data.get("status")
+    if new_status and new_status != old_status:
+        try:
+            sales_roles = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
+            sales_users = await db.users.find(
+                {"cargo": {"$in": sales_roles}},
+                {"_id": 0, "email": 1, "first_name": 1, "last_name": 1}
+            ).to_list(100)
+            
+            service_name = integrations[i].get("service_name", "N/A")
+            bank_name = bank.get("name", "N/A")
+            recipients = [u["email"] for u in sales_users if u.get("email")]
+            
+            logging.info(
+                f"[EMAIL SIMULADO] Notificación de cambio de estatus de integración: "
+                f"Banco={bank_name}, Servicio={service_name}, "
+                f"De={old_status} -> A={new_status}, "
+                f"Destinatarios={recipients if recipients else 'Sin ejecutivos de ventas registrados'}"
+            )
+        except Exception as e:
+            logging.error(f"Error al preparar notificación de integración: {e}")
+    
     return integrations[i]
 
 @router.delete("/banks/{bank_id}/integrations/{integration_id}")

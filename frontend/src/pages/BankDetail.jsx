@@ -15,21 +15,15 @@ import { toast } from 'sonner';
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const INTEGRATION_STATUSES = [
-  { id: 'Negoc.', label: 'Negoc.', full: 'En Negociación', color: 'bg-slate-100 text-slate-700 border-slate-300' },
-  { id: 'DESA', label: 'DESA', full: 'Desarrollo', color: 'bg-amber-100 text-amber-700 border-amber-300' },
-  { id: 'SQA', label: 'SQA', full: 'Control de Calidad', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { id: 'Imple.', label: 'Imple.', full: 'Implementación', color: 'bg-purple-100 text-purple-700 border-purple-300' },
   { id: 'PreProd', label: 'PreProd', full: 'Pre-Producción', color: 'bg-orange-100 text-orange-700 border-orange-300' },
-  { id: 'Completado', label: 'Completado', full: 'Completado', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }
+  { id: 'Primer Prod', label: 'Primer Prod', full: 'Primera Producción', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  { id: 'Masificación', label: 'Masificación', full: 'Masificación', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }
 ];
 
 const PHASE_DOT_COLORS = {
-  'Negoc.': 'bg-slate-400 border-slate-300',
-  'DESA': 'bg-amber-500 border-amber-300',
-  'SQA': 'bg-blue-500 border-blue-300',
-  'Imple.': 'bg-purple-500 border-purple-300',
   'PreProd': 'bg-orange-500 border-orange-300',
-  'Completado': 'bg-emerald-500 border-emerald-300'
+  'Primer Prod': 'bg-blue-500 border-blue-300',
+  'Masificación': 'bg-emerald-500 border-emerald-300'
 };
 
 const getStatusStyle = (status) => INTEGRATION_STATUSES.find(s => s.id === status) || INTEGRATION_STATUSES[0];
@@ -43,10 +37,10 @@ const StatusPipeline = ({ currentStatus }) => {
   const idx = INTEGRATION_STATUSES.findIndex(s => s.id === currentStatus);
   return (
     <div className="flex items-center gap-0.5">
-      {INTEGRATION_STATUSES.slice(0, -1).map((s, i) => (
+      {INTEGRATION_STATUSES.map((s, i) => (
         <div key={s.id} className="flex items-center gap-0.5">
           <div className={`w-2 h-2 rounded-full ${i <= idx ? 'bg-emerald-500' : 'bg-slate-300'}`} title={s.full} />
-          {i < 4 && <div className={`w-3 h-0.5 ${i < idx ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
+          {i < INTEGRATION_STATUSES.length - 1 && <div className={`w-3 h-0.5 ${i < idx ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
         </div>
       ))}
     </div>
@@ -61,7 +55,7 @@ export const BankDetail = () => {
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
-  const [newIntegration, setNewIntegration] = useState({ service_name: '', component_type: '', status: 'Negoc.', notes: '' });
+  const [newIntegration, setNewIntegration] = useState({ service_name: '', component_type: '', status: 'PreProd', notes: '' });
 
   // Evolution log state
   const [evoOpen, setEvoOpen] = useState(false);
@@ -103,7 +97,7 @@ export const BankDetail = () => {
       await api.post(`/banks/${bankId}/integrations`, newIntegration);
       toast.success('Integración agregada');
       setAddDialogOpen(false);
-      setNewIntegration({ service_name: '', component_type: '', status: 'Negoc.', notes: '' });
+      setNewIntegration({ service_name: '', component_type: '', status: 'PreProd', notes: '' });
       fetchData();
     } catch { toast.error('Error al agregar integración'); }
   };
@@ -139,7 +133,7 @@ export const BankDetail = () => {
     setEvoOpen(true);
     setEvoLoading(true);
     setEvoEditing(null);
-    setEvoForm({ comment: '', phase: intg.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+    setEvoForm({ comment: '', phase: intg.status || 'PreProd', date: new Date().toISOString().slice(0, 10) });
     try {
       const res = await api.get(`/banks/${bankId}/integrations/${intg.integration_id}/evolution`);
       setEvoEntries(res.data);
@@ -158,7 +152,7 @@ export const BankDetail = () => {
         toast.success('Hito registrado');
       }
       setEvoEditing(null);
-      setEvoForm({ comment: '', phase: evoIntegration.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+      setEvoForm({ comment: '', phase: evoIntegration.status || 'PreProd', date: new Date().toISOString().slice(0, 10) });
       const res = await api.get(`/banks/${bankId}/integrations/${evoIntegration.integration_id}/evolution`);
       setEvoEntries(res.data);
     } catch { toast.error('Error al guardar'); }
@@ -248,7 +242,7 @@ export const BankDetail = () => {
                 <Rocket size={16} className="text-purple-600" />
                 <span className="text-sm font-medium text-slate-500">En Integración</span>
               </div>
-              <p className="text-2xl font-bold text-slate-900">{integrations.filter(i => i.status !== 'Completado').length}</p>
+              <p className="text-2xl font-bold text-slate-900">{integrations.filter(i => i.status !== 'Masificación').length}</p>
               <p className="text-xs text-slate-400">proyectos en curso</p>
             </div>
           </div>
@@ -484,7 +478,7 @@ export const BankDetail = () => {
                 {evoEditing && (
                   <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
                     setEvoEditing(null);
-                    setEvoForm({ comment: '', phase: evoIntegration?.status || 'Negoc.', date: new Date().toISOString().slice(0, 10) });
+                    setEvoForm({ comment: '', phase: evoIntegration?.status || 'PreProd', date: new Date().toISOString().slice(0, 10) });
                   }}>Cancelar Edición</Button>
                 )}
                 <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white" onClick={saveEvoEntry} data-testid="product-evo-save-btn">
