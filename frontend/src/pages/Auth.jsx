@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 
 // Sedes disponibles
 const SEDES = [
-  { value: 'TBP', label: 'Torre Banco Plaza (TBP)' },
-  { value: 'LCH', label: 'Los Chaguaramos (LCH)' }
+  { value: 'PYME', label: 'PYME' },
+  { value: 'CORP', label: 'CORP' }
 ];
 
 export const Auth = () => {
@@ -26,7 +26,7 @@ export const Auth = () => {
     cedula: '',
     email: '',
     password: '',
-    sede: 'TBP'  // Sede por defecto
+    sede: 'PYME'  // Sede por defecto
   });
   
   // Errors

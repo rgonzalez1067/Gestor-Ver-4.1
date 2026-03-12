@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 
 // Sedes disponibles
 const SEDES = [
-  { id: 'TBP', name: 'Torre Banco Plaza', shortName: 'TBP' },
-  { id: 'LCH', name: 'Los Chaguaramos', shortName: 'LCH' }
+  { id: 'PYME', name: 'PYME', shortName: 'PYME' },
+  { id: 'CORP', name: 'CORP', shortName: 'CORP' }
 ];
 
 // Tipos base de plantillas (sin sede)
@@ -134,7 +134,7 @@ const BASE_TEMPLATE_VARIABLES = {
 const getTemplateVariables = (templateId) => {
   if (!templateId) return [];
   // Extraer el tipo base del template_id (ej: quote_sent_TBP -> quote_sent)
-  const baseType = templateId.replace(/_TBP$|_LCH$/, '');
+  const baseType = templateId.replace(/_PYME$|_CORP$/, '');
   return BASE_TEMPLATE_VARIABLES[baseType] || [];
 };
 
@@ -283,7 +283,7 @@ export const EmailTemplatesEditor = () => {
   });
   
   // Plantillas sin sede (legacy)
-  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_TBP') && !t.template_id?.endsWith('_LCH'));
+  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_PYME') && !t.template_id?.endsWith('_CORP'));
 
   return (
     <div className="space-y-6">

@@ -192,7 +192,7 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     # Preparar email
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    quote_sede = quote.get("sede", "TBP")
+    quote_sede = quote.get("sede", "PYME")
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
     sede_emails = emails_by_sede.get(quote_sede, {})
     admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
@@ -435,7 +435,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     
     # Enviar notificación
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    quote_sede = quote.get("sede", "TBP")
+    quote_sede = quote.get("sede", "PYME")
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
     sede_emails = emails_by_sede.get(quote_sede, {})
     admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
@@ -508,7 +508,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     if quote_category == "equipment":
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        quote_sede = quote.get("sede", "TBP")
+        quote_sede = quote.get("sede", "PYME")
         emails_by_sede = config.get("emails_by_sede", {}) if config else {}
         sede_emails = emails_by_sede.get(quote_sede, {})
         warehouse_email = sede_emails.get("warehouse") or (config.get("warehouse_email") if config else None)
@@ -585,7 +585,7 @@ async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(N
     if not original_quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    quote_sede = original_quote.get("sede", "TBP")
+    quote_sede = original_quote.get("sede", "PYME")
     new_quote_number = await generate_quote_number(quote_sede)
     
     original_version = original_quote.get("version", 1)

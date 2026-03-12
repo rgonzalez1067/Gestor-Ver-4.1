@@ -31,7 +31,7 @@ async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
     # Para cotizaciones: filtrar por sede si no es admin
     quotes_query = {}
     if current_user.get("role") != "admin":
-        user_sede = current_user.get("sede", "TBP")
+        user_sede = current_user.get("sede", "PYME")
         quotes_query["sede"] = user_sede
     
     quotes_count = await db.quotes.count_documents(quotes_query)
@@ -122,7 +122,7 @@ async def get_missing_pdfs(authorization: Optional[str] = Header(None)):
         "quote_category": {"$ne": "equipment"}
     }
     if current_user.get("role") != "admin":
-        query["sede"] = current_user.get("sede", "TBP")
+        query["sede"] = current_user.get("sede", "PYME")
     
     quotes = await db.quotes.find(query, {"_id": 0, "quote_id": 1, "quote_number": 1, "quote_type": 1, "client_name": 1, "created_at": 1, "quote_status": 1}).sort("created_at", -1).to_list(100)
     

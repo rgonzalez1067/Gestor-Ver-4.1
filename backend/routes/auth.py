@@ -85,7 +85,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
         "cedula": user.get("cedula", ""),
         "role": user.get("role", "user"),
-        "sede": user.get("sede", "TBP"),  # Sede del usuario
+        "sede": user.get("sede", "PYME"),  # Sede del usuario
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
@@ -125,10 +125,10 @@ async def register_user(user_data: UserRegister):
     password_hash = hash_password(user_data.password)
     
     # Validar sede
-    valid_sedes = ["TBP", "LCH"]
-    sede = user_data.sede.upper() if user_data.sede else "TBP"
+    valid_sedes = ["PYME", "CORP"]
+    sede = user_data.sede.upper() if user_data.sede else "PYME"
     if sede not in valid_sedes:
-        raise HTTPException(status_code=400, detail="Sede inválida. Debe ser 'TBP' o 'LCH'")
+        raise HTTPException(status_code=400, detail="Sede inválida. Debe ser 'PYME' o 'CORP'")
     
     # Verificar si es el primer usuario (será admin)
     user_count = await db.users.count_documents({})
@@ -242,7 +242,7 @@ async def login_user(credentials: UserLogin):
         "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
         "cedula": user.get("cedula", ""),
         "role": user.get("role", "user"),
-        "sede": user.get("sede", "TBP"),  # Sede del usuario
+        "sede": user.get("sede", "PYME"),  # Sede del usuario
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
@@ -422,8 +422,8 @@ async def update_user(user_id: str, user_data: UserUpdate, authorization: Option
             raise HTTPException(status_code=400, detail=f"Departamento inválido. Opciones: {DEPARTAMENTOS}")
         update_data["departamento"] = user_data.departamento
     if user_data.sede is not None:
-        if user_data.sede not in ["TBP", "LCH"]:
-            raise HTTPException(status_code=400, detail="Sede inválida. Use 'TBP' o 'LCH'")
+        if user_data.sede not in ["PYME", "CORP"]:
+            raise HTTPException(status_code=400, detail="Sede inválida. Use 'PYME' o 'CORP'")
         update_data["sede"] = user_data.sede
     if user_data.role is not None:
         if user_data.role not in ["admin", "user"]:
@@ -529,8 +529,8 @@ async def admin_create_user(user_data: UserRegister, authorization: Optional[str
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     password_hash = hash_password(user_data.password)
     
-    valid_sedes = ["TBP", "LCH"]
-    sede = user_data.sede.upper() if user_data.sede else "TBP"
+    valid_sedes = ["PYME", "CORP"]
+    sede = user_data.sede.upper() if user_data.sede else "PYME"
     if sede not in valid_sedes:
         raise HTTPException(status_code=400, detail="Sede inválida")
     

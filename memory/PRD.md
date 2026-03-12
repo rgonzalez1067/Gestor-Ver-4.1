@@ -58,6 +58,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Otros
 - Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
+- **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP (cotizaciones, proyectos, usuarios, configuracion)
 - Gestion usuarios con roles/permisos, Menu lateral
 
 ## Reglas de Negocio Clave

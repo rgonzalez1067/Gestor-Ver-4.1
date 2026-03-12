@@ -245,8 +245,8 @@ DEFAULT_EMAIL_TEMPLATES = {
 
 # Sedes disponibles
 SEDES = [
-    {"id": "TBP", "name": "Torre Banco Plaza"},
-    {"id": "LCH", "name": "Los Chaguaramos"}
+    {"id": "PYME", "name": "PYME"},
+    {"id": "CORP", "name": "CORP"}
 ]
 
 # Base templates para generar por sede

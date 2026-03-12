@@ -46,7 +46,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     total_bs = total_usd * exchange_rate
     
     # Obtener la sede del usuario actual
-    user_sede = current_user.get("sede", "TBP")
+    user_sede = current_user.get("sede", "PYME")
     
     quote_number = await generate_quote_number(user_sede)
     
@@ -152,7 +152,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         total_bs = total_usd * exchange_rate
         
         # Obtener la sede del usuario actual
-        user_sede = current_user.get("sede", "TBP")
+        user_sede = current_user.get("sede", "PYME")
         
         quote_number = await generate_quote_number(user_sede)
         quote_id = f"quo_{uuid.uuid4().hex[:12]}"
@@ -381,7 +381,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
     # Filtrar por sede del usuario (admin puede ver todas)
     query = {}
     if current_user.get("role") != "admin":
-        user_sede = current_user.get("sede", "TBP")
+        user_sede = current_user.get("sede", "PYME")
         query["sede"] = user_sede
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
@@ -392,7 +392,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
         if isinstance(quote['created_at'], str):
             quote['created_at'] = datetime.fromisoformat(quote['created_at'])
         if 'sede' not in quote:
-            quote['sede'] = 'TBP'
+            quote['sede'] = 'PYME'
         if not quote.get('client_name') and quote.get('client_id'):
             client_ids_missing.add(quote['client_id'])
     
@@ -1121,7 +1121,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     now = datetime.now(timezone.utc)
     # Obtener sede del usuario
-    user_sede = current_user.get("sede", "TBP")
+    user_sede = current_user.get("sede", "PYME")
     quote_number = await generate_quote_number(user_sede)
     fecha = now.strftime("%d/%m/%Y")
     from datetime import timedelta

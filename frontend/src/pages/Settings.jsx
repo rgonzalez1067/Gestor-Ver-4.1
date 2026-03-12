@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 
 // Sedes disponibles
 const SEDES = [
-  { id: 'TBP', name: 'Torre Banco Plaza', shortName: 'TBP' },
-  { id: 'LCH', name: 'Los Chaguaramos', shortName: 'LCH' }
+  { id: 'PYME', name: 'PYME', shortName: 'PYME' },
+  { id: 'CORP', name: 'CORP', shortName: 'CORP' }
 ];
 
 const TEMPLATE_TYPES = [
@@ -33,8 +33,8 @@ export const Settings = () => {
   
   // Correos por sede
   const [emailsBySede, setEmailsBySede] = useState({
-    TBP: { admin: '', warehouse: '', sales: '' },
-    LCH: { admin: '', warehouse: '', sales: '' }
+    PYME: { admin: '', warehouse: '', sales: '' },
+    CORP: { admin: '', warehouse: '', sales: '' }
   });
   const [implementationEmail, setImplementationEmail] = useState('');
   const [implManagerEmail, setImplManagerEmail] = useState('');
@@ -67,15 +67,15 @@ export const Settings = () => {
       
       // Cargar correos por sede
       setEmailsBySede({
-        TBP: {
-          admin: response.data.emails_by_sede?.TBP?.admin || response.data.admin_email || '',
-          warehouse: response.data.emails_by_sede?.TBP?.warehouse || response.data.warehouse_email || '',
-          sales: response.data.emails_by_sede?.TBP?.sales || ''
+        PYME: {
+          admin: response.data.emails_by_sede?.PYME?.admin || response.data.admin_email || '',
+          warehouse: response.data.emails_by_sede?.PYME?.warehouse || response.data.warehouse_email || '',
+          sales: response.data.emails_by_sede?.PYME?.sales || ''
         },
-        LCH: {
-          admin: response.data.emails_by_sede?.LCH?.admin || '',
-          warehouse: response.data.emails_by_sede?.LCH?.warehouse || '',
-          sales: response.data.emails_by_sede?.LCH?.sales || ''
+        CORP: {
+          admin: response.data.emails_by_sede?.CORP?.admin || '',
+          warehouse: response.data.emails_by_sede?.CORP?.warehouse || '',
+          sales: response.data.emails_by_sede?.CORP?.sales || ''
         }
       });
       

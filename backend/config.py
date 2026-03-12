@@ -111,7 +111,7 @@ async def generate_quote_number(sede: str) -> str:
     now = datetime.now(timezone.utc)
     year = now.strftime("%Y")
     month = now.strftime("%m")
-    sede_code = sede.upper() if sede in ("TBP", "LCH") else "TBP"
+    sede_code = sede.upper() if sede in ("PYME", "CORP") else "PYME"
     counter_key = f"quote_{sede_code}_{year}_{month}"
     
     result = await db.counters.find_one_and_update(

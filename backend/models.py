@@ -535,7 +535,7 @@ class Quote(BaseModel):
     equipment_serial_number: Optional[str] = None  # Número de serie del equipo a reparar
     estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
     # Sede del usuario que crea la cotización
-    sede: str = "TBP"  # "TBP" (Torre Banco Plaza) o "LCH" (Los Chaguaramos)
+    sede: str = "PYME"  # "PYME" o "CORP"
     created_by_user_id: Optional[str] = None  # ID del usuario que creó la cotización
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
@@ -691,7 +691,7 @@ class UserRegister(BaseModel):
     phone: Optional[str] = None  # Teléfono
     cargo: Optional[str] = None  # Cargo/Función
     departamento: Optional[str] = None  # Departamento
-    sede: str = Field(default="TBP", description="Sede del usuario: TBP o LCH")
+    sede: str = Field(default="PYME", description="Sede del usuario: PYME o CORP")
 
 # Departamentos disponibles
 DEPARTAMENTOS = ["Implementación", "Infraestructura", "Ventas Pyme", "Ventas Corporativas", "Administración", "Dirección"]
@@ -729,7 +729,7 @@ class UserResponse(BaseModel):
     cargo: Optional[str] = None
     departamento: Optional[str] = None
     role: str = "user"  # "admin" o "user"
-    sede: str = "TBP"  # "TBP" (Torre Banco Plaza) o "LCH" (Los Chaguaramos)
+    sede: str = "PYME"  # "PYME" o "CORP"
     is_active: bool = True
     is_verified: bool = False
     permissions: dict = {}

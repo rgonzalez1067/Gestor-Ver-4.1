@@ -22,8 +22,8 @@ class SedeEmails(BaseModel):
     sales: Optional[EmailStr] = None
 
 class EmailsBySede(BaseModel):
-    TBP: Optional[SedeEmails] = None
-    LCH: Optional[SedeEmails] = None
+    PYME: Optional[SedeEmails] = None
+    CORP: Optional[SedeEmails] = None
 
 class AppSettings(BaseModel):
     implementation_email: Optional[EmailStr] = None
@@ -45,8 +45,8 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
             "admin_email": None, 
             "warehouse_email": None,
             "emails_by_sede": {
-                "TBP": {"admin": "", "warehouse": "", "sales": ""},
-                "LCH": {"admin": "", "warehouse": "", "sales": ""}
+                "PYME": {"admin": "", "warehouse": "", "sales": ""},
+                "CORP": {"admin": "", "warehouse": "", "sales": ""}
             },
             "resend_api_key_configured": False
         }
@@ -60,11 +60,11 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     # Normalizar emails_by_sede para incluir siempre el campo 'sales'
     raw_ebs = config.get("emails_by_sede", {})
     emails_by_sede = {}
-    for sede_id in ["TBP", "LCH"]:
+    for sede_id in ["PYME", "CORP"]:
         sede_data = raw_ebs.get(sede_id, {})
         emails_by_sede[sede_id] = {
-            "admin": sede_data.get("admin", config.get("admin_email", "") if sede_id == "TBP" else ""),
-            "warehouse": sede_data.get("warehouse", config.get("warehouse_email", "") if sede_id == "TBP" else ""),
+            "admin": sede_data.get("admin", config.get("admin_email", "") if sede_id == "PYME" else ""),
+            "warehouse": sede_data.get("warehouse", config.get("warehouse_email", "") if sede_id == "PYME" else ""),
             "sales": sede_data.get("sales", "")
         }
     
@@ -127,7 +127,7 @@ async def get_document_templates(authorization: Optional[str] = Header(None)):
     # Por ahora retornar estructura vacía - las plantillas se configurarán más adelante
     templates = {}
     template_types = ['despacho_equipos', 'cotizacion_aprobada', 'facturacion_control']
-    sedes = ['TBP', 'LCH']
+    sedes = ['PYME', 'CORP']
     
     for sede in sedes:
         for template_type in template_types:

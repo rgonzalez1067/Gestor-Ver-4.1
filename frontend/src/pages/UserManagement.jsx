@@ -14,8 +14,8 @@ import { toast } from 'sonner';
 
 // Configuración de sedes
 const SEDES = [
-  { id: 'TBP', name: 'Torre Banco Plaza', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-  { id: 'LCH', name: 'Los Chaguaramos', color: 'bg-purple-100 text-purple-800 border-purple-300' }
+  { id: 'PYME', name: 'PYME', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { id: 'CORP', name: 'CORP', color: 'bg-purple-100 text-purple-800 border-purple-300' }
 ];
 
 // Configuración de perfiles
@@ -63,7 +63,7 @@ export const UserManagement = () => {
     phone: '',
     cargo: '',
     departamento: '',
-    sede: 'TBP',
+    sede: 'PYME',
     role: 'user',
     password: ''
   });
@@ -105,7 +105,7 @@ export const UserManagement = () => {
       phone: '',
       cargo: '',
       departamento: '',
-      sede: 'TBP',
+      sede: 'PYME',
       role: 'user',
       password: ''
     });
@@ -122,7 +122,7 @@ export const UserManagement = () => {
       phone: user.phone || '',
       cargo: user.cargo || '',
       departamento: user.departamento || '',
-      sede: user.sede || 'TBP',
+      sede: user.sede || 'PYME',
       role: user.role || 'user',
       password: ''
     });
