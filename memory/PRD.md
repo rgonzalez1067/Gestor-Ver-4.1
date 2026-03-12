@@ -26,6 +26,9 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - CRUD completo con logo, productos bancarios, Roadmap
 - Bitacora de Evolucion, Consulta Global con Agrupamiento
 - Importacion masiva, Exportacion PDF, Matriz certificacion
+- **Optimizacion Flujo Integracion (2026-02-20)**: Estados simplificados de 6 a 3: `PreProd`, `Primer Prod`, `Masificacion`
+- Notificacion simulada (MOCKED) por email al equipo de ventas al cambiar estado de integracion
+- Migracion automatica de estados antiguos en runtime (STATUS_MIGRATION map)
 
 ### Modulo de Integradores
 - CRUD con importacion masiva, CRM tecnico
@@ -51,6 +54,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Ejecutivo filtrado**: Solo usuarios con cargo 'Ejecutivo de Ventas Pyme' o 'Ejecutivo de Ventas Corporativas'
 - **Cantidad de Cajas**: Se hereda a campo VTID en cotizaciones (pendiente implementar)
 - **Aplicativo condicionado**: Se filtra segun integrador seleccionado
+- **Estados Integracion Bancaria**: Solo PreProd, Primer Prod, Masificacion (migrados automaticamente desde estados antiguos)
 
 ## Integraciones
 - Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas
