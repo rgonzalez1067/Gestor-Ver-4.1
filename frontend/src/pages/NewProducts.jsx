@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -37,10 +37,7 @@ const PipelineDots = ({ currentStatus }) => {
     <div className="flex items-center gap-0.5">
       {PIPELINE_STATUSES.map((s, i) => (
         <div key={s.id} className="flex items-center gap-0.5">
-          <div
-            className={`w-2.5 h-2.5 rounded-full ${isPromoted || i <= idx ? 'bg-emerald-500' : 'bg-slate-300'}`}
-            title={s.label}
-          />
+          <div className={`w-2.5 h-2.5 rounded-full ${isPromoted || i <= idx ? 'bg-emerald-500' : 'bg-slate-300'}`} title={s.label} />
           {i < PIPELINE_STATUSES.length - 1 && (
             <div className={`w-4 h-0.5 ${isPromoted || i < idx ? 'bg-emerald-400' : 'bg-slate-200'}`} />
           )}
@@ -59,27 +56,31 @@ const PipelineDots = ({ currentStatus }) => {
 export const NewProducts = () => {
   const [products, setProducts] = useState([]);
   const [banks, setBanks] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
-  const [form, setForm] = useState({ service_name: '', component_type: '', bank_id: '', notes: '' });
+  const [form, setForm] = useState({ service_id: '', component_type: '', bank_id: '', notes: '' });
 
   // Evolution log state
   const [evoOpen, setEvoOpen] = useState(false);
   const [evoProduct, setEvoProduct] = useState(null);
   const [evoEntries, setEvoEntries] = useState([]);
+  const [transitions, setTransitions] = useState([]);
   const [evoLoading, setEvoLoading] = useState(false);
   const [evoForm, setEvoForm] = useState({ comment: '', phase: 'Negociación', date: new Date().toISOString().slice(0, 10) });
   const [evoEditing, setEvoEditing] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [prodRes, bankRes] = await Promise.all([
+      const [prodRes, bankRes, svcRes] = await Promise.all([
         api.get('/new-products'),
-        api.get('/banks')
+        api.get('/banks'),
+        api.get('/services')
       ]);
       setProducts(prodRes.data);
       setBanks(bankRes.data);
+      setServices(svcRes.data.filter(s => s.service_type === 'Producto' || !s.service_type));
     } catch {
       toast.error('Error al cargar datos');
     } finally { setLoading(false); }
@@ -87,8 +88,16 @@ export const NewProducts = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const handleServiceSelect = (serviceId) => {
+    const svc = services.find(s => s.service_id === serviceId);
+    if (svc) {
+      const comp = (svc.vpos_enabled || svc.mpos_enabled) ? 'VPOS/MPOS' : 'PG/Link';
+      setForm({ ...form, service_id: serviceId, component_type: comp });
+    }
+  };
+
   const handleCreate = async () => {
-    if (!form.service_name || !form.component_type || !form.bank_id) {
+    if (!form.service_id || !form.component_type || !form.bank_id) {
       toast.error('Complete los campos obligatorios');
       return;
     }
@@ -96,7 +105,7 @@ export const NewProducts = () => {
       await api.post('/new-products', form);
       toast.success('Producto creado en Negociación');
       setAddOpen(false);
-      setForm({ service_name: '', component_type: '', bank_id: '', notes: '' });
+      setForm({ service_id: '', component_type: '', bank_id: '', notes: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al crear producto');
@@ -136,8 +145,12 @@ export const NewProducts = () => {
     setEvoEditing(null);
     setEvoForm({ comment: '', phase: product.status === 'Promovido' ? 'IMPLE' : product.status, date: new Date().toISOString().slice(0, 10) });
     try {
-      const res = await api.get(`/new-products/${product.product_id}/evolution`);
-      setEvoEntries(res.data);
+      const [evoRes, transRes] = await Promise.all([
+        api.get(`/new-products/${product.product_id}/evolution`),
+        api.get(`/new-products/${product.product_id}/transitions`)
+      ]);
+      setEvoEntries(evoRes.data);
+      setTransitions(transRes.data);
     } catch { toast.error('Error al cargar historial'); }
     finally { setEvoLoading(false); }
   };
@@ -172,8 +185,22 @@ export const NewProducts = () => {
     } catch { toast.error('Error al eliminar'); }
   };
 
+  // Merge evolution entries + transitions into unified timeline
+  const buildTimeline = () => {
+    const items = [];
+    evoEntries.forEach(e => items.push({ ...e, _type: 'evolution', _sort: e.date || e.created_at }));
+    transitions.forEach(t => {
+      const ts = t.timestamp || t.created_at;
+      const dateStr = typeof ts === 'string' ? ts.slice(0, 10) : ts;
+      items.push({ ...t, _type: 'transition', _sort: dateStr });
+    });
+    items.sort((a, b) => (b._sort || '').localeCompare(a._sort || ''));
+    return items;
+  };
+
   const activeProducts = products.filter(p => p.status !== 'Promovido');
   const promotedProducts = products.filter(p => p.status === 'Promovido');
+  const timeline = evoOpen ? buildTimeline() : [];
 
   if (loading) {
     return (
@@ -331,10 +358,18 @@ export const NewProducts = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>Nombre del Producto / Medio de Pago</Label>
-                <Input placeholder="Ej: Pago QR, Wallet Digital..." value={form.service_name}
-                  onChange={(e) => setForm({ ...form, service_name: e.target.value })}
-                  data-testid="np-input-name" />
+                <Label>Medio de Pago (Catálogo)</Label>
+                <Select value={form.service_id} onValueChange={handleServiceSelect}>
+                  <SelectTrigger data-testid="np-select-service">
+                    <SelectValue placeholder="Seleccione un medio de pago..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.map(s => (
+                      <SelectItem key={s.service_id} value={s.service_id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-slate-400 mt-1">Si no aparece, créelo primero en Medios de Pago</p>
               </div>
               <div>
                 <Label>Componente</Label>
@@ -370,7 +405,7 @@ export const NewProducts = () => {
                 <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
                 <Button onClick={handleCreate} data-testid="np-save-btn"
                   className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={!form.service_name || !form.component_type || !form.bank_id}>
+                  disabled={!form.service_id || !form.component_type || !form.bank_id}>
                   Crear Producto
                 </Button>
               </div>
@@ -397,7 +432,7 @@ export const NewProducts = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* ==================== EVOLUTION TIMELINE MODAL ==================== */}
+        {/* ==================== EVOLUTION + TRANSITIONS MODAL ==================== */}
         <Dialog open={evoOpen} onOpenChange={(o) => { if (!o) { setEvoOpen(false); setEvoEditing(null); } }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="np-evolution-modal">
             <DialogHeader>
@@ -408,7 +443,7 @@ export const NewProducts = () => {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Form */}
+            {/* Form to add evolution entry */}
             <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
               <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
@@ -441,36 +476,70 @@ export const NewProducts = () => {
               </div>
             </div>
 
-            {/* Timeline */}
+            {/* Unified Timeline */}
             <div className="mt-2">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Línea de Tiempo ({evoEntries.length})</p>
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                Línea de Tiempo ({timeline.length})
+              </p>
               {evoLoading ? (
                 <p className="text-sm text-slate-400 text-center py-4">Cargando...</p>
-              ) : evoEntries.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-4 italic">Sin hitos registrados</p>
+              ) : timeline.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4 italic">Sin registros</p>
               ) : (
                 <div className="relative pl-6 space-y-0">
                   <div className="absolute left-[10px] top-2 bottom-2 w-0.5 bg-slate-200" />
-                  {evoEntries.map((entry) => {
-                    const dotColor = getStatusStyle(entry.phase).dot || 'bg-slate-400';
+                  {timeline.map((item) => {
+                    if (item._type === 'transition') {
+                      const tsDate = (item.timestamp || '').slice(0, 10);
+                      const tsTime = (item.timestamp || '').slice(11, 16);
+                      return (
+                        <div key={item.transition_id} className="relative pb-4" data-testid={`np-transition-${item.transition_id}`}>
+                          <div className="absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white bg-indigo-500" />
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 ml-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <ArrowRightLeft size={12} className="text-indigo-500" />
+                              <span className="text-[10px] font-semibold text-indigo-600 uppercase">Cambio de Estado</span>
+                              <span className="text-[10px] text-slate-400">{tsDate} {tsTime}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1.5 text-sm text-slate-700">
+                              {item.old_status ? <StatusBadge status={item.old_status} /> : <span className="text-xs text-slate-400 italic">Inicio</span>}
+                              <ArrowRight size={14} className="text-slate-400 shrink-0" />
+                              <StatusBadge status={item.new_status} />
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-slate-500">
+                              <span>Por: {item.user_name}</span>
+                              {item.days_in_previous_phase != null && (
+                                <span className="flex items-center gap-0.5 text-indigo-600 font-medium">
+                                  <Clock size={10} />
+                                  {item.days_in_previous_phase} día{item.days_in_previous_phase !== 1 ? 's' : ''} en {item.old_status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Evolution entry
+                    const dotColor = getStatusStyle(item.phase).dot || 'bg-slate-400';
                     return (
-                      <div key={entry.entry_id} className="relative pb-4" data-testid={`np-evo-entry-${entry.entry_id}`}>
+                      <div key={item.entry_id} className="relative pb-4" data-testid={`np-evo-entry-${item.entry_id}`}>
                         <div className={`absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white ${dotColor}`} />
                         <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1.5">
-                                <StatusBadge status={entry.phase} />
-                                <span className="text-[10px] text-slate-400">{entry.date}</span>
-                                {entry.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
+                                <StatusBadge status={item.phase} />
+                                <span className="text-[10px] text-slate-400">{item.date}</span>
+                                {item.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
                               </div>
-                              <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{entry.comment}</p>
+                              <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{item.comment}</p>
                             </div>
                             <div className="flex items-center gap-0.5 flex-shrink-0">
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(entry)} data-testid={`np-evo-edit-${entry.entry_id}`}>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(item)} data-testid={`np-evo-edit-${item.entry_id}`}>
                                 <Pencil size={11} />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(entry.entry_id)} data-testid={`np-evo-delete-${entry.entry_id}`}>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(item.entry_id)} data-testid={`np-evo-delete-${item.entry_id}`}>
                                 <Trash2 size={11} />
                               </Button>
                             </div>

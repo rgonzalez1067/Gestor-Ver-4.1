@@ -251,6 +251,7 @@ class ProductEvolutionEntry(BaseModel):
 class NewProduct(BaseModel):
     """Producto nuevo en pipeline de I+D antes de despliegue oficial."""
     product_id: str = Field(default_factory=lambda: f"npd_{uuid.uuid4().hex[:8]}")
+    service_id: str  # Referencia al catálogo maestro de servicios
     service_name: str
     component_type: str  # "VPOS/MPOS" o "PG/Link"
     bank_id: str  # Banco patrocinador/socio
@@ -260,7 +261,7 @@ class NewProduct(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class NewProductCreate(BaseModel):
-    service_name: str
+    service_id: str  # ID del servicio del catálogo maestro
     component_type: str
     bank_id: str
     notes: Optional[str] = None
@@ -274,6 +275,17 @@ class NewProductEvolutionEntry(BaseModel):
     date: str  # ISO date
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: Optional[datetime] = None
+
+class StatusTransitionLog(BaseModel):
+    """Log de auditoría para transiciones de estado en pipeline I+D."""
+    transition_id: str = Field(default_factory=lambda: f"stl_{uuid.uuid4().hex[:8]}")
+    product_id: str
+    old_status: str
+    new_status: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    user_id: str
+    user_name: str
+    days_in_previous_phase: Optional[int] = None
 
 # ==================== IMPORT RESPONSE MODELS ====================
 class ImportError(BaseModel):

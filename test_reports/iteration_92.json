@@ -1,0 +1,76 @@
+{
+  "summary": "Iteration 92 - New Products module enhancements tested. All backend (10/10) and frontend tests passed. New features: 1) service_id catalog-based selection with name resolution, 2) StatusTransitionLog audit with user/date/days tracking, 3) /transitions endpoint, 4) IMPLE creates 2 transitions + hand-off, 5) DELETE cascades to transitions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DialogContent", "issues": ["Warning: Missing Description or aria-describedby for DialogContent - accessibility improvement recommended"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration92_new_products_catalog.py",
+    "/app/test_reports/pytest/pytest_results_iteration92.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Email notifications correctly include date (dd/mm/yyyy format) and days_in_previous_phase in log messages",
+    "Service dropdown filters by service_type='Producto' - only 28 of 59 services shown",
+    "Component auto-detection works based on service.vpos_enabled/mpos_enabled/gateway_enabled/link_enabled",
+    "Timeline merges evolution entries (white bg) and transitions (indigo bg) sorted by date DESC"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration92_new_products_catalog.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% - All UI elements verified"
+  },
+  "test_credentials": {
+    "email": "np_test@test.com",
+    "password": "Test1234!"
+  },
+  "seed_data_creation": "Backend tests created and cleaned test services/banks/products. Existing promoted product npd_79da11fa used for transition history verification.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 92 - New Products catalog-based selection and audit log complete. Key features verified: 1) POST /api/new-products now requires service_id (resolves name from catalog), 404 if service not found. 2) StatusTransitionLog records old_status, new_status, timestamp, user_id, user_name, days_in_previous_phase. 3) GET /api/new-products/{id}/transitions returns history sorted by timestamp DESC. 4) IMPLE status change creates 2 transitions (→IMPLE and IMPLE→Promovido) plus hand-off. 5) DELETE /api/new-products/{id} also deletes np_status_transitions entries. 6) Frontend: 'Medio de Pago (Catálogo)' dropdown filters services by type='Producto', component auto-detects based on service flags, timeline shows merged evolution+transitions with different backgrounds.",
+  "verified_features": {
+    "backend_endpoints": {
+      "POST /api/new-products (with service_id)": "VERIFIED - Resolves service_name from catalog",
+      "POST /api/new-products (invalid service_id)": "VERIFIED - Returns 404 with 'Créelo primero' message",
+      "GET /api/new-products/{id}/transitions": "VERIFIED - Returns transitions sorted by timestamp DESC",
+      "PUT /api/new-products/{id}/status": "VERIFIED - Records StatusTransitionLog with all fields",
+      "PUT /api/new-products/{id}/status (IMPLE)": "VERIFIED - Creates 2 transitions + hand-off",
+      "DELETE /api/new-products/{id}": "VERIFIED - Also deletes associated transitions"
+    },
+    "status_transition_log_fields": {
+      "transition_id": "stl_xxx format",
+      "product_id": "Reference to product",
+      "old_status": "Previous state or empty string for initial",
+      "new_status": "New state",
+      "timestamp": "ISO datetime",
+      "user_id": "ID of user making change",
+      "user_name": "Name of user",
+      "days_in_previous_phase": "Integer or null for initial"
+    },
+    "frontend_elements": {
+      "service_dropdown": "VERIFIED - Label 'Medio de Pago (Catálogo)', filters by service_type='Producto', shows 28 options",
+      "component_auto_detection": "VERIFIED - VPOS/MPOS auto-selected for vpos_enabled/mpos_enabled services",
+      "save_button_disabled": "VERIFIED - Disabled until service_id, component_type, and bank_id selected",
+      "timeline": "VERIFIED - Shows 'LÍNEA DE TIEMPO' with merged entries",
+      "transition_entry": "VERIFIED - Indigo bg, shows old→new badges, 'Por: username', 'X días en [phase]'",
+      "initial_transition": "VERIFIED - Shows 'Inicio → Negociación' for first entry"
+    },
+    "email_notifications": {
+      "status": "MOCKED via logging.info",
+      "format": "[EMAIL SIMULADO] ... ha avanzado a la fase de {new_status} el día {dd/mm/yyyy}. (Tiempo transcurrido en fase {old_status}: X días)"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Resend email - simulated via logging.info with [EMAIL SIMULADO] prefix, now includes date (dd/mm/yyyy) and days_in_phase"]
+  }
+}

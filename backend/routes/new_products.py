@@ -3,28 +3,63 @@ from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
 from datetime import datetime, timezone
 import logging
-import uuid
 
 from config import db, get_current_user
-from models import NewProduct, NewProductCreate, NewProductEvolutionEntry, BankIntegration
+from models import NewProduct, NewProductCreate, NewProductEvolutionEntry, StatusTransitionLog, BankIntegration
 
 router = APIRouter()
 
 NP_STATUSES = ["Negociación", "DESA", "SQA", "IMPLE", "Promovido"]
+
+
+async def _log_transition(product_id: str, old_status: str, new_status: str, user: dict):
+    """Registra una transición de estado con cálculo de lead time."""
+    days_in_phase = None
+    if old_status:
+        last = await db.np_status_transitions.find_one(
+            {"product_id": product_id, "new_status": old_status},
+            {"_id": 0, "timestamp": 1},
+            sort=[("timestamp", -1)]
+        )
+        if last and last.get("timestamp"):
+            ts = last["timestamp"]
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts)
+            days_in_phase = (datetime.now(timezone.utc) - ts).days
+
+    entry = StatusTransitionLog(
+        product_id=product_id,
+        old_status=old_status,
+        new_status=new_status,
+        user_id=user.get("user_id", ""),
+        user_name=f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", ""),
+        days_in_previous_phase=days_in_phase,
+    )
+    doc = entry.model_dump()
+    doc["timestamp"] = doc["timestamp"].isoformat()
+    await db.np_status_transitions.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
 
 # ==================== CRUD ====================
 
 @router.post("/new-products")
 async def create_new_product(body: NewProductCreate, authorization: Optional[str] = Header(None)):
     """Crea un nuevo producto en el pipeline I+D. Estado inicial: Negociación."""
-    await get_current_user(authorization)
+    user = await get_current_user(authorization)
 
     bank = await db.banks.find_one({"bank_id": body.bank_id}, {"_id": 0, "name": 1})
     if not bank:
         raise HTTPException(status_code=404, detail="Banco no encontrado")
 
+    service = await db.services.find_one({"service_id": body.service_id}, {"_id": 0, "name": 1, "service_id": 1})
+    if not service:
+        raise HTTPException(status_code=404, detail="Medio de pago no encontrado en el catálogo. Créelo primero en Medios de Pago.")
+
     product = NewProduct(
-        service_name=body.service_name,
+        service_id=body.service_id,
+        service_name=service["name"],
         component_type=body.component_type,
         bank_id=body.bank_id,
         bank_name=bank["name"],
@@ -35,6 +70,10 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
     doc["created_at"] = doc["created_at"].isoformat()
     await db.new_products.insert_one(doc)
     doc.pop("_id", None)
+
+    # Registrar transición inicial
+    await _log_transition(doc["product_id"], "", "Negociación", user)
+
     return doc
 
 
@@ -61,6 +100,7 @@ async def delete_new_product(product_id: str, authorization: Optional[str] = Hea
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     await db.new_product_evolution.delete_many({"product_id": product_id})
+    await db.np_status_transitions.delete_many({"product_id": product_id})
     return {"message": "Producto eliminado"}
 
 
@@ -69,7 +109,7 @@ async def delete_new_product(product_id: str, authorization: Optional[str] = Hea
 @router.put("/new-products/{product_id}/status")
 async def update_new_product_status(product_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Actualiza el estado de un producto. Si pasa a IMPLE, ejecuta hand-off automático al banco."""
-    await get_current_user(authorization)
+    user = await get_current_user(authorization)
 
     new_status = body.get("status")
     if new_status not in NP_STATUSES or new_status == "Promovido":
@@ -86,7 +126,13 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     if new_status == old_status:
         return product
 
-    # -- Notificación simulada --
+    # Registrar transición con lead time
+    transition = await _log_transition(product_id, old_status, new_status, user)
+    days_in_phase = transition.get("days_in_previous_phase")
+    days_text = f" (Tiempo transcurrido en fase {old_status}: {days_in_phase} días)" if days_in_phase is not None else ""
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+
+    # -- Notificación simulada enriquecida --
     try:
         sales_roles = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
         sales_users = await db.users.find(
@@ -97,15 +143,17 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
 
         if new_status == "IMPLE":
             logging.info(
-                f"[EMAIL SIMULADO - CRITICO] Producto listo para banco: "
-                f"'{product['service_name']}' ahora disponible en la ficha de '{product['bank_name']}'. "
+                f"[EMAIL SIMULADO - CRITICO] El proceso de Integración del Medio de Pago "
+                f"'{product['service_name']}', del Banco '{product['bank_name']}', "
+                f"ha avanzado a la fase de IMPLE el día {now_str}.{days_text} "
+                f"El producto ya está disponible en la ficha del Banco. "
                 f"Destinatarios={recipients or 'Sin ejecutivos registrados'}"
             )
         else:
             logging.info(
-                f"[EMAIL SIMULADO] Avance pipeline I+D: "
-                f"'{product['service_name']}' pasó de {old_status} a {new_status}. "
-                f"Banco={product['bank_name']}. "
+                f"[EMAIL SIMULADO] El proceso de Integración del Medio de Pago "
+                f"'{product['service_name']}', del Banco '{product['bank_name']}', "
+                f"ha avanzado a la fase de {new_status} el día {now_str}.{days_text} "
                 f"Destinatarios={recipients or 'Sin ejecutivos registrados'}"
             )
     except Exception as e:
@@ -129,13 +177,18 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
             {"$push": {"integrations": intg_doc}}
         )
 
-        # Marcar como Promovido
         await db.new_products.update_one(
             {"product_id": product_id},
-            {"$set": {"status": "Promovido", "promoted_integration_id": intg_doc["integration_id"], "promoted_at": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {
+                "status": "Promovido",
+                "promoted_integration_id": intg_doc["integration_id"],
+                "promoted_at": datetime.now(timezone.utc).isoformat()
+            }}
         )
+        # Log the Promovido transition too
+        await _log_transition(product_id, "IMPLE", "Promovido", user)
         promoted = True
-        logging.info(f"Hand-off ejecutado: producto '{product['service_name']}' insertado como integración '{intg_doc['integration_id']}' en banco '{product['bank_name']}'")
+        logging.info(f"Hand-off ejecutado: '{product['service_name']}' → integración '{intg_doc['integration_id']}' en banco '{product['bank_name']}'")
     else:
         await db.new_products.update_one(
             {"product_id": product_id},
@@ -146,6 +199,18 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     if promoted:
         updated["_handoff"] = True
     return updated
+
+
+# ==================== STATUS TRANSITIONS LOG ====================
+
+@router.get("/new-products/{product_id}/transitions")
+async def get_transitions(product_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene el historial completo de transiciones de estado."""
+    await get_current_user(authorization)
+    transitions = await db.np_status_transitions.find(
+        {"product_id": product_id}, {"_id": 0}
+    ).sort("timestamp", -1).to_list(500)
+    return transitions
 
 
 # ==================== EVOLUTION LOG ====================
