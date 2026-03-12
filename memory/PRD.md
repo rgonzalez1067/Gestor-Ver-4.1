@@ -33,10 +33,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ### Modulo de Nuevos Productos — Pipeline I+D (2026-02-20)
 - CRUD completo de productos en desarrollo pre-despliegue
 - Pipeline de estados: Negociacion → DESA → SQA → IMPLE → Promovido
+- **Seleccion de Medio de Pago desde Catalogo Maestro** (dropdown, no texto libre)
 - Seleccion de Banco Patrocinador/Socio al crear producto
 - **Hand-off automatico**: Al cambiar a IMPLE, inserta integracion en banco con estado PreProd y marca producto como Promovido
-- Bitacora de Evolucion propia (crear/editar/eliminar hitos)
-- Notificaciones simuladas (MOCKED): email al equipo de ventas en cada cambio + notificacion critica al IMPLE
+- **Log de Auditoria de Transiciones (StatusTransitionLog)**: Registra estado anterior, nuevo, fecha/hora, usuario, dias en fase anterior
+- Bitacora de Evolucion propia con timeline unificado (hitos manuales + transiciones automaticas)
+- Notificaciones simuladas (MOCKED): incluyen fecha exacta y lead time por fase
 - Stats cards por fase + seccion visual de Promovidos
 
 ### Modulo de Integradores
