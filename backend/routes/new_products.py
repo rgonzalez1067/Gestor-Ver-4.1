@@ -53,7 +53,7 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
     if not bank:
         raise HTTPException(status_code=404, detail="Banco no encontrado")
 
-    service = await db.services.find_one({"service_id": body.service_id}, {"_id": 0, "name": 1, "service_id": 1})
+    service = await db.services.find_one({"service_id": body.service_id}, {"_id": 0, "name": 1, "service_id": 1, "tipo_corp": 1})
     if not service:
         raise HTTPException(status_code=404, detail="Medio de pago no encontrado en el catálogo. Créelo primero en Medios de Pago.")
 
@@ -61,6 +61,7 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
         service_id=body.service_id,
         service_name=service["name"],
         component_type=body.component_type,
+        tipo_corp=service.get("tipo_corp", ""),
         bank_id=body.bank_id,
         bank_name=bank["name"],
         status="Negociación",
@@ -166,6 +167,7 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         integration = BankIntegration(
             service_name=product["service_name"],
             component_type=product["component_type"],
+            tipo_corp=product.get("tipo_corp", ""),
             status="PreProd",
             notes=f"Promovido desde Pipeline I+D (producto {product_id})",
         )

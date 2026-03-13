@@ -109,6 +109,7 @@ class BankIntegration(BaseModel):
     integration_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:8]}")
     service_name: str
     component_type: str  # "VPOS/MPOS" o "PG/Link"
+    tipo_corp: str = ""
     status: Literal["PreProd", "Primer Prod", "Masificación"] = "PreProd"
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -171,6 +172,7 @@ class ServiceCreate(BaseModel):
     category: str
     name: str
     service_type: Literal["Producto", "Servicio"] = "Servicio"
+    tipo_corp: Literal["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
     application_type: Literal["setup", "recurring", "both"] = "both"
     vpos_enabled: bool = True
     gateway_enabled: bool = True
@@ -188,6 +190,7 @@ class Service(BaseModel):
     category: str
     name: str
     service_type: str = "Servicio"
+    tipo_corp: str = ""
     application_type: str = "both"
     vpos_enabled: bool = True
     gateway_enabled: bool = True
@@ -254,6 +257,7 @@ class NewProduct(BaseModel):
     service_id: str  # Referencia al catálogo maestro de servicios
     service_name: str
     component_type: str  # "VPOS/MPOS" o "PG/Link"
+    tipo_corp: str = ""
     bank_id: str  # Banco patrocinador/socio
     bank_name: str = ""
     status: Literal["Negociación", "DESA", "SQA", "IMPLE", "Promovido"] = "Negociación"

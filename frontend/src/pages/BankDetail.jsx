@@ -316,6 +316,7 @@ export const BankDetail = () => {
                     <div className="min-w-[180px]">
                       <p className="font-medium text-slate-900 text-sm">{intg.service_name}</p>
                       <p className="text-xs text-slate-500">{intg.component_type}</p>
+                      {intg.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{intg.tipo_corp}</span>}
                     </div>
                     <StatusPipeline currentStatus={intg.status} />
                     <div className="min-w-[120px]">

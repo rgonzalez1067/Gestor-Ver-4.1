@@ -31,6 +31,12 @@ const PRODUCT_TYPES = [
   { id: 'link_enabled', name: 'Link de Pago', icon: Link, description: 'Links de cobro' }
 ];
 
+const TIPO_CORP_OPTIONS = [
+  { id: 'Derecho de Uso', label: 'Derecho de Uso', description: 'Licencias o modelos de usufructo del software/hardware' },
+  { id: 'Apoyo Técnico', label: 'Apoyo Técnico', description: 'Asistencia durante implementación o preventa' },
+  { id: 'Soporte y Monitoreo', label: 'Soporte y Monitoreo', description: 'Mantenimiento continuo y vigilancia operativa' },
+];
+
 export const MediosPago = () => {
   const [mediosPago, setMediosPago] = useState([]);
   const [recurringServices, setRecurringServices] = useState([]); // Servicios recurrentes para vinculación
@@ -42,6 +48,7 @@ export const MediosPago = () => {
   const [formData, setFormData] = useState({
     name: '',
     service_type: '',
+    tipo_corp: '',
     application_type: '',
     vpos_enabled: true,
     gateway_enabled: true,
@@ -99,6 +106,11 @@ export const MediosPago = () => {
 
     if (!formData.application_type) {
       toast.error('Seleccione el tipo de aplicación');
+      return;
+    }
+
+    if (!formData.tipo_corp) {
+      toast.error('Seleccione el Tipo Corporativo');
       return;
     }
 
@@ -171,6 +183,7 @@ export const MediosPago = () => {
     setFormData({
       name: medioPago.name,
       service_type: medioPago.service_type || 'Servicio',
+      tipo_corp: medioPago.tipo_corp || '',
       application_type: medioPago.application_type || 'both',
       vpos_enabled: medioPago.vpos_enabled !== false,
       gateway_enabled: medioPago.gateway_enabled !== false,
@@ -190,6 +203,7 @@ export const MediosPago = () => {
     setFormData({
       name: '',
       service_type: '',
+      tipo_corp: '',
       application_type: '',
       vpos_enabled: true,
       gateway_enabled: true,
@@ -256,12 +270,13 @@ export const MediosPago = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Nombre', 'Tipo', 'Tipo Aplicación', 'VPOS', 'Gateway', 'MPOS', 'Link', 'Setup Conv.', 'Mensual Conv.', 'Setup Outs.', 'Mensual Outs.', 'Descripción'];
+    const headers = ['Nombre', 'Tipo', 'Tipo Corp', 'Tipo Aplicación', 'VPOS', 'Gateway', 'MPOS', 'Link', 'Setup Conv.', 'Mensual Conv.', 'Setup Outs.', 'Mensual Outs.', 'Descripción'];
     const csvContent = [
       headers.join(','),
       ...mediosPago.map(s => [
         `"${s.name}"`,
         `"${s.service_type || 'Servicio'}"`,
+        `"${s.tipo_corp || ''}"`,
         `"${s.application_type || 'both'}"`,
         s.vpos_enabled !== false ? 'Sí' : 'No',
         s.gateway_enabled !== false ? 'Sí' : 'No',
@@ -455,6 +470,28 @@ export const MediosPago = () => {
                           );
                         })}
                       </div>
+                    </div>
+
+                    {/* Tipo Corp */}
+                    <div>
+                      <Label className="text-base font-semibold text-slate-900 mb-2 block">
+                        Tipo Corp <span className="text-red-500">*</span>
+                      </Label>
+                      <Select value={formData.tipo_corp} onValueChange={(v) => setFormData({ ...formData, tipo_corp: v })}>
+                        <SelectTrigger data-testid="tipo-corp-select">
+                          <SelectValue placeholder="Seleccione tipo corporativo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPO_CORP_OPTIONS.map(o => (
+                            <SelectItem key={o.id} value={o.id}>
+                              <div>
+                                <span className="font-medium">{o.label}</span>
+                                <span className="text-xs text-slate-400 ml-2">— {o.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Compatibilidad con Productos */}
@@ -671,7 +708,7 @@ export const MediosPago = () => {
                         type="submit"
                         data-testid="save-medio-pago-button"
                         className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
-                        disabled={!formData.application_type || !formData.service_type}
+                        disabled={!formData.application_type || !formData.service_type || !formData.tipo_corp}
                       >
                         {editingMedioPago ? 'Actualizar' : 'Guardar'}
                       </Button>
@@ -741,6 +778,9 @@ export const MediosPago = () => {
                     Categoría
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Tipo Corp
+                  </th>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Componente
                   </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
@@ -757,6 +797,7 @@ export const MediosPago = () => {
                   </th>
                 </tr>
                 <tr className="bg-slate-50 border-b border-slate-200">
+                  <th></th>
                   <th></th>
                   <th></th>
                   <th></th>
@@ -806,6 +847,15 @@ export const MediosPago = () => {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-cyan-100 text-cyan-700 rounded">
                             <Wrench size={12} />Servicio
                           </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {medioPago.tipo_corp ? (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-700 rounded" data-testid={`tipo-corp-badge-${medioPago.service_id}`}>
+                            {medioPago.tipo_corp}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3">

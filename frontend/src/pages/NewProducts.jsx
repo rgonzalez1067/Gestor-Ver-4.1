@@ -266,6 +266,7 @@ export const NewProducts = () => {
                     <div className="min-w-[180px]">
                       <p className="font-medium text-slate-900 text-sm">{p.service_name}</p>
                       <p className="text-xs text-slate-500">{p.component_type}</p>
+                      {p.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{p.tipo_corp}</span>}
                     </div>
                     <div className="min-w-[120px]">
                       <p className="text-xs text-slate-400 flex items-center gap-1">
@@ -325,6 +326,7 @@ export const NewProducts = () => {
                     <div className="min-w-[180px]">
                       <p className="font-medium text-slate-900 text-sm">{p.service_name}</p>
                       <p className="text-xs text-slate-500">{p.component_type}</p>
+                      {p.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{p.tipo_corp}</span>}
                     </div>
                     <div className="min-w-[120px]">
                       <p className="text-xs text-slate-400 flex items-center gap-1">

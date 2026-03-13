@@ -148,6 +148,7 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
         column_mapping = {
             'nombre': 'name', 'categoría': 'category', 'categoria': 'category',
             'descripción': 'description', 'descripcion': 'description',
+            'tipo_corp': 'tipo_corp', 'tipo corp': 'tipo_corp',
             'setup_convencional': 'setup_cost_conventional',
             'mensual_convencional': 'monthly_cost_conventional',
             'setup_outsourcing': 'setup_cost_outsourcing',
@@ -173,6 +174,7 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
                 name = str(row.get('name', '')).strip() if pd.notna(row.get('name')) else ''
                 category = str(row.get('category', 'General')).strip() if pd.notna(row.get('category')) else 'General'
                 description = str(row.get('description', '')).strip() if pd.notna(row.get('description')) else ''
+                tipo_corp = str(row.get('tipo_corp', '')).strip() if pd.notna(row.get('tipo_corp')) else ''
                 
                 row_errors = []
                 
@@ -180,6 +182,12 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
                     row_errors.append(ImportError(row=row_num, column='Nombre', value='(vacío)',
                         error_type='missing', message='El nombre del servicio es obligatorio',
                         suggested_action='Ingrese un nombre válido'))
+
+                valid_tipo_corp = ["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
+                if tipo_corp and tipo_corp not in valid_tipo_corp:
+                    row_errors.append(ImportError(row=row_num, column='Tipo Corp', value=tipo_corp,
+                        error_type='format', message=f'Valor inválido. Permitidos: {", ".join(valid_tipo_corp)}',
+                        suggested_action='Use uno de los valores permitidos'))
                 
                 # Parsear costos con validación
                 def parse_cost(value, field_name):
@@ -215,6 +223,7 @@ async def import_services(file: UploadFile = File(...), authorization: Optional[
                 # Crear servicio
                 service = Service(
                     category=category, name=name, description=description,
+                    tipo_corp=tipo_corp,
                     setup_cost_conventional=setup_conv, monthly_cost_conventional=monthly_conv,
                     setup_cost_outsourcing=setup_outs, monthly_cost_outsourcing=monthly_outs
                 )
@@ -269,17 +278,18 @@ async def export_services_pdf(authorization: Optional[str] = Header(None)):
     elements.append(title)
     elements.append(Spacer(1, 20))
     
-    data = [['Servicio', 'Setup Conv.', 'Mensual Conv.', 'Setup Out.', 'Mensual Out.']]
+    data = [['Servicio', 'Tipo Corp', 'Setup Conv.', 'Mensual Conv.', 'Setup Out.', 'Mensual Out.']]
     for s in services:
         data.append([
             s['name'][:40],
+            s.get('tipo_corp', '')[:20],
             f"${s.get('setup_cost_conventional', 0):.2f}",
             f"${s.get('monthly_cost_conventional', 0):.2f}",
             f"${s.get('setup_cost_outsourcing', 0):.2f}",
             f"${s.get('monthly_cost_outsourcing', 0):.2f}"
         ])
     
-    table = Table(data, colWidths=[2.5*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1.1*inch])
+    table = Table(data, colWidths=[2.0*inch, 1.2*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#00447C')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
