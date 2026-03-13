@@ -658,7 +658,9 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     # Información del cliente
     quote_type_names = {
         'VPOS': 'VPOS/MPOS (Cajas y Tablet)',
-        'VPOS_MPOS': 'VPOS/MPOS (Cajas y Tablet)',
+        'VPOS': 'VPOS (Cajas)',
+        'MPOS': 'MPOS (Tablet/Móvil)',
+        'VPOS_MPOS': 'VPOS/MPOS',
         'GATEWAY': 'Payment Gateway',
         'MPOS': 'VPOS/MPOS (Cajas y Tablet)',
         'LINK': 'Link de Pago'

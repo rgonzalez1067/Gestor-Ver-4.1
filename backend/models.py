@@ -665,8 +665,8 @@ class QuotePDFRequest(BaseModel):
     cliente_nombre: str
     cliente_rif: str = ""
     cliente_address: str = ""  # Dirección fiscal
-    quote_type: str = "VPOS"
-    pricing_model: str = "conventional"
+    quote_type: str = "VPOS"  # "VPOS", "MPOS", "GATEWAY", "LINK"
+    pricing_model: str = "conventional"  # MPOS siempre usa "outsourcing"
     cantidad_cajas: int = 1  # Total de cajas cotizadas
     # Nuevos campos de integración y hardware
     integrator_name: str = ""

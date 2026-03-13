@@ -21,7 +21,8 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 
 const QUOTE_TYPES = [
-  { id: 'VPOS_MPOS', name: 'VPOS/MPOS (Cajas y Tablet)', icon: Monitor, description: 'Puntos de venta físicos y móviles' },
+  { id: 'VPOS', name: 'VPOS (Cajas)', icon: Monitor, description: 'Puntos de venta físicos' },
+  { id: 'MPOS', name: 'MPOS (Tablet/Móvil)', icon: Smartphone, description: 'Terminales móviles POS' },
   { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },
   { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro', disabled: true }
 ];
@@ -99,6 +100,7 @@ export const Quotes = () => {
   const [serviceCatalog, setServiceCatalog] = useState([]); // Catálogo de precios
   const [integrators, setIntegrators] = useState([]); // Lista de integradores
   const [pinpads, setPinpads] = useState([]); // Lista de pinpads (dispositivos tipo Pinpad)
+  const [posDevices, setPosDevices] = useState([]); // Lista de POS (dispositivos tipo POS) para MPOS
   const [allHardware, setAllHardware] = useState([]); // Todos los dispositivos y accesorios
   const [actionLoading, setActionLoading] = useState(null); // Para indicar carga en acciones
   const [loading, setLoading] = useState(true);
@@ -409,6 +411,10 @@ export const Quotes = () => {
         hw.type?.toLowerCase() === 'pinpad'
       );
       setPinpads(pinpadDevices);
+      const posHardware = (hardwareRes.data || []).filter(hw => 
+        hw.type?.toLowerCase() === 'pos'
+      );
+      setPosDevices(posHardware);
       // Guardar estado de plantillas disponibles
       setTemplateAvailable(templatesRes.data || {});
       // Tabla de costos recurrentes PG
@@ -488,7 +494,8 @@ export const Quotes = () => {
   const getCompatibilityField = (quoteType) => {
     switch (quoteType) {
       case 'VPOS': return 'vpos_available';
-      case 'VPOS_MPOS': return 'vpos_available';
+      case 'VPOS':
+      case 'MPOS': return 'vpos_available';
       case 'GATEWAY': return 'gateway_available';
       case 'MPOS': return 'mpos_available';
       case 'LINK': return 'link_available';
@@ -1257,7 +1264,7 @@ export const Quotes = () => {
     try {
       const client = clients.find(c => c.client_id === quoteData.client_id);
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-      const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+      const pinpad = (quoteData.quote_type === 'MPOS' ? posDevices : pinpads).find(p => p.hardware_id === quoteData.pinpad_id);
       const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
 
       const allItems = [
@@ -1325,7 +1332,8 @@ export const Quotes = () => {
       // Preparar datos del PDF (mismos datos que exportCurrentQuoteToPDF)
       const templateTypeMap = {
         'VPOS': 'vpos_pyme',
-        'VPOS_MPOS': 'vpos_pyme',
+        'VPOS': 'vpos_pyme',
+        'MPOS': 'mpos_pyme',
         'GATEWAY': 'payment_gateway',
         'MPOS': 'mpos',
         'LINK': 'vpos_pyme'
@@ -1882,7 +1890,9 @@ export const Quotes = () => {
   };
 
   const getQuoteTypeName = (typeId) => {
-    if (typeId === 'VPOS' || typeId === 'MPOS' || typeId === 'VPOS_MPOS') return 'VPOS/MPOS (Cajas y Tablet)';
+    if (typeId === 'VPOS') return 'VPOS (Cajas)';
+    if (typeId === 'MPOS') return 'MPOS (Tablet/Móvil)';
+    if (typeId === 'VPOS_MPOS') return 'VPOS/MPOS';
     const type = QUOTE_TYPES.find(t => t.id === typeId);
     return type ? type.name : typeId;
   };
@@ -2568,8 +2578,9 @@ export const Quotes = () => {
     ? banks.find(b => b.bank_id === quoteData.sponsor_bank_id)
     : null;
   
-  // Detectar si es cotización Payment Gateway
+  // Detectar si es cotización Payment Gateway o MPOS
   const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
+  const isMPOS = quoteData.quote_type === 'MPOS';
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
@@ -2718,16 +2729,22 @@ export const Quotes = () => {
                     <Select
                       value={quoteData.quote_type}
                       onValueChange={(value) => {
-                        setQuoteData({ ...quoteData, quote_type: value, medios_pago_items: [], pricing_model: value === 'GATEWAY' ? 'conventional' : '' });
+                        const isMposSelected = value === 'MPOS';
+                        setQuoteData({ 
+                          ...quoteData, 
+                          quote_type: value, 
+                          medios_pago_items: [], 
+                          pricing_model: value === 'GATEWAY' ? 'conventional' : (isMposSelected ? 'outsourcing' : ''),
+                          requires_vpn: isMposSelected ? true : true,
+                          requires_pinpad_config: true,
+                        });
                         setSelectedBankId('');
                         setSelectedMedioPagoId('');
                         setAvailableMediosPago([]);
-                        // Reset PG state when changing type
                         setPgSetupItems([]);
                         setPgTransactionRange(null);
                         setPgShowRecurringTable(false);
                         setPgFilteredProducts([]);
-                        // Auto-init Persona Jurídica for PG with outsourcing price
                         if (value === 'GATEWAY') {
                           const pjService = serviceCatalog.find(s => s.gateway_enabled && s.name?.toLowerCase().includes('persona jur'));
                           const pjCost = pjService?.setup_cost_outsourcing || pgDefaults?.costo || 240;
@@ -2738,6 +2755,23 @@ export const Quotes = () => {
                             observacion: 'Costo Base',
                             fixed: true
                           }]);
+                        }
+                        // MPOS: auto-inicializar items con outsourcing
+                        if (isMposSelected) {
+                          const cajas = quoteData.cantidad_cajas || 1;
+                          const bancos = quoteData.cantidad_bancos || 1;
+                          const setupItems = initializeSetupConcepts('outsourcing', cajas, bancos, quoteData.requires_pinpad_config);
+                          const recurringBasicItems = initializeRecurringBasicConcepts('outsourcing', cajas, bancos);
+                          const recurringOtherItems = initializeRecurringOtherConcepts('outsourcing', cajas, bancos, true);
+                          setQuoteData(prev => ({
+                            ...prev,
+                            quote_type: value,
+                            pricing_model: 'outsourcing',
+                            setup_items: setupItems,
+                            recurring_basic_items: recurringBasicItems,
+                            recurring_other_items: recurringOtherItems,
+                            additional_items: [],
+                          }));
                         }
                       }}
                     >
@@ -2814,6 +2848,8 @@ export const Quotes = () => {
 
                   {/* Hide Modelo/Cajas/Bancos for Payment Gateway */}
                   {!isPaymentGateway && (<>
+                  {/* Modelo de Precios: oculto para MPOS (forzado a Outsourcing) */}
+                  {!isMPOS ? (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Modelo de Precios <span className="text-red-500">*</span>
@@ -2860,6 +2896,16 @@ export const Quotes = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  ) : (
+                  <div>
+                    <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                      Modelo de Precios
+                    </Label>
+                    <div className="h-10 px-3 py-2 bg-slate-100 border border-slate-200 rounded-md flex items-center">
+                      <span className="text-sm text-slate-700 font-medium">Outsourcing (fijo MPOS)</span>
+                    </div>
+                  </div>
+                  )}
 
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
@@ -2904,10 +2950,10 @@ export const Quotes = () => {
 
                 {/* Parámetros dinámicos VPOS: PinPads y VPN */}
                 {!isPaymentGateway && quoteData.pricing_model && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
+                  <div className={`grid grid-cols-1 ${isMPOS ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-4 mt-4 pt-4 border-t border-slate-200`}>
                     <div>
                       <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                        ¿Requiere Configuración de PinPads?
+                        ¿Requiere Configuración de {isMPOS ? 'POS' : 'PinPads'}?
                       </Label>
                       <Select
                         value={quoteData.requires_pinpad_config ? 'si' : 'no'}
@@ -2955,55 +3001,58 @@ export const Quotes = () => {
                       </Select>
                       <p className="text-[10px] text-slate-400 mt-1">
                         {quoteData.requires_pinpad_config
-                          ? 'Incluye "Configuración dispositivo (Pinpad o POS)" en Setup'
+                          ? `Incluye "Configuración dispositivo (${isMPOS ? 'POS' : 'Pinpad o POS'})" en Setup`
                           : 'Excluido del Setup — total recalculado'}
                       </p>
                     </div>
 
-                    <div>
-                      <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                        ¿Requiere VPN?
-                      </Label>
-                      <Select
-                        value={quoteData.requires_vpn ? 'si' : 'no'}
-                        onValueChange={(v) => {
-                          const newVal = v === 'si';
-                          // Actualizar tarifa de "Comunicación Backend" en recurring_other_items
-                          const updatedOther = quoteData.recurring_other_items.map(item => {
-                            if (item.medio_pago_name.includes('Comunicación Backend')) {
-                              const service = serviceCatalog.find(s =>
-                                s.name.toLowerCase().includes('comunicación backend') ||
-                                s.name.toLowerCase().includes('comunicacion backend') ||
-                                item.medio_pago_name.toLowerCase().includes(s.name.toLowerCase())
-                              );
-                              if (service) {
-                                return {
-                                  ...item,
-                                  tarifa: newVal
-                                    ? (service.monthly_cost_conventional || 0)
-                                    : (service.monthly_cost_outsourcing || 0)
-                                };
+                    {/* VPN toggle: solo VPOS, MPOS asume conectividad estándar */}
+                    {!isMPOS && (
+                      <div>
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                          ¿Requiere VPN?
+                        </Label>
+                        <Select
+                          value={quoteData.requires_vpn ? 'si' : 'no'}
+                          onValueChange={(v) => {
+                            const newVal = v === 'si';
+                            // Actualizar tarifa de "Comunicación Backend" en recurring_other_items
+                            const updatedOther = quoteData.recurring_other_items.map(item => {
+                              if (item.medio_pago_name.includes('Comunicación Backend')) {
+                                const service = serviceCatalog.find(s =>
+                                  s.name.toLowerCase().includes('comunicación backend') ||
+                                  s.name.toLowerCase().includes('comunicacion backend') ||
+                                  item.medio_pago_name.toLowerCase().includes(s.name.toLowerCase())
+                                );
+                                if (service) {
+                                  return {
+                                    ...item,
+                                    tarifa: newVal
+                                      ? (service.monthly_cost_conventional || 0)
+                                      : (service.monthly_cost_outsourcing || 0)
+                                  };
+                                }
                               }
-                            }
-                            return item;
-                          });
-                          setQuoteData({ ...quoteData, requires_vpn: newVal, recurring_other_items: updatedOther });
-                        }}
-                      >
-                        <SelectTrigger data-testid="select-requires-vpn">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="si">Sí — Costo Conv.</SelectItem>
-                          <SelectItem value="no">No — Costo Outs.</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        {quoteData.requires_vpn
-                          ? 'Comunicación Backend usa tarifa Convencional'
-                          : 'Comunicación Backend usa tarifa Outsourcing'}
-                      </p>
-                    </div>
+                              return item;
+                            });
+                            setQuoteData({ ...quoteData, requires_vpn: newVal, recurring_other_items: updatedOther });
+                          }}
+                        >
+                          <SelectTrigger data-testid="select-requires-vpn">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="si">Sí — Costo Conv.</SelectItem>
+                            <SelectItem value="no">No — Costo Outs.</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {quoteData.requires_vpn
+                            ? 'Comunicación Backend usa tarifa Convencional'
+                            : 'Comunicación Backend usa tarifa Outsourcing'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3030,7 +3079,8 @@ export const Quotes = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Users size={14} className="text-brand-blue-600" />
-                      Integrador <span className="text-red-500">*</span>
+                      Integrador {!isMPOS && <span className="text-red-500">*</span>}
+                      {isMPOS && <span className="text-slate-400 text-xs font-normal">(Opcional)</span>}
                     </Label>
                     <Select 
                       value={quoteData.integrator_id} 
@@ -3040,6 +3090,9 @@ export const Quotes = () => {
                         <SelectValue placeholder="Seleccione integrador..." />
                       </SelectTrigger>
                       <SelectContent>
+                        {(isMPOS || isPaymentGateway) && (
+                          <SelectItem value="sin_integrador">Sin integrador</SelectItem>
+                        )}
                         {integrators
                           .filter(i => {
                             if (i.integrator_status !== 'Certificado') return false;
@@ -3053,9 +3106,6 @@ export const Quotes = () => {
                             {integrator.name}
                           </SelectItem>
                         ))}
-                        {isPaymentGateway && (
-                          <SelectItem value="sin_integrador">Sin integrador por el momento</SelectItem>
-                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -3072,28 +3122,28 @@ export const Quotes = () => {
                     </div>
                   </div>
 
-                  {/* Campo 2: Modelo de Pinpad (Opcional) - Solo para VPOS/MPOS */}
+                  {/* Campo 2: Modelo de Pinpad/POS - Solo para VPOS/MPOS */}
                   {!isPaymentGateway && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Cpu size={14} className="text-brand-green-600" />
-                      Modelo de Pinpad <span className="text-slate-400 text-xs font-normal">(Opcional)</span>
+                      {isMPOS ? 'Modelo de POS' : 'Modelo de Pinpad'} <span className="text-slate-400 text-xs font-normal">(Opcional)</span>
                     </Label>
                     <Select 
                       value={quoteData.pinpad_id} 
                       onValueChange={(value) => setQuoteData({ ...quoteData, pinpad_id: value })}
                     >
                       <SelectTrigger data-testid="select-pinpad">
-                        <SelectValue placeholder="Seleccione modelo..." />
+                        <SelectValue placeholder={`Seleccione ${isMPOS ? 'POS' : 'modelo'}...`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Sin Pinpad</SelectItem>
-                        {pinpads.length === 0 ? (
-                          <SelectItem value="no-pinpads" disabled>No hay Pinpads disponibles</SelectItem>
+                        <SelectItem value="none">Sin {isMPOS ? 'POS' : 'Pinpad'}</SelectItem>
+                        {(isMPOS ? posDevices : pinpads).length === 0 ? (
+                          <SelectItem value="no-devices" disabled>No hay {isMPOS ? 'POS' : 'Pinpads'} disponibles</SelectItem>
                         ) : (
-                          pinpads.map((pinpad) => (
-                            <SelectItem key={pinpad.hardware_id} value={pinpad.hardware_id}>
-                              {pinpad.name} {pinpad.price_usd > 0 && `($${pinpad.price_usd})`}
+                          (isMPOS ? posDevices : pinpads).map((device) => (
+                            <SelectItem key={device.hardware_id} value={device.hardware_id}>
+                              {device.name} {device.price_usd > 0 && `($${device.price_usd})`}
                             </SelectItem>
                           ))
                         )}

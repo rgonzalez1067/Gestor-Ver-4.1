@@ -25,7 +25,7 @@ const STATUS_DISPLAY_NAMES = {
 };
 
 const getQuoteTypeName = (type) => {
-  const map = { 'VPOS_MPOS': 'VPOS/MPOS', 'GATEWAY': 'Payment Gateway', 'LINK_PAGO': 'Link de Pago' };
+  const map = { 'VPOS': 'VPOS', 'MPOS': 'MPOS', 'VPOS_MPOS': 'VPOS/MPOS', 'GATEWAY': 'Payment Gateway', 'LINK_PAGO': 'Link de Pago' };
   return map[type] || type || 'N/A';
 };
 
