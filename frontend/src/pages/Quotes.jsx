@@ -143,6 +143,8 @@ export const Quotes = () => {
     integrator_app_name: '', // Campo informativo auto-completado
     pinpad_id: '',
     sponsor_bank_id: '', // Entidad patrocinadora/vendedora
+    requires_pinpad_config: true,  // ¿Requiere Configuración de PinPads?
+    requires_vpn: true,            // ¿Requiere VPN?
     setup_items: [],              // Items exclusivos de Setup
     recurring_basic_items: [],    // Recurrentes Básicos (incluye complementos de adicionales)
     recurring_other_items: [],    // Otros Recurrentes
@@ -495,11 +497,12 @@ export const Quotes = () => {
   };
 
   // Inicializar conceptos de Setup cuando se completan los parámetros
-  const initializeSetupConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
-    return SETUP_CONCEPTS.map((concept) => {
+  const initializeSetupConcepts = (pricingModel, cantidadCajas, cantidadBancos, requiresPinpadConfig = true) => {
+    const concepts = requiresPinpadConfig
+      ? SETUP_CONCEPTS
+      : SETUP_CONCEPTS.filter(c => c.name !== 'Configuración dispositivo (Pinpad o POS)');
+    return concepts.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
-      // Si lockBancos es true, el campo Bancos vale 1 y está bloqueado
-      // Si autoBancos es true, el campo Bancos se calculará dinámicamente
       const bancosValue = concept.lockBancos ? 1 : cantidadBancos;
       return {
         id: `setup_${concept.name}`,
@@ -533,15 +536,35 @@ export const Quotes = () => {
   };
 
   // Inicializar Otros Recurrentes
-  const initializeRecurringOtherConcepts = (pricingModel, cantidadCajas, cantidadBancos) => {
+  const initializeRecurringOtherConcepts = (pricingModel, cantidadCajas, cantidadBancos, requiresVpn = true) => {
     return RECURRING_OTHER_CONCEPTS.map((concept) => {
-      const prices = findServicePriceWithModel(concept.name, pricingModel);
+      const isVpnItem = concept.name.includes('Comunicación Backend');
+      let tarifa;
+      if (isVpnItem) {
+        // Para el ítem de Comunicación Backend, el costo depende del flag VPN
+        const service = serviceCatalog.find(s =>
+          s.name.toLowerCase().includes('comunicación backend') ||
+          s.name.toLowerCase().includes('comunicacion backend') ||
+          concept.name.toLowerCase().includes(s.name.toLowerCase())
+        );
+        if (service) {
+          tarifa = requiresVpn
+            ? (service.monthly_cost_conventional || 0)
+            : (service.monthly_cost_outsourcing || 0);
+        } else {
+          const prices = findServicePriceWithModel(concept.name, pricingModel);
+          tarifa = prices.monthly_cost;
+        }
+      } else {
+        const prices = findServicePriceWithModel(concept.name, pricingModel);
+        tarifa = prices.monthly_cost;
+      }
       return {
         id: `recurring_other_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos, // N/A usa 1 internamente
-        tarifa: prices.monthly_cost,
+        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos,
+        tarifa,
         isDefault: true,
         type: 'recurring_other',
         lockBancos: concept.lockBancos || false
@@ -641,6 +664,8 @@ export const Quotes = () => {
       integrator_app_name: '',
       pinpad_id: '',
       sponsor_bank_id: '',
+      requires_pinpad_config: true,
+      requires_vpn: true,
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
@@ -1363,6 +1388,8 @@ export const Quotes = () => {
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
+        requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+        requires_vpn: quoteData.requires_vpn !== false,
         notes: quoteData.notes || '',
         is_production_client: isProductionClient,
         pg_setup_items: pgSetupItems.map(item => ({
@@ -1396,6 +1423,8 @@ export const Quotes = () => {
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1,
         is_production_client: isProductionClient,
+        requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+        requires_vpn: quoteData.requires_vpn !== false,
         production_items: productionItems.map(item => ({
           item_name: item.medio_pago_name,
           cantidad_cajas: item.cantidad_cajas || 1,
@@ -1636,6 +1665,8 @@ export const Quotes = () => {
       descuento: quoteData.descuento || 0,
       descuento_setup: quoteData.descuento_setup || 0,
       descuento_recurrente: quoteData.descuento_recurrente || 0,
+      requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+      requires_vpn: quoteData.requires_vpn !== false,
       notes: quoteData.notes || '',
       is_production_client: isProductionClient,
       // PG setup items para el PDF de Payment Gateway
@@ -1809,6 +1840,8 @@ export const Quotes = () => {
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
+        requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+        requires_vpn: quoteData.requires_vpn !== false,
         notes: quoteData.notes || '',
         is_production_client: isProductionClient,
         pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
@@ -2244,6 +2277,8 @@ export const Quotes = () => {
       integrator_app_name: quote.integrator_app_name || '',
       pinpad_id: quote.pinpad_id || '',
       sponsor_bank_id: quote.sponsor_bank_id || '',
+      requires_pinpad_config: quote.requires_pinpad_config !== false,
+      requires_vpn: quote.requires_vpn !== false,
       setup_items: setupItems,
       recurring_basic_items: recurringBasicItems,
       recurring_other_items: recurringOtherItems,
@@ -2392,6 +2427,8 @@ export const Quotes = () => {
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
+        requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+        requires_vpn: quoteData.requires_vpn !== false,
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1,
@@ -2432,6 +2469,8 @@ export const Quotes = () => {
       integrator_app_name: '',
       pinpad_id: '',
       sponsor_bank_id: '',
+      requires_pinpad_config: true,
+      requires_vpn: true,
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
@@ -2795,9 +2834,9 @@ export const Quotes = () => {
                           });
                         } else {
                           // Nueva cotización: inicializar conceptos desde el catálogo
-                          const setupItems = initializeSetupConcepts(value, cajas, bancos);
+                          const setupItems = initializeSetupConcepts(value, cajas, bancos, quoteData.requires_pinpad_config);
                           const recurringBasicItems = initializeRecurringBasicConcepts(value, cajas, bancos);
-                          const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos);
+                          const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos, quoteData.requires_vpn);
                           setQuoteData({ 
                             ...quoteData, 
                             pricing_model: value, 
@@ -2862,6 +2901,111 @@ export const Quotes = () => {
                   {/* End conditional for non-PG fields */}
                   </>)}
                 </div>
+
+                {/* Parámetros dinámicos VPOS: PinPads y VPN */}
+                {!isPaymentGateway && quoteData.pricing_model && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                        ¿Requiere Configuración de PinPads?
+                      </Label>
+                      <Select
+                        value={quoteData.requires_pinpad_config ? 'si' : 'no'}
+                        onValueChange={(v) => {
+                          const newVal = v === 'si';
+                          const cajas = quoteData.cantidad_cajas || 1;
+                          const bancos = quoteData.cantidad_bancos || 1;
+                          if (newVal && !quoteData.requires_pinpad_config) {
+                            // Agregar ítem de vuelta
+                            const pinpadConcept = SETUP_CONCEPTS.find(c => c.name === 'Configuración dispositivo (Pinpad o POS)');
+                            if (pinpadConcept) {
+                              const prices = findServicePriceWithModel(pinpadConcept.name, quoteData.pricing_model);
+                              const pinpadItem = {
+                                id: `setup_${pinpadConcept.name}`,
+                                medio_pago_name: pinpadConcept.name,
+                                cantidad_cajas: cajas,
+                                cantidad_bancos: 1,
+                                tarifa: prices.setup_cost,
+                                isDefault: true,
+                                type: 'setup',
+                                lockBancos: true,
+                                autoBancos: false
+                              };
+                              // Insertar en posición 1 (después del primer concepto)
+                              const newSetup = [...quoteData.setup_items];
+                              newSetup.splice(1, 0, pinpadItem);
+                              setQuoteData({ ...quoteData, requires_pinpad_config: true, setup_items: newSetup });
+                            }
+                          } else if (!newVal && quoteData.requires_pinpad_config) {
+                            // Eliminar ítem de Configuración dispositivo
+                            const newSetup = quoteData.setup_items.filter(
+                              i => i.medio_pago_name !== 'Configuración dispositivo (Pinpad o POS)'
+                            );
+                            setQuoteData({ ...quoteData, requires_pinpad_config: false, setup_items: newSetup });
+                          }
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-requires-pinpad">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="si">Sí</SelectItem>
+                          <SelectItem value="no">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {quoteData.requires_pinpad_config
+                          ? 'Incluye "Configuración dispositivo (Pinpad o POS)" en Setup'
+                          : 'Excluido del Setup — total recalculado'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                        ¿Requiere VPN?
+                      </Label>
+                      <Select
+                        value={quoteData.requires_vpn ? 'si' : 'no'}
+                        onValueChange={(v) => {
+                          const newVal = v === 'si';
+                          // Actualizar tarifa de "Comunicación Backend" en recurring_other_items
+                          const updatedOther = quoteData.recurring_other_items.map(item => {
+                            if (item.medio_pago_name.includes('Comunicación Backend')) {
+                              const service = serviceCatalog.find(s =>
+                                s.name.toLowerCase().includes('comunicación backend') ||
+                                s.name.toLowerCase().includes('comunicacion backend') ||
+                                item.medio_pago_name.toLowerCase().includes(s.name.toLowerCase())
+                              );
+                              if (service) {
+                                return {
+                                  ...item,
+                                  tarifa: newVal
+                                    ? (service.monthly_cost_conventional || 0)
+                                    : (service.monthly_cost_outsourcing || 0)
+                                };
+                              }
+                            }
+                            return item;
+                          });
+                          setQuoteData({ ...quoteData, requires_vpn: newVal, recurring_other_items: updatedOther });
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-requires-vpn">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="si">Sí — Costo Conv.</SelectItem>
+                          <SelectItem value="no">No — Costo Outs.</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {quoteData.requires_vpn
+                          ? 'Comunicación Backend usa tarifa Convencional'
+                          : 'Comunicación Backend usa tarifa Outsourcing'}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {isHeaderComplete && (
                   <div className="mt-4 p-3 bg-brand-green-50 border border-brand-green-200 rounded-lg flex items-center gap-2">

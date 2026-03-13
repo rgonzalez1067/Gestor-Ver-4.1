@@ -121,6 +121,9 @@ class QuoteCreateWithPDF(BaseModel):
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
+    # Parámetros dinámicos VPOS
+    requires_pinpad_config: bool = True
+    requires_vpn: bool = True
 
 @router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
@@ -314,6 +317,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             descuento_recurrente=data.descuento_recurrente,
             is_production_client=data.is_production_client,
             production_items=data.production_items,
+            requires_pinpad_config=data.requires_pinpad_config,
+            requires_vpn=data.requires_vpn,
             sede=user_sede,
             created_by_user_id=current_user.get("user_id"),
             quote_pdf_url=quote_pdf_url,

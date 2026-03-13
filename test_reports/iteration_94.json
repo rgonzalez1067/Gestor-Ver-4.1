@@ -1,0 +1,65 @@
+{
+  "summary": "Iteration 94 - Tested dynamic parameters (requires_pinpad_config, requires_vpn) for VPOS Quotes. Backend: All 6/6 tests passed - fields persist correctly with both True and False values. Frontend: All UI tests passed - toggles appear after pricing model selection for VPOS quotes, correctly hidden for Payment Gateway.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuotesTable", "issues": ["Hydration warning: <tr> cannot be a child of <span> - existing issue from React DevTools injection, does not affect functionality"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration94_dynamic_params.py",
+    "/app/test_reports/pytest/pytest_results_iteration94.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed missing requires_pinpad_config and requires_vpn fields in QuoteCreateWithPDF model (/app/backend/routes/quotes.py)",
+    "Fixed frontend payload to include requires_pinpad_config and requires_vpn in POST /api/quotes/create-with-pdf",
+    "Fixed JSX syntax error at line 3009 (extra closing </div> tag) in Quotes.jsx",
+    "Dynamic params section shows only when: 1) quote_type is NOT 'GATEWAY' (isPaymentGateway === false), AND 2) pricing_model is already selected",
+    "PinPad toggle: when No, removes 'Configuración dispositivo (Pinpad o POS)' from setup_items array",
+    "VPN toggle: when No, changes 'Comunicación Backend' tariff to monthly_cost_outsourcing; when Sí, uses monthly_cost_conventional"
+  ],
+  "updated_files": [
+    "/app/backend/routes/quotes.py",
+    "/app/frontend/src/pages/Quotes.jsx"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% - All toggle interactions verified"
+  },
+  "test_credentials": {
+    "email": "np_test@test.com",
+    "password": "Test1234!"
+  },
+  "seed_data_creation": "Backend tests created test quotes with various requires_pinpad_config and requires_vpn values. No cleanup performed (quotes remain as test data).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 94 - Dynamic parameters for VPOS quotes fully implemented. Key points: 1) QuoteCreateWithPDF and Quote models have requires_pinpad_config: bool = True and requires_vpn: bool = True. 2) Frontend Quotes.jsx lines 2905-3008 render the toggle controls only when !isPaymentGateway && quoteData.pricing_model is truthy. 3) data-testid='select-requires-pinpad' and data-testid='select-requires-vpn' can be used for automated testing. 4) PinPad=No removes 'Configuración dispositivo (Pinpad o POS)' from setup_items at initialization and dynamically. 5) VPN toggle changes 'Comunicación Backend' item's tarifa between monthly_cost_conventional (VPN=Sí) and monthly_cost_outsourcing (VPN=No). 6) Payment Gateway quotes do not show these toggles in UI and use default values True.",
+  "verified_features": {
+    "backend_endpoints": {
+      "POST /api/quotes/create-with-pdf with requires_pinpad_config=false": "VERIFIED - Persists correctly",
+      "POST /api/quotes/create-with-pdf with requires_vpn=false": "VERIFIED - Persists correctly",
+      "GET /api/quotes/{id}": "VERIFIED - Returns requires_pinpad_config and requires_vpn fields",
+      "Default values": "VERIFIED - Both default to True when not specified"
+    },
+    "frontend_elements": {
+      "VPOS toggle visibility": "VERIFIED - Toggles appear after pricing model selection",
+      "Payment Gateway toggle visibility": "VERIFIED - Toggles correctly hidden",
+      "PinPad toggle functionality": "VERIFIED - Switches between Sí/No with helper text updates",
+      "VPN toggle functionality": "VERIFIED - Switches between 'Sí — Costo Conv.' and 'No — Costo Outs.' with helper text updates",
+      "Helper text for PinPad Sí": "VERIFIED - 'Incluye \"Configuración dispositivo (Pinpad o POS)\" en Setup'",
+      "Helper text for PinPad No": "VERIFIED - 'Excluido del Setup — total recalculado'",
+      "Helper text for VPN Sí": "VERIFIED - 'Comunicación Backend usa tarifa Convencional'",
+      "Helper text for VPN No": "VERIFIED - 'Comunicación Backend usa tarifa Outsourcing'"
+    }
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Resend email - simulated via logging.info with [EMAIL SIMULADO] prefix"]
+  }
+}

@@ -472,6 +472,9 @@ class QuoteCreate(BaseModel):
     # Descuentos independientes
     descuento_setup: float = 0
     descuento_recurrente: float = 0
+    # Parámetros dinámicos VPOS
+    requires_pinpad_config: bool = True
+    requires_vpn: bool = True
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
@@ -563,6 +566,9 @@ class Quote(BaseModel):
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
+    # Parámetros dinámicos VPOS
+    requires_pinpad_config: bool = True
+    requires_vpn: bool = True
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
