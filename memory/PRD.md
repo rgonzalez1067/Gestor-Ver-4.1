@@ -57,6 +57,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Asignacion dinamica, Cambiar Estado rapido
 
 ### Otros
+- **Segmentacion VPOS/MPOS (2026-03-13)**: Tipos de cotizacion separados. MPOS: pricing fijo Outsourcing, sin VPN, integrador opcional, hardware filtrado a POS (no Pinpads)
 - **Parametros Dinamicos VPOS (2026-03-13)**: Toggles Si/No para 'Configuracion PinPads' (excluye/incluye item Setup) y 'Requiere VPN' (cambia tarifa Comunicacion Backend entre Conv/Outs). Recalculo en tiempo real. Solo aplica a VPOS.
 - Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
 - **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP (cotizaciones, proyectos, usuarios, configuracion)
