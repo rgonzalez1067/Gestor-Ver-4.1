@@ -59,6 +59,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ### Otros
 - Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
 - **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP (cotizaciones, proyectos, usuarios, configuracion)
+- **Tipo Corp (2026-03-13)**: Nuevo campo obligatorio en Medios de Pago. Valores: 'Derecho de Uso', 'Apoyo Técnico', 'Soporte y Monitoreo'. Propagado a integraciones de Bancos y Nuevos Productos. Incluido en CSV y PDF export.
 - Gestion usuarios con roles/permisos, Menu lateral
 
 ## Reglas de Negocio Clave
