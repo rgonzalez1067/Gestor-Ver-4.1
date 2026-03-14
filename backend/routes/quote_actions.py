@@ -710,6 +710,9 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 serials=serials if requires_serial else [],
                 reference=f"Entrega COT {quote.get('quote_number', '')}",
                 client_name=client_name,
+                client_id=quote.get("client_id", ""),
+                quote_id=quote_id,
+                quote_number=quote.get("quote_number", ""),
                 notes=f"Salida automática por entrega de cotización {quote.get('quote_number', '')}",
                 created_by=user_name,
             )

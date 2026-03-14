@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -6,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil } from 'lucide-react';
+import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -51,6 +53,18 @@ export default function Inventory() {
   const [transferForm, setTransferForm] = useState({ dest_warehouse_id: '', item_id: '', quantity: 1, notes: '', serials: [] });
   const [transferSerials, setTransferSerials] = useState([]);
 
+  // Kardex (drill-down)
+  const [kardexOpen, setKardexOpen] = useState(false);
+  const [kardexData, setKardexData] = useState(null);
+  const [kardexLoading, setKardexLoading] = useState(false);
+
+  // Buscador inverso por cliente
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientSearchResults, setClientSearchResults] = useState([]);
+  const [clientSearchLoading, setClientSearchLoading] = useState(false);
+  const [showClientSearch, setShowClientSearch] = useState(false);
+
+  const navigate = useNavigate();
   const fetchAll = useCallback(async () => {
     try {
       const [whRes, hwRes] = await Promise.all([
@@ -217,6 +231,113 @@ export default function Inventory() {
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
   };
 
+  // ==================== KARDEX (DRILL-DOWN) ====================
+  const openKardex = async (item) => {
+    setKardexLoading(true);
+    setKardexOpen(true);
+    setKardexData(null);
+    try {
+      const res = await api.get(`/inventory/warehouses/${selectedWh}/kardex/${item.item_id}`);
+      setKardexData(res.data);
+    } catch {
+      toast.error('Error al cargar el Kardex');
+      setKardexOpen(false);
+    } finally {
+      setKardexLoading(false);
+    }
+  };
+
+  // ==================== BUSCADOR INVERSO POR CLIENTE ====================
+  const searchByClient = async () => {
+    if (!clientSearch || clientSearch.length < 2) {
+      toast.error('Ingrese al menos 2 caracteres');
+      return;
+    }
+    setClientSearchLoading(true);
+    try {
+      const res = await api.get(`/inventory/movements/search?client_name=${encodeURIComponent(clientSearch)}`);
+      setClientSearchResults(res.data);
+    } catch {
+      toast.error('Error en búsqueda');
+    } finally {
+      setClientSearchLoading(false);
+    }
+  };
+
+  // ==================== COMPONENTE POPOVER DESTINATARIO ====================
+  const DestinationPopover = ({ movementId, clientName, clientId }) => {
+    const [destData, setDestData] = useState(null);
+    const [destLoading, setDestLoading] = useState(false);
+    const [destOpen, setDestOpen] = useState(false);
+
+    const fetchDestination = async () => {
+      if (destData) return;
+      setDestLoading(true);
+      try {
+        const res = await api.get(`/inventory/movements/${movementId}/destination`);
+        setDestData(res.data);
+      } catch { toast.error('Error al obtener destino'); }
+      finally { setDestLoading(false); }
+    };
+
+    return (
+      <Popover open={destOpen} onOpenChange={(o) => { setDestOpen(o); if (o) fetchDestination(); }}>
+        <PopoverTrigger asChild>
+          <button className="inline-flex items-center gap-1 px-2 py-1 text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded transition-colors"
+            data-testid={`btn-destination-${movementId}`}>
+            <Eye size={12} /> Ver Destinatario
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="end" data-testid={`dest-popover-${movementId}`}>
+          {destLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-teal-600" />
+            </div>
+          ) : destData ? (
+            <div className="p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 uppercase font-semibold">Cliente / Razón Social</p>
+                  {destData.client_id ? (
+                    <button onClick={() => navigate('/clients')} className="text-sm font-bold text-teal-700 hover:underline flex items-center gap-1"
+                      data-testid={`dest-client-link-${movementId}`}>
+                      {destData.client_name} <ExternalLink size={11} />
+                    </button>
+                  ) : (
+                    <p className="text-sm font-bold text-slate-900">{destData.client_name || '—'}</p>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500">RIF:</span>
+                  <p className="font-medium text-slate-800">{destData.client_rif || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500">Cotización:</span>
+                  <p className="font-medium text-slate-800">{destData.quote_number || '—'}</p>
+                </div>
+              </div>
+              {destData.serials?.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Seriales Despachados:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {destData.serials.map(s => (
+                      <span key={s} className="px-2 py-0.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="text-xs text-slate-400 pt-1 border-t">
+                {destData.item_name} — Cant: {destData.quantity} — {(destData.date || '').slice(0, 10)}
+              </div>
+            </div>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
   const currentWh = warehouses.find(w => w.warehouse_id === selectedWh);
 
   if (loading) {
@@ -242,10 +363,16 @@ export default function Inventory() {
               </h1>
               <p className="text-sm text-slate-500 mt-1">Control multialmacén con trazabilidad por serial</p>
             </div>
-            <Button onClick={() => { setWhForm({ name: '', location: '', notes: '' }); setWhEditing(null); setWhDialog(true); }}
-              data-testid="add-warehouse-btn" className="bg-teal-600 hover:bg-teal-700 text-white">
-              <Plus size={16} className="mr-1.5" />Nuevo Almacén
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setShowClientSearch(true); setClientSearchResults([]); setClientSearch(''); }}
+                data-testid="btn-client-search">
+                <Search size={14} className="mr-1.5" />Buscar por Cliente
+              </Button>
+              <Button onClick={() => { setWhForm({ name: '', location: '', notes: '' }); setWhEditing(null); setWhDialog(true); }}
+                data-testid="add-warehouse-btn" className="bg-teal-600 hover:bg-teal-700 text-white">
+                <Plus size={16} className="mr-1.5" />Nuevo Almacén
+              </Button>
+            </div>
           </div>
 
           {/* Warehouse selector */}
@@ -316,8 +443,16 @@ export default function Inventory() {
                       {stock.length === 0 ? (
                         <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin stock en este almacén</td></tr>
                       ) : stock.map(item => (
-                        <tr key={item.item_id} className="border-b hover:bg-slate-50" data-testid={`stock-row-${item.item_id}`}>
-                          <td className="px-4 py-3 font-medium text-slate-900">{item.item_name}</td>
+                        <tr key={item.item_id}
+                          className="border-b hover:bg-teal-50/50 cursor-pointer transition-colors group"
+                          onClick={() => openKardex(item)}
+                          data-testid={`stock-row-${item.item_id}`}>
+                          <td className="px-4 py-3 font-medium text-slate-900">
+                            <span className="flex items-center gap-2">
+                              {item.item_name}
+                              <ChevronRight size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors" />
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-center">
                             <span className={`px-2 py-0.5 text-xs rounded ${item.requires_serial ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
                               {item.item_type}
@@ -330,7 +465,7 @@ export default function Inventory() {
                               <span className="text-xs text-purple-600">{item.serials?.length || 0} registrados</span>
                             ) : <span className="text-xs text-slate-400">N/A</span>}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                             {item.quantity > 0 && (
                               <div className="flex justify-end gap-1">
                                 <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-800"
@@ -577,6 +712,156 @@ export default function Inventory() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* ==================== KARDEX DEL PRODUCTO ==================== */}
+        <Dialog open={kardexOpen} onOpenChange={setKardexOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="kardex-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <History size={20} className="text-teal-600" />
+                Kardex del Producto
+              </DialogTitle>
+              {kardexData && (
+                <p className="text-sm text-slate-500">
+                  <strong>{kardexData.item_name}</strong> ({kardexData.item_type}) — {currentWh?.name || ''}
+                </p>
+              )}
+            </DialogHeader>
+
+            {kardexLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+              </div>
+            ) : kardexData ? (
+              <div>
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm" data-testid="kardex-table">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Fecha</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Tipo</th>
+                        <th className="px-3 py-2.5 text-center text-xs font-medium text-slate-600">Cantidad</th>
+                        <th className="px-3 py-2.5 text-center text-xs font-medium text-slate-600 bg-teal-50 text-teal-700">Saldo</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Seriales</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Referencia</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Por</th>
+                        <th className="px-3 py-2.5 text-center text-xs font-medium text-slate-600">Destino</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {kardexData.movements.length === 0 ? (
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
+                      ) : kardexData.movements.map(m => {
+                        const ml = MOV_LABELS[m.movement_type] || { label: m.movement_type, color: 'bg-slate-100 text-slate-600', icon: '?' };
+                        const isSalida = m.movement_type === 'salida';
+                        return (
+                          <tr key={m.movement_id} className={`border-b hover:bg-slate-50 ${isSalida ? 'bg-red-50/30' : ''}`} data-testid={`kardex-row-${m.movement_id}`}>
+                            <td className="px-3 py-2 text-xs text-slate-500">{(m.date || '').slice(0, 16).replace('T', ' ')}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${ml.color}`}>{ml.icon} {ml.label}</span>
+                            </td>
+                            <td className={`px-3 py-2 text-center font-semibold ${m.signed_qty > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                              {m.signed_qty > 0 ? '+' : ''}{m.signed_qty}
+                            </td>
+                            <td className="px-3 py-2 text-center font-bold text-teal-700 bg-teal-50/50">{m.saldo}</td>
+                            <td className="px-3 py-2 text-xs text-slate-500 max-w-[150px] truncate" title={m.serials?.join(', ')}>
+                              {m.serials?.length > 0 ? m.serials.join(', ') : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-xs text-slate-500">{m.reference || m.notes || '—'}</td>
+                            <td className="px-3 py-2 text-xs text-slate-400">{m.created_by || '—'}</td>
+                            <td className="px-3 py-2 text-center">
+                              {isSalida && (m.client_name || m.client_id) ? (
+                                <DestinationPopover movementId={m.movement_id} clientName={m.client_name} clientId={m.client_id} />
+                              ) : (
+                                <span className="text-xs text-slate-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Saldo final */}
+                <div className="mt-3 flex items-center justify-end gap-4 px-1">
+                  <span className="text-sm text-slate-500">Saldo Final:</span>
+                  <span className="text-xl font-bold text-teal-700" data-testid="kardex-saldo-final">{kardexData.saldo_final}</span>
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== BUSCADOR INVERSO POR CLIENTE ==================== */}
+        <Dialog open={showClientSearch} onOpenChange={setShowClientSearch}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="client-search-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Search size={20} className="text-teal-600" />
+                Buscar Entregas por Cliente
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') searchByClient(); }}
+                  placeholder="Nombre del cliente..."
+                  data-testid="client-search-input"
+                />
+                <Button onClick={searchByClient} disabled={clientSearchLoading} className="bg-teal-600 hover:bg-teal-700 text-white" data-testid="client-search-btn">
+                  {clientSearchLoading ? 'Buscando...' : 'Buscar'}
+                </Button>
+              </div>
+
+              {clientSearchResults.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-sm" data-testid="client-search-results">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Fecha</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Producto</th>
+                        <th className="px-3 py-2.5 text-center text-xs font-medium text-slate-600">Cant.</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Seriales</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Cliente</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-medium text-slate-600">Referencia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientSearchResults.map(m => (
+                        <tr key={m.movement_id} className="border-b hover:bg-slate-50">
+                          <td className="px-3 py-2 text-xs text-slate-500">{(m.created_at || '').slice(0, 16).replace('T', ' ')}</td>
+                          <td className="px-3 py-2 text-slate-900">{m.item_name}</td>
+                          <td className="px-3 py-2 text-center font-medium">{m.quantity}</td>
+                          <td className="px-3 py-2 text-xs text-slate-500">{m.serials?.length > 0 ? m.serials.join(', ') : 'N/A'}</td>
+                          <td className="px-3 py-2">
+                            {m.client_id ? (
+                              <button onClick={() => { setShowClientSearch(false); navigate(`/clients`); }}
+                                className="text-teal-600 hover:underline text-sm font-medium flex items-center gap-1">
+                                {m.client_name} <ExternalLink size={10} />
+                              </button>
+                            ) : (
+                              <span className="text-sm">{m.client_name || '—'}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-500">{m.reference || m.quote_number || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="px-4 py-2 text-xs text-slate-400 bg-slate-50 border-t">
+                    {clientSearchResults.length} resultado(s) encontrado(s)
+                  </div>
+                </div>
+              )}
+
+              {clientSearchResults.length === 0 && clientSearch && !clientSearchLoading && (
+                <p className="text-sm text-slate-400 text-center py-6">Sin resultados para "{clientSearch}"</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

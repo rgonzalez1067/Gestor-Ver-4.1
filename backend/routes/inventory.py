@@ -358,6 +358,109 @@ async def get_movements(warehouse_id: str, authorization: Optional[str] = Header
     return movements
 
 
+# ==================== KARDEX POR PRODUCTO ====================
+
+@router.get("/inventory/warehouses/{warehouse_id}/kardex/{item_id}")
+async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[str] = Header(None)):
+    """Kardex del producto: historial cronológico de movimientos con saldo resultante."""
+    await get_current_user(authorization)
+
+    movements = await db.inventory_movements.find(
+        {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(10000)
+
+    # Calcular saldo acumulado
+    saldo = 0
+    kardex = []
+    for m in movements:
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        saldo += sign * m["quantity"]
+        kardex.append({
+            "movement_id": m["movement_id"],
+            "date": m.get("created_at", ""),
+            "movement_type": m["movement_type"],
+            "quantity": m["quantity"],
+            "signed_qty": sign * m["quantity"],
+            "saldo": saldo,
+            "unit_cost": m.get("unit_cost", 0),
+            "serials": m.get("serials", []),
+            "reference": m.get("reference", ""),
+            "client_name": m.get("client_name", ""),
+            "client_id": m.get("client_id", ""),
+            "quote_id": m.get("quote_id", ""),
+            "quote_number": m.get("quote_number", ""),
+            "notes": m.get("notes", ""),
+            "created_by": m.get("created_by", ""),
+        })
+
+    # Info del producto
+    hw = await db.hardware.find_one({"hardware_id": item_id}, {"_id": 0})
+    item_name = hw.get("name", "") if hw else (movements[0]["item_name"] if movements else "")
+    item_type = hw.get("type", "") if hw else (movements[0]["item_type"] if movements else "")
+
+    return {
+        "item_id": item_id,
+        "item_name": item_name,
+        "item_type": item_type,
+        "warehouse_id": warehouse_id,
+        "saldo_final": saldo,
+        "movements": kardex,
+    }
+
+
+# ==================== DESTINO DE MOVIMIENTO ====================
+
+@router.get("/inventory/movements/{movement_id}/destination")
+async def get_movement_destination(movement_id: str, authorization: Optional[str] = Header(None)):
+    """Retorna info de destino (cliente) para un movimiento de salida."""
+    await get_current_user(authorization)
+
+    mov = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+
+    if mov["movement_type"] not in ("salida",):
+        raise HTTPException(status_code=400, detail="Solo movimientos de salida tienen destinatario")
+
+    client_id = mov.get("client_id", "")
+    client = None
+    if client_id:
+        client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+
+    return {
+        "movement_id": movement_id,
+        "client_id": client_id,
+        "client_name": client.get("fantasy_name") or client.get("legal_name", "") if client else mov.get("client_name", ""),
+        "client_rif": client.get("rif", "") if client else "",
+        "client_address": client.get("address", "") if client else "",
+        "quote_id": mov.get("quote_id", ""),
+        "quote_number": mov.get("quote_number", "") or mov.get("reference", ""),
+        "serials": mov.get("serials", []),
+        "item_name": mov.get("item_name", ""),
+        "quantity": mov.get("quantity", 0),
+        "date": mov.get("created_at", ""),
+    }
+
+
+# ==================== BUSCADOR INVERSO POR CLIENTE ====================
+
+@router.get("/inventory/movements/search")
+async def search_movements_by_client(client_name: str = "", authorization: Optional[str] = Header(None)):
+    """Buscar movimientos de salida por nombre de cliente."""
+    await get_current_user(authorization)
+
+    if not client_name or len(client_name) < 2:
+        raise HTTPException(status_code=400, detail="Debe proporcionar al menos 2 caracteres del nombre del cliente")
+
+    query = {
+        "movement_type": "salida",
+        "client_name": {"$regex": client_name, "$options": "i"},
+    }
+    movements = await db.inventory_movements.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+    return movements
+
+
 # ==================== HELPERS ====================
 
 async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:

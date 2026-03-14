@@ -814,6 +814,9 @@ class InventoryMovement(BaseModel):
     serials: List[str] = []  # Solo para hardware crítico (POS/Pinpad)
     reference: str = ""      # Ej: "COT-2026-03-001" o "Transferencia desde Almacén X"
     client_name: str = ""    # Para salidas por venta
+    client_id: str = ""      # FK opcional a clientes
+    quote_id: str = ""       # FK opcional a cotizaciones
+    quote_number: str = ""   # Nro de cotización para referencia rápida
     notes: str = ""
     transfer_id: str = ""    # ID que vincula salida+entrada en transferencias
     created_by: str = ""
