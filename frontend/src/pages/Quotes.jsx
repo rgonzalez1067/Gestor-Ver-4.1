@@ -17,6 +17,7 @@ import { MultiProductSelector } from '../components/MultiProductSelector';
 import { QuoteFilters } from '../components/quotes/QuoteFilters';
 import { QuotesTable } from '../components/quotes/QuotesTable';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
+import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -208,6 +209,11 @@ export const Quotes = () => {
   const [bitacoraFlujoQuoteNumber, setBitacoraFlujoQuoteNumber] = useState('');
   const [bitacoraFlujoEntries, setBitacoraFlujoEntries] = useState([]);
   const [bitacoraFlujoLoading, setBitacoraFlujoLoading] = useState(false);
+
+  // Estado para DeliveryDialog (Hoja de Ruta)
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
+  const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -2541,30 +2547,11 @@ export const Quotes = () => {
     setWorkflowModalOpen(true);
   };
 
-  // Entregar cotización (solo equipos)
+  // Entregar cotización (solo equipos) — abre dialog de entrega
   const handleDeliverQuote = async (quoteId, exceptionInfo) => {
-    if (!window.confirm('¿Confirma que el pedido ha sido entregado?')) return;
-    
-    setActionLoading(quoteId);
-    try {
-      const headers = {};
-      if (exceptionInfo) {
-        headers['x-exception-reason'] = exceptionInfo.reason;
-        headers['x-regularization-date'] = exceptionInfo.regularization_date;
-      }
-      await api.post(`/quotes/${quoteId}/deliver`, {}, { headers });
-      toast.success('Cotización marcada como Entregada');
-      fetchData();
-    } catch (error) {
-      const detail = error.response?.data?.detail || '';
-      if (detail.startsWith('IRREGULAR:')) {
-        toast.error(detail.replace('IRREGULAR:', ''));
-      } else {
-        toast.error(detail || 'Error al marcar como entregada');
-      }
-    } finally {
-      setActionLoading(null);
-    }
+    setDeliveryQuoteId(quoteId);
+    setDeliveryExceptionInfo(exceptionInfo || null);
+    setDeliveryDialogOpen(true);
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id) || 
@@ -4443,6 +4430,15 @@ export const Quotes = () => {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Delivery Dialog (Hoja de Ruta) */}
+          <DeliveryDialog
+            open={deliveryDialogOpen}
+            onOpenChange={setDeliveryDialogOpen}
+            quoteId={deliveryQuoteId}
+            exceptionInfo={deliveryExceptionInfo}
+            onDelivered={() => fetchData()}
+          />
         </div>
       </main>
     </div>

@@ -12,6 +12,7 @@ import base64
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template
 from models import *
 from services.email_service import send_email
+from services.hoja_ruta_pdf import generate_hoja_ruta_pdf
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -547,33 +548,247 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     return {"message": "Cotización marcada como Pagada", "emails": email_results}
 
 
-@router.post("/quotes/{quote_id}/deliver")
-async def deliver_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
-    """Marcar cotización de equipos como Entregada. Soporta flujo irregular."""
-    current_user = await get_current_user(authorization)
-    
+@router.get("/quotes/{quote_id}/delivery-prep")
+async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Devuelve los datos de preparación para entrega: items de la cotización y stock disponible."""
+    await get_current_user(authorization)
+
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
+    if quote.get("quote_category") != "equipment":
+        raise HTTPException(status_code=400, detail="Solo cotizaciones de equipos soportan entrega")
+
+    equipment_items = quote.get("equipment_items", [])
+
+    # Almacenes disponibles
+    warehouses = await db.warehouses.find({}, {"_id": 0}).sort("name", 1).to_list(100)
+
+    # Stock por almacén si se especifica
+    stock_by_item = {}
+    if warehouse_id:
+        movements = await db.inventory_movements.find(
+            {"warehouse_id": warehouse_id}, {"_id": 0}
+        ).to_list(10000)
+        stock = {}
+        for m in movements:
+            iid = m["item_id"]
+            if iid not in stock:
+                stock[iid] = {"quantity": 0, "serials": [], "item_type": m.get("item_type", "")}
+            sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+            stock[iid]["quantity"] += sign * m["quantity"]
+            if m.get("serials"):
+                if sign > 0:
+                    stock[iid]["serials"].extend(m["serials"])
+                else:
+                    for s in m["serials"]:
+                        if s in stock[iid]["serials"]:
+                            stock[iid]["serials"].remove(s)
+        stock_by_item = stock
+
+    # Enrich items with stock info
+    items_with_stock = []
+    for item in equipment_items:
+        hw_id = item.get("hardware_id", "")
+        st = stock_by_item.get(hw_id, {})
+        items_with_stock.append({
+            "hardware_id": hw_id,
+            "name": item.get("name", ""),
+            "hardware_type": item.get("hardware_type", ""),
+            "quantity_quoted": item.get("quantity", 1),
+            "stock_available": st.get("quantity", 0),
+            "serials_available": st.get("serials", []),
+            "requires_serial": (st.get("item_type", "") or item.get("hardware_type", "")).lower() in SERIALIZED_TYPES,
+        })
+
+    return {
+        "quote_number": quote.get("quote_number", ""),
+        "client_id": quote.get("client_id", ""),
+        "client_name": quote.get("client_name", ""),
+        "warehouses": warehouses,
+        "items": items_with_stock,
+    }
+
+
+@router.post("/quotes/{quote_id}/deliver")
+async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Marcar cotización de equipos como Entregada, con deducción automática de inventario y generación de Hoja de Ruta."""
+    current_user = await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
     if quote.get("quote_category") != "equipment":
         raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos")
-    
+
     current_status = quote.get("quote_status", "Borrador")
     is_irregular = current_status != "Pagada"
-    
+
     if is_irregular:
         if not exception_reason:
             raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para entregar sin pago registrado")
         await mark_quote_irregular(quote_id, "deliver", exception_reason, regularization_date)
         await log_audit_exception(quote_id, quote.get("quote_number"), "deliver", "Pagada", current_status, exception_reason, regularization_date, current_user)
-    
+
+    warehouse_id = body.get("warehouse_id")
+    delivery_items = body.get("delivery_items", [])
+    delivery_notes = body.get("notes", "")
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+
+    # Get client info
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    client_name = (client.get("fantasy_name") or client.get("legal_name", "")) if client else quote.get("client_name", "")
+    client_rif = client.get("rif", "") if client else ""
+    client_address = client.get("address", "") if client else ""
+
+    hoja_ruta_url = None
+    delivered_pdf_items = []
+
+    # Process inventory exits if warehouse and items provided
+    if warehouse_id and delivery_items:
+        wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
+        if not wh:
+            raise HTTPException(status_code=404, detail="Almacén no encontrado")
+
+        warehouse_name = wh.get("name", "")
+
+        for d_item in delivery_items:
+            hw_id = d_item.get("hardware_id", "")
+            qty = d_item.get("quantity", 0)
+            serials = d_item.get("serials", [])
+            if not hw_id or qty <= 0:
+                continue
+
+            # Get hardware info
+            hw = await db.hardware.find_one({"hardware_id": hw_id}, {"_id": 0})
+            if not hw:
+                raise HTTPException(status_code=404, detail=f"Producto {hw_id} no encontrado en catálogo")
+
+            hw_type = hw.get("type", "General")
+            requires_serial = hw_type.lower() in SERIALIZED_TYPES
+
+            # Calculate current stock
+            movements = await db.inventory_movements.find(
+                {"warehouse_id": warehouse_id, "item_id": hw_id}, {"_id": 0}
+            ).to_list(10000)
+            stock_qty = 0
+            stock_serials = []
+            cost_total = 0
+            for m in movements:
+                sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+                stock_qty += sign * m["quantity"]
+                cost_total += sign * m["quantity"] * m.get("unit_cost", 0)
+                if m.get("serials"):
+                    if sign > 0:
+                        stock_serials.extend(m["serials"])
+                    else:
+                        for s in m["serials"]:
+                            if s in stock_serials:
+                                stock_serials.remove(s)
+            avg_cost = round(cost_total / stock_qty, 2) if stock_qty > 0 else 0
+
+            if stock_qty < qty:
+                raise HTTPException(status_code=400, detail=f"Stock insuficiente de '{hw['name']}'. Disponible: {stock_qty}, Solicitado: {qty}")
+
+            if requires_serial:
+                if len(serials) != qty:
+                    raise HTTPException(status_code=400, detail=f"Debe seleccionar {qty} serial(es) para '{hw['name']}'")
+                for s in serials:
+                    if s not in stock_serials:
+                        raise HTTPException(status_code=400, detail=f"Serial '{s}' no disponible en almacén")
+
+            # Create exit movement
+            exit_mov = InventoryMovement(
+                warehouse_id=warehouse_id,
+                item_id=hw_id,
+                item_name=hw["name"],
+                item_type=hw_type,
+                movement_type="salida",
+                quantity=qty,
+                unit_cost=avg_cost,
+                serials=serials if requires_serial else [],
+                reference=f"Entrega COT {quote.get('quote_number', '')}",
+                client_name=client_name,
+                notes=f"Salida automática por entrega de cotización {quote.get('quote_number', '')}",
+                created_by=user_name,
+            )
+            doc = exit_mov.model_dump()
+            doc["created_at"] = doc["created_at"].isoformat()
+            await db.inventory_movements.insert_one(doc)
+            doc.pop("_id", None)
+
+            delivered_pdf_items.append({
+                "name": hw["name"],
+                "type": hw_type,
+                "quantity": qty,
+                "serials": serials if requires_serial else [],
+            })
+
+        # Generate Hoja de Ruta PDF
+        try:
+            logo_path = None
+            logo_file = UPLOADS_DIR / "logo.png"
+            if logo_file.exists():
+                logo_path = str(logo_file)
+
+            pdf_buffer = generate_hoja_ruta_pdf(
+                quote_number=quote.get("quote_number", ""),
+                client_name=client_name,
+                client_rif=client_rif,
+                client_address=client_address,
+                warehouse_name=warehouse_name,
+                delivered_items=delivered_pdf_items,
+                delivered_by=user_name,
+                notes=delivery_notes,
+                logo_path=logo_path,
+            )
+            pdf_filename = f"HojaRuta_{quote.get('quote_number', quote_id)}.pdf"
+            pdf_path = UPLOADS_DIR / pdf_filename
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_buffer.getvalue())
+            hoja_ruta_url = f"/uploads/{pdf_filename}"
+
+            # Attach to quote
+            attachment = {
+                "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+                "category": "Otros",
+                "filename": pdf_filename,
+                "url": hoja_ruta_url,
+                "uploaded_by": current_user.get("email", "system"),
+                "uploaded_by_name": user_name,
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "content_type": "application/pdf",
+            }
+            await db.quotes.update_one(
+                {"quote_id": quote_id},
+                {"$push": {"attachments": attachment}}
+            )
+
+            # Also attach to client annexes
+            if client:
+                client_attachment = {**attachment, "attachment_id": f"att_{uuid.uuid4().hex[:12]}", "category": "Otros"}
+                await db.clients.update_one(
+                    {"client_id": quote.get("client_id")},
+                    {"$push": {"attachments": client_attachment}}
+                )
+
+            logger.info(f"Hoja de Ruta generada: {hoja_ruta_url}")
+        except Exception as e:
+            logger.error(f"Error generando Hoja de Ruta: {e}")
+
+    # Update quote status
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
         "quote_status": "Entregada",
         "delivered_at": datetime.now(timezone.utc).isoformat()
     }})
-    
-    return {"message": "Cotización marcada como Entregada"}
+
+    return {
+        "message": "Cotización marcada como Entregada",
+        "inventory_processed": len(delivered_pdf_items) > 0,
+        "items_delivered": len(delivered_pdf_items),
+        "hoja_ruta_url": hoja_ruta_url,
+    }
 
 
 @router.post("/quotes/{quote_id}/duplicate")
