@@ -60,10 +60,10 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Fase 1: Gestion de Almacenes** — CRUD almacenes con nombre, ubicacion, notas
 - **Fase 2: Entradas y Transferencias** — Entradas de stock (con/sin seriales), validacion de hardware critico (POS/Pinpad/MPOS), transferencias atomicas entre almacenes, historial de movimientos, carga de seriales desde Excel
 - **Fase 3: Salidas Automaticas y Hoja de Ruta (2026-03-14)** — Al entregar cotizacion de equipos ("Entregada"), el stock se deduce automaticamente del almacen seleccionado. UI con DeliveryDialog para seleccionar almacen y seriales. Generacion de PDF "Hoja de Ruta" archivado en anexos de cotizacion y cliente.
-  - Endpoint `GET /api/quotes/{id}/delivery-prep` para preparar datos de entrega
-  - Endpoint `POST /api/quotes/{id}/deliver` con {warehouse_id, delivery_items, notes}
-  - Generador PDF: `/app/backend/services/hoja_ruta_pdf.py`
-  - Componente frontend: `/app/frontend/src/components/quotes/DeliveryDialog.jsx`
+- **Kardex del Producto (2026-03-14)** — Click en fila de stock abre historial cronologico con saldo resultante por movimiento. Saldo final coincide con stock listado.
+- **Trazabilidad de Salidas (2026-03-14)** — Boton "Ver Destinatario" en salidas del Kardex: popover con cliente/razon social, RIF, cotizacion, seriales despachados. Enlace directo a ficha del cliente.
+- **Buscador Inverso por Cliente (2026-03-14)** — Busqueda de movimientos de salida por nombre de cliente para ver que equipos se le han entregado historicamente.
+- Modelo InventoryMovement ampliado con client_id, quote_id, quote_number para trazabilidad completa.
 
 ### Otros
 - **Segmentacion VPOS/MPOS (2026-03-13)**: Tipos de cotizacion separados. MPOS: pricing fijo Outsourcing, sin VPN, integrador opcional, hardware filtrado a POS (no Pinpads)
