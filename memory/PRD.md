@@ -56,12 +56,21 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Generacion automatica desde cotizaciones, Persistencia Irregular
 - Asignacion dinamica, Cambiar Estado rapido
 
+### Modulo de Inventarios (2026-03-14)
+- **Fase 1: Gestion de Almacenes** — CRUD almacenes con nombre, ubicacion, notas
+- **Fase 2: Entradas y Transferencias** — Entradas de stock (con/sin seriales), validacion de hardware critico (POS/Pinpad/MPOS), transferencias atomicas entre almacenes, historial de movimientos, carga de seriales desde Excel
+- **Fase 3: Salidas Automaticas y Hoja de Ruta (2026-03-14)** — Al entregar cotizacion de equipos ("Entregada"), el stock se deduce automaticamente del almacen seleccionado. UI con DeliveryDialog para seleccionar almacen y seriales. Generacion de PDF "Hoja de Ruta" archivado en anexos de cotizacion y cliente.
+  - Endpoint `GET /api/quotes/{id}/delivery-prep` para preparar datos de entrega
+  - Endpoint `POST /api/quotes/{id}/deliver` con {warehouse_id, delivery_items, notes}
+  - Generador PDF: `/app/backend/services/hoja_ruta_pdf.py`
+  - Componente frontend: `/app/frontend/src/components/quotes/DeliveryDialog.jsx`
+
 ### Otros
 - **Segmentacion VPOS/MPOS (2026-03-13)**: Tipos de cotizacion separados. MPOS: pricing fijo Outsourcing, sin VPN, integrador opcional, hardware filtrado a POS (no Pinpads)
-- **Parametros Dinamicos VPOS (2026-03-13)**: Toggles Si/No para 'Configuracion PinPads' (excluye/incluye item Setup) y 'Requiere VPN' (cambia tarifa Comunicacion Backend entre Conv/Outs). Recalculo en tiempo real. Solo aplica a VPOS.
+- **Parametros Dinamicos VPOS (2026-03-13)**: Toggles Si/No para 'Configuracion PinPads' y 'Requiere VPN'. Recalculo en tiempo real. Solo aplica a VPOS.
 - Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
-- **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP (cotizaciones, proyectos, usuarios, configuracion)
-- **Tipo Corp (2026-03-13)**: Nuevo campo obligatorio en Medios de Pago. Valores: 'Derecho de Uso', 'Apoyo Técnico', 'Soporte y Monitoreo'. Propagado a integraciones de Bancos y Nuevos Productos. Incluido en CSV y PDF export.
+- **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP
+- **Tipo Corp (2026-03-13)**: Nuevo campo obligatorio en Medios de Pago. Valores: 'Derecho de Uso', 'Apoyo Tecnico', 'Soporte y Monitoreo'. Propagado a integraciones de Bancos y Nuevos Productos.
 - Gestion usuarios con roles/permisos, Menu lateral
 
 ## Reglas de Negocio Clave
@@ -69,20 +78,21 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Ejecutivo filtrado**: Solo usuarios con cargo 'Ejecutivo de Ventas Pyme' o 'Ejecutivo de Ventas Corporativas'
 - **Cantidad de Cajas**: Se hereda a campo VTID en cotizaciones (pendiente implementar)
 - **Aplicativo condicionado**: Se filtra segun integrador seleccionado
-- **Estados Integracion Bancaria**: Solo PreProd, Primer Prod, Masificacion (migrados automaticamente desde estados antiguos)
+- **Estados Integracion Bancaria**: Solo PreProd, Primer Prod, Masificacion
+- **SERIALIZED_TYPES**: ['pos', 'pinpad', 'mpos'] — requieren seriales en inventario
 
 ## Integraciones
-- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas
+- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas, reportlab (PDF Hoja de Ruta)
 
 ## Backlog
 
 ### P1
 - Herencia de cantidad_cajas a campo VTID en cotizaciones
 - Verificacion Email y Recuperacion Contrasena
-- Refactorizacion Quotes.jsx (4200+ lineas)
+- Refactorizacion Quotes.jsx (4400+ lineas)
 
 ### P2
 - Modulo Reportes de ventas
 - Logica "Completado" en Roadmap Bancos
-- Refactorizacion Integrators.jsx (1500+ lineas)
+- Refactorizacion Integrators.jsx y Clients.jsx
 - Fix warning HTML en QuotesTable (span/tbody)
