@@ -19,6 +19,7 @@ import UserManagement from './pages/UserManagement';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import NewProducts from './pages/NewProducts';
+import Inventory from './pages/Inventory';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -91,6 +92,11 @@ function AppRouter() {
       <Route path="/new-products" element={
         <ProtectedRoute>
           <NewProducts />
+        </ProtectedRoute>
+      } />
+      <Route path="/inventory" element={
+        <ProtectedRoute>
+          <Inventory />
         </ProtectedRoute>
       } />
       <Route path="/exchange-rate" element={

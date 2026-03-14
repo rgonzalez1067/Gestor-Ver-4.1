@@ -782,3 +782,41 @@ AVAILABLE_MODULES = [
 
 # Niveles de permiso
 PERMISSION_LEVELS = ["none", "read", "edit"]
+
+
+# ==================== INVENTORY MODULE ====================
+
+class Warehouse(BaseModel):
+    """Almacén físico para control de inventario."""
+    warehouse_id: str = Field(default_factory=lambda: f"whs_{uuid.uuid4().hex[:8]}")
+    name: str
+    location: str = ""
+    notes: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class WarehouseCreate(BaseModel):
+    name: str
+    location: str = ""
+    notes: str = ""
+
+MOVEMENT_TYPES = ["entrada", "salida", "transferencia_entrada", "transferencia_salida"]
+
+class InventoryMovement(BaseModel):
+    """Movimiento de inventario (entrada, salida, transferencia)."""
+    movement_id: str = Field(default_factory=lambda: f"mov_{uuid.uuid4().hex[:8]}")
+    warehouse_id: str
+    item_id: str          # hardware_id de la tabla Bienes y Servicios
+    item_name: str
+    item_type: str        # tipo del hardware (POS, Pinpad, Cable, etc.)
+    movement_type: str    # entrada, salida, transferencia_entrada, transferencia_salida
+    quantity: int
+    unit_cost: float = 0
+    serials: List[str] = []  # Solo para hardware crítico (POS/Pinpad)
+    reference: str = ""      # Ej: "COT-2026-03-001" o "Transferencia desde Almacén X"
+    client_name: str = ""    # Para salidas por venta
+    notes: str = ""
+    transfer_id: str = ""    # ID que vincula salida+entrada en transferencias
+    created_by: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+SERIALIZED_TYPES = ["pos", "pinpad", "mpos"]
