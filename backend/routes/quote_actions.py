@@ -987,6 +987,7 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
         "client_name": client_name,
         "client_rif": client_rif,
         "client_sede": client_sede,
+        "client_segment": quote.get("client_segment", "PYME"),
         "quote_category": quote.get("quote_category", "implementation"),
         "quote_type": quote.get("quote_type", "VPOS"),
         "services": quote.get("services", []),

@@ -31,7 +31,7 @@ const getQuoteTypeName = (type) => {
 
 export const QuotesTable = ({
   quotes, clients,
-  filterClient, filterStatus, filterCategory, filterDateFrom, filterDateTo,
+  filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
   actionLoading,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onDelete,
@@ -46,6 +46,7 @@ export const QuotesTable = ({
       if (filterCategory === 'equipment' && !isEquipment) return false;
       if (filterCategory === 'implementation' && isEquipment) return false;
     }
+    if (filterSegment && filterSegment !== 'all' && (quote.client_segment || 'PYME') !== filterSegment) return false;
     if (filterDateFrom) {
       if (new Date(quote.created_at) < new Date(filterDateFrom)) return false;
     }
@@ -64,6 +65,7 @@ export const QuotesTable = ({
           <tr>
             <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
             <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Categoría</th>
+            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Segmento</th>
             <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
             <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
             <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
@@ -91,6 +93,19 @@ export const QuotesTable = ({
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
                     {isEquipment ? 'Equipos' : 'Implementación'}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm">
+                  {quote.client_segment ? (
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${
+                      quote.client_segment === 'CORP'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`} data-testid={`segment-tag-${quote.quote_id}`}>
+                      {quote.client_segment === 'CORP' ? 'Corp' : 'Pyme'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>{displayType}</span>

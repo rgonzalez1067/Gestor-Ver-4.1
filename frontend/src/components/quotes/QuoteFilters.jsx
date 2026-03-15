@@ -14,6 +14,7 @@ export const QuoteFilters = ({
   filterClient, setFilterClient,
   filterStatus, setFilterStatus,
   filterCategory, setFilterCategory,
+  filterSegment, setFilterSegment,
   filterDateFrom, setFilterDateFrom,
   filterDateTo, setFilterDateTo,
 }) => {
@@ -21,11 +22,12 @@ export const QuoteFilters = ({
     setFilterClient('');
     setFilterStatus('');
     setFilterCategory('');
+    setFilterSegment('');
     setFilterDateFrom('');
     setFilterDateTo('');
   };
 
-  const hasFilters = filterClient || filterStatus || filterCategory || filterDateFrom || filterDateTo;
+  const hasFilters = filterClient || filterStatus || filterCategory || filterSegment || filterDateFrom || filterDateTo;
 
   return (
     <div className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-200" data-testid="quote-filters">
@@ -39,7 +41,7 @@ export const QuoteFilters = ({
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
         <div>
           <Label className="text-xs text-slate-500 mb-1 block">Cliente</Label>
           <Select value={filterClient} onValueChange={setFilterClient}>
@@ -87,6 +89,20 @@ export const QuoteFilters = ({
               {QUOTE_FILTER_CATEGORIES.map((cat) => (
                 <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-xs text-slate-500 mb-1 block">Segmento</Label>
+          <Select value={filterSegment} onValueChange={setFilterSegment}>
+            <SelectTrigger className="h-9 bg-white" data-testid="filter-segment">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="PYME">Pyme</SelectItem>
+              <SelectItem value="CORP">Corporativo</SelectItem>
             </SelectContent>
           </Select>
         </div>

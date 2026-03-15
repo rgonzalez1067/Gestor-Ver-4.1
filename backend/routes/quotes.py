@@ -124,6 +124,8 @@ class QuoteCreateWithPDF(BaseModel):
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
     requires_vpn: bool = True
+    # Segmento de cliente
+    client_segment: str = "PYME"
 
 @router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
@@ -320,6 +322,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             requires_pinpad_config=data.requires_pinpad_config,
             requires_vpn=data.requires_vpn,
             sede=user_sede,
+            client_segment=data.client_segment or user_sede,
             created_by_user_id=current_user.get("user_id"),
             quote_pdf_url=quote_pdf_url,
             attachments=initial_attachments

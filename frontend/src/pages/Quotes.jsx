@@ -9,7 +9,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
@@ -118,6 +119,7 @@ export const Quotes = () => {
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterSegment, setFilterSegment] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   
@@ -660,7 +662,7 @@ export const Quotes = () => {
     return { setup_cost: 0, monthly_cost: 0, application_type: 'both', service_id: null, service_name: null };
   };
 
-  const openWizard = () => {
+  const openWizard = (segment = 'PYME') => {
     // Resetear modo edición si estaba activo
     setIsEditing(false);
     setEditingQuoteId(null);
@@ -670,6 +672,7 @@ export const Quotes = () => {
     setQuoteData({
       quote_type: '',
       client_id: '',
+      client_segment: segment,
       pricing_model: '',
       cantidad_cajas: 1,
       cantidad_bancos: 1,
@@ -1422,6 +1425,7 @@ export const Quotes = () => {
 
       const payload = {
         client_id: quoteData.client_id,
+        client_segment: quoteData.client_segment || 'PYME',
         quote_type: quoteData.quote_type,
         pricing_model: quoteData.pricing_model,
         services: allItems,
@@ -2613,10 +2617,39 @@ export const Quotes = () => {
 
           {/* Botones de Nueva Cotización */}
           <div className="flex items-center gap-3 mb-6">
-            <Button onClick={openWizard} data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
-              <Plus size={20} className="mr-2" />
-              Nueva Implementación
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                  <Plus size={20} className="mr-2" />
+                  Nueva Implementación
+                  <ChevronDown size={16} className="ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuItem onClick={() => openWizard('PYME')} className="py-3 cursor-pointer" data-testid="new-impl-pyme">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                      <Users size={16} className="text-emerald-700" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Clientes Pymes</p>
+                      <p className="text-xs text-slate-500">Flujos estandarizados y ágiles</p>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openWizard('CORP')} className="py-3 cursor-pointer" data-testid="new-impl-corp">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Building2 size={16} className="text-blue-700" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Clientes Corporativos</p>
+                      <p className="text-xs text-slate-500">Proyectos de gran envergadura</p>
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
               <Plus size={20} className="mr-2" />
               Nueva Cotización: Equipos, Accesorios y Reparaciones
@@ -2629,6 +2662,7 @@ export const Quotes = () => {
             filterClient={filterClient} setFilterClient={setFilterClient}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+            filterSegment={filterSegment} setFilterSegment={setFilterSegment}
             filterDateFrom={filterDateFrom} setFilterDateFrom={setFilterDateFrom}
             filterDateTo={filterDateTo} setFilterDateTo={setFilterDateTo}
           />
@@ -2653,6 +2687,7 @@ export const Quotes = () => {
             filterClient={filterClient}
             filterStatus={filterStatus}
             filterCategory={filterCategory}
+            filterSegment={filterSegment}
             filterDateFrom={filterDateFrom}
             filterDateTo={filterDateTo}
             actionLoading={actionLoading}
@@ -2675,6 +2710,7 @@ export const Quotes = () => {
               setFilterClient('');
               setFilterStatus('');
               setFilterCategory('');
+              setFilterSegment('');
               setFilterDateFrom('');
               setFilterDateTo('');
             }}
@@ -2691,8 +2727,17 @@ export const Quotes = () => {
           }}>
             <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="font-manrope text-2xl">
-                  {isEditing ? 'Modificar Cotización (Nueva Versión)' : 'Nueva Cotización'}
+                <DialogTitle className="font-manrope text-2xl flex items-center gap-3">
+                  {isEditing ? 'Modificar Cotización (Nueva Versión)' : 'Nueva Implementación'}
+                  {!isEditing && quoteData.client_segment && (
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                      quoteData.client_segment === 'CORP'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                        : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                    }`} data-testid="segment-badge">
+                      {quoteData.client_segment === 'CORP' ? 'Corporativo' : 'Pyme'}
+                    </span>
+                  )}
                 </DialogTitle>
                 {isEditing && (
                   <p className="text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mt-2">

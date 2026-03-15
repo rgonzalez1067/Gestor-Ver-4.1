@@ -543,6 +543,8 @@ class Quote(BaseModel):
     estimated_delivery_date: Optional[str] = None  # Fecha estimada de entrega
     # Sede del usuario que crea la cotización
     sede: str = "PYME"  # "PYME" o "CORP"
+    # Segmento de cliente (seleccionado en el wizard)
+    client_segment: str = "PYME"  # "PYME" o "CORP" — tagging de segmento
     created_by_user_id: Optional[str] = None  # ID del usuario que creó la cotización
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
