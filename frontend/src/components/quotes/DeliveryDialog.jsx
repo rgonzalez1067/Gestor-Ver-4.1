@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
+import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Truck, Warehouse, Package, Check, AlertTriangle } from 'lucide-react';
 import api from '../../utils/api';
@@ -14,6 +15,8 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   const [warehouseId, setWarehouseId] = useState('');
   const [deliveryItems, setDeliveryItems] = useState([]);
   const [notes, setNotes] = useState('');
+  const [transportista, setTransportista] = useState('');
+  const [guiaPlaca, setGuiaPlaca] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const fetchPrep = useCallback(async (whId) => {
@@ -25,7 +28,6 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
         : `/quotes/${quoteId}/delivery-prep`;
       const res = await api.get(url);
       setPrepData(res.data);
-      // Initialize delivery items from quote data
       setDeliveryItems(
         res.data.items.map(item => ({
           hardware_id: item.hardware_id,
@@ -51,6 +53,8 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
       setWarehouseId('');
       setDeliveryItems([]);
       setNotes('');
+      setTransportista('');
+      setGuiaPlaca('');
       setPrepData(null);
       fetchPrep(null);
     }
@@ -105,11 +109,13 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
             serials: it.requires_serial ? it.serials : [],
           })),
         notes,
+        transportista,
+        guia_placa: guiaPlaca,
       };
       const res = await api.post(`/quotes/${quoteId}/deliver`, payload, { headers });
       toast.success('Entrega registrada exitosamente');
       if (res.data.hoja_ruta_url) {
-        toast.success('Hoja de Ruta PDF generada');
+        toast.success('Nota de Entrega PDF generada');
       }
       onOpenChange(false);
       if (onDelivered) onDelivered(res.data);
@@ -131,7 +137,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Truck size={22} className="text-teal-600" />
-            Entrega de Equipos — Hoja de Ruta
+            Nota de Entrega
           </DialogTitle>
           {prepData && (
             <p className="text-sm text-slate-500 mt-1">
@@ -192,14 +198,12 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
                       </div>
                     </div>
 
-                    {/* Stock warning */}
                     {item.stock_available < item.quantity_quoted && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
                         <AlertTriangle size={12} /> Stock insuficiente. Disponible: {item.stock_available} de {item.quantity_quoted} cotizado(s)
                       </div>
                     )}
 
-                    {/* Serials */}
                     {item.requires_serial && item.quantity > 0 && item.serials_available.length > 0 && (
                       <div className="bg-white border border-teal-200 rounded p-2 space-y-1.5">
                         <p className="text-xs font-semibold text-teal-700 uppercase">
@@ -238,13 +242,38 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
               <p className="text-sm text-slate-500 text-center py-4">No hay equipos en esta cotización</p>
             )}
 
+            {/* Logistics */}
+            <div className="bg-slate-50 rounded-lg border p-3 space-y-3">
+              <Label className="text-xs font-semibold text-slate-700 uppercase">Control Logístico y Transporte</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-slate-500">Transportado por</Label>
+                  <Input
+                    value={transportista}
+                    onChange={e => setTransportista(e.target.value)}
+                    placeholder="Nombre del mensajero / empresa..."
+                    data-testid="delivery-transportista"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">Nro. de Guía / Placa</Label>
+                  <Input
+                    value={guiaPlaca}
+                    onChange={e => setGuiaPlaca(e.target.value)}
+                    placeholder="Guía o placa del vehículo..."
+                    data-testid="delivery-guia-placa"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Notes */}
             <div>
               <Label>Observaciones</Label>
               <Textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                placeholder="Notas adicionales para la Hoja de Ruta..."
+                placeholder="Notas adicionales para la Nota de Entrega..."
                 rows={2}
                 data-testid="delivery-notes"
               />
@@ -259,7 +288,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
                 className="bg-teal-600 hover:bg-teal-700 text-white"
                 data-testid="delivery-submit"
               >
-                {submitting ? 'Procesando...' : 'Confirmar Entrega y Generar Hoja de Ruta'}
+                {submitting ? 'Procesando...' : 'Confirmar Entrega y Generar Nota'}
               </Button>
             </div>
           </div>

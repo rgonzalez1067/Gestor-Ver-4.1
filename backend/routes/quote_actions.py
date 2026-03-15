@@ -12,7 +12,7 @@ import base64
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template
 from models import *
 from services.email_service import send_email
-from services.hoja_ruta_pdf import generate_hoja_ruta_pdf
+from services.hoja_ruta_pdf import generate_nota_entrega_pdf
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -634,13 +634,15 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
     warehouse_id = body.get("warehouse_id")
     delivery_items = body.get("delivery_items", [])
     delivery_notes = body.get("notes", "")
+    transportista = body.get("transportista", "")
+    guia_placa = body.get("guia_placa", "")
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
     # Get client info
     client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
-    client_name = (client.get("fantasy_name") or client.get("legal_name", "")) if client else quote.get("client_name", "")
-    client_rif = client.get("rif", "") if client else ""
-    client_address = client.get("address", "") if client else ""
+    client_name = (client.get("fantasy_name") or client.get("legal_name", "") or "") if client else (quote.get("client_name") or "")
+    client_rif = (client.get("rif") or "") if client else ""
+    client_address = (client.get("address") or "") if client else ""
 
     hoja_ruta_url = None
     delivered_pdf_items = []
@@ -732,25 +734,66 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 "serials": serials if requires_serial else [],
             })
 
-        # Generate Hoja de Ruta PDF
+        # Generate Nota de Entrega PDF
         try:
             logo_path = None
             logo_file = UPLOADS_DIR / "logo.png"
             if logo_file.exists():
                 logo_path = str(logo_file)
 
-            pdf_buffer = generate_hoja_ruta_pdf(
+            # Generate correlativo NE-YYYY-XXXX
+            year = datetime.now(timezone.utc).strftime("%Y")
+            last_ne = await db.nota_entrega_counter.find_one_and_update(
+                {"year": year},
+                {"$inc": {"counter": 1}},
+                upsert=True,
+                return_document=True,
+            )
+            if last_ne and "_id" in last_ne:
+                del last_ne["_id"]
+            ne_num = last_ne.get("counter", 1) if last_ne else 1
+            correlativo = f"NE-{year}-{ne_num:04d}"
+
+            # Get project info if exists
+            project = await db.projects.find_one({"quote_id": quote_id}, {"_id": 0})
+            project_number = project.get("project_number", "") if project else ""
+
+            # Get client contact info
+            contact_name = ""
+            contact_phone = ""
+            if client:
+                contact1 = client.get("contact1") or {}
+                contacts_crm = client.get("contacts", [])
+                if contact1 and contact1.get("name"):
+                    contact_name = contact1.get("name", "")
+                    contact_phone = contact1.get("phone", "")
+                elif contacts_crm:
+                    contact_name = contacts_crm[0].get("full_name", "")
+                    contact_phone = contacts_crm[0].get("phone", "")
+
+            # Classify items (Equipo vs Consumible)
+            SERIALIZED = ["pos", "pinpad", "mpos"]
+            for pdi in delivered_pdf_items:
+                pdi["category"] = "Equipo" if pdi.get("type", "").lower() in SERIALIZED else "Consumible"
+
+            pdf_buffer = generate_nota_entrega_pdf(
+                correlativo=correlativo,
                 quote_number=quote.get("quote_number", ""),
+                project_number=project_number,
                 client_name=client_name,
                 client_rif=client_rif,
                 client_address=client_address,
+                client_contact_name=contact_name,
+                client_contact_phone=contact_phone,
                 warehouse_name=warehouse_name,
                 delivered_items=delivered_pdf_items,
                 delivered_by=user_name,
+                transportista=transportista,
+                guia_placa=guia_placa,
                 notes=delivery_notes,
                 logo_path=logo_path,
             )
-            pdf_filename = f"HojaRuta_{quote.get('quote_number', quote_id)}.pdf"
+            pdf_filename = f"NotaEntrega_{correlativo}.pdf"
             pdf_path = UPLOADS_DIR / pdf_filename
             with open(pdf_path, "wb") as f:
                 f.write(pdf_buffer.getvalue())
@@ -780,9 +823,11 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                     {"$push": {"attachments": client_attachment}}
                 )
 
-            logger.info(f"Hoja de Ruta generada: {hoja_ruta_url}")
+            logger.info(f"Nota de Entrega generada: {hoja_ruta_url}")
         except Exception as e:
-            logger.error(f"Error generando Hoja de Ruta: {e}")
+            logger.error(f"Error generando Nota de Entrega: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Update quote status
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
