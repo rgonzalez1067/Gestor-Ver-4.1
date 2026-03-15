@@ -721,6 +721,10 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             await db.inventory_movements.insert_one(doc)
             doc.pop("_id", None)
 
+            # Trigger CheckStock alert
+            from routes.inventory import check_stock_alert
+            await check_stock_alert(warehouse_id, hw_id, hw["name"])
+
             delivered_pdf_items.append({
                 "name": hw["name"],
                 "type": hw_type,

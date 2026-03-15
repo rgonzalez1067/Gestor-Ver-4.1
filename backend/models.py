@@ -792,12 +792,16 @@ class Warehouse(BaseModel):
     name: str
     location: str = ""
     notes: str = ""
+    responsible_user_id: str = ""   # FK a usuario responsable
+    responsible_name: str = ""       # Nombre para display rápido
+    responsible_email: str = ""      # Email para alertas
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class WarehouseCreate(BaseModel):
     name: str
     location: str = ""
     notes: str = ""
+    responsible_user_id: str = ""
 
 MOVEMENT_TYPES = ["entrada", "salida", "transferencia_entrada", "transferencia_salida"]
 

@@ -8,8 +8,10 @@ import io
 
 from config import db, get_current_user
 from models import Warehouse, WarehouseCreate, InventoryMovement, SERIALIZED_TYPES
+from services.email_service import send_email
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def is_serialized(item_type: str) -> bool:
@@ -22,7 +24,21 @@ def is_serialized(item_type: str) -> bool:
 @router.post("/inventory/warehouses")
 async def create_warehouse(body: WarehouseCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    wh = Warehouse(name=body.name, location=body.location, notes=body.notes)
+
+    # Resolver responsable
+    resp_name, resp_email = "", ""
+    if body.responsible_user_id:
+        user = await db.users.find_one({"user_id": body.responsible_user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario responsable no encontrado")
+        resp_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        resp_email = user.get("email", "")
+
+    wh = Warehouse(
+        name=body.name, location=body.location, notes=body.notes,
+        responsible_user_id=body.responsible_user_id,
+        responsible_name=resp_name, responsible_email=resp_email,
+    )
     doc = wh.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
     await db.warehouses.insert_one(doc)
@@ -44,6 +60,22 @@ async def update_warehouse(warehouse_id: str, body: dict, authorization: Optiona
     for f in ["name", "location", "notes"]:
         if f in body:
             update[f] = body[f]
+
+    # Resolver responsable si se actualiza
+    if "responsible_user_id" in body:
+        uid = body["responsible_user_id"]
+        if uid:
+            user = await db.users.find_one({"user_id": uid}, {"_id": 0})
+            if not user:
+                raise HTTPException(status_code=404, detail="Usuario responsable no encontrado")
+            update["responsible_user_id"] = uid
+            update["responsible_name"] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+            update["responsible_email"] = user.get("email", "")
+        else:
+            update["responsible_user_id"] = ""
+            update["responsible_name"] = ""
+            update["responsible_email"] = ""
+
     if not update:
         raise HTTPException(status_code=400, detail="No hay campos para actualizar")
     result = await db.warehouses.update_one({"warehouse_id": warehouse_id}, {"$set": update})
@@ -107,6 +139,16 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
         result.append(item)
 
     result.sort(key=lambda x: x["item_name"])
+
+    # Enrich with min_stock config
+    min_configs = await db.min_stock_config.find(
+        {"warehouse_id": warehouse_id}, {"_id": 0}
+    ).to_list(1000)
+    min_map = {c["item_id"]: c.get("min_stock", 0) for c in min_configs}
+    for item in result:
+        item["min_stock"] = min_map.get(item["item_id"], 0)
+        item["below_min"] = item["quantity"] <= item["min_stock"] and item["min_stock"] > 0
+
     return result
 
 
@@ -263,6 +305,10 @@ async def create_exit(warehouse_id: str, body: dict, authorization: Optional[str
     doc["created_at"] = doc["created_at"].isoformat()
     await db.inventory_movements.insert_one(doc)
     doc.pop("_id", None)
+
+    # Trigger CheckStock alert
+    await check_stock_alert(warehouse_id, item_id, item["name"])
+
     return doc
 
 
@@ -343,6 +389,9 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
     # Clean _id
     exit_doc.pop("_id", None)
     entry_doc.pop("_id", None)
+
+    # Trigger CheckStock en almacén origen (donde se redujo stock)
+    await check_stock_alert(source_id, item_id, item["name"])
 
     return {"transfer_id": transfer_id, "exit": exit_doc, "entry": entry_doc}
 
@@ -461,7 +510,110 @@ async def search_movements_by_client(client_name: str = "", authorization: Optio
     return movements
 
 
+# ==================== MIN STOCK CONFIG ====================
+
+@router.put("/inventory/warehouses/{warehouse_id}/min-stock/{item_id}")
+async def set_min_stock(warehouse_id: str, item_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Define el stock mínimo para un ítem en un almacén."""
+    await get_current_user(authorization)
+
+    min_stock = body.get("min_stock", 0)
+    if not isinstance(min_stock, (int, float)) or min_stock < 0:
+        raise HTTPException(status_code=400, detail="Stock mínimo no puede ser negativo")
+
+    min_stock = int(min_stock)
+
+    await db.min_stock_config.update_one(
+        {"warehouse_id": warehouse_id, "item_id": item_id},
+        {"$set": {
+            "warehouse_id": warehouse_id,
+            "item_id": item_id,
+            "min_stock": min_stock,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"warehouse_id": warehouse_id, "item_id": item_id, "min_stock": min_stock}
+
+
+@router.get("/inventory/warehouses/{warehouse_id}/min-stock")
+async def get_min_stock_config(warehouse_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene toda la configuración de stock mínimo para un almacén."""
+    await get_current_user(authorization)
+    configs = await db.min_stock_config.find({"warehouse_id": warehouse_id}, {"_id": 0}).to_list(500)
+    return configs
+
+
 # ==================== HELPERS ====================
+
+async def check_stock_alert(warehouse_id: str, item_id: str, item_name: str):
+    """Verifica si el stock actual es <= al mínimo configurado y envía alerta por email."""
+    try:
+        config = await db.min_stock_config.find_one(
+            {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
+        )
+        if not config or config.get("min_stock", 0) <= 0:
+            return  # No hay mínimo configurado
+
+        min_stock = config["min_stock"]
+        stock = await _get_item_stock(warehouse_id, item_id)
+        current_qty = stock["quantity"]
+
+        if current_qty <= min_stock:
+            wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
+            if not wh:
+                return
+
+            wh_name = wh.get("name", "")
+            resp_name = wh.get("responsible_name", "Responsable")
+            resp_email = wh.get("responsible_email", "")
+
+            if not resp_email:
+                logger.warning(f"Alerta stock mínimo: No hay email de responsable para almacén '{wh_name}'")
+                return
+
+            subject = f"ALERTA: Stock Minimo Alcanzado - {wh_name}"
+            html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: #DC2626; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
+                    <h2 style="margin: 0;">Alerta de Reabastecimiento</h2>
+                </div>
+                <div style="padding: 24px; border: 1px solid #E5E7EB; border-top: 0; border-radius: 0 0 8px 8px;">
+                    <p>Hola <strong>{resp_name}</strong>,</p>
+                    <p>Te informamos que el siguiente item ha alcanzado o superado su nivel de stock critico:</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                        <tr style="background: #FEF2F2;">
+                            <td style="padding: 10px; border: 1px solid #FECACA; font-weight: bold;">Item:</td>
+                            <td style="padding: 10px; border: 1px solid #FECACA;">{item_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #E5E7EB; font-weight: bold;">Almacen:</td>
+                            <td style="padding: 10px; border: 1px solid #E5E7EB;">{wh_name}</td>
+                        </tr>
+                        <tr style="background: #FEF2F2;">
+                            <td style="padding: 10px; border: 1px solid #FECACA; font-weight: bold; color: #DC2626;">Stock Actual:</td>
+                            <td style="padding: 10px; border: 1px solid #FECACA; font-weight: bold; color: #DC2626; font-size: 18px;">{current_qty}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; border: 1px solid #E5E7EB; font-weight: bold;">Minimo Definido:</td>
+                            <td style="padding: 10px; border: 1px solid #E5E7EB;">{min_stock}</td>
+                        </tr>
+                    </table>
+                    <p>Por favor, gestiona el reabastecimiento con el departamento de compras para evitar interrupciones en las entregas.</p>
+                    <hr style="border: 0; border-top: 1px solid #E5E7EB; margin: 16px 0;" />
+                    <p style="color: #6B7280; font-size: 12px;">Este es un mensaje automatico del sistema de inventarios.</p>
+                </div>
+            </div>
+            """
+            await send_email(
+                to=[resp_email],
+                subject=subject,
+                html=html,
+                action="stock_alert",
+            )
+            logger.info(f"Alerta de stock mínimo enviada: {item_name} en {wh_name} (actual: {current_qty}, min: {min_stock})")
+    except Exception as e:
+        logger.error(f"Error en check_stock_alert: {e}")
 
 async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
     """Calcula stock actual de un ítem en un almacén."""

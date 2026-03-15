@@ -34,8 +34,9 @@ export default function Inventory() {
 
   // Dialogs
   const [whDialog, setWhDialog] = useState(false);
-  const [whForm, setWhForm] = useState({ name: '', location: '', notes: '' });
+  const [whForm, setWhForm] = useState({ name: '', location: '', notes: '', responsible_user_id: '' });
   const [whEditing, setWhEditing] = useState(null);
+  const [users, setUsers] = useState([]);
   const [entryDialog, setEntryDialog] = useState(false);
   const [exitDialog, setExitDialog] = useState(false);
   const [transferDialog, setTransferDialog] = useState(false);
@@ -67,12 +68,14 @@ export default function Inventory() {
   const navigate = useNavigate();
   const fetchAll = useCallback(async () => {
     try {
-      const [whRes, hwRes] = await Promise.all([
+      const [whRes, hwRes, usersRes] = await Promise.all([
         api.get('/inventory/warehouses'),
-        api.get('/hardware')
+        api.get('/hardware'),
+        api.get('/auth/users'),
       ]);
       setWarehouses(whRes.data);
       setHardware(hwRes.data);
+      setUsers(usersRes.data);
       if (!selectedWh && whRes.data.length > 0) {
         setSelectedWh(whRes.data[0].warehouse_id);
       }
@@ -99,18 +102,19 @@ export default function Inventory() {
   // ==================== WAREHOUSE CRUD ====================
   const saveWarehouse = async () => {
     if (!whForm.name.trim()) { toast.error('Nombre obligatorio'); return; }
+    const payload = { ...whForm, responsible_user_id: whForm.responsible_user_id === 'none' ? '' : whForm.responsible_user_id };
     try {
       if (whEditing) {
-        await api.put(`/inventory/warehouses/${whEditing}`, whForm);
+        await api.put(`/inventory/warehouses/${whEditing}`, payload);
         toast.success('Almacén actualizado');
       } else {
-        const res = await api.post('/inventory/warehouses', whForm);
+        const res = await api.post('/inventory/warehouses', payload);
         if (!selectedWh) setSelectedWh(res.data.warehouse_id);
         toast.success('Almacén creado');
       }
       setWhDialog(false);
       setWhEditing(null);
-      setWhForm({ name: '', location: '', notes: '' });
+      setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' });
       fetchAll();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
   };
@@ -123,6 +127,17 @@ export default function Inventory() {
       if (selectedWh === deleteWh.id) setSelectedWh(null);
       fetchAll();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
+  };
+
+  // ==================== MIN STOCK CONFIG ====================
+  const saveMinStock = async (itemId, value) => {
+    const val = parseInt(value) || 0;
+    if (val < 0) { toast.error('Stock mínimo no puede ser negativo'); return; }
+    try {
+      await api.put(`/inventory/warehouses/${selectedWh}/min-stock/${itemId}`, { min_stock: val });
+      toast.success('Stock mínimo actualizado');
+      fetchStock();
+    } catch { toast.error('Error al guardar'); }
   };
 
   // ==================== ENTRY ====================
@@ -368,7 +383,7 @@ export default function Inventory() {
                 data-testid="btn-client-search">
                 <Search size={14} className="mr-1.5" />Buscar por Cliente
               </Button>
-              <Button onClick={() => { setWhForm({ name: '', location: '', notes: '' }); setWhEditing(null); setWhDialog(true); }}
+              <Button onClick={() => { setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' }); setWhEditing(null); setWhDialog(true); }}
                 data-testid="add-warehouse-btn" className="bg-teal-600 hover:bg-teal-700 text-white">
                 <Plus size={16} className="mr-1.5" />Nuevo Almacén
               </Button>
@@ -396,7 +411,7 @@ export default function Inventory() {
             </div>
             {currentWh && (
               <>
-                <Button size="sm" variant="outline" onClick={() => { setWhForm({ name: currentWh.name, location: currentWh.location || '', notes: currentWh.notes || '' }); setWhEditing(currentWh.warehouse_id); setWhDialog(true); }}>
+                <Button size="sm" variant="outline" onClick={() => { setWhForm({ name: currentWh.name, location: currentWh.location || '', notes: currentWh.notes || '', responsible_user_id: currentWh.responsible_user_id || '' }); setWhEditing(currentWh.warehouse_id); setWhDialog(true); }}>
                   <Pencil size={14} className="mr-1" />Editar
                 </Button>
                 <Button size="sm" variant="outline" className="text-red-500 hover:text-red-700"
@@ -406,6 +421,11 @@ export default function Inventory() {
               </>
             )}
           </div>
+          {currentWh?.responsible_name && (
+            <p className="text-xs text-slate-500 -mt-4 mb-4 ml-1">
+              Responsable: <strong>{currentWh.responsible_name}</strong> ({currentWh.responsible_email})
+            </p>
+          )}
 
           {!selectedWh ? (
             <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
@@ -434,6 +454,7 @@ export default function Inventory() {
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Ítem</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Tipo</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Saldo</th>
+                        <th className="px-4 py-3 text-center font-medium text-slate-600">Stock Mín.</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Costo Prom.</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Seriales</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-600">Acciones</th>
@@ -441,14 +462,15 @@ export default function Inventory() {
                     </thead>
                     <tbody>
                       {stock.length === 0 ? (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin stock en este almacén</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">Sin stock en este almacén</td></tr>
                       ) : stock.map(item => (
                         <tr key={item.item_id}
-                          className="border-b hover:bg-teal-50/50 cursor-pointer transition-colors group"
+                          className={`border-b cursor-pointer transition-colors group ${item.below_min ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-teal-50/50'}`}
                           onClick={() => openKardex(item)}
                           data-testid={`stock-row-${item.item_id}`}>
                           <td className="px-4 py-3 font-medium text-slate-900">
                             <span className="flex items-center gap-2">
+                              {item.below_min && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
                               {item.item_name}
                               <ChevronRight size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors" />
                             </span>
@@ -458,7 +480,24 @@ export default function Inventory() {
                               {item.item_type}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-center font-bold text-slate-900">{item.quantity}</td>
+                          <td className={`px-4 py-3 text-center font-bold ${item.below_min ? 'text-red-600' : 'text-slate-900'}`}
+                            data-testid={`stock-qty-${item.item_id}`}>
+                            {item.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="number"
+                              min={0}
+                              defaultValue={item.min_stock || 0}
+                              onBlur={e => {
+                                const v = parseInt(e.target.value) || 0;
+                                if (v !== (item.min_stock || 0)) saveMinStock(item.item_id, v);
+                              }}
+                              onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
+                              className={`w-16 h-7 text-center text-xs border rounded ${item.below_min ? 'border-red-300 bg-red-50 text-red-700 font-bold' : 'border-slate-200'}`}
+                              data-testid={`min-stock-${item.item_id}`}
+                            />
+                          </td>
                           <td className="px-4 py-3 text-center text-slate-600">${item.avg_cost?.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
                             {item.requires_serial ? (
@@ -535,6 +574,22 @@ export default function Inventory() {
             <div className="space-y-3">
               <div><Label>Nombre *</Label><Input value={whForm.name} onChange={e => setWhForm({ ...whForm, name: e.target.value })} data-testid="wh-name" /></div>
               <div><Label>Ubicación</Label><Input value={whForm.location} onChange={e => setWhForm({ ...whForm, location: e.target.value })} data-testid="wh-location" /></div>
+              <div>
+                <Label>Responsable de Almacén</Label>
+                <Select value={whForm.responsible_user_id} onValueChange={v => setWhForm({ ...whForm, responsible_user_id: v })}>
+                  <SelectTrigger data-testid="wh-responsible">
+                    <SelectValue placeholder="Seleccione responsable..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sin responsable —</SelectItem>
+                    {users.map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.full_name} <span className="text-xs text-slate-400">({u.email})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div><Label>Notas</Label><Input value={whForm.notes} onChange={e => setWhForm({ ...whForm, notes: e.target.value })} /></div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setWhDialog(false)}>Cancelar</Button>
