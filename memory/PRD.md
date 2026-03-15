@@ -27,39 +27,26 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
-- Flujo Administrativo Flexible, PDF WeasyPrint, VPOS/MPOS, Parametros Dinamicos
+- Flujo Administrativo Flexible con Protocolo de Excepcion
+- PDF con WeasyPrint, Segmentacion VPOS/MPOS, Parametros Dinamicos
+- **Segmentacion Pyme/Corp (2026-03-15)**: Boton dropdown "Nueva Implementación" con dos opciones:
+  - Clientes Pymes (verde): Flujos estandarizados y agiles
+  - Clientes Corporativos (azul): Proyectos de gran envergadura
+  - Campo `client_segment` (PYME/CORP) en modelo Quote y Project
+  - Badge de segmento en wizard, columna Segmento en tabla, filtro por segmento
+  - Preparacion para campos futuros Corp (Nro. Contrato Marco, SLA)
 
 ### Modulo de Proyectos
-- Generacion automatica desde cotizaciones
+- Generacion automatica desde cotizaciones, hereda client_segment
 
 ### Modulo de Inventarios
-- **Fase 1-2**: Almacenes CRUD, Entradas con/sin seriales, Transferencias atomicas
-- **Fase 3**: Salidas automaticas al entregar cotizacion + PDF
-- **Kardex del Producto**: Drill-down con saldo resultante por movimiento
-- **Trazabilidad de Salidas**: Popover "Ver Destinatario" con datos de cliente
-- **Buscador Inverso por Cliente**: Busqueda de entregas por nombre
-- **Alertas Stock Minimo**: Responsable de almacen, stock min configurable, trigger CheckStock, email HTML
-- **Nota de Entrega PDF (2026-03-15)**: Rediseno completo del PDF de entrega:
-  - Correlativo auto-incrementado NE-YYYY-XXXX (collection nota_entrega_counter)
-  - 5 secciones: Info Documento, Cliente/Destino, Detalle Bienes, Control Logistico, Recepcion
-  - Direccion multi-linea con word-wrap
-  - Clasificacion Equipo vs Consumible
-  - Campos: Transportado por, Guia/Placa
-  - Contacto y telefono del cliente (desde contact1 o contacts CRM)
-  - Proyecto asociado, Estatus "Despachado"
-  - Pie de pagina: "Documento generado por MegaNexus - Trazabilidad de Inventario"
-  - Soporte para logo PNG en esquina superior izquierda
-  - DeliveryDialog actualizado con campos de transportista y guia/placa
+- Fases 1-3: Almacenes, Entradas, Transferencias, Salidas automaticas
+- Kardex, Trazabilidad, Buscador Inverso, Alertas Stock Minimo
+- Nota de Entrega PDF con correlativo NE-YYYY-XXXX
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Nomenclatura PYME/CORP, Tipo Corp
 - Gestion usuarios con roles/permisos
-
-## Reglas de Negocio Clave
-- Condicion cliente: Prospecto=amarillo, Cliente=verde
-- SERIALIZED_TYPES: ['pos', 'pinpad', 'mpos']
-- Alerta stock: Saldo <= Stock Minimo AND min > 0 AND responsible_email exists
-- Items Equipo: POS/Pinpad/MPOS. Resto: Consumible
 
 ## Integraciones
 - Resend (SIMULADO), WeasyPrint, reportlab, exchangedyn/dolarapi, openpyxl/pandas
@@ -70,6 +57,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Herencia de cantidad_cajas a campo VTID en cotizaciones
 - Verificacion Email y Recuperacion Contrasena
 - Refactorizacion Quotes.jsx (4400+ lineas)
+- Campos especificos Corp: Nro. Contrato Marco, SLA, etc.
 
 ### P2
 - Modulo Reportes de ventas
