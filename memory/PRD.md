@@ -11,45 +11,45 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ## Funcionalidades Implementadas
 
 ### Modulo de Clientes
-- CRUD completo con contactos CRM
-- Ficha Maestra v2.0: Layout 4 cuadrantes (2x2 grid)
-- Bitacora de Inicio, Sanitizacion automatica de RIF, OCR de RIF Digital, Importacion/Exportacion
+- CRUD completo con contactos CRM, Ficha Maestra v2.0 (4 cuadrantes)
+- Bitacora de Inicio, OCR de RIF Digital, Importacion/Exportacion
 
 ### Modulo de Bancos y Entidades
-- CRUD completo con logo, productos bancarios, Roadmap
-- Bitacora de Evolucion, Consulta Global, Importacion masiva, Exportacion PDF, Matriz certificacion
-- Estados simplificados: PreProd, Primer Prod, Masificacion
+- CRUD completo, Roadmap, Bitacora, Importacion masiva, Exportacion PDF
+- Estados: PreProd, Primer Prod, Masificacion
 
 ### Modulo de Nuevos Productos — Pipeline I+D
 - Pipeline: Negociacion → DESA → SQA → IMPLE → Promovido
-- Hand-off automatico a Bancos, Log de Auditoria de Transiciones
-- Bitacora de Evolucion, Stats cards, Notificaciones simuladas
+- Hand-off automatico, Log Auditoria, Bitacora, Notificaciones simuladas
 
 ### Modulo de Integradores
 - CRUD con importacion masiva, CRM tecnico, Bitacora
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
-- Flujo Administrativo Flexible con Protocolo de Excepcion
-- PDF con WeasyPrint, Segmentacion VPOS/MPOS, Parametros Dinamicos
+- Flujo Administrativo Flexible, PDF WeasyPrint, VPOS/MPOS, Parametros Dinamicos
 
 ### Modulo de Proyectos
-- Generacion automatica desde cotizaciones, Persistencia Irregular
+- Generacion automatica desde cotizaciones
 
 ### Modulo de Inventarios
-- **Fase 1: Gestion de Almacenes** — CRUD almacenes con nombre, ubicacion, notas, responsable
-- **Fase 2: Entradas y Transferencias** — Entradas con/sin seriales, transferencias atomicas, historial
-- **Fase 3: Salidas Automaticas y Hoja de Ruta** — DeliveryDialog, PDF archivado en anexos
-- **Kardex del Producto** — Drill-down con saldo resultante por movimiento
-- **Trazabilidad de Salidas** — Popover "Ver Destinatario" con cliente, RIF, cotizacion, seriales
-- **Buscador Inverso por Cliente** — Busqueda de entregas historicas por nombre de cliente
-- **Sistema de Alertas de Stock Minimo (2026-03-15)**:
-  - Responsable de Almacen: Dropdown de usuarios, vincula email para alertas
-  - Stock Minimo por item: Campo editable inline por item/almacen (collection min_stock_config)
-  - Motor de Alertas: Trigger CheckStock despues de cada salida y transferencia
-  - Plantilla de correo HTML con datos de almacen, producto, stock actual vs minimo
-  - Visual: Saldo en rojo, punto pulsante, fondo rojo para items bajo minimo
-  - Seguridad: Stock minimo negativo no permitido (400)
+- **Fase 1-2**: Almacenes CRUD, Entradas con/sin seriales, Transferencias atomicas
+- **Fase 3**: Salidas automaticas al entregar cotizacion + PDF
+- **Kardex del Producto**: Drill-down con saldo resultante por movimiento
+- **Trazabilidad de Salidas**: Popover "Ver Destinatario" con datos de cliente
+- **Buscador Inverso por Cliente**: Busqueda de entregas por nombre
+- **Alertas Stock Minimo**: Responsable de almacen, stock min configurable, trigger CheckStock, email HTML
+- **Nota de Entrega PDF (2026-03-15)**: Rediseno completo del PDF de entrega:
+  - Correlativo auto-incrementado NE-YYYY-XXXX (collection nota_entrega_counter)
+  - 5 secciones: Info Documento, Cliente/Destino, Detalle Bienes, Control Logistico, Recepcion
+  - Direccion multi-linea con word-wrap
+  - Clasificacion Equipo vs Consumible
+  - Campos: Transportado por, Guia/Placa
+  - Contacto y telefono del cliente (desde contact1 o contacts CRM)
+  - Proyecto asociado, Estatus "Despachado"
+  - Pie de pagina: "Documento generado por MegaNexus - Trazabilidad de Inventario"
+  - Soporte para logo PNG en esquina superior izquierda
+  - DeliveryDialog actualizado con campos de transportista y guia/placa
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Nomenclatura PYME/CORP, Tipo Corp
@@ -57,12 +57,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Reglas de Negocio Clave
 - Condicion cliente: Prospecto=amarillo, Cliente=verde
-- Ejecutivo filtrado por cargo
 - SERIALIZED_TYPES: ['pos', 'pinpad', 'mpos']
-- Alerta stock: Saldo <= Stock Minimo AND Stock Minimo > 0 AND responsible_email exists
+- Alerta stock: Saldo <= Stock Minimo AND min > 0 AND responsible_email exists
+- Items Equipo: POS/Pinpad/MPOS. Resto: Consumible
 
 ## Integraciones
-- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas, reportlab
+- Resend (SIMULADO), WeasyPrint, reportlab, exchangedyn/dolarapi, openpyxl/pandas
 
 ## Backlog
 
