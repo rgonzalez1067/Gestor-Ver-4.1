@@ -12,77 +12,57 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Clientes
 - CRUD completo con contactos CRM
-- **Ficha Maestra v2.0** (2026-03-11): Layout 4 cuadrantes (2x2 grid)
-  - Q1 Estatus y Definicion Legal: Condicion (Prospecto/Cliente con color dinamico verde/amarillo), RIF, Nombre Juridico/Fantasia, Grupo Economico, Segmento
-  - Q2 Capacidad Operativa: Cantidad Tiendas, Cantidad Cajas, Categoria Comercial
-  - Q3 Ubicacion y Sedes: Direccion Fiscal, Sucursal, Direccion Sucursal
-  - Q4 Gestion y Soluciones: Ejecutivo Propietario (dropdown filtrado por cargo Ejecutivo), Integrador/Aplicativo (dropdowns vinculados), Tipo Servicio (multi-select)
-- Bitacora de Inicio (registrar primer contacto)
-- Sanitizacion automatica de RIF
-- Tabla responsiva con DropdownMenu + badge Condicion
-- OCR de RIF Digital, Importacion/Exportacion
+- Ficha Maestra v2.0: Layout 4 cuadrantes (2x2 grid)
+- Bitacora de Inicio, Sanitizacion automatica de RIF, OCR de RIF Digital, Importacion/Exportacion
 
 ### Modulo de Bancos y Entidades
 - CRUD completo con logo, productos bancarios, Roadmap
-- Bitacora de Evolucion, Consulta Global con Agrupamiento
-- Importacion masiva, Exportacion PDF, Matriz certificacion
-- **Optimizacion Flujo Integracion (2026-02-20)**: Estados simplificados de 6 a 3: `PreProd`, `Primer Prod`, `Masificacion`
-- Notificacion simulada (MOCKED) por email al equipo de ventas al cambiar estado de integracion
-- Migracion automatica de estados antiguos en runtime (STATUS_MIGRATION map)
+- Bitacora de Evolucion, Consulta Global, Importacion masiva, Exportacion PDF, Matriz certificacion
+- Estados simplificados: PreProd, Primer Prod, Masificacion
 
-### Modulo de Nuevos Productos — Pipeline I+D (2026-02-20)
-- CRUD completo de productos en desarrollo pre-despliegue
-- Pipeline de estados: Negociacion → DESA → SQA → IMPLE → Promovido
-- **Seleccion de Medio de Pago desde Catalogo Maestro** (dropdown, no texto libre)
-- Seleccion de Banco Patrocinador/Socio al crear producto
-- **Hand-off automatico**: Al cambiar a IMPLE, inserta integracion en banco con estado PreProd y marca producto como Promovido
-- **Log de Auditoria de Transiciones (StatusTransitionLog)**: Registra estado anterior, nuevo, fecha/hora, usuario, dias en fase anterior
-- Bitacora de Evolucion propia con timeline unificado (hitos manuales + transiciones automaticas)
-- Notificaciones simuladas (MOCKED): incluyen fecha exacta y lead time por fase
-- Stats cards por fase + seccion visual de Promovidos
+### Modulo de Nuevos Productos — Pipeline I+D
+- Pipeline: Negociacion → DESA → SQA → IMPLE → Promovido
+- Hand-off automatico a Bancos, Log de Auditoria de Transiciones
+- Bitacora de Evolucion, Stats cards, Notificaciones simuladas
 
 ### Modulo de Integradores
-- CRUD con importacion masiva, CRM tecnico
-- Bitacora de gestiones, Historial evolucion, Reporte agrupado
-- Endpoint dropdown para selectores ligeros
+- CRUD con importacion masiva, CRM tecnico, Bitacora
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
 - Flujo Administrativo Flexible con Protocolo de Excepcion
-- PDF con WeasyPrint + logo empresa, PDF equipos como anexo automatico
-- Flujo de regularizacion (facturar/cobrar post-entrega)
+- PDF con WeasyPrint, Segmentacion VPOS/MPOS, Parametros Dinamicos
 
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones, Persistencia Irregular
-- Asignacion dinamica, Cambiar Estado rapido
 
-### Modulo de Inventarios (2026-03-14)
-- **Fase 1: Gestion de Almacenes** — CRUD almacenes con nombre, ubicacion, notas
-- **Fase 2: Entradas y Transferencias** — Entradas de stock (con/sin seriales), validacion de hardware critico (POS/Pinpad/MPOS), transferencias atomicas entre almacenes, historial de movimientos, carga de seriales desde Excel
-- **Fase 3: Salidas Automaticas y Hoja de Ruta (2026-03-14)** — Al entregar cotizacion de equipos ("Entregada"), el stock se deduce automaticamente del almacen seleccionado. UI con DeliveryDialog para seleccionar almacen y seriales. Generacion de PDF "Hoja de Ruta" archivado en anexos de cotizacion y cliente.
-- **Kardex del Producto (2026-03-14)** — Click en fila de stock abre historial cronologico con saldo resultante por movimiento. Saldo final coincide con stock listado.
-- **Trazabilidad de Salidas (2026-03-14)** — Boton "Ver Destinatario" en salidas del Kardex: popover con cliente/razon social, RIF, cotizacion, seriales despachados. Enlace directo a ficha del cliente.
-- **Buscador Inverso por Cliente (2026-03-14)** — Busqueda de movimientos de salida por nombre de cliente para ver que equipos se le han entregado historicamente.
-- Modelo InventoryMovement ampliado con client_id, quote_id, quote_number para trazabilidad completa.
+### Modulo de Inventarios
+- **Fase 1: Gestion de Almacenes** — CRUD almacenes con nombre, ubicacion, notas, responsable
+- **Fase 2: Entradas y Transferencias** — Entradas con/sin seriales, transferencias atomicas, historial
+- **Fase 3: Salidas Automaticas y Hoja de Ruta** — DeliveryDialog, PDF archivado en anexos
+- **Kardex del Producto** — Drill-down con saldo resultante por movimiento
+- **Trazabilidad de Salidas** — Popover "Ver Destinatario" con cliente, RIF, cotizacion, seriales
+- **Buscador Inverso por Cliente** — Busqueda de entregas historicas por nombre de cliente
+- **Sistema de Alertas de Stock Minimo (2026-03-15)**:
+  - Responsable de Almacen: Dropdown de usuarios, vincula email para alertas
+  - Stock Minimo por item: Campo editable inline por item/almacen (collection min_stock_config)
+  - Motor de Alertas: Trigger CheckStock despues de cada salida y transferencia
+  - Plantilla de correo HTML con datos de almacen, producto, stock actual vs minimo
+  - Visual: Saldo en rojo, punto pulsante, fondo rojo para items bajo minimo
+  - Seguridad: Stock minimo negativo no permitido (400)
 
 ### Otros
-- **Segmentacion VPOS/MPOS (2026-03-13)**: Tipos de cotizacion separados. MPOS: pricing fijo Outsourcing, sin VPN, integrador opcional, hardware filtrado a POS (no Pinpads)
-- **Parametros Dinamicos VPOS (2026-03-13)**: Toggles Si/No para 'Configuracion PinPads' y 'Requiere VPN'. Recalculo en tiempo real. Solo aplica a VPOS.
-- Dashboard KPIs, Tasa BCV (operativa via exchangedyn/dolarapi)
-- **Nomenclatura Sedes (2026-02-20)**: TBP renombrado a PYME, LCH renombrado a CORP
-- **Tipo Corp (2026-03-13)**: Nuevo campo obligatorio en Medios de Pago. Valores: 'Derecho de Uso', 'Apoyo Tecnico', 'Soporte y Monitoreo'. Propagado a integraciones de Bancos y Nuevos Productos.
-- Gestion usuarios con roles/permisos, Menu lateral
+- Dashboard KPIs, Tasa BCV, Nomenclatura PYME/CORP, Tipo Corp
+- Gestion usuarios con roles/permisos
 
 ## Reglas de Negocio Clave
-- **Condicion cliente**: Define color visual. Prospecto=amarillo, Cliente=verde
-- **Ejecutivo filtrado**: Solo usuarios con cargo 'Ejecutivo de Ventas Pyme' o 'Ejecutivo de Ventas Corporativas'
-- **Cantidad de Cajas**: Se hereda a campo VTID en cotizaciones (pendiente implementar)
-- **Aplicativo condicionado**: Se filtra segun integrador seleccionado
-- **Estados Integracion Bancaria**: Solo PreProd, Primer Prod, Masificacion
-- **SERIALIZED_TYPES**: ['pos', 'pinpad', 'mpos'] — requieren seriales en inventario
+- Condicion cliente: Prospecto=amarillo, Cliente=verde
+- Ejecutivo filtrado por cargo
+- SERIALIZED_TYPES: ['pos', 'pinpad', 'mpos']
+- Alerta stock: Saldo <= Stock Minimo AND Stock Minimo > 0 AND responsible_email exists
 
 ## Integraciones
-- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas, reportlab (PDF Hoja de Ruta)
+- Resend (SIMULADO), WeasyPrint, exchangedyn/dolarapi, openpyxl/pandas, reportlab
 
 ## Backlog
 
@@ -95,4 +75,3 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Modulo Reportes de ventas
 - Logica "Completado" en Roadmap Bancos
 - Refactorizacion Integrators.jsx y Clients.jsx
-- Fix warning HTML en QuotesTable (span/tbody)
