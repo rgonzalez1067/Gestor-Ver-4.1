@@ -17,9 +17,20 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Bancos y Entidades
 - CRUD completo, Roadmap, Bitacora, Importacion masiva, Exportacion PDF
+- **Sincronizacion con Pipeline I+D (2026-03-16)**:
+  - Mirroring: productos en Negociacion/DESA/SQA visibles en roadmap del banco
+  - Fase A (read-only): selectores bloqueados con Lock + "Gestionado en I+D"
+  - Fase B (editable): PreProd → Primer Prod → Masificacion desde Bancos
+  - Link bidireccional: source_product_id en integracion
+  - Sync bidireccional: cambios en banco actualizan bank_integration_status en new_product
+  - Validacion backend: rechaza cambios desde Bancos si producto en Fase A (403)
+  - Pipeline visual extendido: Negoc → DESA → SQA → PreProd → Primer Prod → Masificacion
+  - Badge "I+D" para items provenientes del pipeline
+  - VALIDADO: 17/17 tests (iteration_108)
 
 ### Modulo de Nuevos Productos — Pipeline I+D
 - Pipeline: Negociacion → DESA → SQA → IMPLE → Promovido
+- Hand-off automatico con source_product_id, Log Auditoria, Bitacora
 
 ### Modulo de Integradores
 - CRUD con importacion masiva, CRM tecnico, Bitacora
@@ -31,29 +42,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Generacion automatica desde cotizaciones
 
 ### Modulo de Inventarios
-- **Almacenes y Stock**: CRUD, entradas, transferencias, salidas automaticas
-- **Kardex y Trazabilidad**: Vista historial por producto, busqueda inversa por cliente
-- **Alertas Stock Minimo**: Umbrales configurables por item
-- **Nota de Entrega PDF**: Correlativo NE-YYYY-XXXX, 5 secciones, paginacion X/Y
-- **Nota de Transferencia PDF**: Correlativo TRF-YYYY-XXXX, nota tecnica Pinpads
-- **Precarga y Certificacion**: Cuarentena tecnica para entradas masivas
-  - certification_status: "precarga" / "certificado"
-  - Flujo: upload Excel → mismatch → resolucion
-- **Carga Masiva Excel**: En Salida, Transferencia y Nota de Entrega
-  - Validacion anti-duplicados: internos (filas repetidas) y contra BD
-  - Ventana de auditoria con detalle de errores
-  - VALIDADO: iteration_107
-- **Logistica de Despacho**: Metodo envio obligatorio
-  - Personalizada: Nombre, Cedula, Telefono receptor
-  - Courier: ZOOM (Oficina), ZOOM (Casillero), MRW, Tealca, Domesa
-  - VALIDADO: iteration_107
-- **Transferencia → Precarga en Destino (2026-03-16)**: 
-  - Al transferir A→B, entrada en B = certification_status "precarga"
-  - Responsable de B debe certificar fisicamente antes de disponibilizar
-  - VALIDADO: iteration_107
-- **Multi-columna Seriales en PDFs**: 3 columnas para >4 seriales
-  - Anchos fijos con wordWrap="CJK" para evitar overflow
-  - VALIDADO: iteration_107
+- Almacenes, Stock, Entradas, Transferencias, Salidas automaticas
+- Kardex, Trazabilidad, Busqueda inversa, Alertas Stock Minimo
+- Precarga/Certificacion con cuarentena tecnica
+- Carga masiva Excel con validacion anti-duplicados
+- Logistica de Despacho (Personalizada/Courier) con Domesa
+- Transferencia → Precarga obligatoria en destino
+- Multi-columna seriales en PDFs, anchos fijos, word-wrap
+- Nota de Entrega PDF (NE-YYYY-XXXX) y Nota de Transferencia PDF (TRF-YYYY-XXXX)
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
