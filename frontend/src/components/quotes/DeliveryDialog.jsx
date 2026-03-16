@@ -5,9 +5,11 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { Truck, Warehouse, Package, Check, AlertTriangle } from 'lucide-react';
+import { Truck, Warehouse, Package, Check, AlertTriangle, Upload, User, Building } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
+
+const COURIERS = ['ZOOM (Oficina)', 'ZOOM (Casillero)', 'MRW', 'Tealca'];
 
 export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onDelivered }) {
   const [loading, setLoading] = useState(false);
@@ -15,9 +17,15 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   const [warehouseId, setWarehouseId] = useState('');
   const [deliveryItems, setDeliveryItems] = useState([]);
   const [notes, setNotes] = useState('');
-  const [transportista, setTransportista] = useState('');
-  const [guiaPlaca, setGuiaPlaca] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Logistics: delivery method
+  const [deliveryMethod, setDeliveryMethod] = useState('');  // 'personalizada' | 'courier'
+  const [receiverName, setReceiverName] = useState('');
+  const [receiverCedula, setReceiverCedula] = useState('');
+  const [receiverPhone, setReceiverPhone] = useState('');
+  const [courierName, setCourierName] = useState('');
+  const [courierOffice, setCourierOffice] = useState('');
 
   const fetchPrep = useCallback(async (whId) => {
     if (!quoteId) return;
@@ -53,8 +61,12 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
       setWarehouseId('');
       setDeliveryItems([]);
       setNotes('');
-      setTransportista('');
-      setGuiaPlaca('');
+      setDeliveryMethod('');
+      setReceiverName('');
+      setReceiverCedula('');
+      setReceiverPhone('');
+      setCourierName('');
+      setCourierOffice('');
       setPrepData(null);
       fetchPrep(null);
     }
@@ -85,10 +97,13 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   };
 
   const isValid = warehouseId &&
+    deliveryMethod &&
+    receiverName.trim() &&
     deliveryItems.some(it => it.quantity > 0) &&
     deliveryItems.every(it =>
       it.quantity === 0 || !it.requires_serial || it.serials.length === it.quantity
-    );
+    ) &&
+    (deliveryMethod !== 'courier' || (courierName && courierOffice));
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -109,8 +124,12 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
             serials: it.requires_serial ? it.serials : [],
           })),
         notes,
-        transportista,
-        guia_placa: guiaPlaca,
+        delivery_method: deliveryMethod,
+        receiver_name: receiverName,
+        receiver_cedula: receiverCedula,
+        receiver_phone: receiverPhone,
+        courier_name: deliveryMethod === 'courier' ? courierName : '',
+        courier_office: deliveryMethod === 'courier' ? courierOffice : '',
       };
       const res = await api.post(`/quotes/${quoteId}/deliver`, payload, { headers });
       toast.success('Entrega registrada exitosamente');
@@ -242,29 +261,82 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
               <p className="text-sm text-slate-500 text-center py-4">No hay equipos en esta cotización</p>
             )}
 
-            {/* Logistics */}
+            {/* Logistics — Delivery Method */}
             <div className="bg-slate-50 rounded-lg border p-3 space-y-3">
-              <Label className="text-xs font-semibold text-slate-700 uppercase">Control Logístico y Transporte</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-slate-500">Transportado por</Label>
-                  <Input
-                    value={transportista}
-                    onChange={e => setTransportista(e.target.value)}
-                    placeholder="Nombre del mensajero / empresa..."
-                    data-testid="delivery-transportista"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-500">Nro. de Guía / Placa</Label>
-                  <Input
-                    value={guiaPlaca}
-                    onChange={e => setGuiaPlaca(e.target.value)}
-                    placeholder="Guía o placa del vehículo..."
-                    data-testid="delivery-guia-placa"
-                  />
-                </div>
+              <Label className="text-xs font-semibold text-slate-700 uppercase">Metodo de Envio *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setDeliveryMethod('personalizada')}
+                  className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all text-left ${
+                    deliveryMethod === 'personalizada' ? 'border-teal-500 bg-teal-50' : 'border-slate-200 hover:border-teal-300'
+                  }`} data-testid="delivery-method-personal">
+                  <User size={18} className={deliveryMethod === 'personalizada' ? 'text-teal-600' : 'text-slate-400'} />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Entrega Personalizada</p>
+                    <p className="text-[10px] text-slate-500">Receptor directo en destino</p>
+                  </div>
+                </button>
+                <button type="button" onClick={() => setDeliveryMethod('courier')}
+                  className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all text-left ${
+                    deliveryMethod === 'courier' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'
+                  }`} data-testid="delivery-method-courier">
+                  <Building size={18} className={deliveryMethod === 'courier' ? 'text-blue-600' : 'text-slate-400'} />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Courier</p>
+                    <p className="text-[10px] text-slate-500">Envio por empresa de encomiendas</p>
+                  </div>
+                </button>
               </div>
+
+              {/* Common receiver fields */}
+              {deliveryMethod && (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-xs font-medium text-slate-600">
+                    {deliveryMethod === 'personalizada' ? 'Datos del Receptor' : 'Datos del Contacto de Recepcion'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-slate-500">Nombre *</Label>
+                      <Input value={receiverName} onChange={e => setReceiverName(e.target.value)}
+                        placeholder="Nombre completo..." data-testid="delivery-receiver-name" className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-500">Cedula</Label>
+                      <Input value={receiverCedula} onChange={e => setReceiverCedula(e.target.value)}
+                        placeholder="V-XXXXXXXX" data-testid="delivery-receiver-cedula" className="h-8 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-500">Telefono</Label>
+                      <Input value={receiverPhone} onChange={e => setReceiverPhone(e.target.value)}
+                        placeholder="0414-..." data-testid="delivery-receiver-phone" className="h-8 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Courier-specific fields */}
+              {deliveryMethod === 'courier' && (
+                <div className="space-y-2 pt-2 border-t">
+                  <p className="text-xs font-medium text-slate-600">Datos del Courier</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-slate-500">Courier *</Label>
+                      <Select value={courierName} onValueChange={setCourierName}>
+                        <SelectTrigger data-testid="delivery-courier-name" className="h-8 text-sm">
+                          <SelectValue placeholder="Seleccione courier..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COURIERS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-slate-500">Oficina de Destino *</Label>
+                      <Input value={courierOffice} onChange={e => setCourierOffice(e.target.value)}
+                        placeholder="Nombre de oficina..." data-testid="delivery-courier-office" className="h-8 text-sm" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Notes */}

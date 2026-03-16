@@ -102,13 +102,13 @@ async def delete_warehouse(warehouse_id: str, authorization: Optional[str] = Hea
 
 @router.get("/inventory/warehouses/{warehouse_id}/stock")
 async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = Header(None)):
-    """Calcula el saldo actual de cada ítem en un almacén."""
+    """Calcula el saldo actual de cada ítem en un almacén. Excluye precargas del stock disponible."""
     await get_current_user(authorization)
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id}, {"_id": 0}
     ).to_list(10000)
 
-    stock = {}  # item_id -> { name, type, qty, cost_total, serials[] }
+    stock = {}  # item_id -> { name, type, qty, cost_total, serials[], precarga_qty, precarga_serials[] }
     for m in movements:
         iid = m["item_id"]
         if iid not in stock:
@@ -120,18 +120,38 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
                 "cost_total": 0,
                 "serials": [],
                 "requires_serial": is_serialized(m["item_type"]),
+                "precarga_qty": 0,
+                "precarga_serials": [],
+                "has_precarga": False,
+                "precarga_movements": [],
             }
-        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
-        stock[iid]["quantity"] += sign * m["quantity"]
-        stock[iid]["cost_total"] += sign * m["quantity"] * m.get("unit_cost", 0)
 
-        if m.get("serials"):
-            if sign > 0:
-                stock[iid]["serials"].extend(m["serials"])
-            else:
-                for s in m["serials"]:
-                    if s in stock[iid]["serials"]:
-                        stock[iid]["serials"].remove(s)
+        is_precarga = m.get("certification_status") == "precarga"
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+
+        if is_precarga:
+            # Precargas no suman al stock disponible
+            stock[iid]["precarga_qty"] += m["quantity"]
+            if m.get("serials"):
+                stock[iid]["precarga_serials"].extend(m["serials"])
+            stock[iid]["has_precarga"] = True
+            stock[iid]["precarga_movements"].append({
+                "movement_id": m["movement_id"],
+                "quantity": m["quantity"],
+                "serials": m.get("serials", []),
+                "created_at": m.get("created_at", ""),
+                "notes": m.get("notes", ""),
+            })
+        else:
+            stock[iid]["quantity"] += sign * m["quantity"]
+            stock[iid]["cost_total"] += sign * m["quantity"] * m.get("unit_cost", 0)
+            if m.get("serials"):
+                if sign > 0:
+                    stock[iid]["serials"].extend(m["serials"])
+                else:
+                    for s in m["serials"]:
+                        if s in stock[iid]["serials"]:
+                            stock[iid]["serials"].remove(s)
 
     result = []
     for item in stock.values():
@@ -157,7 +177,7 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
 
 @router.post("/inventory/warehouses/{warehouse_id}/entry")
 async def create_entry(warehouse_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    """Registra entrada de inventario. Para hardware crítico, valida seriales."""
+    """Registra entrada de inventario. Soporta modo 'precarga' (cuarentena técnica)."""
     user = await get_current_user(authorization)
 
     wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
@@ -169,32 +189,29 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
     unit_cost = body.get("unit_cost", 0)
     serials = body.get("serials", [])
     notes = body.get("notes", "")
+    is_precarga = body.get("is_precarga", False)
 
     if not item_id or quantity <= 0:
         raise HTTPException(status_code=400, detail="item_id y quantity > 0 son obligatorios")
 
-    # Buscar el ítem en Bienes y Servicios
     item = await db.hardware.find_one({"hardware_id": item_id}, {"_id": 0})
     if not item:
         raise HTTPException(status_code=404, detail="Ítem no encontrado en Bienes y Servicios")
 
     requires_serial = is_serialized(item.get("type", ""))
 
-    # Validar seriales para hardware crítico
     if requires_serial:
         if len(serials) != quantity:
             raise HTTPException(
                 status_code=400,
                 detail=f"Para {item['type']}, debe registrar exactamente {quantity} serial(es). Recibidos: {len(serials)}"
             )
-        # Verificar que los seriales no estén duplicados en ningún almacén
         for serial in serials:
             existing = await db.inventory_movements.find_one(
                 {"serials": serial, "movement_type": {"$in": ["entrada", "transferencia_entrada"]}},
                 {"_id": 0, "movement_id": 1}
             )
             if existing:
-                # Verificar que no esté activo (podría haber salido)
                 exits = await db.inventory_movements.count_documents(
                     {"serials": serial, "movement_type": {"$in": ["salida", "transferencia_salida"]}}
                 )
@@ -203,6 +220,9 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
                 )
                 if entries > exits:
                     raise HTTPException(status_code=400, detail=f"El serial '{serial}' ya existe en inventario")
+
+    # certification_status: "precarga" (cuarentena) o "certificado" (disponible)
+    cert_status = "precarga" if is_precarga else "certificado"
 
     movement = InventoryMovement(
         warehouse_id=warehouse_id,
@@ -218,9 +238,111 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
     )
     doc = movement.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["certification_status"] = cert_status
     await db.inventory_movements.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+# ==================== CERTIFICATION (VALIDATE & CERTIFY) ====================
+
+@router.post("/inventory/validate-certification/{movement_id}")
+async def validate_certification(movement_id: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Compara seriales de una precarga contra un Excel de certificación física."""
+    import pandas as pd
+    await get_current_user(authorization)
+
+    mov = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    if mov.get("certification_status") != "precarga":
+        raise HTTPException(status_code=400, detail="Este movimiento ya está certificado o no es una precarga")
+
+    content = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(content), header=None)
+    except Exception:
+        try:
+            df = pd.read_csv(io.BytesIO(content), header=None)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo leer el archivo")
+
+    excel_serials = []
+    for _, row in df.iterrows():
+        val = str(row.iloc[0]).strip()
+        if val and val.lower() not in ('nan', 'none', '', 'serial', 'seriales'):
+            excel_serials.append(val)
+
+    precarga_serials = set(mov.get("serials", []))
+    excel_set = set(excel_serials)
+
+    matching = sorted(precarga_serials & excel_set)
+    only_in_precarga = sorted(precarga_serials - excel_set)
+    only_in_excel = sorted(excel_set - precarga_serials)
+    has_mismatch = bool(only_in_precarga or only_in_excel)
+
+    return {
+        "movement_id": movement_id,
+        "item_name": mov.get("item_name", ""),
+        "precarga_count": len(precarga_serials),
+        "excel_count": len(excel_set),
+        "matching": matching,
+        "matching_count": len(matching),
+        "only_in_precarga": only_in_precarga,
+        "only_in_excel": only_in_excel,
+        "has_mismatch": has_mismatch,
+    }
+
+
+@router.post("/inventory/certify/{movement_id}")
+async def certify_movement(movement_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Certifica una precarga. source='excel' actualiza seriales, 'original' mantiene los actuales."""
+    await get_current_user(authorization)
+
+    mov = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    if not mov:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    if mov.get("certification_status") != "precarga":
+        raise HTTPException(status_code=400, detail="Este movimiento ya está certificado")
+
+    source = body.get("source", "original")  # "excel" or "original"
+    update_fields = {"certification_status": "certificado"}
+
+    if source == "excel":
+        excel_serials = body.get("excel_serials", [])
+        if not excel_serials:
+            raise HTTPException(status_code=400, detail="Debe proporcionar los seriales del Excel")
+        # Validate no duplicates in system
+        for serial in excel_serials:
+            existing = await db.inventory_movements.find_one(
+                {
+                    "serials": serial,
+                    "movement_id": {"$ne": movement_id},
+                    "movement_type": {"$in": ["entrada", "transferencia_entrada"]},
+                },
+                {"_id": 0, "movement_id": 1},
+            )
+            if existing:
+                exits = await db.inventory_movements.count_documents(
+                    {"serials": serial, "movement_type": {"$in": ["salida", "transferencia_salida"]}}
+                )
+                entries = await db.inventory_movements.count_documents(
+                    {"serials": serial, "movement_id": {"$ne": movement_id}, "movement_type": {"$in": ["entrada", "transferencia_entrada"]}}
+                )
+                if entries > exits:
+                    raise HTTPException(status_code=400, detail=f"El serial '{serial}' ya existe en otro registro de inventario")
+        update_fields["serials"] = excel_serials
+        update_fields["quantity"] = len(excel_serials)
+
+    result = await db.inventory_movements.update_one(
+        {"movement_id": movement_id},
+        {"$set": update_fields},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+
+    updated = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    return updated
 
 
 # ==================== PARSE SERIALS FROM EXCEL ====================
@@ -246,6 +368,53 @@ async def parse_serials_from_excel(file: UploadFile = File(...), authorization: 
             serials.append(val)
 
     return {"serials": serials, "count": len(serials)}
+
+
+@router.post("/inventory/validate-serials-stock/{warehouse_id}/{item_id}")
+async def validate_serials_against_stock(
+    warehouse_id: str, item_id: str,
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Valida seriales de un Excel contra el stock disponible de un ítem en un almacén.
+    Retorna seriales válidos, no encontrados y duplicados."""
+    import pandas as pd
+    await get_current_user(authorization)
+
+    stock = await _get_item_stock(warehouse_id, item_id)
+    available = set(stock.get("serials", []))
+
+    content = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(content), header=None)
+    except Exception:
+        try:
+            df = pd.read_csv(io.BytesIO(content), header=None)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo leer el archivo")
+
+    excel_serials = []
+    for _, row in df.iterrows():
+        val = str(row.iloc[0]).strip()
+        if val and val.lower() not in ('nan', 'none', '', 'serial', 'seriales'):
+            excel_serials.append(val)
+
+    excel_set = set(excel_serials)
+    valid = sorted(excel_set & available)
+    not_found = sorted(excel_set - available)
+    has_errors = len(not_found) > 0
+
+    return {
+        "warehouse_id": warehouse_id,
+        "item_id": item_id,
+        "available_count": len(available),
+        "excel_count": len(excel_set),
+        "valid": valid,
+        "valid_count": len(valid),
+        "not_found": not_found,
+        "not_found_count": len(not_found),
+        "has_errors": has_errors,
+    }
 
 
 # ==================== MANUAL EXIT ====================
@@ -498,8 +667,10 @@ async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[st
     saldo = 0
     kardex = []
     for m in movements:
+        is_precarga = m.get("certification_status") == "precarga"
         sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
-        saldo += sign * m["quantity"]
+        if not is_precarga:
+            saldo += sign * m["quantity"]
         kardex.append({
             "movement_id": m["movement_id"],
             "date": m.get("created_at", ""),
@@ -516,6 +687,7 @@ async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[st
             "quote_number": m.get("quote_number", ""),
             "notes": m.get("notes", ""),
             "created_by": m.get("created_by", ""),
+            "certification_status": m.get("certification_status", "certificado"),
         })
 
     # Info del producto
@@ -692,7 +864,7 @@ async def check_stock_alert(warehouse_id: str, item_id: str, item_name: str):
         logger.error(f"Error en check_stock_alert: {e}")
 
 async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
-    """Calcula stock actual de un ítem en un almacén."""
+    """Calcula stock actual de un ítem en un almacén. Excluye precargas."""
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
     ).to_list(10000)
@@ -701,6 +873,9 @@ async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
     cost_total = 0
     serials = []
     for m in movements:
+        # Excluir precargas del stock disponible
+        if m.get("certification_status") == "precarga":
+            continue
         sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
         qty += sign * m["quantity"]
         cost_total += sign * m["quantity"] * m.get("unit_cost", 0)

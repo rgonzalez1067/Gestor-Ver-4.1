@@ -314,7 +314,32 @@ def generate_transfer_note_pdf(
 
         serials = item.get("serials", [])
         if serials:
-            serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
+            # Multi-column layout for serials (3 columns) to reduce pages
+            if len(serials) > 4:
+                cols = 3
+                rows_needed = (len(serials) + cols - 1) // cols
+                serial_cells = []
+                for r in range(rows_needed):
+                    row_serials = []
+                    for c in range(cols):
+                        idx_s = r * cols + c
+                        if idx_s < len(serials):
+                            row_serials.append(Paragraph(f"SN: {serials[idx_s]}", s_cell_serial))
+                        else:
+                            row_serials.append(Paragraph("", s_cell_serial))
+                    serial_cells.append(row_serials)
+                serial_col_w = (CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm) / cols
+                serial_tbl_inner = Table(serial_cells, colWidths=[serial_col_w] * cols)
+                serial_tbl_inner.setStyle(TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 1),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ]))
+                serials_para = serial_tbl_inner
+            else:
+                serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
         else:
             serials_para = Paragraph("N/A", s_small)
 

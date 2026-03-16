@@ -634,8 +634,16 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
     warehouse_id = body.get("warehouse_id")
     delivery_items = body.get("delivery_items", [])
     delivery_notes = body.get("notes", "")
-    transportista = body.get("transportista", "")
-    guia_placa = body.get("guia_placa", "")
+    # Logistics fields
+    delivery_method = body.get("delivery_method", "personalizada")
+    receiver_name = body.get("receiver_name", "")
+    receiver_cedula = body.get("receiver_cedula", "")
+    receiver_phone = body.get("receiver_phone", "")
+    courier_name = body.get("courier_name", "")
+    courier_office = body.get("courier_office", "")
+    # Legacy compatibility
+    transportista = courier_name if delivery_method == "courier" else receiver_name
+    guia_placa = courier_office if delivery_method == "courier" else ""
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
     # Get client info
@@ -792,6 +800,12 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 guia_placa=guia_placa,
                 notes=delivery_notes,
                 logo_path=logo_path,
+                delivery_method=delivery_method,
+                receiver_name=receiver_name,
+                receiver_cedula=receiver_cedula,
+                receiver_phone=receiver_phone,
+                courier_name=courier_name,
+                courier_office=courier_office,
             )
             pdf_filename = f"NotaEntrega_{correlativo}.pdf"
             pdf_path = UPLOADS_DIR / pdf_filename

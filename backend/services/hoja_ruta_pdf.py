@@ -148,6 +148,12 @@ def generate_nota_entrega_pdf(
     guia_placa: str = "",
     notes: str = "",
     logo_path: str = None,
+    delivery_method: str = "personalizada",
+    receiver_name: str = "",
+    receiver_cedula: str = "",
+    receiver_phone: str = "",
+    courier_name: str = "",
+    courier_office: str = "",
 ):
     buffer = io.BytesIO()
 
@@ -269,7 +275,6 @@ def generate_nota_entrega_pdf(
     # ==================== 3. DETALLE DE BIENES ====================
     elements.append(Paragraph("3. Detalle de Bienes y Equipos", s_section))
 
-    SERIALIZED = ["pos", "pinpad", "mpos"]
     items_header = [
         Paragraph("<b>Item</b>", s_cell),
         Paragraph("<b>Descripcion del Bien / Servicio</b>", s_cell),
@@ -298,7 +303,32 @@ def generate_nota_entrega_pdf(
     for idx, item in enumerate(delivered_items, 1):
         serials = item.get("serials", [])
         if serials:
-            serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
+            # Multi-column layout for serials (3 columns) to reduce pages
+            if len(serials) > 4:
+                cols = 3
+                rows_needed = (len(serials) + cols - 1) // cols
+                serial_cells = []
+                for r in range(rows_needed):
+                    row_serials = []
+                    for c in range(cols):
+                        idx_s = r * cols + c
+                        if idx_s < len(serials):
+                            row_serials.append(Paragraph(f"SN: {serials[idx_s]}", s_cell_serial))
+                        else:
+                            row_serials.append(Paragraph("", s_cell_serial))
+                    serial_cells.append(row_serials)
+                serial_col_w = (CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm) / cols
+                serial_tbl = Table(serial_cells, colWidths=[serial_col_w] * cols)
+                serial_tbl.setStyle(TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 1),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ]))
+                serials_para = serial_tbl
+            else:
+                serials_para = Paragraph("<br/>".join([f"SN: {s}" for s in serials]), s_cell_serial)
         else:
             serials_para = Paragraph("N/A", s_small)
 
@@ -333,14 +363,33 @@ def generate_nota_entrega_pdf(
 
     # ==================== 4. CONTROL LOGISTICO ====================
     elements.append(Paragraph("4. Control Logistico y Transporte", s_section))
+
+    method_label = "Entrega Personalizada" if delivery_method != "courier" else "Courier"
     log_data = [
         [Paragraph("Preparado por (Almacen):", s_label),
          Paragraph(delivered_by or "___________________________", s_value)],
-        [Paragraph("Transportado por:", s_label),
-         Paragraph(transportista or "___________________________", s_value)],
-        [Paragraph("Nro. de Guia / Placa:", s_label),
-         Paragraph(guia_placa or "___________________________", s_value)],
+        [Paragraph("Metodo de Envio:", s_label),
+         Paragraph(method_label, s_value)],
     ]
+    if delivery_method == "courier":
+        log_data.extend([
+            [Paragraph("Courier:", s_label),
+             Paragraph(courier_name or "___________________________", s_value)],
+            [Paragraph("Oficina de Destino:", s_label),
+             Paragraph(courier_office or "___________________________", s_value)],
+            [Paragraph("Contacto Receptor:", s_label),
+             Paragraph(f"{receiver_name or '—'}  |  Ced: {receiver_cedula or '—'}  |  Tel: {receiver_phone or '—'}", s_value)],
+        ])
+    else:
+        log_data.extend([
+            [Paragraph("Receptor:", s_label),
+             Paragraph(receiver_name or transportista or "___________________________", s_value)],
+            [Paragraph("Cedula Receptor:", s_label),
+             Paragraph(receiver_cedula or "___________________________", s_value)],
+            [Paragraph("Telefono Receptor:", s_label),
+             Paragraph(receiver_phone or "___________________________", s_value)],
+        ])
+
     log_tbl = Table(log_data, colWidths=[4.5 * cm, CONTENT_W - 4.5 * cm])
     log_tbl.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),

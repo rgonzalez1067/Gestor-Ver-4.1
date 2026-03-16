@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown } from 'lucide-react';
+import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -64,6 +64,15 @@ export default function Inventory() {
   const [clientSearchResults, setClientSearchResults] = useState([]);
   const [clientSearchLoading, setClientSearchLoading] = useState(false);
   const [showClientSearch, setShowClientSearch] = useState(false);
+
+  // Certificación de precarga
+  const [certDialog, setCertDialog] = useState(false);
+  const [certMovement, setCertMovement] = useState(null);
+  const [certResult, setCertResult] = useState(null);
+  const [certLoading, setCertLoading] = useState(false);
+
+  // Precarga toggle en entrada
+  const [isPrecarga, setIsPrecarga] = useState(false);
 
   const navigate = useNavigate();
   const fetchAll = useCallback(async () => {
@@ -175,10 +184,12 @@ export default function Inventory() {
       await api.post(`/inventory/warehouses/${selectedWh}/entry`, {
         ...entryForm,
         unit_cost: entryForm.unit_cost || selectedEntryItem?.price_usd || 0,
+        is_precarga: isPrecarga,
       });
-      toast.success('Entrada registrada');
+      toast.success(isPrecarga ? 'Precarga registrada (pendiente certificación)' : 'Entrada registrada');
       setEntryDialog(false);
       setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] });
+      setIsPrecarga(false);
       fetchStock();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
   };
@@ -202,6 +213,29 @@ export default function Inventory() {
     }));
   };
 
+  // Excel upload for exit serials
+  const [exitExcelAudit, setExitExcelAudit] = useState(null);
+  const handleExitExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !exitForm.item_id) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post(`/inventory/validate-serials-stock/${selectedWh}/${exitForm.item_id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data.has_errors) {
+        setExitExcelAudit(res.data);
+        toast.error(`${res.data.not_found_count} serial(es) no encontrados en stock`);
+      } else {
+        setExitForm(prev => ({ ...prev, serials: res.data.valid, quantity: res.data.valid_count }));
+        setExitExcelAudit(null);
+        toast.success(`${res.data.valid_count} seriales cargados correctamente`);
+      }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al validar Excel'); }
+    e.target.value = '';
+  };
+
   const submitExit = async () => {
     if (!exitForm.item_id || exitForm.quantity < 1) { toast.error('Complete los campos'); return; }
     if (exitNeedsSerial && exitForm.serials.length !== exitForm.quantity) {
@@ -223,7 +257,31 @@ export default function Inventory() {
   const openTransferForItem = (item) => {
     setTransferForm({ dest_warehouse_id: '', item_id: item.item_id, quantity: 1, notes: '', serials: [] });
     setTransferSerials(item.serials || []);
+    setTransferExcelAudit(null);
     setTransferDialog(true);
+  };
+
+  // Excel upload for transfer serials
+  const [transferExcelAudit, setTransferExcelAudit] = useState(null);
+  const handleTransferExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !transferForm.item_id) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post(`/inventory/validate-serials-stock/${selectedWh}/${transferForm.item_id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (res.data.has_errors) {
+        setTransferExcelAudit(res.data);
+        toast.error(`${res.data.not_found_count} serial(es) no encontrados en stock`);
+      } else {
+        setTransferForm(prev => ({ ...prev, serials: res.data.valid, quantity: res.data.valid_count }));
+        setTransferExcelAudit(null);
+        toast.success(`${res.data.valid_count} seriales cargados correctamente`);
+      }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al validar Excel'); }
+    e.target.value = '';
   };
 
   const submitTransfer = async () => {
@@ -292,6 +350,53 @@ export default function Inventory() {
       toast.error('Error en búsqueda');
     } finally {
       setClientSearchLoading(false);
+    }
+  };
+
+  // ==================== CERTIFICACIÓN ====================
+  const openCertification = (movement) => {
+    setCertMovement(movement);
+    setCertResult(null);
+    setCertDialog(true);
+  };
+
+  const handleCertExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !certMovement) return;
+    setCertLoading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post(`/inventory/validate-certification/${certMovement.movement_id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCertResult(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al validar');
+    } finally {
+      setCertLoading(false);
+    }
+    e.target.value = '';
+  };
+
+  const executeCertification = async (source) => {
+    if (!certMovement) return;
+    setCertLoading(true);
+    try {
+      const body = { source };
+      if (source === 'excel' && certResult) {
+        body.excel_serials = [...(certResult.matching || []), ...(certResult.only_in_excel || [])];
+      }
+      await api.post(`/inventory/certify/${certMovement.movement_id}`, body);
+      toast.success('Certificación completada. Equipos ahora disponibles.');
+      setCertDialog(false);
+      setCertMovement(null);
+      setCertResult(null);
+      fetchStock();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al certificar');
+    } finally {
+      setCertLoading(false);
     }
   };
 
@@ -499,6 +604,11 @@ export default function Inventory() {
                           <td className={`px-4 py-3 text-center font-bold ${item.below_min ? 'text-red-600' : 'text-slate-900'}`}
                             data-testid={`stock-qty-${item.item_id}`}>
                             {item.quantity}
+                            {item.has_precarga && (
+                              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded" title="En cuarentena técnica">
+                                +{item.precarga_qty} precarga
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                             <input
@@ -521,20 +631,34 @@ export default function Inventory() {
                             ) : <span className="text-xs text-slate-400">N/A</span>}
                           </td>
                           <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                            {item.quantity > 0 && (
-                              <div className="flex justify-end gap-1">
-                                <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-800"
-                                  onClick={() => openExitForItem(item)} data-testid={`btn-exit-${item.item_id}`}>
-                                  <PackageMinus size={12} className="mr-1" />Salida
-                                </Button>
-                                {warehouses.length > 1 && (
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-600 hover:text-blue-800"
-                                    onClick={() => openTransferForItem(item)} data-testid={`btn-transfer-${item.item_id}`}>
-                                    <ArrowLeftRight size={12} className="mr-1" />Transferir
+                            <div className="flex flex-col gap-1 items-end">
+                              {item.has_precarga && (
+                                <div className="flex gap-1">
+                                  {item.precarga_movements.map(pm => (
+                                    <Button key={pm.movement_id} size="sm" variant="ghost"
+                                      className="h-6 text-[10px] text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200"
+                                      onClick={() => openCertification(pm)}
+                                      data-testid={`btn-certify-${pm.movement_id}`}>
+                                      <ShieldCheck size={11} className="mr-1" />Certificar
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
+                              {item.quantity > 0 && (
+                                <div className="flex justify-end gap-1">
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-800"
+                                    onClick={() => openExitForItem(item)} data-testid={`btn-exit-${item.item_id}`}>
+                                    <PackageMinus size={12} className="mr-1" />Salida
                                   </Button>
-                                )}
-                              </div>
-                            )}
+                                  {warehouses.length > 1 && (
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-600 hover:text-blue-800"
+                                      onClick={() => openTransferForItem(item)} data-testid={`btn-transfer-${item.item_id}`}>
+                                      <ArrowLeftRight size={12} className="mr-1" />Transferir
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -569,6 +693,9 @@ export default function Inventory() {
                             <td className="px-4 py-2.5 text-xs text-slate-500">{(m.created_at || '').slice(0, 16).replace('T', ' ')}</td>
                             <td className="px-4 py-2.5">
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${ml.color}`}>{ml.icon} {ml.label}</span>
+                              {m.certification_status === 'precarga' && (
+                                <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded">Precarga</span>
+                              )}
                             </td>
                             <td className="px-4 py-2.5 text-slate-900">{m.item_name}</td>
                             <td className="px-4 py-2.5 text-center font-medium">{m.quantity}</td>
@@ -657,6 +784,19 @@ export default function Inventory() {
               </div>
               <div><Label>Notas</Label><Input value={entryForm.notes} onChange={e => setEntryForm({ ...entryForm, notes: e.target.value })} /></div>
 
+              {/* Toggle Precarga */}
+              {entryNeedsSerial && (
+                <label className="flex items-center gap-2 px-3 py-2 border border-amber-200 rounded-lg bg-amber-50 cursor-pointer select-none"
+                  data-testid="precarga-toggle">
+                  <input type="checkbox" checked={isPrecarga} onChange={e => setIsPrecarga(e.target.checked)}
+                    className="accent-amber-600 w-4 h-4" />
+                  <div>
+                    <span className="text-sm font-medium text-amber-800">Registrar como Precarga</span>
+                    <p className="text-[10px] text-amber-600">Los equipos quedarán en cuarentena técnica hasta ser certificados físicamente.</p>
+                  </div>
+                </label>
+              )}
+
               {/* Seriales (solo hardware crítico) */}
               {entryNeedsSerial && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
@@ -710,7 +850,15 @@ export default function Inventory() {
 
               {exitNeedsSerial && availableSerials.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-semibold text-red-700 uppercase">Seleccione seriales ({exitForm.serials.length}/{exitForm.quantity})</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-red-700 uppercase">Seleccione seriales ({exitForm.serials.length}/{exitForm.quantity})</p>
+                    <label className="cursor-pointer" data-testid="exit-excel-upload">
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleExitExcel} />
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-white border border-red-300 rounded text-red-700 hover:bg-red-100 cursor-pointer transition-colors">
+                        <Upload size={10} />Cargar desde Excel
+                      </span>
+                    </label>
+                  </div>
                   <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
                     {availableSerials.map(s => (
                       <button key={s} onClick={() => toggleExitSerial(s)}
@@ -720,6 +868,26 @@ export default function Inventory() {
                       </button>
                     ))}
                   </div>
+                  {/* Excel audit */}
+                  {exitExcelAudit && exitExcelAudit.has_errors && (
+                    <div className="bg-white border border-red-300 rounded p-2 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <AlertTriangle size={12} className="text-red-600" />
+                        <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {exitExcelAudit.not_found.map(s => (
+                          <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                        ))}
+                      </div>
+                      {exitExcelAudit.valid_count > 0 && (
+                        <button onClick={() => { setExitForm(prev => ({ ...prev, serials: exitExcelAudit.valid, quantity: exitExcelAudit.valid_count })); setExitExcelAudit(null); }}
+                          className="text-[10px] text-blue-600 hover:underline">
+                          Usar solo los {exitExcelAudit.valid_count} seriales validos
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -756,7 +924,15 @@ export default function Inventory() {
 
               {transferNeedsSerial && transferSerials.length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-semibold text-blue-700 uppercase">Seleccione seriales ({transferForm.serials.length}/{transferForm.quantity})</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-blue-700 uppercase">Seleccione seriales ({transferForm.serials.length}/{transferForm.quantity})</p>
+                    <label className="cursor-pointer" data-testid="transfer-excel-upload">
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleTransferExcel} />
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-white border border-blue-300 rounded text-blue-700 hover:bg-blue-100 cursor-pointer transition-colors">
+                        <Upload size={10} />Cargar desde Excel
+                      </span>
+                    </label>
+                  </div>
                   <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
                     {transferSerials.map(s => (
                       <button key={s} onClick={() => setTransferForm(prev => ({
@@ -768,6 +944,26 @@ export default function Inventory() {
                       </button>
                     ))}
                   </div>
+                  {/* Excel audit */}
+                  {transferExcelAudit && transferExcelAudit.has_errors && (
+                    <div className="bg-white border border-blue-300 rounded p-2 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <AlertTriangle size={12} className="text-red-600" />
+                        <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {transferExcelAudit.not_found.map(s => (
+                          <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                        ))}
+                      </div>
+                      {transferExcelAudit.valid_count > 0 && (
+                        <button onClick={() => { setTransferForm(prev => ({ ...prev, serials: transferExcelAudit.valid, quantity: transferExcelAudit.valid_count })); setTransferExcelAudit(null); }}
+                          className="text-[10px] text-blue-600 hover:underline">
+                          Usar solo los {transferExcelAudit.valid_count} seriales validos
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -943,6 +1139,139 @@ export default function Inventory() {
                 <p className="text-sm text-slate-400 text-center py-6">Sin resultados para "{clientSearch}"</p>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== CERTIFICACIÓN DE PRECARGA ==================== */}
+        <Dialog open={certDialog} onOpenChange={(o) => { setCertDialog(o); if (!o) { setCertResult(null); setCertMovement(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="certification-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck size={20} className="text-amber-600" />
+                Certificacion de Precarga
+              </DialogTitle>
+            </DialogHeader>
+
+            {certMovement && (
+              <div className="space-y-4">
+                {/* Info de la precarga */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+                  <p className="text-sm text-amber-800"><strong>Seriales precargados:</strong> {certMovement.serials?.length || 0}</p>
+                  <p className="text-xs text-amber-600">Fecha: {(certMovement.created_at || '').slice(0, 16).replace('T', ' ')}</p>
+                  {certMovement.notes && <p className="text-xs text-amber-600">Notas: {certMovement.notes}</p>}
+                  {certMovement.serials?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2 max-h-24 overflow-y-auto">
+                      {certMovement.serials.map(s => (
+                        <span key={s} className="px-1.5 py-0.5 text-[10px] bg-white border border-amber-200 rounded text-amber-800">{s}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Excel */}
+                {!certResult && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-slate-700">Cargue el archivo Excel con los seriales verificados fisicamente:</p>
+                    <label className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed border-amber-300 rounded-lg bg-amber-50/50 cursor-pointer hover:bg-amber-100/50 transition-colors"
+                      data-testid="cert-excel-upload">
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCertExcel} disabled={certLoading} />
+                      {certLoading ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-600" />
+                      ) : (
+                        <>
+                          <Upload size={20} className="text-amber-600" />
+                          <span className="text-sm font-medium text-amber-700">Seleccionar archivo Excel de certificacion</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
+
+                {/* Mismatch Report */}
+                {certResult && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2">
+                        <p className="text-lg font-bold text-emerald-700">{certResult.matching_count}</p>
+                        <p className="text-[10px] text-emerald-600 uppercase">Coincidentes</p>
+                      </div>
+                      <div className={`border rounded-lg p-2 ${certResult.only_in_precarga.length > 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className={`text-lg font-bold ${certResult.only_in_precarga.length > 0 ? 'text-red-700' : 'text-slate-400'}`}>{certResult.only_in_precarga.length}</p>
+                        <p className="text-[10px] text-slate-600 uppercase">Solo en Precarga</p>
+                      </div>
+                      <div className={`border rounded-lg p-2 ${certResult.only_in_excel.length > 0 ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className={`text-lg font-bold ${certResult.only_in_excel.length > 0 ? 'text-blue-700' : 'text-slate-400'}`}>{certResult.only_in_excel.length}</p>
+                        <p className="text-[10px] text-slate-600 uppercase">Solo en Excel</p>
+                      </div>
+                    </div>
+
+                    {certResult.has_mismatch && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={16} className="text-red-600" />
+                          <p className="text-sm font-semibold text-red-700">Inconsistencias detectadas</p>
+                        </div>
+                        {certResult.only_in_precarga.length > 0 && (
+                          <div>
+                            <p className="text-xs text-red-600 font-medium mb-1">Seriales en Precarga que NO estan en Excel:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {certResult.only_in_precarga.map(s => (
+                                <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {certResult.only_in_excel.length > 0 && (
+                          <div>
+                            <p className="text-xs text-blue-600 font-medium mb-1">Seriales en Excel que NO estaban en Precarga:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {certResult.only_in_excel.map(s => (
+                                <span key={s} className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 border border-blue-300 rounded">{s}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!certResult.has_mismatch && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        <p className="text-sm text-emerald-700 font-medium">Todos los seriales coinciden perfectamente.</p>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2 pt-2 border-t">
+                      <p className="text-xs text-slate-500 font-medium">Seleccione la fuente de datos definitiva:</p>
+                      <div className="flex gap-2">
+                        <Button onClick={() => executeCertification('excel')} disabled={certLoading}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" data-testid="cert-use-excel">
+                          <Upload size={14} className="mr-1.5" />
+                          Actualizar con Excel ({certResult.excel_count} seriales)
+                        </Button>
+                        <Button onClick={() => executeCertification('original')} disabled={certLoading}
+                          variant="outline" className="flex-1" data-testid="cert-use-original">
+                          <ShieldCheck size={14} className="mr-1.5" />
+                          Mantener Original ({certResult.precarga_count} seriales)
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Close without certifying */}
+                {!certResult && (
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setCertDialog(false)}>Cancelar</Button>
+                    <Button onClick={() => executeCertification('original')} disabled={certLoading}
+                      className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="cert-direct">
+                      <ShieldCheck size={14} className="mr-1.5" />Certificar sin Excel (usar datos originales)
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </main>
