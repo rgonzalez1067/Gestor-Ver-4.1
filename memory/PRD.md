@@ -29,11 +29,8 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Wizard multi-tipo (VPOS/PG, Equipos, Reparaciones)
 - Flujo Administrativo Flexible con Protocolo de Excepcion
 - PDF con WeasyPrint, Segmentacion VPOS/MPOS, Parametros Dinamicos
-- **Segmentacion Pyme/Corp (2026-03-15)**: Boton dropdown "Nueva Implementacion" con dos opciones:
-  - Clientes Pymes (verde): Flujos estandarizados y agiles
-  - Clientes Corporativos (azul): Proyectos de gran envergadura
-  - Campo `client_segment` (PYME/CORP) en modelo Quote y Project
-  - Badge de segmento en wizard, columna Segmento en tabla, filtro por segmento
+- Segmentacion Pyme/Corp: Boton dropdown con dos opciones
+- Campo client_segment (PYME/CORP) en modelo Quote y Project
 
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones, hereda client_segment
@@ -43,8 +40,20 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Kardex, Trazabilidad, Buscador Inverso, Alertas Stock Minimo
 - **Nota de Entrega PDF (2026-03-15)**: PDF profesional con correlativo NE-YYYY-XXXX
   - 5 secciones: Info Documento, Cliente/Destino, Detalle Bienes, Control Logistico, Recepcion
-  - Paginacion "Pagina X de Y" con encabezados persistentes en todas las paginas
-  - **VALIDADO (2026-03-16)**: 20/20 tests pasaron - testing_agent iteration_104
+  - Paginacion "Pagina X de Y" con encabezados persistentes
+  - VALIDADO: 20/20 tests (iteration_104)
+- **Nota de Entrega por Transferencia entre Almacenes (2026-03-16)**: PDF automatico al transferir
+  - Correlativo TRF-YYYY-XXXX (auto-incremental)
+  - Encabezado persistente: Logo + titulo + info compacta en paginas 2+
+  - Seccion 1: Info transferencia (Nro, Fecha, Hora, Realizado por)
+  - Seccion 2: Ruta (Almacen Origen/Destino con Responsables)
+  - Seccion 3: Detalle de bienes con seriales (POS/Pinpad/MPOS)
+  - Nota tecnica condicional para Pinpads: "Cable USB, Licencia EMV y Privacy Shields"
+  - Seccion 4: Firmas (Origen precargado, Recepcion en blanco)
+  - Nota aclaratoria: "Quien recibe no es necesariamente el responsable del almacen destino"
+  - Paginacion "Pagina X de Y"
+  - Descarga desde toast y columna PDF en tabla de movimientos
+  - VALIDADO: 18/18 tests (iteration_105)
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Nomenclatura PYME/CORP, Tipo Corp
