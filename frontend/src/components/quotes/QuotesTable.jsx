@@ -59,19 +59,19 @@ export const QuotesTable = ({
   });
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-      <table className="w-full" data-testid="quotes-unified-table">
+    <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+      <table className="w-full min-w-[1050px]" data-testid="quotes-unified-table">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Número</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Categoría</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Segmento</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Tipo</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Cliente</th>
-            <th className="px-6 py-4 text-right text-sm font-medium text-slate-700 uppercase">Total USD</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Estado</th>
-            <th className="px-6 py-4 text-left text-sm font-medium text-slate-700 uppercase">Fecha</th>
-            <th className="px-6 py-4 text-center text-sm font-medium text-slate-700 uppercase">Acciones</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Número</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Categoría</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Segmento</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Tipo</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Cliente</th>
+            <th className="px-3 py-4 text-right text-xs font-medium text-slate-700 uppercase whitespace-nowrap">Total USD</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Estado</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Fecha</th>
+            <th className="px-3 py-4 text-center text-xs font-medium text-slate-700 uppercase">Acciones</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -88,13 +88,13 @@ export const QuotesTable = ({
 
             return (
               <tr key={quote.quote_id} className="hover:bg-slate-50" data-testid={`quote-row-${quote.quote_id}`}>
-                <td className="px-6 py-4 text-sm font-mono font-medium text-slate-900">{quote.quote_number}</td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap">{quote.quote_number}</td>
+                <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
                     {isEquipment ? 'Equipos' : 'Implementación'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 py-4 text-sm">
                   {quote.client_segment ? (
                     <span className={`px-2 py-1 text-xs font-medium rounded ${
                       quote.client_segment === 'CORP'
@@ -107,12 +107,12 @@ export const QuotesTable = ({
                     <span className="text-xs text-slate-400">—</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>{displayType}</span>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
-                <td className="px-6 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold">${quote.total_usd?.toFixed(2) || '0.00'}</td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-3 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
+                <td className="px-3 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold whitespace-nowrap">${quote.total_usd?.toFixed(2) || '0.00'}</td>
+                <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
                     <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
                       {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
@@ -163,8 +163,8 @@ export const QuotesTable = ({
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-600">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
-                <td className="px-6 py-4">
+                <td className="px-3 py-4 text-sm text-slate-600 whitespace-nowrap">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
+                <td className="px-3 py-4">
                   <div className="flex items-center justify-center gap-2">
                     <Button size="sm" variant="outline" onClick={() => onOpenAnexos(quote)}
                       className="text-brand-blue-600" disabled={isLoading}
