@@ -8,25 +8,38 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package, FileText, Pencil } from 'lucide-react';
+import { ArrowLeft, Building2, Monitor, Globe, Smartphone, Link, Plus, Trash2, ChevronRight, User, Phone, Mail, Hash, Rocket, Package, FileText, Pencil, Lock, FlaskConical } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-const INTEGRATION_STATUSES = [
-  { id: 'PreProd', label: 'PreProd', full: 'Pre-Producción', color: 'bg-orange-100 text-orange-700 border-orange-300' },
-  { id: 'Primer Prod', label: 'Primer Prod', full: 'Primera Producción', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-  { id: 'Masificación', label: 'Masificación', full: 'Masificación', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }
+// Phase A: Read-only in Banks (managed from Nuevos Productos)
+const PIPELINE_STATUSES = [
+  { id: 'Negociación', label: 'Negoc.', full: 'Negociación', color: 'bg-slate-100 text-slate-600 border-slate-300', phase: 'A' },
+  { id: 'DESA', label: 'DESA', full: 'Desarrollo', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', phase: 'A' },
+  { id: 'SQA', label: 'SQA', full: 'Calidad', color: 'bg-purple-100 text-purple-700 border-purple-300', phase: 'A' },
 ];
 
+// Phase B: Editable from Banks
+const INTEGRATION_STATUSES = [
+  { id: 'PreProd', label: 'PreProd', full: 'Pre-Producción', color: 'bg-orange-100 text-orange-700 border-orange-300', phase: 'B' },
+  { id: 'Primer Prod', label: 'Primer Prod', full: 'Primera Producción', color: 'bg-blue-100 text-blue-700 border-blue-300', phase: 'B' },
+  { id: 'Masificación', label: 'Masificación', full: 'Masificación', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', phase: 'B' }
+];
+
+const ALL_STATUSES = [...PIPELINE_STATUSES, ...INTEGRATION_STATUSES];
+
 const PHASE_DOT_COLORS = {
+  'Negociación': 'bg-slate-500 border-slate-300',
+  'DESA': 'bg-yellow-500 border-yellow-300',
+  'SQA': 'bg-purple-500 border-purple-300',
   'PreProd': 'bg-orange-500 border-orange-300',
   'Primer Prod': 'bg-blue-500 border-blue-300',
   'Masificación': 'bg-emerald-500 border-emerald-300'
 };
 
-const getStatusStyle = (status) => INTEGRATION_STATUSES.find(s => s.id === status) || INTEGRATION_STATUSES[0];
+const getStatusStyle = (status) => ALL_STATUSES.find(s => s.id === status) || ALL_STATUSES[0];
 
 const StatusBadge = ({ status }) => {
   const s = getStatusStyle(status);
@@ -34,13 +47,13 @@ const StatusBadge = ({ status }) => {
 };
 
 const StatusPipeline = ({ currentStatus }) => {
-  const idx = INTEGRATION_STATUSES.findIndex(s => s.id === currentStatus);
+  const idx = ALL_STATUSES.findIndex(s => s.id === currentStatus);
   return (
     <div className="flex items-center gap-0.5">
-      {INTEGRATION_STATUSES.map((s, i) => (
+      {ALL_STATUSES.map((s, i) => (
         <div key={s.id} className="flex items-center gap-0.5">
-          <div className={`w-2 h-2 rounded-full ${i <= idx ? 'bg-emerald-500' : 'bg-slate-300'}`} title={s.full} />
-          {i < INTEGRATION_STATUSES.length - 1 && <div className={`w-3 h-0.5 ${i < idx ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
+          <div className={`w-2 h-2 rounded-full ${i <= idx ? (s.phase === 'A' ? 'bg-purple-500' : 'bg-emerald-500') : 'bg-slate-300'}`} title={s.full} />
+          {i < ALL_STATUSES.length - 1 && <div className={`w-3 h-0.5 ${i < idx ? (ALL_STATUSES[i].phase === 'A' ? 'bg-purple-300' : 'bg-emerald-400') : 'bg-slate-200'}`} />}
         </div>
       ))}
     </div>
@@ -85,6 +98,31 @@ export const BankDetail = () => {
   const vposMpos = activeProducts.filter(p => p.vpos_available || p.mpos_available);
   const pgLink = activeProducts.filter(p => p.gateway_available || p.link_available);
   const integrations = bank?.integrations || [];
+  const pipelineProducts = bank?.pipeline_products || [];
+
+  // Merge pipeline products as virtual "integrations" for unified roadmap display
+  const pipelineAsIntegrations = pipelineProducts.map(p => ({
+    integration_id: `pipeline_${p.product_id}`,
+    product_id: p.product_id,
+    service_name: p.service_name || p.name || 'N/A',
+    component_type: p.component_type || '',
+    tipo_corp: p.tipo_corp || '',
+    status: p.status, // Negociación, DESA, SQA
+    notes: p.notes || '',
+    created_at: p.created_at || '',
+    is_pipeline: true,
+    is_readonly: true,
+  }));
+
+  // Mark promoted integrations with their source info
+  const enrichedIntegrations = integrations.map(intg => ({
+    ...intg,
+    is_pipeline: false,
+    is_readonly: false,
+    is_from_pipeline: !!intg.source_product_id,
+  }));
+
+  const allRoadmapItems = [...pipelineAsIntegrations, ...enrichedIntegrations];
 
   const productoServices = mediosPago.filter(s => s.service_type === 'Producto' || !s.service_type);
 
@@ -107,7 +145,10 @@ export const BankDetail = () => {
       await api.put(`/banks/${bankId}/integrations/${integrationId}`, { status: newStatus });
       toast.success('Estatus actualizado');
       fetchData();
-    } catch { toast.error('Error al actualizar estatus'); }
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Error al actualizar estatus';
+      toast.error(detail);
+    }
   };
 
   const handleDeleteIntegration = async () => {
@@ -308,48 +349,78 @@ export const BankDetail = () => {
               </Button>
             </div>
 
-            {integrations.length > 0 ? (
+            {allRoadmapItems.length > 0 ? (
               <div className="space-y-2">
-                {integrations.map((intg) => (
-                  <div key={intg.integration_id} data-testid={`integration-${intg.integration_id}`}
-                    className="flex items-center gap-4 p-3 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="min-w-[180px]">
-                      <p className="font-medium text-slate-900 text-sm">{intg.service_name}</p>
-                      <p className="text-xs text-slate-500">{intg.component_type}</p>
-                      {intg.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{intg.tipo_corp}</span>}
+                {allRoadmapItems.map((intg) => {
+                  const isReadOnly = intg.is_readonly || intg.is_pipeline;
+                  const isFromPipeline = intg.is_pipeline || intg.is_from_pipeline;
+                  return (
+                    <div key={intg.integration_id} data-testid={`integration-${intg.integration_id}`}
+                      className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${
+                        isReadOnly
+                          ? 'border-purple-200 bg-purple-50/30'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}>
+                      <div className="min-w-[180px]">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-slate-900 text-sm">{intg.service_name}</p>
+                          {isFromPipeline && (
+                            <span className="px-1 py-0.5 text-[8px] font-bold rounded bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-0.5" title="Proviene del Pipeline de I+D">
+                              <FlaskConical size={8} />I+D
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">{intg.component_type}</p>
+                        {intg.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{intg.tipo_corp}</span>}
+                      </div>
+                      <StatusPipeline currentStatus={intg.status} />
+                      <div className="min-w-[120px]">
+                        {isReadOnly ? (
+                          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-slate-100 border border-slate-200 cursor-not-allowed"
+                            title="Este producto está siendo gestionado desde el módulo de Nuevos Productos">
+                            <Lock size={11} className="text-slate-400" />
+                            <StatusBadge status={intg.status} />
+                          </div>
+                        ) : (
+                          <Select value={intg.status} onValueChange={(v) => handleStatusChange(intg.integration_id, v)}>
+                            <SelectTrigger className="h-8 text-xs" data-testid={`status-select-${intg.integration_id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {INTEGRATION_STATUSES.map(s => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  <span className="flex items-center gap-1.5">
+                                    <StatusBadge status={s.id} />
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      {intg.notes && <p className="text-xs text-slate-500 flex-1 truncate">{intg.notes}</p>}
+                      {!isReadOnly && (
+                        <>
+                          <Button size="sm" variant="ghost" title="Historial de Evolución"
+                            onClick={() => openEvolution(intg)}
+                            className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 shrink-0"
+                            data-testid={`evo-btn-${intg.integration_id}`}>
+                            <FileText size={14} />
+                          </Button>
+                          <Button size="sm" variant="ghost"
+                            onClick={() => setDeleteConfirm({ open: true, id: intg.integration_id, name: intg.service_name })}
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 shrink-0"
+                            data-testid={`delete-integration-${intg.integration_id}`}>
+                            <Trash2 size={14} />
+                          </Button>
+                        </>
+                      )}
+                      {isReadOnly && (
+                        <span className="text-[10px] text-purple-500 italic shrink-0">Gestionado en I+D</span>
+                      )}
                     </div>
-                    <StatusPipeline currentStatus={intg.status} />
-                    <div className="min-w-[120px]">
-                      <Select value={intg.status} onValueChange={(v) => handleStatusChange(intg.integration_id, v)}>
-                        <SelectTrigger className="h-8 text-xs" data-testid={`status-select-${intg.integration_id}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {INTEGRATION_STATUSES.map(s => (
-                            <SelectItem key={s.id} value={s.id}>
-                              <span className="flex items-center gap-1.5">
-                                <StatusBadge status={s.id} />
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {intg.notes && <p className="text-xs text-slate-500 flex-1 truncate">{intg.notes}</p>}
-                    <Button size="sm" variant="ghost" title="Historial de Evolución"
-                      onClick={() => openEvolution(intg)}
-                      className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 shrink-0"
-                      data-testid={`evo-btn-${intg.integration_id}`}>
-                      <FileText size={14} />
-                    </Button>
-                    <Button size="sm" variant="ghost"
-                      onClick={() => setDeleteConfirm({ open: true, id: intg.integration_id, name: intg.service_name })}
-                      className="h-7 w-7 p-0 text-red-500 hover:text-red-700 shrink-0"
-                      data-testid={`delete-integration-${intg.integration_id}`}>
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">

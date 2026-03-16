@@ -259,7 +259,7 @@ async def delete_bank(bank_id: str, authorization: Optional[str] = Header(None))
 
 @router.get("/banks/{bank_id}/detail")
 async def get_bank_detail(bank_id: str, authorization: Optional[str] = Header(None)):
-    """Obtiene el detalle completo de un banco incluyendo sus medios de pago activos."""
+    """Obtiene el detalle completo de un banco incluyendo sus medios de pago activos y pipeline I+D."""
     await get_current_user(authorization)
     bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
     if not bank:
@@ -269,6 +269,14 @@ async def get_bank_detail(bank_id: str, authorization: Optional[str] = Header(No
     # Migrate old integration statuses to new 3-state model
     if bank.get("integrations"):
         bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
+
+    # Mirroring: Include pipeline products (Negociación/DESA/SQA) from Nuevos Productos
+    pipeline_products = await db.new_products.find(
+        {"bank_id": bank_id, "status": {"$in": ["Negociación", "DESA", "SQA"]}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(500)
+    bank["pipeline_products"] = pipeline_products
+
     return bank
 
 @router.post("/banks/{bank_id}/integrations")
@@ -290,8 +298,8 @@ async def add_bank_integration(bank_id: str, integration: BankIntegration, autho
 
 @router.put("/banks/{bank_id}/integrations/{integration_id}")
 async def update_bank_integration(bank_id: str, integration_id: str, update_data: dict, authorization: Optional[str] = Header(None)):
-    """Actualiza el estatus o datos de una integración. Envía notificación simulada al equipo de ventas si cambia el estatus."""
-    await get_current_user(authorization)
+    """Actualiza el estatus o datos de una integración. Valida permisos de fase y sincroniza bidireccionalmente."""
+    user = await get_current_user(authorization)
     bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
     if not bank:
         raise HTTPException(status_code=404, detail="Banco no encontrado")
@@ -299,9 +307,26 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
     integrations = bank.get("integrations", [])
     found = False
     old_status = None
+    target_idx = -1
+    source_product_id = None
     for i, intg in enumerate(integrations):
         if intg.get("integration_id") == integration_id:
             old_status = intg.get("status")
+            source_product_id = intg.get("source_product_id")
+            target_idx = i
+
+            # Validación de Fase A: si el producto fuente está en Negociación/DESA/SQA, rechazar
+            if source_product_id:
+                source_product = await db.new_products.find_one(
+                    {"product_id": source_product_id},
+                    {"_id": 0, "status": 1}
+                )
+                if source_product and source_product.get("status") in ("Negociación", "DESA", "SQA"):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Este producto está siendo gestionado desde el módulo de Nuevos Productos. No se permite modificar su estado desde Gestión de Bancos en esta fase."
+                    )
+
             for key, val in update_data.items():
                 if key in ("status", "notes", "service_name", "component_type"):
                     integrations[i][key] = val
@@ -316,8 +341,23 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
         {"$set": {"integrations": integrations}}
     )
     
-    # Notificación simulada al equipo de ventas cuando cambia el estatus
+    # Sync bidireccional: actualizar el new_product vinculado
     new_status = update_data.get("status")
+    if new_status and new_status != old_status and source_product_id:
+        # Map bank status back to a descriptive status in new_products
+        bank_to_np_status = {
+            "PreProd": "Promovido",
+            "Primer Prod": "Promovido",
+            "Masificación": "Promovido",
+        }
+        np_status = bank_to_np_status.get(new_status)
+        if np_status:
+            await db.new_products.update_one(
+                {"product_id": source_product_id},
+                {"$set": {"bank_integration_status": new_status}}
+            )
+    
+    # Notificación simulada al equipo de ventas cuando cambia el estatus
     if new_status and new_status != old_status:
         try:
             sales_roles = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
@@ -326,7 +366,7 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
                 {"_id": 0, "email": 1, "first_name": 1, "last_name": 1}
             ).to_list(100)
             
-            service_name = integrations[i].get("service_name", "N/A")
+            service_name = integrations[target_idx].get("service_name", "N/A")
             bank_name = bank.get("name", "N/A")
             recipients = [u["email"] for u in sales_users if u.get("email")]
             
@@ -339,7 +379,7 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
         except Exception as e:
             logging.error(f"Error al preparar notificación de integración: {e}")
     
-    return integrations[i]
+    return integrations[target_idx]
 
 @router.delete("/banks/{bank_id}/integrations/{integration_id}")
 async def delete_bank_integration(bank_id: str, integration_id: str, authorization: Optional[str] = Header(None)):

@@ -173,6 +173,7 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         )
         intg_doc = integration.model_dump()
         intg_doc["created_at"] = intg_doc["created_at"].isoformat()
+        intg_doc["source_product_id"] = product_id  # Link bidireccional
 
         await db.banks.update_one(
             {"bank_id": bank_id},
