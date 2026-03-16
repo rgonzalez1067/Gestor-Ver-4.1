@@ -1,0 +1,69 @@
+{
+  "summary": "Iteration 107 - MegaNexus Critical Adjustments - All 9 backend tests PASSED. Frontend verified for Domesa in COURIERS and Excel upload button.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuotesTable", "issues": ["React hydration warning: <tr> cannot be child of <span> - no visual impact (existing issue)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration107_critical_adjustments.py",
+    "/app/test_reports/pytest/pytest_results_iteration107.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AJUSTE 1 - inventory.py Lines 373-427: validate-serials-stock endpoint correctly detects internal_duplicates in Excel with {serial, row1, row2} format",
+    "AJUSTE 2 - inventory.py Lines 554-567: transfer entry_doc correctly sets certification_status='precarga' (cuarentena técnica)",
+    "AJUSTE 3 - DeliveryDialog.jsx Line 12: COURIERS array includes 'Domesa'",
+    "AJUSTE 4 - transfer_note_pdf.py Lines 324-346: Multi-column serial layout (3 cols) for >4 serials with wordWrap='CJK'"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration107_critical_adjustments.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "100% (Code verified)"
+  },
+  "test_credentials": {
+    "email": "transfer@test.com",
+    "password": "Test12345!"
+  },
+  "seed_data_creation": "Test data prefixed with TEST_IT107_: Hardware items (POS types), Warehouses (AntiDup, SourceA, DestB, Courier, PDF Source/Dest), Inventory entries, Transfers, Clients, Quotes",
+  "verified_features": {
+    "AJUSTE_1_CARGA_MASIVA_ANTI_DUPLICADOS": {
+      "1_internal_duplicates_detected": "VERIFIED - POST /api/inventory/validate-serials-stock/{wh_id}/{item_id} returns internal_duplicates array when CSV has duplicate serials",
+      "2_not_found_serials": "VERIFIED - Returns not_found array for serials not in stock",
+      "3_all_valid_serials": "VERIFIED - Returns has_errors=false when all serials valid and no duplicates",
+      "frontend_excel_button": "VERIFIED - DeliveryDialog.jsx has 'Cargar desde Excel' button with data-testid='delivery-excel-upload-{idx}'"
+    },
+    "AJUSTE_2_TRANSFERENCIA_PRECARGA": {
+      "4_transfer_entry_precarga": "VERIFIED - Transfer entry movement has certification_status='precarga'",
+      "5_precarga_excluded_from_stock": "VERIFIED - Destination stock shows quantity=0, precarga_qty>0, has_precarga=true",
+      "6_certify_makes_available": "VERIFIED - POST /api/inventory/certify/{movement_id} changes status to 'certificado' and items appear in available stock"
+    },
+    "AJUSTE_3_DOMESA_COURIER": {
+      "frontend_couriers_array": "VERIFIED - DeliveryDialog.jsx Line 12: COURIERS = ['ZOOM (Oficina)', 'ZOOM (Casillero)', 'MRW', 'Tealca', 'Domesa']",
+      "7_deliver_accepts_domesa": "VERIFIED - POST /api/quotes/{id}/deliver accepts courier_name='Domesa' (no 500 error)"
+    },
+    "AJUSTE_4_PDF_LAYOUT": {
+      "8_transfer_pdf_long_serials": "VERIFIED - Transfer with long serials generates PDF >5KB correctly",
+      "9_transfer_pdf_multi_column": "VERIFIED - Transfer with 12 serials generates PDF >5KB with multi-column layout"
+    }
+  },
+  "pdf_verification": {
+    "transfer_note_pdf": "Generated PDFs >5KB with wordWrap='CJK' and fixed column widths (t_w_item=1cm, t_w_desc=5.5cm, t_w_qty=1.2cm, t_w_type=2cm)",
+    "multi_column_serials": "3-column layout applied for >4 serials in both transfer_note_pdf.py and hoja_ruta_pdf.py"
+  },
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 107 tested 4 critical adjustments: (1) Anti-duplicates validation in Excel uploads via internal_duplicates field, (2) Transfers create precarga in destination warehouse, (3) Domesa added to COURIERS, (4) PDF layout fixed with wordWrap and multi-column. All 9 backend tests passed. Frontend code verified. Test user: transfer@test.com / Test12345!. Test data prefix: TEST_IT107_.",
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Email service (Resend) is mocked - sends are simulated"]
+  }
+}

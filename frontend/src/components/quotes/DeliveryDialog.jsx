@@ -9,7 +9,7 @@ import { Truck, Warehouse, Package, Check, AlertTriangle, Upload, User, Building
 import api from '../../utils/api';
 import { toast } from 'sonner';
 
-const COURIERS = ['ZOOM (Oficina)', 'ZOOM (Casillero)', 'MRW', 'Tealca'];
+const COURIERS = ['ZOOM (Oficina)', 'ZOOM (Casillero)', 'MRW', 'Tealca', 'Domesa'];
 
 export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onDelivered }) {
   const [loading, setLoading] = useState(false);
@@ -26,6 +26,9 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   const [receiverPhone, setReceiverPhone] = useState('');
   const [courierName, setCourierName] = useState('');
   const [courierOffice, setCourierOffice] = useState('');
+
+  // Excel upload audit per item
+  const [excelAudit, setExcelAudit] = useState({});
 
   const fetchPrep = useCallback(async (whId) => {
     if (!quoteId) return;
@@ -94,6 +97,51 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
       const maxQty = Math.min(item.quantity_quoted, item.stock_available);
       return { ...item, quantity: Math.max(0, Math.min(qty, maxQty)) };
     }));
+  };
+
+  // Excel upload for delivery serials with anti-duplicate validation
+  const handleDeliveryExcel = async (e, itemIdx) => {
+    const file = e.target.files?.[0];
+    if (!file || !warehouseId) return;
+    const item = deliveryItems[itemIdx];
+    if (!item) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post(`/inventory/validate-serials-stock/${warehouseId}/${item.hardware_id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // Check for internal duplicates in Excel
+      const parseRes = await api.post('/inventory/parse-serials', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const allSerials = parseRes.data.serials || [];
+      const seen = {};
+      const duplicates = [];
+      allSerials.forEach((s, row) => {
+        if (seen[s] !== undefined) {
+          duplicates.push({ serial: s, row1: seen[s] + 1, row2: row + 1 });
+        } else {
+          seen[s] = row;
+        }
+      });
+
+      if (duplicates.length > 0) {
+        setExcelAudit(prev => ({ ...prev, [itemIdx]: { duplicates, not_found: res.data.not_found, valid: res.data.valid } }));
+        toast.error(`${duplicates.length} serial(es) duplicados en el Excel`);
+      } else if (res.data.has_errors) {
+        setExcelAudit(prev => ({ ...prev, [itemIdx]: { duplicates: [], not_found: res.data.not_found, valid: res.data.valid } }));
+        toast.error(`${res.data.not_found_count} serial(es) no encontrados en stock`);
+      } else {
+        setDeliveryItems(prev => prev.map((it, i) => {
+          if (i !== itemIdx) return it;
+          return { ...it, serials: res.data.valid, quantity: res.data.valid_count };
+        }));
+        setExcelAudit(prev => { const n = { ...prev }; delete n[itemIdx]; return n; });
+        toast.success(`${res.data.valid_count} seriales cargados correctamente`);
+      }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al validar Excel'); }
+    e.target.value = '';
   };
 
   const isValid = warehouseId &&
@@ -225,9 +273,17 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
 
                     {item.requires_serial && item.quantity > 0 && item.serials_available.length > 0 && (
                       <div className="bg-white border border-teal-200 rounded p-2 space-y-1.5">
-                        <p className="text-xs font-semibold text-teal-700 uppercase">
-                          Seleccione seriales ({item.serials.length}/{item.quantity})
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-teal-700 uppercase">
+                            Seleccione seriales ({item.serials.length}/{item.quantity})
+                          </p>
+                          <label className="cursor-pointer" data-testid={`delivery-excel-upload-${idx}`}>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleDeliveryExcel(e, idx)} />
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium bg-teal-50 border border-teal-300 rounded text-teal-700 hover:bg-teal-100 cursor-pointer transition-colors">
+                              <Upload size={10} />Cargar desde Excel
+                            </span>
+                          </label>
+                        </div>
                         <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
                           {item.serials_available.map(s => (
                             <button
@@ -246,6 +302,44 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
                             </button>
                           ))}
                         </div>
+                        {/* Excel audit report */}
+                        {excelAudit[idx] && (
+                          <div className="bg-red-50 border border-red-200 rounded p-2 space-y-1.5">
+                            {excelAudit[idx].duplicates?.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1">
+                                  <AlertTriangle size={12} className="text-red-600" />
+                                  <p className="text-[10px] font-semibold text-red-700">Seriales duplicados en el Excel:</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {excelAudit[idx].duplicates.map((d, di) => (
+                                    <span key={di} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">
+                                      {d.serial} (filas {d.row1} y {d.row2})
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {excelAudit[idx].not_found?.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-red-700">No encontrados en stock:</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {excelAudit[idx].not_found.map(s => (
+                                    <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {excelAudit[idx].valid?.length > 0 && (
+                              <button onClick={() => {
+                                setDeliveryItems(prev => prev.map((it, i) => i !== idx ? it : { ...it, serials: excelAudit[idx].valid, quantity: excelAudit[idx].valid.length }));
+                                setExcelAudit(prev => { const n = { ...prev }; delete n[idx]; return n; });
+                              }} className="text-[10px] text-blue-600 hover:underline">
+                                Usar solo los {excelAudit[idx].valid.length} seriales validos
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 

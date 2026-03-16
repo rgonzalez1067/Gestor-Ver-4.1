@@ -226,7 +226,10 @@ export default function Inventory() {
       });
       if (res.data.has_errors) {
         setExitExcelAudit(res.data);
-        toast.error(`${res.data.not_found_count} serial(es) no encontrados en stock`);
+        const msgs = [];
+        if (res.data.internal_duplicates?.length > 0) msgs.push(`${res.data.internal_duplicates.length} duplicado(s) interno(s)`);
+        if (res.data.not_found_count > 0) msgs.push(`${res.data.not_found_count} no encontrado(s)`);
+        toast.error(msgs.join(' y '));
       } else {
         setExitForm(prev => ({ ...prev, serials: res.data.valid, quantity: res.data.valid_count }));
         setExitExcelAudit(null);
@@ -274,7 +277,10 @@ export default function Inventory() {
       });
       if (res.data.has_errors) {
         setTransferExcelAudit(res.data);
-        toast.error(`${res.data.not_found_count} serial(es) no encontrados en stock`);
+        const msgs = [];
+        if (res.data.internal_duplicates?.length > 0) msgs.push(`${res.data.internal_duplicates.length} duplicado(s) interno(s)`);
+        if (res.data.not_found_count > 0) msgs.push(`${res.data.not_found_count} no encontrado(s)`);
+        toast.error(msgs.join(' y '));
       } else {
         setTransferForm(prev => ({ ...prev, serials: res.data.valid, quantity: res.data.valid_count }));
         setTransferExcelAudit(null);
@@ -871,15 +877,34 @@ export default function Inventory() {
                   {/* Excel audit */}
                   {exitExcelAudit && exitExcelAudit.has_errors && (
                     <div className="bg-white border border-red-300 rounded p-2 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <AlertTriangle size={12} className="text-red-600" />
-                        <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {exitExcelAudit.not_found.map(s => (
-                          <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
-                        ))}
-                      </div>
+                      {exitExcelAudit.internal_duplicates?.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle size={12} className="text-orange-600" />
+                            <p className="text-[10px] font-semibold text-orange-700">Seriales duplicados en el Excel:</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {exitExcelAudit.internal_duplicates.map((d, i) => (
+                              <span key={i} className="px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-800 border border-orange-300 rounded">
+                                {d.serial} (filas {d.row1} y {d.row2})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {exitExcelAudit.not_found?.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle size={12} className="text-red-600" />
+                            <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {exitExcelAudit.not_found.map(s => (
+                              <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {exitExcelAudit.valid_count > 0 && (
                         <button onClick={() => { setExitForm(prev => ({ ...prev, serials: exitExcelAudit.valid, quantity: exitExcelAudit.valid_count })); setExitExcelAudit(null); }}
                           className="text-[10px] text-blue-600 hover:underline">
@@ -947,15 +972,34 @@ export default function Inventory() {
                   {/* Excel audit */}
                   {transferExcelAudit && transferExcelAudit.has_errors && (
                     <div className="bg-white border border-blue-300 rounded p-2 space-y-1">
-                      <div className="flex items-center gap-1">
-                        <AlertTriangle size={12} className="text-red-600" />
-                        <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {transferExcelAudit.not_found.map(s => (
-                          <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
-                        ))}
-                      </div>
+                      {transferExcelAudit.internal_duplicates?.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle size={12} className="text-orange-600" />
+                            <p className="text-[10px] font-semibold text-orange-700">Seriales duplicados en el Excel:</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {transferExcelAudit.internal_duplicates.map((d, i) => (
+                              <span key={i} className="px-1.5 py-0.5 text-[10px] bg-orange-100 text-orange-800 border border-orange-300 rounded">
+                                {d.serial} (filas {d.row1} y {d.row2})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {transferExcelAudit.not_found?.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle size={12} className="text-red-600" />
+                            <p className="text-[10px] font-semibold text-red-700">Seriales no encontrados en stock:</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {transferExcelAudit.not_found.map(s => (
+                              <span key={s} className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 border border-red-300 rounded">{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {transferExcelAudit.valid_count > 0 && (
                         <button onClick={() => { setTransferForm(prev => ({ ...prev, serials: transferExcelAudit.valid, quantity: transferExcelAudit.valid_count })); setTransferExcelAudit(null); }}
                           className="text-[10px] text-blue-600 hover:underline">

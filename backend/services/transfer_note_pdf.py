@@ -187,11 +187,11 @@ def generate_transfer_note_pdf(
     )
     s_cell = ParagraphStyle(
         "TCell", parent=styles["Normal"],
-        fontSize=8, leading=10,
+        fontSize=8, leading=10, wordWrap="CJK",
     )
     s_cell_serial = ParagraphStyle(
         "TCellSerial", parent=styles["Normal"],
-        fontSize=7, textColor=colors.HexColor("#6D28D9"), leading=9,
+        fontSize=7, textColor=colors.HexColor("#6D28D9"), leading=9, wordWrap="CJK",
     )
     s_note = ParagraphStyle(
         "TNote", parent=styles["Normal"],
@@ -290,7 +290,13 @@ def generate_transfer_note_pdf(
         Paragraph("<b>Tipo</b>", s_cell),
         Paragraph("<b>Seriales</b>", s_cell),
     ]
-    item_col_widths = [1 * cm, 6 * cm, 1.3 * cm, 2.5 * cm, CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm]
+    # Anchos fijos: Item=1, Descripcion=5.5, Cant=1.2, Tipo=2, Seriales=restante
+    t_w_item = 1 * cm
+    t_w_desc = 5.5 * cm
+    t_w_qty = 1.2 * cm
+    t_w_type = 2 * cm
+    t_w_serials = CONTENT_W - t_w_item - t_w_desc - t_w_qty - t_w_type
+    item_col_widths = [t_w_item, t_w_desc, t_w_qty, t_w_type, t_w_serials]
 
     header_tbl = Table([items_header], colWidths=item_col_widths)
     header_tbl.setStyle(TableStyle([
@@ -328,7 +334,7 @@ def generate_transfer_note_pdf(
                         else:
                             row_serials.append(Paragraph("", s_cell_serial))
                     serial_cells.append(row_serials)
-                serial_col_w = (CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm) / cols
+                serial_col_w = t_w_serials / cols
                 serial_tbl_inner = Table(serial_cells, colWidths=[serial_col_w] * cols)
                 serial_tbl_inner.setStyle(TableStyle([
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),

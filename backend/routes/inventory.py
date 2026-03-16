@@ -399,10 +399,19 @@ async def validate_serials_against_stock(
         if val and val.lower() not in ('nan', 'none', '', 'serial', 'seriales'):
             excel_serials.append(val)
 
+    # Detect internal duplicates in Excel
+    seen = {}
+    internal_duplicates = []
+    for row_num, s in enumerate(excel_serials):
+        if s in seen:
+            internal_duplicates.append({"serial": s, "row1": seen[s] + 1, "row2": row_num + 1})
+        else:
+            seen[s] = row_num
+
     excel_set = set(excel_serials)
     valid = sorted(excel_set & available)
     not_found = sorted(excel_set - available)
-    has_errors = len(not_found) > 0
+    has_errors = len(not_found) > 0 or len(internal_duplicates) > 0
 
     return {
         "warehouse_id": warehouse_id,
@@ -413,6 +422,7 @@ async def validate_serials_against_stock(
         "valid_count": len(valid),
         "not_found": not_found,
         "not_found_count": len(not_found),
+        "internal_duplicates": internal_duplicates,
         "has_errors": has_errors,
     }
 
@@ -540,8 +550,9 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
     )
     exit_doc = exit_mov.model_dump()
     exit_doc["created_at"] = exit_doc["created_at"].isoformat()
+    exit_doc["certification_status"] = "certificado"
 
-    # Entrada al destino
+    # Entrada al destino — en estado "precarga" (cuarentena técnica)
     entry_mov = InventoryMovement(
         warehouse_id=dest_id, item_id=item_id,
         item_name=item["name"], item_type=item.get("type", "General"),
@@ -553,6 +564,7 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
     )
     entry_doc = entry_mov.model_dump()
     entry_doc["created_at"] = entry_doc["created_at"].isoformat()
+    entry_doc["certification_status"] = "precarga"
 
     # Insertar ambos atómicamente
     await db.inventory_movements.insert_many([exit_doc, entry_doc])

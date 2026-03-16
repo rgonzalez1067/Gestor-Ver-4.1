@@ -197,9 +197,9 @@ def generate_nota_entrega_pdf(
     s_small = ParagraphStyle("NESmall", parent=styles["Normal"],
         fontSize=7, textColor=COLOR_GRIS, leading=9)
     s_cell = ParagraphStyle("NECell", parent=styles["Normal"],
-        fontSize=8, leading=10)
+        fontSize=8, leading=10, wordWrap="CJK")
     s_cell_serial = ParagraphStyle("NECellSerial", parent=styles["Normal"],
-        fontSize=7, textColor=colors.HexColor("#6D28D9"), leading=9)
+        fontSize=7, textColor=colors.HexColor("#6D28D9"), leading=9, wordWrap="CJK")
 
     elements = []
 
@@ -282,7 +282,13 @@ def generate_nota_entrega_pdf(
         Paragraph("<b>Tipo</b>", s_cell),
         Paragraph("<b>Seriales (Solo POS/Pinpad)</b>", s_cell),
     ]
-    item_col_widths = [1 * cm, 6 * cm, 1.3 * cm, 2.5 * cm, CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm]
+    # Anchos fijos: Item=1, Descripcion=5.5, Cant=1.2, Tipo=2, Seriales=restante
+    w_item = 1 * cm
+    w_desc = 5.5 * cm
+    w_qty = 1.2 * cm
+    w_type = 2 * cm
+    w_serials = CONTENT_W - w_item - w_desc - w_qty - w_type
+    item_col_widths = [w_item, w_desc, w_qty, w_type, w_serials]
 
     # Build header-only table (will repeat via splitInRow=1)
     header_tbl = Table([items_header], colWidths=item_col_widths)
@@ -317,7 +323,7 @@ def generate_nota_entrega_pdf(
                         else:
                             row_serials.append(Paragraph("", s_cell_serial))
                     serial_cells.append(row_serials)
-                serial_col_w = (CONTENT_W - 1 - 6 - 1.3 - 2.5 * cm) / cols
+                serial_col_w = w_serials / cols
                 serial_tbl = Table(serial_cells, colWidths=[serial_col_w] * cols)
                 serial_tbl.setStyle(TableStyle([
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
