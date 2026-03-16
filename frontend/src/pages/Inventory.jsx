@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight } from 'lucide-react';
+import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -236,11 +236,27 @@ export default function Inventory() {
       return;
     }
     try {
-      await api.post('/inventory/transfer', {
+      const res = await api.post('/inventory/transfer', {
         source_warehouse_id: selectedWh,
         ...transferForm,
       });
-      toast.success('Transferencia completada');
+      const pdfUrl = res.data.transfer_note_url;
+      const trfNum = res.data.transfer_number;
+      if (pdfUrl) {
+        const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Transferencia {trfNum} completada</span>
+            <a href={`${backendUrl}/api${pdfUrl}`} target="_blank" rel="noopener noreferrer"
+              className="text-blue-600 underline text-xs flex items-center gap-1">
+              <FileDown size={12} />Descargar Nota de Entrega PDF
+            </a>
+          </div>,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success('Transferencia completada');
+      }
       setTransferDialog(false);
       fetchStock();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
@@ -539,13 +555,15 @@ export default function Inventory() {
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Cant.</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Referencia</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Por</th>
+                        <th className="px-4 py-3 text-center font-medium text-slate-600">PDF</th>
                       </tr>
                     </thead>
                     <tbody>
                       {movements.length === 0 ? (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
                       ) : movements.map(m => {
                         const ml = MOV_LABELS[m.movement_type] || { label: m.movement_type, color: 'bg-slate-100 text-slate-600', icon: '?' };
+                        const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
                         return (
                           <tr key={m.movement_id} className="border-b hover:bg-slate-50" data-testid={`mov-${m.movement_id}`}>
                             <td className="px-4 py-2.5 text-xs text-slate-500">{(m.created_at || '').slice(0, 16).replace('T', ' ')}</td>
@@ -556,6 +574,16 @@ export default function Inventory() {
                             <td className="px-4 py-2.5 text-center font-medium">{m.quantity}</td>
                             <td className="px-4 py-2.5 text-xs text-slate-500">{m.reference || m.client_name || m.notes || '—'}</td>
                             <td className="px-4 py-2.5 text-xs text-slate-400">{m.created_by}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              {m.transfer_note_url ? (
+                                <a href={`${backendUrl}/api${m.transfer_note_url}`} target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                                  data-testid={`download-transfer-pdf-${m.movement_id}`}
+                                  title="Descargar Nota de Transferencia">
+                                  <FileDown size={14} />
+                                </a>
+                              ) : <span className="text-slate-300">—</span>}
+                            </td>
                           </tr>
                         );
                       })}

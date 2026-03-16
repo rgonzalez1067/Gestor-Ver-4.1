@@ -6,9 +6,10 @@ import logging
 import uuid
 import io
 
-from config import db, get_current_user
+from config import db, get_current_user, UPLOADS_DIR
 from models import Warehouse, WarehouseCreate, InventoryMovement, SERIALIZED_TYPES
 from services.email_service import send_email
+from services.transfer_note_pdf import generate_transfer_note_pdf
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -393,7 +394,82 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
     # Trigger CheckStock en almacén origen (donde se redujo stock)
     await check_stock_alert(source_id, item_id, item["name"])
 
-    return {"transfer_id": transfer_id, "exit": exit_doc, "entry": entry_doc}
+    # Generar PDF "Nota de Entrega por Transferencia"
+    transfer_note_url = None
+    try:
+        logo_path = None
+        logo_file = UPLOADS_DIR / "logo.png"
+        if logo_file.exists():
+            logo_path = str(logo_file)
+
+        # Correlativo TRF-YYYY-XXXX
+        year = datetime.now(timezone.utc).strftime("%Y")
+        counter_doc = await db.transfer_note_counter.find_one_and_update(
+            {"year": year},
+            {"$inc": {"counter": 1}},
+            upsert=True,
+            return_document=True,
+        )
+        if counter_doc and "_id" in counter_doc:
+            del counter_doc["_id"]
+        trf_num = counter_doc.get("counter", 1) if counter_doc else 1
+        transfer_number = f"TRF-{year}-{trf_num:04d}"
+
+        # Source warehouse info
+        src_wh_full = await db.warehouses.find_one({"warehouse_id": source_id}, {"_id": 0})
+        dst_wh_full = await db.warehouses.find_one({"warehouse_id": dest_id}, {"_id": 0})
+        source_resp_name = src_wh_full.get("responsible_name", "") if src_wh_full else ""
+        source_resp_cedula = ""
+        if src_wh_full and src_wh_full.get("responsible_user_id"):
+            resp_user = await db.users.find_one({"user_id": src_wh_full["responsible_user_id"]}, {"_id": 0})
+            if resp_user:
+                source_resp_cedula = resp_user.get("cedula", "")
+        dest_resp_name = dst_wh_full.get("responsible_name", "") if dst_wh_full else ""
+
+        transferred_items_pdf = [{
+            "name": item["name"],
+            "type": item.get("type", "General"),
+            "quantity": quantity,
+            "serials": serials if requires_serial else [],
+        }]
+
+        pdf_buffer = generate_transfer_note_pdf(
+            transfer_number=transfer_number,
+            source_warehouse_name=src_wh_full.get("name", "") if src_wh_full else "",
+            source_responsible_name=source_resp_name,
+            source_responsible_cedula=source_resp_cedula,
+            dest_warehouse_name=dst_wh_full.get("name", "") if dst_wh_full else "",
+            dest_responsible_name=dest_resp_name,
+            transferred_items=transferred_items_pdf,
+            transferred_by=user_name,
+            notes=notes,
+            logo_path=logo_path,
+        )
+        pdf_filename = f"TransferenciaAlmacen_{transfer_number}.pdf"
+        pdf_path = UPLOADS_DIR / pdf_filename
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_buffer.getvalue())
+        transfer_note_url = f"/uploads/{pdf_filename}"
+
+        # Store the transfer_number and pdf_url in both movements
+        await db.inventory_movements.update_many(
+            {"transfer_id": transfer_id},
+            {"$set": {"transfer_number": transfer_number, "transfer_note_url": transfer_note_url}},
+        )
+
+        logger.info(f"Nota de Transferencia generada: {transfer_note_url}")
+    except Exception as e:
+        logger.error(f"Error generando Nota de Transferencia: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return {
+        "transfer_id": transfer_id,
+        "transfer_number": transfer_number if transfer_note_url else None,
+        "transfer_note_url": transfer_note_url,
+        "exit": exit_doc,
+        "entry": entry_doc,
+    }
 
 
 # ==================== MOVEMENTS HISTORY ====================
