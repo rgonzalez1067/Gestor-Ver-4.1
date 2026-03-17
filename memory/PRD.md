@@ -39,10 +39,18 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Flujo de creacion sin gestor obligatorio (asignacion posterior)
   - Endpoint PUT /api/integrators/{id}/assign con notificacion email (SIMULADA)
   - Dropdown inline en tabla para asignar gestor a proyectos pendientes
-  - Filas amarillas para proyectos sin gestor asignado
   - Stat card "Sin Asignar" en panel de estadisticas (5 cards)
   - Formulario de creacion sin campo Gestor; edicion con campo Gestor
   - VALIDADO: 11/11 backend + 6/6 frontend tests (iteration_109)
+- **Reestructuracion Fase 1/Fase 2 (2026-03-17)**:
+  - Fase 1 (Creacion): Solo datos tecnicos: Nombre, Tipo Integracion, Tipo Integrador, Aplicativo, Contactos Tecnicos
+  - Fase 2 (Gestion/Edicion): Modalidad, Categoria, Gestor, Implementador, Estatus
+  - Nuevo campo "Implementador" con dropdown filtrado por cargo "Implementador" en BD
+  - Endpoint GET /api/auth/implementadores para listar usuarios implementadores
+  - Endpoint PUT /api/integrators/{id}/assign-implementador con confirmacion y email con contactos tecnicos
+  - Colores tabla: amarillo = sin implementador, azul = con implementador en ejecucion
+  - Stats: Total, Certificados, En Ejecucion, Sin Implementador, Suspendidos
+  - VALIDADO: 8/8 backend + 9/9 frontend tests (iteration_111)
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo, Protocolo de Excepcion, PDF, Segmentacion Pyme/Corp
