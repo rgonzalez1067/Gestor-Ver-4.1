@@ -40,6 +40,7 @@ const CERT_CYCLE = ['P', 'C', 'N/A'];
 export const Integrators = () => {
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
+  const [implementadores, setImplementadores] = useState([]);
   const [certProducts, setCertProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -58,6 +59,9 @@ export const Integrators = () => {
     integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '',
     contacts: []
   });
+  // Confirmación de asignación de implementador
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
+  const [pendingAssign, setPendingAssign] = useState({ integratorId: null, integratorName: '', userId: null, userName: '' });
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
@@ -96,11 +100,12 @@ export const Integrators = () => {
       if (filterType && filterType !== 'all') params.append('integrator_type', filterType);
       const url = params.toString() ? `/integrators?${params}` : '/integrators';
 
-      const [intRes, usersRes, servicesRes] = await Promise.all([
-        api.get(url), api.get('/auth/users'), api.get('/services')
+      const [intRes, usersRes, servicesRes, implRes] = await Promise.all([
+        api.get(url), api.get('/auth/users'), api.get('/services'), api.get('/auth/implementadores')
       ]);
       setIntegrators(intRes.data);
       setUsers(usersRes.data || []);
+      setImplementadores(implRes.data || []);
       const prods = (servicesRes.data || []).filter(s =>
         (s.application_type === 'setup' || s.application_type === 'both') && s.service_type === 'Producto'
       );
@@ -111,8 +116,15 @@ export const Integrators = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.integrator_type || !formData.app_name || !formData.integration_modality) {
-      toast.error('Complete los campos obligatorios'); return;
+    const isCreate = !editingIntegrator;
+    if (isCreate) {
+      if (!formData.name || !formData.integrator_type || !formData.app_name) {
+        toast.error('Complete los campos obligatorios: Nombre, Tipo Integrador y Aplicativo'); return;
+      }
+    } else {
+      if (!formData.name || !formData.integrator_type || !formData.app_name) {
+        toast.error('Complete los campos obligatorios'); return;
+      }
     }
     try {
       const payload = { ...formData };
@@ -432,7 +444,7 @@ export const Integrators = () => {
     finally { setSummaryLoading(false); }
   };
 
-  // Assignment handler
+  // Assignment handler for Gestor (inline)
   const handleAssignGestor = async (integratorId, userId) => {
     try {
       const res = await api.put(`/integrators/${integratorId}/assign`, { user_id: userId });
@@ -443,6 +455,36 @@ export const Integrators = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al asignar gestor');
+    }
+  };
+
+  // Implementador assignment with confirmation step
+  const requestAssignImplementador = (integratorId, userId) => {
+    const intg = integrators.find(i => i.integrator_id === integratorId);
+    const impl = implementadores.find(u => u.user_id === userId);
+    setPendingAssign({
+      integratorId,
+      integratorName: intg?.name || '',
+      userId,
+      userName: impl?.full_name || impl?.email || ''
+    });
+    setAssignConfirmOpen(true);
+  };
+
+  const executeAssignImplementador = async () => {
+    setAssignConfirmOpen(false);
+    if (!pendingAssign.integratorId || !pendingAssign.userId) return;
+    try {
+      const res = await api.put(`/integrators/${pendingAssign.integratorId}/assign-implementador`, { user_id: pendingAssign.userId });
+      toast.success(res.data.message || 'Implementador asignado');
+      if (res.data.email?.simulated) {
+        toast.info('Notificación por email simulada');
+      }
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al asignar implementador');
+    } finally {
+      setPendingAssign({ integratorId: null, integratorName: '', userId: null, userName: '' });
     }
   };
 
@@ -482,66 +524,73 @@ export const Integrators = () => {
                   <Button className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="create-integrator-btn"><Plus size={16} className="mr-1" />Nuevo Proyecto de Integración</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle className="font-manrope text-xl">{editingIntegrator ? 'Editar Integrador' : 'Nuevo Integrador'}</DialogTitle></DialogHeader>
+                  <DialogHeader><DialogTitle className="font-manrope text-xl">{editingIntegrator ? 'Editar Proyecto de Integración' : 'Nuevo Proyecto de Integración'}</DialogTitle></DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
-                        <Label>Nombre del Integrador *</Label>
-                        <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Ej: TechPay Solutions" required data-testid="integrator-name-input" />
-                      </div>
-                      <div>
-                        <Label>Tipo de Integración *</Label>
-                        <Select value={formData.integration_type} onValueChange={(v) => setFormData({ ...formData, integration_type: v })}>
-                          <SelectTrigger data-testid="integration-type-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                          <SelectContent>{INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Tipo de Integrador *</Label>
-                        <Select value={formData.integrator_type} onValueChange={(v) => setFormData({ ...formData, integrator_type: v })}>
-                          <SelectTrigger data-testid="integrator-type-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                          <SelectContent>{INTEGRATOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>Nombre del Aplicativo *</Label>
-                        <Input value={formData.app_name} onChange={(e) => setFormData({ ...formData, app_name: e.target.value })} placeholder="Ej: PaymentHub" required data-testid="app-name-input" />
-                      </div>
-                      <div>
-                        <Label>Modalidad de Integración *</Label>
-                        <Select value={formData.integration_modality} onValueChange={(v) => setFormData({ ...formData, integration_modality: v })}>
-                          <SelectTrigger data-testid="modality-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                          <SelectContent>{INTEGRATION_MODALITIES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className={`grid ${editingIntegrator ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
-                      {editingIntegrator && (
+                    {/* === FASE 1: Datos Técnicos de Origen (siempre visibles) === */}
+                    <div className="space-y-1">
+                      {!editingIntegrator && <p className="text-xs font-semibold text-brand-blue-600 uppercase tracking-wider">Datos del Integrador</p>}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2">
+                          <Label>Nombre del Integrador *</Label>
+                          <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Ej: TechPay Solutions" required data-testid="integrator-name-input" />
+                        </div>
                         <div>
-                          <Label>Gestor Asignado</Label>
-                          <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
-                            <SelectTrigger data-testid="gestor-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                            <SelectContent>{users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}</SelectContent>
+                          <Label>Tipo de Integración *</Label>
+                          <Select value={formData.integration_type} onValueChange={(v) => setFormData({ ...formData, integration_type: v })}>
+                            <SelectTrigger data-testid="integration-type-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                            <SelectContent>{INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
-                      )}
-                      <div>
-                        <Label>Categoría</Label>
-                        <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
-                          <SelectTrigger data-testid="categoria-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                          <SelectContent>{CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Estatus *</Label>
-                        <Select value={formData.integrator_status} onValueChange={(v) => setFormData({ ...formData, integrator_status: v })}>
-                          <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
-                          <SelectContent>{INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <div>
+                          <Label>Tipo de Integrador *</Label>
+                          <Select value={formData.integrator_type} onValueChange={(v) => setFormData({ ...formData, integrator_type: v })}>
+                            <SelectTrigger data-testid="integrator-type-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                            <SelectContent>{INTEGRATOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div className="col-span-2">
+                          <Label>Nombre del Aplicativo *</Label>
+                          <Input value={formData.app_name} onChange={(e) => setFormData({ ...formData, app_name: e.target.value })} placeholder="Ej: PaymentHub v3" required data-testid="app-name-input" />
+                        </div>
                       </div>
                     </div>
+
+                    {/* === FASE 2: Control Gerencial (solo en edición) === */}
+                    {editingIntegrator && (
+                      <div className="border-t border-slate-200 pt-3 space-y-1">
+                        <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider">Gestión de Implementación</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Modalidad de Integración</Label>
+                            <Select value={formData.integration_modality || ''} onValueChange={(v) => setFormData({ ...formData, integration_modality: v })}>
+                              <SelectTrigger data-testid="modality-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                              <SelectContent>{INTEGRATION_MODALITIES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Categoría</Label>
+                            <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
+                              <SelectTrigger data-testid="categoria-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                              <SelectContent>{CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Gestor Asignado</Label>
+                            <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
+                              <SelectTrigger data-testid="gestor-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                              <SelectContent>{users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Estatus</Label>
+                            <Select value={formData.integrator_status} onValueChange={(v) => setFormData({ ...formData, integrator_status: v })}>
+                              <SelectTrigger data-testid="status-select"><SelectValue /></SelectTrigger>
+                              <SelectContent>{INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {/* Contactos Técnicos */}
                     <div className="border-t border-slate-200 pt-3 mt-1">
                       <div className="flex items-center justify-between mb-2">
@@ -632,25 +681,26 @@ export const Integrators = () => {
           <div className="grid grid-cols-5 gap-3 mb-4">
             <div className="bg-white rounded-lg border p-3"><div className="text-xs text-slate-500">Total</div><div className="text-xl font-bold text-slate-900">{integrators.length}</div></div>
             <div className="bg-white rounded-lg border border-green-200 p-3"><div className="text-xs text-green-600">Certificados</div><div className="text-xl font-bold text-green-700">{integrators.filter(i => i.integrator_status === 'Certificado').length}</div></div>
-            <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">En proceso</div><div className="text-xl font-bold text-amber-700">{integrators.filter(i => i.integrator_status === 'En proceso').length}</div></div>
+            <div className="bg-white rounded-lg border border-blue-200 p-3"><div className="text-xs text-blue-600">En Ejecución</div><div className="text-xl font-bold text-blue-700">{integrators.filter(i => i.implementador && i.integrator_status === 'En proceso').length}</div></div>
+            <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">Sin Implementador</div><div className="text-xl font-bold text-amber-700">{integrators.filter(i => !i.implementador).length}</div></div>
             <div className="bg-white rounded-lg border border-red-200 p-3"><div className="text-xs text-red-600">Suspendidos</div><div className="text-xl font-bold text-red-700">{integrators.filter(i => i.integrator_status === 'Suspendido').length}</div></div>
-            <div className="bg-white rounded-lg border border-yellow-300 p-3"><div className="text-xs text-yellow-600">Sin Asignar</div><div className="text-xl font-bold text-yellow-700">{integrators.filter(i => !i.gestor).length}</div></div>
           </div>
 
           {/* Table */}
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="integrators-table">
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1050px' }}>
+              <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1150px' }}>
                 <colgroup>
-                  <col style={{ width: '20%' }} />
+                  <col style={{ width: '17%' }} />
                   <col style={{ width: '5%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '6%' }} />
                   <col style={{ width: '12%' }} />
+                  <col style={{ width: '9%' }} />
                   <col style={{ width: '10%' }} />
                   <col style={{ width: '10%' }} />
-                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '13%' }} />
                 </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -660,6 +710,7 @@ export const Integrators = () => {
                     <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Aplicativo</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Modalidad</th>
                     <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Gestor</th>
+                    <th className="px-2 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Implementador</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Categoría</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Últ. Contacto</th>
                     <th className="px-2 py-2.5 text-center text-xs font-semibold text-slate-600 uppercase">Acciones</th>
@@ -667,10 +718,16 @@ export const Integrators = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredIntegrators.length === 0 ? (
-                    <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => (
                     <Fragment key={intg.integrator_id}>
-                      <tr className={`transition-colors ${!intg.gestor ? 'bg-amber-50/60 hover:bg-amber-100/60' : 'hover:bg-slate-50'}`} data-testid={`integrator-row-${intg.integrator_id}`}>
+                      <tr className={`transition-colors ${
+                        !intg.implementador
+                          ? 'bg-amber-50/60 hover:bg-amber-100/60'
+                          : intg.integrator_status === 'En proceso'
+                            ? 'bg-blue-50/40 hover:bg-blue-100/40'
+                            : 'hover:bg-slate-50'
+                      }`} data-testid={`integrator-row-${intg.integrator_id}`}>
                         <td className="px-3 py-2">
                           <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
                         </td>
@@ -702,6 +759,26 @@ export const Integrators = () => {
                                 ))}
                               </SelectContent>
                             </Select>
+                          )}
+                        </td>
+                        <td className="px-2 py-2">
+                          {intg.implementador ? (
+                            <p className="text-[10px] text-teal-700 font-medium truncate" title={intg.implementador}>{intg.implementador}</p>
+                          ) : implementadores.length > 0 ? (
+                            <Select onValueChange={(userId) => requestAssignImplementador(intg.integrator_id, userId)}>
+                              <SelectTrigger className="h-7 text-[10px] border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 w-full" data-testid={`assign-impl-${intg.integrator_id}`}>
+                                <SelectValue placeholder="Asignar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {implementadores.map(u => (
+                                  <SelectItem key={u.user_id} value={u.user_id} className="text-xs">
+                                    {u.full_name || u.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">Sin implementadores</span>
                           )}
                         </td>
                         <td className="px-2 py-2 text-center">
@@ -844,6 +921,24 @@ export const Integrators = () => {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={executeDelete} className="bg-red-600 hover:bg-red-700 text-white">Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirmación de asignación de Implementador */}
+        <AlertDialog open={assignConfirmOpen} onOpenChange={setAssignConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Asignación de Implementador</AlertDialogTitle>
+              <AlertDialogDescription>
+                ¿Está seguro que desea asignar a <strong className="text-slate-900">{pendingAssign.userName}</strong> como implementador del proyecto <strong className="text-slate-900">{pendingAssign.integratorName}</strong>?
+                <br /><br />
+                <span className="text-xs text-slate-500">Se enviará una notificación por correo electrónico al implementador con los datos del proyecto y los contactos técnicos del integrador.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingAssign({ integratorId: null, integratorName: '', userId: null, userName: '' })}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={executeAssignImplementador} className="bg-teal-600 hover:bg-teal-700 text-white" data-testid="confirm-assign-impl-btn">Confirmar Asignación</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

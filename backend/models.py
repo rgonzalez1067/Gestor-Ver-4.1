@@ -325,7 +325,7 @@ class IntegratorCreate(BaseModel):
     integrator_type: Literal["Integrador", "Comercio"]
     integration_type: Optional[str] = None
     app_name: str
-    integration_modality: Literal["Bridge PG", "MPOS", "PG Universal", "PG No universal", "REST", "Stand Alone", "TKN No Universal", "TKN Universal", "Web Link de Pago Modalidad No Universal", "Web Link de Pago Modalidad Universal", "Wrapper"]
+    integration_modality: Optional[str] = None
     integrator_status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
     gestor: Optional[str] = None
     categoria: Optional[str] = None
@@ -340,15 +340,20 @@ class Integrator(BaseModel):
     integrator_type: str
     integration_type: Optional[str] = None
     app_name: str
-    integration_modality: str
+    integration_modality: Optional[str] = None
     integrator_status: str = "En proceso"
     gestor: Optional[str] = None
+    gestor_user_id: Optional[str] = None
     categoria: Optional[str] = None
+    implementador: Optional[str] = None
+    implementador_user_id: Optional[str] = None
     certifications: Optional[dict] = None
     last_contact_date: Optional[str] = None
     contacts: Optional[List[TechnicalContact]] = None
     integration_phase: Optional[str] = "Negociación"
     has_overdue_commitments: Optional[bool] = None
+    assigned_at: Optional[str] = None
+    assigned_by: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class QuoteItem(BaseModel):

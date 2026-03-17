@@ -245,6 +245,109 @@ async def assign_integrator_manager(integrator_id: str, body: dict, authorizatio
     }
 
 
+@router.put("/integrators/{integrator_id}/assign-implementador")
+async def assign_integrator_implementador(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Asignar un implementador a un proyecto de integración y notificar por email."""
+    current_user = await get_current_user(authorization)
+    
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Se requiere user_id")
+    
+    integrator = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    if not integrator:
+        raise HTTPException(status_code=404, detail="Proyecto de integración no encontrado")
+    
+    assignee = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    if not assignee:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    assignee_name = f"{assignee.get('first_name', '')} {assignee.get('last_name', '')}".strip() or assignee.get('email', '')
+    assignee_email = assignee.get('email', '')
+    
+    await db.integrators.update_one(
+        {"integrator_id": integrator_id},
+        {"$set": {
+            "implementador": assignee_name,
+            "implementador_user_id": user_id,
+        }}
+    )
+    
+    from services.email_service import send_email
+    assigner_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get('email', '')
+    
+    # Incluir contactos técnicos en el email para que el implementador sepa a quién contactar
+    contacts_html = ""
+    contacts = integrator.get("contacts") or []
+    if contacts:
+        contacts_rows = ""
+        for c in contacts:
+            contacts_rows += f"""
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 6px 8px; font-size: 13px;">{c.get('name', '')}</td>
+                    <td style="padding: 6px 8px; font-size: 13px;">{c.get('email', '') or '—'}</td>
+                    <td style="padding: 6px 8px; font-size: 13px;">{c.get('phone', '') or '—'}</td>
+                </tr>"""
+        contacts_html = f"""
+            <p style="margin-top: 16px; font-weight: bold; color: #334155;">Responsables Técnicos del Integrador:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 8px 0;">
+                <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                    <th style="padding: 6px 8px; text-align: left; font-size: 12px; color: #475569;">Nombre</th>
+                    <th style="padding: 6px 8px; text-align: left; font-size: 12px; color: #475569;">Email</th>
+                    <th style="padding: 6px 8px; text-align: left; font-size: 12px; color: #475569;">Teléfono</th>
+                </tr>
+                {contacts_rows}
+            </table>"""
+    
+    subject = f"Asignación de proyecto: {integrator.get('name', '')} — {integrator.get('app_name', '')}"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #0f766e; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h2 style="margin: 0;">Proyecto de Implementación Asignado</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+            <p>Hola <strong>{assignee_name}</strong>,</p>
+            <p><strong>{assigner_name}</strong> te ha asignado como implementador del siguiente proyecto:</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px; font-weight: bold; color: #475569;">Integrador</td>
+                    <td style="padding: 8px;">{integrator.get('name', '')}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px; font-weight: bold; color: #475569;">Aplicativo</td>
+                    <td style="padding: 8px;">{integrator.get('app_name', '')}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px; font-weight: bold; color: #475569;">Tipo</td>
+                    <td style="padding: 8px;">{integrator.get('integration_type', 'N/A')}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #475569;">Tipo Integrador</td>
+                    <td style="padding: 8px;">{integrator.get('integrator_type', '')}</td>
+                </tr>
+            </table>
+            {contacts_html}
+            <p style="color: #64748b; font-size: 13px; margin-top: 16px;">Ingresa al sistema para ver los detalles completos del proyecto.</p>
+        </div>
+    </div>
+    """
+    
+    email_result = await send_email(
+        to=[assignee_email] if assignee_email else [],
+        subject=subject,
+        html=html,
+        action="implementador_assignment",
+    )
+    
+    updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    return {
+        "status": "ok",
+        "integrator": updated,
+        "email": email_result,
+        "message": f"Implementador asignado: {assignee_name}"
+    }
+
+
 @router.patch("/integrators/{integrator_id}/contact-date")
 async def update_contact_date(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Actualizar solo la fecha de último contacto (inline edit)"""

@@ -284,6 +284,19 @@ async def get_ejecutivos(authorization: Optional[str] = Header(None)):
     return users
 
 
+@router.get("/auth/implementadores")
+async def get_implementadores(authorization: Optional[str] = Header(None)):
+    """Obtener lista de usuarios con cargo de Implementador para asignación de proyectos."""
+    await get_current_user(authorization)
+    users = await db.users.find(
+        {"is_active": True, "cargo": "Implementador"},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1}
+    ).to_list(1000)
+    for u in users:
+        u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+    return users
+
+
 # ==================== ADMIN ENDPOINTS ====================
 
 @router.get("/admin/users")
