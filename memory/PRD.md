@@ -34,6 +34,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Integradores
 - CRUD con importacion masiva, CRM tecnico, Bitacora
+- **Tablero de Asignacion Gerencial (2026-03-17)**:
+  - Flujo de creacion sin gestor obligatorio (asignacion posterior)
+  - Endpoint PUT /api/integrators/{id}/assign con notificacion email (SIMULADA)
+  - Dropdown inline en tabla para asignar gestor a proyectos pendientes
+  - Filas amarillas para proyectos sin gestor asignado
+  - Stat card "Sin Asignar" en panel de estadisticas (5 cards)
+  - Formulario de creacion sin campo Gestor; edicion con campo Gestor
+  - VALIDADO: 11/11 backend + 6/6 frontend tests (iteration_109)
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo, Protocolo de Excepcion, PDF, Segmentacion Pyme/Corp
@@ -67,4 +75,4 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ### P2
 - Modulo Reportes de ventas
 - Logica "Completado" en Roadmap Bancos
-- Refactorizacion Integrators.jsx y Clients.jsx
+- Refactorizacion Inventory.jsx, Integrators.jsx y Clients.jsx
