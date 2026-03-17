@@ -14,6 +14,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ### Modulo de Clientes
 - CRUD completo con contactos CRM, Ficha Maestra v2.0 (4 cuadrantes)
 - Bitacora de Inicio, OCR de RIF Digital, Importacion/Exportacion
+- **Plantilla Importacion Actualizada (2026-03-17)**: 24 columnas (A-X), 3 hojas Excel (Plantilla, Instrucciones, Valores Validos). Validaciones: regex RIF, lookup ejecutivos/integradores, formato fecha, numeros, valores permitidos. Mensajes error: "Fila X, Col Y (Campo): descripcion + accion sugerida". Descarga CSV errores. VALIDADO: 15/15 backend + 7/7 frontend (iter_110)
 
 ### Modulo de Bancos y Entidades
 - CRUD completo, Roadmap, Bitacora, Importacion masiva, Exportacion PDF
