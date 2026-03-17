@@ -430,6 +430,33 @@ export const Clients = () => {
 
   const closeImportDialog = () => { setImportDialogOpen(false); setImportFile(null); setImportResult(null); };
 
+  const downloadErrorReport = () => {
+    if (!importResult?.errors?.length) return;
+    // Build CSV content
+    const headers = ['Fila', 'Columna', 'Valor Recibido', 'Tipo Error', 'Descripción del Error', 'Acción Sugerida'];
+    const rows = importResult.errors.map(err => [
+      err.row || '',
+      err.column || '',
+      (err.value || '').replace(/"/g, '""'),
+      err.error_type === 'missing' ? 'Campo Obligatorio Vacío' :
+        err.error_type === 'invalid' ? 'Valor Inválido' :
+        err.error_type === 'duplicate' ? 'Registro Duplicado' :
+        err.error_type === 'format' ? 'Error de Formato' : err.error_type,
+      (err.message || '').replace(/"/g, '""'),
+      (err.suggested_action || '').replace(/"/g, '""'),
+    ]);
+    const csvContent = '\uFEFF' + [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `errores_importacion_clientes_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    toast.success('Reporte de errores descargado');
+  };
+
   // --- RIF Digital parsing ---
   const handleRifFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -1055,7 +1082,7 @@ export const Clients = () => {
 
         {/* Import Dialog */}
         <Dialog open={importDialogOpen} onOpenChange={closeImportDialog}>
-          <DialogContent className="max-w-2xl" data-testid="import-clients-dialog">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="import-clients-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Upload className="text-brand-blue-600" size={20} />
@@ -1066,14 +1093,15 @@ export const Clients = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800 mb-2"><strong>Instrucciones:</strong></p>
                 <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
-                  <li>Descargue la plantilla de ejemplo con las columnas requeridas</li>
-                  <li>Complete los datos en el archivo Excel/CSV</li>
+                  <li>Descargue la plantilla con todas las columnas y valores válidos</li>
+                  <li>Complete los datos respetando los formatos indicados en las hojas "Instrucciones" y "Valores Válidos"</li>
                   <li>La llave única es <strong>RIF + Sucursal</strong> (se permite duplicar RIF si la sucursal es distinta)</li>
-                  <li>Cargue el archivo completado</li>
+                  <li>Campos obligatorios: <strong>RIF</strong> y <strong>Nombre Jurídico</strong></li>
+                  <li>Cargue el archivo completado (.xlsx, .xls o .csv)</li>
                 </ol>
                 <Button variant="outline" size="sm" onClick={downloadTemplate}
                   className="mt-3 text-blue-700 border-blue-300 hover:bg-blue-100" data-testid="download-client-template-btn">
-                  <FileDown size={16} className="mr-2" />Descargar Plantilla
+                  <FileDown size={16} className="mr-2" />Descargar Plantilla Actualizada
                 </Button>
               </div>
               <div>
@@ -1083,7 +1111,7 @@ export const Clients = () => {
                     className="flex-1" data-testid="import-client-file-input" />
                 </div>
                 {importFile && (
-                  <p className="text-sm text-slate-600 mt-2">Archivo seleccionado: <strong>{importFile.name}</strong></p>
+                  <p className="text-sm text-slate-600 mt-2">Archivo seleccionado: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)</p>
                 )}
               </div>
               {importResult && (
@@ -1101,17 +1129,44 @@ export const Clients = () => {
                       importResult.status === 'partial' ? 'text-amber-800' : 'text-red-800'
                     }`}>{importResult.message}</span>
                   </div>
+                  {/* Stats summary */}
+                  {importResult.total_processed > 0 && (
+                    <div className="flex flex-wrap gap-3 my-2 text-xs">
+                      <span className="px-2 py-1 bg-slate-100 rounded font-medium">Procesados: {importResult.total_processed}</span>
+                      {importResult.success_count > 0 && <span className="px-2 py-1 bg-green-100 text-green-700 rounded font-medium">Importados: {importResult.success_count}</span>}
+                      {importResult.skipped_count > 0 && <span className="px-2 py-1 bg-red-100 text-red-700 rounded font-medium">Omitidos: {importResult.skipped_count}</span>}
+                      {importResult.error_count > 0 && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded font-medium">Errores: {importResult.error_count}</span>}
+                    </div>
+                  )}
                   {importResult.errors?.length > 0 && (
-                    <div className="mt-3 max-h-40 overflow-y-auto">
-                      <p className="text-sm font-medium text-slate-700 mb-2">Errores encontrados:</p>
-                      <ul className="text-sm space-y-1">
-                        {importResult.errors.slice(0, 10).map((err, idx) => (
-                          <li key={idx} className="text-red-700">Fila {err.row}: {err.message} ({err.column})</li>
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-slate-700">Detalle de errores ({importResult.errors.length}):</p>
+                        <Button variant="outline" size="sm" onClick={downloadErrorReport}
+                          className="h-7 text-xs border-slate-300" data-testid="download-errors-btn">
+                          <Download size={13} className="mr-1" />Descargar Reporte
+                        </Button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto space-y-1.5">
+                        {importResult.errors.slice(0, 20).map((err, idx) => (
+                          <div key={idx} className={`text-xs p-2 rounded border ${
+                            err.error_type === 'missing' ? 'bg-red-50 border-red-200' :
+                            err.error_type === 'duplicate' ? 'bg-orange-50 border-orange-200' :
+                            err.error_type === 'invalid' ? 'bg-amber-50 border-amber-200' :
+                            'bg-slate-50 border-slate-200'
+                          }`}>
+                            <p className="font-medium text-slate-800">{err.message}</p>
+                            {err.suggested_action && (
+                              <p className="text-slate-500 mt-0.5 italic">{err.suggested_action}</p>
+                            )}
+                          </div>
                         ))}
-                        {importResult.errors.length > 10 && (
-                          <li className="text-slate-500 italic">... y {importResult.errors.length - 10} errores más</li>
+                        {importResult.errors.length > 20 && (
+                          <p className="text-xs text-slate-500 italic text-center py-1">
+                            ... y {importResult.errors.length - 20} errores más. Descargue el reporte completo para verlos todos.
+                          </p>
                         )}
-                      </ul>
+                      </div>
                     </div>
                   )}
                 </div>

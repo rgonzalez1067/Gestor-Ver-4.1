@@ -295,14 +295,31 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
     if file_ext not in ['csv', 'xlsx', 'xls']:
         return ImportResult(
             status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
-            errors=[ImportError(row=0, column='archivo', value=file.filename, error_type='format',
-                message='Formato de archivo no soportado', suggested_action='Utilice archivos .xlsx, .xls o .csv')],
+            errors=[ImportError(row=0, column='Archivo', value=file.filename, error_type='format',
+                message=f'Formato de archivo no soportado: ".{file_ext}". Solo se aceptan archivos .xlsx, .xls o .csv.',
+                suggested_action='Descargue la plantilla modelo (.xlsx) y utilice ese formato para su carga.')],
             message='Error: Formato de archivo no válido'
         )
     
     try:
         if file_ext == 'csv':
-            df = pd.read_csv(io.BytesIO(content))
+            for sep in [',', ';', '\t']:
+                try:
+                    df = pd.read_csv(io.BytesIO(content), sep=sep, encoding='utf-8')
+                    if len(df.columns) >= 3:
+                        break
+                except Exception:
+                    continue
+            else:
+                for sep in [',', ';', '\t']:
+                    try:
+                        df = pd.read_csv(io.BytesIO(content), sep=sep, encoding='latin-1')
+                        if len(df.columns) >= 3:
+                            break
+                    except Exception:
+                        continue
+                else:
+                    df = pd.read_csv(io.BytesIO(content))
         else:
             df = pd.read_excel(io.BytesIO(content))
         
@@ -311,96 +328,378 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
         if total_rows == 0:
             return ImportResult(
                 status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
-                errors=[ImportError(row=0, column='archivo', value=file.filename, error_type='format',
-                    message='El archivo está vacío', suggested_action='Agregue registros al archivo')],
+                errors=[ImportError(row=0, column='Archivo', value=file.filename, error_type='format',
+                    message='El archivo está vacío. No se encontraron filas de datos.',
+                    suggested_action='Agregue al menos una fila de datos debajo de los encabezados. Descargue la plantilla como referencia.')],
                 message='Error: El archivo no contiene datos'
             )
         
-        df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+        df.columns = [c.strip() for c in df.columns]
         
         column_mapping = {
-            'nombre_jurídico': 'legal_name', 'nombre_juridico': 'legal_name',
-            'nombre_fantasía': 'fantasy_name', 'nombre_fantasia': 'fantasy_name',
-            'segmento': 'segment', 'dirección': 'address', 'direccion': 'address',
-            'contacto_nombre': 'contact_name', 'contacto_apellido': 'contact_lastname',
-            'contacto_teléfono': 'contact_phone', 'contacto_telefono': 'contact_phone',
-            'contacto_email': 'contact_email', 'contacto_rol': 'contact_role',
+            # Base fields
+            'Nombre Jurídico': 'legal_name', 'nombre_jurídico': 'legal_name', 'nombre_juridico': 'legal_name',
+            'Nombre Fantasía': 'fantasy_name', 'nombre_fantasía': 'fantasy_name', 'nombre_fantasia': 'fantasy_name',
+            'Segmento': 'segment', 'segmento': 'segment',
+            'Condición': 'condicion', 'condicion': 'condicion', 'Condicion': 'condicion',
+            'Referidor': 'referidor', 'referidor': 'referidor',
+            'Dirección Fiscal': 'address', 'Dirección': 'address', 'dirección': 'address',
+            'direccion': 'address', 'dirección_fiscal': 'address', 'direccion_fiscal': 'address',
+            'Dirección Sucursal': 'branch_address', 'dirección_sucursal': 'branch_address',
+            'direccion_sucursal': 'branch_address',
+            'Categoría Comercial': 'categoria_comercial', 'categoría_comercial': 'categoria_comercial',
+            'categoria_comercial': 'categoria_comercial', 'Categoria Comercial': 'categoria_comercial',
+            'Grupo Económico': 'grupo_economico', 'grupo_económico': 'grupo_economico',
+            'grupo_economico': 'grupo_economico', 'Grupo Economico': 'grupo_economico',
+            'Ejecutivo Propietario': 'ejecutivo_propietario', 'ejecutivo_propietario': 'ejecutivo_propietario',
+            'Cantidad Tiendas': 'cantidad_tiendas', 'cantidad_tiendas': 'cantidad_tiendas',
+            'Cantidad Cajas': 'cantidad_cajas', 'cantidad_cajas': 'cantidad_cajas',
+            'Fecha Primer Contacto': 'fecha_primer_contacto', 'fecha_primer_contacto': 'fecha_primer_contacto',
+            'Tipo Contacto': 'tipo_contacto', 'tipo_contacto': 'tipo_contacto',
+            'Tipo Servicio': 'tipo_servicio', 'tipo_servicio': 'tipo_servicio',
+            'Integrador': 'integrador_name', 'integrador': 'integrador_name',
+            'Aplicativo': 'aplicativo', 'aplicativo': 'aplicativo',
+            # Contacts
+            'Contacto Nombre': 'contact_name', 'contacto_nombre': 'contact_name',
+            'Contacto Apellido': 'contact_lastname', 'contacto_apellido': 'contact_lastname',
+            'Contacto Teléfono': 'contact_phone', 'contacto_teléfono': 'contact_phone',
+            'contacto_telefono': 'contact_phone',
+            'Contacto Email': 'contact_email', 'contacto_email': 'contact_email',
+            'Contacto Rol': 'contact_role', 'contacto_rol': 'contact_role',
             # Legacy support
             'contacto1_nombre': 'contact_name', 'contacto1_teléfono': 'contact_phone',
-            'contacto1_telefono': 'contact_phone', 'contacto1_email': 'contact_email'
+            'contacto1_telefono': 'contact_phone', 'contacto1_email': 'contact_email',
         }
-        df.rename(columns=column_mapping, inplace=True)
+        
+        # Normalize columns: strip but keep case for mapping
+        rename_map = {}
+        for col in df.columns:
+            stripped = col.strip()
+            if stripped in column_mapping:
+                rename_map[col] = column_mapping[stripped]
+            elif stripped.lower() in {k.lower(): v for k, v in column_mapping.items()}:
+                for k, v in column_mapping.items():
+                    if k.lower() == stripped.lower():
+                        rename_map[col] = v
+                        break
+        
+        # Preserve rif and sucursal
+        for col in df.columns:
+            cl = col.strip().lower()
+            if cl == 'rif' and col not in rename_map:
+                rename_map[col] = 'rif'
+            elif cl == 'sucursal' and col not in rename_map:
+                rename_map[col] = 'sucursal'
+        
+        df.rename(columns=rename_map, inplace=True)
+        df = df.loc[:, ~df.columns.duplicated()]
         
         required_columns = ['rif', 'legal_name']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
+            friendly = {'rif': 'RIF', 'legal_name': 'Nombre Jurídico'}
+            missing_friendly = [friendly.get(c, c) for c in missing_columns]
             return ImportResult(
                 status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
-                errors=[ImportError(row=0, column=', '.join(missing_columns), value=None, error_type='missing',
-                    message='Columnas requeridas no encontradas',
-                    suggested_action='Descargue la plantilla y use las columnas: RIF, Nombre Jurídico')],
-                message=f'Error: Faltan columnas requeridas ({", ".join(missing_columns)})'
+                errors=[ImportError(row=0, column=', '.join(missing_friendly), value=None, error_type='missing',
+                    message=f'Columnas obligatorias no encontradas en el archivo: {", ".join(missing_friendly)}. Verifique que los encabezados coincidan exactamente con la plantilla.',
+                    suggested_action=f'Descargue la plantilla modelo y asegúrese de incluir las columnas: {", ".join(missing_friendly)}. Los nombres deben coincidir exactamente.')],
+                message=f'Error: Faltan columnas requeridas ({", ".join(missing_friendly)})'
             )
         
-        valid_segments = ['Pymes', 'Corporativo', 'Mixto']
+        valid_segments = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto']
+        valid_condiciones = ['Prospecto', 'Cliente']
         valid_roles = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo']
+        valid_tipos_servicio = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago']
+        valid_categorias = [
+            'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
+            'Bar / Discoteca', 'Comida Rápida', 'Cafetería', 'Tienda de Ropa', 'Boutique',
+            'Salón de Belleza', 'Barbería', 'Spa / Salud', 'Gimnasio', 'Cosmética',
+            'Calzados', 'Mueblería', 'Ferretería', 'Electrodomésticos', 'Joyería',
+            'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
+            'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
+        ]
+        valid_referidores = [
+            'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
+            'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
+        ]
+        
+        # Pre-load ejecutivos and integradores for validation
+        ejecutivos_db = await db.users.find(
+            {"is_active": True, "cargo": {"$in": ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]}},
+            {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}
+        ).to_list(1000)
+        ejecutivo_lookup = {}
+        for ej in ejecutivos_db:
+            full = f"{ej.get('first_name', '')} {ej.get('last_name', '')}".strip()
+            ejecutivo_lookup[full.lower()] = {"name": full, "user_id": ej["user_id"]}
+            ejecutivo_lookup[ej.get("email", "").lower()] = {"name": full, "user_id": ej["user_id"]}
+        
+        integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(5000)
+        integrador_lookup = {}
+        for intg in integradores_db:
+            integrador_lookup[intg["name"].strip().lower()] = {"name": intg["name"], "id": intg["integrator_id"]}
+        
+        import re as re_mod
+        rif_pattern = re_mod.compile(r'^[JVGEP]-?\d{5,9}-?\d$', re_mod.IGNORECASE)
+        
+        def _safe(row, col, default=''):
+            val = row.get(col, default)
+            if isinstance(val, pd.Series):
+                val = val.iloc[0]
+            if pd.isna(val):
+                return default
+            return str(val).strip()
+        
+        def _safe_int(row, col):
+            val = row.get(col, None)
+            if isinstance(val, pd.Series):
+                val = val.iloc[0]
+            if pd.isna(val) or val == '' or val is None:
+                return None
+            try:
+                return int(float(val))
+            except (ValueError, TypeError):
+                return 'INVALID'
+        
+        col_letters = {
+            'rif': 'A', 'sucursal': 'B', 'legal_name': 'C', 'fantasy_name': 'D',
+            'segment': 'E', 'condicion': 'F', 'referidor': 'G', 'address': 'H',
+            'branch_address': 'I', 'categoria_comercial': 'J', 'grupo_economico': 'K',
+            'ejecutivo_propietario': 'L', 'cantidad_tiendas': 'M', 'cantidad_cajas': 'N',
+            'fecha_primer_contacto': 'O', 'tipo_contacto': 'P', 'tipo_servicio': 'Q',
+            'integrador_name': 'R', 'aplicativo': 'S',
+            'contact_name': 'T', 'contact_lastname': 'U', 'contact_phone': 'V',
+            'contact_email': 'W', 'contact_role': 'X',
+        }
+        col_friendly = {
+            'rif': 'RIF', 'sucursal': 'Sucursal', 'legal_name': 'Nombre Jurídico',
+            'fantasy_name': 'Nombre Fantasía', 'segment': 'Segmento', 'condicion': 'Condición',
+            'referidor': 'Referidor', 'address': 'Dirección Fiscal',
+            'branch_address': 'Dirección Sucursal', 'categoria_comercial': 'Categoría Comercial',
+            'grupo_economico': 'Grupo Económico', 'ejecutivo_propietario': 'Ejecutivo Propietario',
+            'cantidad_tiendas': 'Cantidad Tiendas', 'cantidad_cajas': 'Cantidad Cajas',
+            'fecha_primer_contacto': 'Fecha Primer Contacto', 'tipo_contacto': 'Tipo Contacto',
+            'tipo_servicio': 'Tipo Servicio', 'integrador_name': 'Integrador',
+            'aplicativo': 'Aplicativo', 'contact_name': 'Contacto Nombre',
+            'contact_lastname': 'Contacto Apellido', 'contact_phone': 'Contacto Teléfono',
+            'contact_email': 'Contacto Email', 'contact_role': 'Contacto Rol',
+        }
+        
+        def _col_ref(field):
+            letter = col_letters.get(field, '?')
+            name = col_friendly.get(field, field)
+            return f"{name} (Col {letter})"
         
         for idx, row in df.iterrows():
             row_num = idx + 2
             
             try:
-                rif = str(row.get('rif', '')).strip() if pd.notna(row.get('rif')) else ''
-                legal_name = str(row.get('legal_name', '')).strip() if pd.notna(row.get('legal_name')) else ''
-                fantasy_name = str(row.get('fantasy_name', '')).strip() if pd.notna(row.get('fantasy_name')) else ''
-                segment = str(row.get('segment', 'Pymes')).strip() if pd.notna(row.get('segment')) else 'Pymes'
-                sucursal = str(row.get('sucursal', 'Principal')).strip() if pd.notna(row.get('sucursal')) else 'Principal'
-                address = str(row.get('address', '')).strip() if pd.notna(row.get('address')) else ''
+                rif = _safe(row, 'rif')
+                legal_name = _safe(row, 'legal_name')
+                fantasy_name = _safe(row, 'fantasy_name') or legal_name
+                segment = _safe(row, 'segment', 'Pymes')
+                condicion = _safe(row, 'condicion', 'Prospecto')
+                referidor = _safe(row, 'referidor')
+                sucursal = _safe(row, 'sucursal', 'Principal')
+                address = _safe(row, 'address')
+                branch_address = _safe(row, 'branch_address')
+                categoria_comercial = _safe(row, 'categoria_comercial')
+                grupo_economico = _safe(row, 'grupo_economico')
+                ejecutivo_propietario = _safe(row, 'ejecutivo_propietario')
+                cantidad_tiendas = _safe_int(row, 'cantidad_tiendas')
+                cantidad_cajas = _safe_int(row, 'cantidad_cajas')
+                fecha_primer_contacto_raw = _safe(row, 'fecha_primer_contacto')
+                tipo_contacto = _safe(row, 'tipo_contacto')
+                tipo_servicio_raw = _safe(row, 'tipo_servicio')
+                integrador_name = _safe(row, 'integrador_name')
+                aplicativo = _safe(row, 'aplicativo')
                 
                 row_errors = []
+                has_critical = False
                 
+                # === RIF validation ===
                 if not rif:
-                    row_errors.append(ImportError(row=row_num, column='RIF', value='(vacío)',
-                        error_type='missing', message='El RIF es obligatorio',
-                        suggested_action='Ingrese un RIF válido'))
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('rif'), value='(vacío)',
+                        error_type='missing',
+                        message=f'Fila {row_num}, Col A (RIF): El campo está vacío. Cada cliente debe tener un RIF que lo identifique de forma única.',
+                        suggested_action=f'Complete la celda A{row_num} con el RIF del cliente. Formato esperado: J-12345678-9. Este campo es obligatorio (*).'))
+                    has_critical = True
+                elif not rif_pattern.match(rif):
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('rif'), value=rif,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col A (RIF): El valor "{rif}" no tiene un formato de RIF válido. Se esperaba una letra (J, V, G, E, P) seguida de un guión, 5-9 dígitos, guión y un dígito verificador.',
+                        suggested_action=f'Corrija la celda A{row_num}. Ejemplos válidos: J-12345678-9, V-98765432-1, G-11223344-5.'))
+                    has_critical = True
                 
+                # === Legal Name validation ===
                 if not legal_name:
-                    row_errors.append(ImportError(row=row_num, column='Nombre Jurídico', value='(vacío)',
-                        error_type='missing', message='El nombre jurídico es obligatorio',
-                        suggested_action='Ingrese el nombre jurídico del cliente'))
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('legal_name'), value='(vacío)',
+                        error_type='missing',
+                        message=f'Fila {row_num}, Col C (Nombre Jurídico): El campo está vacío. La razón social es un dato obligatorio para registrar un cliente.',
+                        suggested_action=f'Complete la celda C{row_num} con la razón social del cliente. Este campo es obligatorio (*).'))
+                    has_critical = True
                 
-                if segment not in valid_segments:
+                # === Segment validation ===
+                if segment and segment not in valid_segments:
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('segment'), value=segment,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col E (Segmento): Se recibió "{segment}" pero solo se aceptan: {", ".join(valid_segments)}. Se asignará "Pymes" por defecto.',
+                        suggested_action=f'Corrija la celda E{row_num}. Use exactamente uno de: {", ".join(valid_segments)}. Consulte la hoja "Valores Válidos".'))
                     segment = 'Pymes'
                 
-                if row_errors:
+                # === Condición validation ===
+                if condicion and condicion not in valid_condiciones:
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('condicion'), value=condicion,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col F (Condición): Se recibió "{condicion}" pero solo se aceptan: {", ".join(valid_condiciones)}. Se asignará "Prospecto" por defecto.',
+                        suggested_action=f'Corrija la celda F{row_num}. Use exactamente: Prospecto o Cliente.'))
+                    condicion = 'Prospecto'
+                
+                # === Referidor validation ===
+                if referidor and referidor not in valid_referidores:
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('referidor'), value=referidor,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col G (Referidor): Se recibió "{referidor}" pero no coincide con ningún referidor válido. Verifique la lista en "Valores Válidos".',
+                        suggested_action=f'Corrija la celda G{row_num}. Valores aceptados: {", ".join(valid_referidores)}.'))
+                
+                # === Categoría Comercial validation ===
+                if categoria_comercial and categoria_comercial not in valid_categorias:
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('categoria_comercial'), value=categoria_comercial,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col J (Categoría Comercial): Se recibió "{categoria_comercial}" pero no coincide con ninguna categoría registrada ({len(valid_categorias)} opciones disponibles).',
+                        suggested_action=f'Corrija la celda J{row_num}. Consulte la hoja "Valores Válidos", columna "Categorías Comerciales" para ver todas las opciones.'))
+                    categoria_comercial = None
+                
+                # === Ejecutivo validation ===
+                ejecutivo_user_id = None
+                if ejecutivo_propietario:
+                    ej_match = ejecutivo_lookup.get(ejecutivo_propietario.lower())
+                    if ej_match:
+                        ejecutivo_propietario = ej_match["name"]
+                        ejecutivo_user_id = ej_match["user_id"]
+                    else:
+                        ej_names = [v["name"] for v in ejecutivo_lookup.values()]
+                        unique_names = list(dict.fromkeys(ej_names))
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('ejecutivo_propietario'), value=ejecutivo_propietario,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col L (Ejecutivo Propietario): El usuario "{ejecutivo_propietario}" no está registrado como ejecutivo de ventas en el sistema.',
+                            suggested_action=f'Corrija la celda L{row_num}. Ejecutivos disponibles: {", ".join(unique_names[:10])}. El nombre debe coincidir exactamente.'))
+                        ejecutivo_propietario = None
+                
+                # === Cantidad Tiendas/Cajas validation ===
+                if cantidad_tiendas == 'INVALID':
+                    raw_val = _safe(row, 'cantidad_tiendas')
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('cantidad_tiendas'), value=raw_val,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col M (Cantidad Tiendas): Se recibió "{raw_val}" pero se esperaba un número entero positivo.',
+                        suggested_action=f'Corrija la celda M{row_num}. Ingrese solo un número entero (ej: 5, 10, 25). No use letras ni símbolos.'))
+                    cantidad_tiendas = None
+                
+                if cantidad_cajas == 'INVALID':
+                    raw_val = _safe(row, 'cantidad_cajas')
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('cantidad_cajas'), value=raw_val,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col N (Cantidad Cajas): Se recibió "{raw_val}" pero se esperaba un número entero positivo.',
+                        suggested_action=f'Corrija la celda N{row_num}. Ingrese solo un número entero (ej: 2, 12, 50). No use letras ni símbolos.'))
+                    cantidad_cajas = None
+                
+                # === Fecha Primer Contacto validation ===
+                fecha_primer_contacto = None
+                if fecha_primer_contacto_raw:
+                    from datetime import date as date_type
+                    parsed_date = None
+                    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+                        try:
+                            parsed_date = datetime.strptime(fecha_primer_contacto_raw, fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                    if parsed_date is None:
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('fecha_primer_contacto'), value=fecha_primer_contacto_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col O (Fecha Primer Contacto): El formato "{fecha_primer_contacto_raw}" no es reconocido. Formatos aceptados: DD/MM/AAAA (15/01/2026) o AAAA-MM-DD (2026-01-15).',
+                            suggested_action=f'Corrija la celda O{row_num}. Use un formato de fecha estándar: 15/01/2026 o 2026-01-15.'))
+                    elif parsed_date > date_type.today():
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('fecha_primer_contacto'), value=fecha_primer_contacto_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col O (Fecha Primer Contacto): La fecha {fecha_primer_contacto_raw} es posterior a hoy ({date_type.today().strftime("%d/%m/%Y")}). No se permiten fechas futuras.',
+                            suggested_action=f'Corrija la celda O{row_num}. Ingrese una fecha igual o anterior a hoy.'))
+                    else:
+                        fecha_primer_contacto = parsed_date.isoformat()
+                
+                # === Tipo Servicio validation ===
+                tipo_servicio_list = []
+                if tipo_servicio_raw:
+                    parts = [s.strip() for s in tipo_servicio_raw.replace(';', ',').split(',') if s.strip()]
+                    invalid_services = [s for s in parts if s not in valid_tipos_servicio]
+                    if invalid_services:
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('tipo_servicio'), value=tipo_servicio_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col Q (Tipo Servicio): Los valores "{", ".join(invalid_services)}" no son válidos. Valores aceptados: {", ".join(valid_tipos_servicio)}.',
+                            suggested_action=f'Corrija la celda Q{row_num}. Separe múltiples servicios con comas: "VPOS, MPOS". Solo se aceptan: {", ".join(valid_tipos_servicio)}.'))
+                    tipo_servicio_list = [s for s in parts if s in valid_tipos_servicio]
+                
+                # === Integrador validation ===
+                integrador_id = None
+                if integrador_name:
+                    intg_match = integrador_lookup.get(integrador_name.lower())
+                    if intg_match:
+                        integrador_name = intg_match["name"]
+                        integrador_id = intg_match["id"]
+                    else:
+                        sample_names = list(integrador_lookup.keys())[:5]
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('integrador_name'), value=integrador_name,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col R (Integrador): El integrador "{integrador_name}" no está registrado en el sistema.',
+                            suggested_action=f'Corrija la celda R{row_num}. Consulte la hoja "Valores Válidos" para ver los integradores disponibles. El nombre debe coincidir exactamente.'))
+                        integrador_name = None
+                
+                # === Contact Role validation ===
+                contact_name = _safe(row, 'contact_name')
+                contact_lastname = _safe(row, 'contact_lastname')
+                contact_phone = _safe(row, 'contact_phone')
+                contact_email = _safe(row, 'contact_email')
+                contact_role = _safe(row, 'contact_role', 'Administrativo')
+                if contact_role and contact_role not in valid_roles:
+                    row_errors.append(ImportError(row=row_num, column=_col_ref('contact_role'), value=contact_role,
+                        error_type='invalid',
+                        message=f'Fila {row_num}, Col X (Contacto Rol): Se recibió "{contact_role}" pero solo se aceptan: {", ".join(valid_roles)}. Se asignará "Administrativo" por defecto.',
+                        suggested_action=f'Corrija la celda X{row_num}. Use exactamente uno de: {", ".join(valid_roles)}.'))
+                    contact_role = 'Administrativo'
+                
+                # === Skip if critical errors ===
+                if has_critical:
                     errors.extend(row_errors)
                     skipped_count += 1
                     continue
                 
-                # Verificar duplicados con llave compuesta RIF + Sucursal
+                # === Check duplicates ===
                 existing = await db.clients.find_one({"rif": rif, "sucursal": sucursal})
                 if existing:
-                    errors.append(ImportError(row=row_num, column='RIF + Sucursal', value=f'{rif} / {sucursal}',
-                        error_type='duplicate', message=f'Ya existe un cliente con RIF {rif} y sucursal "{sucursal}"',
-                        suggested_action='Cambie la sucursal o verifique si desea actualizar el registro'))
+                    errors.append(ImportError(row=row_num, column=f'{_col_ref("rif")} + {_col_ref("sucursal")}', value=f'{rif} / {sucursal}',
+                        error_type='duplicate',
+                        message=f'Fila {row_num}: Ya existe un cliente con RIF "{rif}" y sucursal "{sucursal}" en el sistema. No se permiten registros duplicados con la misma combinación.',
+                        suggested_action=f'Verifique si desea importar este registro con una sucursal distinta (ej: "Sede Norte"), o elimine esta fila si ya existe en el sistema.'))
                     skipped_count += 1
+                    # Still log non-critical errors
+                    if row_errors:
+                        errors.extend(row_errors)
                     continue
                 
-                # Construir contactos CRM
-                contacts_crm = []
-                contact_name = str(row.get('contact_name', '')).strip() if pd.notna(row.get('contact_name')) else ''
-                contact_lastname = str(row.get('contact_lastname', '')).strip() if pd.notna(row.get('contact_lastname')) else ''
-                contact_phone = str(row.get('contact_phone', '')).strip() if pd.notna(row.get('contact_phone')) else ''
-                contact_email = str(row.get('contact_email', '')).strip() if pd.notna(row.get('contact_email')) else ''
-                contact_role = str(row.get('contact_role', 'Administrativo')).strip() if pd.notna(row.get('contact_role')) else 'Administrativo'
-                if contact_role not in valid_roles:
-                    contact_role = 'Administrativo'
+                # Register non-critical warnings
+                if row_errors:
+                    errors.extend(row_errors)
                 
+                # Build contacts CRM
+                contacts_crm = []
                 if contact_name:
                     contacts_crm.append({
                         "contact_id": f"cnt_{uuid.uuid4().hex[:8]}",
                         "first_name": contact_name,
                         "last_name": contact_lastname,
+                        "full_name": f"{contact_name} {contact_lastname}".strip(),
                         "phone": contact_phone,
                         "email": contact_email,
                         "role": contact_role
@@ -411,8 +710,23 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     legal_name=legal_name,
                     fantasy_name=fantasy_name,
                     segment=segment,
+                    condicion=condicion,
+                    referidor=referidor or None,
                     sucursal=sucursal,
-                    address=address,
+                    address=address or None,
+                    branch_address=branch_address or None,
+                    categoria_comercial=categoria_comercial or None,
+                    grupo_economico=grupo_economico or None,
+                    ejecutivo_propietario=ejecutivo_propietario or None,
+                    ejecutivo_user_id=ejecutivo_user_id,
+                    cantidad_tiendas=cantidad_tiendas,
+                    cantidad_cajas=cantidad_cajas,
+                    fecha_primer_contacto=fecha_primer_contacto,
+                    tipo_contacto=tipo_contacto or None,
+                    tipo_servicio=tipo_servicio_list,
+                    integrador_id=integrador_id,
+                    integrador_name=integrador_name or None,
+                    aplicativo=aplicativo or None,
                     contacts=contacts_crm,
                     contact1=Contact(name=f'{contact_name} {contact_lastname}'.strip() or 'N/A', phone=contact_phone or 'N/A', email=contact_email or 'sin@email.com'),
                     contact2=Contact(name='N/A', phone='N/A', email='sin@email.com')
@@ -424,33 +738,39 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                 success_count += 1
                 
             except Exception as e:
-                errors.append(ImportError(row=row_num, column='general', value=None,
-                    error_type='format', message=f'Error al procesar fila: {str(e)}',
-                    suggested_action='Verifique el formato de los datos'))
+                errors.append(ImportError(row=row_num, column='General', value=None,
+                    error_type='format',
+                    message=f'Fila {row_num}: Error inesperado al procesar esta fila: {str(e)}. Esto puede deberse a datos con formato incorrecto o caracteres especiales no soportados.',
+                    suggested_action=f'Revise todos los datos de la fila {row_num}. Asegúrese de que los campos numéricos solo contengan números y que las fechas tengan formato válido.'))
                 skipped_count += 1
+        
+        total_errors = len([e for e in errors if e.error_type in ('missing', 'duplicate', 'format') or 'crítico' in e.message.lower()])
         
         if success_count == 0 and errors:
             status = 'error'
-            message = f'Error: No se pudo importar ningún registro. {len(errors)} errores encontrados.'
+            message = f'Importación fallida: No se pudo importar ningún registro. Se encontraron {len(errors)} errores en {total_rows} filas procesadas.'
         elif errors:
             status = 'partial'
-            message = f'Importación parcial: {success_count} registros importados, {skipped_count} omitidos.'
+            warning_count = len([e for e in errors if e.error_type == 'invalid'])
+            skip_msg = f', {skipped_count} omitidos por errores' if skipped_count > 0 else ''
+            warn_msg = f', {warning_count} advertencias' if warning_count > 0 else ''
+            message = f'Importación parcial: {success_count} de {total_rows} registros importados{skip_msg}{warn_msg}.'
         else:
             status = 'success'
-            message = f'Importación exitosa: {success_count} clientes importados correctamente.'
+            message = f'Importación exitosa: {success_count} clientes importados correctamente de {total_rows} filas procesadas.'
         
         return ImportResult(
             status=status, total_processed=total_rows, success_count=success_count,
-            error_count=len(errors), skipped_count=skipped_count, errors=errors, message=message
+            error_count=len(errors), skipped_count=skipped_count, errors=errors[:100], message=message
         )
         
     except Exception as e:
         return ImportResult(
             status='error', total_processed=0, success_count=0, error_count=1, skipped_count=0,
-            errors=[ImportError(row=0, column='archivo', value=None, error_type='format',
-                message=f'Error al procesar archivo: {str(e)}',
-                suggested_action='Verifique que el archivo no esté corrupto')],
-            message=f'Error: {str(e)}'
+            errors=[ImportError(row=0, column='Archivo', value=file.filename, error_type='format',
+                message=f'Error crítico al procesar el archivo: {str(e)}. El archivo puede estar corrupto o tener un formato no soportado.',
+                suggested_action='Verifique que el archivo no esté dañado. Descargue la plantilla modelo y copie sus datos respetando el formato de cada columna.')],
+            message=f'Error crítico: No se pudo procesar el archivo'
         )
 
 

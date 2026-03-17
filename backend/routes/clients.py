@@ -333,10 +333,20 @@ async def search_clients(q: str = "", authorization: Optional[str] = Header(None
 
 @router.get("/clients/template")
 async def get_clients_import_template(authorization: Optional[str] = Header(None)):
-    """Descargar plantilla de importación para clientes"""
+    """Descargar plantilla de importación para clientes con todos los campos del modelo"""
     await get_current_user(authorization)
     
     import pandas as pd
+    
+    # Obtener ejecutivos e integradores para referencia
+    ejecutivos = await db.users.find(
+        {"is_active": True, "cargo": {"$in": ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]}},
+        {"_id": 0, "first_name": 1, "last_name": 1}
+    ).to_list(100)
+    ejecutivo_names = [f"{e.get('first_name','')} {e.get('last_name','')}".strip() for e in ejecutivos]
+    
+    integradores = await db.integrators.find({}, {"_id": 0, "name": 1}).to_list(500)
+    integrador_names = [i["name"] for i in integradores]
     
     data = {
         'RIF': ['J-12345678-9', 'J-98765432-1', 'J-11223344-5'],
@@ -344,12 +354,25 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         'Nombre Jurídico': ['Empresa Demo CA', 'Empresa Demo CA', 'Otra Empresa SRL'],
         'Nombre Fantasía': ['DemoCorp', 'DemoCorp Norte', 'OtraCorp'],
         'Segmento': ['Corporativo', 'Corporativo', 'Pymes'],
-        'Dirección': ['Av. Libertador, Edif. Torre X, Caracas', 'CC San Ignacio, Valencia', ''],
+        'Condición': ['Cliente', 'Prospecto', 'Prospecto'],
+        'Referidor': ['Correo de Ventas', 'Integrador', ''],
+        'Dirección Fiscal': ['Av. Libertador, Edif. Torre X, Caracas', 'CC San Ignacio, Valencia', ''],
+        'Dirección Sucursal': ['', 'Av. Bolívar Norte, Local 5', ''],
+        'Categoría Comercial': ['Retail', 'Restaurante', 'Tecnología'],
+        'Grupo Económico': ['Grupo Demo', 'Grupo Demo', ''],
+        'Ejecutivo Propietario': [ejecutivo_names[0] if ejecutivo_names else 'Rafael González', '', ''],
+        'Cantidad Tiendas': [5, 1, ''],
+        'Cantidad Cajas': [12, 2, ''],
+        'Fecha Primer Contacto': ['15/01/2026', '28/02/2026', ''],
+        'Tipo Contacto': ['Llamada', 'Correo', ''],
+        'Tipo Servicio': ['VPOS, MPOS', 'Payment Gateway', 'Link de Pago'],
+        'Integrador': [integrador_names[0] if integrador_names else '', '', ''],
+        'Aplicativo': ['PaymentHub v3', '', ''],
         'Contacto Nombre': ['Carlos', 'Ana', 'Pedro'],
         'Contacto Apellido': ['Pérez', 'Ruiz', 'Gómez'],
         'Contacto Teléfono': ['0412-1234567', '0416-9876543', '0414-1112233'],
         'Contacto Email': ['carlos@demo.com', 'ana@demo.com', 'pedro@otra.com'],
-        'Contacto Rol': ['Administrativo', 'Técnico', 'Financiero']
+        'Contacto Rol': ['Administrativo', 'Técnico', 'Financiero'],
     }
     
     df = pd.DataFrame(data)
@@ -358,36 +381,86 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Plantilla')
         
-        info_data = {
-            'Campo': ['RIF *', 'Sucursal', 'Nombre Jurídico *', 'Nombre Fantasía', 'Segmento',
-                       'Dirección', 'Contacto Nombre', 'Contacto Apellido', 'Contacto Teléfono',
-                       'Contacto Email', 'Contacto Rol'],
-            'Descripción': [
-                'RIF del cliente (obligatorio)', 'Nombre de la sucursal (def: Principal)',
-                'Razón social (obligatorio)', 'Nombre comercial',
-                'Pymes, Corporativo o Mixto (def: Pymes)',
-                'Dirección fiscal', 'Nombre del contacto principal',
-                'Apellido del contacto', 'Teléfono del contacto',
-                'Email del contacto', 'Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo'
-            ],
-            'Obligatorio': ['Sí', 'No', 'Sí', 'No', 'No', 'No', 'No', 'No', 'No', 'No', 'No'],
-            'Ejemplo': ['J-12345678-9', 'Principal', 'Empresa Demo CA', 'DemoCorp', 'Corporativo',
-                        'Av. Libertador...', 'Carlos', 'Pérez', '0412-1234567', 'carlos@demo.com', 'Administrativo']
-        }
-        pd.DataFrame(info_data).to_excel(writer, index=False, sheet_name='Instrucciones')
+        # Instrucciones detalladas
+        fields = [
+            {'Campo': 'RIF *', 'Columna': 'A', 'Descripción': 'RIF del cliente. Formato: J-12345678-9, V-12345678-9, G-12345678-9 o E-12345678-9. Obligatorio.', 'Obligatorio': 'Sí', 'Ejemplo': 'J-12345678-9'},
+            {'Campo': 'Sucursal', 'Columna': 'B', 'Descripción': 'Nombre de la sucursal. Si se omite, se asigna "Principal". Permite el mismo RIF con diferentes sucursales.', 'Obligatorio': 'No', 'Ejemplo': 'Principal'},
+            {'Campo': 'Nombre Jurídico *', 'Columna': 'C', 'Descripción': 'Razón social del cliente. Obligatorio.', 'Obligatorio': 'Sí', 'Ejemplo': 'Empresa Demo CA'},
+            {'Campo': 'Nombre Fantasía', 'Columna': 'D', 'Descripción': 'Nombre comercial o marca. Si se omite, se usa el Nombre Jurídico.', 'Obligatorio': 'No', 'Ejemplo': 'DemoCorp'},
+            {'Campo': 'Segmento', 'Columna': 'E', 'Descripción': 'Segmento comercial. Valores: Pymes, Corporativo, Emprendedor, Mixto. Default: Pymes.', 'Obligatorio': 'No', 'Ejemplo': 'Corporativo'},
+            {'Campo': 'Condición', 'Columna': 'F', 'Descripción': 'Estado del cliente. Valores: Prospecto, Cliente. Default: Prospecto.', 'Obligatorio': 'No', 'Ejemplo': 'Prospecto'},
+            {'Campo': 'Referidor', 'Columna': 'G', 'Descripción': 'Fuente de referencia del cliente. Ver hoja "Valores Válidos".', 'Obligatorio': 'No', 'Ejemplo': 'Correo de Ventas'},
+            {'Campo': 'Dirección Fiscal', 'Columna': 'H', 'Descripción': 'Dirección fiscal o principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Av. Libertador, Caracas'},
+            {'Campo': 'Dirección Sucursal', 'Columna': 'I', 'Descripción': 'Dirección de la sucursal (si difiere de la fiscal).', 'Obligatorio': 'No', 'Ejemplo': 'CC San Ignacio, Local 5'},
+            {'Campo': 'Categoría Comercial', 'Columna': 'J', 'Descripción': 'Tipo de negocio. Ver hoja "Valores Válidos" para la lista completa.', 'Obligatorio': 'No', 'Ejemplo': 'Retail'},
+            {'Campo': 'Grupo Económico', 'Columna': 'K', 'Descripción': 'Nombre del grupo económico al que pertenece.', 'Obligatorio': 'No', 'Ejemplo': 'Grupo Demo'},
+            {'Campo': 'Ejecutivo Propietario', 'Columna': 'L', 'Descripción': 'Nombre del ejecutivo de ventas asignado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': ejecutivo_names[0] if ejecutivo_names else 'Rafael González'},
+            {'Campo': 'Cantidad Tiendas', 'Columna': 'M', 'Descripción': 'Número de tiendas o locales del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '5'},
+            {'Campo': 'Cantidad Cajas', 'Columna': 'N', 'Descripción': 'Número de cajas registradoras del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '12'},
+            {'Campo': 'Fecha Primer Contacto', 'Columna': 'O', 'Descripción': 'Fecha del primer contacto. Formatos: DD/MM/AAAA o AAAA-MM-DD. No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
+            {'Campo': 'Tipo Contacto', 'Columna': 'P', 'Descripción': 'Medio de contacto inicial: Llamada, Correo, Presencial, Referido, Otro.', 'Obligatorio': 'No', 'Ejemplo': 'Llamada'},
+            {'Campo': 'Tipo Servicio', 'Columna': 'Q', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
+            {'Campo': 'Integrador', 'Columna': 'R', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
+            {'Campo': 'Aplicativo', 'Columna': 'S', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
+            {'Campo': 'Contacto Nombre', 'Columna': 'T', 'Descripción': 'Nombre del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos'},
+            {'Campo': 'Contacto Apellido', 'Columna': 'U', 'Descripción': 'Apellido del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'Pérez'},
+            {'Campo': 'Contacto Teléfono', 'Columna': 'V', 'Descripción': 'Teléfono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
+            {'Campo': 'Contacto Email', 'Columna': 'W', 'Descripción': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
+            {'Campo': 'Contacto Rol', 'Columna': 'X', 'Descripción': 'Rol del contacto: Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
+        ]
+        pd.DataFrame(fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
-        roles_data = {
-            'Roles Válidos': ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'],
-            'Segmentos Válidos': ['Pymes', 'Corporativo', 'Mixto', '', ''],
-            'Nota': [
-                'RIF + Sucursal deben ser únicos',
-                'Se permite el mismo RIF con diferente Sucursal',
-                'Los campos marcados con * son obligatorios',
-                'Si no indica segmento, se asigna "Pymes"',
-                'Si no indica rol, se asigna "Administrativo"'
-            ]
+        # Valores Válidos — referencia completa
+        categorias = [
+            'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
+            'Bar / Discoteca', 'Comida Rápida', 'Cafetería', 'Tienda de Ropa', 'Boutique',
+            'Salón de Belleza', 'Barbería', 'Spa / Salud', 'Gimnasio', 'Cosmética',
+            'Calzados', 'Mueblería', 'Ferretería', 'Electrodomésticos', 'Joyería',
+            'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
+            'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
+        ]
+        referidores = [
+            'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
+            'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
+        ]
+        tipos_contacto = ['Llamada', 'Correo', 'Presencial', 'Referido', 'Otro']
+        tipos_servicio = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago']
+        roles = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo']
+        segmentos = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto']
+        condiciones = ['Prospecto', 'Cliente']
+        
+        max_len = max(len(categorias), len(referidores), len(ejecutivo_names), len(integrador_names), len(roles), 15)
+        pad = lambda lst: lst + [''] * (max_len - len(lst))
+        
+        values_data = {
+            'Segmentos (Col E)': pad(segmentos),
+            'Condiciones (Col F)': pad(condiciones),
+            'Referidores (Col G)': pad(referidores),
+            'Categorías Comerciales (Col J)': pad(categorias),
+            'Tipos de Contacto (Col P)': pad(tipos_contacto),
+            'Tipos de Servicio (Col Q)': pad(tipos_servicio),
+            'Roles de Contacto (Col X)': pad(roles),
+            'Ejecutivos Registrados (Col L)': pad(ejecutivo_names),
+            'Integradores Registrados (Col R)': pad(integrador_names[:max_len]),
+            'Reglas de Importación': pad([
+                '1. La clave única es: RIF + Sucursal',
+                '2. Si un registro ya existe (mismo RIF + Sucursal) se OMITE',
+                '3. Los campos marcados con * son OBLIGATORIOS',
+                '4. El RIF debe tener formato: J-12345678-9 (letra-números-dígito)',
+                '5. Si no indica Segmento, se asigna "Pymes"',
+                '6. Si no indica Condición, se asigna "Prospecto"',
+                '7. Si no indica Sucursal, se asigna "Principal"',
+                '8. Tipo Servicio acepta valores separados por coma',
+                '9. El Ejecutivo debe estar registrado en el sistema',
+                '10. El Integrador debe estar registrado en el sistema',
+                '11. La Fecha Primer Contacto no puede ser futura',
+                '12. Cantidad Tiendas y Cajas deben ser números enteros positivos',
+                '13. Los valores deben coincidir exactamente con esta hoja',
+                '14. Se aceptan archivos .xlsx, .xls y .csv',
+                '15. Las celdas vacías en campos opcionales se ignoran',
+            ]),
         }
-        pd.DataFrame(roles_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
+        pd.DataFrame(values_data).to_excel(writer, index=False, sheet_name='Valores Válidos')
     
     output.seek(0)
     
