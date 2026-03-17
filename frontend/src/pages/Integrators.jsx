@@ -432,6 +432,20 @@ export const Integrators = () => {
     finally { setSummaryLoading(false); }
   };
 
+  // Assignment handler
+  const handleAssignGestor = async (integratorId, userId) => {
+    try {
+      const res = await api.put(`/integrators/${integratorId}/assign`, { user_id: userId });
+      toast.success(res.data.message || 'Gestor asignado');
+      if (res.data.email?.simulated) {
+        toast.info('Notificación por email simulada');
+      }
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al asignar gestor');
+    }
+  };
+
   const filteredIntegrators = integrators.filter(intg => {
     if (filterIntType && filterIntType !== 'all' && intg.integration_type !== filterIntType) return false;
     if (filterModality && filterModality !== 'all' && intg.integration_modality !== filterModality) return false;
@@ -456,7 +470,7 @@ export const Integrators = () => {
               <h1 className="text-3xl font-bold text-slate-900 font-manrope flex items-center gap-3">
                 <Users className="text-brand-blue-600" size={28} />Gestión de Integradores
               </h1>
-              <p className="text-slate-500 mt-1">Aliados técnicos, certificación de productos y gestores asignados</p>
+              <p className="text-slate-500 mt-1">Tablero de asignación de proyectos, certificación y seguimiento de implementadores</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
@@ -465,7 +479,7 @@ export const Integrators = () => {
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
               <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="create-integrator-btn"><Plus size={16} className="mr-1" />Nuevo</Button>
+                  <Button className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="create-integrator-btn"><Plus size={16} className="mr-1" />Nuevo Proyecto de Integración</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle className="font-manrope text-xl">{editingIntegrator ? 'Editar Integrador' : 'Nuevo Integrador'}</DialogTitle></DialogHeader>
@@ -503,14 +517,16 @@ export const Integrators = () => {
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label>Gestor Asignado</Label>
-                        <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
-                          <SelectTrigger data-testid="gestor-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                          <SelectContent>{users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
+                    <div className={`grid ${editingIntegrator ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+                      {editingIntegrator && (
+                        <div>
+                          <Label>Gestor Asignado</Label>
+                          <Select value={formData.gestor} onValueChange={(v) => setFormData({ ...formData, gestor: v })}>
+                            <SelectTrigger data-testid="gestor-select"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                            <SelectContent>{users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div>
                         <Label>Categoría</Label>
                         <Select value={formData.categoria} onValueChange={(v) => setFormData({ ...formData, categoria: v })}>
@@ -613,11 +629,12 @@ export const Integrators = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-5 gap-3 mb-4">
             <div className="bg-white rounded-lg border p-3"><div className="text-xs text-slate-500">Total</div><div className="text-xl font-bold text-slate-900">{integrators.length}</div></div>
             <div className="bg-white rounded-lg border border-green-200 p-3"><div className="text-xs text-green-600">Certificados</div><div className="text-xl font-bold text-green-700">{integrators.filter(i => i.integrator_status === 'Certificado').length}</div></div>
             <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">En proceso</div><div className="text-xl font-bold text-amber-700">{integrators.filter(i => i.integrator_status === 'En proceso').length}</div></div>
             <div className="bg-white rounded-lg border border-red-200 p-3"><div className="text-xs text-red-600">Suspendidos</div><div className="text-xl font-bold text-red-700">{integrators.filter(i => i.integrator_status === 'Suspendido').length}</div></div>
+            <div className="bg-white rounded-lg border border-yellow-300 p-3"><div className="text-xs text-yellow-600">Sin Asignar</div><div className="text-xl font-bold text-yellow-700">{integrators.filter(i => !i.gestor).length}</div></div>
           </div>
 
           {/* Table */}
@@ -653,7 +670,7 @@ export const Integrators = () => {
                     <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No se encontraron integradores</td></tr>
                   ) : filteredIntegrators.map((intg) => (
                     <Fragment key={intg.integrator_id}>
-                      <tr className="hover:bg-slate-50 transition-colors" data-testid={`integrator-row-${intg.integrator_id}`}>
+                      <tr className={`transition-colors ${!intg.gestor ? 'bg-amber-50/60 hover:bg-amber-100/60' : 'hover:bg-slate-50'}`} data-testid={`integrator-row-${intg.integrator_id}`}>
                         <td className="px-3 py-2">
                           <p className="font-medium text-slate-900 text-sm truncate" title={intg.name}>{intg.name}</p>
                         </td>
@@ -670,7 +687,22 @@ export const Integrators = () => {
                           <span className="text-[10px] text-slate-600 truncate block" title={intg.integration_modality}>{intg.integration_modality}</span>
                         </td>
                         <td className="px-2 py-2">
-                          <p className="text-[10px] text-slate-600 truncate" title={intg.gestor || ''}>{intg.gestor || '—'}</p>
+                          {intg.gestor ? (
+                            <p className="text-[10px] text-slate-600 truncate" title={intg.gestor}>{intg.gestor}</p>
+                          ) : (
+                            <Select onValueChange={(userId) => handleAssignGestor(intg.integrator_id, userId)}>
+                              <SelectTrigger className="h-7 text-[10px] border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 w-full" data-testid={`assign-gestor-${intg.integrator_id}`}>
+                                <SelectValue placeholder="Asignar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {users.map(u => (
+                                  <SelectItem key={u.user_id} value={u.user_id} className="text-xs">
+                                    {u.full_name || u.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                         <td className="px-2 py-2 text-center">
                           <span className="text-[10px] text-slate-500 truncate block" title={intg.categoria || ''}>{intg.categoria ? intg.categoria.replace('Cliente/Integrador ', '') : '—'}</span>
