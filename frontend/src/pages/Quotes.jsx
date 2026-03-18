@@ -2047,6 +2047,7 @@ export const Quotes = () => {
     'invoice': 'Factura / Proforma',
     'collect': 'Cobranza',
     'deliver': 'Entregar',
+    'send-to-client': 'Enviar al Cliente',
     'send-to-implementation': 'Enviar a Implementación',
   };
 

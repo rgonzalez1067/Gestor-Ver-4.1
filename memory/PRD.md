@@ -54,6 +54,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ### Modulo de Cotizaciones
 - Wizard multi-tipo, Protocolo de Excepcion, PDF, Segmentacion Pyme/Corp
+- **Optimizacion (2026-03-18)**: Regularizacion de estados (pasos omitidos ejecutables sin retroceder estado), terminologia actualizada (Aprobacion, Factura/Proforma, Cobranza), modal envio con mensaje personalizado (200 chars) + CC dinamicos. VALIDADO iter_113
 
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones
