@@ -7,7 +7,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Backend**: FastAPI + MongoDB (motor_asyncio)
 - **Frontend**: React + Shadcn/UI + Tailwind CSS
 - **Auth**: JWT con bcrypt
-- **PDF**: reportlab (paginacion, multi-columna, word-wrap, anchos fijos)
+- **PDF**: reportlab (paginacion, multi-columna, word-wrap, anchos porcentuales, PageBreak)
 
 ## Funcionalidades Implementadas
 
@@ -65,8 +65,16 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Carga masiva Excel con validacion anti-duplicados
 - Logistica de Despacho (Personalizada/Courier) con Domesa
 - Transferencia → Precarga obligatoria en destino
-- Multi-columna seriales en PDFs, anchos fijos, word-wrap
+- Multi-columna seriales en PDFs, anchos porcentuales, word-wrap
 - Nota de Entrega PDF (NE-YYYY-XXXX) y Nota de Transferencia PDF (TRF-YYYY-XXXX)
+- **Correcciones PDF Layout (2026-03-18)**:
+  - Fix overflow lateral: table-layout fixed con anchos porcentuales (CONTENT_W * 0.XX)
+  - Direccion multi-linea con ParagraphStyle wordWrap='CJK' (2-3 lineas)
+  - PageBreak forzado: Seccion 5 "Recepcion y Conformidad" inicia en pagina 2
+  - Encabezado persistente en paginas 2+ (logo + titulo + info compacta)
+  - Fix NumberedCanvas: _startPage() en vez de super().showPage() (elimina duplicacion)
+  - Paginacion "Pagina X/Y" correcta en ambos documentos
+  - VALIDADO: 19/19 backend tests (iteration_112)
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
