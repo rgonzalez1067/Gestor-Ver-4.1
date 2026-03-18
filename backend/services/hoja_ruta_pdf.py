@@ -8,7 +8,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image,
-    KeepTogether,
+    KeepTogether, PageBreak,
 )
 from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER
@@ -41,15 +41,15 @@ class NumberedCanvas(pdfgen_canvas.Canvas):
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
-        super().showPage()
+        self._startPage()
 
     def save(self):
         total = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_page_number(total)
-            super().showPage()
-        super().save()
+            pdfgen_canvas.Canvas.showPage(self)
+        pdfgen_canvas.Canvas.save(self)
 
     def _draw_page_number(self, total):
         self.setFont("Helvetica", 7)
@@ -191,9 +191,6 @@ def generate_nota_entrega_pdf(
         fontSize=8, textColor=COLOR_GRIS, leading=10)
     s_value = ParagraphStyle("NEValue", parent=styles["Normal"],
         fontSize=9, textColor=colors.black, fontName="Helvetica-Bold", leading=12)
-    s_value_wrap = ParagraphStyle("NEValueWrap", parent=styles["Normal"],
-        fontSize=9, textColor=colors.black, fontName="Helvetica-Bold",
-        leading=12, wordWrap="CJK")
     s_small = ParagraphStyle("NESmall", parent=styles["Normal"],
         fontSize=7, textColor=COLOR_GRIS, leading=9)
     s_cell = ParagraphStyle("NECell", parent=styles["Normal"],
@@ -224,7 +221,7 @@ def generate_nota_entrega_pdf(
 
     # ==================== 1. INFO DOCUMENTO ====================
     elements.append(Paragraph("1. Informacion del Documento", s_section))
-    cw = [3.8 * cm, 4.5 * cm, 3.8 * cm, CONTENT_W - 3.8 - 4.5 - 3.8 * cm]
+    cw = [CONTENT_W * 0.22, CONTENT_W * 0.28, CONTENT_W * 0.22, CONTENT_W * 0.28]
     doc_data = [
         [Paragraph("Nro. Correlativo:", s_label), Paragraph(correlativo, s_value),
          Paragraph("Fecha de Emision:", s_label), Paragraph(fecha_str, s_value)],
@@ -248,8 +245,11 @@ def generate_nota_entrega_pdf(
 
     # ==================== 2. CLIENTE Y DESTINO ====================
     elements.append(Paragraph("2. Datos del Cliente y Destino", s_section))
-    address_para = Paragraph(client_address or "—", s_value_wrap)
-    cw2 = [3.8 * cm, 5.5 * cm, 2.8 * cm, CONTENT_W - 3.8 - 5.5 - 2.8 * cm]
+    s_value_addr = ParagraphStyle("NEValueAddr", parent=styles["Normal"],
+        fontSize=9, textColor=colors.black, fontName="Helvetica-Bold",
+        leading=12, wordWrap="CJK")
+    address_para = Paragraph(client_address or "—", s_value_addr)
+    cw2 = [CONTENT_W * 0.22, CONTENT_W * 0.32, CONTENT_W * 0.16, CONTENT_W * 0.30]
     client_data = [
         [Paragraph("Razon Social:", s_label), Paragraph(client_name or "—", s_value),
          Paragraph("RIF:", s_label), Paragraph(client_rif or "—", s_value)],
@@ -396,7 +396,8 @@ def generate_nota_entrega_pdf(
              Paragraph(receiver_phone or "___________________________", s_value)],
         ])
 
-    log_tbl = Table(log_data, colWidths=[4.5 * cm, CONTENT_W - 4.5 * cm])
+    log_cw = [CONTENT_W * 0.28, CONTENT_W * 0.72]
+    log_tbl = Table(log_data, colWidths=log_cw)
     log_tbl.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, COLOR_BORDE),
@@ -405,23 +406,31 @@ def generate_nota_entrega_pdf(
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
     ]))
-    # Wrap in KeepTogether to avoid splitting logistics from its header
     elements.append(KeepTogether([log_tbl]))
 
     # ==================== 5. RECEPCION Y CONFORMIDAD ====================
+    # Salto de página forzado para dejar espacio limpio de firma
+    elements.append(PageBreak())
+
+    # El encabezado persistente (logo + título + info) ya se dibuja
+    # automáticamente en páginas 2+ por _draw_persistent_header.
+    # Solo agregamos espaciado adicional (~4 líneas) antes de la sección.
+    elements.append(Spacer(1, 1.5 * cm))
+
     elements.append(Paragraph("5. Recepcion y Conformidad del Cliente", s_section))
     elements.append(Paragraph(
         "<i>Certifico haber recibido los equipos arriba descritos en perfecto estado y a entera satisfaccion.</i>",
         ParagraphStyle("NEDisclaimer", parent=styles["Normal"],
             fontSize=8, textColor=COLOR_GRIS, leading=10, spaceAfter=6)
     ))
+    rec_cw = [CONTENT_W * 0.28, CONTENT_W * 0.72]
     rec_data = [
         [Paragraph("Nombre de quien recibe:", s_label), Paragraph("___________________________", s_value)],
         [Paragraph("Cedula / RIF:", s_label), Paragraph("___________________________", s_value)],
         [Paragraph("Fecha y Hora:", s_label), Paragraph("____/____/________    ____:____", s_value)],
         [Paragraph("Firma y Sello:", s_label), ""],
     ]
-    rec_tbl = Table(rec_data, colWidths=[4.5 * cm, CONTENT_W - 4.5 * cm],
+    rec_tbl = Table(rec_data, colWidths=rec_cw,
                     rowHeights=[None, None, None, 2.5 * cm])
     rec_tbl.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -431,7 +440,7 @@ def generate_nota_entrega_pdf(
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
     ]))
-    elements.append(KeepTogether([rec_tbl]))
+    elements.append(rec_tbl)
 
     # Build with NumberedCanvas for X/Y pagination
     doc.build(

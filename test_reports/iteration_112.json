@@ -1,0 +1,76 @@
+{
+  "summary": "Iteration 112 - PDF Layout Fixes Testing Complete. All 19 backend tests PASSED (100%). Verified: (1) Nota Entrega generates exactly 2 pages, (2) Page 1 has sections 1-4 only (no Recepcion), (3) Page 2 has persistent header + Recepcion section, (4) Long address wraps without overflow, (5) Column widths sum to CONTENT_W (509.95 pts), (6) Pagination shows 'Pagina 1/2' and '2/2', (7) No duplicate pages (NumberedCanvas fix), (8) Transfer Note uses percentage-based widths.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration112_pdf_layout_fixes.py",
+    "/app/test_reports/pytest/pytest_results_iteration112.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "hoja_ruta_pdf.py Line 44: NumberedCanvas.showPage() correctly uses self._startPage() instead of super().showPage() - prevents page duplication",
+    "hoja_ruta_pdf.py Line 224: Section 1 uses percentage-based widths: [0.22, 0.28, 0.22, 0.28] * CONTENT_W = 100%",
+    "hoja_ruta_pdf.py Line 252: Section 2 uses percentage-based widths: [0.22, 0.32, 0.16, 0.30] * CONTENT_W = 100%",
+    "hoja_ruta_pdf.py Lines 248-250: Address uses ParagraphStyle with wordWrap='CJK' for multi-line wrap",
+    "hoja_ruta_pdf.py Line 413: PageBreak() added before section 5 to force Recepcion onto page 2",
+    "hoja_ruta_pdf.py Line 418: Spacer(1, 1.5*cm) provides ~4-line margin after header on page 2",
+    "transfer_note_pdf.py Line 44: Transfer Note NumberedCanvas also uses self._startPage()",
+    "transfer_note_pdf.py Lines 225, 255: Both info sections use percentage-based column widths",
+    "transfer_note_pdf.py Line 391: Signature column uses CONTENT_W * 0.48 (percentage-based)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration112_pdf_layout_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend": "N/A (backend-only testing)"
+  },
+  "test_credentials": {
+    "email": "test@mega.com",
+    "password": "Admin123!"
+  },
+  "seed_data_creation": "No database seed data created - tests use in-memory PDF generation",
+  "verified_features": {
+    "NOTA_ENTREGA_PDF": {
+      "test_01_generates_exactly_2_pages": "PASSED - PDF generates exactly 2 pages as required",
+      "test_02_page1_no_recepcion": "PASSED - Page 1 contains sections 1-4, NO section 5 (Recepcion)",
+      "test_03_page2_header_and_recepcion": "PASSED - Page 2 has persistent header 'NOTA DE ENTREGA' + section 5",
+      "test_04_long_address_wraps": "PASSED - 100+ char address wraps without overflow",
+      "test_05_pagination_correct": "PASSED - Shows 'Pagina 1/2' and 'Pagina 2/2'",
+      "test_06_no_duplicate_pages": "PASSED - NumberedCanvas fix prevents duplicates",
+      "test_07_column_widths_sum": "PASSED - All sections use percentage widths summing to CONTENT_W",
+      "test_08_content_width_calc": "PASSED - CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R = 509.95 pts"
+    },
+    "TRANSFER_NOTE_PDF": {
+      "test_01_generates_without_error": "PASSED - PDF generates successfully",
+      "test_02_section1_percentage_widths": "PASSED - 'Informacion de la Transferencia' uses percentages",
+      "test_03_route_section_widths": "PASSED - 'Ruta de Transferencia' uses percentages",
+      "test_04_signature_width": "PASSED - Signature column uses CONTENT_W * 0.48",
+      "test_05_no_overflow": "PASSED - Content stays within page boundaries",
+      "test_06_pinpad_note": "PASSED - Technical note appears for Pinpad items",
+      "test_07_pagination": "PASSED - Page numbers displayed correctly"
+    },
+    "NUMBERED_CANVAS_FIX": {
+      "test_01_nota_entrega_uses_start_page": "PASSED - showPage() uses self._startPage()",
+      "test_02_transfer_note_uses_start_page": "PASSED - Transfer Note showPage() uses self._startPage()"
+    },
+    "ADDRESS_WRAP": {
+      "test_01_very_long_address": "PASSED - 200+ char address handled correctly",
+      "test_02_special_characters": "PASSED - Venezuelan special chars (Ñ, °) handled"
+    }
+  },
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 112 tested PDF layout fixes for Nota de Entrega and Nota de Transferencia. Key fixes verified: (1) NumberedCanvas.showPage() uses _startPage() to prevent page duplication, (2) Column widths use percentage-based calculation (CONTENT_W * 0.XX), (3) PageBreak() before section 5 ensures Recepcion starts on page 2, (4) Address ParagraphStyle has wordWrap='CJK' for multi-line support. All 19 tests passed.",
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

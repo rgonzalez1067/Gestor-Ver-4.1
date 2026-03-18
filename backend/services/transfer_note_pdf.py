@@ -41,15 +41,15 @@ class NumberedCanvas(pdfgen_canvas.Canvas):
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
-        super().showPage()
+        self._startPage()
 
     def save(self):
         total = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_page_number(total)
-            super().showPage()
-        super().save()
+            pdfgen_canvas.Canvas.showPage(self)
+        pdfgen_canvas.Canvas.save(self)
 
     def _draw_page_number(self, total):
         self.setFont("Helvetica", 7)
@@ -222,7 +222,7 @@ def generate_transfer_note_pdf(
 
     # ==================== 1. INFORMACION DE TRANSFERENCIA ====================
     elements.append(Paragraph("1. Informacion de la Transferencia", s_section))
-    cw = [3.8 * cm, 4.5 * cm, 3.8 * cm, CONTENT_W - 3.8 - 4.5 - 3.8 * cm]
+    cw = [CONTENT_W * 0.22, CONTENT_W * 0.28, CONTENT_W * 0.22, CONTENT_W * 0.28]
     doc_data = [
         [
             Paragraph("Nro. Transferencia:", s_label),
@@ -252,7 +252,7 @@ def generate_transfer_note_pdf(
 
     # ==================== 2. RUTA DE TRANSFERENCIA ====================
     elements.append(Paragraph("2. Ruta de Transferencia", s_section))
-    cw2 = [3.8 * cm, CONTENT_W / 2 - 3.8 * cm, 3.8 * cm, CONTENT_W / 2 - 3.8 * cm]
+    cw2 = [CONTENT_W * 0.22, CONTENT_W * 0.28, CONTENT_W * 0.22, CONTENT_W * 0.28]
     route_data = [
         [
             Paragraph("Almacen Origen:", s_label),
@@ -388,7 +388,7 @@ def generate_transfer_note_pdf(
     elements.append(Paragraph("4. Firmas de Responsabilidad", s_section))
 
     # Sub-bloque: Entregado Por (Origen) y Recibido Por
-    sig_col = CONTENT_W / 2 - 0.5 * cm
+    sig_col = CONTENT_W * 0.48
     sig_label = ParagraphStyle(
         "SigLabel", parent=styles["Normal"],
         fontSize=8, textColor=COLOR_GRIS, leading=10,
