@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
-  FileText, Send, Calendar, User
+  FileText, Send, Calendar, User, Store
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -27,6 +27,7 @@ const ProjectDetail = () => {
   const [bitacoraText, setBitacoraText] = useState('');
   const [bitacoraDate, setBitacoraDate] = useState(new Date().toISOString().split('T')[0]);
   const [bitacoraSubmitting, setBitacoraSubmitting] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -50,6 +51,18 @@ const ProjectDetail = () => {
       });
       fetchProject();
     } catch (err) { toast.error('Error actualizando fase'); }
+  };
+
+  const toggleStorePhase = async (storeId, bankName, productName, phase, currentlyCompleted) => {
+    try {
+      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+        bank_name: bankName,
+        product_name: productName,
+        phase: phase,
+        completed: !currentlyCompleted
+      });
+      fetchProject();
+    } catch (err) { toast.error('Error actualizando fase de tienda'); }
   };
 
   const handleAddBitacora = async () => {
@@ -134,6 +147,14 @@ const ProjectDetail = () => {
           {/* Implementation Matrix */}
           <div className="mb-6">
             <h2 className="text-lg font-bold text-slate-900 mb-3">Matriz de Implementación</h2>
+            {project.project_type === 'multistore' && (
+              <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                  <Store size={16} className="text-blue-600" />
+                  Proyecto Multitienda — Las matrices por tienda se encuentran más abajo
+                </p>
+              </div>
+            )}
             {bankNames.length === 0 ? (
               <div className="text-center py-10 bg-slate-50 rounded-lg border">
                 <p className="text-slate-400">No hay datos en la matriz de implementación</p>
@@ -169,6 +190,97 @@ const ProjectDetail = () => {
               </div>
             )}
           </div>
+
+          {/* Sección Multitienda: Matrices por Tienda */}
+          {project.project_type === 'multistore' && project.stores && project.stores.length > 0 && (
+            <div className="mb-6" data-testid="multistore-section">
+              <h2 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <Store size={20} className="text-blue-600" />
+                Seguimiento por Tienda ({project.stores.length})
+              </h2>
+
+              {/* Tabs para seleccionar tienda */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {project.stores.map((store) => {
+                  const storeMatrix = store.implementation_matrix || {};
+                  const totalPhases = Object.values(storeMatrix).reduce((sum, products) => {
+                    return sum + Object.values(products).reduce((pSum, phases) => {
+                      return pSum + Object.values(phases).filter(p => p?.completed).length;
+                    }, 0);
+                  }, 0);
+                  const maxPhases = Object.values(storeMatrix).reduce((sum, products) => {
+                    return sum + Object.keys(products).length * PHASES.length;
+                  }, 0);
+                  const progress = maxPhases > 0 ? Math.round((totalPhases / maxPhases) * 100) : 0;
+                  const isActive = selectedStoreId === store.store_id;
+                  return (
+                    <button
+                      key={store.store_id}
+                      onClick={() => setSelectedStoreId(isActive ? null : store.store_id)}
+                      className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                      data-testid={`store-tab-${store.store_id}`}
+                    >
+                      <span className="font-semibold">{store.name}</span>
+                      <span className={`ml-2 text-xs ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
+                        {store.box_count} caja{store.box_count !== 1 ? 's' : ''} · {progress}%
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Matriz de la tienda seleccionada */}
+              {selectedStoreId && (() => {
+                const store = project.stores.find(s => s.store_id === selectedStoreId);
+                if (!store) return null;
+                const storeMatrix = store.implementation_matrix || {};
+                const storeBankNames = Object.keys(storeMatrix);
+                return (
+                  <div className="bg-white rounded-lg border border-blue-200 p-4" data-testid={`store-matrix-${store.store_id}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Store size={16} className="text-blue-600" />
+                          {store.name}
+                        </h3>
+                        <p className="text-xs text-slate-500">{store.box_count} caja{store.box_count !== 1 ? 's' : ''} · Estado: {store.status || 'Pendiente'}</p>
+                      </div>
+                    </div>
+                    {storeBankNames.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-6">Sin datos en la matriz de esta tienda</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="w-full">
+                          <thead>
+                            <tr>
+                              <th className="bg-blue-600 text-white px-4 py-2.5 text-left text-xs font-semibold min-w-[200px]">Bancos / Productos</th>
+                              {PHASES.map(phase => (
+                                <th key={phase} className={`px-3 py-2.5 text-center text-xs font-semibold border-l border-slate-200 min-w-[100px] ${PHASE_COLORS[phase]}`}>{phase}</th>
+                              ))}
+                              <th className="bg-blue-600 text-white px-3 py-2.5 text-center text-xs font-semibold border-l border-slate-200">Avance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {storeBankNames.map(bankName => {
+                              const products = Object.keys(storeMatrix[bankName]);
+                              return (
+                                <StoreBankSection key={bankName} bankName={bankName} products={products}
+                                  matrixData={storeMatrix[bankName]} storeId={store.store_id} onTogglePhase={toggleStorePhase} />
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Bitácora de Seguimiento */}
           <div className="mb-6">
@@ -274,3 +386,47 @@ const BankSection = ({ bankName, products, matrixData, onTogglePhase }) => {
 };
 
 export default ProjectDetail;
+
+// Sub-component: Store Bank section with products (for multistore)
+const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePhase }) => {
+  return (
+    <>
+      <tr className="bg-blue-50 border-t-2 border-blue-200">
+        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={PHASES.length + 2}>
+          <Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}
+        </td>
+      </tr>
+      {products.map(productName => {
+        const phases = matrixData[productName] || {};
+        return (
+          <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
+            <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
+            {PHASES.map(phase => {
+              const phaseData = phases[phase];
+              const completed = phaseData?.completed || false;
+              return (
+                <td key={phase} className="px-3 py-2.5 text-center border-l border-slate-100">
+                  <button
+                    onClick={() => onTogglePhase(storeId, bankName, productName, phase, completed)}
+                    className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-all ${
+                      completed
+                        ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
+                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                    }`}
+                    title={completed ? `${phase}: Completado por ${phaseData?.updated_by || ''}` : `Marcar ${phase}`}
+                    data-testid={`store-phase-${storeId}-${bankName}-${productName}-${phase}`}
+                  >
+                    {completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                  </button>
+                </td>
+              );
+            })}
+            <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400">
+              {Object.values(phases).filter(p => p?.completed).length}/{PHASES.length}
+            </td>
+          </tr>
+        );
+      })}
+    </>
+  );
+};

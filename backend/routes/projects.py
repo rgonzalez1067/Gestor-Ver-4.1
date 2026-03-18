@@ -233,6 +233,53 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
     return {"message": "Fase actualizada", "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
 
 
+@router.put("/projects/{project_id}/stores/{store_id}/matrix/phase")
+async def update_store_matrix_phase(project_id: str, store_id: str, phase_update: PhaseUpdate, authorization: Optional[str] = Header(None)):
+    """Actualizar una fase de la matriz de implementación de una tienda específica"""
+    current_user = await get_current_user(authorization)
+    if phase_update.phase not in IMPLEMENTATION_PHASES:
+        raise HTTPException(status_code=400, detail=f"Fase inválida. Válidas: {IMPLEMENTATION_PHASES}")
+
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if project.get("project_type") != "multistore":
+        raise HTTPException(status_code=400, detail="Este proyecto no es multitienda")
+
+    stores = project.get("stores", [])
+    store_idx = next((i for i, s in enumerate(stores) if s.get("store_id") == store_id), None)
+    if store_idx is None:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada en el proyecto")
+
+    store = stores[store_idx]
+    matrix = store.get("implementation_matrix", {})
+    bank_key = phase_update.bank_name
+    if bank_key not in matrix:
+        matrix[bank_key] = {}
+    if phase_update.product_name not in matrix[bank_key]:
+        matrix[bank_key][phase_update.product_name] = {}
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+
+    matrix[bank_key][phase_update.product_name][phase_update.phase] = {
+        "completed": phase_update.completed,
+        "updated_at": now,
+        "updated_by": user_name
+    }
+
+    # Actualizar la tienda dentro del array de stores
+    await db.projects.update_one(
+        {"project_id": project_id, "stores.store_id": store_id},
+        {"$set": {
+            "stores.$.implementation_matrix": matrix,
+            "updated_at": now
+        }}
+    )
+
+    return {"message": "Fase de tienda actualizada", "store_id": store_id, "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
+
+
 # ==================== BITÁCORA ====================
 
 @router.post("/projects/{project_id}/bitacora")

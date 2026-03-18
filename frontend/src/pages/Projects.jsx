@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { toast } from 'sonner';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -237,11 +237,18 @@ const Projects = () => {
                         <td className="px-4 py-3">
                           <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
                           <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
-                          {project.is_irregular && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 border border-orange-200" data-testid="project-irregular-badge">
-                              <AlertTriangle size={10} />Irregular
-                            </span>
-                          )}
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {project.project_type === 'multistore' && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200" data-testid="project-multistore-badge">
+                                <Store size={10} />Multitienda ({project.stores?.length || 0})
+                              </span>
+                            )}
+                            {project.is_irregular && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 border border-orange-200" data-testid="project-irregular-badge">
+                                <AlertTriangle size={10} />Irregular
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <p className="text-sm font-medium text-slate-800">{project.client_name}</p>

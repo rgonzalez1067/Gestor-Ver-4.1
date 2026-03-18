@@ -358,8 +358,12 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     }
 
 
+class SendToImplementationRequest(BaseModel):
+    is_multistore: Optional[bool] = False
+    stores: Optional[list] = None
+
 @router.post("/quotes/{quote_id}/send-to-implementation")
-async def send_quote_to_implementation(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
     """Envía la cotización al equipo de implementación. Soporta flujo irregular."""
     current_user = await get_current_user(authorization)
     
@@ -437,7 +441,10 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
         # Re-leer la cotización antes de eliminarla para tener todos los datos
         quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
         if quote_for_project:
-            await _create_project_from_quote(quote_for_project, quote_id)
+            multistore_data = None
+            if body and body.is_multistore and body.stores:
+                multistore_data = {"is_multistore": True, "stores": body.stores}
+            await _create_project_from_quote(quote_for_project, quote_id, multistore_data)
     except Exception as e:
         logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
@@ -988,7 +995,7 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
 
 # ==================== PROJECT TRIGGER ====================
 
-async def _create_project_from_quote(quote: dict, quote_id: str):
+async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None):
     """Crea un proyecto a partir de una cotización enviada a implementación"""
     existing = await db.projects.find_one({"quote_id": quote_id})
     if existing:
@@ -1105,7 +1112,32 @@ async def _create_project_from_quote(quote: dict, quote_id: str):
             "created_at": now.isoformat(),
         }],
         "created_at": now.isoformat(),
+        "project_type": "single",
     }
+
+    # Soporte Multitienda
+    if multistore_data and multistore_data.get("is_multistore"):
+        stores_raw = multistore_data.get("stores", [])
+        project["project_type"] = "multistore"
+        project["stores"] = []
+        for store in stores_raw:
+            store_entry = {
+                "store_id": f"st_{uuid.uuid4().hex[:8]}",
+                "name": store.get("name", ""),
+                "box_count": store.get("box_count", 0),
+                "implementation_matrix": dict(implementation_matrix),
+                "status": "Pendiente",
+                "notes": [],
+            }
+            project["stores"].append(store_entry)
+        # Nota especial para multitienda
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Proyecto Multitienda con {len(stores_raw)} tienda(s): {', '.join(s.get('name', '') for s in stores_raw)}",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
 
     await db.projects.insert_one(project)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")

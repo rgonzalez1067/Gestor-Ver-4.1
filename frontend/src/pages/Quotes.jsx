@@ -9,7 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown, Store } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { AnexosModal } from '../components/AnexosModal';
@@ -224,6 +224,16 @@ export const Quotes = () => {
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
   const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
+
+  // Estado para flujo Multitienda
+  const [multistoreDialogOpen, setMultistoreDialogOpen] = useState(false);
+  const [multistoreQuoteId, setMultistoreQuoteId] = useState(null);
+  const [multistoreExceptionInfo, setMultistoreExceptionInfo] = useState(null);
+  const [isMultistore, setIsMultistore] = useState(null); // null = no decidido, true/false
+  const [multistoreStores, setMultistoreStores] = useState([]);
+  const [multistoreNewStore, setMultistoreNewStore] = useState({ name: '', box_count: '' });
+  const [multistorePhase, setMultistorePhase] = useState('ask'); // 'ask' | 'collect' | 'confirm'
+  const [multistoreSending, setMultistoreSending] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -1963,6 +1973,8 @@ export const Quotes = () => {
       _openInvoiceModalDirect(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'collect') {
       openCollectConfirm(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action === 'send-to-implementation') {
+      openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
     }
   };
 
@@ -2134,8 +2146,8 @@ export const Quotes = () => {
     fetchData();
   };
 
-  // Enviar a implementación
-  const handleSendToImplementation = async (quoteId, exceptionInfo) => {
+  // Enviar a implementación (con soporte multitienda)
+  const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null) => {
     setActionLoading(quoteId);
     try {
       const headers = {};
@@ -2143,7 +2155,12 @@ export const Quotes = () => {
         headers['x-exception-reason'] = exceptionInfo.reason;
         headers['x-regularization-date'] = exceptionInfo.regularization_date;
       }
-      const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, {}, { headers });
+      const body = {};
+      if (storesData && storesData.length > 0) {
+        body.is_multistore = true;
+        body.stores = storesData;
+      }
+      const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
       if (response.data.status === 'simulated') {
         toast.warning(response.data.message);
@@ -2158,6 +2175,66 @@ export const Quotes = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // ==================== FLUJO MULTITIENDA ====================
+  const openMultistoreDialog = (quoteId, exceptionInfo) => {
+    setMultistoreQuoteId(quoteId);
+    setMultistoreExceptionInfo(exceptionInfo);
+    setIsMultistore(null);
+    setMultistoreStores([]);
+    setMultistoreNewStore({ name: '', box_count: '' });
+    setMultistorePhase('ask');
+    setMultistoreSending(false);
+    setMultistoreDialogOpen(true);
+  };
+
+  const getMultistoreQuote = () => quotes.find(q => q.quote_id === multistoreQuoteId);
+
+  const getMultistoreTotalCajas = () => {
+    const q = getMultistoreQuote();
+    return q?.cantidad_cajas || q?.services?.reduce((sum, s) => Math.max(sum, s.cantidad_cajas || 0), 0) || 1;
+  };
+
+  const multistoreAssignedBoxes = multistoreStores.reduce((sum, s) => sum + (s.box_count || 0), 0);
+
+  const handleMultistoreAnswer = (answer) => {
+    if (answer) {
+      setIsMultistore(true);
+      setMultistorePhase('collect');
+    } else {
+      // No es multitienda — ejecutar directamente
+      setMultistoreDialogOpen(false);
+      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+    }
+  };
+
+  const addMultistoreStore = () => {
+    const name = multistoreNewStore.name.trim();
+    const boxCount = parseInt(multistoreNewStore.box_count) || 0;
+    if (!name) { toast.error('Ingrese el nombre de la tienda'); return; }
+    if (boxCount <= 0) { toast.error('La cantidad de cajas debe ser mayor a 0'); return; }
+    const totalCajas = getMultistoreTotalCajas();
+    const remaining = totalCajas - multistoreAssignedBoxes;
+    if (boxCount > remaining) { toast.error(`Solo quedan ${remaining} caja(s) por asignar`); return; }
+    setMultistoreStores([...multistoreStores, { name, box_count: boxCount }]);
+    setMultistoreNewStore({ name: '', box_count: '' });
+  };
+
+  const removeMultistoreStore = (index) => {
+    setMultistoreStores(multistoreStores.filter((_, i) => i !== index));
+  };
+
+  const confirmMultistore = async () => {
+    const totalCajas = getMultistoreTotalCajas();
+    if (multistoreAssignedBoxes !== totalCajas) {
+      toast.error(`Debe asignar exactamente ${totalCajas} caja(s). Asignadas: ${multistoreAssignedBoxes}`);
+      return;
+    }
+    setMultistoreSending(true);
+    setMultistoreDialogOpen(false);
+    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, multistoreStores);
+    setMultistoreSending(false);
   };
 
   // Modificar cotización (abrir wizard con datos precargados)
@@ -4615,6 +4692,143 @@ export const Quotes = () => {
             exceptionInfo={deliveryExceptionInfo}
             onDelivered={() => fetchData()}
           />
+
+          {/* Diálogo Multitienda */}
+          <Dialog open={multistoreDialogOpen} onOpenChange={(open) => { if (!open && !multistoreSending) { setMultistoreDialogOpen(false); } }}>
+            <DialogContent className="max-w-lg" data-testid="multistore-dialog">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Store size={20} className="text-blue-600" />
+                  Enviar a Implementación
+                </DialogTitle>
+              </DialogHeader>
+
+              {/* Fase 1: Pregunta Multitienda */}
+              {multistorePhase === 'ask' && (
+                <div className="space-y-4 py-2" data-testid="multistore-ask-phase">
+                  <p className="text-sm text-slate-600">¿Esta implementación es <strong>Multitienda</strong>?</p>
+                  <p className="text-xs text-slate-400">Si el proyecto incluye múltiples sucursales o tiendas, seleccione "Sí" para registrar los datos de cada una.</p>
+                  <div className="flex gap-3 justify-end pt-2">
+                    <Button variant="outline" onClick={() => handleMultistoreAnswer(false)} data-testid="multistore-no-btn">
+                      No, tienda única
+                    </Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleMultistoreAnswer(true)} data-testid="multistore-yes-btn">
+                      <Store size={14} className="mr-1.5" />
+                      Sí, Multitienda
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase 2: Recolectar tiendas */}
+              {multistorePhase === 'collect' && (
+                <div className="space-y-4 py-2" data-testid="multistore-collect-phase">
+                  {(() => {
+                    const totalCajas = getMultistoreTotalCajas();
+                    const remaining = totalCajas - multistoreAssignedBoxes;
+                    return (
+                      <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-800">Total de cajas en cotización:</span>
+                            <span className="text-lg font-bold text-blue-900">{totalCajas}</span>
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-sm text-blue-700">Cajas asignadas:</span>
+                            <span className={`text-sm font-semibold ${multistoreAssignedBoxes === totalCajas ? 'text-emerald-600' : 'text-blue-700'}`}>{multistoreAssignedBoxes} / {totalCajas}</span>
+                          </div>
+                          {remaining > 0 && (
+                            <div className="mt-1 text-xs text-blue-600">Faltan {remaining} caja(s) por asignar</div>
+                          )}
+                          {remaining === 0 && (
+                            <div className="mt-1 text-xs text-emerald-600 font-medium">Todas las cajas han sido asignadas</div>
+                          )}
+                        </div>
+
+                        {/* Lista de tiendas registradas */}
+                        {multistoreStores.length > 0 && (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-slate-50 border-b">
+                                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">#</th>
+                                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Tienda</th>
+                                  <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600">Cajas</th>
+                                  <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-10"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {multistoreStores.map((store, idx) => (
+                                  <tr key={idx} className="border-b last:border-0 hover:bg-slate-50" data-testid={`multistore-row-${idx}`}>
+                                    <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
+                                    <td className="px-3 py-2 font-medium text-slate-800">{store.name}</td>
+                                    <td className="px-3 py-2 text-center text-slate-700">{store.box_count}</td>
+                                    <td className="px-3 py-2 text-center">
+                                      <button onClick={() => removeMultistoreStore(idx)} className="text-red-400 hover:text-red-600 transition-colors" data-testid={`multistore-remove-${idx}`}>
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Formulario para agregar tienda */}
+                        {remaining > 0 && (
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Label className="text-xs text-slate-500">Nombre de tienda</Label>
+                              <Input
+                                placeholder="Ej: Tienda Centro, Sucursal Norte..."
+                                value={multistoreNewStore.name}
+                                onChange={(e) => setMultistoreNewStore({ ...multistoreNewStore, name: e.target.value })}
+                                data-testid="multistore-store-name"
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMultistoreStore(); } }}
+                              />
+                            </div>
+                            <div className="w-24">
+                              <Label className="text-xs text-slate-500">Cajas</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                max={remaining}
+                                placeholder="Cant."
+                                value={multistoreNewStore.box_count}
+                                onChange={(e) => setMultistoreNewStore({ ...multistoreNewStore, box_count: e.target.value })}
+                                data-testid="multistore-store-boxes"
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMultistoreStore(); } }}
+                              />
+                            </div>
+                            <Button variant="outline" size="sm" onClick={addMultistoreStore} data-testid="multistore-add-store-btn" className="shrink-0">
+                              <Plus size={14} className="mr-1" /> Agregar
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Botones de acción */}
+                        <div className="flex justify-between items-center pt-3 border-t">
+                          <Button variant="ghost" size="sm" onClick={() => { setMultistorePhase('ask'); setMultistoreStores([]); }} data-testid="multistore-back-btn">
+                            Volver
+                          </Button>
+                          <Button
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={multistoreAssignedBoxes !== totalCajas || multistoreStores.length === 0}
+                            onClick={confirmMultistore}
+                            data-testid="multistore-confirm-btn"
+                          >
+                            <Send size={14} className="mr-1.5" />
+                            Confirmar y Enviar ({multistoreStores.length} tienda{multistoreStores.length !== 1 ? 's' : ''})
+                          </Button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </main>
     </div>
