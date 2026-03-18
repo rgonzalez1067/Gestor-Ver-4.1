@@ -208,6 +208,14 @@ export const Quotes = () => {
   // Bitácora de Flujo (Historial de Excepciones)
   const [bitacoraFlujoOpen, setBitacoraFlujoOpen] = useState(false);
   const [bitacoraFlujoQuoteId, setBitacoraFlujoQuoteId] = useState(null);
+  
+  // Modal de envío con mensaje personalizado y CC
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailModalConfig, setEmailModalConfig] = useState({ action: '', quoteId: '', quoteName: '' });
+  const [emailCustomMessage, setEmailCustomMessage] = useState('');
+  const [emailAdditionalRecipients, setEmailAdditionalRecipients] = useState('');
+  const [emailNewRecipient, setEmailNewRecipient] = useState('');
+  const [emailRecipientsList, setEmailRecipientsList] = useState([]);
   const [bitacoraFlujoQuoteNumber, setBitacoraFlujoQuoteNumber] = useState('');
   const [bitacoraFlujoEntries, setBitacoraFlujoEntries] = useState([]);
   const [bitacoraFlujoLoading, setBitacoraFlujoLoading] = useState(false);
@@ -1914,11 +1922,59 @@ export const Quotes = () => {
 
   // === FUNCIONES DE ACCIONES DE COTIZACIÓN ===
   
-  // Enviar al cliente
-  const handleSendToClient = async (quoteId) => {
+  // === Modal de Envío: helpers ===
+  const openEmailModal = (action, quoteId) => {
+    const q = quotes.find(q => q.quote_id === quoteId);
+    setEmailModalConfig({ action, quoteId, quoteName: q?.quote_number || '' });
+    setEmailCustomMessage('');
+    setEmailNewRecipient('');
+    setEmailRecipientsList([]);
+    setEmailModalOpen(true);
+  };
+
+  const addEmailRecipient = () => {
+    const email = emailNewRecipient.trim();
+    if (email && email.includes('@') && !emailRecipientsList.includes(email)) {
+      setEmailRecipientsList([...emailRecipientsList, email]);
+      setEmailNewRecipient('');
+    }
+  };
+
+  const removeEmailRecipient = (email) => {
+    setEmailRecipientsList(emailRecipientsList.filter(e => e !== email));
+  };
+
+  const getEmailHeaders = () => {
+    const headers = {};
+    if (emailCustomMessage.trim()) headers['x-custom-message'] = emailCustomMessage.trim().slice(0, 200);
+    if (emailRecipientsList.length > 0) headers['x-additional-recipients'] = emailRecipientsList.join(',');
+    return headers;
+  };
+
+  const confirmEmailAndProceed = () => {
+    const { action, quoteId } = emailModalConfig;
+    setEmailModalOpen(false);
+    
+    if (action === 'send-to-client') {
+      executeSendToClient(quoteId);
+    } else if (action === 'approve') {
+      openApproveConfirm(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action === 'invoice') {
+      _openInvoiceModalDirect(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action === 'collect') {
+      openCollectConfirm(quoteId, pendingAction?.exceptionHeaders || null);
+    }
+  };
+
+  // Enviar al cliente (con modal previo)
+  const handleSendToClient = (quoteId) => {
+    openEmailModal('send-to-client', quoteId);
+  };
+
+  const executeSendToClient = async (quoteId) => {
     setActionLoading(quoteId);
     try {
-      const response = await api.post(`/quotes/${quoteId}/send-to-client`);
+      const response = await api.post(`/quotes/${quoteId}/send-to-client`, {}, { headers: getEmailHeaders() });
       
       if (response.data.status === 'simulated') {
         toast.warning(response.data.message);
@@ -1926,7 +1982,7 @@ export const Quotes = () => {
         toast.success(response.data.message);
       }
       
-      fetchData(); // Recargar lista
+      fetchData();
     } catch (error) {
       console.error('Error sending to client:', error);
       toast.error(error.response?.data?.detail || 'Error al enviar al cliente');
@@ -1987,9 +2043,9 @@ export const Quotes = () => {
     'send-to-implementation': 'Pagada',
   };
   const ACTION_LABELS = {
-    'approve': 'Aprobar',
-    'invoice': 'Facturar',
-    'collect': 'Cobrar',
+    'approve': 'Aprobación',
+    'invoice': 'Factura / Proforma',
+    'collect': 'Cobranza',
     'deliver': 'Entregar',
     'send-to-implementation': 'Enviar a Implementación',
   };
@@ -2017,33 +2073,35 @@ export const Quotes = () => {
       setExceptionModalOpen(true);
       return;
     }
-    // Flujo regular — proceder directamente
-    proceedFn(quoteId);
+    // Flujo regular — abrir email modal antes de proceder
+    openEmailModal(action, quoteId);
+    setPendingAction({ quoteId, action, proceedFn, exceptionHeaders: null });
   };
 
   const confirmException = () => {
     if (!exceptionData.reason.trim()) { toast.error('Debe ingresar el motivo de la excepción'); return; }
     setExceptionModalOpen(false);
-    // Proceed with original action, passing exception data
-    pendingAction.proceedFn(pendingAction.quoteId, exceptionData);
-    setPendingAction(null);
+    // Abrir email modal con la excepción pendiente
+    openEmailModal(pendingAction.action, pendingAction.quoteId);
+    setPendingAction({ ...pendingAction, exceptionHeaders: exceptionData });
   };
 
   // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
   const openApproveConfirm = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
-      title: 'Aprobar Cotización',
-      description: 'Para aprobar esta cotización, debe cargar la Orden de Compra del cliente. Este documento es obligatorio para continuar.',
+      title: 'Aprobación de Cotización',
+      description: 'Para registrar la aprobación, debe cargar la Orden de Compra del cliente. Este documento es obligatorio para continuar.',
       category: 'Orden de Compra',
       acceptMultiple: false,
       acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
-      actionLabel: 'Aprobar',
+      actionLabel: 'Confirmar Aprobación',
       actionColor: 'bg-green-600 hover:bg-green-700',
       actionIcon: <CheckCircle size={20} className="text-green-600" />,
       stateEndpoint: 'approve',
-      successMessage: 'Cotización aprobada exitosamente',
+      successMessage: 'Aprobación registrada exitosamente',
       exceptionHeaders: exceptionInfo || null,
+      emailHeaders: getEmailHeaders(),
     });
     setWorkflowModalOpen(true);
   };
@@ -2052,17 +2110,18 @@ export const Quotes = () => {
   const openCollectConfirm = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
-      title: 'Registrar Cobro',
-      description: 'Para registrar el cobro, debe cargar el/los comprobante(s) de pago. Puede subir múltiples archivos si el cliente pagó con diferentes métodos.',
+      title: 'Registrar Cobranza',
+      description: 'Para registrar la cobranza, debe cargar el/los comprobante(s) de pago. Puede subir múltiples archivos si el cliente pagó con diferentes métodos.',
       category: 'Pagos',
       acceptMultiple: true,
       acceptTypes: '.pdf,.png,.jpg,.jpeg,.doc,.docx',
-      actionLabel: 'Confirmar Cobro',
+      actionLabel: 'Confirmar Cobranza',
       actionColor: 'bg-emerald-600 hover:bg-emerald-700',
       actionIcon: <Banknote size={20} className="text-emerald-600" />,
       stateEndpoint: 'collect',
-      successMessage: 'Cotización marcada como Pagada',
+      successMessage: 'Cobranza registrada exitosamente',
       exceptionHeaders: exceptionInfo || null,
+      emailHeaders: getEmailHeaders(),
     });
     setWorkflowModalOpen(true);
   };
@@ -2527,26 +2586,29 @@ export const Quotes = () => {
       setExceptionModalOpen(true);
       return;
     }
-    _openInvoiceModalDirect(quoteId);
+    // Flujo regular — abrir email modal
+    openEmailModal('invoice', quoteId);
+    setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, exceptionHeaders: null });
   };
 
   const _openInvoiceModalDirect = (quoteId, exceptionInfo) => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
-      title: 'Facturar Cotización',
-      description: 'Para facturar esta cotización, debe cargar el documento fiscal (Factura). Este archivo se guardará automáticamente en los anexos.',
+      title: 'Factura / Proforma',
+      description: 'Para registrar la facturación, debe cargar el documento fiscal (Factura o Proforma). Este archivo se guardará automáticamente en los anexos.',
       category: 'Factura',
       acceptMultiple: false,
       acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
-      actionLabel: 'Facturar',
+      actionLabel: 'Confirmar Factura / Proforma',
       actionColor: 'bg-purple-600 hover:bg-purple-700',
       actionIcon: <Receipt size={20} className="text-purple-600" />,
       stateEndpoint: 'invoice',
-      successMessage: 'Cotización facturada exitosamente',
+      successMessage: 'Factura / Proforma registrada exitosamente',
       extraFields: [
         { name: 'invoice_number', label: 'Número de Factura', placeholder: 'Ej: FAC-001234', required: false }
       ],
       exceptionHeaders: exceptionInfo || null,
+      emailHeaders: getEmailHeaders(),
     });
     setWorkflowModalOpen(true);
   };
@@ -4411,6 +4473,74 @@ export const Quotes = () => {
                   </div>
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal de Personalización de Envío */}
+          <Dialog open={emailModalOpen} onOpenChange={(open) => { if (!open) { setEmailModalOpen(false); setPendingAction(null); } }}>
+            <DialogContent className="max-w-md" data-testid="email-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-blue-700">
+                  <Mail size={20} className="text-blue-500" />
+                  Personalizar Comunicación
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                  <p>Acción: <strong>{ACTION_LABELS[emailModalConfig.action] || emailModalConfig.action}</strong></p>
+                  {emailModalConfig.quoteName && <p className="text-xs text-blue-600 mt-0.5">Cotización: {emailModalConfig.quoteName}</p>}
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 200 caracteres)</span></Label>
+                  <Textarea
+                    value={emailCustomMessage}
+                    onChange={e => setEmailCustomMessage(e.target.value.slice(0, 200))}
+                    placeholder="Ej: Estimado cliente, adjuntamos la documentación solicitada..."
+                    className="mt-1 min-h-[70px] text-sm"
+                    maxLength={200}
+                    data-testid="email-custom-message" />
+                  <p className="text-[10px] text-slate-400 mt-1 text-right">{emailCustomMessage.length}/200</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      type="email"
+                      value={emailNewRecipient}
+                      onChange={e => setEmailNewRecipient(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEmailRecipient(); } }}
+                      placeholder="correo@ejemplo.com"
+                      className="flex-1 text-sm"
+                      data-testid="email-cc-input" />
+                    <Button type="button" variant="outline" size="sm" onClick={addEmailRecipient}
+                      disabled={!emailNewRecipient.trim() || !emailNewRecipient.includes('@')}
+                      data-testid="email-add-cc-btn">
+                      <Plus size={14} />
+                    </Button>
+                  </div>
+                  {emailRecipientsList.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {emailRecipientsList.map((email, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                          {email}
+                          <button onClick={() => removeEmailRecipient(email)} className="hover:text-red-500 ml-0.5">
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-3 pt-3 border-t">
+                  <Button variant="outline" onClick={() => { setEmailModalOpen(false); setPendingAction(null); }} data-testid="email-cancel-btn">Cancelar</Button>
+                  <Button onClick={confirmEmailAndProceed}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="email-confirm-btn">
+                    <Send size={14} className="mr-1.5" />
+                    Continuar
+                  </Button>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
 

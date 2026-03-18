@@ -105,6 +105,10 @@ export function WorkflowUploadModal({ open, onClose, onSuccess, quoteId, config 
           exHeaders['x-exception-reason'] = config.exceptionHeaders.reason;
           exHeaders['x-regularization-date'] = config.exceptionHeaders.regularization_date || '';
         }
+        // Email personalization headers
+        if (config.emailHeaders) {
+          Object.assign(exHeaders, config.emailHeaders);
+        }
         if (config.extraFields?.length > 0) {
           // Send extra fields as form data (e.g., invoice_number)
           const formData = new FormData();

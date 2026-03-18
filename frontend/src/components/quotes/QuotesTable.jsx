@@ -131,7 +131,7 @@ export const QuotesTable = ({
                           </div>
                           <div className="max-h-48 overflow-y-auto p-2 space-y-2">
                             {(quote.irregular_exceptions || []).map((exc, idx) => {
-                              const ACTION_NAMES = { approve: 'Aprobar', invoice: 'Facturar', collect: 'Cobrar', deliver: 'Entregar', 'send-to-implementation': 'Enviar a Imple.' };
+                              const ACTION_NAMES = { approve: 'Aprobación', invoice: 'Factura / Proforma', collect: 'Cobranza', deliver: 'Entregar', 'send-to-implementation': 'Enviar a Imple.' };
                               return (
                                 <div key={idx} className="border-l-2 border-orange-400 pl-2 py-1">
                                   <p className="text-[10px] font-semibold text-orange-700">{ACTION_NAMES[exc.action] || exc.action}</p>
@@ -198,18 +198,22 @@ export const QuotesTable = ({
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-slate-400">&#10003;</span>}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
-                          <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobar
-                          {quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
-                          {quote.quote_status !== 'Enviada' && quote.quote_status !== 'Aprobada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
+                          <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobación
+                          {quote.approved_at && <span className="ml-auto text-xs text-green-500">&#10003;</span>}
+                          {!quote.approved_at && quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
+                          {!quote.approved_at && quote.quote_status !== 'Enviada' && quote.quote_status !== 'Borrador' && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
-                          <Receipt size={16} className="mr-2 text-purple-500" /> Facturar
-                          {quote.quote_status !== 'Aprobada' && quote.quote_status !== 'Facturada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
+                          <Receipt size={16} className="mr-2 text-purple-500" /> Factura / Proforma
+                          {quote.invoiced_at && <span className="ml-auto text-xs text-purple-500">&#10003;</span>}
+                          {!quote.invoiced_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-purple-500">&#x25CF;</span>}
+                          {!quote.invoiced_at && !['Borrador', 'Enviada', 'Aprobada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer">
-                          <Banknote size={16} className="mr-2 text-emerald-500" /> Cobrar
-                          {quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
-                          {quote.quote_status !== 'Facturada' && quote.quote_status !== 'Pagada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
+                          <Banknote size={16} className="mr-2 text-emerald-500" /> Cobranza
+                          {quote.paid_at && <span className="ml-auto text-xs text-emerald-500">&#10003;</span>}
+                          {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
+                          {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {isEquipment ? (

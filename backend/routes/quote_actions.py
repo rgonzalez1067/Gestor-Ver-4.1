@@ -36,6 +36,22 @@ REGULAR_FLOW = {
     'send_implementation': 'Pagada',
 }
 
+STATUS_ORDER = ['Borrador', 'Enviada', 'Aprobada', 'Facturada', 'Pagada', 'Entregada', 'En Implementación']
+
+def get_status_index(status):
+    """Obtiene el índice de un estado en el flujo normal."""
+    if status in STATUS_ORDER:
+        return STATUS_ORDER.index(status)
+    return -1
+
+def is_regularization(current_status, action):
+    """Determina si la acción es una regularización (el estado actual ya superó el paso)."""
+    action_result = {'approve': 'Aprobada', 'invoice': 'Facturada', 'collect': 'Pagada'}
+    result_status = action_result.get(action)
+    if not result_status:
+        return False
+    return get_status_index(current_status) > get_status_index(result_status)
+
 async def check_irregular_flow(quote, action, current_user):
     """Verifica si la acción es irregular y registra en audit log si aplica."""
     expected_status = REGULAR_FLOW.get(action)
@@ -158,8 +174,8 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
 
 
 @router.post("/quotes/{quote_id}/approve")
-async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
-    """Aprobar una cotización - Requiere anexo de Orden de Compra. Soporta flujo irregular."""
+async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Aprobar una cotización - Requiere anexo de Orden de Compra. Soporta flujo irregular y mensaje personalizado."""
     current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -185,10 +201,15 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
     
-    # Actualizar estado
+    # Actualizar estado (solo si NO es regularización retroactiva)
+    is_regul = is_regularization(current_status, "approve")
+    update_fields = {"approved_at": datetime.now(timezone.utc).isoformat()}
+    if not is_regul:
+        update_fields["quote_status"] = "Aprobada"
+    
     await db.quotes.update_one(
         {"quote_id": quote_id},
-        {"$set": {"quote_status": "Aprobada", "approved_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": update_fields}
     )
     
     # Preparar email
@@ -214,6 +235,14 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
+    
+    # Agregar mensaje personalizado si existe
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    # Parsear destinatarios adicionales
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     email_results = []
     # Notificar a admin
@@ -228,6 +257,10 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     if not admin_email and not sales_email:
         r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="approve_no_config", quote_id=quote_id, quote_number=quote.get('quote_number'))
         email_results.append(r)
+    # Enviar a destinatarios adicionales (CC)
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="approve_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        email_results.append(r)
 
     return {
         "message": "Cotización aprobada exitosamente",
@@ -238,9 +271,9 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
 
 
 @router.post("/quotes/{quote_id}/send-to-client")
-async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None)):
+async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
     """Envía la cotización por email al cliente con el PDF adjunto"""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
@@ -280,6 +313,14 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
 
+    # Agregar mensaje personalizado
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    # Parsear destinatarios adicionales
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
     # Preparar attachment PDF si existe
     pdf_attachments = None
     pdf_url = quote.get("quote_pdf_url")
@@ -296,6 +337,12 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
         action="send_to_client", quote_id=quote_id, quote_number=quote.get('quote_number'),
         attachments=pdf_attachments
     )
+    
+    # Enviar a destinatarios adicionales (CC)
+    cc_results = []
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="send_to_client_cc", quote_id=quote_id, quote_number=quote.get('quote_number'), attachments=pdf_attachments)
+        cc_results.append(r)
     
     # Actualizar estado
     await db.quotes.update_one(
@@ -400,8 +447,8 @@ async def send_quote_to_implementation(quote_id: str, authorization: Optional[st
 # ==================== FLUJO DE FACTURACIÓN Y COBRO ====================
 
 @router.post("/quotes/{quote_id}/invoice")
-async def invoice_quote(quote_id: str, invoice_number: str = Form(None), exception_reason: str = Form(None), regularization_date: str = Form(None), authorization: Optional[str] = Header(None), x_exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), x_regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
-    """Facturar cotización - Requiere anexo de 'Factura'. Soporta flujo irregular."""
+async def invoice_quote(quote_id: str, invoice_number: str = Form(None), exception_reason: str = Form(None), regularization_date: str = Form(None), authorization: Optional[str] = Header(None), x_exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), x_regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Facturar cotización - Requiere anexo de 'Factura'. Soporta flujo irregular y mensaje personalizado."""
     current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -427,12 +474,16 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     
     invoice_url = factura_attachments[-1].get("url", "")
     
-    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
-        "quote_status": "Facturada",
+    is_regul = is_regularization(current_status, "invoice")
+    update_set = {
         "invoiced_at": datetime.now(timezone.utc).isoformat(),
         "invoice_pdf_url": invoice_url,
         "invoice_number": invoice_number
-    }})
+    }
+    if not is_regul:
+        update_set["quote_status"] = "Facturada"
+    
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
     
     # Enviar notificación
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
@@ -462,6 +513,13 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
 
+    # Agregar mensaje personalizado
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
     email_results = []
     recipients = [(admin_email, "invoice_admin"), (sales_email, "invoice_sales")]
     if not admin_email and not sales_email:
@@ -472,13 +530,17 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
             prefix = "[VENTAS] " if "sales" in action else ""
             r = await send_email(to=[email], subject=f"{prefix}{subject}", html=html_content, action=action, quote_id=quote_id, quote_number=quote.get('quote_number'))
             email_results.append(r)
+    
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="invoice_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        email_results.append(r)
 
     return {"message": "Cotización facturada exitosamente", "invoice_pdf_url": invoice_url, "invoice_number": invoice_number, "emails": email_results}
 
 
 @router.post("/quotes/{quote_id}/collect")
-async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
-    """Marcar cotización como Pagada - Requiere anexos en categoría 'Pagos'. Soporta flujo irregular."""
+async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Marcar cotización como Pagada - Requiere anexos en categoría 'Pagos'. Soporta flujo irregular y mensaje personalizado."""
     current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -499,13 +561,18 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     if not payment_proofs:
         raise HTTPException(status_code=422, detail="Debe cargar al menos un comprobante de pago antes de registrar el cobro")
     
-    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
-        "quote_status": "Pagada",
-        "paid_at": datetime.now(timezone.utc).isoformat()
-    }})
+    is_regul = is_regularization(current_status, "collect")
+    update_set = {"paid_at": datetime.now(timezone.utc).isoformat()}
+    if not is_regul:
+        update_set["quote_status"] = "Pagada"
+    
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
     
     email_results = []
     quote_category = quote.get("quote_category", "implementation")
+    
+    # Parsear CC y mensaje personalizado
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
     
     if quote_category == "equipment":
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
@@ -542,7 +609,15 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
         subject = render_email_template(template["subject"], template_vars)
         html_content = render_email_template(template["body_html"], template_vars)
         
+        if custom_message and custom_message.strip():
+            user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+        
         r = await send_email(to=[warehouse_email], subject=subject, html=html_content, action="collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        email_results.append(r)
+    
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] Cobro registrado - {quote.get('quote_number', '')}", html=f"<p>Se ha registrado el cobro de la cotización {quote.get('quote_number', '')}.</p>", action="collect_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
         email_results.append(r)
     
     return {"message": "Cotización marcada como Pagada", "emails": email_results}
