@@ -1,10 +1,12 @@
 """Route module: projects.py - Módulo de Proyectos (Post-Venta)"""
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import uuid
 import logging
+import os
+import json
 
 from config import db, get_current_user
 from models import PROJECT_STATUSES
@@ -26,6 +28,7 @@ class ProjectStatusUpdate(BaseModel):
 
 class ProjectAssign(BaseModel):
     assigned_to_user_id: str
+    ticket_number: str
     estimated_delivery_date: Optional[str] = None
     reassignment_comment: Optional[str] = None
     reassignment_date: Optional[str] = None
@@ -49,6 +52,13 @@ class PriorityUpdate(BaseModel):
 
 class BankNotifyRequest(BaseModel):
     bank_name: str
+
+
+class AdhocEmailRequest(BaseModel):
+    recipients: List[str]
+    subject: str
+    message: str
+    image_urls: Optional[List[str]] = None
 
 
 # ==================== PROJECT ENDPOINTS ====================
@@ -101,6 +111,16 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
+    # Validar ticket_number obligatorio
+    ticket = assignment.ticket_number.strip()
+    if not ticket:
+        raise HTTPException(status_code=400, detail="El Número de Ticket es obligatorio")
+
+    # Verificar unicidad del ticket (excepto si es el mismo proyecto reasignado)
+    existing = await db.projects.find_one({"ticket_number": ticket, "project_id": {"$ne": project_id}}, {"_id": 0, "project_id": 1})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"El Número de Ticket '{ticket}' ya está asignado a otro proyecto")
+
     implementer = await db.users.find_one({"user_id": assignment.assigned_to_user_id}, {"_id": 0})
     if not implementer:
         raise HTTPException(status_code=404, detail="Implementador no encontrado")
@@ -115,6 +135,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         "assigned_by_user_id": current_user.get("user_id"),
         "assigned_by_name": assigner_name,
         "assigned_at": now,
+        "ticket_number": ticket,
         "status": "Asignado / En Proceso",
         "updated_at": now,
     }
@@ -124,7 +145,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
     previous_assignee = project.get("assigned_to_name", "")
     is_reassignment = bool(previous_assignee)
     
-    note_text = f"Proyecto {'reasignado' if is_reassignment else 'asignado'} a {implementer_name}."
+    note_text = f"Proyecto {'reasignado' if is_reassignment else 'asignado'} a {implementer_name}. Ticket: {ticket}."
     if is_reassignment and previous_assignee:
         note_text += f" (Anterior: {previous_assignee})"
     if assignment.reassignment_date:
@@ -144,20 +165,21 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
 
     await db.projects.update_one({"project_id": project_id}, {"$set": update_data, "$push": {"notes": note}})
 
-    # Notificar al implementador
+    # Notificar al implementador (con ticket en asunto)
     impl_email = implementer.get("email")
     if impl_email:
         try:
             await send_email(
-                to=impl_email,
-                subject=f"Proyecto Asignado: {project.get('project_number', project_id)}",
-                html_content=f"<h2>Nuevo proyecto asignado</h2><p><strong>Proyecto:</strong> {project.get('project_number')}</p><p><strong>Cliente:</strong> {project.get('client_name')} ({project.get('client_rif')})</p><p><strong>Asignado por:</strong> {assigner_name}</p>",
+                to=[impl_email],
+                subject=f"[Ticket {ticket}] Proyecto Asignado: {project.get('project_number', project_id)}",
+                html=f"<h2>Nuevo proyecto asignado</h2><p><strong>Ticket:</strong> {ticket}</p><p><strong>Proyecto:</strong> {project.get('project_number')}</p><p><strong>Cliente:</strong> {project.get('client_name')} ({project.get('client_rif')})</p><p><strong>Asignado por:</strong> {assigner_name}</p>",
+                action="assign_project",
                 quote_id=project.get("quote_id")
             )
         except Exception as e:
             logger.warning(f"Error notificando implementador: {e}")
 
-    return {"message": "Proyecto asignado exitosamente", "assigned_to": implementer_name}
+    return {"message": "Proyecto asignado exitosamente", "assigned_to": implementer_name, "ticket_number": ticket}
 
 
 @router.put("/projects/{project_id}/status")
@@ -202,6 +224,21 @@ async def update_project_priority(project_id: str, body: PriorityUpdate, authori
 
 
 # ==================== NOTIFICATION ENDPOINTS ====================
+
+def _calculate_single_progress(project: dict) -> dict:
+    """Calcula el avance de un proyecto single basado en su implementación matrix."""
+    matrix = project.get("implementation_matrix", {})
+    bank_progress = {}
+    for bank_name, products in matrix.items():
+        bank_progress[bank_name] = {}
+        for product_name, phases in products.items():
+            completed = sum(1 for p in IMPLEMENTATION_PHASES if phases.get(p, {}).get("completed", False))
+            pct = round((completed / len(IMPLEMENTATION_PHASES)) * 100, 1) if IMPLEMENTATION_PHASES else 0
+            bank_progress[bank_name][product_name] = pct
+    all_pcts = [pct for bank in bank_progress.values() for pct in bank.values()]
+    global_progress = round(sum(all_pcts) / len(all_pcts), 1) if all_pcts else 0
+    return {"global_progress": global_progress, "bank_progress": bank_progress}
+
 
 def _calculate_rollup_progress(project: dict) -> dict:
     """Calcula el avance promedio de la matriz principal basado en las matrices de las tiendas.
@@ -258,12 +295,15 @@ async def notify_client(project_id: str, authorization: Optional[str] = Header(N
 
     client_email = client.get("email", "") if client else ""
     client_name = project.get("client_name", "Cliente")
+    ticket = project.get("ticket_number", "")
+    ticket_label = f"[Ticket {ticket}] " if ticket else ""
 
     # Construir email (placeholder para plantilla HTML futura)
-    subject = f"MegaNexus — Notificación de Implementación: {project.get('project_number', '')}"
+    subject = f"{ticket_label}MegaNexus — Notificación de Implementación: {project.get('project_number', '')}"
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px;">
         <h2>Notificación de Implementación</h2>
+        {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
         <p>Estimado/a <strong>{client_name}</strong>,</p>
         <p>Le informamos que su proyecto de implementación <strong>{project.get('project_number', '')}</strong>
         ha sido iniciado.</p>
@@ -346,11 +386,14 @@ async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: O
             bank_email = contacts[0].get("email", "")
 
     # Construir email consolidado (placeholder para plantilla HTML futura)
+    ticket = project.get("ticket_number", "")
+    ticket_label = f"[Ticket {ticket}] " if ticket else ""
     products_html = "".join(f"<li>{p}</li>" for p in products)
-    subject = f"MegaNexus — Notificación de Implementación: {bank_name} — {project.get('project_number', '')}"
+    subject = f"{ticket_label}MegaNexus — Notificación de Implementación: {bank_name} — {project.get('project_number', '')}"
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px;">
         <h2>Notificación de Implementación — {bank_name}</h2>
+        {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
         <p>Estimados contactos de <strong>{bank_name}</strong>,</p>
         <p>Se ha iniciado la implementación del proyecto <strong>{project.get('project_number', '')}</strong>
         para el cliente <strong>{project.get('client_name', '')}</strong>.</p>
@@ -405,14 +448,14 @@ async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: O
 
 @router.get("/projects/{project_id}/rollup")
 async def get_project_rollup(project_id: str, authorization: Optional[str] = Header(None)):
-    """Obtener el avance roll-up de un proyecto multitienda."""
+    """Obtener el avance de un proyecto (single o multitienda)."""
     await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    if project.get("project_type") != "multistore":
-        raise HTTPException(status_code=400, detail="Solo aplicable a proyectos multitienda")
-    return _calculate_rollup_progress(project)
+    if project.get("project_type") == "multistore":
+        return _calculate_rollup_progress(project)
+    return _calculate_single_progress(project)
 
 
 # ==================== IMPLEMENTATION MATRIX ====================
@@ -456,6 +499,15 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
         {"project_id": project_id},
         {"$set": {"implementation_matrix": matrix, "updated_at": now}}
     )
+
+    # Recalcular progreso para proyecto single
+    updated_project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if updated_project:
+        progress = _calculate_single_progress(updated_project)
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"rollup_progress": progress}}
+        )
 
     return {"message": "Fase actualizada", "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
 
@@ -557,6 +609,105 @@ async def get_bitacora(project_id: str, authorization: Optional[str] = Header(No
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return project.get("bitacora", [])
+
+
+# ==================== ADHOC EMAIL ====================
+
+@router.post("/projects/{project_id}/send-adhoc-email")
+async def send_adhoc_email(
+    project_id: str,
+    recipients: str = Form(...),
+    subject: str = Form(...),
+    message: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
+    authorization: Optional[str] = Header(None)
+):
+    """Enviar email ad-hoc desde un proyecto. Auto-registra en bitácora."""
+    current_user = await get_current_user(authorization)
+
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Parse recipients
+    try:
+        to_list = json.loads(recipients)
+        if not isinstance(to_list, list) or not to_list:
+            raise ValueError()
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(status_code=400, detail="Destinatarios inválidos. Envíe un array JSON de emails.")
+
+    if not subject.strip():
+        raise HTTPException(status_code=400, detail="El asunto es obligatorio")
+    if len(message) > 500:
+        raise HTTPException(status_code=400, detail="El mensaje no puede exceder 500 caracteres")
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    ticket = project.get("ticket_number", "")
+    ticket_label = f"[Ticket {ticket}] " if ticket else ""
+
+    # Guardar adjuntos
+    saved_files = []
+    upload_dir = f"/app/backend/uploads/adhoc_emails/{project_id}"
+    os.makedirs(upload_dir, exist_ok=True)
+    for f in files:
+        if f.filename:
+            safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
+            file_path = os.path.join(upload_dir, safe_name)
+            content = await f.read()
+            with open(file_path, "wb") as fp:
+                fp.write(content)
+            saved_files.append({
+                "filename": f.filename,
+                "url": f"/uploads/adhoc_emails/{project_id}/{safe_name}",
+                "size": len(content),
+                "content_type": f.content_type,
+            })
+
+    # Construir email HTML
+    message_html = message.replace("\n", "<br>")
+    full_subject = f"{ticket_label}{subject}"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <p>{message_html}</p>
+        {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
+    </div>
+    """
+
+    email_result = await send_email(
+        to=to_list,
+        subject=full_subject,
+        html=html,
+        action="adhoc_project_email",
+        quote_id=project.get("quote_id"),
+        quote_number=project.get("quote_number"),
+    )
+
+    # Auto-registrar en bitácora
+    attachments_text = f" ({len(saved_files)} adjunto(s))" if saved_files else ""
+    bitacora_entry = {
+        "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
+        "text": f"[Email Ad-hoc] {subject}{attachments_text} → {', '.join(to_list)}",
+        "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+        "type": "adhoc_email",
+    }
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$push": {"bitacora": bitacora_entry}}
+    )
+
+    return {
+        "message": f"Correo enviado a {len(to_list)} destinatario(s) ({email_result.get('status', 'unknown')})",
+        "status": email_result.get("status"),
+        "recipients": to_list,
+        "subject": full_subject,
+        "attachments_count": len(saved_files),
+        "bitacora_entry_id": bitacora_entry["entry_id"],
+    }
 
 
 

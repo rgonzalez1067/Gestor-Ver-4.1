@@ -1,13 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Label } from '../components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
-  FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail
+  FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
+  Plus, X, Paperclip, Image, Ticket
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -31,6 +35,13 @@ const ProjectDetail = () => {
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [notifyingClient, setNotifyingClient] = useState(false);
   const [notifyingBank, setNotifyingBank] = useState(null);
+
+  // Email Ad-hoc
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailForm, setEmailForm] = useState({ recipients: [''], subject: '', message: '' });
+  const [emailFiles, setEmailFiles] = useState([]);
+  const [emailSending, setEmailSending] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -97,6 +108,53 @@ const ProjectDetail = () => {
     finally { setBitacoraSubmitting(false); }
   };
 
+  // ==================== EMAIL AD-HOC ====================
+  const openEmailDialog = () => {
+    setEmailForm({ recipients: [''], subject: '', message: '' });
+    setEmailFiles([]);
+    setEmailDialogOpen(true);
+  };
+
+  const addRecipient = () => setEmailForm(prev => ({ ...prev, recipients: [...prev.recipients, ''] }));
+  const removeRecipient = (idx) => setEmailForm(prev => ({ ...prev, recipients: prev.recipients.filter((_, i) => i !== idx) }));
+  const updateRecipient = (idx, val) => setEmailForm(prev => {
+    const r = [...prev.recipients];
+    r[idx] = val;
+    return { ...prev, recipients: r };
+  });
+
+  const handleFileSelect = (e) => {
+    const newFiles = Array.from(e.target.files || []);
+    setEmailFiles(prev => [...prev, ...newFiles]);
+  };
+  const removeFile = (idx) => setEmailFiles(prev => prev.filter((_, i) => i !== idx));
+
+  const handleSendAdhocEmail = async () => {
+    const validRecipients = emailForm.recipients.filter(r => r.trim());
+    if (validRecipients.length === 0) { toast.error('Agregue al menos un destinatario'); return; }
+    if (!emailForm.subject.trim()) { toast.error('El asunto es obligatorio'); return; }
+    if (!emailForm.message.trim()) { toast.error('El mensaje es obligatorio'); return; }
+    if (emailForm.message.length > 500) { toast.error('El mensaje no puede exceder 500 caracteres'); return; }
+
+    setEmailSending(true);
+    try {
+      const formData = new FormData();
+      formData.append('recipients', JSON.stringify(validRecipients));
+      formData.append('subject', emailForm.subject);
+      formData.append('message', emailForm.message);
+      emailFiles.forEach(f => formData.append('files', f));
+
+      const res = await api.post(`/projects/${projectId}/send-adhoc-email`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success(res.data.message);
+      setEmailDialogOpen(false);
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al enviar correo');
+    } finally { setEmailSending(false); }
+  };
+
   if (loading || !project) {
     return (
       <div className="flex min-h-screen bg-white">
@@ -149,10 +207,19 @@ const ProjectDetail = () => {
                 <h1 className="text-2xl font-bold text-slate-900 mb-1" data-testid="project-title">
                   Detalle para Implementación del Proyecto
                 </h1>
-                <p className="text-lg font-semibold text-slate-700">{project.project_number}</p>
+                <div className="flex items-center gap-3">
+                  {project.ticket_number ? (
+                    <p className="text-lg font-semibold text-indigo-700 flex items-center gap-2" data-testid="project-ticket">
+                      <Ticket size={18} className="text-indigo-500" />{project.ticket_number}
+                      <span className="text-sm text-slate-400 font-normal">({project.project_number})</span>
+                    </p>
+                  ) : (
+                    <p className="text-lg font-semibold text-slate-700">{project.project_number}</p>
+                  )}
+                </div>
                 <p className="text-sm text-slate-500">{project.client_name} — {project.client_rif} — {project.client_sede}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right space-y-1">
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
                   project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
                   project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
@@ -160,13 +227,33 @@ const ProjectDetail = () => {
                   'bg-emerald-100 text-emerald-800 border-emerald-200'
                 }`}>{project.status}</span>
                 {project.assigned_to_name && (
-                  <p className="text-sm text-slate-500 mt-1">Implementador: <strong>{project.assigned_to_name}</strong></p>
+                  <p className="text-sm text-slate-500">Implementador: <strong>{project.assigned_to_name}</strong></p>
                 )}
                 {isMultistore && (
-                  <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200">
                     <Store size={12} />Multitienda ({project.stores?.length || 0})
                   </span>
                 )}
+                {/* Progreso global */}
+                {rollup.global_progress !== undefined && (
+                  <div className="flex items-center gap-2 justify-end mt-1">
+                    <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div className={`h-full rounded-full ${rollup.global_progress >= 100 ? 'bg-emerald-500' : rollup.global_progress >= 50 ? 'bg-blue-500' : 'bg-amber-400'}`}
+                        style={{ width: `${Math.min(rollup.global_progress, 100)}%` }} />
+                    </div>
+                    <span className="text-xs font-bold text-slate-600" data-testid="header-progress">{rollup.global_progress}%</span>
+                  </div>
+                )}
+                {/* Botón Email Ad-hoc */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openEmailDialog}
+                  className="mt-1 text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                  data-testid="adhoc-email-btn"
+                >
+                  <Mail size={14} />Enviar Correo
+                </Button>
               </div>
             </div>
 
@@ -225,7 +312,7 @@ const ProjectDetail = () => {
             {/* ============ MAIN MATRIX (only when client notified) ============ */}
             {clientNotified && (
               <>
-                {isMultistore && (
+                {isMultistore ? (
                   <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
@@ -240,6 +327,20 @@ const ProjectDetail = () => {
                       )}
                     </div>
                   </div>
+                ) : (
+                  rollup.global_progress !== undefined && rollup.global_progress > 0 && (
+                    <div className="mb-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-emerald-800 font-medium flex items-center gap-2">
+                          <BarChart3 size={16} className="text-emerald-600" />
+                          Avance de Implementación
+                        </p>
+                        <span className="text-sm font-bold text-emerald-900" data-testid="single-progress">
+                          {rollup.global_progress}%
+                        </span>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 {bankNames.length === 0 ? (
@@ -441,6 +542,139 @@ const ProjectDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* ==================== EMAIL AD-HOC DIALOG ==================== */}
+        <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!emailSending) setEmailDialogOpen(open); }}>
+          <DialogContent className="max-w-lg" data-testid="adhoc-email-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail size={20} className="text-indigo-500" />
+                Enviar Correo Ad-hoc
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Proyecto info */}
+              <div className="bg-slate-50 border rounded-lg p-2.5">
+                <p className="text-xs text-slate-500">
+                  {project.ticket_number ? `Ticket: ${project.ticket_number} · ` : ''}{project.project_number} — {project.client_name}
+                </p>
+              </div>
+
+              {/* Destinatarios */}
+              <div>
+                <Label className="text-sm font-medium">Destinatarios <span className="text-red-500">*</span></Label>
+                <div className="space-y-2 mt-1.5">
+                  {emailForm.recipients.map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        type="email"
+                        placeholder="correo@ejemplo.com"
+                        value={r}
+                        onChange={e => updateRecipient(idx, e.target.value)}
+                        className="flex-1 h-9 text-sm"
+                        data-testid={`email-recipient-${idx}`}
+                      />
+                      {emailForm.recipients.length > 1 && (
+                        <button onClick={() => removeRecipient(idx)} className="text-red-400 hover:text-red-600">
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <Button variant="ghost" size="sm" onClick={addRecipient} className="text-xs text-indigo-600" data-testid="add-recipient-btn">
+                    <Plus size={14} className="mr-1" />Agregar destinatario
+                  </Button>
+                </div>
+              </div>
+
+              {/* Asunto */}
+              <div>
+                <Label className="text-sm font-medium">Asunto <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="Asunto del correo..."
+                  value={emailForm.subject}
+                  onChange={e => setEmailForm(prev => ({ ...prev, subject: e.target.value }))}
+                  className="mt-1 h-9 text-sm"
+                  data-testid="email-subject"
+                />
+              </div>
+
+              {/* Mensaje */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Mensaje <span className="text-red-500">*</span></Label>
+                  <span className={`text-[10px] ${emailForm.message.length > 500 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
+                    {emailForm.message.length}/500
+                  </span>
+                </div>
+                <Textarea
+                  placeholder="Escriba su mensaje aquí..."
+                  value={emailForm.message}
+                  onChange={e => setEmailForm(prev => ({ ...prev, message: e.target.value }))}
+                  className="mt-1 text-sm min-h-[100px] resize-none"
+                  maxLength={500}
+                  data-testid="email-message"
+                />
+              </div>
+
+              {/* Adjuntos */}
+              <div>
+                <Label className="text-sm font-medium">Adjuntos</Label>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs gap-1.5" data-testid="attach-files-btn">
+                    <Paperclip size={14} />Archivos
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/jpeg,image/png';
+                    input.multiple = true;
+                    input.onchange = (e) => {
+                      const files = Array.from(e.target.files || []);
+                      setEmailFiles(prev => [...prev, ...files]);
+                    };
+                    input.click();
+                  }} className="text-xs gap-1.5" data-testid="attach-images-btn">
+                    <Image size={14} />Imágenes
+                  </Button>
+                </div>
+                {emailFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {emailFiles.map((f, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-50 rounded px-2.5 py-1.5 text-xs">
+                        <span className="truncate text-slate-700 flex-1">{f.name}</span>
+                        <button onClick={() => removeFile(idx)} className="ml-2 text-red-400 hover:text-red-600 shrink-0">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end gap-3 pt-3 border-t">
+                <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={emailSending}>Cancelar</Button>
+                <Button
+                  onClick={handleSendAdhocEmail}
+                  disabled={emailSending || !emailForm.subject.trim() || !emailForm.message.trim() || !emailForm.recipients.some(r => r.trim())}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  data-testid="send-adhoc-email-btn"
+                >
+                  <Send size={14} />{emailSending ? 'Enviando...' : 'Enviar Correo'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

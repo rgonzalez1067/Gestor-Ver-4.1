@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { toast } from 'sonner';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -77,6 +77,7 @@ const Projects = () => {
     const isReassign = !!project.assigned_to_name;
     setAssignForm({
       assigned_to_user_id: '',
+      ticket_number: project.ticket_number || '',
       estimated_delivery_date: project.estimated_delivery_date || '',
       reassignment_comment: '',
       reassignment_date: isReassign ? new Date().toISOString().slice(0, 10) : ''
@@ -87,6 +88,7 @@ const Projects = () => {
 
   const handleAssign = async () => {
     if (!assignForm.assigned_to_user_id) { toast.error('Seleccione un implementador'); return; }
+    if (!assignForm.ticket_number.trim()) { toast.error('El Número de Ticket es obligatorio'); return; }
     const isReassign = !!assignProject.assigned_to_name;
     if (isReassign && !assignForm.reassignment_comment.trim()) { toast.error('Ingrese un comentario para la reasignación'); return; }
     setAssignLoading(true);
@@ -129,6 +131,7 @@ const Projects = () => {
   const filtered = projects.filter(p => {
     const matchSearch = !searchTerm ||
       p.project_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -185,7 +188,7 @@ const Projects = () => {
           <div className="flex gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input placeholder="Buscar por proyecto, cliente, RIF o implementador..."
+              <Input placeholder="Buscar por ticket, proyecto, cliente, RIF o implementador..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9" data-testid="project-search" />
             </div>
@@ -216,13 +219,13 @@ const Projects = () => {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Proyecto</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Proyecto / Ticket</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Cliente</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Avance</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Prioridad</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Fecha Est.</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
@@ -235,8 +238,19 @@ const Projects = () => {
                       <tr key={project.project_id} className="hover:bg-slate-50 transition-colors"
                         data-testid={`project-row-${project.project_id}`}>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
-                          <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
+                          {project.ticket_number ? (
+                            <>
+                              <p className="text-sm font-semibold text-slate-900 flex items-center gap-1.5" data-testid={`ticket-${project.project_id}`}>
+                                <Ticket size={13} className="text-indigo-500" />{project.ticket_number}
+                              </p>
+                              <p className="text-xs text-slate-400">{project.project_number} · Cot: {project.quote_number}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
+                              <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
+                            </>
+                          )}
                           <div className="flex gap-1 mt-1 flex-wrap">
                             {project.project_type === 'multistore' && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200" data-testid="project-multistore-badge">
@@ -256,6 +270,21 @@ const Projects = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
                         <td className="px-4 py-3">
+                          {(() => {
+                            const pct = project.rollup_progress?.global_progress || 0;
+                            return (
+                              <div className="flex items-center gap-2" data-testid={`progress-${project.project_id}`}>
+                                <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden min-w-[60px]">
+                                  <div className={`h-full rounded-full transition-all ${
+                                    pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'
+                                  }`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                </div>
+                                <span className={`text-xs font-semibold min-w-[32px] text-right ${pct >= 100 ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border ${stCfg.color}`}>
                             <StIcon size={12} />{project.status}
                           </span>
@@ -273,7 +302,6 @@ const Projects = () => {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-600">{project.estimated_delivery_date || '—'}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
                             {/* Cambiar Estado */}
@@ -419,6 +447,18 @@ const Projects = () => {
                 )}
 
                 <div>
+                  <Label className="text-sm">Número de Ticket <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="Ej: TK-2026-0001"
+                    value={assignForm.ticket_number}
+                    onChange={e => setAssignForm({ ...assignForm, ticket_number: e.target.value })}
+                    className="mt-1"
+                    data-testid="assign-ticket-number"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Identificador único del proyecto para comunicaciones</p>
+                </div>
+
+                <div>
                   <Label className="text-sm">Nuevo Implementador</Label>
                   <Select value={assignForm.assigned_to_user_id} onValueChange={v => setAssignForm({ ...assignForm, assigned_to_user_id: v })}>
                     <SelectTrigger className="mt-1" data-testid="select-implementer"><SelectValue placeholder="Seleccionar implementador..." /></SelectTrigger>
@@ -460,7 +500,7 @@ const Projects = () => {
                 <div className="flex justify-end gap-3 pt-2 border-t">
                   <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancelar</Button>
                   <Button onClick={handleAssign}
-                    disabled={assignLoading || !assignForm.assigned_to_user_id || (assignProject.assigned_to_name && !assignForm.reassignment_comment.trim())}
+                    disabled={assignLoading || !assignForm.assigned_to_user_id || !assignForm.ticket_number.trim() || (assignProject.assigned_to_name && !assignForm.reassignment_comment.trim())}
                     className={`text-white ${assignProject.assigned_to_name ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     data-testid="assign-confirm-btn">
                     {assignLoading ? 'Procesando...' : assignProject.assigned_to_name ? 'Reasignar Proyecto' : 'Asignar Proyecto'}

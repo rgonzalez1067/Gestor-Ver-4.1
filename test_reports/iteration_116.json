@@ -1,0 +1,63 @@
+{
+  "summary": "Comprehensive testing of iteration 116 features: ticket_number mandatory, ad-hoc email, and standardized progress. All 14 backend tests passed. Frontend testing verified: ticket_number field in assign dialog (required), ticket display in projects table and detail page, ticket search, Avance (progress) column with progress bars, ad-hoc email dialog with recipients/subject/message/attachments, progress banner for single projects.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration116_ticket_adhoc_progress.py",
+    "/app/test_reports/pytest/pytest_results_iteration116.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_iteration116_ticket_adhoc_progress.py"],
+  "success_rate": {
+    "backend": "100% (14/14 tests)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "email": "test@mega.com",
+    "password": "Admin123!"
+  },
+  "seed_data_creation": "Used existing projects. Assigned tickets during testing (TEST-TK-*, UNIQUE-*, EMAIL-TK-* prefixes).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 116 features fully implemented and tested. Backend tests cover: ticket_number required on assign (400 on empty), assign with valid ticket succeeds and persists, ticket uniqueness validation (400 on duplicate), ad-hoc email requires subject (400/422), requires recipients (400), message max 500 chars (400), successful send with bitacora auto-log, ticket prefix in email subject, rollup endpoint for single and multistore, matrix phase update triggers rollup recalc for single. Frontend verified: Assign dialog has 'Número de Ticket' required field with asterisk, Projects table shows ticket with icon instead of project_number when ticket exists, 'Avance' column has progress bars with percentages, search works by ticket_number, ProjectDetail shows ticket prominently in header, 'Enviar Correo' button opens ad-hoc email dialog with recipients/subject/message(500 chars)/attachments, single project shows 'Avance de Implementación' banner with percentage.",
+  "features_tested": {
+    "backend": [
+      "PUT /api/projects/{id}/assign - Empty ticket_number returns 400 - PASSED",
+      "PUT /api/projects/{id}/assign - Valid ticket_number persists and returns in response - PASSED",
+      "PUT /api/projects/{id}/assign - Duplicate ticket_number returns 400 - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Empty subject returns 400/422 - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Empty recipients returns 400 - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Message > 500 chars returns 400 - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Valid request succeeds (simulated) - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Includes [Ticket X] in subject - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email - Auto-registers in bitácora - PASSED",
+      "GET /api/projects/{id}/rollup - Works for single projects - PASSED",
+      "GET /api/projects/{id}/rollup - Works for multistore projects - PASSED",
+      "PUT /api/projects/{id}/matrix/phase - Recalculates rollup_progress for single - PASSED",
+      "Assignment email includes ticket in subject - PASSED",
+      "GET /api/projects returns ticket_number field - PASSED"
+    ],
+    "frontend": [
+      "Projects.jsx: Assign dialog has 'Número de Ticket' required field - PASSED",
+      "Projects.jsx: Ticket displayed with icon in table when project has ticket_number - PASSED",
+      "Projects.jsx: 'Avance' column shows progress bar with percentage - PASSED",
+      "Projects.jsx: Search filters by ticket_number - PASSED",
+      "ProjectDetail.jsx: Ticket displayed prominently in header with icon - PASSED",
+      "ProjectDetail.jsx: 'Enviar Correo' button visible - PASSED",
+      "ProjectDetail.jsx: Ad-hoc email dialog with recipients, subject, message (500 char limit), attachments - PASSED",
+      "ProjectDetail.jsx: Single project shows 'Avance de Implementación' banner with progress % - PASSED"
+    ]
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Email/Resend - simulated in /app/backend/services/email_service.py"]
+  }
+}
