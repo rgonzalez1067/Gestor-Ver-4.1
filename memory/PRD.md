@@ -79,6 +79,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Avance automatico: promedio ponderado de avances de tiendas -> rollup_progress
   - Hub de Comunicaciones: Placeholder para plantillas HTML futuras
   - VALIDADO: 16/16 backend + 13/13 frontend (iteration_115)
+- **Ticket + Email Ad-hoc + Progreso Estandarizado (2026-03-19)**:
+  - Numero de Ticket obligatorio al asignar proyecto (campo en dialogo, validacion unicidad)
+  - Ticket reemplaza nro de proyecto en pantalla principal cuando existe
+  - Busqueda por ticket en tabla de proyectos
+  - Ticket incluido automaticamente en asunto/cuerpo de todos los emails
+  - Modulo de Comunicacion Flexible: email ad-hoc con destinatarios dinamicos, asunto personalizado, mensaje (500 chars max), adjuntos (archivos e imagenes), auto-registro en bitacora
+  - Endpoint POST /api/projects/{id}/send-adhoc-email con FormData multipart
+  - Progreso estandarizado: calculo de avance % para proyectos single igual que multitienda
+  - Barra de progreso en tabla principal para TODOS los proyectos
+  - GET /api/projects/{id}/rollup ahora soporta single y multistore
+  - VALIDADO: 14/14 backend + 8/8 frontend (iteration_116)
 
 ### Modulo de Inventarios
 - Almacenes, Stock, Entradas, Transferencias, Salidas automaticas
