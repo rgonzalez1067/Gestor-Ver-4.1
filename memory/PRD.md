@@ -67,6 +67,18 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Frontend: Badge "Multitienda (N)" en tabla de proyectos
   - Frontend: Tabs por tienda en detalle con matrices de seguimiento independientes
   - VALIDADO: 8/8 backend + 7/7 frontend (iteration_114)
+- **Reingenieria Matriz de Implementacion + Notificaciones (2026-03-19)**:
+  - Hito 1 Hard Stop: Boton "Notificar Cliente" en cabecera. Si no ejecutado, matriz bloqueada (grayed out con Lock)
+  - Hito 2: Notificacion consolidada a bancos (1 email por banco con todos sus productos)
+  - Endpoint POST /api/projects/{id}/notify-client con email simulado al cliente
+  - Endpoint POST /api/projects/{id}/notify-bank con email consolidado al banco
+  - Endpoint GET /api/projects/{id}/rollup para avance automatico
+  - Proyecto Single: 5 fases editables + notificacion consolidada por banco
+  - Proyecto Multitienda: Matriz principal read-only con barras de progreso (Roll-up)
+  - Tiendas: 4 fases sin "Notificado" (Recibido, Configurado, Testeado, En Produccion)
+  - Avance automatico: promedio ponderado de avances de tiendas -> rollup_progress
+  - Hub de Comunicaciones: Placeholder para plantillas HTML futuras
+  - VALIDADO: 16/16 backend + 13/13 frontend (iteration_115)
 
 ### Modulo de Inventarios
 - Almacenes, Stock, Entradas, Transferencias, Salidas automaticas
