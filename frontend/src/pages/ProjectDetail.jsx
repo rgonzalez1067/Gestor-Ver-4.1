@@ -7,10 +7,11 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
-  FileText, Send, Calendar, User, Store
+  FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
+const STORE_PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 const PHASE_COLORS = {
   'Notificado': 'bg-lime-100 text-lime-800 border-lime-300',
   'Recibido': 'bg-sky-100 text-sky-800 border-sky-300',
@@ -28,53 +29,71 @@ const ProjectDetail = () => {
   const [bitacoraDate, setBitacoraDate] = useState(new Date().toISOString().split('T')[0]);
   const [bitacoraSubmitting, setBitacoraSubmitting] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [notifyingClient, setNotifyingClient] = useState(false);
+  const [notifyingBank, setNotifyingBank] = useState(null);
 
   const fetchProject = useCallback(async () => {
     try {
       const res = await api.get(`/projects/${projectId}`);
       setProject(res.data);
-    } catch (err) {
-      toast.error('Error cargando proyecto');
-      navigate('/projects');
-    } finally { setLoading(false); }
-  }, [projectId, navigate]);
+    } catch { toast.error('Error al cargar proyecto'); }
+    finally { setLoading(false); }
+  }, [projectId]);
 
   useEffect(() => { fetchProject(); }, [fetchProject]);
 
   const togglePhase = async (bankName, productName, phase, currentlyCompleted) => {
     try {
       await api.put(`/projects/${projectId}/matrix/phase`, {
-        bank_name: bankName,
-        product_name: productName,
-        phase: phase,
-        completed: !currentlyCompleted
+        bank_name: bankName, product_name: productName, phase, completed: !currentlyCompleted
       });
       fetchProject();
-    } catch (err) { toast.error('Error actualizando fase'); }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error actualizando fase');
+    }
   };
 
   const toggleStorePhase = async (storeId, bankName, productName, phase, currentlyCompleted) => {
     try {
       await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
-        bank_name: bankName,
-        product_name: productName,
-        phase: phase,
-        completed: !currentlyCompleted
+        bank_name: bankName, product_name: productName, phase, completed: !currentlyCompleted
       });
       fetchProject();
-    } catch (err) { toast.error('Error actualizando fase de tienda'); }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error actualizando fase de tienda');
+    }
+  };
+
+  const handleNotifyClient = async () => {
+    setNotifyingClient(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/notify-client`);
+      toast.success(res.data.message);
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al notificar cliente');
+    } finally { setNotifyingClient(false); }
+  };
+
+  const handleNotifyBank = async (bankName) => {
+    setNotifyingBank(bankName);
+    try {
+      const res = await api.post(`/projects/${projectId}/notify-bank`, { bank_name: bankName });
+      toast.success(res.data.message);
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al notificar banco');
+    } finally { setNotifyingBank(null); }
   };
 
   const handleAddBitacora = async () => {
-    if (!bitacoraText.trim() || !bitacoraDate) return;
     setBitacoraSubmitting(true);
     try {
       await api.post(`/projects/${projectId}/bitacora`, { text: bitacoraText, execution_date: bitacoraDate });
-      toast.success('Entrada agregada a la bitácora');
+      toast.success('Entrada registrada');
       setBitacoraText('');
-      setBitacoraDate(new Date().toISOString().split('T')[0]);
       fetchProject();
-    } catch (err) { toast.error('Error al agregar entrada'); }
+    } catch { toast.error('Error al registrar entrada'); }
     finally { setBitacoraSubmitting(false); }
   };
 
@@ -89,9 +108,30 @@ const ProjectDetail = () => {
     );
   }
 
-  // Build matrix data: { bankName: { productName: { phase: {completed, updated_at, updated_by} } } }
+  const isMultistore = project.project_type === 'multistore';
+  const clientNotified = project.client_notified === true;
+  const bankNotifications = project.bank_notifications || {};
   const matrix = project.implementation_matrix || {};
   const bankNames = Object.keys(matrix);
+  const rollup = project.rollup_progress || {};
+
+  // Fases según tipo de proyecto para tiendas
+  const activePhasesForStores = STORE_PHASES;
+
+  // Calcular progreso por tienda en frontend (para tabs)
+  const calcStoreProgress = (store) => {
+    const sm = store.implementation_matrix || {};
+    let completed = 0, total = 0;
+    Object.values(sm).forEach(products => {
+      Object.values(products).forEach(phases => {
+        activePhasesForStores.forEach(p => {
+          total++;
+          if (phases[p]?.completed) completed++;
+        });
+      });
+    });
+    return total > 0 ? Math.round((completed / total) * 100) : 0;
+  };
 
   return (
     <div className="flex min-h-screen bg-white">
@@ -122,6 +162,11 @@ const ProjectDetail = () => {
                 {project.assigned_to_name && (
                   <p className="text-sm text-slate-500 mt-1">Implementador: <strong>{project.assigned_to_name}</strong></p>
                 )}
+                {isMultistore && (
+                  <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200">
+                    <Store size={12} />Multitienda ({project.stores?.length || 0})
+                  </span>
+                )}
               </div>
             </div>
 
@@ -144,55 +189,126 @@ const ProjectDetail = () => {
             </div>
           </div>
 
-          {/* Implementation Matrix */}
+          {/* ============ NOTIFICATION SECTION (HITO 1 + HITO 2) ============ */}
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-3">Matriz de Implementación</h2>
-            {project.project_type === 'multistore' && (
-              <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
-                  <Store size={16} className="text-blue-600" />
-                  Proyecto Multitienda — Las matrices por tienda se encuentran más abajo
-                </p>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-slate-900">Matriz de Implementación</h2>
+              {/* Botón Notificar Cliente (Hito 1 - Fase Cero) */}
+              {!clientNotified ? (
+                <Button
+                  onClick={handleNotifyClient}
+                  disabled={notifyingClient}
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-2"
+                  data-testid="notify-client-btn"
+                >
+                  <Bell size={16} />
+                  {notifyingClient ? 'Notificando...' : 'Notificar Cliente'}
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg" data-testid="client-notified-badge">
+                  <BellRing size={16} className="text-emerald-600" />
+                  <span className="text-sm font-medium text-emerald-700">Cliente Notificado</span>
+                  <span className="text-xs text-emerald-500">{project.client_notified_at ? new Date(project.client_notified_at).toLocaleDateString('es-VE') : ''}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Hard Stop overlay if client not notified */}
+            {!clientNotified && (
+              <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-10 text-center" data-testid="matrix-locked">
+                <Lock size={40} className="mx-auto text-slate-300 mb-3" />
+                <p className="text-sm font-semibold text-slate-500">Matriz Bloqueada</p>
+                <p className="text-xs text-slate-400 mt-1">Debe notificar al cliente primero para desbloquear la matriz de seguimiento</p>
               </div>
             )}
-            {bankNames.length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 rounded-lg border">
-                <p className="text-slate-400">No hay datos en la matriz de implementación</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full" data-testid="implementation-matrix">
-                  <thead>
-                    <tr>
-                      <th className="bg-blue-600 text-white px-4 py-3 text-left text-sm font-semibold min-w-[200px]" colSpan={1}>
-                        Bancos / Productos
-                      </th>
-                      {PHASES.map(phase => (
-                        <th key={phase} className={`px-3 py-3 text-center text-xs font-semibold border-l border-slate-200 min-w-[110px] ${PHASE_COLORS[phase]}`}>
-                          {phase}
-                        </th>
-                      ))}
-                      <th className="bg-blue-600 text-white px-3 py-3 text-center text-xs font-semibold border-l border-slate-200 min-w-[150px]">
-                        Notas
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bankNames.map(bankName => {
-                      const products = Object.keys(matrix[bankName]);
-                      return (
-                        <BankSection key={bankName} bankName={bankName} products={products}
-                          matrixData={matrix[bankName]} onTogglePhase={togglePhase} />
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+
+            {/* ============ MAIN MATRIX (only when client notified) ============ */}
+            {clientNotified && (
+              <>
+                {isMultistore && (
+                  <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                        <Store size={16} className="text-blue-600" />
+                        Proyecto Multitienda — Matriz principal de solo lectura (avance automático)
+                      </p>
+                      {rollup.global_progress !== undefined && (
+                        <span className="text-sm font-bold text-blue-900" data-testid="rollup-global-progress">
+                          <BarChart3 size={14} className="inline mr-1" />
+                          Avance Global: {rollup.global_progress}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {bankNames.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-lg border">
+                    <p className="text-slate-400">No hay datos en la matriz de implementación</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="w-full" data-testid="implementation-matrix">
+                      <thead>
+                        <tr>
+                          <th className="bg-blue-600 text-white px-4 py-3 text-left text-sm font-semibold min-w-[200px]">
+                            Bancos / Productos
+                          </th>
+                          {isMultistore ? (
+                            <th className="bg-blue-600 text-white px-4 py-3 text-center text-sm font-semibold min-w-[300px]" colSpan={1}>
+                              Avance (Roll-up)
+                            </th>
+                          ) : (
+                            PHASES.map(phase => (
+                              <th key={phase} className={`px-3 py-3 text-center text-xs font-semibold border-l border-slate-200 min-w-[110px] ${PHASE_COLORS[phase]}`}>
+                                {phase}
+                              </th>
+                            ))
+                          )}
+                          <th className="bg-blue-600 text-white px-3 py-3 text-center text-xs font-semibold border-l border-slate-200 min-w-[140px]">
+                            {isMultistore ? 'Notificar' : 'Notas'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bankNames.map(bankName => {
+                          const products = Object.keys(matrix[bankName]);
+                          const isBankNotified = !!bankNotifications[bankName];
+                          return isMultistore ? (
+                            <MultistoreBankSection
+                              key={bankName}
+                              bankName={bankName}
+                              products={products}
+                              rollupBankData={rollup.bank_progress?.[bankName] || {}}
+                              isBankNotified={isBankNotified}
+                              bankNotification={bankNotifications[bankName]}
+                              onNotifyBank={handleNotifyBank}
+                              notifyingBank={notifyingBank}
+                            />
+                          ) : (
+                            <SingleBankSection
+                              key={bankName}
+                              bankName={bankName}
+                              products={products}
+                              matrixData={matrix[bankName]}
+                              onTogglePhase={togglePhase}
+                              isBankNotified={isBankNotified}
+                              bankNotification={bankNotifications[bankName]}
+                              onNotifyBank={handleNotifyBank}
+                              notifyingBank={notifyingBank}
+                            />
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* Sección Multitienda: Matrices por Tienda */}
-          {project.project_type === 'multistore' && project.stores && project.stores.length > 0 && (
+          {/* ============ MULTISTORE: MATRICES POR TIENDA ============ */}
+          {isMultistore && clientNotified && project.stores && project.stores.length > 0 && (
             <div className="mb-6" data-testid="multistore-section">
               <h2 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
                 <Store size={20} className="text-blue-600" />
@@ -202,16 +318,7 @@ const ProjectDetail = () => {
               {/* Tabs para seleccionar tienda */}
               <div className="flex gap-2 mb-4 flex-wrap">
                 {project.stores.map((store) => {
-                  const storeMatrix = store.implementation_matrix || {};
-                  const totalPhases = Object.values(storeMatrix).reduce((sum, products) => {
-                    return sum + Object.values(products).reduce((pSum, phases) => {
-                      return pSum + Object.values(phases).filter(p => p?.completed).length;
-                    }, 0);
-                  }, 0);
-                  const maxPhases = Object.values(storeMatrix).reduce((sum, products) => {
-                    return sum + Object.keys(products).length * PHASES.length;
-                  }, 0);
-                  const progress = maxPhases > 0 ? Math.round((totalPhases / maxPhases) * 100) : 0;
+                  const progress = calcStoreProgress(store);
                   const isActive = selectedStoreId === store.store_id;
                   return (
                     <button
@@ -247,7 +354,7 @@ const ProjectDetail = () => {
                           <Store size={16} className="text-blue-600" />
                           {store.name}
                         </h3>
-                        <p className="text-xs text-slate-500">{store.box_count} caja{store.box_count !== 1 ? 's' : ''} · Estado: {store.status || 'Pendiente'}</p>
+                        <p className="text-xs text-slate-500">{store.box_count} caja{store.box_count !== 1 ? 's' : ''} · Avance: {calcStoreProgress(store)}%</p>
                       </div>
                     </div>
                     {storeBankNames.length === 0 ? (
@@ -258,7 +365,7 @@ const ProjectDetail = () => {
                           <thead>
                             <tr>
                               <th className="bg-blue-600 text-white px-4 py-2.5 text-left text-xs font-semibold min-w-[200px]">Bancos / Productos</th>
-                              {PHASES.map(phase => (
+                              {activePhasesForStores.map(phase => (
                                 <th key={phase} className={`px-3 py-2.5 text-center text-xs font-semibold border-l border-slate-200 min-w-[100px] ${PHASE_COLORS[phase]}`}>{phase}</th>
                               ))}
                               <th className="bg-blue-600 text-white px-3 py-2.5 text-center text-xs font-semibold border-l border-slate-200">Avance</th>
@@ -269,7 +376,8 @@ const ProjectDetail = () => {
                               const products = Object.keys(storeMatrix[bankName]);
                               return (
                                 <StoreBankSection key={bankName} bankName={bankName} products={products}
-                                  matrixData={storeMatrix[bankName]} storeId={store.store_id} onTogglePhase={toggleStorePhase} />
+                                  matrixData={storeMatrix[bankName]} storeId={store.store_id} onTogglePhase={toggleStorePhase}
+                                  phases={activePhasesForStores} />
                               );
                             })}
                           </tbody>
@@ -339,14 +447,32 @@ const ProjectDetail = () => {
 };
 
 
-// Sub-component: Bank section with products
-const BankSection = ({ bankName, products, matrixData, onTogglePhase }) => {
+// ==================== SINGLE PROJECT: Bank Section ====================
+const SingleBankSection = ({ bankName, products, matrixData, onTogglePhase, isBankNotified, bankNotification, onNotifyBank, notifyingBank }) => {
   return (
     <>
-      {/* Bank header row */}
+      {/* Bank header row with notify button */}
       <tr className="bg-blue-50 border-t-2 border-blue-200">
-        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={PHASES.length + 2}>
+        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={PHASES.length + 1}>
           <Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}
+        </td>
+        <td className="px-3 py-2 text-center">
+          {isBankNotified ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700" data-testid={`bank-notified-${bankName}`}>
+              <BellRing size={10} />Notificado
+            </span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+              onClick={() => onNotifyBank(bankName)}
+              disabled={notifyingBank === bankName}
+              data-testid={`notify-bank-btn-${bankName}`}
+            >
+              <Mail size={12} className="mr-1" />Notificar
+            </Button>
+          )}
         </td>
       </tr>
       {/* Product rows */}
@@ -385,25 +511,92 @@ const BankSection = ({ bankName, products, matrixData, onTogglePhase }) => {
   );
 };
 
-export default ProjectDetail;
 
-// Sub-component: Store Bank section with products (for multistore)
-const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePhase }) => {
+// ==================== MULTISTORE PROJECT: Bank Section (Read-Only with Roll-up) ====================
+const MultistoreBankSection = ({ bankName, products, rollupBankData, isBankNotified, bankNotification, onNotifyBank, notifyingBank }) => {
+  return (
+    <>
+      {/* Bank header row */}
+      <tr className="bg-blue-50 border-t-2 border-blue-200">
+        <td className="px-4 py-2 text-sm font-bold text-blue-900">
+          <Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}
+        </td>
+        <td className="px-4 py-2 text-center text-xs text-blue-600 font-medium">
+          {(() => {
+            const pcts = products.map(p => rollupBankData[p] || 0);
+            const avg = pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+            return `Promedio: ${avg}%`;
+          })()}
+        </td>
+        <td className="px-3 py-2 text-center">
+          {isBankNotified ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700" data-testid={`bank-notified-${bankName}`}>
+              <BellRing size={10} />Notificado
+            </span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+              onClick={() => onNotifyBank(bankName)}
+              disabled={notifyingBank === bankName}
+              data-testid={`notify-bank-btn-${bankName}`}
+            >
+              <Mail size={12} className="mr-1" />Notificar
+            </Button>
+          )}
+        </td>
+      </tr>
+      {/* Product rows with progress bars */}
+      {products.map(productName => {
+        const pct = rollupBankData[productName] || 0;
+        return (
+          <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
+            <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
+            <td className="px-4 py-2.5 border-l border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'
+                    }`}
+                    style={{ width: `${Math.min(pct, 100)}%` }}
+                    data-testid={`rollup-bar-${bankName}-${productName}`}
+                  />
+                </div>
+                <span className={`text-sm font-bold min-w-[45px] text-right ${
+                  pct >= 100 ? 'text-emerald-600' : 'text-slate-600'
+                }`}>{pct}%</span>
+              </div>
+            </td>
+            <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400">
+              <Lock size={12} className="inline text-slate-300" />
+            </td>
+          </tr>
+        );
+      })}
+    </>
+  );
+};
+
+
+// ==================== STORE: Bank Section (editable, without Notificado) ====================
+const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePhase, phases }) => {
   return (
     <>
       <tr className="bg-blue-50 border-t-2 border-blue-200">
-        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={PHASES.length + 2}>
+        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={phases.length + 2}>
           <Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}
         </td>
       </tr>
       {products.map(productName => {
-        const phases = matrixData[productName] || {};
+        const phaseData = matrixData[productName] || {};
         return (
           <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
             <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
-            {PHASES.map(phase => {
-              const phaseData = phases[phase];
-              const completed = phaseData?.completed || false;
+            {phases.map(phase => {
+              const data = phaseData[phase];
+              const completed = data?.completed || false;
               return (
                 <td key={phase} className="px-3 py-2.5 text-center border-l border-slate-100">
                   <button
@@ -413,7 +606,7 @@ const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePha
                         ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
                         : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                     }`}
-                    title={completed ? `${phase}: Completado por ${phaseData?.updated_by || ''}` : `Marcar ${phase}`}
+                    title={completed ? `${phase}: Completado por ${data?.updated_by || ''}` : `Marcar ${phase}`}
                     data-testid={`store-phase-${storeId}-${bankName}-${productName}-${phase}`}
                   >
                     {completed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
@@ -422,7 +615,7 @@ const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePha
               );
             })}
             <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400">
-              {Object.values(phases).filter(p => p?.completed).length}/{PHASES.length}
+              {Object.values(phaseData).filter(p => p?.completed).length}/{phases.length}
             </td>
           </tr>
         );
@@ -430,3 +623,6 @@ const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePha
     </>
   );
 };
+
+
+export default ProjectDetail;

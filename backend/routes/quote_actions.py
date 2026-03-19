@@ -1113,6 +1113,11 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
         }],
         "created_at": now.isoformat(),
         "project_type": "single",
+        "client_notified": False,
+        "client_notified_at": None,
+        "client_notified_by": None,
+        "bank_notifications": {},
+        "rollup_progress": None,
     }
 
     # Soporte Multitienda
