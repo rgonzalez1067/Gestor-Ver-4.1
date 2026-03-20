@@ -56,6 +56,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Wizard multi-tipo, Protocolo de Excepcion, PDF, Segmentacion Pyme/Corp
 - **Optimizacion (2026-03-18)**: Regularizacion de estados (pasos omitidos ejecutables sin retroceder estado), terminologia actualizada (Aprobacion, Factura/Proforma, Cobranza), modal envio con mensaje personalizado (200 chars) + CC dinamicos. VALIDADO iter_113
 - **Bug Fix "Enviar a Implementacion" (2026-03-18)**: Corregido caso faltante en confirmEmailAndProceed() que bloqueaba la accion. VALIDADO iter_114
+- **Categorizacion de Equipos y Condiciones Legales (2026-03-20)**:
+  - Dividida categoria "Equipos" (Dispositivo) en "Equipos Verifone" y "Equipos Morefun" en EquipmentQuoteWizard
+  - Eliminado dropdown de subtipo POS/Pinpad; ahora 4 categorias planas: Verifone, Morefun, Accesorios, Reparaciones
+  - PDFs de condiciones legales almacenados en /app/backend/static_pdfs/ (4 archivos)
+  - Funcion append_equipment_conditions en config.py anexa automaticamente el PDF de condiciones al generar cotizacion
+  - Endpoint generate-equipment-pdf actualizado con nuevos type_labels y logica de anexion
+  - Flujo de Implementacion (VPOS/MPOS/Gateway) NO modificado
+  - VALIDADO: 10/10 backend + 6/6 frontend (iteration_119)
 
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones
