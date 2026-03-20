@@ -6,21 +6,19 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Categorías principales - ACTUALIZADO según nueva estructura jerárquica
+// Categorías principales - 4 categorías planas
 const EQUIPMENT_CATEGORIES = [
-  { id: 'Dispositivo', name: 'Equipos', description: 'Venta de hardware principal (Laptops, Servidores, etc.)', icon: Cpu },
+  { id: 'Verifone', name: 'Equipos Verifone', description: 'PinPad P200 en Windows/Linux', icon: Cpu },
+  { id: 'Morefun', name: 'Equipos Morefun', description: 'Soluciones móviles en Android', icon: Smartphone },
   { id: 'Accesorio', name: 'Accesorios', description: 'Periféricos y complementos (Mouses, cables, teclados)', icon: Package },
   { id: 'Reparacion', name: 'Reparaciones', description: 'Mano de obra técnica y servicios de mantenimiento correctivo', icon: Wrench }
 ];
 
-// Subtipos para Dispositivos
-const DEVICE_SUBTYPES = [
-  { id: 'POS', name: 'POS', description: 'Terminales de punto de venta' },
-  { id: 'Pinpad', name: 'Pinpad', description: 'Dispositivos Pinpad' }
-];
+// Tipos de hardware que aplican para categorías de equipos (Verifone y Morefun)
+const DEVICE_TYPES = ['POS', 'Pinpad'];
 
 // Tipos que se consideran accesorios
 const ACCESSORY_TYPES = ['Accesorio', 'Base'];
@@ -28,8 +26,7 @@ const ACCESSORY_TYPES = ['Accesorio', 'Base'];
 export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware }) => {
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [equipmentCategory, setEquipmentCategory] = useState(''); // "Dispositivo", "Accesorio" o "Reparacion"
-  const [deviceSubtype, setDeviceSubtype] = useState(''); // "POS" o "Pinpad" (solo para Dispositivos)
+  const [equipmentCategory, setEquipmentCategory] = useState(''); // "Verifone", "Morefun", "Accesorio" o "Reparacion"
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [notes, setNotes] = useState('');
@@ -43,10 +40,6 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
 
   // Reset cuando cambia la categoría
   useEffect(() => {
-    if (equipmentCategory !== 'Dispositivo') {
-      setDeviceSubtype('');
-    }
-    // Reset campos de reparación si no es reparación
     if (equipmentCategory !== 'Reparacion') {
       setRepairDescription('');
       setEquipmentSerialNumber('');
@@ -55,32 +48,17 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setSearchQuery('');
   }, [equipmentCategory]);
 
-  // Determinar si el selector de ítems debe estar habilitado
-  const isItemSelectionEnabled = () => {
-    if (equipmentCategory === 'Dispositivo') {
-      return !!deviceSubtype; // Debe tener subtipo seleccionado
-    }
-    if (equipmentCategory === 'Reparacion') {
-      return true; // Reparaciones siempre pueden agregar items de servicio
-    }
-    return !!equipmentCategory; // Solo necesita la categoría
-  };
-
-  // Filtrar hardware según la categoría y subtipo seleccionados
+  // Filtrar hardware según la categoría seleccionada
   const filteredHardware = hardware.filter(item => {
-    // Si no hay selección, no mostrar nada
-    if (!isItemSelectionEnabled()) return false;
+    if (!equipmentCategory) return false;
 
     let matchesCategory = false;
 
-    if (equipmentCategory === 'Dispositivo') {
-      // Filtrar por subtipo específico (POS o Pinpad)
-      matchesCategory = item.type === deviceSubtype;
+    if (equipmentCategory === 'Verifone' || equipmentCategory === 'Morefun') {
+      matchesCategory = DEVICE_TYPES.includes(item.type);
     } else if (equipmentCategory === 'Accesorio') {
-      // Filtrar por tipos que son accesorios
       matchesCategory = ACCESSORY_TYPES.includes(item.type);
     } else if (equipmentCategory === 'Reparacion') {
-      // Para reparaciones, mostrar servicios de mantenimiento y mano de obra
       const repairTypes = ['Mantenimiento', 'Consultoria', 'Componente', 'Pieza'];
       matchesCategory = repairTypes.includes(item.type);
     }
@@ -145,12 +123,10 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setStep(1);
     setSelectedClient(null);
     setEquipmentCategory('');
-    setDeviceSubtype('');
     setSearchQuery('');
     setSelectedItems([]);
     setNotes('');
     setShowConfirmDialog(false);
-    // Reset campos de reparación
     setRepairDescription('');
     setEquipmentSerialNumber('');
     setEstimatedDeliveryDate('');
@@ -171,16 +147,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setLoading(true);
     
     try {
-      // Determinar el tipo de equipo para el PDF
-      let equipmentTypeForPdf;
-      
-      if (equipmentCategory === 'Dispositivo') {
-        equipmentTypeForPdf = deviceSubtype === 'POS' ? 'POS' : 'Pinpad';
-      } else if (equipmentCategory === 'Accesorio') {
-        equipmentTypeForPdf = 'Accesorio';
-      } else if (equipmentCategory === 'Reparacion') {
-        equipmentTypeForPdf = 'Reparación';
-      }
+      // Mapear categoría al tipo para el PDF
+      const equipmentTypeForPdf = equipmentCategory === 'Reparacion' ? 'Reparación' : equipmentCategory;
 
       const pdfData = {
         client_id: selectedClient.client_id,
@@ -261,13 +229,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
 
   // Obtener etiqueta del tipo de cotización
   const getEquipmentTypeLabel = () => {
-    if (equipmentCategory === 'Dispositivo') {
-      return deviceSubtype ? `Equipo (${deviceSubtype})` : 'Equipo';
-    }
-    if (equipmentCategory === 'Reparacion') {
-      return 'Reparación';
-    }
-    return equipmentCategory || 'No seleccionado';
+    const cat = EQUIPMENT_CATEGORIES.find(c => c.id === equipmentCategory);
+    return cat ? cat.name : 'No seleccionado';
   };
 
   return (
@@ -354,17 +317,14 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               <h3 className="font-semibold text-lg text-slate-800">Paso 2: Tipo de Cotización</h3>
               <p className="text-slate-600 text-sm">Seleccione la categoría de ítems a cotizar.</p>
               
-              {/* Selección de Categoría Principal */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Selección de Categoría Principal - 4 categorías */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {EQUIPMENT_CATEGORIES.map((cat) => {
                   const IconComponent = cat.icon;
                   return (
                     <button
                       key={cat.id}
-                      onClick={() => {
-                        setEquipmentCategory(cat.id);
-                        setDeviceSubtype('');
-                      }}
+                      onClick={() => setEquipmentCategory(cat.id)}
                       className={`p-4 rounded-lg border-2 text-left transition-all ${
                         equipmentCategory === cat.id 
                           ? 'border-brand-blue-600 bg-brand-blue-50' 
@@ -375,7 +335,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                       <div className="flex flex-col items-center text-center gap-2">
                         <IconComponent size={28} className={equipmentCategory === cat.id ? 'text-brand-blue-600' : 'text-slate-400'} />
                         <div>
-                          <p className="font-semibold text-slate-900">{cat.name}</p>
+                          <p className="font-semibold text-slate-900 text-sm">{cat.name}</p>
                           <p className="text-xs text-slate-500 mt-1">{cat.description}</p>
                         </div>
                       </div>
@@ -383,31 +343,6 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                   );
                 })}
               </div>
-
-              {/* Dropdown secundario para Dispositivos */}
-              {equipmentCategory === 'Dispositivo' && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <Label className="text-blue-800 font-medium mb-2 block">
-                    <Monitor size={16} className="inline mr-2" />
-                    Tipo de Dispositivo *
-                  </Label>
-                  <Select 
-                    value={deviceSubtype} 
-                    onValueChange={setDeviceSubtype}
-                  >
-                    <SelectTrigger data-testid="equipment-device-subtype" className="bg-white">
-                      <SelectValue placeholder="Seleccione tipo de dispositivo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEVICE_SUBTYPES.map((subtype) => (
-                        <SelectItem key={subtype.id} value={subtype.id}>
-                          {subtype.name} - {subtype.description}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
 
               {/* Campos específicos para REPARACIONES */}
               {equipmentCategory === 'Reparacion' && (
@@ -458,7 +393,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               )}
 
               {/* Indicador de selección */}
-              {(equipmentCategory === 'Accesorio' || equipmentCategory === 'Reparacion' || (equipmentCategory === 'Dispositivo' && deviceSubtype)) && (
+              {equipmentCategory && (equipmentCategory !== 'Reparacion' || repairDescription) && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
                   <CheckCircle2 size={18} className="text-green-600" />
                   <span className="text-sm text-green-700 font-medium">
@@ -473,7 +408,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 </Button>
                 <Button 
                   onClick={() => setStep(3)} 
-                  disabled={!equipmentCategory || (equipmentCategory === 'Dispositivo' && !deviceSubtype) || (equipmentCategory === 'Reparacion' && !repairDescription)}
+                  disabled={!equipmentCategory || (equipmentCategory === 'Reparacion' && !repairDescription)}
                   className="bg-brand-blue-600 hover:bg-brand-blue-700"
                   data-testid="equipment-step2-next"
                 >
@@ -490,7 +425,9 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               <p className="text-slate-600 text-sm">
                 {equipmentCategory === 'Accesorio' 
                   ? 'Agregue los accesorios y complementos a cotizar.'
-                  : `Agregue los ${deviceSubtype === 'POS' ? 'terminales POS' : 'Pinpads'} a cotizar.`
+                  : equipmentCategory === 'Reparacion'
+                    ? 'Agregue los servicios de reparación a cotizar.'
+                    : `Agregue los equipos ${equipmentCategory} a cotizar.`
                 }
               </p>
               
@@ -513,7 +450,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     <AlertCircle className="mx-auto mb-2 text-amber-500" size={24} />
                     <p className="text-slate-500">No se encontraron productos</p>
                     <p className="text-sm text-slate-400 mt-1">
-                      Verifique que existan productos de tipo "{equipmentCategory === 'Dispositivo' ? deviceSubtype : 'Accesorio'}" en Dispositivos y Accesorios
+                      Verifique que existan productos de tipo "{getEquipmentTypeLabel()}" en Dispositivos y Accesorios
                     </p>
                   </div>
                 ) : (

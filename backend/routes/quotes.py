@@ -8,7 +8,7 @@ import logging
 import io
 import os
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
+from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_equipment_conditions, render_email_template
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 import traceback
@@ -1144,7 +1144,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         logo_b64 = b64mod.b64encode(logo_file.read_bytes()).decode()
         logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height:60px;max-width:200px;object-fit:contain" />'
 
-    type_labels = {"POS": "Equipos POS", "Pinpad": "Equipos Pinpad", "Accesorio": "Accesorios", "Reparación": "Reparaciones"}
+    type_labels = {"Verifone": "Equipos Verifone", "Morefun": "Equipos Morefun", "Accesorio": "Accesorios", "Reparación": "Reparaciones"}
     type_title = type_labels.get(data.equipment_type, data.equipment_type)
 
     subtotal = sum(item.quantity * item.unit_price_usd for item in data.items)
@@ -1261,6 +1261,9 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 </html>"""
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+
+    # Anexar condiciones legales según el tipo de cotización
+    pdf_bytes = append_equipment_conditions(pdf_bytes, data.equipment_type)
 
     # Guardar PDF en el servidor
     pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"

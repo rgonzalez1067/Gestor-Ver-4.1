@@ -172,6 +172,40 @@ def append_pg_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     return output
 
 
+def append_equipment_conditions(pdf_bytes: bytes, equipment_type: str) -> bytes:
+    """Anexa el PDF de condiciones legales correspondiente al tipo de equipo."""
+    if not PYPDF2_AVAILABLE:
+        return pdf_bytes
+
+    conditions_map = {
+        "Verifone": "condiciones_verifone.pdf",
+        "Morefun": "condiciones_morefun.pdf",
+        "Accesorio": "condiciones_accesorios.pdf",
+        "Reparación": "condiciones_reparaciones.pdf",
+    }
+
+    filename = conditions_map.get(equipment_type)
+    if not filename:
+        return pdf_bytes
+
+    conditions_path = STATIC_PDFS_DIR / filename
+    if not conditions_path.exists():
+        return pdf_bytes
+
+    writer = PdfWriter()
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    for page in reader.pages:
+        writer.add_page(page)
+
+    conditions_reader = PdfReader(str(conditions_path))
+    for page in conditions_reader.pages:
+        writer.add_page(page)
+
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
 def render_email_template(template_body: str, variables: dict) -> str:
     result = template_body
     for key, value in variables.items():
