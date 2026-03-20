@@ -33,9 +33,9 @@ const menuItems = [
   { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
   { path: '/integrators', icon: UserCheck, label: 'Integradores' },
   { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
+  { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
   { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
-  { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
   { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
 ];
 
