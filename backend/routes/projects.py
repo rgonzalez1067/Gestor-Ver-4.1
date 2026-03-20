@@ -651,6 +651,7 @@ async def send_adhoc_email(
     recipients: str = Form(...),
     subject: str = Form(...),
     message: str = Form(...),
+    matrix_html: str = Form(default=""),
     files: List[UploadFile] = File(default=[]),
     authorization: Optional[str] = Header(None)
 ):
@@ -671,6 +672,7 @@ async def send_adhoc_email(
 
     if not subject.strip():
         raise HTTPException(status_code=400, detail="El asunto es obligatorio")
+    # Solo contar el cuerpo del mensaje, excluyendo metadatos/matrix/adjuntos
     if len(message) > 1000:
         raise HTTPException(status_code=400, detail="El mensaje no puede exceder 1000 caracteres")
 
@@ -700,9 +702,12 @@ async def send_adhoc_email(
     # Construir email HTML
     message_html = message.replace("\n", "<br>")
     full_subject = f"{ticket_label}{subject}"
+    # Incluir matrix_html si fue enviada (separada del conteo de caracteres)
+    matrix_section = f"<hr>{matrix_html}" if matrix_html.strip() else ""
     html = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px;">
         <p>{message_html}</p>
+        {matrix_section}
         {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
     </div>
     """
@@ -718,9 +723,10 @@ async def send_adhoc_email(
 
     # Auto-registrar en bitácora con contenido completo
     attachments_text = f" ({len(saved_files)} adjunto(s))" if saved_files else ""
+    matrix_tag = " [+Matriz]" if matrix_html.strip() else ""
     bitacora_entry = {
         "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
-        "text": f"[Otras Notificaciones] {subject}{attachments_text} → {', '.join(to_list)}",
+        "text": f"[Otras Notificaciones] {subject}{attachments_text}{matrix_tag} → {', '.join(to_list)}",
         "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
@@ -732,6 +738,7 @@ async def send_adhoc_email(
             "message": message,
             "html_content": html,
             "attachments": saved_files,
+            "has_matrix": bool(matrix_html.strip()),
             "sent_at": now,
         }
     }
@@ -796,7 +803,7 @@ async def list_email_templates(authorization: Optional[str] = Header(None)):
 
 
 @router.post("/email-templates")
-async def create_email_template(authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body: str = Form(...)):
+async def create_email_template(authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body_content: str = Form(...)):
     """Crear plantilla de email (solo admin)."""
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
@@ -807,7 +814,7 @@ async def create_email_template(authorization: Optional[str] = Header(None), nam
         "template_id": f"tpl_{uuid.uuid4().hex[:8]}",
         "name": name.strip(),
         "subject": subject.strip(),
-        "body": body,
+        "body": body_content,
         "created_by": current_user.get("user_id"),
         "created_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "created_at": now,

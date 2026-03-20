@@ -1,0 +1,61 @@
+{
+  "summary": "Iteration 118: Testing of email templates body_content fix, matrix_html separation in ad-hoc emails, and UX improvements. All 10 backend tests passed (100%). All 7 frontend UI tests passed (100%). Templates dialog shows expanded layout (max-w-4xl, 5-column grid with list on left and form on right). Edit/Delete buttons visible immediately without scroll. Email templates CRUD works correctly with body_content field. Ad-hoc email accepts matrix_html as separate field not counting toward 1000 char limit. Notifications dialog shows recipients section. Ver Correo button in bitácora shows full email content.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration118_template_matrix_fixes.py",
+    "/app/test_reports/pytest/pytest_results_iteration118.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iteration118_template_matrix_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests)",
+    "frontend": "100% (7/7 tests)"
+  },
+  "test_credentials": {
+    "email": "admin@mega.com",
+    "password": "Admin123!"
+  },
+  "seed_data_creation": "Created test templates during testing. Used existing project prj_38a0b2e9d3b5 (multistore, notified).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 118 complete. All features working: 1) POST/PUT /api/email-templates uses body_content field (not body). 2) POST /api/projects/{id}/send-adhoc-email accepts matrix_html as separate optional field - only message counts toward 1000 char limit. 3) Templates dialog is max-w-4xl with grid-cols-5 (list left, form right). Edit/Delete buttons visible in template list. 4) Notifications dialog shows Destinatarios section with client/bank emails. 5) Otras Notificaciones shows suggested contacts from project. 6) Bitácora entries with [+Matriz] tag when matrix attached, Ver Correo button shows email detail dialog with subject/recipients/content.",
+  "features_tested": {
+    "backend": [
+      "POST /api/email-templates - Creates template with body_content field - PASSED",
+      "PUT /api/email-templates/{id} - Updates template with body_content field - PASSED", 
+      "Template CRUD full flow (create, read, update, delete) - PASSED",
+      "POST /api/projects/{id}/send-adhoc-email with matrix_html separate field - PASSED",
+      "Message 1000 char limit validation (only message, not matrix) - PASSED",
+      "Message 1000 chars + large matrix_html works - PASSED",
+      "Bitácora entry includes [+Matriz] tag when matrix attached - PASSED",
+      "GET /api/projects/{id}/suggested-contacts returns contacts - PASSED",
+      "Suggested contacts 404 for invalid project - PASSED",
+      "Template body stored and retrieved correctly - PASSED"
+    ],
+    "frontend": [
+      "Templates dialog max-w-4xl with 5-column grid layout - PASSED",
+      "Template list shows Edit/Delete buttons immediately - PASSED",
+      "Create new template works - PASSED",
+      "Edit button fills form with template data - PASSED",
+      "Otras Notificaciones dialog with suggested contacts - PASSED",
+      "Character counter (0/1000) and Attach Matrix button - PASSED",
+      "Notifications dialog with Destinatarios section and 4 levels - PASSED",
+      "Bitácora Ver Correo button opens email detail dialog - PASSED"
+    ]
+  },
+  "mocked_apis": {
+    "has_mocked_apis": true,
+    "mocked_apis_list": ["Email/Resend - simulated"]
+  }
+}

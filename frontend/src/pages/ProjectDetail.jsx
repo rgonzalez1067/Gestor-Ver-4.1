@@ -109,6 +109,7 @@ const ProjectDetail = () => {
   // ==================== SEQUENTIAL NOTIFICATIONS ====================
   const openNotifDialog = (type, bankName) => {
     setNotifTarget({ type, bankName });
+    fetchSuggestedContacts();
     setNotifDialogOpen(true);
   };
 
@@ -223,14 +224,14 @@ const ProjectDetail = () => {
 
     setEmailSending(true);
     try {
-      let fullMessage = emailForm.message;
-      if (attachMatrix) {
-        fullMessage += '\n\n---MATRIZ DE SEGUIMIENTO---\n' + generateMatrixHTML();
-      }
       const formData = new FormData();
       formData.append('recipients', JSON.stringify(validRecipients));
       formData.append('subject', emailForm.subject);
-      formData.append('message', fullMessage);
+      formData.append('message', emailForm.message);
+      // Matrix HTML se envía separada, no cuenta para el límite de caracteres
+      if (attachMatrix) {
+        formData.append('matrix_html', generateMatrixHTML());
+      }
       emailFiles.forEach(f => formData.append('files', f));
       const res = await api.post(`/projects/${projectId}/send-adhoc-email`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(res.data.message);
@@ -565,11 +566,36 @@ const ProjectDetail = () => {
 
         {/* ==================== NOTIFICATION DIALOG ==================== */}
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
-          <DialogContent className="max-w-md" data-testid="notif-dialog">
+          <DialogContent className="max-w-lg" data-testid="notif-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-3 py-2">
+            <div className="space-y-4 py-2">
+              {/* Mostrar destinatarios de la notificación */}
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <p className="text-xs font-medium text-slate-500 uppercase mb-2">Destinatarios</p>
+                {(() => {
+                  const contacts = notifTarget?.type === 'client'
+                    ? suggestedContacts.filter(c => c.source === 'client')
+                    : suggestedContacts.filter(c => c.source === 'bank' && c.label.includes(notifTarget?.bankName || ''));
+                  return contacts.length > 0 ? (
+                    <div className="space-y-1">
+                      {contacts.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <Mail size={12} className="text-slate-400 shrink-0" />
+                          <span className="text-slate-700">{c.email}</span>
+                          <span className="text-[10px] text-slate-400">({c.label})</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">No hay contactos registrados para esta entidad</p>
+                  );
+                })()}
+              </div>
+
+              {/* Niveles secuenciales */}
+              <div className="space-y-2">
               {NOTIFICATION_LEVELS.map((level, idx) => {
                 const history = notifTarget ? getEntityHistory(notifTarget) : [];
                 const executedLevels = history.map(h => h.level);
@@ -607,6 +633,7 @@ const ProjectDetail = () => {
                   </div>
                 );
               })}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -756,46 +783,73 @@ const ProjectDetail = () => {
 
         {/* ==================== TEMPLATES ADMIN DIALOG ==================== */}
         <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
-          <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto" data-testid="templates-dialog">
+          <DialogContent className="max-w-4xl" data-testid="templates-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><ClipboardList size={20} className="text-slate-600" />Gestionar Plantillas de Correo</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              {/* Template form */}
-              <div className="bg-slate-50 border rounded-lg p-4 space-y-3">
-                <p className="text-sm font-semibold text-slate-700">{editingTemplateId ? 'Editar Plantilla' : 'Nueva Plantilla'}</p>
-                <Input placeholder="Nombre de la plantilla" value={templateForm.name} onChange={e => setTemplateForm(p => ({ ...p, name: e.target.value }))}
-                  className="h-9 text-sm" data-testid="template-name" />
-                <Input placeholder="Asunto predeterminado" value={templateForm.subject} onChange={e => setTemplateForm(p => ({ ...p, subject: e.target.value }))}
-                  className="h-9 text-sm" data-testid="template-subject" />
-                <Textarea placeholder="Cuerpo del mensaje..." value={templateForm.body} onChange={e => setTemplateForm(p => ({ ...p, body: e.target.value }))}
-                  className="text-sm min-h-[80px]" data-testid="template-body" />
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleSaveTemplate} disabled={templateSaving} className="bg-blue-600 hover:bg-blue-700 text-white text-xs" data-testid="save-template-btn">
-                    {templateSaving ? 'Guardando...' : editingTemplateId ? 'Actualizar' : 'Crear'}
-                  </Button>
-                  {editingTemplateId && (
-                    <Button size="sm" variant="outline" onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }} className="text-xs">Cancelar</Button>
-                  )}
+            <div className="grid grid-cols-5 gap-6 min-h-[400px]">
+              {/* Lista de plantillas (col-2) */}
+              <div className="col-span-2 border-r border-slate-200 pr-6">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
+                <div className="space-y-2 max-h-[450px] overflow-y-auto">
+                  {emailTemplates.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">No hay plantillas registradas</p>
+                  ) : emailTemplates.map(t => (
+                    <div key={t.template_id}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${editingTemplateId === t.template_id ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                      data-testid={`template-item-${t.template_id}`}>
+                      <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">Asunto: {t.subject}</p>
+                      {t.body && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{t.body.slice(0, 100)}{t.body.length > 100 ? '...' : ''}</p>}
+                      <div className="flex gap-2 mt-2">
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" data-testid={`edit-template-${t.template_id}`}
+                          onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body || '' }); }}>
+                          Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
+                          data-testid={`delete-template-${t.template_id}`}
+                          onClick={() => handleDeleteTemplate(t.template_id)}>
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Template list */}
-              <div className="space-y-2">
-                {emailTemplates.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">No hay plantillas registradas</p>
-                ) : emailTemplates.map(t => (
-                  <div key={t.template_id} className="flex items-center justify-between p-3 bg-white border rounded-lg" data-testid={`template-item-${t.template_id}`}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
-                      <p className="text-xs text-slate-500 truncate">Asunto: {t.subject}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0 ml-2">
-                      <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body || '' }); }}>Editar</Button>
-                      <Button variant="ghost" size="sm" className="text-xs h-7 text-red-500 hover:text-red-700" onClick={() => handleDeleteTemplate(t.template_id)}>Eliminar</Button>
-                    </div>
+              {/* Formulario de edición (col-3) */}
+              <div className="col-span-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">{editingTemplateId ? 'Editar Plantilla' : 'Nueva Plantilla'}</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm">Nombre <span className="text-red-500">*</span></Label>
+                    <Input placeholder="Ej: Solicitud de acceso, Confirmación de pruebas..." value={templateForm.name}
+                      onChange={e => setTemplateForm(p => ({ ...p, name: e.target.value }))}
+                      className="h-9 text-sm mt-1" data-testid="template-name" />
                   </div>
-                ))}
+                  <div>
+                    <Label className="text-sm">Asunto <span className="text-red-500">*</span></Label>
+                    <Input placeholder="Asunto predeterminado del correo" value={templateForm.subject}
+                      onChange={e => setTemplateForm(p => ({ ...p, subject: e.target.value }))}
+                      className="h-9 text-sm mt-1" data-testid="template-subject" />
+                  </div>
+                  <div>
+                    <Label className="text-sm">Cuerpo del mensaje</Label>
+                    <Textarea placeholder="Contenido de la plantilla..." value={templateForm.body}
+                      onChange={e => setTemplateForm(p => ({ ...p, body: e.target.value }))}
+                      className="text-sm min-h-[200px] mt-1 resize-y" data-testid="template-body" />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={handleSaveTemplate} disabled={templateSaving || !templateForm.name.trim() || !templateForm.subject.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm" data-testid="save-template-btn">
+                      {templateSaving ? 'Guardando...' : editingTemplateId ? 'Actualizar Plantilla' : 'Crear Plantilla'}
+                    </Button>
+                    {editingTemplateId && (
+                      <Button variant="outline" onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }}
+                        className="text-sm">Nueva Plantilla</Button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </DialogContent>
