@@ -90,6 +90,19 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Barra de progreso en tabla principal para TODOS los proyectos
   - GET /api/projects/{id}/rollup ahora soporta single y multistore
   - VALIDADO: 14/14 backend + 8/8 frontend (iteration_116)
+- **Modulo de Comunicaciones Avanzado (2026-03-20)**:
+  - Notificaciones Secuenciales: 4 niveles (Primera Comunicacion, 1er Recordatorio, 2do Recordatorio, 3er Recordatorio)
+  - Activacion secuencial estricta (nivel N requiere N-1 ejecutado). Bancos requieren cliente notificado.
+  - Asunto dinamico por nivel. Registro en bitacora con contenido completo (email_detail).
+  - "Otras Notificaciones" (ex "Enviar Correo"): 1000 chars, ventana grande, dropdown plantillas predefinidas
+  - Panel Admin CRUD plantillas de correo (GET/POST/PUT/DELETE /api/email-templates)
+  - Contactos sugeridos del Cliente y Bancos del proyecto al abrir dialog
+  - Boton "Adjuntar Matriz de Seguimiento" genera tabla HTML del estatus actual
+  - Visualizacion de contenido de correo en Bitacora: boton "Ver Correo" abre dialogo con contenido completo
+  - Endpoint POST /api/projects/{id}/send-notification (unificado, secuencial)
+  - Endpoint GET /api/projects/{id}/notification-history
+  - Endpoint GET /api/projects/{id}/suggested-contacts
+  - VALIDADO: 18/18 backend + 12/12 frontend (iteration_117)
 
 ### Modulo de Inventarios
 - Almacenes, Stock, Entradas, Transferencias, Salidas automaticas
