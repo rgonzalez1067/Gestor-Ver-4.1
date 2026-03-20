@@ -1,143 +1,181 @@
 <analysis>**original_problem_statement:**
-El usuario ha solicitado una serie de mejoras y nuevas funcionalidades centradas en tres áreas principales:
-
-1.  **Módulo de Bancos y Proyectos:**
-    *   **Bitácora de Evolución por Producto:** Crear un historial de hitos técnicos y comentarios para cada producto dentro del roadmap de integración de un banco ().
-    *   **Consulta Global con Agrupamiento Dinámico:** Transformar la pantalla Proyectos en Proceso de Integración en una herramienta de análisis gerencial con agrupación por Banco, Producto o Fase ().
-    *   **Acciones Dinámicas en Proyectos:** Añadir un botón para cambiar el estado del proyecto con justificación y hacer que el botón Asignar cambie a Reasignar si ya hay un responsable.
-
-2.  **Módulo de Integradores:**
-    *   **Simplificación de UI:** Eliminar campos y columnas redundantes (Estatus, Fase de Integración) para centrarse en la gestión de relaciones.
-    *   **Mejora de Bitácora:** Cambiar el campo Persona de Contacto a un selector con escritura libre, cargando los contactos existentes del integrador.
-    *   **Transformación del Historial:** Convertir el botón Historial de Avance en un visor cronológico y auditable de todas las gestiones registradas en la bitácora, con filtros y resaltado de compromisos vencidos.
-
-3.  **Módulo de Cotizaciones:**
-    *   **Corrección de PDF:** Arreglar la generación de PDF de cotizaciones, adoptando un nuevo template HTML proporcionado por el usuario.
-    *   **Flujo Administrativo Flexible:** Eliminar los bloqueos de estado secuenciales (ej. no poder facturar sin aprobar). Permitir saltar pasos, pero forzando al usuario a registrar una justificación y una fecha de regularización en un Protocolo de Excepción.
-    *   **Visibilidad y Auditoría:** Crear un widget para contar cotizaciones con flujo irregular, un popover en la tabla para ver la justificación de la última irregularidad y una Bitácora de Flujo en el detalle para ver el historial completo de excepciones.
+El usuario ha solicitado una serie de optimizaciones para el módulo de Propuestas Comerciales (cotizaciones) con el objetivo de mejorar la claridad y la seguridad jurídica. Las solicitudes son:
+1.  **Categorización de Cotizaciones**: Diferenciar los presupuestos según cuatro categorías:
+    *   Equipos Verifone (PinPad P200 en Windows/Linux).
+    *   Equipos Morefun (Soluciones móviles en Android).
+    *   Accesorios.
+    *   Reparaciones.
+    El usuario ha aclarado que las categorías Equipos, Accesorios y Reparaciones ya existen en un flujo de creación, y que la tarea principal es dividir Equipos en Equipos Verifone y Equipos Morefun. El flujo de Implementación (VPOS/MPOS) no debe ser modificado.
+2.  **Vinculación Automatizada de Condiciones Legales**: Cada vez que se genere una cotización, el sistema debe adjuntar automáticamente un documento PDF con las condiciones legales correspondientes a su categoría. El usuario ha proporcionado los cuatro archivos PDF necesarios.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación Gestor - Work Flow de Procesos Integrales es una plataforma full-stack para la gestión de proyectos, integradores y cotizaciones. Se han implementado las siguientes funcionalidades clave:
-*   **Módulo de Integradores:** Un CRM técnico completo con gestión de contactos, bitácora de actividad y un nuevo visor cronológico de gestiones.
-*   **Módulo de Bancos:** Una bitácora de evolución por producto y una pantalla de reporte de proyectos con agrupación dinámica.
-*   **Módulo de Proyectos:** Acciones dinámicas en la tabla para cambiar estado y reasignar implementadores con justificación.
-*   **Módulo de Cotizaciones:** Se corrigió la generación de PDFs y se implementó un paradigma de flujo flexible, donde se pueden saltar pasos del proceso (aprobar, facturar, cobrar, entregar) a cambio de registrar una justificación en un log de auditoría. Se han añadido indicadores visuales para estos flujos irregulares.
+La aplicación MegaNexus es un sistema de gestión de procesos de negocio full-stack (React, FastAPI, MongoDB) con una arquitectura modular.
+*   **Módulos Clave**: Clientes, Cotizaciones, Inventario, Integradores, Bancos, Proyectos y Autenticación.
+*   **Funcionalidades Robustas**:
+    *   **Cotizaciones**: Un módulo complejo con múltiples flujos de creación (Implementación, Equipos), estados, acciones y modales de comunicación.
+    *   **Proyectos**: Gestión avanzada desde la creación (incluyendo un flujo Multitienda para múltiples sucursales), asignación con número de ticket, y seguimiento a través de una matriz de implementación con cálculo de progreso automatizado.
+    *   **Comunicaciones**: Un sistema de notificaciones secuenciales (4 niveles de recordatorio) y un módulo de envío de correos ad-hoc con editor de texto, sugerencia de contactos y capacidad para adjuntar archivos, incluyendo una captura de la matriz de seguimiento.
+    *   **Gestión de Plantillas**: CRUD completo para que un administrador gestione plantillas de correo.
+    *   **Generación de PDF**: Uso de  para generar documentos como notas de entrega/transferencia.
 
 **Last working item**:
--   **Last item agent was working**: Implementación de la visualización de las justificaciones para el flujo irregular de cotizaciones. Esto incluyó dos partes: un popover en la tabla principal que muestra la última justificación y una nueva sección/modal llamada Bitácora de Flujo que presenta un historial completo de todas las excepciones para una cotización específica.
--   **Status**: USER VERIFICATION PENDING
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: both
--   **User Testing Done**: N
+*   **Last item agent was working**: El agente estaba en la fase inicial de análisis del requerimiento Optimización de Propuestas Comerciales. Tras recibir una aclaración clave del usuario, el agente enfocó su investigación en el componente , que gestiona la creación de cotizaciones de tipo Equipos, Accesorios y Reparaciones, para planificar cómo dividir la categoría Equipos en Verifone y Morefun.
+*   **Status**: IN PROGRESS
+*   **Agent Testing Done**: N
+*   **Which testing method agent to use?**:  para validar el flujo de creación de cotizaciones por categoría, la generación del PDF y la correcta adjunción de las condiciones legales.
+*   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   No hay issues pendientes.
+*   No hay issues pendientes. La tarea actual es una nueva funcionalidad.
 
 **In progress Task List**:
--   No hay tareas en progreso. La última tarea fue completada por el agente y está a la espera de la validación del usuario.
+*   **Task 1: Optimización de Propuestas Comerciales (P0)**
+    *   **Where to resume**: El agente ha identificado que la lógica de creación de cotizaciones de equipos reside en . Los siguientes pasos son:
+        1.  **Almacenar PDFs**: Guardar los cuatro archivos PDF de condiciones legales en un directorio accesible en el backend (ej. ).
+        2.  **Modificar Frontend ()**: Actualizar la UI para reemplazar la opción Equipos por Equipos Verifone y Equipos Morefun, manteniendo Accesorios y Reparaciones.
+        3.  **Modificar Backend (Creación de Cotización)**: Actualizar el endpoint  para que reciba y guarde la nueva subcategoría detallada (ej. , ).
+        4.  **Modificar Backend (Generación de PDF)**: Modificar el servicio de generación de PDF de la cotización () para que, basado en la categoría de la cotización, lea el archivo de condiciones correspondiente y lo anexe al PDF principal generado.
+    *   **What will be achieved with this?**: Se segmentarán las cotizaciones con mayor granularidad y cada propuesta comercial incluirá automáticamente su marco legal, aumentando la transparencia para el cliente.
+    *   **Status**: IN PROGRESS
+    *   **Should Test frontend/backend/both after fix?**: both
+    *   **Blocked on something**: No.
 
 **Upcoming and Future Tasks**
-Upcoming Tasks:
--   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar flujos estándar de autenticación.
-
-Future Tasks:
--   **Refactorización del Frontend -  (P1):** Descomponer el asistente monolítico de creación/edición de cotizaciones en subcomponentes.
--   **Módulo de Reportes (P2):** Desarrollar una nueva sección para generar reportes de ventas.
--   **Lógica de Completado en Roadmap de Bancos (P2):** Implementar la sugerencia de mover un ítem del roadmap a Activos cuando su estatus sea Completada.
+*   **Upcoming Tasks:**
+    *   **Heredar Cantidad de Cajas a Cotizaciones (P1):** El valor del campo Cantidad de Cajas Registradoras del cliente debe heredarse automáticamente al crear una cotización VPOS.
+    *   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar flujos estándar de autenticación.
+    *   **Refactorización de  (P1):** Descomponer el componente monolítico de más de 4800 líneas.
+*   **Future Tasks:**
+    *   **Módulo de Reportes de ventas (P2):** Desarrollar una nueva sección para generar reportes.
+    *   **Lógica de Completado en Roadmap de Bancos (P2):** Implementar la sugerencia de mover un ítem a Activos cuando su estatus sea Completada.
+    *   **Refactorización del resto de componentes monolíticos (P2):** , , .
+    *   **Integrar plantillas HTML aprobadas en el Hub de Comunicaciones (P2).**
 
 **Completed work in this session**
--   **Bitácora de Producto y Consulta Global (DONE):** Implementada la bitácora de evolución en  y el reporte con agrupación dinámica en .
--   **Corrección de UI en Reportes (DONE):** Se arregló el desalineamiento de columnas en la vista agrupada.
--   **Optimización del Módulo de Integradores (DONE):** Se eliminaron campos redundantes y se transformó el Historial de Avance en un visor cronológico completo de la bitácora de gestiones.
--   **Acciones Dinámicas en Proyectos (DONE):** Implementados los modales para Cambiar Estado y Reasignar con justificación.
--   **Corrección de Generación de Cotizaciones (DONE):** Se reemplazó la librería  por  y se adoptó el template HTML del usuario para generar PDFs.
--   **Flujo Flexible de Cotizaciones (DONE):** Se implementó el paradigma de flujo irregular con un modal de justificación obligatorio al saltar pasos.
--   **Auditoría de Flujo Irregular (DONE):** Se añadió el popover con la justificación en la tabla de cotizaciones y la Bitácora de Flujo para un historial detallado.
+-   **Borrado de DB y Reordenamiento de Menú**: Se eliminaron todas las cotizaciones y proyectos y se reorganizó el menú lateral.
+-   **Ajustes Críticos en Plantillas y Notificaciones**: Se corrigió el bug de edición de plantillas, se mejoró la UX del gestor de plantillas, se ajustó la lógica de conteo de caracteres en correos y se aseguró la carga de contactos en las notificaciones.
+-   **Módulo de Comunicaciones Avanzado**: Se implementó un sistema de notificaciones secuenciales (4 niveles) y se mejoró el módulo de Otras Notificaciones para permitir mensajes más largos, sugerencia de contactos y la capacidad de adjuntar una captura de la matriz de seguimiento.
+-   **Gestión de Tickets y Progreso**: Se introdujo el Número de Ticket como identificador de proyecto, se añadió búsqueda por ticket y se estandarizó el cálculo de progreso para todos los tipos de proyecto.
+-   **Reingeniería de Matriz y Notificaciones**: Se implementó una lógica de Hard Stop (notificar cliente primero) y se consolidaron las notificaciones a bancos.
+-   **Flujo Multitienda**: Se corrigió un bug crítico y se implementó el flujo completo para gestionar proyectos en múltiples sucursales desde una sola cotización.
 
 **Earlier issues found/mentioned but not fixed**
--   None.
+*   None.
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil en el entorno de desarrollo y se reinicia con la sesión del pod. Esto es una característica del entorno, no un bug.
--   **Recurrence count**: 3+
--   **Status**: NOT STARTED
+*   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se reinicia periódicamente en el entorno de desarrollo.
+*   **Recurrence count**: 4+
+*   **Status**: NOT STARTED (Es una característica del entorno; el agente debe estar preparado para recrear datos de prueba).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend**: FastAPI, Pydantic, MongoDB, WeasyPrint (para HTML a PDF), lógica de Flujo Irregular con Auditoría.
--   **Frontend**: React, Shadcn/UI (, , ), gestión de estado compleja para flujos condicionales y modales dinámicos.
--   **Paradigma de UI**: Transición de deshabilitar acciones a mantenerlas habilitadas y gestionar excepciones a través de la interacción del usuario (modales de justificación).
+-   **Backend**: FastAPI, MongoDB, Pydantic.
+-   **Frontend**: React, Shadcn/UI, ,  (toasts).
+-   **PDF Generation**: . Se requerirá lógica para leer y anexar PDFs existentes.
+-   **File Storage**: El agente deberá decidir dónde almacenar los PDFs de condiciones legales proporcionados por el usuario.
 
 **key DB schema**
--   ****:
-    -   : Boolean
-    -   : Array de 
-    -   : Array de 
-
-**changes in tech stack**
--   Se añadió  al backend para la generación de PDFs a partir de HTML.
+-   ****: Necesitará un campo para la nueva categoría detallada (ej. ) para diferenciar los equipos.
+-   ****: Ha sido extendido con  (único), , y campos para gestionar el estado de las notificaciones.
+-   ****: Nueva colección para las plantillas de correo.
 
 **All files of reference**
--   : Archivo central para la lógica de cotizaciones, modales de excepción y bitácora de flujo.
--   : Contiene toda la lógica de backend para el flujo irregular, auditoría y generación de PDF.
--   : Archivo principal del módulo de integradores, contiene el nuevo visor cronológico.
--   : Contiene los nuevos modales para las acciones dinámicas de proyectos.
--   : (Anteriormente ) Contiene el reporte con agrupación.
--   : Contiene la bitácora de evolución del producto.
+-   : Archivo principal que renderiza el botón del wizard.
+-   : Componente clave a modificar para la nueva categorización.
+-   : Donde se maneja la creación de la cotización.
+-   Un servicio de generación de PDF (existente o a crear) que deberá ser modificado para adjuntar las condiciones.
+-   Los 4 archivos PDF proporcionados por el usuario.
 
 **Areas that need refactoring**:
--    y  han crecido considerablemente y son los principales candidatos para ser descompuestos en componentes más pequeños y manejables.
+-   : La refactorización es de **prioridad crítica** después de la tarea actual. Su tamaño y complejidad son un riesgo significativo para el mantenimiento.
 
 **key api endpoints**
--    (approve, invoice, collect, deliver): Endpoints actualizados para aceptar  y  y registrar flujos irregulares.
--   : Nuevo endpoint para el widget del dashboard.
--   : Nuevo endpoint para obtener el historial de excepciones de una cotización.
--   : Actualizado para incluir fecha y comentario en la nota.
--   : Actualizado para manejar reasignaciones con justificación.
+-   : Endpoint de creación de cotizaciones. Deberá ser adaptado para la nueva categorización.
+-   : Endpoint que genera el PDF de la cotización. Deberá ser modificado para incluir las condiciones.
 
 **Critical Info for New Agent**
--   **Idioma:** La comunicación debe ser exclusivamente en **español**.
--   **Próximo Paso:** La siguiente acción debe ser presentar el trabajo completado al usuario para su validación, ya que se han implementado una gran cantidad de funcionalidades desde la última interacción sustancial.
--   **Paradigma Clave:** El módulo de Cotizaciones ahora opera bajo un principio de flexibilidad con auditoría. Entender este cambio de lógica es crucial para cualquier modificación futura.
--   **Testing Pendiente:** El agente finalizó la última tarea (Bitácora de Flujo) pero no ejecutó al . Antes de continuar con nuevas tareas, se recomienda ejecutar una validación completa para asegurar que no se introdujeron regresiones.
+-   **Idioma:** Toda la comunicación debe ser en **español**.
+-   **Tarea Prioritaria:** Dividir la categoría Equipos en Equipos Verifone y Equipos Morefun en el , y modificar la generación de PDFs de cotizaciones para que se anexe automáticamente el documento de condiciones legales correcto según la categoría.
+-   **Restricción Importante**: El flujo de creación de cotizaciones de Implementación (con opciones VPOS, MPOS, etc.) **NO DEBE SER MODIFICADO**.
+-   **Archivos PDF**: Los 4 archivos PDF con las condiciones legales han sido provistos por el usuario y deben ser integrados en el flujo de generación de documentos.
 
 **documents and test reports created in this job**
--    (actualizado múltiples veces)
--   Múltiples reportes de testing en , siendo el último .
+-   : Actualizado consistentemente.
+-   Múltiples reportes de  en , el último siendo .
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Solicita transformar el Historial de Avance del integrador en un visor cronológico de la bitácora. (DONE)
-2.  **User:** Pide botones de acción dinámicos en la pantalla de Proyectos (Cambiar estado y Asignar/Reasignar). (DONE)
-3.  **User:** Reporta que la generación de cotizaciones PDF está fallando y proporciona un nuevo template HTML. (DONE)
-4.  **User:** Solicita la implementación del Flujo Administrativo Flexible para cotizaciones, permitiendo saltar pasos con justificación. (DONE)
-5.  **User:** Detalla los requisitos de visualización para el flujo irregular: un popover en la tabla y una pestaña de Historial de Excepciones. (DONE)
-6.  **Agent:** Implementa la visualización de la justificación y la bitácora de flujo.
-7.  **Agent:** Declara la tarea como finalizada. (AWAITING USER VERIFICATION)
+1.  **User**: Pide borrar la DB de Cotizaciones/Proyectos y reordenar el menú lateral. (COMPLETED)
+2.  **Assistant**: Confirma la acción. (COMPLETED)
+3.  **User**: Solicita la nueva funcionalidad: categorizar cotizaciones (Verifone, Morefun, Accesorios, Reparaciones) y adjuntar automáticamente los PDFs de condiciones. Proporciona los 4 PDFs. (CURRENT TASK)
+4.  **Assistant**: Inicia el análisis del código de cotizaciones.
+5.  **Assistant**: Continúa la exploración de .
+6.  **Assistant**: Identifica las categorías de cotización existentes en el código.
+7.  **Assistant**: Presenta un plan de acción inicial.
+8.  **User**: **Aclara un punto crítico**: Las categorías Equipos, Accesorios y Reparaciones ya existen. La tarea es solo **dividir Equipos en Verifone y Morefun** y no tocar el flujo de Implementación.
+9.  **Assistant**: Entiende la aclaración y enfoca su análisis en el wizard de equipos ().
+10. **Assistant**: Visualiza el código de  para entender su funcionamiento.
 
 **Project Health Check:**
 -   **Broken**: Ninguna funcionalidad está rota.
--   **Mocked**: El servicio de envío de correos (Resend) sigue en modo simulado.
+-   **Mocked**: El servicio de envío de correos () está simulado.
 
 **3rd Party Integrations**
--   **WeasyPrint**: Generación de PDF desde HTML.
+-   **reportlab**: Generación de PDF.
+-   **openpyxl, pandas**: Procesamiento de archivos Excel.
 -   **Resend**: Envío de correos (simulado).
--   **reportlab**, **PyPDF2**: Generación/Manipulación de PDF (parcialmente reemplazado por WeasyPrint).
--   **Shadcn/UI**, **Radix UI**: Componentes React.
--   **bcrypt**: Hashing.
--   **openpyxl**, **pandas**: Manejo de Excel/CSV.
+-   **Shadcn/UI, Radix UI, lucide-react**: Componentes React.
+-   **bcrypt**: Hashing de contraseñas.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. Se usó consistentemente para la mayoría de las funcionalidades.
--   **Troubleshoot agent used after agent stuck in loop**: NO.
--   **Test files created**: Múltiples, hasta .
--   **Known regressions**: Ninguna conocida.
+-   **Testing agent used after significant changes**: YES, en todas las tareas completadas.
+-   **Test files created**: No se crearon archivos de test ============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+plugins: anyio-4.12.1
+collected 1272 items / 5 errors
+
+==================================== ERRORS ====================================
+______ ERROR collecting backend/tests/test_iteration18_email_templates.py ______
+backend/tests/test_iteration18_email_templates.py:15: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+_________ ERROR collecting backend/tests/test_iteration37_features.py __________
+backend/tests/test_iteration37_features.py:13: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+______ ERROR collecting backend/tests/test_iteration68_banks_redesign.py _______
+backend/tests/test_iteration68_banks_redesign.py:16: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+______ ERROR collecting backend/tests/test_iteration83_project_actions.py ______
+backend/tests/test_iteration83_project_actions.py:14: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+_________ ERROR collecting backend/tests/test_iteration89_client_v2.py _________
+backend/tests/test_iteration89_client_v2.py:12: in <module>
+    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'NoneType' object has no attribute 'rstrip'
+=========================== short test summary info ============================
+ERROR backend/tests/test_iteration18_email_templates.py - AttributeError: 'No...
+ERROR backend/tests/test_iteration37_features.py - AttributeError: 'NoneType'...
+ERROR backend/tests/test_iteration68_banks_redesign.py - AttributeError: 'Non...
+ERROR backend/tests/test_iteration83_project_actions.py - AttributeError: 'No...
+ERROR backend/tests/test_iteration89_client_v2.py - AttributeError: 'NoneType...
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 5 errors in 5.26s ===============================.
+-   **Known regressions**: Ninguna.
 
 **Credentials to test flow:**
-No hay credenciales fijas. Se debe registrar un nuevo usuario en la UI (). El primer usuario creado es administrador por defecto.
+-   Registrar un nuevo usuario desde la UI (). El primer usuario obtiene privilegios de administrador.
 
 **What agent forgot to execute**
--   El agente olvidó ejecutar al  después de completar la última funcionalidad (Bitácora de Flujo y popover de justificación en el módulo de Cotizaciones). Solo realizó una verificación visual con una captura de pantalla antes de finalizar. Es crucial realizar una prueba de regresión completa.</analysis>
+-   Nada. El agente está en la fase de análisis inicial de la nueva tarea, habiendo recibido recientemente una aclaración crucial del usuario.</analysis>
