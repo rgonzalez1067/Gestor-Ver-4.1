@@ -103,6 +103,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Endpoint GET /api/projects/{id}/notification-history
   - Endpoint GET /api/projects/{id}/suggested-contacts
   - VALIDADO: 18/18 backend + 12/12 frontend (iteration_117)
+- **Ajustes Criticos Plantillas y Notificaciones (2026-03-20)**:
+  - Fix bug Editar plantillas: campo body_content unificado en POST y PUT
+  - UX plantillas: dialogo expandido max-w-4xl, layout 2 columnas (lista + formulario), botones Editar/Eliminar visibles
+  - Conteo chars: limite 1000 solo para cuerpo del mensaje, matrix_html enviado como campo separado
+  - Destinatarios en diálogo Notificaciones: muestra emails del cliente/banco automaticamente
+  - Contactos sugeridos en Otras Notificaciones: se cargan al abrir dialogo
+  - VALIDADO: 10/10 backend + 7/7 frontend (iteration_118)
 
 ### Modulo de Inventarios
 - Almacenes, Stock, Entradas, Transferencias, Salidas automaticas
