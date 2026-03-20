@@ -61,8 +61,8 @@ api_router.include_router(quotes_router)
 api_router.include_router(attachments_router)
 api_router.include_router(integrators_router)
 api_router.include_router(settings_router)
+api_router.include_router(projects_router)  # Projects router before seed_templates to allow new email-templates CRUD routes
 api_router.include_router(seed_templates_router)
-api_router.include_router(projects_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)
 

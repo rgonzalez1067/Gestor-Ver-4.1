@@ -442,8 +442,10 @@ async def get_email_template(template_id: str, authorization: Optional[str] = He
     return template
 
 @router.put("/email-templates/{template_id}")
-async def update_email_template(template_id: str, template: EmailTemplate, authorization: Optional[str] = Header(None)):
-    """Actualiza una plantilla de correo"""
+async def update_email_template_legacy(template_id: str, template: EmailTemplate, authorization: Optional[str] = Header(None)):
+    """Actualiza una plantilla de correo - LEGACY: Use /api/email-templates/{id} with FormData instead"""
+    # This route is deprecated - the new CRUD routes are in projects.py
+    # Keeping for backward compatibility but recommending FormData version
     await get_current_user(authorization)
     
     # Validar que el template_id coincida

@@ -61,6 +61,21 @@ class AdhocEmailRequest(BaseModel):
     image_urls: Optional[List[str]] = None
 
 
+NOTIFICATION_LEVELS = [
+    "Primera Comunicación",
+    "Primer Recordatorio",
+    "Segundo Recordatorio",
+    "Tercer Recordatorio",
+]
+
+NOTIFICATION_SUBJECTS = {
+    "Primera Comunicación": "Notificación de Implementación",
+    "Primer Recordatorio": "1er Recordatorio — Implementación",
+    "Segundo Recordatorio": "2do Recordatorio — Implementación",
+    "Tercer Recordatorio": "3er Recordatorio (Urgente) — Implementación",
+}
+
+
 # ==================== PROJECT ENDPOINTS ====================
 
 @router.get("/projects")
@@ -274,176 +289,193 @@ def _calculate_rollup_progress(project: dict) -> dict:
 
 @router.post("/projects/{project_id}/notify-client")
 async def notify_client(project_id: str, authorization: Optional[str] = Header(None)):
-    """Notificar al cliente (Hito 1 - Fase Cero). Desbloquea la matriz."""
-    current_user = await get_current_user(authorization)
-
-    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
-    if not project:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-
-    if project.get("client_notified"):
-        raise HTTPException(status_code=400, detail="El cliente ya fue notificado para este proyecto")
-
-    now = datetime.now(timezone.utc).isoformat()
-    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-
-    # Buscar email del cliente
-    client = None
-    client_id = project.get("client_id")
-    if client_id:
-        client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
-
-    client_email = client.get("email", "") if client else ""
-    client_name = project.get("client_name", "Cliente")
-    ticket = project.get("ticket_number", "")
-    ticket_label = f"[Ticket {ticket}] " if ticket else ""
-
-    # Construir email (placeholder para plantilla HTML futura)
-    subject = f"{ticket_label}MegaNexus — Notificación de Implementación: {project.get('project_number', '')}"
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px;">
-        <h2>Notificación de Implementación</h2>
-        {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
-        <p>Estimado/a <strong>{client_name}</strong>,</p>
-        <p>Le informamos que su proyecto de implementación <strong>{project.get('project_number', '')}</strong>
-        ha sido iniciado.</p>
-        <p>Detalles del proyecto:</p>
-        <ul>
-            <li>Cotización: {project.get('quote_number', '')}</li>
-            <li>Tipo: {project.get('quote_type', '')}</li>
-            <li>Modelo Pinpad: {project.get('pinpad_model', '—')}</li>
-        </ul>
-        <!-- PLACEHOLDER: Contenido HTML de plantilla aprobada -->
-        <hr>
-        <p style="color: #999; font-size: 12px;">Este es un correo automático de MegaNexus.</p>
-    </div>
-    """
-
-    to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
-    email_result = await send_email(
-        to=to_list,
-        subject=subject,
-        html=html,
-        action="notify_client_implementation",
-        quote_id=project.get("quote_id"),
-        quote_number=project.get("quote_number"),
-    )
-
-    # Registrar notificación en el proyecto
-    await db.projects.update_one(
-        {"project_id": project_id},
-        {"$set": {
-            "client_notified": True,
-            "client_notified_at": now,
-            "client_notified_by": user_name,
-            "updated_at": now,
-        }}
-    )
-
-    return {
-        "message": f"Cliente notificado exitosamente ({email_result.get('status', 'unknown')})",
-        "status": email_result.get("status"),
-        "client_email": to_list[0],
-        "client_notified": True,
-    }
+    """Primera Comunicación al cliente. Desbloquea la matriz."""
+    return await _send_sequential_notification(project_id, "client", None, authorization)
 
 
 @router.post("/projects/{project_id}/notify-bank")
 async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: Optional[str] = Header(None)):
-    """Notificación consolidada a un banco (Hito 2). Un email por banco con todos sus productos."""
-    current_user = await get_current_user(authorization)
+    """Primera Comunicación a un banco."""
+    return await _send_sequential_notification(project_id, "bank", body.bank_name, authorization)
 
+
+class SequentialNotifyRequest(BaseModel):
+    target: str  # "client" or "bank"
+    bank_name: Optional[str] = None
+    level: str  # one of NOTIFICATION_LEVELS
+
+
+@router.post("/projects/{project_id}/send-notification")
+async def send_sequential_notification(project_id: str, body: SequentialNotifyRequest, authorization: Optional[str] = Header(None)):
+    """Enviar notificación secuencial (cualquier nivel) a cliente o banco."""
+    return await _send_sequential_notification(project_id, body.target, body.bank_name, authorization, body.level)
+
+
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None):
+    """Lógica unificada de notificaciones secuenciales."""
+    current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Verificar hard stop: cliente debe estar notificado primero
-    if not project.get("client_notified"):
-        raise HTTPException(status_code=400, detail="Debe notificar al cliente primero (Hito 1)")
-
-    bank_name = body.bank_name
-    matrix = project.get("implementation_matrix", {})
-    if bank_name not in matrix:
-        raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
-
-    # Verificar si ya fue notificado
-    bank_notifications = project.get("bank_notifications", {})
-    if bank_name in bank_notifications:
-        raise HTTPException(status_code=400, detail=f"El banco '{bank_name}' ya fue notificado")
-
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-
-    # Agregar productos del banco
-    products = list(matrix[bank_name].keys())
-
-    # Buscar contactos del banco
-    bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
-    bank_email = ""
-    if bank:
-        contacts = bank.get("contacts", [])
-        if contacts:
-            bank_email = contacts[0].get("email", "")
-
-    # Construir email consolidado (placeholder para plantilla HTML futura)
     ticket = project.get("ticket_number", "")
     ticket_label = f"[Ticket {ticket}] " if ticket else ""
-    products_html = "".join(f"<li>{p}</li>" for p in products)
-    subject = f"{ticket_label}MegaNexus — Notificación de Implementación: {bank_name} — {project.get('project_number', '')}"
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px;">
-        <h2>Notificación de Implementación — {bank_name}</h2>
-        {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
-        <p>Estimados contactos de <strong>{bank_name}</strong>,</p>
-        <p>Se ha iniciado la implementación del proyecto <strong>{project.get('project_number', '')}</strong>
-        para el cliente <strong>{project.get('client_name', '')}</strong>.</p>
-        <p><strong>Productos asociados a {bank_name}:</strong></p>
-        <ul>{products_html}</ul>
-        <p><strong>Datos técnicos:</strong></p>
-        <ul>
-            <li>Cotización: {project.get('quote_number', '')}</li>
-            <li>Integrador: {project.get('integrator_name', '—')}</li>
-            <li>Aplicativo: {project.get('integrator_app_name', '—')}</li>
-            <li>Modelo Pinpad: {project.get('pinpad_model', '—')}</li>
-        </ul>
-        <!-- PLACEHOLDER: Contenido HTML de plantilla aprobada para bancos -->
-        <hr>
-        <p style="color: #999; font-size: 12px;">Este es un correo automático de MegaNexus.</p>
-    </div>
-    """
+    notification_history = project.get("notification_history", {})
 
-    to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
+    # Determinar clave de historial
+    history_key = "client" if target == "client" else f"bank_{bank_name}"
+
+    # Obtener historial para esta entidad
+    entity_history = notification_history.get(history_key, [])
+    executed_levels = [h["level"] for h in entity_history]
+
+    # Determinar nivel actual
+    if level is None:
+        # Auto-detectar: primer nivel no ejecutado
+        level = None
+        for lvl in NOTIFICATION_LEVELS:
+            if lvl not in executed_levels:
+                level = lvl
+                break
+        if level is None:
+            raise HTTPException(status_code=400, detail="Todos los niveles de notificación ya fueron enviados")
+    else:
+        if level not in NOTIFICATION_LEVELS:
+            raise HTTPException(status_code=400, detail=f"Nivel inválido. Válidos: {NOTIFICATION_LEVELS}")
+
+    # Validar secuencialidad
+    level_idx = NOTIFICATION_LEVELS.index(level)
+    for i in range(level_idx):
+        if NOTIFICATION_LEVELS[i] not in executed_levels:
+            raise HTTPException(status_code=400, detail=f"Debe ejecutar '{NOTIFICATION_LEVELS[i]}' antes de '{level}'")
+
+    if level in executed_levels:
+        raise HTTPException(status_code=400, detail=f"'{level}' ya fue enviada")
+
+    # Para bancos: verificar que cliente tenga al menos la Primera Comunicación
+    if target == "bank":
+        client_history = notification_history.get("client", [])
+        if not client_history:
+            raise HTTPException(status_code=400, detail="Debe notificar al cliente primero")
+        matrix = project.get("implementation_matrix", {})
+        if bank_name not in matrix:
+            raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
+
+    # Construir email según target
+    subject_suffix = NOTIFICATION_SUBJECTS.get(level, level)
+
+    if target == "client":
+        client = None
+        client_id = project.get("client_id")
+        if client_id:
+            client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+        client_email = client.get("email", "") if client else ""
+        client_name = project.get("client_name", "Cliente")
+        to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
+
+        subject = f"{ticket_label}{subject_suffix}: {project.get('project_number', '')}"
+        html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2>{subject_suffix}</h2>
+{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
+<p>Estimado/a <strong>{client_name}</strong>,</p>
+<p>Le informamos sobre el estado de su proyecto de implementación <strong>{project.get('project_number','')}</strong>.</p>
+<p><strong>Nivel:</strong> {level}</p>
+<ul><li>Cotización: {project.get('quote_number','')}</li><li>Tipo: {project.get('quote_type','')}</li><li>Pinpad: {project.get('pinpad_model','—')}</li></ul>
+<!-- PLACEHOLDER: Plantilla HTML aprobada -->
+<hr><p style="color:#999;font-size:12px;">Correo automático de MegaNexus.</p></div>"""
+        entity_label = f"Cliente ({client_name})"
+    else:
+        bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        bank_email = ""
+        if bank:
+            contacts = bank.get("contacts", [])
+            if contacts:
+                bank_email = contacts[0].get("email", "")
+        to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
+
+        products = list(project.get("implementation_matrix", {}).get(bank_name, {}).keys())
+        products_html = "".join(f"<li>{p}</li>" for p in products)
+        subject = f"{ticket_label}{subject_suffix}: {bank_name} — {project.get('project_number', '')}"
+        html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2>{subject_suffix} — {bank_name}</h2>
+{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
+<p>Estimados contactos de <strong>{bank_name}</strong>,</p>
+<p>Proyecto <strong>{project.get('project_number','')}</strong> para <strong>{project.get('client_name','')}</strong>.</p>
+<p><strong>Nivel:</strong> {level}</p>
+<p><strong>Productos:</strong></p><ul>{products_html}</ul>
+<ul><li>Integrador: {project.get('integrator_name','—')}</li><li>Aplicativo: {project.get('integrator_app_name','—')}</li><li>Pinpad: {project.get('pinpad_model','—')}</li></ul>
+<!-- PLACEHOLDER: Plantilla HTML aprobada para bancos -->
+<hr><p style="color:#999;font-size:12px;">Correo automático de MegaNexus.</p></div>"""
+        entity_label = f"Banco ({bank_name})"
+
     email_result = await send_email(
-        to=to_list,
-        subject=subject,
-        html=html,
-        action="notify_bank_implementation",
-        quote_id=project.get("quote_id"),
-        quote_number=project.get("quote_number"),
+        to=to_list, subject=subject, html=html,
+        action=f"notification_{target}_{level.replace(' ', '_').lower()}",
+        quote_id=project.get("quote_id"), quote_number=project.get("quote_number"),
     )
 
-    # Registrar notificación del banco
-    bank_notifications[bank_name] = {
-        "notified_at": now,
-        "notified_by": user_name,
-        "products": products,
-        "email_status": email_result.get("status"),
+    # Registrar en historial
+    entry = {"level": level, "sent_at": now, "sent_by": user_name, "recipients": to_list, "subject": subject, "email_status": email_result.get("status")}
+    entity_history.append(entry)
+    notification_history[history_key] = entity_history
+
+    update_set = {"notification_history": notification_history, "updated_at": now}
+
+    # Primera Comunicación al cliente desbloquea la matriz
+    if target == "client" and level == "Primera Comunicación":
+        update_set["client_notified"] = True
+        update_set["client_notified_at"] = now
+        update_set["client_notified_by"] = user_name
+
+    # Primera Comunicación al banco registra en bank_notifications (compat)
+    if target == "bank" and level == "Primera Comunicación":
+        bank_notifications = project.get("bank_notifications", {})
+        bank_notifications[bank_name] = {"notified_at": now, "notified_by": user_name, "products": list(project.get("implementation_matrix", {}).get(bank_name, {}).keys()), "email_status": email_result.get("status")}
+        update_set["bank_notifications"] = bank_notifications
+
+    await db.projects.update_one({"project_id": project_id}, {"$set": update_set})
+
+    # Auto-registrar en bitácora con contenido completo
+    bitacora_entry = {
+        "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
+        "text": f"[{level}] {entity_label} — {subject}",
+        "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+        "type": "notification",
+        "email_detail": {
+            "subject": subject,
+            "recipients": to_list,
+            "html_content": html,
+            "level": level,
+            "target": target,
+            "bank_name": bank_name,
+            "sent_at": now,
+        }
     }
-
-    await db.projects.update_one(
-        {"project_id": project_id},
-        {"$set": {
-            "bank_notifications": bank_notifications,
-            "updated_at": now,
-        }}
-    )
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
     return {
-        "message": f"Banco '{bank_name}' notificado con {len(products)} producto(s) ({email_result.get('status', 'unknown')})",
+        "message": f"{level} enviada a {entity_label} ({email_result.get('status', 'unknown')})",
         "status": email_result.get("status"),
+        "level": level,
+        "target": target,
         "bank_name": bank_name,
-        "products_notified": products,
+        "recipients": to_list,
     }
+
+
+@router.get("/projects/{project_id}/notification-history")
+async def get_notification_history(project_id: str, authorization: Optional[str] = Header(None)):
+    """Obtener historial de notificaciones secuenciales."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "notification_history": 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    return project.get("notification_history", {})
 
 
 @router.get("/projects/{project_id}/rollup")
@@ -639,8 +671,8 @@ async def send_adhoc_email(
 
     if not subject.strip():
         raise HTTPException(status_code=400, detail="El asunto es obligatorio")
-    if len(message) > 500:
-        raise HTTPException(status_code=400, detail="El mensaje no puede exceder 500 caracteres")
+    if len(message) > 1000:
+        raise HTTPException(status_code=400, detail="El mensaje no puede exceder 1000 caracteres")
 
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
@@ -684,16 +716,24 @@ async def send_adhoc_email(
         quote_number=project.get("quote_number"),
     )
 
-    # Auto-registrar en bitácora
+    # Auto-registrar en bitácora con contenido completo
     attachments_text = f" ({len(saved_files)} adjunto(s))" if saved_files else ""
     bitacora_entry = {
         "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
-        "text": f"[Email Ad-hoc] {subject}{attachments_text} → {', '.join(to_list)}",
+        "text": f"[Otras Notificaciones] {subject}{attachments_text} → {', '.join(to_list)}",
         "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
         "created_at": now,
         "type": "adhoc_email",
+        "email_detail": {
+            "subject": full_subject,
+            "recipients": to_list,
+            "message": message,
+            "html_content": html,
+            "attachments": saved_files,
+            "sent_at": now,
+        }
     }
     await db.projects.update_one(
         {"project_id": project_id},
@@ -708,6 +748,103 @@ async def send_adhoc_email(
         "attachments_count": len(saved_files),
         "bitacora_entry_id": bitacora_entry["entry_id"],
     }
+
+
+# ==================== SUGGESTED CONTACTS ====================
+
+@router.get("/projects/{project_id}/suggested-contacts")
+async def get_suggested_contacts(project_id: str, authorization: Optional[str] = Header(None)):
+    """Obtener contactos sugeridos del Cliente y Bancos del proyecto."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    contacts = []
+
+    # Contacto del cliente
+    client_id = project.get("client_id")
+    if client_id:
+        client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+        if client:
+            if client.get("email"):
+                contacts.append({"email": client["email"], "label": f"Cliente: {project.get('client_name', '')}", "source": "client"})
+            for c in client.get("contacts", []):
+                if c.get("email"):
+                    contacts.append({"email": c["email"], "label": f"Cliente ({c.get('name', '')})", "source": "client"})
+
+    # Contactos de bancos del proyecto
+    matrix = project.get("implementation_matrix", {})
+    for bank_name in matrix:
+        bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        if bank:
+            for c in bank.get("contacts", []):
+                if c.get("email"):
+                    contacts.append({"email": c["email"], "label": f"Banco {bank_name} ({c.get('name', '')})", "source": "bank"})
+
+    return contacts
+
+
+# ==================== EMAIL TEMPLATES (CRUD) ====================
+
+@router.get("/email-templates")
+async def list_email_templates(authorization: Optional[str] = Header(None)):
+    """Listar todas las plantillas de email."""
+    await get_current_user(authorization)
+    templates = await db.email_templates.find({}, {"_id": 0}).to_list(None)
+    return templates
+
+
+@router.post("/email-templates")
+async def create_email_template(authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body: str = Form(...)):
+    """Crear plantilla de email (solo admin)."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
+
+    now = datetime.now(timezone.utc).isoformat()
+    template = {
+        "template_id": f"tpl_{uuid.uuid4().hex[:8]}",
+        "name": name.strip(),
+        "subject": subject.strip(),
+        "body": body,
+        "created_by": current_user.get("user_id"),
+        "created_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.email_templates.insert_one(template)
+    template.pop("_id", None)
+    return template
+
+
+@router.put("/email-templates/{template_id}")
+async def update_email_template(template_id: str, authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body_content: str = Form(...)):
+    """Actualizar plantilla de email (solo admin)."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
+
+    result = await db.email_templates.update_one(
+        {"template_id": template_id},
+        {"$set": {"name": name.strip(), "subject": subject.strip(), "body": body_content, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return {"message": "Plantilla actualizada"}
+
+
+@router.delete("/email-templates/{template_id}")
+async def delete_email_template(template_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar plantilla de email (solo admin)."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
+
+    result = await db.email_templates.delete_one({"template_id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return {"message": "Plantilla eliminada"}
 
 
 
