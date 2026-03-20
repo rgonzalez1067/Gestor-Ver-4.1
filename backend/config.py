@@ -172,19 +172,22 @@ def append_pg_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     return output
 
 
-def append_equipment_conditions(pdf_bytes: bytes, equipment_type: str) -> bytes:
-    """Anexa el PDF de condiciones legales correspondiente al tipo de equipo."""
+def append_equipment_conditions(pdf_bytes: bytes, equipment_type: str, sede: str = "") -> bytes:
+    """Anexa el PDF de condiciones legales correspondiente al tipo de equipo y sede."""
     if not PYPDF2_AVAILABLE:
         return pdf_bytes
 
-    conditions_map = {
-        "Verifone": "condiciones_verifone.pdf",
-        "Morefun": "condiciones_morefun.pdf",
-        "Accesorio": "condiciones_accesorios.pdf",
-        "Reparación": "condiciones_reparaciones.pdf",
-    }
+    # Para Verifone, diferenciar por sede: PYME→TBP, CORP→LCH
+    if equipment_type == "Verifone":
+        filename = "condiciones_verifone_tbp.pdf" if sede == "PYME" else "condiciones_verifone.pdf"
+    else:
+        conditions_map = {
+            "Morefun": "condiciones_morefun.pdf",
+            "Accesorio": "condiciones_accesorios.pdf",
+            "Reparación": "condiciones_reparaciones.pdf",
+        }
+        filename = conditions_map.get(equipment_type)
 
-    filename = conditions_map.get(equipment_type)
     if not filename:
         return pdf_bytes
 

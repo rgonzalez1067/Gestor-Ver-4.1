@@ -1263,7 +1263,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
 
     # Anexar condiciones legales según el tipo de cotización
-    pdf_bytes = append_equipment_conditions(pdf_bytes, data.equipment_type)
+    pdf_bytes = append_equipment_conditions(pdf_bytes, data.equipment_type, user_sede)
 
     # Guardar PDF en el servidor
     pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"

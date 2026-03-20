@@ -61,6 +61,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Eliminado dropdown de subtipo POS/Pinpad; ahora 4 categorias planas: Verifone, Morefun, Accesorios, Reparaciones
   - PDFs de condiciones legales almacenados en /app/backend/static_pdfs/ (4 archivos)
   - Funcion append_equipment_conditions en config.py anexa automaticamente el PDF de condiciones al generar cotizacion
+  - Diferenciacion por sede para Verifone: PYME→condiciones TBP, CORP→condiciones LCH
   - Endpoint generate-equipment-pdf actualizado con nuevos type_labels y logica de anexion
   - Flujo de Implementacion (VPOS/MPOS/Gateway) NO modificado
   - VALIDADO: 10/10 backend + 6/6 frontend (iteration_119)
