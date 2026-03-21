@@ -66,6 +66,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Flujo de Implementacion (VPOS/MPOS/Gateway) NO modificado
   - VALIDADO: 10/10 backend + 6/6 frontend (iteration_119)
 
+### Modulo de Proyectos - Detalle de Implementacion
+- Tickets, progreso, matriz de implementacion, multitienda
+- **Mejora Header (2026-03-21)**: Rediseño del header en 3 bloques: Datos del Proyecto, Implementacion, Avance y Acciones. Mejor jerarquia visual, alineacion y espaciado. VALIDADO iter_120
+- **Fix Contactos Notificaciones (2026-03-21)**: Corregido carga silenciosa de contactos. Ahora muestra TODOS los contactos del proyecto (cliente + bancos) agrupados. Toast de error si falla la carga. VALIDADO iter_120
+- **Fix Plantillas (2026-03-21)**: Corregido error critico al cargar plantillas (body_html vs body). Toast de error si falla la carga. VALIDADO iter_120
+
 ### Modulo de Proyectos
 - Generacion automatica desde cotizaciones
 - **Flujo Multitienda (2026-03-18)**:
