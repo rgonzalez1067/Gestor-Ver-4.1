@@ -391,7 +391,7 @@ const ProjectDetail = () => {
                   </div>
                 </div>
                 {project.assigned_to_name && (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 pt-1 mt-1 border-t border-slate-100">
                     <User size={18} className="text-violet-600 shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500">Implementador</p>
