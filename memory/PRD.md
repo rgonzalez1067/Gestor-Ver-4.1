@@ -69,7 +69,7 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 ### Modulo de Proyectos - Detalle de Implementacion
 - Tickets, progreso, matriz de implementacion, multitienda
 - **Mejora Header (2026-03-21)**: Rediseño del header en 3 bloques: Datos del Proyecto, Implementacion, Avance y Acciones. Mejor jerarquia visual, alineacion y espaciado. VALIDADO iter_120
-- **Fix Contactos Notificaciones (2026-03-21)**: Corregido carga silenciosa de contactos. Ahora muestra TODOS los contactos del proyecto (cliente + bancos) agrupados. Toast de error si falla la carga. VALIDADO iter_120
+- **Bug Fix Guardar Cliente (2026-03-21)**: Corregido error critico 422 al guardar clientes. Causa: campos `cantidad_tiendas` y `cantidad_cajas` se enviaban como string vacio "" en vez de null para Optional[int]. Tambien mejorado manejo de errores 422 en frontend para evitar crash de React. VALIDADO con screenshot
 - **Fix Plantillas (2026-03-21)**: Corregido error critico al cargar plantillas (body_html vs body). Toast de error si falla la carga. VALIDADO iter_120
 
 ### Modulo de Proyectos

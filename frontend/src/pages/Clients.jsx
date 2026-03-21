@@ -141,6 +141,15 @@ export const Clients = () => {
     e.preventDefault();
     // Migrate legacy contact1/contact2 to contacts array if needed
     const payload = { ...formData };
+    // Convertir strings vacíos a null para campos numéricos opcionales
+    if (payload.cantidad_tiendas === '' || payload.cantidad_tiendas === null) payload.cantidad_tiendas = null;
+    else payload.cantidad_tiendas = parseInt(payload.cantidad_tiendas, 10) || null;
+    if (payload.cantidad_cajas === '' || payload.cantidad_cajas === null) payload.cantidad_cajas = null;
+    else payload.cantidad_cajas = parseInt(payload.cantidad_cajas, 10) || null;
+    // Convertir strings vacíos a null para campos opcionales
+    for (const key of ['referidor', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo']) {
+      if (payload[key] === '') payload[key] = null;
+    }
     // Ensure legacy fields for backwards compat
     if (payload.contacts?.length >= 1) {
       const c = payload.contacts[0];
@@ -167,7 +176,13 @@ export const Clients = () => {
       resetForm();
       fetchClients();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar cliente');
+      const detail = error.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const fields = detail.map(d => d.loc?.slice(-1)?.[0] || 'campo').join(', ');
+        toast.error(`Error de validación en: ${fields}`);
+      } else {
+        toast.error(detail || 'Error al guardar cliente');
+      }
     }
   };
 
