@@ -1121,6 +1121,7 @@ class EquipmentQuotePDFRequest(BaseModel):
     repair_description: str = ""
     equipment_serial_number: str = ""
     estimated_delivery_date: str = ""
+    bulk_serials: List[str] = []  # Seriales de carga masiva
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
@@ -1163,10 +1164,18 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     repair_section = ""
     if data.equipment_type == "Reparación" and data.repair_description:
+        serial_html = ""
+        if data.bulk_serials:
+            serial_list = "".join(f"<li style='font-size:11px;color:#475569'>{s}</li>" for s in data.bulk_serials)
+            serial_html = f"""<br><strong style="font-size:12px;color:#9a3412">Seriales ({len(data.bulk_serials)}):</strong>
+                <ul style="margin:4px 0 0 16px;padding:0;columns:2;column-gap:24px">{serial_list}</ul>"""
+        elif data.equipment_serial_number:
+            serial_html = f'<br><span style="font-size:12px;color:#64748b">Serial: {data.equipment_serial_number}</span>'
+
         repair_section = f"""<div style="margin:20px 0;padding:15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
             <strong style="color:#9a3412">Detalle de Reparación</strong><br>
             <span style="font-size:13px;color:#475569">{data.repair_description}</span>
-            {'<br><span style="font-size:12px;color:#64748b">Serial: ' + data.equipment_serial_number + '</span>' if data.equipment_serial_number else ''}
+            {serial_html}
             {'<br><span style="font-size:12px;color:#64748b">Entrega Est.: ' + data.estimated_delivery_date + '</span>' if data.estimated_delivery_date else ''}
         </div>"""
 
@@ -1343,3 +1352,95 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         }
     )
 
+
+
+# ==================== CARGA MASIVA DE SERIALES PARA REPARACIONES ====================
+
+@router.post("/quotes/validate-repair-serials")
+async def validate_repair_serials(
+    file: UploadFile = File(...),
+    client_id: str = Form(""),
+    authorization: Optional[str] = Header(None)
+):
+    """Recibe un archivo Excel con seriales, los valida contra el inventario y retorna resultados."""
+    await get_current_user(authorization)
+    import openpyxl
+
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="El archivo debe ser formato Excel (.xlsx)")
+
+    try:
+        contents = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+        ws = wb.active
+
+        serials = []
+        for row in ws.iter_rows(min_row=1, values_only=True):
+            for cell in row:
+                if cell is not None:
+                    val = str(cell).strip()
+                    if val and val.lower() not in ('serial', 'seriales', 'numero de serie', 'número de serie', 'serial number', 'nro', 'n/s'):
+                        serials.append(val)
+
+        wb.close()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
+
+    if not serials:
+        raise HTTPException(status_code=400, detail="No se encontraron seriales en el archivo")
+
+    # Deduplicar preservando orden
+    seen = set()
+    unique_serials = []
+    for s in serials:
+        if s not in seen:
+            seen.add(s)
+            unique_serials.append(s)
+
+    # Buscar en inventory_movements
+    all_movements = await db.inventory_movements.find(
+        {"serials": {"$in": unique_serials}},
+        {"_id": 0, "item_name": 1, "item_type": 1, "warehouse_id": 1, "serials": 1}
+    ).to_list(10000)
+
+    # Construir mapa serial -> info
+    serial_info = {}
+    for m in all_movements:
+        for s in m.get("serials", []):
+            if s in seen and s not in serial_info:
+                serial_info[s] = {
+                    "item_name": m.get("item_name", ""),
+                    "item_type": m.get("item_type", ""),
+                    "warehouse_id": m.get("warehouse_id", "")
+                }
+
+    # Enriquecer con nombre del almacén
+    wh_ids = list(set(v["warehouse_id"] for v in serial_info.values() if v["warehouse_id"]))
+    wh_map = {}
+    if wh_ids:
+        warehouses = await db.warehouses.find(
+            {"warehouse_id": {"$in": wh_ids}}, {"_id": 0, "warehouse_id": 1, "name": 1}
+        ).to_list(100)
+        wh_map = {w["warehouse_id"]: w["name"] for w in warehouses}
+
+    found = []
+    not_found = []
+    for s in unique_serials:
+        if s in serial_info:
+            info = serial_info[s]
+            found.append({
+                "serial": s,
+                "item_name": info["item_name"],
+                "item_type": info["item_type"],
+                "warehouse": wh_map.get(info["warehouse_id"], info["warehouse_id"])
+            })
+        else:
+            not_found.append({"serial": s})
+
+    return {
+        "total_uploaded": len(unique_serials),
+        "found": found,
+        "not_found": not_found,
+        "found_count": len(found),
+        "not_found_count": len(not_found)
+    }

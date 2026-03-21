@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Categorías principales - 4 categorías planas
@@ -38,12 +38,21 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [equipmentSerialNumber, setEquipmentSerialNumber] = useState('');
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
 
+  // Carga masiva de seriales
+  const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
+  const [bulkValidationResult, setBulkValidationResult] = useState(null); // { found, not_found, ... }
+  const [acceptUnknownSerials, setAcceptUnknownSerials] = useState(false);
+  const [confirmedSerials, setConfirmedSerials] = useState([]); // Seriales confirmados para la cotización
+
   // Reset cuando cambia la categoría
   useEffect(() => {
     if (equipmentCategory !== 'Reparacion') {
       setRepairDescription('');
       setEquipmentSerialNumber('');
       setEstimatedDeliveryDate('');
+      setBulkValidationResult(null);
+      setAcceptUnknownSerials(false);
+      setConfirmedSerials([]);
     }
     setSearchQuery('');
   }, [equipmentCategory]);
@@ -130,6 +139,69 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setRepairDescription('');
     setEquipmentSerialNumber('');
     setEstimatedDeliveryDate('');
+    setBulkUploadLoading(false);
+    setBulkValidationResult(null);
+    setAcceptUnknownSerials(false);
+    setConfirmedSerials([]);
+  };
+
+  // ==================== CARGA MASIVA DE SERIALES ====================
+  const handleBulkUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast.error('El archivo debe ser formato Excel (.xlsx)');
+      return;
+    }
+    setBulkUploadLoading(true);
+    setBulkValidationResult(null);
+    setAcceptUnknownSerials(false);
+    try {
+      const token = localStorage.getItem('session_token');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('client_id', selectedClient?.client_id || '');
+      const backendUrl = process.env.REACT_APP_BACKEND_URL;
+      const res = await fetch(`${backendUrl}/api/quotes/validate-repair-serials`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: fd
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Error al procesar el archivo');
+      }
+      const result = await res.json();
+      setBulkValidationResult(result);
+      if (result.not_found_count === 0) {
+        setConfirmedSerials(result.found.map(s => s.serial));
+        toast.success(`${result.found_count} serial(es) validados exitosamente`);
+      } else {
+        toast.info(`${result.found_count} encontrados, ${result.not_found_count} no registrados en inventario`);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Error al cargar el archivo');
+      setBulkValidationResult(null);
+    } finally {
+      setBulkUploadLoading(false);
+    }
+  };
+
+  const handleConfirmBulkSerials = () => {
+    if (!bulkValidationResult) return;
+    const allSerials = [
+      ...bulkValidationResult.found.map(s => s.serial),
+      ...(acceptUnknownSerials ? bulkValidationResult.not_found.map(s => s.serial) : [])
+    ];
+    setConfirmedSerials(allSerials);
+    toast.success(`${allSerials.length} serial(es) confirmados para la cotización`);
+  };
+
+  const clearBulkUpload = () => {
+    setBulkValidationResult(null);
+    setAcceptUnknownSerials(false);
+    setConfirmedSerials([]);
   };
 
   // Mostrar modal de confirmación
@@ -160,7 +232,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         notes: notes,
         repair_description: repairDescription,
         equipment_serial_number: equipmentSerialNumber,
-        estimated_delivery_date: estimatedDeliveryDate
+        estimated_delivery_date: estimatedDeliveryDate,
+        bulk_serials: confirmedSerials
       };
 
       const token = localStorage.getItem('session_token');
@@ -373,6 +446,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                         placeholder="Ej: SN-12345678"
                         className="bg-white mt-1"
                         data-testid="repair-serial-number"
+                        disabled={confirmedSerials.length > 0}
                       />
                     </div>
                     <div>
@@ -388,6 +462,113 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Carga Masiva de Seriales */}
+                  <div className="border-t border-orange-200 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-orange-800 font-medium flex items-center gap-1.5">
+                        <Upload size={15} />
+                        Carga Masiva de Seriales
+                      </Label>
+                      {confirmedSerials.length > 0 && (
+                        <Button variant="ghost" size="sm" onClick={clearBulkUpload} className="text-red-500 hover:text-red-700 h-7 text-xs" data-testid="bulk-clear-btn">
+                          <X size={14} className="mr-1" />Limpiar
+                        </Button>
+                      )}
+                    </div>
+
+                    {confirmedSerials.length === 0 && !bulkValidationResult && (
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 cursor-pointer">
+                          <input type="file" accept=".xlsx,.xls" onChange={handleBulkUpload} className="hidden" data-testid="bulk-file-input" />
+                          <div className="flex items-center justify-center gap-2 border-2 border-dashed border-orange-300 rounded-lg p-3 text-sm text-orange-700 hover:border-orange-400 hover:bg-orange-100/50 transition-colors">
+                            <Upload size={16} />
+                            {bulkUploadLoading ? 'Procesando...' : 'Subir archivo Excel con seriales'}
+                          </div>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Resultados de validación */}
+                    {bulkValidationResult && confirmedSerials.length === 0 && (
+                      <div className="space-y-3 mt-2">
+                        <p className="text-xs text-slate-600">
+                          {bulkValidationResult.total_uploaded} serial(es) procesados del archivo
+                        </p>
+
+                        {bulkValidationResult.found.length > 0 && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 mb-2">
+                              <ShieldCheck size={14} />
+                              Encontrados en inventario ({bulkValidationResult.found_count})
+                            </p>
+                            <div className="max-h-28 overflow-y-auto space-y-1">
+                              {bulkValidationResult.found.map((s, i) => (
+                                <div key={i} className="flex items-center gap-2 text-xs text-green-800">
+                                  <CheckCircle2 size={12} className="text-green-500 shrink-0" />
+                                  <span className="font-mono">{s.serial}</span>
+                                  <span className="text-green-600">— {s.item_name} ({s.item_type})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {bulkValidationResult.not_found.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5 mb-2">
+                              <ShieldAlert size={14} />
+                              No registrados en inventario ({bulkValidationResult.not_found_count})
+                            </p>
+                            <div className="max-h-28 overflow-y-auto space-y-1">
+                              {bulkValidationResult.not_found.map((s, i) => (
+                                <div key={i} className="flex items-center gap-2 text-xs text-amber-800">
+                                  <AlertCircle size={12} className="text-amber-500 shrink-0" />
+                                  <span className="font-mono">{s.serial}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={acceptUnknownSerials}
+                                onChange={(e) => setAcceptUnknownSerials(e.target.checked)}
+                                className="rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                                data-testid="bulk-accept-unknown"
+                              />
+                              <span className="text-xs text-amber-800 font-medium">Aceptar equipos no registrados</span>
+                            </label>
+                          </div>
+                        )}
+
+                        <Button
+                          size="sm"
+                          onClick={handleConfirmBulkSerials}
+                          disabled={bulkValidationResult.found_count === 0 && !acceptUnknownSerials}
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                          data-testid="bulk-confirm-btn"
+                        >
+                          <CheckCircle2 size={14} className="mr-1.5" />
+                          Confirmar {bulkValidationResult.found_count + (acceptUnknownSerials ? bulkValidationResult.not_found_count : 0)} serial(es)
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Seriales confirmados */}
+                    {confirmedSerials.length > 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 mb-1">
+                          <CheckCircle2 size={14} />
+                          {confirmedSerials.length} serial(es) confirmados
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-2 max-h-20 overflow-y-auto">
+                          {confirmedSerials.map((s, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-mono rounded-full border border-green-200">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -589,6 +770,9 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                   <p className="text-sm text-slate-600">RIF: {selectedClient?.rif}</p>
                   <p className="text-sm text-slate-600">Tipo: {getEquipmentTypeLabel()}</p>
                   <p className="text-sm text-slate-600">Items: {selectedItems.length}</p>
+                  {confirmedSerials.length > 0 && (
+                    <p className="text-sm text-slate-600">Seriales: {confirmedSerials.length}</p>
+                  )}
                   <p className="text-sm font-medium text-brand-green-600">Total: ${totalUSD.toFixed(2)}</p>
                 </div>
               </div>
