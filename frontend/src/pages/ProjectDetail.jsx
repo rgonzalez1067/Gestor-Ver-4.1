@@ -80,15 +80,23 @@ const ProjectDetail = () => {
   const fetchTemplates = async () => {
     try {
       const res = await api.get('/email-templates');
-      setEmailTemplates(res.data);
-    } catch { /* ignore */ }
+      setEmailTemplates(res.data || []);
+    } catch (err) {
+      console.error('Error cargando plantillas:', err);
+      toast.error('Error al cargar las plantillas de correo');
+      setEmailTemplates([]);
+    }
   };
 
   const fetchSuggestedContacts = async () => {
     try {
       const res = await api.get(`/projects/${projectId}/suggested-contacts`);
-      setSuggestedContacts(res.data);
-    } catch { /* ignore */ }
+      setSuggestedContacts(res.data || []);
+    } catch (err) {
+      console.error('Error cargando contactos:', err);
+      toast.error('Error al cargar los contactos del proyecto');
+      setSuggestedContacts([]);
+    }
   };
 
   // ==================== MATRIX PHASE TOGGLES ====================
@@ -162,7 +170,9 @@ const ProjectDetail = () => {
     }
     const tpl = emailTemplates.find(t => t.template_id === templateId);
     if (tpl) {
-      setEmailForm(prev => ({ ...prev, templateId: templateId, subject: tpl.subject, message: tpl.body }));
+      // Use body field if available, otherwise use empty string (body_html is for system templates)
+      const messageBody = tpl.body || '';
+      setEmailForm(prev => ({ ...prev, templateId: templateId, subject: tpl.subject || '', message: messageBody }));
     }
   };
 
@@ -328,54 +338,96 @@ const ProjectDetail = () => {
 
           {/* Header */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-1" data-testid="project-title">Detalle para Implementación del Proyecto</h1>
-                <div className="flex items-center gap-3">
+            {/* Fila superior: Título + Estado */}
+            <div className="flex items-start justify-between mb-5">
+              <h1 className="text-2xl font-bold text-slate-900" data-testid="project-title">Detalle para Implementación del Proyecto</h1>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border shrink-0 ${
+                project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                project.status === 'Detenido por Cliente/Banco' ? 'bg-red-100 text-red-800 border-red-200' :
+                'bg-emerald-100 text-emerald-800 border-emerald-200'
+              }`} data-testid="project-status">{project.status}</span>
+            </div>
+
+            {/* Bloques de información en grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Bloque 1: Datos del Proyecto */}
+              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del Proyecto</p>
+                <div>
+                  <p className="text-xs text-slate-500">Ticket</p>
                   {project.ticket_number ? (
-                    <p className="text-lg font-semibold text-indigo-700 flex items-center gap-2" data-testid="project-ticket">
-                      <Ticket size={18} className="text-indigo-500" />{project.ticket_number}
-                      <span className="text-sm text-slate-400 font-normal">({project.project_number})</span>
+                    <p className="text-base font-bold text-indigo-700 flex items-center gap-1.5" data-testid="project-ticket">
+                      <Ticket size={15} className="text-indigo-500" />{project.ticket_number}
                     </p>
-                  ) : (<p className="text-lg font-semibold text-slate-700">{project.project_number}</p>)}
+                  ) : <p className="text-sm font-semibold text-slate-600">Sin asignar</p>}
                 </div>
-                <p className="text-sm text-slate-500">{project.client_name} — {project.client_rif} — {project.client_sede}</p>
+                <div>
+                  <p className="text-xs text-slate-500">N. Proyecto</p>
+                  <p className="text-sm font-semibold text-slate-700">{project.project_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Cliente</p>
+                  <p className="text-sm font-semibold text-slate-700">{project.client_name}</p>
+                  <p className="text-xs text-slate-400">{project.client_rif} — {project.client_sede}</p>
+                </div>
               </div>
-              <div className="text-right space-y-1">
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
-                  project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                  project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                  project.status === 'Detenido por Cliente/Banco' ? 'bg-red-100 text-red-800 border-red-200' :
-                  'bg-emerald-100 text-emerald-800 border-emerald-200'
-                }`}>{project.status}</span>
-                {project.assigned_to_name && <p className="text-sm text-slate-500">Implementador: <strong>{project.assigned_to_name}</strong></p>}
-                {isMultistore && <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-700 border border-blue-200"><Store size={12} />Multitienda ({project.stores?.length || 0})</span>}
-                {rollup.global_progress !== undefined && (
-                  <div className="flex items-center gap-2 justify-end mt-1">
-                    <div className="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className={`h-full rounded-full ${rollup.global_progress >= 100 ? 'bg-emerald-500' : rollup.global_progress >= 50 ? 'bg-blue-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(rollup.global_progress, 100)}%` }} />
+
+              {/* Bloque 2: Implementación */}
+              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Implementación</p>
+                <div className="flex items-center gap-3">
+                  <CreditCard size={18} className="text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Modelo de Pinpad</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="pinpad-model">{project.pinpad_model || '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Building2 size={18} className="text-blue-600 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Banco Patrocinador</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="sponsor-bank">{project.sponsor_bank_name || '—'}</p>
+                  </div>
+                </div>
+                {project.assigned_to_name && (
+                  <div className="flex items-center gap-3">
+                    <User size={18} className="text-violet-600 shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-500">Implementador</p>
+                      <p className="text-sm font-semibold text-slate-700">{project.assigned_to_name}</p>
                     </div>
-                    <span className="text-xs font-bold text-slate-600" data-testid="header-progress">{rollup.global_progress}%</span>
                   </div>
                 )}
-                <div className="flex gap-2 justify-end mt-2">
-                  <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50" data-testid="adhoc-email-btn">
+              </div>
+
+              {/* Bloque 3: Avance y Acciones */}
+              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance y Acciones</p>
+                {isMultistore && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    <Store size={12} />Multitienda ({project.stores?.length || 0})
+                  </span>
+                )}
+                {rollup.global_progress !== undefined && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1.5">Progreso Global</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-500 ${rollup.global_progress >= 100 ? 'bg-emerald-500' : rollup.global_progress >= 50 ? 'bg-blue-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(rollup.global_progress, 100)}%` }} />
+                      </div>
+                      <span className="text-sm font-bold text-slate-700 min-w-[36px] text-right" data-testid="header-progress">{rollup.global_progress}%</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={openEmailDialog} className="w-full justify-center text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50" data-testid="adhoc-email-btn">
                     <Megaphone size={14} />Otras Notificaciones
                   </Button>
-                  <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="text-xs gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50" data-testid="manage-templates-btn">
+                  <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="w-full justify-center text-xs gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50" data-testid="manage-templates-btn">
                     <ClipboardList size={14} />Plantillas
                   </Button>
                 </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
-              <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-slate-200">
-                <CreditCard size={20} className="text-emerald-600" />
-                <div><p className="text-xs text-slate-500 uppercase font-medium">Modelo de Pinpad</p><p className="text-sm font-semibold text-slate-800" data-testid="pinpad-model">{project.pinpad_model || '—'}</p></div>
-              </div>
-              <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-slate-200">
-                <Building2 size={20} className="text-blue-600" />
-                <div><p className="text-xs text-slate-500 uppercase font-medium">Banco Patrocinador</p><p className="text-sm font-semibold text-slate-800" data-testid="sponsor-bank">{project.sponsor_bank_name || '—'}</p></div>
               </div>
             </div>
           </div>
@@ -571,25 +623,46 @@ const ProjectDetail = () => {
               <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {/* Mostrar destinatarios de la notificación */}
+              {/* Mostrar TODOS los destinatarios del proyecto agrupados */}
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                <p className="text-xs font-medium text-slate-500 uppercase mb-2">Destinatarios</p>
+                <p className="text-xs font-medium text-slate-500 uppercase mb-2">Destinatarios del Proyecto</p>
                 {(() => {
-                  const contacts = notifTarget?.type === 'client'
-                    ? suggestedContacts.filter(c => c.source === 'client')
-                    : suggestedContacts.filter(c => c.source === 'bank' && c.label.includes(notifTarget?.bankName || ''));
-                  return contacts.length > 0 ? (
-                    <div className="space-y-1">
-                      {contacts.map((c, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm">
-                          <Mail size={12} className="text-slate-400 shrink-0" />
-                          <span className="text-slate-700">{c.email}</span>
-                          <span className="text-[10px] text-slate-400">({c.label})</span>
+                  const clientContacts = suggestedContacts.filter(c => c.source === 'client');
+                  const bankContacts = suggestedContacts.filter(c => c.source === 'bank');
+                  const hasContacts = suggestedContacts.length > 0;
+                  return hasContacts ? (
+                    <div className="space-y-3">
+                      {clientContacts.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-indigo-600 uppercase mb-1">Cliente</p>
+                          <div className="space-y-1">
+                            {clientContacts.map((c, i) => (
+                              <div key={`client-${i}`} className="flex items-center gap-2 text-sm">
+                                <Mail size={12} className="text-indigo-400 shrink-0" />
+                                <span className="text-slate-700">{c.email}</span>
+                                <span className="text-[10px] text-slate-400">({c.label})</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
+                      )}
+                      {bankContacts.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-blue-600 uppercase mb-1">Bancos</p>
+                          <div className="space-y-1">
+                            {bankContacts.map((c, i) => (
+                              <div key={`bank-${i}`} className="flex items-center gap-2 text-sm">
+                                <Mail size={12} className="text-blue-400 shrink-0" />
+                                <span className="text-slate-700">{c.email}</span>
+                                <span className="text-[10px] text-slate-400">({c.label})</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400">No hay contactos registrados para esta entidad</p>
+                    <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>
                   );
                 })()}
               </div>
@@ -701,7 +774,7 @@ const ProjectDetail = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">Mensaje <span className="text-red-500">*</span></Label>
-                  <span className={`text-[10px] ${emailForm.message.length > 1000 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>{emailForm.message.length}/1000</span>
+                  <span className={`text-[10px] ${(emailForm.message?.length || 0) > 1000 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>{emailForm.message?.length || 0}/1000</span>
                 </div>
                 <Textarea placeholder="Escriba su mensaje aquí..." value={emailForm.message}
                   onChange={e => setEmailForm(prev => ({ ...prev, message: e.target.value }))}
