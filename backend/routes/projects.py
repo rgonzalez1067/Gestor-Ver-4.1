@@ -387,12 +387,16 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 <hr><p style="color:#999;font-size:12px;">Correo automático de MegaNexus.</p></div>"""
         entity_label = f"Cliente ({client_name})"
     else:
-        bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
+        if not bank:
+            bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
         bank_email = ""
         if bank:
-            contacts = bank.get("contacts", [])
-            if contacts:
-                bank_email = contacts[0].get("email", "")
+            bank_email = bank.get("contact_email", "")
+            if not bank_email:
+                contacts = bank.get("contacts", [])
+                if contacts:
+                    bank_email = contacts[0].get("email", "")
         to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
 
         products = list(project.get("implementation_matrix", {}).get(bank_name, {}).keys())
@@ -769,27 +773,51 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
 
     contacts = []
 
-    # Contacto del cliente
+    # Contactos del cliente
     client_id = project.get("client_id")
     if client_id:
         client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
         if client:
+            client_label = project.get("client_name", client.get("fantasy_name", "Cliente"))
+            # Email principal del cliente (si existe)
             if client.get("email"):
-                contacts.append({"email": client["email"], "label": f"Cliente: {project.get('client_name', '')}", "source": "client"})
+                contacts.append({"email": client["email"], "label": f"Cliente: {client_label}", "source": "client"})
+            # Contactos CRM del cliente (array contacts)
             for c in client.get("contacts", []):
                 if c.get("email"):
-                    contacts.append({"email": c["email"], "label": f"Cliente ({c.get('name', '')})", "source": "client"})
+                    name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Contacto"
+                    contacts.append({"email": c["email"], "label": f"Cliente ({name})", "source": "client"})
+            # Contactos legacy (contact1, contact2)
+            for key in ["contact1", "contact2"]:
+                legacy = client.get(key)
+                if legacy and isinstance(legacy, dict) and legacy.get("email"):
+                    contacts.append({"email": legacy["email"], "label": f"Cliente ({legacy.get('name', key)})", "source": "client"})
 
     # Contactos de bancos del proyecto
     matrix = project.get("implementation_matrix", {})
     for bank_name in matrix:
-        bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
+        if not bank:
+            bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
         if bank:
+            # Email de contacto principal del banco
+            if bank.get("contact_email"):
+                contact_name = bank.get("contact_name") or "Contacto"
+                contacts.append({"email": bank["contact_email"], "label": f"Banco {bank_name} ({contact_name})", "source": "bank"})
+            # Array contacts (si existe en el banco)
             for c in bank.get("contacts", []):
                 if c.get("email"):
                     contacts.append({"email": c["email"], "label": f"Banco {bank_name} ({c.get('name', '')})", "source": "bank"})
 
-    return contacts
+    # Deduplicar por email
+    seen_emails = set()
+    unique_contacts = []
+    for c in contacts:
+        if c["email"] not in seen_emails:
+            seen_emails.add(c["email"])
+            unique_contacts.append(c)
+
+    return unique_contacts
 
 
 # ==================== EMAIL TEMPLATES (CRUD) ====================
