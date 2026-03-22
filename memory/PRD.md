@@ -160,6 +160,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### Modulo de Trazabilidad de Activos en Reparacion y Despacho (2026-03-22)
+- **Coleccion `taller_equipos`**: Nueva entidad de persistencia para equipos en custodia del taller
+  - Campos: serial, modelo, modelo_id, client_id, client_name, quote_id, quote_number, estatus, fecha_ingreso, fecha_entrega
+- **Trigger en Aprobacion**: Al aprobar cotizacion de reparacion, se insertan automaticamente todos los seriales en taller_equipos con estatus "En reparacion"
+- **Endpoint GET /api/quotes/{id}/repair-delivery-prep**: Obtiene equipos en reparacion del cliente agrupados por modelo
+- **Endpoint POST /api/quotes/{id}/repair-deliver**: Procesa entrega de equipos reparados, genera Nota de Entrega PDF, actualiza estatus a "Entregado"
+- **Endpoint GET /api/taller-equipos**: Consulta general de equipos en taller con filtros por client_id y estatus
+- **Componente RepairDeliveryDialog**: Interfaz de seleccion de equipos con checkboxes por modelo, metodo de envio, datos de receptor
+- **Flujo completo**: Aprobar → seriales ingresan a taller → Reparada → Facturada → Pagada → Entregada (seleccion + PDF + update masivo)
+- VALIDADO: 12/12 backend + 100% frontend (iteration_125)
+
 ### Modulo de Cotizaciones — Flujo de Reparaciones (2026-03-22)
 - **Reingenieria del Flujo de Estados para Reparaciones**:
   - Nuevo estado "Reparada" entre "Aprobada" y "Facturada" exclusivo para cotizaciones de reparacion
