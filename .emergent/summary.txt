@@ -1,181 +1,133 @@
 <analysis>**original_problem_statement:**
-El usuario ha solicitado una serie de optimizaciones para el módulo de Propuestas Comerciales (cotizaciones) con el objetivo de mejorar la claridad y la seguridad jurídica. Las solicitudes son:
-1.  **Categorización de Cotizaciones**: Diferenciar los presupuestos según cuatro categorías:
-    *   Equipos Verifone (PinPad P200 en Windows/Linux).
-    *   Equipos Morefun (Soluciones móviles en Android).
-    *   Accesorios.
-    *   Reparaciones.
-    El usuario ha aclarado que las categorías Equipos, Accesorios y Reparaciones ya existen en un flujo de creación, y que la tarea principal es dividir Equipos en Equipos Verifone y Equipos Morefun. El flujo de Implementación (VPOS/MPOS) no debe ser modificado.
-2.  **Vinculación Automatizada de Condiciones Legales**: Cada vez que se genere una cotización, el sistema debe adjuntar automáticamente un documento PDF con las condiciones legales correspondientes a su categoría. El usuario ha proporcionado los cuatro archivos PDF necesarios.
+El usuario ha solicitado una serie de optimizaciones y nuevas funcionalidades para la aplicación MegaNexus, un sistema de gestión de procesos de negocio. Las solicitudes clave incluyen:
+
+1.  **Optimización de Propuestas Comerciales (Cotizaciones):**
+    *   Categorizar cotizaciones de equipos en Equipos Verifone y Equipos Morefun.
+    *   Adjuntar automáticamente PDFs de condiciones legales según la categoría de la cotización y, posteriormente, según la sede del usuario (PYME/CORP) para equipos Verifone.
+
+2.  **Reporte de Incidencias y Mejoras de Interfaz (Matriz de Seguimiento):**
+    *   Corregir la carga de contactos de cliente y banco en el módulo de notificaciones.
+    *   Arreglar un error en el cargador de plantillas de correo.
+    *   Mejorar visualmente la sección Detalle para Implementación para una mejor legibilidad.
+
+3.  **Corrección de Bug Crítico (Módulo de Clientes):**
+    *   Resolver un error que impide guardar cambios en la ficha de un cliente, causado por una validación de datos incorrecta entre el frontend y el backend.
+
+4.  **Carga Masiva de Seriales para Reparaciones:**
+    *   Habilitar la carga de un archivo Excel con seriales para cotizaciones de tipo Reparación, con validación contra el inventario y la opción de aceptar seriales no registrados.
+
+5.  **Reingeniería del Flujo de Reparaciones (Cíclico y Multi-Modelo):**
+    *   Permitir agregar múltiples modelos de equipos (POS, Pinpad) en una sola orden de reparación, con un flujo cíclico para ingresar cantidad y seriales por cada modelo.
+    *   Generar un anexo técnico en el PDF de la cotización con los seriales agrupados por modelo en formato multicolumna.
+
+6.  **Segmentación del Catálogo de Productos:**
+    *   Agregar un campo Tipo (Bien/Servicio) al maestro de productos.
+    *   Usar este campo para filtrar los dropdowns en los cotizadores, mostrando solo Bienes para la selección de hardware en reparaciones e implementaciones.
+
+7.  **Reingeniería del Flujo de Estados para Reparaciones (ÚLTIMA TAREA):**
+    *   Modificar el pipeline de estados para cotizaciones de reparación, insertando un nuevo estado Reparada entre Aprobada y Facturada.
+    *   La acción de Aprobar una reparación NO debe notificar a Administración. La notificación para facturar debe dispararse únicamente al cambiar el estado a Reparada.
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-La aplicación MegaNexus es un sistema de gestión de procesos de negocio full-stack (React, FastAPI, MongoDB) con una arquitectura modular.
-*   **Módulos Clave**: Clientes, Cotizaciones, Inventario, Integradores, Bancos, Proyectos y Autenticación.
-*   **Funcionalidades Robustas**:
-    *   **Cotizaciones**: Un módulo complejo con múltiples flujos de creación (Implementación, Equipos), estados, acciones y modales de comunicación.
-    *   **Proyectos**: Gestión avanzada desde la creación (incluyendo un flujo Multitienda para múltiples sucursales), asignación con número de ticket, y seguimiento a través de una matriz de implementación con cálculo de progreso automatizado.
-    *   **Comunicaciones**: Un sistema de notificaciones secuenciales (4 niveles de recordatorio) y un módulo de envío de correos ad-hoc con editor de texto, sugerencia de contactos y capacidad para adjuntar archivos, incluyendo una captura de la matriz de seguimiento.
-    *   **Gestión de Plantillas**: CRUD completo para que un administrador gestione plantillas de correo.
-    *   **Generación de PDF**: Uso de  para generar documentos como notas de entrega/transferencia.
+La aplicación es un gestor de procesos de negocio (React + FastAPI + MongoDB) significativamente avanzado. Se han implementado con éxito todas las funcionalidades y correcciones solicitadas por el usuario, excepto la última tarea de reingeniería de estados.
+
+*   **Módulo de Cotizaciones:** Ahora soporta categorías detalladas (Verifone, Morefun, Accesorios, Reparaciones) con condiciones legales dinámicas adjuntas al PDF, basadas en categoría y sede del usuario. El flujo de reparaciones fue refactorizado para soportar un ingreso cíclico de múltiples modelos de equipos, validación de seriales por Excel, y generación de un anexo técnico detallado en el PDF.
+*   **Módulo de Proyectos:** El  fue mejorado visualmente y se corrigieron bugs críticos en la carga de contactos para notificaciones y en la selección de plantillas de correo.
+*   **Módulo de Clientes:** Se resolvió un bug crítico que impedía la actualización de datos debido a un envío de datos inválidos ( en lugar de  para campos numéricos) desde el frontend.
+*   **Maestro de Productos (Hardware):** Se añadió el campo  (Bien o Servicio) que ahora filtra dinámicamente los equipos disponibles en los cotizadores.
 
 **Last working item**:
-*   **Last item agent was working**: El agente estaba en la fase inicial de análisis del requerimiento Optimización de Propuestas Comerciales. Tras recibir una aclaración clave del usuario, el agente enfocó su investigación en el componente , que gestiona la creación de cotizaciones de tipo Equipos, Accesorios y Reparaciones, para planificar cómo dividir la categoría Equipos en Verifone y Morefun.
+*   **Last item agent was working**: El agente estaba implementando la **Reingeniería del Flujo de Estados para Cotizaciones de Reparación**. Logró modificar el backend para que la acción de Aprobar una cotización de reparación no envíe la notificación por correo a administración. Esto se logró añadiendo una condición  en el endpoint  (). También se añadieron las nuevas definiciones de estado (Reparada) y las transiciones permitidas en el modelo de datos ().
 *   **Status**: IN PROGRESS
 *   **Agent Testing Done**: N
-*   **Which testing method agent to use?**:  para validar el flujo de creación de cotizaciones por categoría, la generación del PDF y la correcta adjunción de las condiciones legales.
+*   **Which testing method agent to use?**:  es necesario para validar el nuevo flujo de estados completo, incluyendo el cambio de lógica en el backend y los nuevos elementos de UI en el frontend.
 *   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-*   No hay issues pendientes. La tarea actual es una nueva funcionalidad.
-
-**In progress Task List**:
-*   **Task 1: Optimización de Propuestas Comerciales (P0)**
-    *   **Where to resume**: El agente ha identificado que la lógica de creación de cotizaciones de equipos reside en . Los siguientes pasos son:
-        1.  **Almacenar PDFs**: Guardar los cuatro archivos PDF de condiciones legales en un directorio accesible en el backend (ej. ).
-        2.  **Modificar Frontend ()**: Actualizar la UI para reemplazar la opción Equipos por Equipos Verifone y Equipos Morefun, manteniendo Accesorios y Reparaciones.
-        3.  **Modificar Backend (Creación de Cotización)**: Actualizar el endpoint  para que reciba y guarde la nueva subcategoría detallada (ej. , ).
-        4.  **Modificar Backend (Generación de PDF)**: Modificar el servicio de generación de PDF de la cotización () para que, basado en la categoría de la cotización, lea el archivo de condiciones correspondiente y lo anexe al PDF principal generado.
-    *   **What will be achieved with this?**: Se segmentarán las cotizaciones con mayor granularidad y cada propuesta comercial incluirá automáticamente su marco legal, aumentando la transparencia para el cliente.
+*   **Issue 1: Completar la Reingeniería del Flujo de Estados para Reparaciones (P0)**
+    *   **Description**: La tarea actual está a medio completar. El backend se modificó para que la aprobación de reparaciones sea silenciosa, pero falta la segunda parte: crear el mecanismo para marcar la reparación como Reparada y que *esa* acción envíe la notificación.
+    *   **Next debug checklist**:
+        1.  **Backend ():**
+            *   Crear un nuevo endpoint .
+            *   Este endpoint debe cambiar el estado de la cotización a Reparada.
+            *   Debe llamar a la función  (la misma que se usa en  para otras categorías) para notificar a Administración.
+            *   Asegurar que este endpoint solo sea accesible para cotizaciones de categoría repair que estén en estado Aprobada.
+        2.  **Frontend ( y ):**
+            *   Añadir el nuevo estado Reparada a la lógica de visualización (colores de badges, orden de pasos).
+            *   En , agregar una nueva acción en el menú desplegable (DropdownMenu) para Marcar como Reparada o similar.
+            *   Esta acción solo debe ser visible si  y .
+            *   La acción debe llamar al nuevo endpoint .
+    *   **Why fix this issue and what will be achieved with the fix?**: Completará un requerimiento crítico del usuario que alinea el flujo de facturación con la operación real del taller, evitando facturar servicios antes de que estén terminados.
     *   **Status**: IN PROGRESS
     *   **Should Test frontend/backend/both after fix?**: both
-    *   **Blocked on something**: No.
+    *   **Blocked on other issue**: No.
+
+**In progress Task List**:
+*   No hay tareas en progreso adicionales. La issue pendiente es la continuación directa de la última tarea.
 
 **Upcoming and Future Tasks**
-*   **Upcoming Tasks:**
-    *   **Heredar Cantidad de Cajas a Cotizaciones (P1):** El valor del campo Cantidad de Cajas Registradoras del cliente debe heredarse automáticamente al crear una cotización VPOS.
-    *   **Verificación de Email y Recuperación de Contraseña (P1):** Implementar flujos estándar de autenticación.
-    *   **Refactorización de  (P1):** Descomponer el componente monolítico de más de 4800 líneas.
-*   **Future Tasks:**
-    *   **Módulo de Reportes de ventas (P2):** Desarrollar una nueva sección para generar reportes.
-    *   **Lógica de Completado en Roadmap de Bancos (P2):** Implementar la sugerencia de mover un ítem a Activos cuando su estatus sea Completada.
-    *   **Refactorización del resto de componentes monolíticos (P2):** , , .
-    *   **Integrar plantillas HTML aprobadas en el Hub de Comunicaciones (P2).**
+*   **Upcoming Tasks (P1):**
+    *   **Herencia de Cantidad de Cajas a cotizaciones VPOS:** El valor del campo Cantidad de Cajas Registradoras del cliente debe heredarse automáticamente al crear una cotización VPOS.
+    *   **Verificación de Email y Recuperación de Contraseña:** Implementar flujos estándar de autenticación.
+    *   **Refactorización de :** Descomponer el componente monolítico de más de 4800 líneas.
+*   **Future Tasks (P2):**
+    *   **Módulo de Reportes de ventas:** Desarrollar una nueva sección para generar reportes.
+    *   **Lógica de Completado en Roadmap de Bancos:** Implementar la sugerencia de mover un ítem a Activos cuando su estatus sea Completada.
+    *   **Refactorización de componentes monolíticos:** , , .
 
 **Completed work in this session**
--   **Borrado de DB y Reordenamiento de Menú**: Se eliminaron todas las cotizaciones y proyectos y se reorganizó el menú lateral.
--   **Ajustes Críticos en Plantillas y Notificaciones**: Se corrigió el bug de edición de plantillas, se mejoró la UX del gestor de plantillas, se ajustó la lógica de conteo de caracteres en correos y se aseguró la carga de contactos en las notificaciones.
--   **Módulo de Comunicaciones Avanzado**: Se implementó un sistema de notificaciones secuenciales (4 niveles) y se mejoró el módulo de Otras Notificaciones para permitir mensajes más largos, sugerencia de contactos y la capacidad de adjuntar una captura de la matriz de seguimiento.
--   **Gestión de Tickets y Progreso**: Se introdujo el Número de Ticket como identificador de proyecto, se añadió búsqueda por ticket y se estandarizó el cálculo de progreso para todos los tipos de proyecto.
--   **Reingeniería de Matriz y Notificaciones**: Se implementó una lógica de Hard Stop (notificar cliente primero) y se consolidaron las notificaciones a bancos.
--   **Flujo Multitienda**: Se corrigió un bug crítico y se implementó el flujo completo para gestionar proyectos en múltiples sucursales desde una sola cotización.
+-   **Categorización de Cotizaciones**: Se dividió la categoría Equipos en Verifone y Morefun y se adjuntan automáticamente los PDFs de condiciones legales correctos según categoría y sede del usuario (Pyme/Corp).
+-   **Flujo de Reparaciones Avanzado**: Se implementó una reingeniería completa que permite la carga cíclica de múltiples modelos de equipos (POS/Pinpad) en una sola orden, con carga masiva de seriales desde Excel y generación de un anexo técnico en el PDF final.
+-   **Segmentación del Catálogo (Bien/Servicio)**: Se agregó un nuevo campo  al maestro de productos y se usó para filtrar los equipos disponibles en los cotizadores de reparaciones e implementaciones.
+-   **Resolución de Bugs Críticos**:
+    *   Se corrigió la carga de contactos en el módulo de notificaciones, identificando y resolviendo una discrepancia en los modelos de datos de bancos y clientes.
+    *   Se solucionó un error 422 que impedía guardar cambios en los clientes, ajustando el frontend para enviar  en lugar de strings vacíos para campos numéricos opcionales.
+    *   Se arregló la carga de plantillas de correo y se mejoró la UI de la vista de detalle del proyecto.
 
 **Earlier issues found/mentioned but not fixed**
-*   None.
+*   None. El agente ha sido exhaustivo resolviendo los problemas reportados.
 
 **Known issue recurrence from previous fork**
 *   **Issue recurrence in previous fork**: La base de datos de MongoDB es volátil y se reinicia periódicamente en el entorno de desarrollo.
 *   **Recurrence count**: 4+
-*   **Status**: NOT STARTED (Es una característica del entorno; el agente debe estar preparado para recrear datos de prueba).
+*   **Status**: NOT STARTED (Es una característica del entorno que no se puede arreglar. El próximo agente debe estar preparado para recrear datos de prueba si es necesario, usando scripts o la UI).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend**: FastAPI, MongoDB, Pydantic.
--   **Frontend**: React, Shadcn/UI, ,  (toasts).
--   **PDF Generation**: . Se requerirá lógica para leer y anexar PDFs existentes.
--   **File Storage**: El agente deberá decidir dónde almacenar los PDFs de condiciones legales proporcionados por el usuario.
+-   **Backend**: FastAPI,  (modelos con ), MongoDB.
+-   **Frontend**: React, .
+-   **File Processing**:  y  para leer archivos Excel de seriales.
+-   **PDF Generation**:  y  para generar PDFs complejos, incluyendo anexos y formato multicolumna.
+-   **State Management**: El flujo de estados de las cotizaciones se ha vuelto más complejo, con transiciones condicionales basadas en .
 
 **key DB schema**
--   ****: Necesitará un campo para la nueva categoría detallada (ej. ) para diferenciar los equipos.
--   ****: Ha sido extendido con  (único), , y campos para gestionar el estado de las notificaciones.
--   ****: Nueva colección para las plantillas de correo.
+-   ****:
+    *   : (String) 'implementation', 'equipment', o 'repair'. Clave para la lógica condicional.
+    *   : (Array de Objects) Almacena los modelos y seriales para cotizaciones de reparación. .
+    *   : (String) Ahora incluye el nuevo estado Reparada.
+-   ****:
+    *   : (String) 'Bien' o 'Servicio'. Usado para filtrar en toda la aplicación.
 
 **All files of reference**
--   : Archivo principal que renderiza el botón del wizard.
--   : Componente clave a modificar para la nueva categorización.
--   : Donde se maneja la creación de la cotización.
--   Un servicio de generación de PDF (existente o a crear) que deberá ser modificado para adjuntar las condiciones.
--   Los 4 archivos PDF proporcionados por el usuario.
-
-**Areas that need refactoring**:
--   : La refactorización es de **prioridad crítica** después de la tarea actual. Su tamaño y complejidad son un riesgo significativo para el mantenimiento.
+-   : **(EN PROGRESO)** Aquí se debe crear el nuevo endpoint .
+-   : Contiene las definiciones de estados () y transiciones () que ya fueron actualizadas.
+-   : Necesita modificaciones para renderizar el nuevo estado y la nueva acción.
+-   : Donde se debe agregar el botón/ítem de menú para la nueva acción de Marcar como Reparada.
 
 **key api endpoints**
--   : Endpoint de creación de cotizaciones. Deberá ser adaptado para la nueva categorización.
--   : Endpoint que genera el PDF de la cotización. Deberá ser modificado para incluir las condiciones.
+-   : **(MODIFICADO)** Ahora tiene lógica condicional para no notificar si la cotización es de reparación.
+-   : Endpoint para procesar el Excel de seriales.
+-   : Endpoint que genera el PDF, ahora soporta el complejo anexo de reparaciones.
+-   ****: **(POR CREAR)** El endpoint que falta para completar la última tarea.
 
 **Critical Info for New Agent**
--   **Idioma:** Toda la comunicación debe ser en **español**.
--   **Tarea Prioritaria:** Dividir la categoría Equipos en Equipos Verifone y Equipos Morefun en el , y modificar la generación de PDFs de cotizaciones para que se anexe automáticamente el documento de condiciones legales correcto según la categoría.
--   **Restricción Importante**: El flujo de creación de cotizaciones de Implementación (con opciones VPOS, MPOS, etc.) **NO DEBE SER MODIFICADO**.
--   **Archivos PDF**: Los 4 archivos PDF con las condiciones legales han sido provistos por el usuario y deben ser integrados en el flujo de generación de documentos.
+-   **Idioma:** Toda la comunicación con el usuario y los comentarios en el código deben ser en **español**.
+-   **Tarea Prioritaria (P0):** Su única tarea es finalizar la Reingeniería del Flujo de Estados para Reparaciones. Siga los pasos detallados en la sección All Pending/In progress Issue list. El trabajo previo ya sentó las bases en el backend.
+-   **Contexto del Flujo:** El objetivo es que la aprobación de una reparación solo sea un visto bueno comercial. La notificación para facturar solo debe ocurrir después de que el taller confirme que el trabajo está hecho, usando la nueva acción Marcar como Reparada.
 
 **documents and test reports created in this job**
--   : Actualizado consistentemente.
--   Múltiples reportes de  en , el último siendo .
-
-**Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Pide borrar la DB de Cotizaciones/Proyectos y reordenar el menú lateral. (COMPLETED)
-2.  **Assistant**: Confirma la acción. (COMPLETED)
-3.  **User**: Solicita la nueva funcionalidad: categorizar cotizaciones (Verifone, Morefun, Accesorios, Reparaciones) y adjuntar automáticamente los PDFs de condiciones. Proporciona los 4 PDFs. (CURRENT TASK)
-4.  **Assistant**: Inicia el análisis del código de cotizaciones.
-5.  **Assistant**: Continúa la exploración de .
-6.  **Assistant**: Identifica las categorías de cotización existentes en el código.
-7.  **Assistant**: Presenta un plan de acción inicial.
-8.  **User**: **Aclara un punto crítico**: Las categorías Equipos, Accesorios y Reparaciones ya existen. La tarea es solo **dividir Equipos en Verifone y Morefun** y no tocar el flujo de Implementación.
-9.  **Assistant**: Entiende la aclaración y enfoca su análisis en el wizard de equipos ().
-10. **Assistant**: Visualiza el código de  para entender su funcionamiento.
-
-**Project Health Check:**
--   **Broken**: Ninguna funcionalidad está rota.
--   **Mocked**: El servicio de envío de correos () está simulado.
-
-**3rd Party Integrations**
--   **reportlab**: Generación de PDF.
--   **openpyxl, pandas**: Procesamiento de archivos Excel.
--   **Resend**: Envío de correos (simulado).
--   **Shadcn/UI, Radix UI, lucide-react**: Componentes React.
--   **bcrypt**: Hashing de contraseñas.
-
-**Testing status**
--   **Testing agent used after significant changes**: YES, en todas las tareas completadas.
--   **Test files created**: No se crearon archivos de test ============================= test session starts ==============================
-platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
-rootdir: /app
-plugins: anyio-4.12.1
-collected 1272 items / 5 errors
-
-==================================== ERRORS ====================================
-______ ERROR collecting backend/tests/test_iteration18_email_templates.py ______
-backend/tests/test_iteration18_email_templates.py:15: in <module>
-    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   AttributeError: 'NoneType' object has no attribute 'rstrip'
-_________ ERROR collecting backend/tests/test_iteration37_features.py __________
-backend/tests/test_iteration37_features.py:13: in <module>
-    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   AttributeError: 'NoneType' object has no attribute 'rstrip'
-______ ERROR collecting backend/tests/test_iteration68_banks_redesign.py _______
-backend/tests/test_iteration68_banks_redesign.py:16: in <module>
-    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   AttributeError: 'NoneType' object has no attribute 'rstrip'
-______ ERROR collecting backend/tests/test_iteration83_project_actions.py ______
-backend/tests/test_iteration83_project_actions.py:14: in <module>
-    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   AttributeError: 'NoneType' object has no attribute 'rstrip'
-_________ ERROR collecting backend/tests/test_iteration89_client_v2.py _________
-backend/tests/test_iteration89_client_v2.py:12: in <module>
-    BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   AttributeError: 'NoneType' object has no attribute 'rstrip'
-=========================== short test summary info ============================
-ERROR backend/tests/test_iteration18_email_templates.py - AttributeError: 'No...
-ERROR backend/tests/test_iteration37_features.py - AttributeError: 'NoneType'...
-ERROR backend/tests/test_iteration68_banks_redesign.py - AttributeError: 'Non...
-ERROR backend/tests/test_iteration83_project_actions.py - AttributeError: 'No...
-ERROR backend/tests/test_iteration89_client_v2.py - AttributeError: 'NoneType...
-!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!!
-============================== 5 errors in 5.26s ===============================.
--   **Known regressions**: Ninguna.
-
-**Credentials to test flow:**
--   Registrar un nuevo usuario desde la UI (). El primer usuario obtiene privilegios de administrador.
-
-**What agent forgot to execute**
--   Nada. El agente está en la fase de análisis inicial de la nueva tarea, habiendo recibido recientemente una aclaración crucial del usuario.</analysis>
+-   : Actualizado</analysis>

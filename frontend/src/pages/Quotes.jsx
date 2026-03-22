@@ -64,6 +64,7 @@ const STATUS_COLORS = {
   'Enviada': 'bg-blue-100 text-blue-700',
   'Emitida': 'bg-blue-100 text-blue-700', // Legacy support
   'Aprobada': 'bg-green-100 text-green-700',
+  'Reparada': 'bg-cyan-100 text-cyan-700',
   'Facturada': 'bg-purple-100 text-purple-700',
   'Pagada': 'bg-emerald-100 text-emerald-700',
   'Entregada': 'bg-teal-100 text-teal-700',
@@ -79,6 +80,7 @@ const STATUS_DISPLAY_NAMES = {
   'Enviada': 'Enviada',
   'Emitida': 'Emitida', // Legacy
   'Aprobada': 'Aprobada',
+  'Reparada': 'Reparada',
   'Facturada': 'Facturada',
   'Pagada': 'Pagada',
   'Entregada': 'Entregada',
@@ -1969,6 +1971,8 @@ export const Quotes = () => {
       executeSendToClient(quoteId);
     } else if (action === 'approve') {
       openApproveConfirm(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action === 'repair-complete') {
+      handleRepairComplete(quoteId);
     } else if (action === 'invoice') {
       _openInvoiceModalDirect(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'collect') {
@@ -2049,6 +2053,7 @@ export const Quotes = () => {
   // ==================== FLUJO IRREGULAR (Protocolo de Excepción) ====================
   const REGULAR_FLOW_MAP = {
     'approve': 'Enviada',
+    'repair-complete': 'Aprobada',
     'invoice': 'Aprobada',
     'collect': 'Facturada',
     'deliver': 'Pagada',
@@ -2056,6 +2061,7 @@ export const Quotes = () => {
   };
   const ACTION_LABELS = {
     'approve': 'Aprobación',
+    'repair-complete': 'Marcar como Reparada',
     'invoice': 'Factura / Proforma',
     'collect': 'Cobranza',
     'deliver': 'Entregar',
@@ -2652,14 +2658,36 @@ export const Quotes = () => {
     setProductionSelectedServiceId('');
   };
 
+  // Marcar reparación como completada
+  const handleRepairComplete = async (quoteId) => {
+    setActionLoading(quoteId);
+    try {
+      const headers = getEmailHeaders();
+      const response = await api.post(`/quotes/${quoteId}/repair-complete`, {}, { headers });
+      if (response.data.status === 'simulated') {
+        toast.warning(response.data.message);
+      } else {
+        toast.success(response.data.message);
+      }
+      fetchData();
+    } catch (error) {
+      console.error('Error marking repair complete:', error);
+      toast.error(error.response?.data?.detail || 'Error al marcar reparación como completada');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Abrir modal de factura
   // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const currentStatus = quote?.quote_status || 'Borrador';
-    const isIrregular = currentStatus !== 'Aprobada';
+    const isRepairQuote = quote?.quote_category === 'repair';
+    const expectedStatus = isRepairQuote ? 'Reparada' : 'Aprobada';
+    const isIrregular = currentStatus !== expectedStatus;
     if (isIrregular) {
-      setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus: 'Aprobada' });
+      setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus });
       setExceptionData({ reason: '', regularization_date: '' });
       setExceptionModalOpen(true);
       return;
@@ -2844,6 +2872,10 @@ export const Quotes = () => {
             onCollect={(id) => checkIrregularAndProceed(id, 'collect', openCollectConfirm)}
             onDeliver={(id) => checkIrregularAndProceed(id, 'deliver', handleDeliverQuote)}
             onSendToImplementation={(id) => checkIrregularAndProceed(id, 'send-to-implementation', handleSendToImplementation)}
+            onRepairComplete={(id) => {
+              openEmailModal('repair-complete', id);
+              setPendingAction({ quoteId: id, action: 'repair-complete', proceedFn: handleRepairComplete, exceptionHeaders: null });
+            }}
             onOpenBitacoraFlujo={openBitacoraFlujo}
             onDelete={openDeleteConfirm}
             clearFilters={() => {

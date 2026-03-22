@@ -149,6 +149,7 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
     timestamp_map = {
         "Enviada": "sent_to_client_at",
         "Aprobada": "approved_at",
+        "Reparada": "repaired_at",
         "Facturada": "invoiced_at",
         "Pagada": "paid_at",
         "Entregada": "delivered_at",
@@ -245,27 +246,112 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     email_results = []
-    # Notificar a admin
+    # Para reparaciones, NO enviar email a admin en aprobación (se envía al completar reparación)
+    is_repair = quote.get("quote_category") == "repair"
+    
+    if not is_repair:
+        # Notificar a admin
+        if admin_email:
+            r = await send_email(to=[admin_email], subject=subject, html=html_content, action="approve_admin", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+        # Notificar a ventas
+        if sales_email:
+            r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="approve_sales", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+        # Si no hay destinatarios configurados, log simulado genérico
+        if not admin_email and not sales_email:
+            r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="approve_no_config", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+        # Enviar a destinatarios adicionales (CC)
+        for cc in cc_emails:
+            r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="approve_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+
+    return {
+        "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else ""),
+        "quote_id": quote_id,
+        "new_status": "Aprobada",
+        "emails": email_results,
+        "is_repair": is_repair
+    }
+
+
+@router.post("/quotes/{quote_id}/repair-complete")
+async def repair_complete(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Marcar reparación como completada y notificar a Administración para facturar."""
+    current_user = await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    if quote.get("quote_category") != "repair":
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de reparación")
+
+    current_status = quote.get("quote_status", "Borrador")
+    if current_status != "Aprobada":
+        raise HTTPException(status_code=400, detail=f"Solo se puede marcar como reparada desde estado 'Aprobada'. Estado actual: '{current_status}'")
+
+    # Cambiar estado a "Reparada"
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$set": {
+            "quote_status": "Reparada",
+            "repaired_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    # Notificar a Administración (misma lógica que approve para no-reparaciones)
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    quote_sede = quote.get("sede", "PYME")
+    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+    sede_emails = emails_by_sede.get(quote_sede, {})
+    admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
+    sales_email = sede_emails.get("sales") if sede_emails else None
+
+    client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
+    client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
+
+    template = await db.email_templates.find_one({"template_id": "repair_complete"}, {"_id": 0})
+    if not template:
+        template = {
+            "subject": "Reparación Completada: {{quote_number}} - Lista para Facturar",
+            "body_html": "<h2>Reparación Completada</h2><p>La cotización de reparación <strong>{{quote_number}}</strong> ha sido completada por el taller y está lista para facturar.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p>"
+        }
+
+    template_vars = {
+        "quote_number": quote.get("quote_number", ""),
+        "client_name": client_name,
+        "total_usd": f"{quote.get('total_usd', 0):.2f}"
+    }
+    subject = render_email_template(template["subject"], template_vars)
+    html_content = render_email_template(template["body_html"], template_vars)
+
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
+    email_results = []
     if admin_email:
-        r = await send_email(to=[admin_email], subject=subject, html=html_content, action="approve_admin", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=[admin_email], subject=subject, html=html_content, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
-    # Notificar a ventas
     if sales_email:
-        r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="approve_sales", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
-    # Si no hay destinatarios configurados, log simulado genérico
     if not admin_email and not sales_email:
-        r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="approve_no_config", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
-    # Enviar a destinatarios adicionales (CC)
     for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="approve_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="repair_complete_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
 
     return {
-        "message": "Cotización aprobada exitosamente",
+        "message": "Reparación marcada como completada. Notificación enviada a Administración.",
         "quote_id": quote_id,
-        "new_status": "Aprobada",
+        "new_status": "Reparada",
         "emails": email_results
     }
 
@@ -289,7 +375,8 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     if contacts:
         client_email = contacts[0].get('email')
     if not client_email:
-        client_email = client.get('contact1', {}).get('email')
+        contact1 = client.get('contact1') or {}
+        client_email = contact1.get('email') if isinstance(contact1, dict) else None
     if not client_email or client_email == 'sin@email.com':
         client_email = f"cliente_{client.get('rif', 'unknown')}@simulado.local"
     
@@ -463,16 +550,18 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
     current_status = quote.get("quote_status", "Borrador")
-    is_irregular = current_status != "Aprobada"
+    quote_category = quote.get("quote_category", "implementation")
+    expected_invoice_status = "Reparada" if quote_category == "repair" else "Aprobada"
+    is_irregular = current_status != expected_invoice_status
     
     exc_reason = exception_reason or x_exception_reason
     exc_date = regularization_date or x_regularization_date
     
     if is_irregular:
         if not exc_reason:
-            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para facturar sin aprobar previamente")
+            raise HTTPException(status_code=422, detail=f"IRREGULAR:Debe proporcionar un motivo para facturar sin estado '{expected_invoice_status}'")
         await mark_quote_irregular(quote_id, "invoice", exc_reason, exc_date)
-        await log_audit_exception(quote_id, quote.get("quote_number"), "invoice", "Aprobada", current_status, exc_reason, exc_date, current_user)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "invoice", expected_invoice_status, current_status, exc_reason, exc_date, current_user)
     
     attachments = quote.get("attachments", [])
     factura_attachments = [a for a in attachments if a.get("category") == "Factura"]
@@ -694,15 +783,16 @@ async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None
 
 @router.post("/quotes/{quote_id}/deliver")
 async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
-    """Marcar cotización de equipos como Entregada, con deducción automática de inventario y generación de Hoja de Ruta."""
+    """Marcar cotización de equipos o reparaciones como Entregada, con deducción automática de inventario y generación de Hoja de Ruta."""
     current_user = await get_current_user(authorization)
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
-    if quote.get("quote_category") != "equipment":
-        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos")
+    quote_category = quote.get("quote_category", "implementation")
+    if quote_category not in ["equipment", "repair"]:
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos o reparaciones")
 
     current_status = quote.get("quote_status", "Borrador")
     is_irregular = current_status != "Pagada"
