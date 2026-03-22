@@ -81,6 +81,11 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - PDF: Anexo de Seriales por modelo entre cotizacion y condiciones legales
   - Nota de advertencia al final del anexo sobre verificacion de modelos/cantidades
   - VALIDADO: 17/17 backend + frontend OK (iteration_122)
+- **Segmentacion Catalogo Bien/Servicio (2026-03-22)**:
+  - Nuevo campo asset_type (Bien/Servicio) en modelo Hardware, obligatorio al crear/editar
+  - Filtrado automatico: Reparaciones y Implementaciones solo muestran items con asset_type='Bien'
+  - Hardware.jsx: columna Clasificacion con badges teal/purple, selector en formulario
+  - VALIDADO: 14/14 backend + frontend OK (iteration_123)
 - **Fix Plantillas (2026-03-21)**: Corregido error critico al cargar plantillas (body_html vs body). Toast de error si falla la carga. VALIDADO iter_120
 
 ### Modulo de Proyectos
