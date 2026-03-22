@@ -212,6 +212,33 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
         {"quote_id": quote_id},
         {"$set": update_fields}
     )
+
+    # TRIGGER: Si es reparación, insertar seriales en taller_equipos
+    is_repair = quote.get("quote_category") == "repair"
+    if is_repair and not is_regul:
+        repair_models = quote.get("repair_models", [])
+        now_iso = datetime.now(timezone.utc).isoformat()
+        taller_docs = []
+        for rm in repair_models:
+            model_name = rm.get("model_name", "")
+            model_id = rm.get("model_id", "")
+            for serial in rm.get("serials", []):
+                taller_docs.append({
+                    "taller_equipo_id": f"te_{uuid.uuid4().hex[:12]}",
+                    "serial": serial,
+                    "modelo": model_name,
+                    "modelo_id": model_id,
+                    "client_id": quote.get("client_id", ""),
+                    "client_name": client_name,
+                    "quote_id": quote_id,
+                    "quote_number": quote.get("quote_number", ""),
+                    "estatus": "En reparación",
+                    "fecha_ingreso": now_iso,
+                    "fecha_entrega": None,
+                })
+        if taller_docs:
+            await db.taller_equipos.insert_many(taller_docs)
+            logger.info(f"Taller: {len(taller_docs)} equipo(s) ingresados para cotización {quote.get('quote_number')}")
     
     # Preparar email
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
@@ -1027,6 +1054,245 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         "items_delivered": len(delivered_pdf_items),
         "hoja_ruta_url": hoja_ruta_url,
     }
+
+
+# ===================== ENTREGA DE REPARACIONES =====================
+
+@router.get("/quotes/{quote_id}/repair-delivery-prep")
+async def repair_delivery_prep(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Obtener equipos en reparación del cliente para selección de entrega."""
+    await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    if quote.get("quote_category") != "repair":
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de reparación")
+
+    client_id = quote.get("client_id", "")
+
+    # Obtener equipos en reparación del cliente
+    equipos_cursor = db.taller_equipos.find(
+        {"client_id": client_id, "estatus": "En reparación"},
+        {"_id": 0}
+    )
+    equipos = await equipos_cursor.to_list(5000)
+
+    # Agrupar por modelo
+    modelos_map = {}
+    for eq in equipos:
+        modelo = eq.get("modelo", "Sin modelo")
+        if modelo not in modelos_map:
+            modelos_map[modelo] = {
+                "modelo": modelo,
+                "modelo_id": eq.get("modelo_id", ""),
+                "serials": [],
+            }
+        modelos_map[modelo]["serials"].append({
+            "taller_equipo_id": eq.get("taller_equipo_id"),
+            "serial": eq.get("serial", ""),
+            "quote_number": eq.get("quote_number", ""),
+            "fecha_ingreso": eq.get("fecha_ingreso", ""),
+        })
+
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+    client_name = (client.get("fantasy_name") or client.get("legal_name", "")) if client else ""
+
+    return {
+        "quote_id": quote_id,
+        "quote_number": quote.get("quote_number", ""),
+        "quote_status": quote.get("quote_status", ""),
+        "client_id": client_id,
+        "client_name": client_name,
+        "client_rif": (client.get("rif", "") if client else ""),
+        "client_address": (client.get("address", "") if client else ""),
+        "modelos": list(modelos_map.values()),
+        "total_equipos": len(equipos),
+    }
+
+
+@router.post("/quotes/{quote_id}/repair-deliver")
+async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+    """Entregar equipos reparados: actualiza taller_equipos, genera Nota de Entrega, cambia estado."""
+    current_user = await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    if quote.get("quote_category") != "repair":
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de reparación")
+
+    current_status = quote.get("quote_status", "Borrador")
+    is_irregular = current_status != "Pagada"
+
+    if is_irregular:
+        if not exception_reason:
+            raise HTTPException(status_code=422, detail="IRREGULAR:Debe proporcionar un motivo para entregar sin pago registrado")
+        await mark_quote_irregular(quote_id, "repair-deliver", exception_reason, regularization_date)
+        await log_audit_exception(quote_id, quote.get("quote_number"), "repair-deliver", "Pagada", current_status, exception_reason, regularization_date, current_user)
+
+    selected_serials = body.get("selected_serials", [])  # Lista de taller_equipo_id
+    delivery_method = body.get("delivery_method", "personalizada")
+    receiver_name = body.get("receiver_name", "")
+    receiver_cedula = body.get("receiver_cedula", "")
+    receiver_phone = body.get("receiver_phone", "")
+    courier_name = body.get("courier_name", "")
+    courier_office = body.get("courier_office", "")
+    delivery_notes = body.get("notes", "")
+
+    if not selected_serials:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un equipo para entregar")
+
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Obtener info del cliente
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    client_name = (client.get("fantasy_name") or client.get("legal_name", "")) if client else (quote.get("client_name") or "")
+    client_rif = (client.get("rif", "") if client else "")
+    client_address = (client.get("address", "") if client else "")
+
+    # Obtener los equipos seleccionados de taller_equipos
+    equipos_to_deliver = await db.taller_equipos.find(
+        {"taller_equipo_id": {"$in": selected_serials}, "estatus": "En reparación"},
+        {"_id": 0}
+    ).to_list(5000)
+
+    if not equipos_to_deliver:
+        raise HTTPException(status_code=400, detail="No se encontraron equipos válidos para entregar")
+
+    # Agrupar por modelo para el PDF
+    modelos_pdf = {}
+    for eq in equipos_to_deliver:
+        modelo = eq.get("modelo", "Sin modelo")
+        if modelo not in modelos_pdf:
+            modelos_pdf[modelo] = {"name": modelo, "type": "Equipo", "quantity": 0, "serials": [], "category": "Equipo"}
+        modelos_pdf[modelo]["quantity"] += 1
+        modelos_pdf[modelo]["serials"].append(eq.get("serial", ""))
+
+    delivered_pdf_items = list(modelos_pdf.values())
+
+    # Generar Nota de Entrega PDF
+    hoja_ruta_url = None
+    try:
+        logo_path = None
+        logo_file = UPLOADS_DIR / "logo.png"
+        if logo_file.exists():
+            logo_path = str(logo_file)
+
+        year = datetime.now(timezone.utc).strftime("%Y")
+        last_ne = await db.nota_entrega_counter.find_one_and_update(
+            {"year": year},
+            {"$inc": {"counter": 1}},
+            upsert=True,
+            return_document=True,
+        )
+        if last_ne and "_id" in last_ne:
+            del last_ne["_id"]
+        ne_num = last_ne.get("counter", 1) if last_ne else 1
+        correlativo = f"NE-{year}-{ne_num:04d}"
+
+        contact_name = ""
+        contact_phone = ""
+        if client:
+            contact1 = client.get("contact1") or {}
+            if isinstance(contact1, dict) and contact1.get("name"):
+                contact_name = contact1.get("name", "")
+                contact_phone = contact1.get("phone", "")
+
+        transportista = courier_name if delivery_method == "courier" else receiver_name
+        guia_placa = courier_office if delivery_method == "courier" else ""
+
+        pdf_buffer = generate_nota_entrega_pdf(
+            correlativo=correlativo,
+            quote_number=quote.get("quote_number", ""),
+            project_number="",
+            client_name=client_name,
+            client_rif=client_rif,
+            client_address=client_address,
+            client_contact_name=contact_name,
+            client_contact_phone=contact_phone,
+            warehouse_name="Taller de Reparación",
+            delivered_items=delivered_pdf_items,
+            delivered_by=user_name,
+            transportista=transportista,
+            guia_placa=guia_placa,
+            notes=delivery_notes,
+            logo_path=logo_path,
+            delivery_method=delivery_method,
+            receiver_name=receiver_name,
+            receiver_cedula=receiver_cedula,
+            receiver_phone=receiver_phone,
+            courier_name=courier_name,
+            courier_office=courier_office,
+        )
+        pdf_filename = f"NotaEntrega_Reparacion_{correlativo}.pdf"
+        pdf_path = UPLOADS_DIR / pdf_filename
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_buffer.getvalue())
+        hoja_ruta_url = f"/uploads/{pdf_filename}"
+
+        # Adjuntar a la cotización
+        attachment = {
+            "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+            "category": "Nota de Entrega",
+            "filename": pdf_filename,
+            "url": hoja_ruta_url,
+            "uploaded_by": current_user.get("email", "system"),
+            "uploaded_by_name": user_name,
+            "uploaded_at": now_iso,
+            "content_type": "application/pdf",
+        }
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$push": {"attachments": attachment}}
+        )
+
+        if client:
+            client_att = {**attachment, "attachment_id": f"att_{uuid.uuid4().hex[:12]}"}
+            await db.clients.update_one(
+                {"client_id": quote.get("client_id")},
+                {"$push": {"attachments": client_att}}
+            )
+
+        logger.info(f"Nota de Entrega Reparación generada: {hoja_ruta_url}")
+    except Exception as e:
+        logger.error(f"Error generando Nota de Entrega Reparación: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # UPDATE masivo: cambiar estatus a "Entregado" con fecha_entrega
+    await db.taller_equipos.update_many(
+        {"taller_equipo_id": {"$in": selected_serials}},
+        {"$set": {"estatus": "Entregado", "fecha_entrega": now_iso}}
+    )
+
+    # Actualizar estado de la cotización a "Entregada"
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
+        "quote_status": "Entregada",
+        "delivered_at": now_iso,
+    }})
+
+    return {
+        "message": f"Entrega registrada: {len(equipos_to_deliver)} equipo(s) entregados",
+        "equipos_entregados": len(equipos_to_deliver),
+        "hoja_ruta_url": hoja_ruta_url,
+    }
+
+
+@router.get("/taller-equipos")
+async def get_taller_equipos(authorization: Optional[str] = Header(None), client_id: Optional[str] = None, estatus: Optional[str] = None):
+    """Consultar equipos en taller (para futura vista de trazabilidad)."""
+    await get_current_user(authorization)
+    query = {}
+    if client_id:
+        query["client_id"] = client_id
+    if estatus:
+        query["estatus"] = estatus
+    equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(10000)
+    return {"equipos": equipos, "total": len(equipos)}
 
 
 @router.post("/quotes/{quote_id}/duplicate")

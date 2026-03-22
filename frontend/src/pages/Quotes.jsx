@@ -19,6 +19,7 @@ import { QuoteFilters } from '../components/quotes/QuoteFilters';
 import { QuotesTable } from '../components/quotes/QuotesTable';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
 import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
+import { RepairDeliveryDialog } from '../components/quotes/RepairDeliveryDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -224,6 +225,8 @@ export const Quotes = () => {
 
   // Estado para DeliveryDialog (Hoja de Ruta)
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  // Estado para RepairDeliveryDialog
+  const [repairDeliveryDialogOpen, setRepairDeliveryDialogOpen] = useState(false);
   const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
   const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
 
@@ -1979,6 +1982,8 @@ export const Quotes = () => {
       openCollectConfirm(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'send-to-implementation') {
       openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action === 'deliver') {
+      handleDeliverQuote(quoteId, pendingAction?.exceptionHeaders || null);
     }
   };
 
@@ -2719,11 +2724,17 @@ export const Quotes = () => {
     setWorkflowModalOpen(true);
   };
 
-  // Entregar cotización (solo equipos) — abre dialog de entrega
+  // Entregar cotización — abre dialog correspondiente según categoría
   const handleDeliverQuote = async (quoteId, exceptionInfo) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const isRepairQuote = quote?.quote_category === 'repair';
     setDeliveryQuoteId(quoteId);
     setDeliveryExceptionInfo(exceptionInfo || null);
-    setDeliveryDialogOpen(true);
+    if (isRepairQuote) {
+      setRepairDeliveryDialogOpen(true);
+    } else {
+      setDeliveryDialogOpen(true);
+    }
   };
 
   const selectedClient = clients.find(c => c.client_id === quoteData.client_id) || 
@@ -4720,6 +4731,15 @@ export const Quotes = () => {
           <DeliveryDialog
             open={deliveryDialogOpen}
             onOpenChange={setDeliveryDialogOpen}
+            quoteId={deliveryQuoteId}
+            exceptionInfo={deliveryExceptionInfo}
+            onDelivered={() => fetchData()}
+          />
+
+          {/* Repair Delivery Dialog (Entrega de Reparaciones) */}
+          <RepairDeliveryDialog
+            open={repairDeliveryDialogOpen}
+            onOpenChange={setRepairDeliveryDialogOpen}
             quoteId={deliveryQuoteId}
             exceptionInfo={deliveryExceptionInfo}
             onDelivered={() => fetchData()}
