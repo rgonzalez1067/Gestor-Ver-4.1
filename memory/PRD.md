@@ -160,6 +160,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### Modulo de Cotizaciones — Flujo de Reparaciones (2026-03-22)
+- **Reingenieria del Flujo de Estados para Reparaciones**:
+  - Nuevo estado "Reparada" entre "Aprobada" y "Facturada" exclusivo para cotizaciones de reparacion
+  - Pipeline reparaciones: Borrador -> Enviada -> Aprobada -> Reparada -> Facturada -> Pagada -> Entregada
+  - Aprobacion de reparaciones: NO envia notificacion a Administracion (aprobacion silenciosa)
+  - Nuevo endpoint POST /api/quotes/{quote_id}/repair-complete: cambia a "Reparada" y envia notificacion a Admin
+  - Facturacion de reparaciones acepta "Reparada" como estado previo valido (sin requerir excepcion)
+  - Entrega habilitada para cotizaciones de reparacion (ademas de equipos)
+  - Frontend: badge cyan para estado "Reparada", boton "Marcar como Reparada" en menu contextual
+  - VALIDADO: 13/13 backend + 100% frontend (iteration_124)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
