@@ -1110,6 +1110,12 @@ class EquipmentPDFItem(BaseModel):
     unit_price_usd: float = 0
     total_usd: float = 0
 
+class RepairModelEntry(BaseModel):
+    model_name: str
+    model_id: str = ""
+    quantity: int = 0
+    serials: List[str] = []
+
 class EquipmentQuotePDFRequest(BaseModel):
     client_id: str = ""
     cliente_nombre: str
@@ -1121,7 +1127,8 @@ class EquipmentQuotePDFRequest(BaseModel):
     repair_description: str = ""
     equipment_serial_number: str = ""
     estimated_delivery_date: str = ""
-    bulk_serials: List[str] = []  # Seriales de carga masiva
+    bulk_serials: List[str] = []
+    repair_models: List[RepairModelEntry] = []
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
@@ -1164,18 +1171,45 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     repair_section = ""
     if data.equipment_type == "Reparación" and data.repair_description:
-        serial_html = ""
-        if data.bulk_serials:
-            serial_list = "".join(f"<li style='font-size:11px;color:#475569'>{s}</li>" for s in data.bulk_serials)
-            serial_html = f"""<br><strong style="font-size:12px;color:#9a3412">Seriales ({len(data.bulk_serials)}):</strong>
-                <ul style="margin:4px 0 0 16px;padding:0;columns:2;column-gap:24px">{serial_list}</ul>"""
-        elif data.equipment_serial_number:
-            serial_html = f'<br><span style="font-size:12px;color:#64748b">Serial: {data.equipment_serial_number}</span>'
+        # Resumen por modelo si hay repair_models
+        models_summary = ""
+        if data.repair_models:
+            total_units = sum(m.quantity for m in data.repair_models)
+            models_rows = "".join(
+                f'<tr><td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px">{m.model_name}</td>'
+                f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{m.quantity}</td>'
+                f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{len(m.serials)}</td></tr>'
+                for m in data.repair_models
+            )
+            models_summary = f"""<br>
+                <table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #fed7aa;border-radius:4px">
+                    <thead><tr style="background:#fef3c7">
+                        <th style="padding:6px 10px;text-align:left;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Modelo</th>
+                        <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Cantidad</th>
+                        <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Seriales</th>
+                    </tr></thead>
+                    <tbody>{models_rows}</tbody>
+                    <tfoot><tr style="background:#fef3c7">
+                        <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e">Total</td>
+                        <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e;text-align:center">{total_units}</td>
+                        <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e;text-align:center">{sum(len(m.serials) for m in data.repair_models)}</td>
+                    </tr></tfoot>
+                </table>"""
+        else:
+            # Legacy: serial individual o bulk
+            serial_html = ""
+            if data.bulk_serials:
+                serial_list = "".join(f"<li style='font-size:11px;color:#475569'>{s}</li>" for s in data.bulk_serials)
+                serial_html = f"""<br><strong style="font-size:12px;color:#9a3412">Seriales ({len(data.bulk_serials)}):</strong>
+                    <ul style="margin:4px 0 0 16px;padding:0;columns:2;column-gap:24px">{serial_list}</ul>"""
+            elif data.equipment_serial_number:
+                serial_html = f'<br><span style="font-size:12px;color:#64748b">Serial: {data.equipment_serial_number}</span>'
+            models_summary = serial_html
 
         repair_section = f"""<div style="margin:20px 0;padding:15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
             <strong style="color:#9a3412">Detalle de Reparación</strong><br>
             <span style="font-size:13px;color:#475569">{data.repair_description}</span>
-            {serial_html}
+            {models_summary}
             {'<br><span style="font-size:12px;color:#64748b">Entrega Est.: ' + data.estimated_delivery_date + '</span>' if data.estimated_delivery_date else ''}
         </div>"""
 
@@ -1271,6 +1305,59 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
 
+    # Generar Anexo de Seriales por Modelo (si hay repair_models con seriales)
+    if data.repair_models and any(m.serials for m in data.repair_models):
+        model_blocks = ""
+        for m in data.repair_models:
+            if not m.serials:
+                continue
+            serial_items = "".join(
+                f'<span style="display:inline-block;width:48%;padding:3px 0;font-size:11px;font-family:monospace;color:#334155">{s}</span>'
+                for s in m.serials
+            )
+            model_blocks += f"""
+                <div style="margin-bottom:20px">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:8px">
+                        <strong style="font-size:14px;color:#1e293b">{m.model_name}</strong>
+                        <span style="float:right;font-size:12px;color:#64748b">{len(m.serials)} equipo(s)</span>
+                    </div>
+                    <div style="padding:0 8px;display:flex;flex-wrap:wrap">
+                        {serial_items}
+                    </div>
+                </div>"""
+
+        annexe_html = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+    @page {{ size: letter; margin: 40px; }}
+    body {{ font-family: Helvetica, Arial, sans-serif; color: #475569; margin: 0; padding: 0; }}
+</style></head><body>
+    <div style="border-bottom:2px solid #e2e8f0;padding-bottom:14px;margin-bottom:24px">
+        <h2 style="font-size:18px;color:#1e293b;margin:0">Anexo de Seriales por Modelo</h2>
+        <p style="font-size:12px;color:#94a3b8;margin:4px 0 0 0">Cotización #{quote_number} — {data.cliente_nombre}</p>
+    </div>
+    {model_blocks}
+    <div style="margin-top:30px;padding:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+        <p style="font-size:12px;color:#92400e;margin:0;line-height:1.6">
+            <strong>Nota importante:</strong> Estimado cliente, al momento de aprobar esta Cotización asegúrese de los modelos
+            y la cantidad de equipos de cada modelo que está enviando a reparación.
+        </p>
+    </div>
+</body></html>"""
+
+        annexe_bytes = weasyprint.HTML(string=annexe_html).write_pdf()
+
+        # Combinar cotización + anexo con PyPDF2
+        from PyPDF2 import PdfReader, PdfWriter
+        writer = PdfWriter()
+        for page in PdfReader(io.BytesIO(pdf_bytes)).pages:
+            writer.add_page(page)
+        for page in PdfReader(io.BytesIO(annexe_bytes)).pages:
+            writer.add_page(page)
+        combined = io.BytesIO()
+        writer.write(combined)
+        pdf_bytes = combined.getvalue()
+
     # Anexar condiciones legales según el tipo de cotización
     pdf_bytes = append_equipment_conditions(pdf_bytes, data.equipment_type, user_sede)
 
@@ -1325,6 +1412,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "repair_description": data.repair_description or None,
         "equipment_serial_number": data.equipment_serial_number or None,
         "estimated_delivery_date": data.estimated_delivery_date or None,
+        "repair_models": [m.dict() for m in data.repair_models] if data.repair_models else [],
         "quote_status": "Borrador",
         "quote_pdf_url": quote_pdf_url,
         "attachments": [attachment_entry],

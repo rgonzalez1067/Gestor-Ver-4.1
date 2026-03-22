@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Categorías principales - 4 categorías planas
@@ -23,6 +23,9 @@ const DEVICE_TYPES = ['POS', 'Pinpad'];
 // Tipos que se consideran accesorios
 const ACCESSORY_TYPES = ['Accesorio', 'Base'];
 
+// Tipos para selección de modelo en reparaciones (POS y Pinpad)
+const REPAIR_MODEL_TYPES = ['POS', 'Pinpad'];
+
 export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware }) => {
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -38,11 +41,26 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [equipmentSerialNumber, setEquipmentSerialNumber] = useState('');
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
 
-  // Carga masiva de seriales
+  // Carga masiva de seriales (legacy - mantener para compatibilidad)
   const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
-  const [bulkValidationResult, setBulkValidationResult] = useState(null); // { found, not_found, ... }
+  const [bulkValidationResult, setBulkValidationResult] = useState(null);
   const [acceptUnknownSerials, setAcceptUnknownSerials] = useState(false);
-  const [confirmedSerials, setConfirmedSerials] = useState([]); // Seriales confirmados para la cotización
+  const [confirmedSerials, setConfirmedSerials] = useState([]);
+
+  // Flujo cíclico multi-modelo para reparaciones
+  const [repairModels, setRepairModels] = useState([]); // Array de { model_id, model_name, quantity, serials }
+  const [currentModel, setCurrentModel] = useState(null); // Hardware item seleccionado
+  const [currentModelQty, setCurrentModelQty] = useState('');
+  const [currentModelSerials, setCurrentModelSerials] = useState([]); // Seriales ingresados para modelo actual
+  const [serialInput, setSerialInput] = useState(''); // Input para ingreso manual de serial
+  const [modelSearchQuery, setModelSearchQuery] = useState(''); // Buscador de modelos
+
+  // Hardware POS/Pinpad disponible para selección de modelo
+  const availableModels = hardware.filter(item =>
+    REPAIR_MODEL_TYPES.includes(item.type) &&
+    (modelSearchQuery ? item.name.toLowerCase().includes(modelSearchQuery.toLowerCase()) : true) &&
+    !repairModels.some(rm => rm.model_id === item.hardware_id) // Excluir ya agregados
+  );
 
   // Reset cuando cambia la categoría
   useEffect(() => {
@@ -53,6 +71,12 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       setBulkValidationResult(null);
       setAcceptUnknownSerials(false);
       setConfirmedSerials([]);
+      setRepairModels([]);
+      setCurrentModel(null);
+      setCurrentModelQty('');
+      setCurrentModelSerials([]);
+      setSerialInput('');
+      setModelSearchQuery('');
     }
     setSearchQuery('');
   }, [equipmentCategory]);
@@ -143,9 +167,63 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setBulkValidationResult(null);
     setAcceptUnknownSerials(false);
     setConfirmedSerials([]);
+    setRepairModels([]);
+    setCurrentModel(null);
+    setCurrentModelQty('');
+    setCurrentModelSerials([]);
+    setSerialInput('');
+    setModelSearchQuery('');
   };
 
-  // ==================== CARGA MASIVA DE SERIALES ====================
+  // ==================== FLUJO CÍCLICO MULTI-MODELO ====================
+  const addSerialManual = () => {
+    const val = serialInput.trim();
+    if (!val) return;
+    if (currentModelSerials.includes(val)) {
+      toast.error('Este serial ya fue ingresado');
+      return;
+    }
+    const qty = parseInt(currentModelQty, 10) || 0;
+    if (currentModelSerials.length >= qty) {
+      toast.error(`Ya se alcanzó la cantidad declarada (${qty})`);
+      return;
+    }
+    setCurrentModelSerials(prev => [...prev, val]);
+    setSerialInput('');
+  };
+
+  const removeSerial = (idx) => {
+    setCurrentModelSerials(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const confirmCurrentModel = () => {
+    const qty = parseInt(currentModelQty, 10) || 0;
+    if (currentModelSerials.length !== qty) {
+      toast.error(`La cantidad de seriales (${currentModelSerials.length}) no coincide con la cantidad declarada (${qty})`);
+      return;
+    }
+    setRepairModels(prev => [...prev, {
+      model_id: currentModel.hardware_id,
+      model_name: currentModel.name,
+      quantity: qty,
+      serials: [...currentModelSerials]
+    }]);
+    // Reset para nuevo modelo
+    setCurrentModel(null);
+    setCurrentModelQty('');
+    setCurrentModelSerials([]);
+    setSerialInput('');
+    setModelSearchQuery('');
+    setBulkValidationResult(null);
+    setAcceptUnknownSerials(false);
+    toast.success('Modelo confirmado. Puede agregar otro modelo o continuar.');
+  };
+
+  const removeRepairModel = (idx) => {
+    setRepairModels(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // ==================== CARGA MASIVA DE SERIALES (POR MODELO) ====================
   const handleBulkUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -175,7 +253,6 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       const result = await res.json();
       setBulkValidationResult(result);
       if (result.not_found_count === 0) {
-        setConfirmedSerials(result.found.map(s => s.serial));
         toast.success(`${result.found_count} serial(es) validados exitosamente`);
       } else {
         toast.info(`${result.found_count} encontrados, ${result.not_found_count} no registrados en inventario`);
@@ -190,18 +267,29 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
 
   const handleConfirmBulkSerials = () => {
     if (!bulkValidationResult) return;
-    const allSerials = [
+    const qty = parseInt(currentModelQty, 10) || 0;
+    const allBulk = [
       ...bulkValidationResult.found.map(s => s.serial),
       ...(acceptUnknownSerials ? bulkValidationResult.not_found.map(s => s.serial) : [])
     ];
-    setConfirmedSerials(allSerials);
-    toast.success(`${allSerials.length} serial(es) confirmados para la cotización`);
+    // Combinar con los manuales ya ingresados (sin duplicados)
+    const merged = [...currentModelSerials];
+    for (const s of allBulk) {
+      if (!merged.includes(s)) merged.push(s);
+    }
+    if (merged.length > qty && qty > 0) {
+      toast.error(`Los seriales (${merged.length}) superan la cantidad declarada (${qty}). Ajuste la cantidad o reduzca los seriales.`);
+      return;
+    }
+    setCurrentModelSerials(merged);
+    setBulkValidationResult(null);
+    setAcceptUnknownSerials(false);
+    toast.success(`${allBulk.length} serial(es) agregados del archivo`);
   };
 
   const clearBulkUpload = () => {
     setBulkValidationResult(null);
     setAcceptUnknownSerials(false);
-    setConfirmedSerials([]);
   };
 
   // Mostrar modal de confirmación
@@ -233,7 +321,13 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         repair_description: repairDescription,
         equipment_serial_number: equipmentSerialNumber,
         estimated_delivery_date: estimatedDeliveryDate,
-        bulk_serials: confirmedSerials
+        bulk_serials: confirmedSerials,
+        repair_models: repairModels.map(m => ({
+          model_name: m.model_name,
+          model_id: m.model_id,
+          quantity: m.quantity,
+          serials: m.serials
+        }))
       };
 
       const token = localStorage.getItem('session_token');
@@ -417,7 +511,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 })}
               </div>
 
-              {/* Campos específicos para REPARACIONES */}
+              {/* Campos específicos para REPARACIONES - Flujo cíclico multi-modelo */}
               {equipmentCategory === 'Reparacion' && (
                 <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg space-y-4">
                   <div className="flex items-center gap-2 text-orange-800 font-medium">
@@ -430,143 +524,206 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     <Textarea
                       value={repairDescription}
                       onChange={(e) => setRepairDescription(e.target.value)}
-                      placeholder="Describa el problema o falla del equipo..."
+                      placeholder="Describa el problema o falla de los equipos..."
                       className="bg-white mt-1"
-                      rows={3}
+                      rows={2}
                       data-testid="repair-description"
                     />
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-orange-800">Número de serie del equipo</Label>
-                      <Input
-                        value={equipmentSerialNumber}
-                        onChange={(e) => setEquipmentSerialNumber(e.target.value)}
-                        placeholder="Ej: SN-12345678"
-                        className="bg-white mt-1"
-                        data-testid="repair-serial-number"
-                        disabled={confirmedSerials.length > 0}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-orange-800">Fecha estimada de entrega</Label>
-                      <div className="relative mt-1">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <Input
-                          type="date"
-                          value={estimatedDeliveryDate}
-                          onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
-                          className="bg-white pl-10"
-                          data-testid="repair-delivery-date"
-                        />
-                      </div>
+                  <div className="w-1/2">
+                    <Label className="text-orange-800">Fecha estimada de entrega</Label>
+                    <div className="relative mt-1">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <Input type="date" value={estimatedDeliveryDate} onChange={(e) => setEstimatedDeliveryDate(e.target.value)} className="bg-white pl-10" data-testid="repair-delivery-date" />
                     </div>
                   </div>
 
-                  {/* Carga Masiva de Seriales */}
-                  <div className="border-t border-orange-200 pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <Label className="text-orange-800 font-medium flex items-center gap-1.5">
-                        <Upload size={15} />
-                        Carga Masiva de Seriales
-                      </Label>
-                      {confirmedSerials.length > 0 && (
-                        <Button variant="ghost" size="sm" onClick={clearBulkUpload} className="text-red-500 hover:text-red-700 h-7 text-xs" data-testid="bulk-clear-btn">
-                          <X size={14} className="mr-1" />Limpiar
-                        </Button>
-                      )}
-                    </div>
-
-                    {confirmedSerials.length === 0 && !bulkValidationResult && (
-                      <div className="flex items-center gap-3">
-                        <label className="flex-1 cursor-pointer">
-                          <input type="file" accept=".xlsx,.xls" onChange={handleBulkUpload} className="hidden" data-testid="bulk-file-input" />
-                          <div className="flex items-center justify-center gap-2 border-2 border-dashed border-orange-300 rounded-lg p-3 text-sm text-orange-700 hover:border-orange-400 hover:bg-orange-100/50 transition-colors">
-                            <Upload size={16} />
-                            {bulkUploadLoading ? 'Procesando...' : 'Subir archivo Excel con seriales'}
-                          </div>
-                        </label>
-                      </div>
-                    )}
-
-                    {/* Resultados de validación */}
-                    {bulkValidationResult && confirmedSerials.length === 0 && (
-                      <div className="space-y-3 mt-2">
-                        <p className="text-xs text-slate-600">
-                          {bulkValidationResult.total_uploaded} serial(es) procesados del archivo
-                        </p>
-
-                        {bulkValidationResult.found.length > 0 && (
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 mb-2">
-                              <ShieldCheck size={14} />
-                              Encontrados en inventario ({bulkValidationResult.found_count})
-                            </p>
-                            <div className="max-h-28 overflow-y-auto space-y-1">
-                              {bulkValidationResult.found.map((s, i) => (
-                                <div key={i} className="flex items-center gap-2 text-xs text-green-800">
-                                  <CheckCircle2 size={12} className="text-green-500 shrink-0" />
-                                  <span className="font-mono">{s.serial}</span>
-                                  <span className="text-green-600">— {s.item_name} ({s.item_type})</span>
-                                </div>
-                              ))}
+                  {/* Modelos confirmados */}
+                  {repairModels.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-orange-800 font-medium">Modelos registrados</Label>
+                      {repairModels.map((rm, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white rounded-lg border border-orange-200 p-3">
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 size={18} className="text-green-500" />
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{rm.model_name}</p>
+                              <p className="text-xs text-slate-500">{rm.quantity} equipo(s) — {rm.serials.length} serial(es)</p>
                             </div>
                           </div>
-                        )}
-
-                        {bulkValidationResult.not_found.length > 0 && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5 mb-2">
-                              <ShieldAlert size={14} />
-                              No registrados en inventario ({bulkValidationResult.not_found_count})
-                            </p>
-                            <div className="max-h-28 overflow-y-auto space-y-1">
-                              {bulkValidationResult.not_found.map((s, i) => (
-                                <div key={i} className="flex items-center gap-2 text-xs text-amber-800">
-                                  <AlertCircle size={12} className="text-amber-500 shrink-0" />
-                                  <span className="font-mono">{s.serial}</span>
-                                </div>
-                              ))}
-                            </div>
-                            <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={acceptUnknownSerials}
-                                onChange={(e) => setAcceptUnknownSerials(e.target.checked)}
-                                className="rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                                data-testid="bulk-accept-unknown"
-                              />
-                              <span className="text-xs text-amber-800 font-medium">Aceptar equipos no registrados</span>
-                            </label>
-                          </div>
-                        )}
-
-                        <Button
-                          size="sm"
-                          onClick={handleConfirmBulkSerials}
-                          disabled={bulkValidationResult.found_count === 0 && !acceptUnknownSerials}
-                          className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                          data-testid="bulk-confirm-btn"
-                        >
-                          <CheckCircle2 size={14} className="mr-1.5" />
-                          Confirmar {bulkValidationResult.found_count + (acceptUnknownSerials ? bulkValidationResult.not_found_count : 0)} serial(es)
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Seriales confirmados */}
-                    {confirmedSerials.length > 0 && (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 mb-1">
-                          <CheckCircle2 size={14} />
-                          {confirmedSerials.length} serial(es) confirmados
-                        </p>
-                        <div className="flex flex-wrap gap-1.5 mt-2 max-h-20 overflow-y-auto">
-                          {confirmedSerials.map((s, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-mono rounded-full border border-green-200">{s}</span>
-                          ))}
+                          <Button variant="ghost" size="sm" onClick={() => removeRepairModel(idx)} className="text-red-400 hover:text-red-600 h-7" data-testid={`remove-model-${idx}`}>
+                            <Trash2 size={14} />
+                          </Button>
                         </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Ciclo de ingreso de modelo */}
+                  <div className="border-t border-orange-200 pt-4 space-y-3">
+                    <Label className="text-orange-800 font-medium flex items-center gap-1.5">
+                      <Plus size={15} />
+                      {repairModels.length > 0 ? 'Agregar otro modelo a la orden' : 'Seleccionar modelo de equipo'}
+                    </Label>
+
+                    {/* Paso A: Selección de modelo */}
+                    {!currentModel ? (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <Input
+                            placeholder="Buscar modelo POS o Pinpad..."
+                            value={modelSearchQuery}
+                            onChange={(e) => setModelSearchQuery(e.target.value)}
+                            className="pl-10 bg-white"
+                            data-testid="repair-model-search"
+                          />
+                        </div>
+                        <div className="max-h-36 overflow-y-auto border rounded-lg bg-white">
+                          {availableModels.length === 0 ? (
+                            <p className="p-3 text-center text-xs text-slate-400">No hay modelos disponibles</p>
+                          ) : (
+                            availableModels.map(item => (
+                              <button
+                                key={item.hardware_id}
+                                onClick={() => { setCurrentModel(item); setModelSearchQuery(''); }}
+                                className="w-full text-left px-3 py-2.5 hover:bg-orange-50 border-b last:border-b-0 flex items-center justify-between"
+                                data-testid={`repair-select-model-${item.hardware_id}`}
+                              >
+                                <div>
+                                  <p className="text-sm font-medium text-slate-800">{item.name}</p>
+                                  <p className="text-xs text-slate-400">{item.type} • ${item.price_usd?.toFixed(2) || '0.00'}</p>
+                                </div>
+                                <ChevronRight size={16} className="text-slate-300" />
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 bg-white border border-orange-200 rounded-lg p-4">
+                        {/* Header del modelo seleccionado */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Cpu size={18} className="text-orange-600" />
+                            <span className="font-semibold text-slate-800">{currentModel.name}</span>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => { setCurrentModel(null); setCurrentModelQty(''); setCurrentModelSerials([]); setSerialInput(''); setBulkValidationResult(null); }} className="text-xs text-slate-500 h-7">
+                            Cambiar modelo
+                          </Button>
+                        </div>
+
+                        {/* Paso B: Cantidad */}
+                        <div>
+                          <Label className="text-sm text-slate-600">Cantidad de equipos *</Label>
+                          <Input
+                            type="number" min="1"
+                            value={currentModelQty}
+                            onChange={(e) => setCurrentModelQty(e.target.value)}
+                            placeholder="Ej: 5"
+                            className="w-32 mt-1"
+                            data-testid="repair-model-qty"
+                          />
+                        </div>
+
+                        {/* Paso C: Captura de seriales */}
+                        {parseInt(currentModelQty, 10) > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm text-slate-600">
+                                Seriales ({currentModelSerials.length} / {currentModelQty})
+                              </Label>
+                              {currentModelSerials.length < parseInt(currentModelQty, 10) && (
+                                <label className="cursor-pointer">
+                                  <input type="file" accept=".xlsx,.xls" onChange={handleBulkUpload} className="hidden" data-testid="repair-bulk-file" />
+                                  <span className="text-xs text-orange-600 hover:text-orange-800 flex items-center gap-1 font-medium">
+                                    <Upload size={13} />{bulkUploadLoading ? 'Procesando...' : 'Carga desde Excel'}
+                                  </span>
+                                </label>
+                              )}
+                            </div>
+
+                            {/* Input manual */}
+                            {currentModelSerials.length < parseInt(currentModelQty, 10) && !bulkValidationResult && (
+                              <div className="flex gap-2">
+                                <Input
+                                  value={serialInput}
+                                  onChange={(e) => setSerialInput(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && addSerialManual()}
+                                  placeholder="Escribir serial y Enter..."
+                                  className="flex-1"
+                                  data-testid="repair-serial-input"
+                                />
+                                <Button size="sm" variant="outline" onClick={addSerialManual} className="shrink-0" data-testid="repair-add-serial-btn">
+                                  <Plus size={14} />
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Resultados de validación masiva */}
+                            {bulkValidationResult && (
+                              <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                                {bulkValidationResult.found.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-semibold text-green-700 flex items-center gap-1 mb-1"><ShieldCheck size={12} />En inventario ({bulkValidationResult.found_count})</p>
+                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                                      {bulkValidationResult.found.map((s, i) => (
+                                        <span key={i} className="px-1.5 py-0.5 bg-green-100 text-green-800 text-[10px] font-mono rounded">{s.serial}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {bulkValidationResult.not_found.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-semibold text-amber-700 flex items-center gap-1 mb-1"><ShieldAlert size={12} />No registrados ({bulkValidationResult.not_found_count})</p>
+                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                                      {bulkValidationResult.not_found.map((s, i) => (
+                                        <span key={i} className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-mono rounded">{s.serial}</span>
+                                      ))}
+                                    </div>
+                                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                                      <input type="checkbox" checked={acceptUnknownSerials} onChange={(e) => setAcceptUnknownSerials(e.target.checked)} className="rounded border-amber-400" data-testid="bulk-accept-unknown" />
+                                      <span className="text-[11px] text-amber-800 font-medium">Aceptar equipos no registrados</span>
+                                    </label>
+                                  </div>
+                                )}
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={handleConfirmBulkSerials} disabled={bulkValidationResult.found_count === 0 && !acceptUnknownSerials} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-xs h-8" data-testid="bulk-confirm-btn">
+                                    Agregar seriales
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={clearBulkUpload} className="text-xs text-slate-500 h-8">Cancelar</Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Seriales ingresados */}
+                            {currentModelSerials.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                {currentModelSerials.map((s, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] font-mono rounded-full border">
+                                    {s}
+                                    <button onClick={() => removeSerial(i)} className="text-red-400 hover:text-red-600"><X size={10} /></button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Paso D: Validación de cuota y confirmación */}
+                            {currentModelSerials.length === parseInt(currentModelQty, 10) && (
+                              <Button size="sm" onClick={confirmCurrentModel} className="w-full bg-green-600 hover:bg-green-700 text-white" data-testid="repair-confirm-model-btn">
+                                <CheckCircle2 size={14} className="mr-1.5" />
+                                Confirmar {currentModel.name} ({currentModelSerials.length} serial{currentModelSerials.length > 1 ? 'es' : ''})
+                              </Button>
+                            )}
+                            {currentModelSerials.length > 0 && currentModelSerials.length !== parseInt(currentModelQty, 10) && (
+                              <p className="text-xs text-amber-600 flex items-center gap-1">
+                                <AlertCircle size={12} />
+                                Faltan {parseInt(currentModelQty, 10) - currentModelSerials.length} serial(es) para completar la cuota
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -770,7 +927,15 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                   <p className="text-sm text-slate-600">RIF: {selectedClient?.rif}</p>
                   <p className="text-sm text-slate-600">Tipo: {getEquipmentTypeLabel()}</p>
                   <p className="text-sm text-slate-600">Items: {selectedItems.length}</p>
-                  {confirmedSerials.length > 0 && (
+                  {repairModels.length > 0 && (
+                    <div className="mt-1">
+                      <p className="text-sm text-slate-600 font-medium">Modelos de equipo:</p>
+                      {repairModels.map((rm, i) => (
+                        <p key={i} className="text-xs text-slate-500 ml-2">• {rm.model_name}: {rm.quantity} equipo(s), {rm.serials.length} serial(es)</p>
+                      ))}
+                    </div>
+                  )}
+                  {confirmedSerials.length > 0 && repairModels.length === 0 && (
                     <p className="text-sm text-slate-600">Seriales: {confirmedSerials.length}</p>
                   )}
                   <p className="text-sm font-medium text-brand-green-600">Total: ${totalUSD.toFixed(2)}</p>
