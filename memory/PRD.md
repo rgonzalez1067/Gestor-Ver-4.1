@@ -71,10 +71,16 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Mejora Header (2026-03-21)**: Rediseño del header en 3 bloques: Datos del Proyecto, Implementacion, Avance y Acciones. Mejor jerarquia visual, alineacion y espaciado. VALIDADO iter_120
 - **Carga Masiva de Seriales para Reparaciones (2026-03-21)**:
   - Nuevo endpoint POST /api/quotes/validate-repair-serials: sube Excel, extrae seriales, valida vs inventario
-  - Frontend: boton "Carga Masiva" en Reparaciones del EquipmentQuoteWizard
-  - Muestra seriales encontrados (verde) y no registrados (ambar) con opcion de aceptar
-  - Seriales confirmados se incluyen en el PDF generado con lista en 2 columnas
   - VALIDADO: 13/13 backend + frontend OK (iteration_121)
+- **Flujo Ciclico Multi-Modelo para Reparaciones (2026-03-22)**:
+  - Reingenieria completa del flujo de reparaciones: ciclo Modelo > Cantidad > Seriales > Confirmar
+  - Selector de modelos POS/Pinpad del inventario con buscador
+  - Validacion de cuota: seriales deben coincidir con cantidad declarada
+  - Soporte para multiples modelos en una misma orden
+  - Ingreso manual y masivo (Excel) de seriales por modelo
+  - PDF: Anexo de Seriales por modelo entre cotizacion y condiciones legales
+  - Nota de advertencia al final del anexo sobre verificacion de modelos/cantidades
+  - VALIDADO: 17/17 backend + frontend OK (iteration_122)
 - **Fix Plantillas (2026-03-21)**: Corregido error critico al cargar plantillas (body_html vs body). Toast de error si falla la carga. VALIDADO iter_120
 
 ### Modulo de Proyectos
