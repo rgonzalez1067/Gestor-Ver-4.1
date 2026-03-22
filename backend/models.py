@@ -155,6 +155,7 @@ class ComponentType(BaseModel):
 class HardwareCreate(BaseModel):
     name: str
     type: str
+    asset_type: Literal["Bien", "Servicio"] = "Bien"
     price_usd: float
     price_bs_usd: float
     description: Optional[str] = None
@@ -163,6 +164,7 @@ class Hardware(BaseModel):
     hardware_id: str = Field(default_factory=lambda: f"hwr_{uuid.uuid4().hex[:12]}")
     name: str
     type: str
+    asset_type: str = "Bien"
     price_usd: float
     price_bs_usd: float
     description: Optional[str] = None

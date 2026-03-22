@@ -432,13 +432,13 @@ export const Quotes = () => {
       try { const ic = await api.get('/quotes/irregular/count'); setIrregularCount(ic.data.count || 0); } catch {}
       // Guardar todos los hardware
       setAllHardware(hardwareRes.data || []);
-      // Filtrar solo dispositivos tipo "Pinpad" para cotizaciones de implementación
+      // Filtrar solo dispositivos tipo "Pinpad" y clasificación "Bien" para cotizaciones de implementación
       const pinpadDevices = (hardwareRes.data || []).filter(hw => 
-        hw.type?.toLowerCase() === 'pinpad'
+        hw.type?.toLowerCase() === 'pinpad' && (hw.asset_type || 'Bien') === 'Bien'
       );
       setPinpads(pinpadDevices);
       const posHardware = (hardwareRes.data || []).filter(hw => 
-        hw.type?.toLowerCase() === 'pos'
+        hw.type?.toLowerCase() === 'pos' && (hw.asset_type || 'Bien') === 'Bien'
       );
       setPosDevices(posHardware);
       // Guardar estado de plantillas disponibles

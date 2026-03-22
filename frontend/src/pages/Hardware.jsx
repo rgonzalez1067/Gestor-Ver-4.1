@@ -47,6 +47,7 @@ export const Hardware = () => {
     name: '',
     category: 'dispositivos',
     type: 'Pinpad',
+    asset_type: 'Bien',
     price_usd: '',
     price_bs_usd: '',
     description: ''
@@ -133,6 +134,7 @@ export const Hardware = () => {
     setFormData({
       name: hardware.name,
       type: hardware.type,
+      asset_type: hardware.asset_type || 'Bien',
       price_usd: hardware.price_usd?.toString() || '0',
       price_bs_usd: hardware.price_bs_usd?.toString() || '0',
       description: hardware.description || ''
@@ -144,6 +146,7 @@ export const Hardware = () => {
     setFormData({
       name: '',
       type: 'Pinpad',
+      asset_type: 'Bien',
       price_usd: '',
       price_bs_usd: '',
       description: ''
@@ -454,6 +457,22 @@ export const Hardware = () => {
                       </Select>
                     </div>
 
+                    <div>
+                      <Label>Clasificación *</Label>
+                      <Select
+                        value={formData.asset_type}
+                        onValueChange={(value) => setFormData({ ...formData, asset_type: value })}
+                      >
+                        <SelectTrigger data-testid="hardware-asset-type-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Bien">Bien (Activo físico)</SelectItem>
+                          <SelectItem value="Servicio">Servicio (Intangible)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="price_usd">Precio Efectivo (USD)</Label>
@@ -555,6 +574,9 @@ export const Hardware = () => {
                   <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
                     Categoría
                   </th>
+                  <th className="px-3 py-3 text-center text-sm font-medium text-slate-700 uppercase tracking-wider">
+                    Clasificación
+                  </th>
                   <th className="px-3 py-3 text-center text-sm font-medium text-emerald-600 uppercase tracking-wider">
                     Precio Efectivo
                   </th>
@@ -579,6 +601,13 @@ export const Hardware = () => {
                     </td>
                     <td className="px-3 py-3 text-center">
                       {getTypeBadge(hardware.type)}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        hardware.asset_type === 'Servicio'
+                          ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                          : 'bg-teal-100 text-teal-700 border border-teal-200'
+                      }`}>{hardware.asset_type || 'Bien'}</span>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <span className="font-mono text-emerald-600 font-semibold">

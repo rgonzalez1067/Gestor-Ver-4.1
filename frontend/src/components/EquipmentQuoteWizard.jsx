@@ -55,11 +55,12 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [serialInput, setSerialInput] = useState(''); // Input para ingreso manual de serial
   const [modelSearchQuery, setModelSearchQuery] = useState(''); // Buscador de modelos
 
-  // Hardware POS/Pinpad disponible para selección de modelo
+  // Hardware POS/Pinpad disponible para selección de modelo (solo Bienes físicos)
   const availableModels = hardware.filter(item =>
     REPAIR_MODEL_TYPES.includes(item.type) &&
+    (item.asset_type || 'Bien') === 'Bien' &&
     (modelSearchQuery ? item.name.toLowerCase().includes(modelSearchQuery.toLowerCase()) : true) &&
-    !repairModels.some(rm => rm.model_id === item.hardware_id) // Excluir ya agregados
+    !repairModels.some(rm => rm.model_id === item.hardware_id)
   );
 
   // Reset cuando cambia la categoría
@@ -88,7 +89,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     let matchesCategory = false;
 
     if (equipmentCategory === 'Verifone' || equipmentCategory === 'Morefun') {
-      matchesCategory = DEVICE_TYPES.includes(item.type);
+      matchesCategory = DEVICE_TYPES.includes(item.type) && (item.asset_type || 'Bien') === 'Bien';
     } else if (equipmentCategory === 'Accesorio') {
       matchesCategory = ACCESSORY_TYPES.includes(item.type);
     } else if (equipmentCategory === 'Reparacion') {
