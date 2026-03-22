@@ -16,6 +16,7 @@ import {
   UsersRound,
   FlaskConical,
   Warehouse,
+  Wrench,
   FolderKanban,
   PanelLeftClose,
   PanelLeftOpen,
@@ -36,6 +37,7 @@ const menuItems = [
   { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
   { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
+  { path: '/taller-equipos', icon: Wrench, label: 'Equipos en Reparacion' },
   { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
 ];
 

@@ -160,6 +160,19 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### Pantalla de Control de Equipos en Custodia - Taller (2026-03-22)
+- **Nueva pagina `/taller-equipos`**: Vista de solo lectura para trazabilidad de equipos de terceros en taller
+  - Tabla: Serial, Modelo, Cliente, Cotizacion Origen (enlace), Estatus (badge), Fecha Ingreso, Dias en Taller
+  - Stats cards: Total, En Reparacion, Entregados, Alerta (+15 dias)
+  - Filtros rapidos: busqueda por serial/cliente/modelo, selector estatus, rango de fechas
+  - Alerta visual roja para equipos >15 dias en reparacion
+  - Exportacion a Excel (.xlsx) con formato profesional
+  - Modal de historial al clic en serial (detalle equipo, cotizacion origen, recibido por, timeline de estados)
+  - Paginacion (25 items/pagina)
+- **Backend**: dias_en_taller y alerta_retraso calculados en servidor, endpoint historial, export Excel con openpyxl
+- **Menu lateral**: Nueva opcion "Equipos en Reparacion" con icono Wrench bajo Inventarios
+- VALIDADO: 6/6 endpoints backend + frontend screenshot OK
+
 ### Modulo de Trazabilidad de Activos en Reparacion y Despacho (2026-03-22)
 - **Coleccion `taller_equipos`**: Nueva entidad de persistencia para equipos en custodia del taller
   - Campos: serial, modelo, modelo_id, client_id, client_name, quote_id, quote_number, estatus, fecha_ingreso, fecha_entrega

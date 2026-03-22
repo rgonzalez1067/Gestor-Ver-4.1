@@ -20,6 +20,7 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import NewProducts from './pages/NewProducts';
 import Inventory from './pages/Inventory';
+import TallerEquipos from './pages/TallerEquipos';
 import AuthCallback from './components/AuthCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -97,6 +98,11 @@ function AppRouter() {
       <Route path="/inventory" element={
         <ProtectedRoute>
           <Inventory />
+        </ProtectedRoute>
+      } />
+      <Route path="/taller-equipos" element={
+        <ProtectedRoute>
+          <TallerEquipos />
         </ProtectedRoute>
       } />
       <Route path="/exchange-rate" element={
