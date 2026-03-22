@@ -1016,7 +1016,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             # Attach to quote
             attachment = {
                 "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
-                "category": "Otros",
+                "category": "Nota de Entrega",
                 "filename": pdf_filename,
                 "url": hoja_ruta_url,
                 "uploaded_by": current_user.get("email", "system"),
@@ -1031,7 +1031,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
 
             # Also attach to client annexes
             if client:
-                client_attachment = {**attachment, "attachment_id": f"att_{uuid.uuid4().hex[:12]}", "category": "Otros"}
+                client_attachment = {**attachment, "attachment_id": f"att_{uuid.uuid4().hex[:12]}"}
                 await db.clients.update_one(
                     {"client_id": quote.get("client_id")},
                     {"$push": {"attachments": client_attachment}}

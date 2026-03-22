@@ -12,6 +12,7 @@ const CATEGORIES = [
   { id: 'Orden de Compra', icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200', desc: 'Soporte de aprobación del cliente', maxFiles: 1, obligatorio: 'Aprobado' },
   { id: 'Factura', icon: File, color: 'text-purple-600 bg-purple-50 border-purple-200', desc: 'Documento fiscal', maxFiles: 1, obligatorio: 'Facturado' },
   { id: 'Pagos', icon: DollarSign, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', desc: 'Comprobantes de transferencia/depósito', maxFiles: 0, obligatorio: 'Pagado' },
+  { id: 'Nota de Entrega', icon: FileText, color: 'text-teal-600 bg-teal-50 border-teal-200', desc: 'Documento de entrega de equipos', maxFiles: 0, obligatorio: 'Entregado' },
   { id: 'Otros', icon: FolderOpen, color: 'text-slate-600 bg-slate-50 border-slate-200', desc: 'Documentación miscelánea', maxFiles: 0, obligatorio: 'Opcional' },
 ];
 
