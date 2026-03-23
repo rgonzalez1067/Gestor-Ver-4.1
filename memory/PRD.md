@@ -160,6 +160,18 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### Flujo POS Stand Alone Fast Track (2026-03-23)
+- **Nueva categoria `fast_track`** con quote_type `FAST_TRACK`
+- Pipeline: Borrador → Enviada → Aprobada → Configurada → Facturada → Pagada → Entregada
+- Aprobacion notifica a Operaciones (no Admin) con plantilla "Configuracion de Equipos (Pyme)"
+- Nuevo endpoint `POST /api/quotes/{id}/configure`: cambia a "Configurada" y notifica Admin
+- Hereda comportamiento MPOS: outsourcing, sin VPN
+- Defaults editables: Integrador="Sin integrador", Patrocinador="Mega Soft"
+- Frontend: badge violeta "Fast Track", boton "Marcar como Configurada" con icono Settings
+- Facturacion acepta "Configurada" como estado previo valido para fast_track
+- Entrega habilitada para fast_track
+- VALIDADO: 14/14 backend + 100% frontend (iteration_126)
+
 ### Pantalla de Control de Equipos en Custodia - Taller (2026-03-22)
 - **Nueva pagina `/taller-equipos`**: Vista de solo lectura para trazabilidad de equipos de terceros en taller
   - Tabla: Serial, Modelo, Cliente, Cotizacion Origen (enlace), Estatus (badge), Fecha Ingreso, Dias en Taller
