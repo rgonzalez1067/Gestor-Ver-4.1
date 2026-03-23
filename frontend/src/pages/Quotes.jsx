@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 const QUOTE_TYPES = [
   { id: 'VPOS', name: 'VPOS (Cajas)', icon: Monitor, description: 'Puntos de venta físicos' },
   { id: 'MPOS', name: 'MPOS (Tablet/Móvil)', icon: Smartphone, description: 'Terminales móviles POS' },
+  { id: 'FAST_TRACK', name: 'POS Stand Alone (Fast Track)', icon: Smartphone, description: 'Equipos autogestionados Pyme' },
   { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },
   { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro', disabled: true }
 ];
@@ -66,6 +67,7 @@ const STATUS_COLORS = {
   'Emitida': 'bg-blue-100 text-blue-700', // Legacy support
   'Aprobada': 'bg-green-100 text-green-700',
   'Reparada': 'bg-cyan-100 text-cyan-700',
+  'Configurada': 'bg-indigo-100 text-indigo-700',
   'Facturada': 'bg-purple-100 text-purple-700',
   'Pagada': 'bg-emerald-100 text-emerald-700',
   'Entregada': 'bg-teal-100 text-teal-700',
@@ -82,6 +84,7 @@ const STATUS_DISPLAY_NAMES = {
   'Emitida': 'Emitida', // Legacy
   'Aprobada': 'Aprobada',
   'Reparada': 'Reparada',
+  'Configurada': 'Configurada',
   'Facturada': 'Facturada',
   'Pagada': 'Pagada',
   'Entregada': 'Entregada',
@@ -94,7 +97,8 @@ const STATUS_DISPLAY_NAMES = {
 const QUOTE_CATEGORY_LABELS = {
   'implementation': 'Implementación',
   'equipment': 'Equipos',
-  'repair': 'Reparaciones'
+  'repair': 'Reparaciones',
+  'fast_track': 'Fast Track'
 };
 
 
@@ -1366,6 +1370,7 @@ export const Quotes = () => {
         'VPOS': 'vpos_pyme',
         'VPOS': 'vpos_pyme',
         'MPOS': 'mpos_pyme',
+        'FAST_TRACK': 'mpos_pyme',
         'GATEWAY': 'payment_gateway',
         'MPOS': 'mpos',
         'LINK': 'vpos_pyme'
@@ -1381,7 +1386,7 @@ export const Quotes = () => {
         pricing_model: quoteData.pricing_model,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         quote_number: '', // Se asignará en el backend
-        integrator_name: integrator?.name || '',
+        integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name || '',
         pinpad_model: pinpad?.name || '',
         sponsor_bank_name: sponsorBank?.name || '',
@@ -1449,12 +1454,13 @@ export const Quotes = () => {
       const payload = {
         client_id: quoteData.client_id,
         client_segment: quoteData.client_segment || 'PYME',
+        quote_category: isFastTrackType ? 'fast_track' : 'implementation',
         quote_type: quoteData.quote_type,
         pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
         integrator_id: quoteData.integrator_id,
-        integrator_name: integrator?.name || '',
+        integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name,
         pinpad_id: quoteData.pinpad_id === 'none' ? '' : quoteData.pinpad_id,
         pinpad_model: quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (pinpad?.name || '') : '',
@@ -1925,6 +1931,7 @@ export const Quotes = () => {
   const getQuoteTypeName = (typeId) => {
     if (typeId === 'VPOS') return 'VPOS (Cajas)';
     if (typeId === 'MPOS') return 'MPOS (Tablet/Móvil)';
+    if (typeId === 'FAST_TRACK') return 'POS Stand Alone (Fast Track)';
     if (typeId === 'VPOS_MPOS') return 'VPOS/MPOS';
     const type = QUOTE_TYPES.find(t => t.id === typeId);
     return type ? type.name : typeId;
@@ -1976,6 +1983,8 @@ export const Quotes = () => {
       openApproveConfirm(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'repair-complete') {
       handleRepairComplete(quoteId);
+    } else if (action === 'configure') {
+      handleConfigure(quoteId);
     } else if (action === 'invoice') {
       _openInvoiceModalDirect(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'collect') {
@@ -2059,6 +2068,7 @@ export const Quotes = () => {
   const REGULAR_FLOW_MAP = {
     'approve': 'Enviada',
     'repair-complete': 'Aprobada',
+    'configure': 'Aprobada',
     'invoice': 'Aprobada',
     'collect': 'Facturada',
     'deliver': 'Pagada',
@@ -2067,6 +2077,7 @@ export const Quotes = () => {
   const ACTION_LABELS = {
     'approve': 'Aprobación',
     'repair-complete': 'Marcar como Reparada',
+    'configure': 'Marcar como Configurada',
     'invoice': 'Factura / Proforma',
     'collect': 'Cobranza',
     'deliver': 'Entregar',
@@ -2683,13 +2694,34 @@ export const Quotes = () => {
     }
   };
 
+  // Marcar Fast Track como Configurada
+  const handleConfigure = async (quoteId) => {
+    setActionLoading(quoteId);
+    try {
+      const headers = getEmailHeaders();
+      const response = await api.post(`/quotes/${quoteId}/configure`, {}, { headers });
+      if (response.data.status === 'simulated') {
+        toast.warning(response.data.message);
+      } else {
+        toast.success(response.data.message);
+      }
+      fetchData();
+    } catch (error) {
+      console.error('Error marking as configured:', error);
+      toast.error(error.response?.data?.detail || 'Error al marcar como configurada');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Abrir modal de factura
   // Abrir modal de workflow para Facturar (requiere Factura)
   const openInvoiceModal = (quoteId) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const currentStatus = quote?.quote_status || 'Borrador';
     const isRepairQuote = quote?.quote_category === 'repair';
-    const expectedStatus = isRepairQuote ? 'Reparada' : 'Aprobada';
+    const isFastTrack = quote?.quote_category === 'fast_track';
+    const expectedStatus = isRepairQuote ? 'Reparada' : isFastTrack ? 'Configurada' : 'Aprobada';
     const isIrregular = currentStatus !== expectedStatus;
     if (isIrregular) {
       setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus });
@@ -2750,7 +2782,8 @@ export const Quotes = () => {
   
   // Detectar si es cotización Payment Gateway o MPOS
   const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
-  const isMPOS = quoteData.quote_type === 'MPOS';
+  const isMPOS = quoteData.quote_type === 'MPOS' || quoteData.quote_type === 'FAST_TRACK';
+  const isFastTrackType = quoteData.quote_type === 'FAST_TRACK';
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
@@ -2887,6 +2920,10 @@ export const Quotes = () => {
               openEmailModal('repair-complete', id);
               setPendingAction({ quoteId: id, action: 'repair-complete', proceedFn: handleRepairComplete, exceptionHeaders: null });
             }}
+            onConfigure={(id) => {
+              openEmailModal('configure', id);
+              setPendingAction({ quoteId: id, action: 'configure', proceedFn: handleConfigure, exceptionHeaders: null });
+            }}
             onOpenBitacoraFlujo={openBitacoraFlujo}
             onDelete={openDeleteConfirm}
             clearFilters={() => {
@@ -2945,13 +2982,22 @@ export const Quotes = () => {
                       value={quoteData.quote_type}
                       onValueChange={(value) => {
                         const isMposSelected = value === 'MPOS';
+                        const isFastTrack = value === 'FAST_TRACK';
+                        const isMposLike = isMposSelected || isFastTrack;
+                        
+                        // Buscar banco "Mega Soft" para default de Fast Track
+                        const megaSoftBank = isFastTrack ? banks.find(b => b.name?.toLowerCase().includes('mega soft') || b.name?.toLowerCase().includes('megasoft')) : null;
+                        
                         setQuoteData({ 
                           ...quoteData, 
                           quote_type: value, 
                           medios_pago_items: [], 
-                          pricing_model: value === 'GATEWAY' ? 'conventional' : (isMposSelected ? 'outsourcing' : ''),
-                          requires_vpn: isMposSelected ? true : true,
+                          pricing_model: value === 'GATEWAY' ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
+                          requires_vpn: isFastTrack ? false : true,
                           requires_pinpad_config: true,
+                          // Defaults para Fast Track
+                          integrator_id: isFastTrack ? (quoteData.integrator_id || 'sin_integrador') : (isMposSelected ? quoteData.integrator_id : ''),
+                          sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,
                         });
                         setSelectedBankId('');
                         setSelectedMedioPagoId('');
@@ -2971,8 +3017,8 @@ export const Quotes = () => {
                             fixed: true
                           }]);
                         }
-                        // MPOS: auto-inicializar items con outsourcing
-                        if (isMposSelected) {
+                        // MPOS/Fast Track: auto-inicializar items con outsourcing
+                        if (isMposLike) {
                           const cajas = quoteData.cantidad_cajas || 1;
                           const bancos = quoteData.cantidad_bancos || 1;
                           const setupItems = initializeSetupConcepts('outsourcing', cajas, bancos, quoteData.requires_pinpad_config);

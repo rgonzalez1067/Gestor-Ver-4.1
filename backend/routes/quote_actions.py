@@ -276,8 +276,30 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
     email_results = []
     # Para reparaciones, NO enviar email a admin en aprobación (se envía al completar reparación)
     is_repair = quote.get("quote_category") == "repair"
+    # Para fast_track, notificar a Operaciones (no Admin) con plantilla de configuración de equipos
+    is_fast_track = quote.get("quote_category") == "fast_track"
     
-    if not is_repair:
+    if is_fast_track:
+        # Notificar a Operaciones con plantilla especial
+        ops_email = sede_emails.get("operations") or sede_emails.get("admin") or (config.get("operations_email") if config else None) or admin_email
+        ft_template = await db.email_templates.find_one({"template_id": "fast_track_config"}, {"_id": 0})
+        if not ft_template:
+            ft_template = {
+                "subject": "Configuración de Equipos (Pyme): {{quote_number}}",
+                "body_html": "<h2>Solicitud de Configuración de Equipos</h2><p>La cotización <strong>{{quote_number}}</strong> de tipo <strong>POS Stand Alone (Fast Track)</strong> ha sido aprobada.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p><p>Por favor proceda con la configuración de los equipos para su posterior despacho.</p>"
+            }
+        ft_subject = render_email_template(ft_template["subject"], template_vars)
+        ft_html = render_email_template(ft_template["body_html"], template_vars)
+        if custom_message and custom_message.strip():
+            user_name_str = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            ft_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name_str}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+        if ops_email:
+            r = await send_email(to=[ops_email], subject=ft_subject, html=ft_html, action="approve_ft_operations", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+        for cc in cc_emails:
+            r = await send_email(to=[cc], subject=f"[CC] {ft_subject}", html=ft_html, action="approve_ft_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+    elif not is_repair:
         # Notificar a admin
         if admin_email:
             r = await send_email(to=[admin_email], subject=subject, html=html_content, action="approve_admin", quote_id=quote_id, quote_number=quote.get('quote_number'))
@@ -296,11 +318,92 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             email_results.append(r)
 
     return {
-        "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else ""),
+        "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else " — Pendiente de Configuración" if is_fast_track else ""),
         "quote_id": quote_id,
         "new_status": "Aprobada",
         "emails": email_results,
-        "is_repair": is_repair
+        "is_repair": is_repair,
+        "is_fast_track": is_fast_track
+    }
+
+
+@router.post("/quotes/{quote_id}/configure")
+async def configure_quote(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Marcar cotización Fast Track como Configurada y notificar a Administración para facturar."""
+    current_user = await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    if quote.get("quote_category") != "fast_track":
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones Fast Track")
+
+    current_status = quote.get("quote_status", "Borrador")
+    if current_status != "Aprobada":
+        raise HTTPException(status_code=400, detail=f"Solo se puede configurar desde estado 'Aprobada'. Estado actual: '{current_status}'")
+
+    # Cambiar estado a "Configurada"
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$set": {
+            "quote_status": "Configurada",
+            "configured_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+
+    # Notificar a Administración para facturar (misma lógica que approve para implementaciones normales)
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    quote_sede = quote.get("sede", "PYME")
+    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+    sede_emails = emails_by_sede.get(quote_sede, {})
+    admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
+    sales_email = sede_emails.get("sales") if sede_emails else None
+
+    client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
+    client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
+
+    template = await db.email_templates.find_one({"template_id": "fast_track_configured"}, {"_id": 0})
+    if not template:
+        template = {
+            "subject": "Equipos Configurados: {{quote_number}} - Lista para Facturar",
+            "body_html": "<h2>Equipos Configurados</h2><p>La cotización Fast Track <strong>{{quote_number}}</strong> ha completado la fase de configuración técnica.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p><p>Los equipos están listos. Proceda con la facturación.</p>"
+        }
+
+    template_vars = {
+        "quote_number": quote.get("quote_number", ""),
+        "client_name": client_name,
+        "total_usd": f"{quote.get('total_usd', 0):.2f}"
+    }
+    subject = render_email_template(template["subject"], template_vars)
+    html_content = render_email_template(template["body_html"], template_vars)
+
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
+    email_results = []
+    if admin_email:
+        r = await send_email(to=[admin_email], subject=subject, html=html_content, action="configure_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+    if sales_email:
+        r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="configure_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+    if not admin_email and not sales_email:
+        r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="configure_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="configure_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+
+    return {
+        "message": "Equipos configurados. Notificación enviada a Administración para facturar.",
+        "quote_id": quote_id,
+        "new_status": "Configurada",
+        "emails": email_results
     }
 
 
@@ -579,7 +682,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     
     current_status = quote.get("quote_status", "Borrador")
     quote_category = quote.get("quote_category", "implementation")
-    expected_invoice_status = "Reparada" if quote_category == "repair" else "Aprobada"
+    expected_invoice_status = "Reparada" if quote_category == "repair" else "Configurada" if quote_category == "fast_track" else "Aprobada"
     is_irregular = current_status != expected_invoice_status
     
     exc_reason = exception_reason or x_exception_reason
@@ -819,7 +922,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
     quote_category = quote.get("quote_category", "implementation")
-    if quote_category not in ["equipment", "repair"]:
+    if quote_category not in ["equipment", "repair", "fast_track"]:
         raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de equipos o reparaciones")
 
     current_status = quote.get("quote_status", "Borrador")

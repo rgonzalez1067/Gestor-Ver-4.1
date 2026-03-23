@@ -485,7 +485,7 @@ class QuoteCreate(BaseModel):
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
-QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Reparada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
+QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Reparada", "Configurada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
 
 # Flujo de transiciones permitidas por categoría
 QUOTE_TRANSITIONS = {
@@ -504,6 +504,15 @@ QUOTE_TRANSITIONS = {
         "Facturada": ["Pagada"],
         "Pagada": ["Enviada a Imple"],
         "Enviada a Imple": []  # Estado final
+    },
+    "fast_track": {
+        "Borrador": ["Enviada"],
+        "Enviada": ["Aprobada"],
+        "Aprobada": ["Configurada"],
+        "Configurada": ["Facturada"],
+        "Facturada": ["Pagada"],
+        "Pagada": ["Entregada"],
+        "Entregada": []  # Estado final
     },
     "repair": {
         "Borrador": ["Enviada"],

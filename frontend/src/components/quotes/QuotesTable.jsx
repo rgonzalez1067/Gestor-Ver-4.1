@@ -1,4 +1,4 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -9,6 +9,7 @@ const STATUS_COLORS = {
   'Enviada': 'bg-blue-100 text-blue-600',
   'Aprobada': 'bg-green-100 text-green-600',
   'Reparada': 'bg-cyan-100 text-cyan-700',
+  'Configurada': 'bg-indigo-100 text-indigo-700',
   'Facturada': 'bg-purple-100 text-purple-600',
   'Pagada': 'bg-emerald-100 text-emerald-700',
   'Entregada': 'bg-teal-100 text-teal-700',
@@ -20,6 +21,7 @@ const STATUS_DISPLAY_NAMES = {
   'Enviada': 'Enviada',
   'Aprobada': 'Aprobada',
   'Reparada': 'Reparada',
+  'Configurada': 'Configurada',
   'Facturada': 'Facturada',
   'Pagada': 'Pagada',
   'Entregada': 'Entregada',
@@ -36,7 +38,7 @@ export const QuotesTable = ({
   filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
   actionLoading,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
-  onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onDelete,
+  onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo,
   clearFilters,
 }) => {
@@ -83,8 +85,9 @@ export const QuotesTable = ({
             const isLoading = actionLoading === quote.quote_id;
             const isEquipment = quote.quote_category === 'equipment';
             const isRepair = quote.quote_category === 'repair';
-            const displayType = isRepair ? 'Reparación' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
-            const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
+            const isFastTrack = quote.quote_category === 'fast_track';
+            const displayType = isRepair ? 'Reparación' : isFastTrack ? 'Fast Track' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
+            const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isFastTrack ? 'bg-violet-100 text-violet-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
             const typeColor = isEquipment
               ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
               : 'bg-brand-blue-50 text-brand-blue-600';
@@ -94,7 +97,7 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap">{quote.quote_number}</td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
-                    {isRepair ? 'Reparaciones' : isEquipment ? 'Equipos' : 'Implementación'}
+                    {isRepair ? 'Reparaciones' : isFastTrack ? 'Fast Track' : isEquipment ? 'Equipos' : 'Implementación'}
                   </span>
                 </td>
                 <td className="px-3 py-4 text-sm">
@@ -213,6 +216,13 @@ export const QuotesTable = ({
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
+                        {isFastTrack && quote.quote_status === 'Aprobada' && (
+                          <DropdownMenuItem onSelect={() => onConfigure(quote.quote_id)} className="cursor-pointer"
+                            data-testid={`configure-btn-${quote.quote_id}`}>
+                            <Settings size={16} className="mr-2 text-indigo-600" /> Marcar como Configurada
+                            <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
                           <Receipt size={16} className="mr-2 text-purple-500" /> Factura / Proforma
                           {quote.invoiced_at && <span className="ml-auto text-xs text-purple-500">&#10003;</span>}
@@ -226,7 +236,7 @@ export const QuotesTable = ({
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {isEquipment || isRepair ? (
+                        {isEquipment || isRepair || isFastTrack ? (
                           <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
                             {quote.quote_status !== 'Pagada' && quote.quote_status !== 'Entregada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
