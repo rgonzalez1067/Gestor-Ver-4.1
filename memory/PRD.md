@@ -160,6 +160,15 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### Logica Condicional VPOS Stand Alone (2026-03-23)
+- Campo "Modelo de POS" oculto para Fast Track (solo visible MPOS regular)
+- Seccion "Equipos a Despachar" condicional: solo visible si Patrocinador = "Mega Soft"
+- Cambiar patrocinador de Mega Soft a otro limpia ftEquipmentItems automaticamente
+- PDF dinamico: Pagina 5 equipos solo se genera si patrocinador es Mega Soft
+- Bug fix: Nota de Entrega para Fast Track usa ft_equipment_items cuando no hay warehouse
+- Bug fix (testing agent): ft_equipment_items ahora se almacena en DB (modelo y creacion)
+- VALIDADO: 8/8 backend + frontend verificado (iteration_127)
+
 ### PDF Hibrido Fast Track (2026-03-23)
 - Pagina adicional "COTIZACION DE EQUIPOS" insertada entre Resumen de Inversion y Terminos
 - Tabla profesional: Descripcion, Tipo, Cantidad, P. Unitario, Total + Subtotal/IVA/Total
