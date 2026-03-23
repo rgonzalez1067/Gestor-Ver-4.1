@@ -901,8 +901,8 @@ class DynamicQuotePDFGenerator:
         # Fila 0 (encabezado principal):  Concepto | Hardware y Software | Consultoría (colspan 2) | Total
         # Fila 1 (subencabezado):  "" | Derecho de Uso | Apoyo técnico | Soporte y Monitoreo | ""
         
-        header_style = ParagraphStyle('CorpHeaderStyle', fontName='Helvetica-Bold', fontSize=8, textColor=colors.white, alignment=1)
-        subheader_style = ParagraphStyle('CorpSubHeaderStyle', fontName='Helvetica-Bold', fontSize=7, textColor=colors.white, alignment=1)
+        header_style = ParagraphStyle('CorpHeaderStyle', fontName='Helvetica-Bold', fontSize=11, textColor=colors.white, alignment=1)
+        subheader_style = ParagraphStyle('CorpSubHeaderStyle', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)
         cell_style = ParagraphStyle('CorpCellStyle', fontName='Helvetica', fontSize=9, alignment=2)
         cell_bold_style = ParagraphStyle('CorpCellBoldStyle', fontName='Helvetica-Bold', fontSize=9, alignment=2)
         label_style = ParagraphStyle('CorpLabelStyle', fontName='Helvetica-Bold', fontSize=9, textColor=self.COLOR_AZUL)
