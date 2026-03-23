@@ -1451,7 +1451,7 @@ export const Quotes = () => {
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
           tarifa: parseFloat(item.tarifa) || 0
         })),
-        ft_equipment_items: isFastTrackType ? ftEquipmentItems.map(item => ({
+        ft_equipment_items: (isFastTrackType && isMegaSoftSponsor) ? ftEquipmentItems.map(item => ({
           name: item.name,
           hardware_type: item.hardware_type,
           quantity: item.quantity,
@@ -1467,7 +1467,7 @@ export const Quotes = () => {
         pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
-        ft_equipment_items: isFastTrackType ? ftEquipmentItems : [],
+        ft_equipment_items: (isFastTrackType && isMegaSoftSponsor) ? ftEquipmentItems : [],
         integrator_id: quoteData.integrator_id,
         integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name,
@@ -2795,6 +2795,7 @@ export const Quotes = () => {
   const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
   const isMPOS = quoteData.quote_type === 'MPOS' || quoteData.quote_type === 'FAST_TRACK';
   const isFastTrackType = quoteData.quote_type === 'FAST_TRACK';
+  const isMegaSoftSponsor = selectedSponsorBank?.name?.toLowerCase().includes('mega soft') || selectedSponsorBank?.name?.toLowerCase().includes('megasoft');
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
@@ -3394,8 +3395,8 @@ export const Quotes = () => {
                     </div>
                   </div>
 
-                  {/* Campo 2: Modelo de Pinpad/POS - Solo para VPOS/MPOS */}
-                  {!isPaymentGateway && (
+                  {/* Campo 2: Modelo de Pinpad/POS - Solo para VPOS/MPOS (NO Fast Track) */}
+                  {!isPaymentGateway && !isFastTrackType && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Cpu size={14} className="text-brand-green-600" />
@@ -3433,7 +3434,15 @@ export const Quotes = () => {
                     </Label>
                     <Select 
                       value={quoteData.sponsor_bank_id} 
-                      onValueChange={(value) => setQuoteData({ ...quoteData, sponsor_bank_id: value })}
+                      onValueChange={(value) => {
+                        setQuoteData({ ...quoteData, sponsor_bank_id: value });
+                        // Si es Fast Track y cambia de patrocinador, limpiar equipos si no es Mega Soft
+                        if (isFastTrackType) {
+                          const bank = banks.find(b => b.bank_id === value);
+                          const isMega = bank?.name?.toLowerCase().includes('mega soft') || bank?.name?.toLowerCase().includes('megasoft');
+                          if (!isMega) setFtEquipmentItems([]);
+                        }
+                      }}
                     >
                       <SelectTrigger data-testid="select-sponsor-bank">
                         <SelectValue placeholder="Seleccione entidad..." />
@@ -3464,8 +3473,8 @@ export const Quotes = () => {
                 )}
               </div>
 
-              {/* ====== SECCIÓN FAST TRACK: Equipos a Despachar ====== */}
-              {isFastTrackType && isHeaderComplete && (
+              {/* ====== SECCIÓN FAST TRACK: Equipos a Despachar (solo si Patrocinador = Mega Soft) ====== */}
+              {isFastTrackType && isMegaSoftSponsor && isHeaderComplete && (
                 <div className="bg-white rounded-lg p-5 border mt-4">
                   <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
                     <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm">2</span>

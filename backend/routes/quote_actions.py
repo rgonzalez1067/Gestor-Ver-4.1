@@ -958,6 +958,20 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
     hoja_ruta_url = None
     delivered_pdf_items = []
 
+    # Fast Track con equipos (Mega Soft): usar ft_equipment_items de la cotización
+    is_fast_track_with_equipment = quote_category == "fast_track" and quote.get("ft_equipment_items")
+    
+    if is_fast_track_with_equipment and not delivery_items:
+        # Construir delivered_pdf_items desde ft_equipment_items
+        for ft_item in quote.get("ft_equipment_items", []):
+            delivered_pdf_items.append({
+                "name": ft_item.get("name", "Equipo"),
+                "type": ft_item.get("hardware_type", "POS"),
+                "quantity": int(ft_item.get("quantity", 1)),
+                "serials": [],
+                "category": "Equipo"
+            })
+
     # Process inventory exits if warehouse and items provided
     if warehouse_id and delivery_items:
         wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
@@ -1045,7 +1059,8 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 "serials": serials if requires_serial else [],
             })
 
-        # Generate Nota de Entrega PDF
+    # Generate Nota de Entrega PDF (for both warehouse delivery and Fast Track with equipment)
+    if delivered_pdf_items:
         try:
             logo_path = None
             logo_file = UPLOADS_DIR / "logo.png"
@@ -1085,7 +1100,16 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             # Classify items (Equipo vs Consumible)
             SERIALIZED = ["pos", "pinpad", "mpos"]
             for pdi in delivered_pdf_items:
-                pdi["category"] = "Equipo" if pdi.get("type", "").lower() in SERIALIZED else "Consumible"
+                if "category" not in pdi:
+                    pdi["category"] = "Equipo" if pdi.get("type", "").lower() in SERIALIZED else "Consumible"
+
+            # Determine warehouse name for PDF
+            warehouse_name_for_pdf = ""
+            if warehouse_id:
+                wh_doc = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0, "name": 1})
+                warehouse_name_for_pdf = wh_doc.get("name", "") if wh_doc else ""
+            elif is_fast_track_with_equipment:
+                warehouse_name_for_pdf = "Despacho Fast Track"
 
             pdf_buffer = generate_nota_entrega_pdf(
                 correlativo=correlativo,
@@ -1096,7 +1120,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 client_address=client_address,
                 client_contact_name=contact_name,
                 client_contact_phone=contact_phone,
-                warehouse_name=warehouse_name,
+                warehouse_name=warehouse_name_for_pdf,
                 delivered_items=delivered_pdf_items,
                 delivered_by=user_name,
                 transportista=transportista,

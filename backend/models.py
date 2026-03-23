@@ -537,6 +537,7 @@ class Quote(BaseModel):
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     equipment_items: List[EquipmentQuoteItem] = []  # Items para cotización de equipos
+    ft_equipment_items: List[dict] = []  # Fast Track equipment items for Mega Soft sponsor
     subtotal_usd: float
     total_usd: float
     exchange_rate: float

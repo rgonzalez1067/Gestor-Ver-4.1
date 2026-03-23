@@ -99,6 +99,7 @@ class QuoteCreateWithPDF(BaseModel):
     services: List[QuoteItem] = []
     hardware: List[QuoteItem] = []
     equipment_items: List[EquipmentQuoteItem] = []
+    ft_equipment_items: List[dict] = []  # Fast Track equipment items for Mega Soft sponsor
     notes: Optional[str] = None
     integrator_id: Optional[str] = None
     integrator_name: Optional[str] = None
@@ -298,6 +299,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             services=data.services,
             hardware=data.hardware,
             equipment_items=data.equipment_items,
+            ft_equipment_items=data.ft_equipment_items,  # Fast Track equipment items
             subtotal_usd=subtotal_usd,
             total_usd=total_usd,
             exchange_rate=exchange_rate,
