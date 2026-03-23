@@ -169,6 +169,24 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Bug fix (testing agent): ft_equipment_items ahora se almacena en DB (modelo y creacion)
 - VALIDADO: 8/8 backend + frontend verificado (iteration_127)
 
+### PDF Corporativo v2 — Reestructuracion y Rediseno (2026-03-23)
+- **Nueva estructura PDF para clientes Corporativos (client_segment='CORP')**:
+  - Pag 1: Portada (mantener)
+  - Pag 2: Resumen Ejecutivo / Alcance (mantener)
+  - Pag 3: NUEVA pagina con desglose financiero agrupado (fusiona antiguas pags 3+4)
+  - Pag 4+: Condicional equipos Fast Track (si aplica)
+  - Anexo: "Anexo Cotizacion Corporativa" (reemplaza paginas 6-9 estandar de terminos)
+- **Tabla "Costos de Implementacion"** en Pagina 3:
+  - Columnas: Concepto | Hardware y Software (Derecho de Uso) | Consultoria (Apoyo tecnico / Soporte y Monitoreo) | Total
+  - Filas: Set-up, * Recurrentes, Total
+  - Agrupacion automatica por campo `tipo_corp` de medios_de_pago
+  - Notas: "Montos no incluyen IVA", resaltado amarillo del total, nota sobre recurrentes
+- **Backend**: Nuevo metodo generate_vpos_corp() en pdf_generator.py, append_corporate_static_pages() en config.py
+- **Frontend**: campo tipo_corp incluido en pdfData, client_segment pasado a TemplateQuotePDFRequest
+- **Modelo**: QuotePDFItem ahora acepta campo opcional tipo_corp (retrocompatible)
+- **Archivo**: anexo_corporativa.pdf almacenado en /app/backend/static_pdfs/
+- VALIDADO: 10/11 tests (1 skip transiente), regression PYME y Gateway OK (iteration_128)
+
 ### PDF Hibrido Fast Track (2026-03-23)
 - Pagina adicional "COTIZACION DE EQUIPOS" insertada entre Resumen de Inversion y Terminos
 - Tabla profesional: Descripcion, Tipo, Cantidad, P. Unitario, Total + Subtotal/IVA/Total
