@@ -172,6 +172,32 @@ def append_pg_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     return output
 
 
+def append_corporate_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
+    """Anexa el PDF 'Anexo Cotización Corporativa' al PDF generado para clientes corporativos.
+    Reemplaza las páginas estándar de términos y condiciones (páginas 6-9)."""
+    if not PYPDF2_AVAILABLE:
+        return pdf_buffer
+    
+    anexo_path = STATIC_PDFS_DIR / "anexo_corporativa.pdf"
+    if not anexo_path.exists():
+        return pdf_buffer
+    
+    writer = PdfWriter()
+    pdf_buffer.seek(0)
+    reader = PdfReader(pdf_buffer)
+    for page in reader.pages:
+        writer.add_page(page)
+    
+    anexo_reader = PdfReader(str(anexo_path))
+    for page in anexo_reader.pages:
+        writer.add_page(page)
+    
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
+
 def append_equipment_conditions(pdf_bytes: bytes, equipment_type: str, sede: str = "") -> bytes:
     """Anexa el PDF de condiciones legales correspondiente al tipo de equipo y sede."""
     if not PYPDF2_AVAILABLE:

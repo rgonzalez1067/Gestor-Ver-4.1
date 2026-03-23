@@ -8,7 +8,7 @@ import logging
 import io
 import os
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_equipment_conditions, render_email_template
+from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, render_email_template
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 import traceback
@@ -187,6 +187,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Agregar páginas estáticas según tipo
                 if data.quote_type == 'GATEWAY':
                     pdf_buffer = append_pg_static_pages(pdf_buffer)
+                elif pdf_request.client_segment == 'CORP':
+                    pdf_buffer = append_corporate_static_pages(pdf_buffer)
                 else:
                     pdf_buffer = append_vpos_static_pages(pdf_buffer)
                 
@@ -1032,6 +1034,8 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         # Agregar páginas estáticas según tipo
         if data.quote_type == 'GATEWAY':
             pdf_buffer = append_pg_static_pages(pdf_buffer)
+        elif data.client_segment == 'CORP':
+            pdf_buffer = append_corporate_static_pages(pdf_buffer)
         else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
@@ -1076,6 +1080,8 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         # Agregar páginas estáticas según tipo
         if data.quote_type == 'GATEWAY':
             pdf_buffer = append_pg_static_pages(pdf_buffer)
+        elif data.client_segment == 'CORP':
+            pdf_buffer = append_corporate_static_pages(pdf_buffer)
         else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         

@@ -680,6 +680,7 @@ class QuotePDFItem(BaseModel):
     tarifa: float = 0
     total: float = 0
     bank_name: Optional[str] = None  # Para la matriz de distribución
+    tipo_corp: Optional[str] = None  # "Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"
 
 class QuotePDFRequest(BaseModel):
     cliente_nombre: str

@@ -496,6 +496,16 @@ export const Quotes = () => {
     return serviceCatalog.find(s => s.service_id === serviceId);
   };
 
+  // Buscar tipo_corp de un servicio por nombre (para PDF corporativo)
+  const findServiceTipoCorp = (productName) => {
+    const service = serviceCatalog.find(s =>
+      s.name.toLowerCase() === productName.toLowerCase() ||
+      s.name.toLowerCase().includes(productName.toLowerCase()) ||
+      productName.toLowerCase().includes(s.name.toLowerCase())
+    );
+    return service?.tipo_corp || '';
+  };
+
   // Función para consolidar recurrentes (de-duplicar y acumular)
   const consolidateRecurringItems = (items) => {
     const consolidated = {};
@@ -1393,20 +1403,23 @@ export const Quotes = () => {
         pinpad_model: pinpad?.name || '',
         sponsor_bank_name: sponsorBank?.name || '',
         template_type: templateType,
+        client_segment: quoteData.client_segment || 'PYME',
         setup_items: [
           ...quoteData.setup_items.map(item => ({
             concepto: item.medio_pago_name,
             cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
             cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
             tarifa: parseFloat(item.tarifa) || 0,
-            bank_name: item.bank_name || null
+            bank_name: item.bank_name || null,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name)
           })),
           ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
             concepto: `${item.medio_pago_name} - ${item.bank_name}`,
             cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
             cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
             tarifa: parseFloat(item.tarifa_setup) || 0,
-            bank_name: item.bank_name || null
+            bank_name: item.bank_name || null,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name)
           }))
         ],
         recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
@@ -1414,14 +1427,16 @@ export const Quotes = () => {
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
           tarifa: parseFloat(item.tarifa) || 0,
-          bank_name: item.bank_name || null
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         recurring_other_items: quoteData.recurring_other_items.map(item => ({
           concepto: item.medio_pago_name,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
           tarifa: parseFloat(item.tarifa) || 0,
-          bank_name: item.bank_name || null
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         additional_items: quoteData.additional_items
           .filter(item => item.bank_name)
@@ -1430,7 +1445,8 @@ export const Quotes = () => {
             cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
             cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
             tarifa: parseFloat(item.tarifa_setup) || 0,
-            bank_name: item.bank_name
+            bank_name: item.bank_name,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name)
           })),
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
@@ -1449,7 +1465,8 @@ export const Quotes = () => {
           concepto: item.medio_pago_name,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-          tarifa: parseFloat(item.tarifa) || 0
+          tarifa: parseFloat(item.tarifa) || 0,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         ft_equipment_items: (isFastTrackType && isMegaSoftSponsor) ? ftEquipmentItems.map(item => ({
           name: item.name,
@@ -1678,20 +1695,23 @@ export const Quotes = () => {
       pinpad_model: pinpad?.name || '',
       sponsor_bank_name: sponsorBank?.name || '',
       template_type: templateType,
+      client_segment: quoteData.client_segment || 'PYME',
       setup_items: [
         ...quoteData.setup_items.map(item => ({
           concepto: item.medio_pago_name,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
           tarifa: parseFloat(item.tarifa) || 0,
-          bank_name: item.bank_name || null
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
           concepto: `${item.medio_pago_name} - ${item.bank_name}`,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
           tarifa: parseFloat(item.tarifa_setup) || 0,
-          bank_name: item.bank_name || null
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         }))
       ],
       recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
@@ -1699,14 +1719,16 @@ export const Quotes = () => {
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
         tarifa: parseFloat(item.tarifa) || 0,
-        bank_name: item.bank_name || null
+        bank_name: item.bank_name || null,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
       })),
       recurring_other_items: quoteData.recurring_other_items.map(item => ({
         concepto: item.medio_pago_name,
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
         tarifa: parseFloat(item.tarifa) || 0,
-        bank_name: item.bank_name || null
+        bank_name: item.bank_name || null,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
       })),
       // additional_items separado para el Resumen Ejecutivo (solo items con bank_name)
       additional_items: quoteData.additional_items
@@ -1716,7 +1738,8 @@ export const Quotes = () => {
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
           tarifa: parseFloat(item.tarifa_setup) || 0,
-          bank_name: item.bank_name
+          bank_name: item.bank_name,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
       descuento: quoteData.descuento || 0,
       descuento_setup: quoteData.descuento_setup || 0,
@@ -1736,7 +1759,8 @@ export const Quotes = () => {
         concepto: item.medio_pago_name,
         cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
         cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-        tarifa: parseFloat(item.tarifa) || 0
+        tarifa: parseFloat(item.tarifa) || 0,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
       })),
       // PG Recurring costs (tabla de rangos)
       pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
@@ -1866,6 +1890,7 @@ export const Quotes = () => {
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         quote_number: '',
         template_type: isPaymentGateway ? 'payment_gateway' : 'vpos_pyme',
+        client_segment: quoteData.client_segment || 'PYME',
         integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name || '',
         pinpad_model: '',
@@ -1873,17 +1898,20 @@ export const Quotes = () => {
         setup_items: quoteData.setup_items.map(item => ({
           concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0, bank_name: item.bank_name || null
+          tarifa: parseFloat(item.tarifa) || 0, bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
           concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0
+          tarifa: parseFloat(item.tarifa) || 0,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         recurring_other_items: quoteData.recurring_other_items.map(item => ({
           concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0
+          tarifa: parseFloat(item.tarifa) || 0,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         additional_items: [],
         pg_setup_items: pgSetupItems.map(item => ({
@@ -1891,7 +1919,8 @@ export const Quotes = () => {
         })),
         production_items: productionItems.map(item => ({
           concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: parseInt(item.cantidad_bancos) || 1, tarifa: parseFloat(item.tarifa) || 0
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1, tarifa: parseFloat(item.tarifa) || 0,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,

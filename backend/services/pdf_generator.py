@@ -48,6 +48,8 @@ class TemplateQuotePDFRequest(BaseModel):
     is_production_client: bool = False
     # Fast Track: items de equipos para el PDF híbrido
     ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
+    # Segmento del cliente para determinar el tipo de PDF
+    client_segment: str = "PYME"  # "PYME" o "CORP"
 
 
 # ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================
@@ -480,6 +482,8 @@ class DynamicQuotePDFGenerator:
         """Generar el PDF completo con flujo dinámico"""
         if self.data.quote_type == 'GATEWAY':
             return self.generate_pg()
+        if self.data.client_segment == 'CORP':
+            return self.generate_vpos_corp()
         return self.generate_vpos()
     
     def generate_vpos(self):
@@ -653,7 +657,6 @@ class DynamicQuotePDFGenerator:
         
         # Determinar índices de filas importantes
         idx_total_setup = 5 if monto_desc_setup <= 0 else 6
-        idx_total_mensual = idx_total_setup + 5
         
         resumen_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
@@ -817,6 +820,369 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph(terminos, self.styles['TextoNormal']))
         
         # Construir documento con encabezado y pie de página
+        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        
+        self.buffer.seek(0)
+        return self.buffer
+    
+    def _create_corp_financial_summary(self):
+        """Crear la tabla de Costos de Implementación agrupada por tipo_corp para clientes corporativos.
+        Nueva Página 3: agrupa items en Setup y Recurrentes, con columnas por tipo_corp."""
+        elements = []
+        
+        elements.append(Paragraph("COSTOS DE IMPLEMENTACIÓN", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 20))
+        
+        # Definir columnas tipo_corp
+        CORP_COLUMNS = ["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
+        
+        # Recopilar todos los items con sus tipo_corp
+        all_setup = list(self.data.setup_items) + [
+            item for item in (self.data.additional_items or [])
+            if item.tarifa and item.tarifa > 0
+        ]
+        all_recurring = list(self.data.recurring_basic_items) + list(self.data.recurring_other_items) + list(self.data.production_items)
+        
+        # Calcular totales por tipo_corp y tipo (setup/recurrente)
+        setup_by_corp = {}
+        recurring_by_corp = {}
+        
+        for col in CORP_COLUMNS:
+            setup_by_corp[col] = 0
+            recurring_by_corp[col] = 0
+        
+        for item in all_setup:
+            tc = getattr(item, 'tipo_corp', None) or ''
+            total_item = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1) * (item.tarifa or 0)
+            matched = False
+            for col in CORP_COLUMNS:
+                if tc and col.lower().strip() == tc.lower().strip():
+                    setup_by_corp[col] += total_item
+                    matched = True
+                    break
+            if not matched and tc:
+                # Try partial match
+                for col in CORP_COLUMNS:
+                    if col.lower() in tc.lower() or tc.lower() in col.lower():
+                        setup_by_corp[col] += total_item
+                        matched = True
+                        break
+            if not matched:
+                # Default to first column
+                setup_by_corp[CORP_COLUMNS[0]] += total_item
+        
+        for item in all_recurring:
+            tc = getattr(item, 'tipo_corp', None) or ''
+            total_item = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1) * (item.tarifa or 0)
+            matched = False
+            for col in CORP_COLUMNS:
+                if tc and col.lower().strip() == tc.lower().strip():
+                    recurring_by_corp[col] += total_item
+                    matched = True
+                    break
+            if not matched and tc:
+                for col in CORP_COLUMNS:
+                    if col.lower() in tc.lower() or tc.lower() in col.lower():
+                        recurring_by_corp[col] += total_item
+                        matched = True
+                        break
+            if not matched:
+                recurring_by_corp[CORP_COLUMNS[0]] += total_item
+        
+        # Calcular totales por columna y por fila
+        total_setup = sum(setup_by_corp.values())
+        total_recurring = sum(recurring_by_corp.values())
+        total_by_col = {}
+        for col in CORP_COLUMNS:
+            total_by_col[col] = setup_by_corp[col] + recurring_by_corp[col]
+        grand_total = total_setup + total_recurring
+        
+        # Construir tabla: Header con agrupación
+        # Fila 0 (encabezado principal):  Concepto | Hardware y Software | Consultoría (colspan 2) | Total
+        # Fila 1 (subencabezado):  "" | Derecho de Uso | Apoyo técnico | Soporte y Monitoreo | ""
+        
+        header_style = ParagraphStyle('CorpHeaderStyle', fontName='Helvetica-Bold', fontSize=8, textColor=colors.white, alignment=1)
+        subheader_style = ParagraphStyle('CorpSubHeaderStyle', fontName='Helvetica-Bold', fontSize=7, textColor=colors.white, alignment=1)
+        cell_style = ParagraphStyle('CorpCellStyle', fontName='Helvetica', fontSize=9, alignment=2)
+        cell_bold_style = ParagraphStyle('CorpCellBoldStyle', fontName='Helvetica-Bold', fontSize=9, alignment=2)
+        label_style = ParagraphStyle('CorpLabelStyle', fontName='Helvetica-Bold', fontSize=9, textColor=self.COLOR_AZUL)
+        
+        # Headers
+        row_header = [
+            Paragraph("<b>Concepto</b>", header_style),
+            Paragraph("<b>Hardware y<br/>Software</b>", header_style),
+            Paragraph("<b>Consultoría</b>", header_style),
+            '',  # Merged with Consultoría
+            Paragraph("<b>Total</b>", header_style),
+        ]
+        
+        row_subheader = [
+            '',
+            Paragraph("<b>Derecho de Uso</b>", subheader_style),
+            Paragraph("<b>Apoyo técnico</b>", subheader_style),
+            Paragraph("<b>Soporte y<br/>Monitoreo</b>", subheader_style),
+            '',
+        ]
+        
+        # Data rows
+        row_setup = [
+            Paragraph("Set-up", label_style),
+            Paragraph(f"${setup_by_corp['Derecho de Uso']:,.2f}", cell_style),
+            Paragraph(f"${setup_by_corp['Apoyo Técnico']:,.2f}", cell_style),
+            Paragraph(f"${setup_by_corp['Soporte y Monitoreo']:,.2f}", cell_style),
+            Paragraph(f"${total_setup:,.2f}", cell_bold_style),
+        ]
+        
+        row_recurring = [
+            Paragraph("* Recurrentes", label_style),
+            Paragraph(f"${recurring_by_corp['Derecho de Uso']:,.2f}", cell_style),
+            Paragraph(f"${recurring_by_corp['Apoyo Técnico']:,.2f}", cell_style),
+            Paragraph(f"${recurring_by_corp['Soporte y Monitoreo']:,.2f}", cell_style),
+            Paragraph(f"${total_recurring:,.2f}", cell_bold_style),
+        ]
+        
+        row_total = [
+            Paragraph("<b>Total</b>", ParagraphStyle('CorpTotalLabel', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white)),
+            Paragraph(f"<b>${total_by_col['Derecho de Uso']:,.2f}</b>", ParagraphStyle('CorpTotalCell', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
+            Paragraph(f"<b>${total_by_col['Apoyo Técnico']:,.2f}</b>", ParagraphStyle('CorpTotalCell2', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
+            Paragraph(f"<b>${total_by_col['Soporte y Monitoreo']:,.2f}</b>", ParagraphStyle('CorpTotalCell3', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=2)),
+            Paragraph(f"<b>${grand_total:,.2f}</b>", ParagraphStyle('CorpGrandTotal', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, alignment=2)),
+        ]
+        
+        table_data = [row_header, row_subheader, row_setup, row_recurring, row_total]
+        
+        col_widths = [85, 105, 100, 100, 90]
+        table = Table(table_data, colWidths=col_widths)
+        
+        COLOR_AMARILLO = colors.HexColor("#F59E0B")
+        
+        table.setStyle(TableStyle([
+            # Header row 0
+            ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('SPAN', (2, 0), (3, 0)),  # Merge "Consultoría" across 2 columns
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            
+            # Subheader row 1
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor("#336699")),
+            ('TEXTCOLOR', (0, 1), (-1, 1), colors.white),
+            ('ALIGN', (0, 1), (-1, 1), 'CENTER'),
+            
+            # Data rows
+            ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#F0F4F8")),
+            ('BACKGROUND', (0, 3), (-1, 3), colors.white),
+            
+            # Total row
+            ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor("#1E293B")),
+            ('TEXTCOLOR', (0, 4), (-1, 4), colors.white),
+            # Highlight grand total cell in yellow
+            ('BACKGROUND', (4, 4), (4, 4), COLOR_AMARILLO),
+            ('TEXTCOLOR', (4, 4), (4, 4), colors.HexColor("#1E293B")),
+            
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 20))
+        
+        # Notas al pie
+        nota_style = ParagraphStyle('CorpNota', fontName='Helvetica', fontSize=8, textColor=colors.HexColor("#DC2626"), leading=10)
+        elements.append(Paragraph("Montos no incluyen IVA", nota_style))
+        elements.append(Spacer(1, 8))
+        
+        nota_amarillo_style = ParagraphStyle('CorpNotaAmarillo', fontName='Helvetica', fontSize=8, textColor=self.COLOR_TEXTO, leading=10)
+        elements.append(Paragraph(
+            "Monto resaltado en amarillo es el que deberá ser pagado al momento de ser aprobado este presupuesto",
+            nota_amarillo_style
+        ))
+        elements.append(Spacer(1, 8))
+        
+        nota_recurrente_style = ParagraphStyle('CorpNotaRec', fontName='Helvetica', fontSize=8, textColor=self.COLOR_TEXTO, leading=10)
+        elements.append(Paragraph(
+            "*El recurrente mes aplicará desde el momento que sean activadas las cajas registradoras",
+            nota_recurrente_style
+        ))
+        
+        return elements, total_setup, total_recurring
+    
+    def generate_vpos_corp(self):
+        """Generar PDF para cotizaciones VPOS de clientes Corporativos.
+        Estructura:
+          Pág 1: Portada (mantener)
+          Pág 2: Resumen Ejecutivo (mantener)
+          Pág 3: Costos de Implementación agrupados (NUEVA - reemplaza págs 3+4)
+          Pág 4: (Condicional) Equipos Fast Track si aplica
+          Luego: Anexo Corporativa se añade externamente
+        """
+        MESES_ES = {
+            1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+            5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+            9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+        }
+        
+        doc = SimpleDocTemplate(
+            self.buffer,
+            pagesize=letter,
+            leftMargin=self.margin,
+            rightMargin=self.margin,
+            topMargin=100,
+            bottomMargin=60
+        )
+        
+        elements = []
+        now = datetime.now()
+        fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+        
+        # ==================== PÁGINA 1: PORTADA (igual que VPOS estándar) ====================
+        elements.append(Spacer(1, 80))
+        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
+        elements.append(Spacer(1, 40))
+        
+        info_portada = [
+            ("Cliente", self.data.cliente_nombre),
+            ("RIF", self.data.cliente_rif),
+            ("Cantidad de Cajas", str(self.data.cantidad_cajas)),
+            ("Integrador", self.data.integrator_name),
+            ("Aplicativo de Caja", self.data.integrator_app_name),
+            ("Modelo Pinpad", self.data.pinpad_model),
+            ("Banco Patrocinador", self.data.sponsor_bank_name),
+        ]
+        elements.append(self._create_info_table(info_portada))
+        elements.append(Spacer(1, 30))
+        
+        elements.append(Paragraph(
+            f"<b>Número de Cotización:</b> {self.data.quote_number}",
+            self.styles['TextoNormal']
+        ))
+        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 2: RESUMEN EJECUTIVO (igual que VPOS estándar) ====================
+        carta_header = f"""
+        <b>Señores:</b> {self.data.cliente_nombre}<br/>
+        <b>RIF:</b> {self.data.cliente_rif}<br/>
+        <b>Att:</b> {self.data.cliente_contacto or 'Departamento de Compras'}<br/><br/>
+        """
+        elements.append(Paragraph(carta_header, self.styles['TextoNormal']))
+        
+        carta_body = f"""
+        Por medio de la presente, nos complace presentarle nuestra propuesta comercial para la implementación 
+        de terminales virtuales de pago en sus puntos de venta. La solución propuesta se implementa con la 
+        integración del Merchant Server con el aplicativo <b>{self.data.integrator_app_name}</b> desarrollado 
+        por <b>{self.data.integrator_name}</b>, garantizando una experiencia de cobro segura y eficiente.
+        """
+        elements.append(Paragraph(carta_body, self.styles['TextoNormal']))
+        elements.append(Spacer(1, 15))
+        
+        elements.append(Paragraph("RESUMEN EJECUTIVO", self.styles['SeccionHeader']))
+        elements.append(Spacer(1, 8))
+        
+        elements.extend(self._create_bank_products_table())
+        
+        elements.append(PageBreak())
+        
+        # ==================== PÁGINA 3: COSTOS DE IMPLEMENTACIÓN (NUEVA) ====================
+        corp_elements, total_setup, total_recurring = self._create_corp_financial_summary()
+        elements.extend(corp_elements)
+        
+        # ==================== PÁGINA 4 (condicional): EQUIPOS FAST TRACK ====================
+        if self.data.quote_type == 'FAST_TRACK' and self.data.ft_equipment_items:
+            elements.append(PageBreak())
+            
+            elements.append(Paragraph("COTIZACIÓN DE EQUIPOS", ParagraphStyle(
+                'CorpEquiposTitulo',
+                parent=self.styles['TituloPortada'],
+                fontSize=18,
+                alignment=1,
+                spaceAfter=6
+            )))
+            elements.append(Paragraph(
+                "POS Stand Alone (Fast Track) — Equipos incluidos en esta propuesta",
+                ParagraphStyle('CorpEquiposSubtitulo', parent=self.styles['TextoNormal'], alignment=1, fontSize=10, textColor=colors.HexColor("#64748B"), spaceAfter=16)
+            ))
+            
+            eq_header = [
+                Paragraph("<b>Descripción del Equipo</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Tipo</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Cant.</b>", self.styles['TextoNormal']),
+                Paragraph("<b>P. Unitario (USD)</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Total (USD)</b>", self.styles['TextoNormal']),
+            ]
+            eq_rows = [eq_header]
+            eq_subtotal = 0
+            
+            for item in self.data.ft_equipment_items:
+                name = item.get("name", "Equipo")
+                hw_type = item.get("hardware_type", "POS")
+                qty = int(item.get("quantity", 1))
+                unit_price = float(item.get("unit_price_usd", 0))
+                total = qty * unit_price
+                eq_subtotal += total
+                
+                eq_rows.append([
+                    Paragraph(name, self.styles['TextoNormal']),
+                    Paragraph(hw_type, self.styles['TextoNormal']),
+                    Paragraph(str(qty), ParagraphStyle('CorpEqQty', parent=self.styles['TextoNormal'], alignment=1)),
+                    Paragraph(f"${unit_price:,.2f}", ParagraphStyle('CorpEqPrice', parent=self.styles['TextoNormal'], alignment=2)),
+                    Paragraph(f"${total:,.2f}", ParagraphStyle('CorpEqTotal', parent=self.styles['TextoNormal'], alignment=2)),
+                ])
+            
+            eq_iva = eq_subtotal * 0.16
+            eq_grand_total = eq_subtotal + eq_iva
+            
+            eq_rows.append(['', '', '',
+                Paragraph("<b>Subtotal:</b>", ParagraphStyle('CorpEqST', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(f"<b>${eq_subtotal:,.2f}</b>", ParagraphStyle('CorpEqSTv', parent=self.styles['TextoNormal'], alignment=2)),
+            ])
+            eq_rows.append(['', '', '',
+                Paragraph("<b>IVA (16%):</b>", ParagraphStyle('CorpEqIVA', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(f"<b>${eq_iva:,.2f}</b>", ParagraphStyle('CorpEqIVAv', parent=self.styles['TextoNormal'], alignment=2)),
+            ])
+            eq_rows.append(['', '', '',
+                Paragraph("<b>TOTAL:</b>", ParagraphStyle('CorpEqTOT', parent=self.styles['TextoNormal'], alignment=2, textColor=colors.white)),
+                Paragraph(f"<b>${eq_grand_total:,.2f}</b>", ParagraphStyle('CorpEqTOTv', parent=self.styles['TextoNormal'], alignment=2, textColor=colors.white)),
+            ])
+            
+            eq_col_widths = [200, 70, 50, 90, 90]
+            eq_table = Table(eq_rows, colWidths=eq_col_widths)
+            eq_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL_OSCURO),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 1), (-1, -4), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -4), 0.5, colors.HexColor("#E0E0E0")),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor("#F8FAFC")]),
+                ('LINEABOVE', (3, -3), (-1, -3), 1, colors.HexColor("#CBD5E1")),
+                ('BACKGROUND', (3, -1), (-1, -1), colors.HexColor("#1E293B")),
+                ('TEXTCOLOR', (3, -1), (-1, -1), colors.white),
+                ('FONTNAME', (3, -3), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            elements.append(eq_table)
+            
+            elements.append(Spacer(1, 16))
+            elements.append(Paragraph(
+                "<b>Nota:</b> Los equipos se entregan configurados y listos para operar. "
+                "La garantía cubre defectos de fábrica por 12 meses. No incluye daños por mal uso.",
+                ParagraphStyle('CorpEqNota', parent=self.styles['TextoNormal'], fontSize=9, textColor=colors.HexColor("#64748B"), spaceAfter=8)
+            ))
+        
+        # NO añadir términos - el Anexo Corporativa los reemplaza
+        # El anexo se fusiona externamente en config.py
+        
         doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
         
         self.buffer.seek(0)
