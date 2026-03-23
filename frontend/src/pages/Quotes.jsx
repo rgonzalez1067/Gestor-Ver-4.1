@@ -185,6 +185,8 @@ export const Quotes = () => {
   const [pgSelectedMedioPago, setPgSelectedMedioPago] = useState('');
   const [pgSelectedBankId, setPgSelectedBankId] = useState('');
   const [pgDefaults, setPgDefaults] = useState(null);
+  // Fast Track: items de equipos para PDF híbrido
+  const [ftEquipmentItems, setFtEquipmentItems] = useState([]);
   const [pgShowRecurringTable, setPgShowRecurringTable] = useState(false);
   const [pgFilteredProducts, setPgFilteredProducts] = useState([]);
   
@@ -1448,7 +1450,13 @@ export const Quotes = () => {
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
           tarifa: parseFloat(item.tarifa) || 0
-        }))
+        })),
+        ft_equipment_items: isFastTrackType ? ftEquipmentItems.map(item => ({
+          name: item.name,
+          hardware_type: item.hardware_type,
+          quantity: item.quantity,
+          unit_price_usd: item.unit_price_usd
+        })) : []
       };
 
       const payload = {
@@ -1459,6 +1467,7 @@ export const Quotes = () => {
         pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
+        ft_equipment_items: isFastTrackType ? ftEquipmentItems : [],
         integrator_id: quoteData.integrator_id,
         integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name,
@@ -2672,6 +2681,8 @@ export const Quotes = () => {
     setIsProductionClient(false);
     setProductionItems([]);
     setProductionSelectedServiceId('');
+    // Reset Fast Track equipment
+    setFtEquipmentItems([]);
   };
 
   // Marcar reparación como completada
@@ -3452,6 +3463,123 @@ export const Quotes = () => {
                   </div>
                 )}
               </div>
+
+              {/* ====== SECCIÓN FAST TRACK: Equipos a Despachar ====== */}
+              {isFastTrackType && isHeaderComplete && (
+                <div className="bg-white rounded-lg p-5 border mt-4">
+                  <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm">2</span>
+                    Equipos a Despachar (Cotizacion de Equipos)
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Estos equipos se incluiran como pagina adicional en el PDF hibrido.
+                  </p>
+
+                  {/* Selector de hardware */}
+                  <div className="bg-slate-50 rounded-lg p-4 border mb-4">
+                    <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">Agregar Equipo</p>
+                    <div className="grid grid-cols-4 gap-3 items-end">
+                      <div className="col-span-4">
+                        <Label className="text-xs text-slate-600">Equipo</Label>
+                        <Select onValueChange={(value) => {
+                          const hw = allHardware.find(h => h.hardware_id === value);
+                          if (hw) {
+                            const exists = ftEquipmentItems.find(i => i.hardware_id === value);
+                            if (exists) {
+                              toast.error('Este equipo ya fue agregado');
+                              return;
+                            }
+                            setFtEquipmentItems(prev => [...prev, {
+                              hardware_id: hw.hardware_id,
+                              name: hw.name,
+                              hardware_type: hw.hardware_type || 'POS',
+                              quantity: 1,
+                              unit_price_usd: hw.price_usd || 0
+                            }]);
+                          }
+                        }}>
+                          <SelectTrigger data-testid="ft-select-equipment" className="h-9 text-sm">
+                            <SelectValue placeholder="Seleccione equipo del catalogo..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allHardware.filter(hw => hw.asset_type !== 'Servicio').map(hw => (
+                              <SelectItem key={hw.hardware_id} value={hw.hardware_id}>
+                                {hw.name} — {hw.hardware_type || 'Equipo'} {hw.price_usd > 0 && `($${hw.price_usd})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabla de equipos */}
+                  {ftEquipmentItems.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse" data-testid="ft-equipment-table">
+                        <thead>
+                          <tr className="bg-slate-100">
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700">Equipo</th>
+                            <th className="border p-2 text-left text-sm font-medium text-slate-700 w-24">Tipo</th>
+                            <th className="border p-2 text-center text-sm font-medium text-slate-700 w-20">Cant.</th>
+                            <th className="border p-2 text-right text-sm font-medium text-slate-700 w-32">P. Unit. (USD)</th>
+                            <th className="border p-2 text-right text-sm font-medium text-slate-700 w-32">Total (USD)</th>
+                            <th className="border p-2 text-center text-sm font-medium text-slate-700 w-12"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ftEquipmentItems.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="border p-2 text-sm font-medium">{item.name}</td>
+                              <td className="border p-2 text-sm text-slate-600">{item.hardware_type}</td>
+                              <td className="border p-2">
+                                <Input type="number" min="1" value={item.quantity} className="h-7 text-center text-sm"
+                                  onChange={e => {
+                                    const qty = Math.max(1, parseInt(e.target.value) || 1);
+                                    setFtEquipmentItems(prev => prev.map((it, i) => i === idx ? {...it, quantity: qty} : it));
+                                  }}
+                                  data-testid={`ft-eq-qty-${idx}`}
+                                />
+                              </td>
+                              <td className="border p-2">
+                                <Input type="number" step="0.01" min="0" value={item.unit_price_usd} className="h-7 text-right text-sm"
+                                  onChange={e => {
+                                    const price = parseFloat(e.target.value) || 0;
+                                    setFtEquipmentItems(prev => prev.map((it, i) => i === idx ? {...it, unit_price_usd: price} : it));
+                                  }}
+                                  data-testid={`ft-eq-price-${idx}`}
+                                />
+                              </td>
+                              <td className="border p-2 text-right text-sm font-semibold">${(item.quantity * item.unit_price_usd).toFixed(2)}</td>
+                              <td className="border p-2 text-center">
+                                <button onClick={() => setFtEquipmentItems(prev => prev.filter((_, i) => i !== idx))}
+                                  className="text-red-500 hover:text-red-700" data-testid={`ft-eq-remove-${idx}`}>
+                                  <X size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-800 text-white">
+                            <td colSpan={4} className="border p-2 text-right text-sm font-bold">Total Equipos (USD):</td>
+                            <td className="border p-2 text-right text-sm font-bold">
+                              ${ftEquipmentItems.reduce((acc, it) => acc + (it.quantity * it.unit_price_usd), 0).toFixed(2)}
+                            </td>
+                            <td className="border p-2"></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+
+                  {ftEquipmentItems.length === 0 && (
+                    <div className="text-center py-6 text-slate-400 text-sm border-2 border-dashed rounded-lg">
+                      Seleccione equipos del catalogo para incluir en la cotizacion hibrida
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ====== SECCIÓN PG: Setup de Payment Gateway ====== */}
               {isPaymentGateway && isHeaderComplete && (

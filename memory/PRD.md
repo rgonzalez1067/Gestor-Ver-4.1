@@ -160,6 +160,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Paginacion "Pagina X/Y" correcta en ambos documentos
   - VALIDADO: 19/19 backend tests (iteration_112)
 
+### PDF Hibrido Fast Track (2026-03-23)
+- Pagina adicional "COTIZACION DE EQUIPOS" insertada entre Resumen de Inversion y Terminos
+- Tabla profesional: Descripcion, Tipo, Cantidad, P. Unitario, Total + Subtotal/IVA/Total
+- Frontend: Seccion "Equipos a Despachar" en wizard Fast Track con selector de hardware del catalogo
+- ft_equipment_items enviados en pdf_data y guardados en la cotizacion
+- Fix: COLOR_AZUL_OSCURO constante faltante en pdf_generator (aplicado por testing agent)
+- VALIDADO: PDF 10 paginas con contenido de equipos en pagina 5
+
 ### Flujo POS Stand Alone Fast Track (2026-03-23)
 - **Nueva categoria `fast_track`** con quote_type `FAST_TRACK`
 - Pipeline: Borrador → Enviada → Aprobada → Configurada → Facturada → Pagada → Entregada

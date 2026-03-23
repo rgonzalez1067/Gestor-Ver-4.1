@@ -46,6 +46,8 @@ class TemplateQuotePDFRequest(BaseModel):
     pricing_model: str = "conventional"
     quote_type: str = "VPOS_MPOS"
     is_production_client: bool = False
+    # Fast Track: items de equipos para el PDF híbrido
+    ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
 
 
 # ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================
@@ -55,6 +57,7 @@ class DynamicQuotePDFGenerator:
     
     # Colores corporativos
     COLOR_AZUL = colors.HexColor("#00447C")
+    COLOR_AZUL_OSCURO = colors.HexColor("#1E3A5F")  # Dark blue for equipment table header
     COLOR_VERDE = colors.HexColor("#28A745") 
     COLOR_VERDE_CLARO = colors.HexColor("#E8F5E9")
     COLOR_AZUL_CLARO = colors.HexColor("#E3F2FD")
@@ -675,6 +678,104 @@ class DynamicQuotePDFGenerator:
         ]))
         
         elements.append(resumen_table)
+        
+        # ==================== PÁGINA 5 (FAST TRACK): COTIZACIÓN DE EQUIPOS ====================
+        if self.data.quote_type == 'FAST_TRACK' and self.data.ft_equipment_items:
+            elements.append(PageBreak())
+            
+            elements.append(Paragraph("COTIZACIÓN DE EQUIPOS", ParagraphStyle(
+                'EquiposTitulo',
+                parent=self.styles['TituloPortada'],
+                fontSize=18,
+                alignment=1,
+                spaceAfter=6
+            )))
+            elements.append(Paragraph(
+                "POS Stand Alone (Fast Track) — Equipos incluidos en esta propuesta",
+                ParagraphStyle('EquiposSubtitulo', parent=self.styles['TextoNormal'], alignment=1, fontSize=10, textColor=colors.HexColor("#64748B"), spaceAfter=16)
+            ))
+            
+            # Tabla de equipos
+            eq_header = [
+                Paragraph("<b>Descripción del Equipo</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Tipo</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Cant.</b>", self.styles['TextoNormal']),
+                Paragraph("<b>P. Unitario (USD)</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Total (USD)</b>", self.styles['TextoNormal']),
+            ]
+            eq_rows = [eq_header]
+            eq_subtotal = 0
+            
+            for item in self.data.ft_equipment_items:
+                name = item.get("name", "Equipo")
+                hw_type = item.get("hardware_type", "POS")
+                qty = int(item.get("quantity", 1))
+                unit_price = float(item.get("unit_price_usd", 0))
+                total = qty * unit_price
+                eq_subtotal += total
+                
+                eq_rows.append([
+                    Paragraph(name, self.styles['TextoNormal']),
+                    Paragraph(hw_type, self.styles['TextoNormal']),
+                    Paragraph(str(qty), ParagraphStyle('EqQty', parent=self.styles['TextoNormal'], alignment=1)),
+                    Paragraph(f"${unit_price:,.2f}", ParagraphStyle('EqPrice', parent=self.styles['TextoNormal'], alignment=2)),
+                    Paragraph(f"${total:,.2f}", ParagraphStyle('EqTotal', parent=self.styles['TextoNormal'], alignment=2)),
+                ])
+            
+            # Subtotal, IVA, Total
+            eq_iva = eq_subtotal * 0.16
+            eq_grand_total = eq_subtotal + eq_iva
+            
+            eq_rows.append([
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("<b>Subtotal:</b>", ParagraphStyle('EqST', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(f"<b>${eq_subtotal:,.2f}</b>", ParagraphStyle('EqSTv', parent=self.styles['TextoNormal'], alignment=2)),
+            ])
+            eq_rows.append([
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("<b>IVA (16%):</b>", ParagraphStyle('EqIVA', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(f"<b>${eq_iva:,.2f}</b>", ParagraphStyle('EqIVAv', parent=self.styles['TextoNormal'], alignment=2)),
+            ])
+            eq_rows.append([
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("", self.styles['TextoNormal']),
+                Paragraph("<b>TOTAL:</b>", ParagraphStyle('EqTOT', parent=self.styles['TextoNormal'], alignment=2, textColor=colors.white)),
+                Paragraph(f"<b>${eq_grand_total:,.2f}</b>", ParagraphStyle('EqTOTv', parent=self.styles['TextoNormal'], alignment=2, textColor=colors.white)),
+            ])
+            
+            eq_col_widths = [200, 70, 50, 90, 90]
+            eq_table = Table(eq_rows, colWidths=eq_col_widths)
+            eq_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL_OSCURO),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 1), (-1, -4), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -4), 0.5, colors.HexColor("#E0E0E0")),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor("#F8FAFC")]),
+                # Totals styling
+                ('LINEABOVE', (3, -3), (-1, -3), 1, colors.HexColor("#CBD5E1")),
+                ('BACKGROUND', (3, -1), (-1, -1), colors.HexColor("#1E293B")),
+                ('TEXTCOLOR', (3, -1), (-1, -1), colors.white),
+                ('FONTNAME', (3, -3), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            elements.append(eq_table)
+            
+            elements.append(Spacer(1, 16))
+            elements.append(Paragraph(
+                "<b>Nota:</b> Los equipos se entregan configurados y listos para operar. "
+                "La garantía cubre defectos de fábrica por 12 meses. No incluye daños por mal uso.",
+                ParagraphStyle('EqNota', parent=self.styles['TextoNormal'], fontSize=9, textColor=colors.HexColor("#64748B"), spaceAfter=8)
+            ))
         
         # Salto de página para Términos
         elements.append(PageBreak())

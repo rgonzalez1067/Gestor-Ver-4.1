@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="6" time="4.842" timestamp="2026-03-23T01:43:53.726529+00:00" hostname="agent-env-a4d7e58a-3348-4496-bd09-a1c9232fe8ed"><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackHybridPDF" name="test_create_fast_track_quote_with_equipment_items" time="0.506"><failure message="AssertionError: Client creation failed: {&quot;detail&quot;:&quot;Ya existe un cliente con RIF J123456789 y sucursal 'Principal'&quot;}&#10;assert 400 in [200, 201]&#10; +  where 400 = &lt;Response [400]&gt;.status_code">backend/tests/test_iteration127_fast_track_hybrid_pdf.py:57: in test_create_fast_track_quote_with_equipment_items
+    assert client_response.status_code in [200, 201], f"Client creation failed: {client_response.text}"
+E   AssertionError: Client creation failed: {"detail":"Ya existe un cliente con RIF J123456789 y sucursal 'Principal'"}
+E   assert 400 in [200, 201]
+E    +  where 400 = &lt;Response [400]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackHybridPDF" name="test_pdf_file_is_valid_and_non_zero" time="1.024"><failure message="AssertionError: PDF should have valid PDF header&#10;assert b'&lt;!do' == b'%PDF'&#10;  &#10;  At index 0 diff: b'&lt;' != b'%'&#10;  &#10;  Full diff:&#10;  - b'%PDF'&#10;  + b'&lt;!do'">backend/tests/test_iteration127_fast_track_hybrid_pdf.py:242: in test_pdf_file_is_valid_and_non_zero
+    assert pdf_content[:4] == b'%PDF', "PDF should have valid PDF header"
+E   AssertionError: PDF should have valid PDF header
+E   assert b'&lt;!do' == b'%PDF'
+E     
+E     At index 0 diff: b'&lt;' != b'%'
+E     
+E     Full diff:
+E     - b'%PDF'
+E     + b'&lt;!do'</failure></testcase><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackHybridPDF" name="test_quote_stored_with_ft_equipment_items" time="0.710" /><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackHybridPDF" name="test_fast_track_without_equipment_items" time="0.737" /><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackHybridPDF" name="test_default_integrator_for_fast_track" time="0.589" /><testcase classname="backend.tests.test_iteration127_fast_track_hybrid_pdf.TestFastTrackPDFEquipmentPage" name="test_pdf_with_equipment_has_more_pages" time="0.583"><failure message="AssertionError: Should be valid PDF&#10;assert b'&lt;!do' == b'%PDF'&#10;  &#10;  At index 0 diff: b'&lt;' != b'%'&#10;  &#10;  Full diff:&#10;  - b'%PDF'&#10;  + b'&lt;!do'">backend/tests/test_iteration127_fast_track_hybrid_pdf.py:554: in test_pdf_with_equipment_has_more_pages
+    assert pdf_response.content[:4] == b'%PDF', "Should be valid PDF"
+E   AssertionError: Should be valid PDF
+E   assert b'&lt;!do' == b'%PDF'
+E     
+E     At index 0 diff: b'&lt;' != b'%'
+E     
+E     Full diff:
+E     - b'%PDF'
+E     + b'&lt;!do'</failure></testcase></testsuite></testsuites>
