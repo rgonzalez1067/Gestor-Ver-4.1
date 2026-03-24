@@ -837,10 +837,9 @@ class DynamicQuotePDFGenerator:
         CORP_COLUMNS = ["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
         
         # Recopilar todos los items con sus tipo_corp
-        all_setup = list(self.data.setup_items) + [
-            item for item in (self.data.additional_items or [])
-            if item.tarifa and item.tarifa > 0
-        ]
+        # NOTA: setup_items ya incluye additional_items con tarifa_setup > 0 (los fusiona el frontend)
+        # NO añadir additional_items aquí para evitar doble conteo
+        all_setup = list(self.data.setup_items)
         all_recurring = list(self.data.recurring_basic_items) + list(self.data.recurring_other_items) + list(self.data.production_items)
         
         # Calcular totales por tipo_corp y tipo (setup/recurrente)
@@ -851,43 +850,25 @@ class DynamicQuotePDFGenerator:
             setup_by_corp[col] = 0
             recurring_by_corp[col] = 0
         
-        for item in all_setup:
+        def _classify_item(item, target_dict):
+            """Clasifica un item en la columna tipo_corp correspondiente."""
             tc = getattr(item, 'tipo_corp', None) or ''
             total_item = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1) * (item.tarifa or 0)
-            matched = False
+            if total_item == 0:
+                return
+            # Match exacto (case-insensitive)
             for col in CORP_COLUMNS:
                 if tc and col.lower().strip() == tc.lower().strip():
-                    setup_by_corp[col] += total_item
-                    matched = True
-                    break
-            if not matched and tc:
-                # Try partial match
-                for col in CORP_COLUMNS:
-                    if col.lower() in tc.lower() or tc.lower() in col.lower():
-                        setup_by_corp[col] += total_item
-                        matched = True
-                        break
-            if not matched:
-                # Default to first column
-                setup_by_corp[CORP_COLUMNS[0]] += total_item
+                    target_dict[col] += total_item
+                    return
+            # NO default a primera columna: items sin tipo_corp no se clasifican
+            # para evitar inflar "Derecho de Uso" incorrectamente
+        
+        for item in all_setup:
+            _classify_item(item, setup_by_corp)
         
         for item in all_recurring:
-            tc = getattr(item, 'tipo_corp', None) or ''
-            total_item = (item.cantidad_cajas or 1) * (item.cantidad_bancos or 1) * (item.tarifa or 0)
-            matched = False
-            for col in CORP_COLUMNS:
-                if tc and col.lower().strip() == tc.lower().strip():
-                    recurring_by_corp[col] += total_item
-                    matched = True
-                    break
-            if not matched and tc:
-                for col in CORP_COLUMNS:
-                    if col.lower() in tc.lower() or tc.lower() in col.lower():
-                        recurring_by_corp[col] += total_item
-                        matched = True
-                        break
-            if not matched:
-                recurring_by_corp[CORP_COLUMNS[0]] += total_item
+            _classify_item(item, recurring_by_corp)
         
         # Calcular totales por columna y por fila
         total_setup = sum(setup_by_corp.values())

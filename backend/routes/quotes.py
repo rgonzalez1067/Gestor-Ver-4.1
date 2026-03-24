@@ -1005,6 +1005,34 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
 
 # ==================== GENERADOR DE PDF CON PLANTILLA ====================
 
+async def _enrich_tipo_corp_from_db(data: TemplateQuotePDFRequest):
+    """Enriquece items con tipo_corp desde la BD para clientes CORP.
+    Busca en la colección services el tipo_corp autoritativo por nombre de concepto."""
+    if data.client_segment != 'CORP':
+        return
+    services_cursor = db.services.find(
+        {"tipo_corp": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "name": 1, "tipo_corp": 1}
+    )
+    services_list = await services_cursor.to_list(200)
+    tipo_corp_map = {s["name"].lower().strip(): s["tipo_corp"] for s in services_list if s.get("tipo_corp")}
+    
+    for item_list in [data.setup_items, data.recurring_basic_items, data.recurring_other_items, data.production_items]:
+        for item in item_list:
+            if not item.tipo_corp:
+                # Buscar por nombre exacto
+                lookup = tipo_corp_map.get(item.concepto.lower().strip(), "")
+                if not lookup:
+                    # Buscar parcial: nombre del concepto contenido en un servicio
+                    concepto_lc = item.concepto.lower().strip()
+                    for sname, tcorp in tipo_corp_map.items():
+                        if sname in concepto_lc or concepto_lc in sname:
+                            lookup = tcorp
+                            break
+                if lookup:
+                    item.tipo_corp = lookup
+
+
 @router.post("/quotes/generate-pdf-with-template")
 async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, authorization: Optional[str] = Header(None)):
     """
@@ -1019,6 +1047,9 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
     await get_current_user(authorization)
     
     try:
+        # Enriquecer items con tipo_corp desde la BD para clientes CORP
+        await _enrich_tipo_corp_from_db(data)
+        
         # Obtener logo si existe
         logo_path = None
         logo_file = UPLOADS_DIR / "logo.png"
@@ -1065,6 +1096,9 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
     await get_current_user(authorization)
     
     try:
+        # Enriquecer items con tipo_corp desde la BD para clientes CORP
+        await _enrich_tipo_corp_from_db(data)
+        
         # Obtener logo si existe
         logo_path = None
         logo_file = UPLOADS_DIR / "logo.png"

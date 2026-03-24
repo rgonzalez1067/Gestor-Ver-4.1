@@ -497,13 +497,30 @@ export const Quotes = () => {
   };
 
   // Buscar tipo_corp de un servicio por nombre (para PDF corporativo)
+  // Prioriza servicios que tengan tipo_corp definido (evita duplicados PYME sin tipo_corp)
   const findServiceTipoCorp = (productName) => {
-    const service = serviceCatalog.find(s =>
-      s.name.toLowerCase() === productName.toLowerCase() ||
-      s.name.toLowerCase().includes(productName.toLowerCase()) ||
-      productName.toLowerCase().includes(s.name.toLowerCase())
+    if (!productName) return '';
+    const nameLC = productName.toLowerCase();
+    // Primero buscar match exacto con tipo_corp definido
+    const exactWithCorp = serviceCatalog.find(s =>
+      s.tipo_corp && s.name.toLowerCase() === nameLC
     );
-    return service?.tipo_corp || '';
+    if (exactWithCorp) return exactWithCorp.tipo_corp;
+    // Luego match parcial con tipo_corp definido
+    const partialWithCorp = serviceCatalog.find(s =>
+      s.tipo_corp && (
+        s.name.toLowerCase().includes(nameLC) ||
+        nameLC.includes(s.name.toLowerCase())
+      )
+    );
+    if (partialWithCorp) return partialWithCorp.tipo_corp;
+    // Fallback: cualquier match
+    const anyMatch = serviceCatalog.find(s =>
+      s.name.toLowerCase() === nameLC ||
+      s.name.toLowerCase().includes(nameLC) ||
+      nameLC.includes(s.name.toLowerCase())
+    );
+    return anyMatch?.tipo_corp || '';
   };
 
   // Función para consolidar recurrentes (de-duplicar y acumular)
