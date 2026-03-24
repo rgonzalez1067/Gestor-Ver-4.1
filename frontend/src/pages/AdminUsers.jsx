@@ -189,23 +189,25 @@ export const AdminUsers = () => {
             </div>
           </div>
           
-          {/* Users Table */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+          {/* Users Table — Sticky Headers & Columns */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-auto max-h-[calc(100vh-260px)]" data-testid="permissions-matrix">
+              <table className="w-full border-collapse">
+                <thead>
                   <tr>
-                    <th className="text-left py-4 px-6 text-sm font-semibold text-slate-700">Usuario</th>
-                    <th className="text-left py-4 px-4 text-sm font-semibold text-slate-700">Rol</th>
-                    <th className="text-center py-4 px-4 text-sm font-semibold text-slate-700">Estado</th>
+                    {/* Intersección Maestra: sticky top + left, z-index máximo */}
+                    <th className="sticky top-0 left-0 z-30 bg-slate-100 text-left py-4 px-6 text-sm font-semibold text-slate-700 border-b border-r border-slate-200 min-w-[280px]">
+                      Usuario
+                    </th>
+                    <th className="sticky top-0 z-10 bg-slate-100 text-left py-4 px-4 text-sm font-semibold text-slate-700 border-b border-slate-200 min-w-[120px]">Rol</th>
+                    <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-4 text-sm font-semibold text-slate-700 border-b border-slate-200 min-w-[80px]">Estado</th>
                     {MODULES.map(module => (
-                      <th key={module.id} className="text-center py-4 px-2 text-xs font-semibold text-slate-700">
+                      <th key={module.id} className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-2 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[110px] whitespace-nowrap">
                         {module.name}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={3 + MODULES.length} className="py-12 text-center text-slate-500">
@@ -220,22 +222,25 @@ export const AdminUsers = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map(user => {
+                    filteredUsers.map((user, idx) => {
                       const isCurrentUser = currentUser?.user_id === user.user_id;
                       const displayName = user.first_name 
                         ? `${user.first_name} ${user.last_name || ''}`
                         : user.name || user.email;
+                      const zebraClass = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60';
+                      const zebraStickyBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50';
                       
                       return (
                         <tr 
                           key={user.user_id} 
-                          className={`hover:bg-slate-50 ${!user.is_active ? 'opacity-60' : ''}`}
+                          className={`${zebraClass} hover:bg-blue-50/50 transition-colors ${!user.is_active ? 'opacity-60' : ''}`}
                           data-testid={`user-row-${user.user_id}`}
                         >
-                          {/* Usuario */}
-                          <td className="py-4 px-6">
+                          {/* Usuario — Columna sticky izquierda */}
+                          <td className={`sticky left-0 z-20 ${zebraStickyBg} py-4 px-6 border-r border-slate-200`}
+                              style={{ boxShadow: '2px 0 4px -2px rgba(0,0,0,0.06)' }}>
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                                 user.role === 'admin' ? 'bg-amber-100' : 'bg-slate-100'
                               }`}>
                                 {user.role === 'admin' ? (
@@ -244,14 +249,14 @@ export const AdminUsers = () => {
                                   <UserIcon className="h-5 w-5 text-slate-600" />
                                 )}
                               </div>
-                              <div>
-                                <p className="font-medium text-slate-900 flex items-center gap-2">
+                              <div className="min-w-0">
+                                <p className="font-medium text-slate-900 flex items-center gap-2 truncate">
                                   {displayName}
                                   {isCurrentUser && (
-                                    <Badge variant="secondary" className="text-xs">Tú</Badge>
+                                    <Badge variant="secondary" className="text-xs flex-shrink-0">Tú</Badge>
                                   )}
                                 </p>
-                                <p className="text-sm text-slate-500">{user.email}</p>
+                                <p className="text-sm text-slate-500 truncate">{user.email}</p>
                                 {user.cedula && (
                                   <p className="text-xs text-slate-400">CI: {user.cedula}</p>
                                 )}
@@ -340,7 +345,6 @@ export const AdminUsers = () => {
                   )}
                 </tbody>
               </table>
-            </div>
           </div>
           
           {/* Legend */}
