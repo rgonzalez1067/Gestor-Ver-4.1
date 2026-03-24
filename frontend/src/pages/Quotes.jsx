@@ -3143,7 +3143,7 @@ export const Quotes = () => {
                             onValueChange={setClientSearchQuery}
                             data-testid="client-search-input"
                           />
-                          <CommandList className="max-h-[250px] overflow-y-auto">
+                          <CommandList>
                             <CommandEmpty>{isSearchingClients ? 'Buscando...' : 'No se encontraron clientes.'}</CommandEmpty>
                             <CommandGroup>
                               {clientSearchResults
