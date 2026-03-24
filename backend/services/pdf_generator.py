@@ -308,21 +308,26 @@ class DynamicQuotePDFGenerator:
         COLOR_VERDE_CLARO = colors.HexColor("#BBF7D0")  # bg-green-200
         
         # ===== FILA 1: Cliente y Cantidad de Cajas en la misma fila (2 columnas) =====
+        # Usar Paragraph para el nombre del cliente para que haga word-wrap en nombres largos
+        cliente_nombre_style = ParagraphStyle(
+            'ClienteNombreStyle', fontName='Helvetica', fontSize=9, leading=11, wordWrap='LTR'
+        )
         row1_data = [[
-            # Celda 1: Cliente
+            # Celda 1: Cliente (más ancha para nombres largos)
             Table(
-                [[Paragraph("<b>Cliente</b>", self.styles['CampoEtiqueta']), self.data.cliente_nombre]],
-                colWidths=[90, 150]
+                [[Paragraph("<b>Cliente</b>", self.styles['CampoEtiqueta']),
+                  Paragraph(str(self.data.cliente_nombre), cliente_nombre_style)]],
+                colWidths=[90, 200]
             ),
-            # Celda 2: Cantidad de Cajas
+            # Celda 2: Cantidad de Cajas (más compacta)
             Table(
                 [[Paragraph("<b>Cantidad de Cajas</b>", self.styles['CampoEtiqueta']), str(self.data.cantidad_cajas)]],
-                colWidths=[110, 120]
+                colWidths=[110, 80]
             )
         ]]
         
         # Crear tabla externa para la fila 1
-        row1_table = Table(row1_data, colWidths=[245, 235])
+        row1_table = Table(row1_data, colWidths=[295, 185])
         row1_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 0),
