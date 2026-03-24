@@ -3530,7 +3530,7 @@ export const Quotes = () => {
                     Estos equipos se incluiran como pagina adicional en el PDF hibrido.
                   </p>
 
-                  {/* Selector de hardware */}
+                  {/* Selector de hardware - Filtro estricto: solo POS tipo Bien */}
                   <div className="bg-slate-50 rounded-lg p-4 border mb-4">
                     <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">Agregar Equipo</p>
                     <div className="grid grid-cols-4 gap-3 items-end">
@@ -3547,8 +3547,8 @@ export const Quotes = () => {
                             setFtEquipmentItems(prev => [...prev, {
                               hardware_id: hw.hardware_id,
                               name: hw.name,
-                              hardware_type: hw.hardware_type || 'POS',
-                              quantity: 1,
+                              hardware_type: hw.type || hw.hardware_type || 'POS',
+                              quantity: parseInt(quoteData.cantidad_cajas) || 1,
                               unit_price_usd: hw.price_usd || 0
                             }]);
                           }
@@ -3557,9 +3557,9 @@ export const Quotes = () => {
                             <SelectValue placeholder="Seleccione equipo del catalogo..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {allHardware.filter(hw => hw.asset_type !== 'Servicio').map(hw => (
+                            {allHardware.filter(hw => hw.type === 'POS' && hw.asset_type !== 'Servicio').map(hw => (
                               <SelectItem key={hw.hardware_id} value={hw.hardware_id}>
-                                {hw.name} — {hw.hardware_type || 'Equipo'} {hw.price_usd > 0 && `($${hw.price_usd})`}
+                                {hw.name} — {hw.type || 'Equipo'} {hw.price_usd > 0 && `($${hw.price_usd})`}
                               </SelectItem>
                             ))}
                           </SelectContent>

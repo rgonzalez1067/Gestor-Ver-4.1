@@ -704,12 +704,13 @@ class DynamicQuotePDFGenerator:
             ))
             
             # Tabla de equipos
+            eq_header_style = ParagraphStyle('EqHeaderStyle', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white)
             eq_header = [
-                Paragraph("<b>Descripción del Equipo</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Tipo</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Cant.</b>", self.styles['TextoNormal']),
-                Paragraph("<b>P. Unitario (USD)</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Total (USD)</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Descripción del Equipo</b>", eq_header_style),
+                Paragraph("<b>Tipo</b>", eq_header_style),
+                Paragraph("<b>Cant.</b>", ParagraphStyle('EqHdrCant', parent=eq_header_style, alignment=1)),
+                Paragraph("<b>P. Unitario (USD)</b>", ParagraphStyle('EqHdrPU', parent=eq_header_style, alignment=2)),
+                Paragraph("<b>Total (USD)</b>", ParagraphStyle('EqHdrT', parent=eq_header_style, alignment=2)),
             ]
             eq_rows = [eq_header]
             eq_subtotal = 0
@@ -1097,11 +1098,11 @@ class DynamicQuotePDFGenerator:
             ))
             
             eq_header = [
-                Paragraph("<b>Descripción del Equipo</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Tipo</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Cant.</b>", self.styles['TextoNormal']),
-                Paragraph("<b>P. Unitario (USD)</b>", self.styles['TextoNormal']),
-                Paragraph("<b>Total (USD)</b>", self.styles['TextoNormal']),
+                Paragraph("<b>Descripción del Equipo</b>", ParagraphStyle('CorpEqH1', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white)),
+                Paragraph("<b>Tipo</b>", ParagraphStyle('CorpEqH2', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white)),
+                Paragraph("<b>Cant.</b>", ParagraphStyle('CorpEqH3', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, alignment=1)),
+                Paragraph("<b>P. Unitario (USD)</b>", ParagraphStyle('CorpEqH4', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, alignment=2)),
+                Paragraph("<b>Total (USD)</b>", ParagraphStyle('CorpEqH5', fontName='Helvetica-Bold', fontSize=10, textColor=colors.white, alignment=2)),
             ]
             eq_rows = [eq_header]
             eq_subtotal = 0
