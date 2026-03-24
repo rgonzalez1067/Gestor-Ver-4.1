@@ -213,6 +213,8 @@ export const Quotes = () => {
   const [irregularCount, setIrregularCount] = useState(0);
   const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
   const [exceptionData, setExceptionData] = useState({ reason: '', regularization_date: '' });
+  const exceptionReasonRef = useRef('');
+  const exceptionDebounceRef = useRef(null);
   const [pendingAction, setPendingAction] = useState(null); // { quoteId, action, quote }
   // Bitácora de Flujo (Historial de Excepciones)
   const [bitacoraFlujoOpen, setBitacoraFlujoOpen] = useState(false);
@@ -2160,6 +2162,7 @@ export const Quotes = () => {
       // Flujo irregular — abrir modal de excepción
       setPendingAction({ quoteId, action, proceedFn, currentStatus, expectedStatus });
       setExceptionData({ reason: '', regularization_date: '' });
+      exceptionReasonRef.current = '';
       setExceptionModalOpen(true);
       return;
     }
@@ -2169,11 +2172,14 @@ export const Quotes = () => {
   };
 
   const confirmException = () => {
-    if (!exceptionData.reason.trim()) { toast.error('Debe ingresar el motivo de la excepción'); return; }
+    // Sincronizar ref → state para asegurar el último valor escrito
+    const currentReason = exceptionReasonRef.current || exceptionData.reason;
+    if (!currentReason.trim()) { toast.error('Debe ingresar el motivo de la excepción'); return; }
+    const finalData = { ...exceptionData, reason: currentReason };
     setExceptionModalOpen(false);
     // Abrir email modal con la excepción pendiente
     openEmailModal(pendingAction.action, pendingAction.quoteId);
-    setPendingAction({ ...pendingAction, exceptionHeaders: exceptionData });
+    setPendingAction({ ...pendingAction, exceptionHeaders: finalData });
   };
 
   // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
@@ -2783,6 +2789,7 @@ export const Quotes = () => {
     if (isIrregular) {
       setPendingAction({ quoteId, action: 'invoice', proceedFn: _openInvoiceModalDirect, currentStatus, expectedStatus });
       setExceptionData({ reason: '', regularization_date: '' });
+      exceptionReasonRef.current = '';
       setExceptionModalOpen(true);
       return;
     }
@@ -3136,7 +3143,7 @@ export const Quotes = () => {
                             onValueChange={setClientSearchQuery}
                             data-testid="client-search-input"
                           />
-                          <CommandList>
+                          <CommandList className="max-h-[250px] overflow-y-auto">
                             <CommandEmpty>{isSearchingClients ? 'Buscando...' : 'No se encontraron clientes.'}</CommandEmpty>
                             <CommandGroup>
                               {clientSearchResults
@@ -4800,8 +4807,14 @@ export const Quotes = () => {
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Motivo de la Excepción <span className="text-red-500">*</span></Label>
-                    <Textarea value={exceptionData.reason}
-                      onChange={e => setExceptionData(p => ({ ...p, reason: e.target.value }))}
+                    <Textarea defaultValue={exceptionData.reason}
+                      onChange={e => {
+                        exceptionReasonRef.current = e.target.value;
+                        if (exceptionDebounceRef.current) clearTimeout(exceptionDebounceRef.current);
+                        exceptionDebounceRef.current = setTimeout(() => {
+                          setExceptionData(p => ({ ...p, reason: exceptionReasonRef.current }));
+                        }, 400);
+                      }}
                       placeholder="Explique por qué se realiza esta acción fuera del flujo regular..."
                       className="mt-1 min-h-[70px] text-sm" data-testid="exception-reason" />
                   </div>
