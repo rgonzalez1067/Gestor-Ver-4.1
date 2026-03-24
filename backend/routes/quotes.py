@@ -401,7 +401,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
     # Cache de clientes para resolver nombres
     client_ids_missing = set()
     for quote in quotes:
-        if isinstance(quote['created_at'], str):
+        if quote.get('created_at') and isinstance(quote['created_at'], str):
             quote['created_at'] = datetime.fromisoformat(quote['created_at'])
         if 'sede' not in quote:
             quote['sede'] = 'PYME'
