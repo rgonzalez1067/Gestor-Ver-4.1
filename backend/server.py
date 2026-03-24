@@ -117,7 +117,7 @@ async def rbac_middleware(request: Request, call_next):
         return await call_next(request)  # Sin token → lo maneja get_current_user en el endpoint
 
     # Buscar sesión y usuario
-    session = await db.sessions.find_one({"session_token": token}, {"_id": 0})
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
     if not session:
         return await call_next(request)  # Sesión inválida → lo maneja el endpoint
 

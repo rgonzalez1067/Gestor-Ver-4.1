@@ -242,6 +242,15 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Frontend: badge cyan para estado "Reparada", boton "Marcar como Reparada" en menu contextual
   - VALIDADO: 13/13 backend + 100% frontend (iteration_124)
 
+### Sistema RBAC Centralizado (2026-03-24)
+- **Middleware HTTP en server.py**: Intercepta todas las peticiones y valida permisos por módulo
+- **Lógica**: none→403 en todo, read→solo GET, edit→acceso completo, admin→bypass total
+- **ROUTE_MODULE_MAP**: Mapeo de prefijos API a módulos de permisos (12 módulos)
+- **Frontend**: Hook `usePermission`, `ProtectedRoute` bloquea páginas, `Sidebar` oculta menús sin acceso
+- **Admin**: Panel de permisos por usuario en `/admin/users`
+- **Bug fix**: Colección `db.sessions` corregida a `db.user_sessions` en middleware (causa raíz del fallo)
+- VALIDADO: 9/9 tests curl (none→403, read GET→200, read POST→403, edit→200, admin bypass→200)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
