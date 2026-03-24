@@ -249,7 +249,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Frontend**: Hook `usePermission`, `ProtectedRoute` bloquea páginas, `Sidebar` oculta menús sin acceso
 - **Admin**: Panel de permisos por usuario en `/admin/users`
 - **Bug fix**: Colección `db.sessions` corregida a `db.user_sessions` en middleware (causa raíz del fallo)
-- VALIDADO: 9/9 tests curl (none→403, read GET→200, read POST→403, edit→200, admin bypass→200)
+- **Enforcing Read-Only en Frontend (2026-03-24)**:
+  - Todos los módulos auditados: Clientes, Bancos, Hardware, MediosPago, Integradores, Cotizaciones, Proyectos, NuevosProductos, Inventarios, Configuración
+  - Botones crear/editar/eliminar/importar ocultos para permiso "read" vía `canEdit` de `usePermission`
+  - Campos de entrada (ej: min_stock en inventarios) deshabilitados para "read"
+  - QuotesTable recibe `canEdit` como prop para ocultar acciones del pipeline
+  - Matriz de permisos (AdminUsers): sticky headers/columns, zebra striping, hover de fila
+- VALIDADO: 24/24 backend + 100% frontend (iteration_129)
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
