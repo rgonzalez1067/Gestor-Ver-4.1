@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { usePermission, ROUTE_MODULE_MAP } from "../hooks/usePermission";
+import { ROUTE_MODULE_MAP } from "../hooks/usePermission";
 
 export const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("session_token");
@@ -13,11 +13,15 @@ export const ProtectedRoute = ({ children }) => {
   const pathBase = '/' + (location.pathname.split('/')[1] || '');
   const module = ROUTE_MODULE_MAP[pathBase];
 
-  // Si hay módulo mapeado, validar permiso
+  // Validar permiso sin hook (lectura directa de localStorage)
   if (module) {
-    const { canView } = usePermission(module);
-    if (!canView) {
-      return <Navigate to="/quotes" replace />;
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('user')); } catch {}
+    if (user?.role !== 'admin') {
+      const level = user?.permissions?.[module] || 'none';
+      if (level === 'none') {
+        return <Navigate to="/quotes" replace />;
+      }
     }
   }
 
