@@ -2,8 +2,9 @@
 Cotizador Merchant Server - Punto de entrada principal.
 Monta todos los routers modulares sobre la aplicación FastAPI.
 """
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 import logging
 
@@ -45,6 +46,109 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ==================== MIDDLEWARE RBAC ====================
+# Mapeo de prefijos de ruta a módulos de permisos
+ROUTE_MODULE_MAP = {
+    "/api/quotes": "cotizaciones",
+    "/api/clients": "clientes",
+    "/api/banks": "bancos",
+    "/api/services": "medios_pago",
+    "/api/exchange-rate": "medios_pago",
+    "/api/hardware": "dispositivos",
+    "/api/component-types": "dispositivos",
+    "/api/integrators": "integradores",
+    "/api/config": "configuracion",
+    "/api/projects": "proyectos",
+    "/api/inventory": "inventarios",
+    "/api/taller-equipos": "taller_equipos",
+    "/api/new-products": "nuevos_productos",
+}
+
+# Rutas exentas de validación RBAC (auth, dashboard, uploads, etc.)
+RBAC_EXEMPT_PREFIXES = [
+    "/api/auth",
+    "/api/dashboard",
+    "/api/uploads",
+    "/api/seed",
+    "/api/attachments",
+]
+
+# Métodos HTTP que requieren nivel "edit"
+WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def rbac_middleware(request: Request, call_next):
+    """Middleware RBAC centralizado.
+    Intercepta todas las peticiones y valida permisos por módulo.
+    - Ninguno: 403 en cualquier método
+    - Leer: Solo GET permitido
+    - Editar: Acceso completo
+    - Admin: Bypass total
+    """
+    path = request.url.path
+    method = request.method
+    logging.info(f"RBAC middleware: {method} {path}")
+
+    # Rutas exentas
+    if method == "OPTIONS":
+        return await call_next(request)
+    for exempt in RBAC_EXEMPT_PREFIXES:
+        if path.startswith(exempt):
+            return await call_next(request)
+
+    # Buscar módulo correspondiente
+    target_module = None
+    for prefix, module in ROUTE_MODULE_MAP.items():
+        if path.startswith(prefix):
+            target_module = module
+            break
+
+    # Si no hay módulo mapeado, permitir (rutas internas/desconocidas)
+    if not target_module:
+        return await call_next(request)
+
+    # Extraer token del header Authorization
+    auth_header = request.headers.get("authorization", "")
+    token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else auth_header
+
+    if not token:
+        return await call_next(request)  # Sin token → lo maneja get_current_user en el endpoint
+
+    # Buscar sesión y usuario
+    session = await db.sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        return await call_next(request)  # Sesión inválida → lo maneja el endpoint
+
+    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+    if not user:
+        return await call_next(request)
+
+    # Admin bypass
+    if user.get("role") == "admin":
+        return await call_next(request)
+
+    # Obtener nivel de permiso del usuario para este módulo
+    permissions = user.get("permissions", {})
+    user_level = permissions.get(target_module, "none")
+    logging.info(f"RBAC check: user={user.get('email')} module={target_module} level={user_level} method={method}")
+
+    # Validar: Ninguno → 403
+    if user_level == "none":
+        return JSONResponse(
+            status_code=403,
+            content={"detail": f"No tiene acceso al módulo '{target_module}'"}
+        )
+
+    # Validar: Leer + método de escritura → 403
+    if user_level == "read" and method in WRITE_METHODS:
+        return JSONResponse(
+            status_code=403,
+            content={"detail": f"No tiene permisos de escritura en '{target_module}'"}
+        )
+
+    return await call_next(request)
 
 # Router principal con prefijo /api
 api_router = APIRouter(prefix="/api")

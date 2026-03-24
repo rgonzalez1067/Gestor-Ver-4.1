@@ -1,41 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import api from '../utils/api';
+import { Navigate, useLocation } from "react-router-dom";
+import { usePermission, ROUTE_MODULE_MAP } from "../hooks/usePermission";
 
 export const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem("session_token");
   const location = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    location.state?.user ? true : null
-  );
-  const [user, setUser] = useState(location.state?.user || null);
 
-  useEffect(() => {
-    if (location.state?.user) return;
-
-    const checkAuth = async () => {
-      try {
-        const response = await api.get('/auth/me');
-        setUser(response.data);
-        setIsAuthenticated(true);
-        localStorage.setItem('user', JSON.stringify(response.data));
-      } catch (error) {
-        setIsAuthenticated(false);
-      }
-    };
-
-    checkAuth();
-  }, [location.state]);
-
-  if (isAuthenticated === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
-      </div>
-    );
+  if (!token) {
+    return <Navigate to="/" replace />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  // Determinar módulo según la ruta actual
+  const pathBase = '/' + (location.pathname.split('/')[1] || '');
+  const module = ROUTE_MODULE_MAP[pathBase];
+
+  // Si hay módulo mapeado, validar permiso
+  if (module) {
+    const { canView } = usePermission(module);
+    if (!canView) {
+      return <Navigate to="/quotes" replace />;
+    }
   }
 
   return children;

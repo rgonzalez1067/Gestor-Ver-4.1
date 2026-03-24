@@ -793,12 +793,16 @@ class SessionData(BaseModel):
 # Módulos disponibles para permisos
 AVAILABLE_MODULES = [
     "cotizaciones",
-    "clientes", 
+    "clientes",
     "bancos",
     "medios_pago",
     "dispositivos",
     "integradores",
-    "configuracion"
+    "configuracion",
+    "proyectos",
+    "inventarios",
+    "taller_equipos",
+    "nuevos_productos"
 ]
 
 # Niveles de permiso

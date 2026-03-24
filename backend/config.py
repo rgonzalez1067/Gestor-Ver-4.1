@@ -107,6 +107,29 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     return user_doc
 
 
+async def require_permission(authorization: Optional[str], module: str, level: str = "read"):
+    """Middleware de permisos RBAC.
+    Valida que el usuario tenga el nivel de permiso requerido para el módulo.
+    level: 'read' (GET) o 'edit' (POST/PUT/PATCH/DELETE)
+    Lanza 403 si el permiso es insuficiente.
+    """
+    user = await get_current_user(authorization)
+    # Admins siempre tienen acceso completo
+    if user.get("role") == "admin":
+        return user
+    
+    permissions = user.get("permissions", {})
+    user_level = permissions.get(module, "none")
+    
+    if user_level == "none":
+        raise HTTPException(status_code=403, detail=f"No tiene acceso al módulo '{module}'")
+    
+    if level == "edit" and user_level == "read":
+        raise HTTPException(status_code=403, detail=f"No tiene permisos de escritura en el módulo '{module}'")
+    
+    return user
+
+
 async def generate_quote_number(sede: str) -> str:
     now = datetime.now(timezone.utc)
     year = now.strftime("%Y")

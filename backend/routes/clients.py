@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 
-from config import db, get_current_user, UPLOADS_DIR
+from config import db, get_current_user, require_permission, UPLOADS_DIR
 from models import *
 
 try:

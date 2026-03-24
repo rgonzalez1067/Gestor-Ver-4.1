@@ -15,7 +15,11 @@ const MODULES = [
   { id: 'medios_pago', name: 'Medios de Pago' },
   { id: 'dispositivos', name: 'Bienes y Servicios' },
   { id: 'integradores', name: 'Integradores' },
-  { id: 'configuracion', name: 'Configuración' }
+  { id: 'configuracion', name: 'Configuración' },
+  { id: 'proyectos', name: 'Proyectos' },
+  { id: 'inventarios', name: 'Inventarios' },
+  { id: 'taller_equipos', name: 'Equipos en Reparación' },
+  { id: 'nuevos_productos', name: 'Nuevos Productos' }
 ];
 
 const PERMISSION_OPTIONS = [

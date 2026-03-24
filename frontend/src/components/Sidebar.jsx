@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
+import { ROUTE_MODULE_MAP } from '../hooks/usePermission';
 
 const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -106,7 +107,26 @@ export const Sidebar = () => {
     }
   };
 
-  const allMenuItems = isAdmin ? [...menuItems, ...adminItems] : menuItems;
+  // Filtrar menú por permisos RBAC: "Ninguno" → remover del DOM
+  const allMenuItems = useMemo(() => {
+    const userStr = localStorage.getItem('user');
+    let user = null;
+    try { user = userStr ? JSON.parse(userStr) : null; } catch { user = null; }
+    const permissions = user?.permissions || {};
+    const role = user?.role;
+
+    let items = menuItems.filter(item => {
+      const module = ROUTE_MODULE_MAP[item.path];
+      if (!module) return true; // Dashboard, exchange-rate sin módulo → siempre visible
+      if (role === 'admin') return true;
+      const level = permissions[module] || 'none';
+      return level !== 'none'; // Solo mostrar si tiene "read" o "edit"
+    });
+
+    if (isAdmin) items = [...items, ...adminItems];
+    return items;
+  }, [isAdmin]);
+
   const w = collapsed ? 'w-[60px]' : 'w-64';
 
   const NavItem = ({ item, isActive, isFooter }) => {
