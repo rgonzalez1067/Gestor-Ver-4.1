@@ -7,6 +7,7 @@ import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Sa
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 // Sedes disponibles
 const SEDES = [
@@ -24,6 +25,7 @@ const TEMPLATE_TYPES = [
 ];
 
 export const Settings = () => {
+  const { canEdit } = usePermission('configuracion');
   const [logoUrl, setLogoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -466,7 +468,7 @@ export const Settings = () => {
                   </div>
                   <Button
                     onClick={handleSaveResendKey}
-                    disabled={savingResendKey || !resendApiKey.trim()}
+                    disabled={!canEdit || savingResendKey || !resendApiKey.trim()}
                     className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     data-testid="save-resend-key-button"
                   >
@@ -619,7 +621,7 @@ export const Settings = () => {
               <div className="flex justify-end pt-2">
                 <Button
                   onClick={handleSaveEmails}
-                  disabled={savingEmail}
+                  disabled={!canEdit || savingEmail}
                   className="bg-brand-green-600 hover:bg-brand-green-700 text-white"
                   data-testid="save-emails-button"
                 >

@@ -12,6 +12,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
@@ -39,6 +40,7 @@ const emptyContact = () => ({
 });
 
 export const Clients = () => {
+  const { canEdit } = usePermission('clientes');
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -699,19 +701,19 @@ export const Clients = () => {
             </div>
             <div className="flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv,.xlsx,.xls" className="hidden" />
-              <Button variant="outline" onClick={() => setRifDialogOpen(true)} className="border-amber-500 text-amber-600 hover:bg-amber-50" data-testid="load-rif-btn">
+              {canEdit && <Button variant="outline" onClick={() => setRifDialogOpen(true)} className="border-amber-500 text-amber-600 hover:bg-amber-50" data-testid="load-rif-btn">
                 <ScanLine size={18} className="mr-2" />Cargar desde RIF Digital
-              </Button>
-              <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="border-brand-blue-600 text-brand-blue-600" data-testid="import-clients-btn">
+              </Button>}
+              {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="border-brand-blue-600 text-brand-blue-600" data-testid="import-clients-btn">
                 <Upload size={18} className="mr-2" />Importar
-              </Button>
+              </Button>}
               <Button variant="outline" onClick={exportToCSV} className="border-brand-green-600 text-brand-green-600">
                 <FileSpreadsheet size={18} className="mr-2" />CSV
               </Button>
               <Button variant="outline" onClick={exportToPDF} className="border-brand-blue-600 text-brand-blue-600">
                 <FileText size={18} className="mr-2" />PDF
               </Button>
-              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+              {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button data-testid="add-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
                     <Plus size={20} className="mr-2" />Nuevo Cliente
@@ -984,7 +986,7 @@ export const Clients = () => {
                     </div>
                   </form>
                 </DialogContent>
-              </Dialog>
+              </Dialog>}
             </div>
           </div>
 
@@ -1070,14 +1072,14 @@ export const Clients = () => {
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => openEditDialog(client)} className="cursor-pointer">
+                              {canEdit && <DropdownMenuItem onSelect={() => openEditDialog(client)} className="cursor-pointer">
                                 <Pencil size={14} className="mr-2 text-slate-500" /> Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
+                              </DropdownMenuItem>}
+                              {canEdit && <><DropdownMenuSeparator />
                               <DropdownMenuItem onSelect={() => handleDelete(client.client_id)}
                                 className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
                                 <Trash2 size={14} className="mr-2" /> Eliminar
-                              </DropdownMenuItem>
+                              </DropdownMenuItem></>}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>

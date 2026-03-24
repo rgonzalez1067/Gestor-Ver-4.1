@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Smartphone, Package, Wrench, Settings2, Cog, FileSpreadsheet, FileText, FileDown, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 // Categorías principales
 const CATEGORIES = [
@@ -36,6 +37,7 @@ const HARDWARE_TYPES = [
 ];
 
 export const Hardware = () => {
+  const { canEdit } = usePermission('dispositivos');
   const [hardwareList, setHardwareList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -362,7 +364,7 @@ export const Hardware = () => {
             
             <div className="flex gap-2">
               {/* Botón Importar */}
-              <Button
+              {canEdit && <Button
                 variant="outline"
                 onClick={() => setImportDialogOpen(true)}
                 data-testid="import-hardware-btn"
@@ -370,7 +372,7 @@ export const Hardware = () => {
               >
                 <Upload size={18} className="mr-2" />
                 Importar
-              </Button>
+              </Button>}
               
               {/* Dropdown Exportar */}
               <div className="relative group">
@@ -403,7 +405,7 @@ export const Hardware = () => {
               </div>
               
               {/* Botón Nuevo */}
-              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+              {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button
                     data-testid="add-hardware-button"
@@ -541,8 +543,7 @@ export const Hardware = () => {
                     </div>
                   </form>
                 </DialogContent>
-              </Dialog>
-            </div>
+              </Dialog>}            </div>
           </div>
 
           {/* Filter Bar */}
@@ -621,15 +622,15 @@ export const Hardware = () => {
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Button
+                        {canEdit && <Button
                           size="sm"
                           variant="outline"
                           data-testid={`edit-hardware-${hardware.hardware_id}`}
                           onClick={() => openEditDialog(hardware)}
                         >
                           <Pencil size={14} />
-                        </Button>
-                        <Button
+                        </Button>}
+                        {canEdit && <Button
                           size="sm"
                           variant="outline"
                           data-testid={`delete-hardware-${hardware.hardware_id}`}
@@ -637,7 +638,7 @@ export const Hardware = () => {
                           className="text-red-600 hover:text-red-700 hover:border-red-300"
                         >
                           <Trash2 size={14} />
-                        </Button>
+                        </Button>}
                       </div>
                     </td>
                   </tr>

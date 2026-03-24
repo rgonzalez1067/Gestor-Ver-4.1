@@ -9,6 +9,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
   FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket
@@ -31,6 +32,7 @@ const PRIORITY_OPTIONS = ['Alta', 'Media', 'Normal'];
 const PRIORITY_COLORS = { 'Alta': 'text-red-600 font-semibold', 'Media': 'text-orange-600', 'Normal': 'text-blue-600' };
 
 const Projects = () => {
+  const { canEdit } = usePermission('proyectos');
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState({});
@@ -312,13 +314,13 @@ const Projects = () => {
                               <RefreshCw size={14} />
                             </Button>
                             {/* Asignar / Reasignar */}
-                            <Button size="sm" variant="outline" onClick={() => openAssignDialog(project)}
+                            {canEdit && <Button size="sm" variant="outline" onClick={() => openAssignDialog(project)}
                               title={hasAssignee ? 'Reasignar' : 'Asignar'}
                               className={`h-8 px-2 text-xs gap-1 ${hasAssignee ? 'text-purple-600 hover:bg-purple-50' : 'text-blue-600 hover:bg-blue-50'}`}
                               data-testid={`assign-btn-${project.project_id}`}>
                               {hasAssignee ? <UserPlus size={14} /> : <UserCheck size={14} />}
                               <span className="hidden xl:inline">{hasAssignee ? 'Reasignar' : 'Asignar'}</span>
-                            </Button>
+                            </Button>}
                             {/* Anexos */}
                             <Button size="sm" variant="outline" title="Anexos"
                               onClick={() => { setAnexosProject(project); setAnexosDialogOpen(true); }}

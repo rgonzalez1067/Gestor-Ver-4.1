@@ -17,6 +17,7 @@ const SERVICE_TYPES = [
 ];
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const APPLICATION_TYPES = [
   { id: 'setup', name: 'Solo Setup', icon: Settings2, description: 'Solo gastos de implementación inicial' },
@@ -38,6 +39,7 @@ const TIPO_CORP_OPTIONS = [
 ];
 
 export const MediosPago = () => {
+  const { canEdit } = usePermission('medios_pago');
   const [mediosPago, setMediosPago] = useState([]);
   const [recurringServices, setRecurringServices] = useState([]); // Servicios recurrentes para vinculación
   const [loading, setLoading] = useState(true);
@@ -386,14 +388,14 @@ export const MediosPago = () => {
                 accept=".csv,.xlsx,.xls"
                 className="hidden"
               />
-              <Button
+              {canEdit && <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
                 className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50"
               >
                 <Upload size={18} className="mr-2" />
                 Importar
-              </Button>
+              </Button>}
               <Button
                 variant="outline"
                 onClick={exportToCSV}
@@ -410,7 +412,7 @@ export const MediosPago = () => {
                 <FileText size={18} className="mr-2" />
                 PDF
               </Button>
-              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+              {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button
                     data-testid="add-medio-pago-button"
@@ -715,7 +717,7 @@ export const MediosPago = () => {
                     </div>
                   </form>
                 </DialogContent>
-              </Dialog>
+              </Dialog>}
             </div>
           </div>
 
@@ -884,15 +886,15 @@ export const MediosPago = () => {
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Button
+                          {canEdit && <Button
                             size="sm"
                             variant="outline"
                             data-testid={`edit-medio-pago-${medioPago.service_id}`}
                             onClick={() => openEditDialog(medioPago)}
                           >
                             <Pencil size={14} />
-                          </Button>
-                          <Button
+                          </Button>}
+                          {canEdit && <Button
                             size="sm"
                             variant="outline"
                             data-testid={`delete-medio-pago-${medioPago.service_id}`}
@@ -900,7 +902,7 @@ export const MediosPago = () => {
                             className="text-red-600 hover:text-red-700 hover:border-red-300"
                           >
                             <Trash2 size={14} />
-                          </Button>
+                          </Button>}
                         </div>
                       </td>
                     </tr>

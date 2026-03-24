@@ -11,6 +11,7 @@ import { ImportResultPanel } from '../components/ImportResultPanel';
 import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -89,6 +90,7 @@ const LogoUpload = ({ logoUrl, onUpload, onRemove }) => {
 };
 
 export const Banks = () => {
+  const { canEdit } = usePermission('bancos');
   const navigate = useNavigate();
   const [banks, setBanks] = useState([]);
   const [mediosPago, setMediosPago] = useState([]);
@@ -292,16 +294,16 @@ export const Banks = () => {
             </div>
             <div className="flex gap-2">
               <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".csv,.xlsx,.xls" className="hidden" />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50">
+              {canEdit && <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50">
                 <Upload size={18} className="mr-2" />Importar
-              </Button>
+              </Button>}
               <Button variant="outline" onClick={exportToCSV} className="border-brand-green-600 text-brand-green-600 hover:bg-brand-green-50">
                 <FileSpreadsheet size={18} className="mr-2" />CSV
               </Button>
               <Button variant="outline" onClick={exportToPDF} className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50">
                 <FileText size={18} className="mr-2" />PDF
               </Button>
-              <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+              {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button data-testid="add-bank-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
                     <Plus size={20} className="mr-2" />Nuevo Banco
@@ -458,7 +460,7 @@ export const Banks = () => {
                     </div>
                   </form>
                 </DialogContent>
-              </Dialog>
+              </Dialog>}
             </div>
           </div>
 
@@ -551,12 +553,12 @@ export const Banks = () => {
                       <Button size="sm" variant="outline" data-testid={`view-bank-${bank.bank_id}`} onClick={() => navigate(`/banks/${bank.bank_id}`)} className="h-8 w-8 p-0 text-brand-blue-600 hover:text-brand-blue-700 hover:border-brand-blue-300">
                         <Eye size={14} />
                       </Button>
-                      <Button size="sm" variant="outline" data-testid={`edit-bank-${bank.bank_id}`} onClick={() => openEditDialog(bank)} className="h-8 w-8 p-0">
+                      {canEdit && <Button size="sm" variant="outline" data-testid={`edit-bank-${bank.bank_id}`} onClick={() => openEditDialog(bank)} className="h-8 w-8 p-0">
                         <Pencil size={14} />
-                      </Button>
-                      <Button size="sm" variant="outline" data-testid={`delete-bank-${bank.bank_id}`} onClick={() => handleDelete(bank.bank_id)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:border-red-300">
+                      </Button>}
+                      {canEdit && <Button size="sm" variant="outline" data-testid={`delete-bank-${bank.bank_id}`} onClick={() => handleDelete(bank.bank_id)} className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:border-red-300">
                         <Trash2 size={14} />
-                      </Button>
+                      </Button>}
                     </div>
                   </div>
                 </div>

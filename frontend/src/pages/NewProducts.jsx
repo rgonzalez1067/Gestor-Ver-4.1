@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const PIPELINE_STATUSES = [
   { id: 'Negociación', label: 'Negociación', color: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' },
@@ -54,6 +55,7 @@ const PipelineDots = ({ currentStatus }) => {
 };
 
 export const NewProducts = () => {
+  const { canEdit } = usePermission('nuevos_productos');
   const [products, setProducts] = useState([]);
   const [banks, setBanks] = useState([]);
   const [services, setServices] = useState([]);
@@ -227,10 +229,10 @@ export const NewProducts = () => {
               </h1>
               <p className="text-sm text-slate-500 mt-1">Pipeline de I+D — Medios de pago en desarrollo antes de despliegue oficial</p>
             </div>
-            <Button onClick={() => setAddOpen(true)} data-testid="add-new-product-btn"
+            {canEdit && <Button onClick={() => setAddOpen(true)} data-testid="add-new-product-btn"
               className="bg-purple-600 hover:bg-purple-700 text-white">
               <Plus size={16} className="mr-1.5" />Nuevo Producto
-            </Button>
+            </Button>}
           </div>
 
           {/* Stats */}
@@ -295,12 +297,12 @@ export const NewProducts = () => {
                       data-testid={`np-evo-btn-${p.product_id}`}>
                       <FileText size={14} />
                     </Button>
-                    <Button size="sm" variant="ghost"
+                    {canEdit && <Button size="sm" variant="ghost"
                       onClick={() => setDeleteConfirm({ open: true, id: p.product_id, name: p.service_name })}
                       className="h-7 w-7 p-0 text-red-500 hover:text-red-700 shrink-0"
                       data-testid={`np-delete-${p.product_id}`}>
                       <Trash2 size={14} />
-                    </Button>
+                    </Button>}
                   </div>
                 ))}
               </div>

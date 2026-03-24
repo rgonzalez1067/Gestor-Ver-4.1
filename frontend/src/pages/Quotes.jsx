@@ -22,6 +22,7 @@ import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
 import { RepairDeliveryDialog } from '../components/quotes/RepairDeliveryDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const QUOTE_TYPES = [
   { id: 'VPOS', name: 'VPOS (Cajas)', icon: Monitor, description: 'Puntos de venta físicos' },
@@ -103,6 +104,7 @@ const QUOTE_CATEGORY_LABELS = {
 
 
 export const Quotes = () => {
+  const { canEdit } = usePermission('cotizaciones');
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
   const [banks, setBanks] = useState([]);
@@ -2893,7 +2895,7 @@ export const Quotes = () => {
           </div>
 
           {/* Botones de Nueva Cotización */}
-          <div className="flex items-center gap-3 mb-6">
+          {canEdit && <div className="flex items-center gap-3 mb-6">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
@@ -2931,7 +2933,7 @@ export const Quotes = () => {
               <Plus size={20} className="mr-2" />
               Nueva Cotización: Equipos, Accesorios y Reparaciones
             </Button>
-          </div>
+          </div>}
 
           {/* Filtros Rápidos */}
           <QuoteFilters
@@ -2968,6 +2970,7 @@ export const Quotes = () => {
             filterDateFrom={filterDateFrom}
             filterDateTo={filterDateTo}
             actionLoading={actionLoading}
+            canEdit={canEdit}
             onOpenAnexos={(quote) => {
               setAnexosQuoteId(quote.quote_id);
               setAnexosQuoteNumber(quote.quote_number);

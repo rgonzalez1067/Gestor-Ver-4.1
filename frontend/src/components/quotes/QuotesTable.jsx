@@ -36,7 +36,7 @@ const getQuoteTypeName = (type) => {
 export const QuotesTable = ({
   quotes, clients,
   filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
-  actionLoading,
+  actionLoading, canEdit,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo,
@@ -194,49 +194,49 @@ export const QuotesTable = ({
                           <Download size={16} className="mr-2 text-slate-500" /> Descargar PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer">
+                        {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer">
                           <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar (Nueva Versión)
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => onSendToClient(quote.quote_id)} className="cursor-pointer"
+                        </DropdownMenuItem>}
+                        {canEdit && <DropdownMenuSeparator />}
+                        {canEdit && <DropdownMenuItem onSelect={() => onSendToClient(quote.quote_id)} className="cursor-pointer"
                           disabled={quote.quote_status !== 'Borrador'}>
                           <Mail size={16} className="mr-2 text-blue-500" /> Enviar al Cliente
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-slate-400">&#10003;</span>}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
+                        </DropdownMenuItem>}
+                        {canEdit && <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
                           <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobación
                           {quote.approved_at && <span className="ml-auto text-xs text-green-500">&#10003;</span>}
                           {!quote.approved_at && quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
                           {!quote.approved_at && quote.quote_status !== 'Enviada' && quote.quote_status !== 'Borrador' && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>
-                        {isRepair && quote.quote_status === 'Aprobada' && (
+                        </DropdownMenuItem>}
+                        {canEdit && isRepair && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onRepairComplete(quote.quote_id)} className="cursor-pointer"
                             data-testid={`repair-complete-btn-${quote.quote_id}`}>
                             <Wrench size={16} className="mr-2 text-cyan-600" /> Marcar como Reparada
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
-                        {isFastTrack && quote.quote_status === 'Aprobada' && (
+                        {canEdit && isFastTrack && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onConfigure(quote.quote_id)} className="cursor-pointer"
                             data-testid={`configure-btn-${quote.quote_id}`}>
                             <Settings size={16} className="mr-2 text-indigo-600" /> Marcar como Configurada
                             <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
+                        {canEdit && <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
                           <Receipt size={16} className="mr-2 text-purple-500" /> Factura / Proforma
                           {quote.invoiced_at && <span className="ml-auto text-xs text-purple-500">&#10003;</span>}
                           {!quote.invoiced_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-purple-500">&#x25CF;</span>}
                           {!quote.invoiced_at && !['Borrador', 'Enviada', 'Aprobada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer">
+                        </DropdownMenuItem>}
+                        {canEdit && <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer">
                           <Banknote size={16} className="mr-2 text-emerald-500" /> Cobranza
                           {quote.paid_at && <span className="ml-auto text-xs text-emerald-500">&#10003;</span>}
                           {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {isEquipment || isRepair || isFastTrack ? (
+                        </DropdownMenuItem>}
+                        {canEdit && <DropdownMenuSeparator />}
+                        {canEdit && (isEquipment || isRepair || isFastTrack ? (
                           <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
                             {quote.quote_status !== 'Pagada' && quote.quote_status !== 'Entregada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
@@ -246,12 +246,12 @@ export const QuotesTable = ({
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
                             {quote.quote_status !== 'Pagada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
                           </DropdownMenuItem>
-                        )}
+                        ))}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
+                        {canEdit && <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
                           className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 size={16} className="mr-2" /> Eliminar Cotización
-                        </DropdownMenuItem>
+                        </DropdownMenuItem>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>

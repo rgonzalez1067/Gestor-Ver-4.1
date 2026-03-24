@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const SERIALIZED_TYPES = ['pos', 'pinpad', 'mpos'];
 const isSerializedType = (t) => SERIALIZED_TYPES.includes((t || '').toLowerCase());
@@ -24,6 +25,7 @@ const MOV_LABELS = {
 };
 
 export default function Inventory() {
+  const { canEdit } = usePermission('inventarios');
   const [warehouses, setWarehouses] = useState([]);
   const [hardware, setHardware] = useState([]);
   const [selectedWh, setSelectedWh] = useState(null);
@@ -510,10 +512,10 @@ export default function Inventory() {
                 data-testid="btn-client-search">
                 <Search size={14} className="mr-1.5" />Buscar por Cliente
               </Button>
-              <Button onClick={() => { setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' }); setWhEditing(null); setWhDialog(true); }}
+              {canEdit && <Button onClick={() => { setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' }); setWhEditing(null); setWhDialog(true); }}
                 data-testid="add-warehouse-btn" className="bg-teal-600 hover:bg-teal-700 text-white">
                 <Plus size={16} className="mr-1.5" />Nuevo Almacén
-              </Button>
+              </Button>}
             </div>
           </div>
 
@@ -536,7 +538,7 @@ export default function Inventory() {
                 </SelectContent>
               </Select>
             </div>
-            {currentWh && (
+            {currentWh && canEdit && (
               <>
                 <Button size="sm" variant="outline" onClick={() => { setWhForm({ name: currentWh.name, location: currentWh.location || '', notes: currentWh.notes || '', responsible_user_id: currentWh.responsible_user_id || '' }); setWhEditing(currentWh.warehouse_id); setWhDialog(true); }}>
                   <Pencil size={14} className="mr-1" />Editar
@@ -563,10 +565,10 @@ export default function Inventory() {
             <>
               {/* Action buttons */}
               <div className="flex gap-2 mb-4">
-                <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] }); setEntryDialog(true); }}
+                {canEdit && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] }); setEntryDialog(true); }}
                   data-testid="btn-entry" className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <PackagePlus size={14} className="mr-1.5" />Entrada
-                </Button>
+                </Button>}
                 <Button size="sm" variant="outline" onClick={() => setTab(tab === 'stock' ? 'movements' : 'stock')} data-testid="btn-toggle-tab">
                   {tab === 'stock' ? <><History size={14} className="mr-1.5" />Movimientos</> : <><Box size={14} className="mr-1.5" />Stock</>}
                 </Button>
@@ -626,7 +628,8 @@ export default function Inventory() {
                                 if (v !== (item.min_stock || 0)) saveMinStock(item.item_id, v);
                               }}
                               onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
-                              className={`w-16 h-7 text-center text-xs border rounded ${item.below_min ? 'border-red-300 bg-red-50 text-red-700 font-bold' : 'border-slate-200'}`}
+                              disabled={!canEdit}
+                              className={`w-16 h-7 text-center text-xs border rounded ${item.below_min ? 'border-red-300 bg-red-50 text-red-700 font-bold' : 'border-slate-200'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                               data-testid={`min-stock-${item.item_id}`}
                             />
                           </td>
@@ -650,7 +653,7 @@ export default function Inventory() {
                                   ))}
                                 </div>
                               )}
-                              {item.quantity > 0 && (
+                              {canEdit && item.quantity > 0 && (
                                 <div className="flex justify-end gap-1">
                                   <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-800"
                                     onClick={() => openExitForItem(item)} data-testid={`btn-exit-${item.item_id}`}>

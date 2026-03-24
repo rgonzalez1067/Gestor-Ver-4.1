@@ -13,6 +13,7 @@ import { ImportResultPanel } from '../components/ImportResultPanel';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const INTEGRATOR_TYPES = ['Integrador', 'Comercio'];
 const INTEGRATION_TYPE_OPTIONS = [
@@ -38,6 +39,7 @@ const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 borde
 const CERT_CYCLE = ['P', 'C', 'N/A'];
 
 export const Integrators = () => {
+  const { canEdit } = usePermission('integradores');
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
   const [implementadores, setImplementadores] = useState([]);
@@ -516,10 +518,10 @@ export const Integrators = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
-              <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>
+              {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>}
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
-              <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
+              {canEdit && <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="create-integrator-btn"><Plus size={16} className="mr-1" />Nuevo Proyecto de Integración</Button>
                 </DialogTrigger>
@@ -625,7 +627,7 @@ export const Integrators = () => {
                     </div>
                   </form>
                 </DialogContent>
-              </Dialog>
+              </Dialog>}
             </div>
           </div>
 
@@ -819,8 +821,8 @@ export const Integrators = () => {
                               data-testid={`bitacora-${intg.integrator_id}`} title="Bitácora de gestión">
                               <BookOpen size={13} />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>
+                            {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
+                            {canEdit && <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>}
                           </div>
                         </td>
                       </tr>
