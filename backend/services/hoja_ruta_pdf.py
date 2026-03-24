@@ -154,6 +154,7 @@ def generate_nota_entrega_pdf(
     receiver_phone: str = "",
     courier_name: str = "",
     courier_office: str = "",
+    is_final_delivery: bool = True,
 ):
     buffer = io.BytesIO()
 
@@ -210,7 +211,10 @@ def generate_nota_entrega_pdf(
         except Exception:
             logo_cell = ""
 
-    header_data = [[logo_cell, Paragraph("NOTA DE ENTREGA", s_title)]]
+    # Título dinámico: PARCIAL o FINAL según saldo de equipos
+    titulo_nota = "NOTA DE ENTREGA FINAL" if is_final_delivery else "NOTA DE ENTREGA PARCIAL"
+
+    header_data = [[logo_cell, Paragraph(titulo_nota, s_title)]]
     header_table = Table(header_data, colWidths=[4.5 * cm, CONTENT_W - 4.5 * cm])
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),

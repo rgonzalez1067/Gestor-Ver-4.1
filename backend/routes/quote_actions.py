@@ -1200,12 +1200,17 @@ async def repair_delivery_prep(quote_id: str, authorization: Optional[str] = Hea
 
     client_id = quote.get("client_id", "")
 
-    # Obtener equipos en reparación del cliente
+    # Obtener equipos en reparación de ESTA cotización
     equipos_cursor = db.taller_equipos.find(
-        {"client_id": client_id, "estatus": "En reparación"},
+        {"quote_id": quote_id, "estatus": "En reparación"},
         {"_id": 0}
     )
     equipos = await equipos_cursor.to_list(5000)
+
+    # Contar ya entregados de esta cotización (para info de saldo)
+    total_entregados = await db.taller_equipos.count_documents(
+        {"quote_id": quote_id, "estatus": "Entregado"}
+    )
 
     # Agrupar por modelo
     modelos_map = {}
@@ -1237,6 +1242,8 @@ async def repair_delivery_prep(quote_id: str, authorization: Optional[str] = Hea
         "client_address": (client.get("address", "") if client else ""),
         "modelos": list(modelos_map.values()),
         "total_equipos": len(equipos),
+        "total_entregados": total_entregados,
+        "entrega_completa": quote.get("entrega_completa", False),
     }
 
 
@@ -1251,6 +1258,10 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
     if quote.get("quote_category") != "repair":
         raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones de reparación")
+
+    # Bloquear si ya fue entregada totalmente
+    if quote.get("entrega_completa"):
+        raise HTTPException(status_code=400, detail="Esta cotización ya fue entregada totalmente. No se pueden despachar más equipos.")
 
     current_status = quote.get("quote_status", "Borrador")
     is_irregular = current_status != "Pagada"
@@ -1290,6 +1301,13 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
     if not equipos_to_deliver:
         raise HTTPException(status_code=400, detail="No se encontraron equipos válidos para entregar")
+
+    # Calcular saldo: total en taller "En reparación" para esta cotización vs los que se entregan ahora
+    total_pendientes = await db.taller_equipos.count_documents(
+        {"quote_id": quote_id, "estatus": "En reparación"}
+    )
+    cantidad_entregando = len(equipos_to_deliver)
+    is_final_delivery = (cantidad_entregando >= total_pendientes)
 
     # Agrupar por modelo para el PDF
     modelos_pdf = {}
@@ -1355,6 +1373,7 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
             receiver_phone=receiver_phone,
             courier_name=courier_name,
             courier_office=courier_office,
+            is_final_delivery=is_final_delivery,
         )
         pdf_filename = f"NotaEntrega_Reparacion_{correlativo}.pdf"
         pdf_path = UPLOADS_DIR / pdf_filename
@@ -1397,16 +1416,26 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         {"$set": {"estatus": "Entregado", "fecha_entrega": now_iso}}
     )
 
-    # Actualizar estado de la cotización a "Entregada"
-    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
-        "quote_status": "Entregada",
-        "delivered_at": now_iso,
-    }})
+    # Solo marcar la cotización como "Entregada" si es entrega final (saldo = 0)
+    if is_final_delivery:
+        await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
+            "quote_status": "Entregada",
+            "delivered_at": now_iso,
+            "entrega_completa": True,
+        }})
+    else:
+        # Entrega parcial: mantener estado actual, registrar entrega parcial
+        await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
+            "last_partial_delivery_at": now_iso,
+        }})
 
+    tipo_entrega = "FINAL" if is_final_delivery else "PARCIAL"
     return {
-        "message": f"Entrega registrada: {len(equipos_to_deliver)} equipo(s) entregados",
+        "message": f"Entrega {tipo_entrega} registrada: {len(equipos_to_deliver)} equipo(s) entregados",
         "equipos_entregados": len(equipos_to_deliver),
         "hoja_ruta_url": hoja_ruta_url,
+        "is_final_delivery": is_final_delivery,
+        "tipo_entrega": tipo_entrega,
     }
 
 
