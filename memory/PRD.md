@@ -300,6 +300,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Escenario C: Monotienda → avanza directo
   - VALIDADO: 10/10 backend + 3/3 escenarios frontend (iteration_132)
 
+### Ajustes Estructurales (2026-03-25)
+- **Clientes - Impresora Fiscal**: Selector dinámico (Bematech, Bixolon, HKA, Otra) con registro en tabla maestra
+- **Contactos - Nuevos Roles**: Propietario y Director agregados al catálogo
+- **Proyectos - Fecha Asignación**: Removida "Fecha de entrega" del asignar, agregada "Fecha de Asignación" automática
+- **Usuarios - Supervisor**: Campo typeahead para asignar supervisor (ancla para jerarquía de cotizaciones)
+- VALIDADO: 92% backend (12/13) + 100% frontend (iteration_133)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
