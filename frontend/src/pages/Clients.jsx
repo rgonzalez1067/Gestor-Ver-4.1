@@ -20,7 +20,7 @@ const REFERIDOR_OPTIONS = [
   'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
   'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
 ];
-const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo'];
+const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo', 'Propietario', 'Director'];
 const CATEGORIAS_COMERCIALES = [
   'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
   'Bar / Discoteca', 'Comida Rápida', 'Cafetería', 'Tienda de Ropa', 'Boutique',
@@ -89,6 +89,7 @@ export const Clients = () => {
     cantidad_tiendas: '', cantidad_cajas: '',
     fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
     integrador_id: '', integrador_name: '', aplicativo: '',
+    modelo_impresora_fiscal: '',
     contacts: [emptyContact()]
   });
 
@@ -96,11 +97,14 @@ export const Clients = () => {
   const [ejecutivos, setEjecutivos] = useState([]);
   const [bitacoraInicioOpen, setBitacoraInicioOpen] = useState(false);
   const [bitacoraInicioText, setBitacoraInicioText] = useState('');
+  const [fiscalPrinters, setFiscalPrinters] = useState([]);
+  const [customPrinterName, setCustomPrinterName] = useState('');
+  const [showCustomPrinterInput, setShowCustomPrinterInput] = useState(false);
 
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); }, []);
+  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchFiscalPrinters(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -128,6 +132,41 @@ export const Clients = () => {
     } catch { /* silently ignore */ }
   };
 
+  const fetchFiscalPrinters = async () => {
+    try {
+      const resp = await api.get('/fiscal-printers');
+      setFiscalPrinters(resp.data);
+    } catch { /* silently ignore */ }
+  };
+
+  const handlePrinterSelect = (value) => {
+    if (value === '__otra__') {
+      setShowCustomPrinterInput(true);
+      setCustomPrinterName('');
+    } else {
+      setFormData({ ...formData, modelo_impresora_fiscal: value === '_none_' ? '' : value });
+      setShowCustomPrinterInput(false);
+    }
+  };
+
+  const handleAddCustomPrinter = async () => {
+    const name = customPrinterName.trim();
+    if (!name) return;
+    // Usar inmediatamente como valor del campo
+    setFormData(prev => ({ ...prev, modelo_impresora_fiscal: name }));
+    setShowCustomPrinterInput(false);
+    // Preguntar si desea registrar en la tabla maestra
+    if (window.confirm(`¿Desea registrar "${name}" como opción precargada para futuros clientes?`)) {
+      try {
+        await api.post('/fiscal-printers', { name });
+        await fetchFiscalPrinters();
+        toast.success(`Modelo "${name}" registrado en la tabla maestra`);
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Error al registrar modelo');
+      }
+    }
+  };
+
   const fetchClients = async () => {
     try {
       const response = await api.get('/clients');
@@ -149,7 +188,7 @@ export const Clients = () => {
     if (payload.cantidad_cajas === '' || payload.cantidad_cajas === null) payload.cantidad_cajas = null;
     else payload.cantidad_cajas = parseInt(payload.cantidad_cajas, 10) || null;
     // Convertir strings vacíos a null para campos opcionales
-    for (const key of ['referidor', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo']) {
+    for (const key of ['referidor', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal']) {
       if (payload[key] === '') payload[key] = null;
     }
     // Ensure legacy fields for backwards compat
@@ -262,6 +301,7 @@ export const Clients = () => {
       integrador_id: client.integrador_id || '',
       integrador_name: client.integrador_name || '',
       aplicativo: client.aplicativo || '',
+      modelo_impresora_fiscal: client.modelo_impresora_fiscal || '',
       contacts
     });
     setDialogOpen(true);
@@ -275,6 +315,7 @@ export const Clients = () => {
       cantidad_tiendas: '', cantidad_cajas: '',
       fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
       integrador_id: '', integrador_name: '', aplicativo: '',
+      modelo_impresora_fiscal: '',
       contacts: [emptyContact()]
     });
     setEditingClient(null);
@@ -928,6 +969,38 @@ export const Clients = () => {
                               </button>
                             ))}
                           </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Modelo de Impresora Fiscal</Label>
+                          {!showCustomPrinterInput ? (
+                            <Select value={formData.modelo_impresora_fiscal || '_none_'} onValueChange={handlePrinterSelect}>
+                              <SelectTrigger data-testid="client-printer-select" className="h-9"><SelectValue placeholder="Seleccionar modelo..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">Sin especificar</SelectItem>
+                                {fiscalPrinters.map(p => <SelectItem key={p.model_id} value={p.name}>{p.name}</SelectItem>)}
+                                <SelectItem value="__otra__">Otra...</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex gap-2 mt-0.5">
+                              <Input
+                                data-testid="client-printer-custom-input"
+                                value={customPrinterName}
+                                onChange={e => setCustomPrinterName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCustomPrinter())}
+                                className="h-9 flex-1" placeholder="Nombre del modelo..."
+                                autoFocus
+                              />
+                              <Button type="button" size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-3"
+                                onClick={handleAddCustomPrinter} data-testid="client-printer-custom-confirm">
+                                <CheckCircle size={14} />
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" className="h-9 px-2"
+                                onClick={() => setShowCustomPrinterInput(false)} data-testid="client-printer-custom-cancel">
+                                <X size={14} />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

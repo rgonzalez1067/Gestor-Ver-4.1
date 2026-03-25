@@ -292,7 +292,14 @@ const Projects = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
-                          {project.assigned_to_name || <span className="text-slate-400 italic">Sin asignar</span>}
+                          {project.assigned_to_name ? (
+                            <div>
+                              <span>{project.assigned_to_name}</span>
+                              {project.assigned_at && (
+                                <p className="text-[10px] text-slate-400 mt-0.5">Asignado: {new Date(project.assigned_at).toLocaleDateString('es-VE')}</p>
+                              )}
+                            </div>
+                          ) : <span className="text-slate-400 italic">Sin asignar</span>}
                         </td>
                         <td className="px-4 py-3">
                           <Select value={project.priority || 'Normal'} onValueChange={v => handlePriorityChange(project.project_id, v)}>
@@ -472,12 +479,11 @@ const Projects = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label className="text-sm">Fecha Estimada de Entrega</Label>
-                  <Input type="date" value={assignForm.estimated_delivery_date}
-                    onChange={e => setAssignForm({ ...assignForm, estimated_delivery_date: e.target.value })}
-                    className="mt-1" data-testid="assign-delivery-date" />
+                  {assignForm.assigned_to_user_id && (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Fecha de asignación: <span className="font-medium text-slate-600">{new Date().toLocaleDateString('es-VE')}</span> (se registra automáticamente)
+                    </p>
+                  )}
                 </div>
 
                 {/* Reassignment fields */}

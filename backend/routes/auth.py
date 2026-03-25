@@ -250,6 +250,8 @@ async def login_user(credentials: UserLogin):
         "permissions": user.get("permissions", {}),
         "special_permissions": user.get("special_permissions", []),
         "almacen_asignado": user.get("almacen_asignado", None),
+        "supervisor_id": user.get("supervisor_id", None),
+        "supervisor_name": user.get("supervisor_name", None),
         "picture": user.get("picture")
     }
     
@@ -400,6 +402,39 @@ async def update_almacen_asignado(user_id: str, body: dict, authorization: Optio
     
     updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"message": "Almacén asignado actualizado", "user": updated_user}
+
+
+@router.put("/admin/users/{user_id}/supervisor")
+async def update_supervisor(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Asignar supervisor a un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden asignar supervisores")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    supervisor_id = body.get("supervisor_id")
+    supervisor_name = None
+    
+    if supervisor_id:
+        # No puede ser su propio supervisor
+        if supervisor_id == user_id:
+            raise HTTPException(status_code=400, detail="Un usuario no puede ser su propio supervisor")
+        supervisor = await db.users.find_one({"user_id": supervisor_id, "is_active": {"$ne": False}}, {"_id": 0})
+        if not supervisor:
+            raise HTTPException(status_code=404, detail="Supervisor no encontrado o inactivo")
+        supervisor_name = f"{supervisor.get('first_name', '')} {supervisor.get('last_name', '')}".strip() or supervisor.get("email", "")
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"supervisor_id": supervisor_id, "supervisor_name": supervisor_name}}
+    )
+    
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Supervisor actualizado", "user": updated_user}
+
 
 
 @router.put("/admin/users/{user_id}/role")

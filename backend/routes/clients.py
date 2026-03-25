@@ -569,3 +569,41 @@ async def toggle_log_complete(log_id: str, authorization: Optional[str] = Header
     await db.client_logs.update_one({"log_id": log_id}, {"$set": {"is_completed": new_status}})
     return {"log_id": log_id, "is_completed": new_status}
 
+
+# ==================== FISCAL PRINTER MODELS ====================
+
+@router.get("/fiscal-printers")
+async def get_fiscal_printers(authorization: Optional[str] = Header(None)):
+    """Obtener modelos de impresora fiscal registrados"""
+    await get_current_user(authorization)
+    models = await db.fiscal_printer_models.find({}, {"_id": 0}).sort("name", 1).to_list(100)
+    if not models:
+        # Seed inicial
+        seed = [
+            {"model_id": f"fpm_{uuid.uuid4().hex[:8]}", "name": "Bematech", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"model_id": f"fpm_{uuid.uuid4().hex[:8]}", "name": "Bixolon", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"model_id": f"fpm_{uuid.uuid4().hex[:8]}", "name": "HKA", "created_at": datetime.now(timezone.utc).isoformat()},
+        ]
+        await db.fiscal_printer_models.insert_many(seed)
+        models = seed
+    return models
+
+
+@router.post("/fiscal-printers")
+async def create_fiscal_printer(data: dict, authorization: Optional[str] = Header(None)):
+    """Registrar nuevo modelo de impresora fiscal en la tabla maestra"""
+    await get_current_user(authorization)
+    name = data.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="El nombre del modelo es obligatorio")
+    existing = await db.fiscal_printer_models.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"El modelo '{name}' ya existe")
+    model = {
+        "model_id": f"fpm_{uuid.uuid4().hex[:8]}",
+        "name": name,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.fiscal_printer_models.insert_one(model)
+    return {"model_id": model["model_id"], "name": model["name"], "created_at": model["created_at"]}
+

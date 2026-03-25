@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';
-import { Users, Shield, ShieldCheck, ShieldX, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Zap } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Zap, Link2 } from 'lucide-react';
+import { Input } from '../components/ui/input';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -33,6 +34,81 @@ const PERMISSION_OPTIONS = [
 const SPECIAL_PERMISSIONS = [
   { id: 'integradores:create', module: 'integradores', label: 'Crear Proyecto Integración', description: 'Permite crear nuevos proyectos aunque tenga permiso Leer' }
 ];
+
+// Componente Supervisor con búsqueda tipo Typeahead
+const SupervisorSelect = ({ userId, currentSupervisorId, currentSupervisorName, allUsers, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const candidates = allUsers.filter(u => {
+    if (u.user_id === userId) return false;
+    if (u.is_active === false) return false;
+    if (!search) return true;
+    const name = `${u.first_name || ''} ${u.last_name || ''} ${u.email || ''}`.toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-40 h-8 text-xs border rounded-md px-2 text-left truncate bg-white hover:bg-slate-50 transition-colors"
+        data-testid={`supervisor-btn-${userId}`}
+      >
+        {currentSupervisorName || <span className="text-slate-400">Sin supervisor</span>}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-56 bg-white border rounded-lg shadow-lg" data-testid={`supervisor-dropdown-${userId}`}>
+          <div className="p-1.5">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar usuario..."
+              className="w-full px-2 py-1.5 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+              data-testid={`supervisor-search-${userId}`}
+            />
+          </div>
+          <div className="max-h-40 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => { onChange(userId, null); setOpen(false); setSearch(''); }}
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50"
+            >
+              Sin supervisor
+            </button>
+            {candidates.slice(0, 10).map(u => {
+              const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email;
+              return (
+                <button
+                  key={u.user_id}
+                  type="button"
+                  onClick={() => { onChange(userId, u.user_id); setOpen(false); setSearch(''); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 ${u.user_id === currentSupervisorId ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-700'}`}
+                  data-testid={`supervisor-option-${u.user_id}`}
+                >
+                  {name}
+                  {u.cargo && <span className="text-slate-400 ml-1">({u.cargo})</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -171,6 +247,25 @@ export const AdminUsers = () => {
     }
   };
 
+  const handleSupervisorChange = async (userId, supervisorId) => {
+    try {
+      const value = supervisorId || null;
+      await api.put(`/admin/users/${userId}/supervisor`, { supervisor_id: value });
+      
+      const supervisor = value ? users.find(u => u.user_id === value) : null;
+      const supervisorName = supervisor 
+        ? `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email
+        : null;
+      
+      setUsers(prev => prev.map(u =>
+        u.user_id === userId ? { ...u, supervisor_id: value, supervisor_name: supervisorName } : u
+      ));
+      toast.success(value ? 'Supervisor asignado' : 'Supervisor removido');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al asignar supervisor');
+    }
+  };
+
   
   const filteredUsers = users.filter(user => {
     const searchLower = searchTerm.toLowerCase();
@@ -251,6 +346,9 @@ export const AdminUsers = () => {
                     <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-3 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[160px] whitespace-nowrap">
                       <span className="flex items-center justify-center gap-1"><Zap size={13} />Permisos Especiales</span>
                     </th>
+                    <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-3 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[180px] whitespace-nowrap">
+                      <span className="flex items-center justify-center gap-1"><Link2 size={13} />Supervisor</span>
+                    </th>
                     {MODULES.map(module => (
                       <th key={module.id} className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-2 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[110px] whitespace-nowrap">
                         {module.name}
@@ -261,14 +359,14 @@ export const AdminUsers = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5 + MODULES.length} className="py-12 text-center text-slate-500">
+                      <td colSpan={6 + MODULES.length} className="py-12 text-center text-slate-500">
                         <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                         Cargando usuarios...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={5 + MODULES.length} className="py-12 text-center text-slate-500">
+                      <td colSpan={6 + MODULES.length} className="py-12 text-center text-slate-500">
                         No se encontraron usuarios
                       </td>
                     </tr>
@@ -397,6 +495,17 @@ export const AdminUsers = () => {
                                 );
                               })}
                             </div>
+                          </td>
+                          
+                          {/* Supervisor */}
+                          <td className="py-4 px-3 text-center">
+                            <SupervisorSelect
+                              userId={user.user_id}
+                              currentSupervisorId={user.supervisor_id}
+                              currentSupervisorName={user.supervisor_name}
+                              allUsers={users}
+                              onChange={handleSupervisorChange}
+                            />
                           </td>
                           
                           {/* Permisos por módulo */}

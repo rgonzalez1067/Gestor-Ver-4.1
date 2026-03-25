@@ -55,6 +55,7 @@ class ClientCreate(BaseModel):
     integrador_id: Optional[str] = None
     integrador_name: Optional[str] = None
     aplicativo: Optional[str] = None
+    modelo_impresora_fiscal: Optional[str] = None
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None
@@ -82,6 +83,7 @@ class Client(BaseModel):
     integrador_id: Optional[str] = None
     integrador_name: Optional[str] = None
     aplicativo: Optional[str] = None
+    modelo_impresora_fiscal: Optional[str] = None
     contacts: List[ContactCRM] = []
     contact1: Optional[Contact] = None
     contact2: Optional[Contact] = None
