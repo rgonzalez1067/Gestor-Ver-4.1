@@ -22,7 +22,7 @@ try:
 except ImportError:
     PYPDF2_AVAILABLE = False
 
-# Resend para envío de emails
+# Resend para envío de emails (legacy/fallback)
 try:
     import resend
     RESEND_AVAILABLE = True
@@ -36,9 +36,16 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Configuración de Resend
+# Configuración SMTP propio
+SMTP_HOST = os.environ.get('SMTP_HOST', '')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SMTP_AVAILABLE = bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
+
+# Configuración de Resend (fallback)
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'gestor@megasoft.com.ve')
 if RESEND_AVAILABLE and RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 

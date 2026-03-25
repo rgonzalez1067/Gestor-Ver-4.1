@@ -314,6 +314,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - IVA y totales calculados con misma precisión que flujo original
 - VALIDADO: HTTP 200 para ambos templates (Corp y Pyme)
 
+### Motor SMTP Propio (2026-03-25)
+- Reemplazado Resend por SMTP propio (smtp.gmail.com:587) como motor primario de correos
+- Cadena de prioridad: SMTP propio → Resend (fallback) → Simulado
+- Soporte para adjuntos, HTML, y múltiples destinatarios
+- Logs de envío registrados en colección email_logs de MongoDB
+- VALIDADO: Email de prueba enviado exitosamente via SMTP a gestor@megasoft.com.ve
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
