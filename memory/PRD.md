@@ -307,6 +307,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Usuarios - Supervisor**: Campo typeahead para asignar supervisor (ancla para jerarquía de cotizaciones)
 - VALIDADO: 92% backend (12/13) + 100% frontend (iteration_133)
 
+### PDF Corp - Detalle Técnico (2026-03-25)
+- Insertada nueva Página 4 en PDF Corporativo: desglose ítem por ítem (Setup + Recurrentes)
+- Usa misma función _create_items_table que Página 3 del PDF Pyme
+- Solo afecta PDFs Corporativos, Pyme no se modifica
+- IVA y totales calculados con misma precisión que flujo original
+- VALIDADO: HTTP 200 para ambos templates (Corp y Pyme)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 

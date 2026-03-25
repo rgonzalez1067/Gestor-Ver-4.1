@@ -1140,7 +1140,28 @@ class DynamicQuotePDFGenerator:
         corp_elements, total_setup, total_recurring = self._create_corp_financial_summary()
         elements.extend(corp_elements)
         
-        # ==================== PÁGINA 4 (condicional): EQUIPOS FAST TRACK ====================
+        # ==================== PÁGINA 4: DETALLE TÉCNICO ÍTEM POR ÍTEM ====================
+        # Misma estructura que Página 3 de PDF Pyme: desglose individual de cada componente
+        elements.append(PageBreak())
+        
+        setup_elements, subtotal_setup_detail = self._create_items_table(
+            self.data.setup_items,
+            "COSTOS DE IMPLEMENTACIÓN (SETUP)",
+            self.COLOR_AZUL,
+            show_tax=True
+        )
+        elements.extend(setup_elements)
+        
+        all_recurring = list(self.data.recurring_basic_items) + list(self.data.recurring_other_items) + list(self.data.production_items)
+        recurring_elements, subtotal_recurring_detail = self._create_items_table(
+            all_recurring,
+            "COSTOS RECURRENTES MENSUALES",
+            self.COLOR_VERDE,
+            show_tax=True
+        )
+        elements.extend(recurring_elements)
+        
+        # ==================== PÁGINA (condicional): EQUIPOS FAST TRACK ====================
         if self.data.quote_type == 'FAST_TRACK' and self.data.ft_equipment_items:
             elements.append(PageBreak())
             
