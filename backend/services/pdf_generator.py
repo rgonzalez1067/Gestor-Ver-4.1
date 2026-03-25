@@ -837,9 +837,9 @@ class DynamicQuotePDFGenerator:
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
                 ('TOPPADDING', (0, 0), (-1, 0), 8),
                 ('BACKGROUND', (0, 1), (-1, -2), colors.white),
-                ('BACKGROUND', (0, -1), (-1, -1), HexColor('#F1F5F9')),
-                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, HexColor('#F8FAFC')]),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F1F5F9')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F8FAFC')]),
                 ('TOPPADDING', (0, 1), (-1, -1), 6),
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
             ]))
@@ -1259,9 +1259,9 @@ class DynamicQuotePDFGenerator:
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (0, -1), 'CENTER'), ('ALIGN', (2, 0), (2, -1), 'CENTER'),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 8), ('TOPPADDING', (0, 0), (-1, 0), 8),
-                ('BACKGROUND', (0, -1), (-1, -1), HexColor('#F1F5F9')),
-                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, HexColor('#F8FAFC')]),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F1F5F9')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F8FAFC')]),
                 ('TOPPADDING', (0, 1), (-1, -1), 6), ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
             ]))
             elements.append(branch_table)

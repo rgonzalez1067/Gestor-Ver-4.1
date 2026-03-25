@@ -289,7 +289,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **PDF**: Nueva pagina "Relacion de Tiendas" generada automaticamente cuando existen branch_details
 - **Data Bridge**: branch_details de cotizacion se heredan como stores de proyecto multitienda al enviar a implementacion
 - **Bug fix critico**: Campo branch_details faltaba en modelo QuoteCreateWithPDF (corregido)
-- VALIDADO: 10/10 backend tests (iteration_131)
+- **Bug fix PDF (2026-03-25)**: Corregidos 3 errores que causaban caida total de generacion PDF:
+  1. Imports faltantes de reportlab en quotes.py (SimpleDocTemplate, Table, etc.)
+  2. HexColor sin prefijo colors. en tabla de sucursales de pdf_generator.py
+  3. branch_details no incluido en exportCurrentQuoteToPDF del frontend
+- **Fix Data Source (2026-03-25)**: Cambiada fuente de verdad de totalEquipment en BranchDetailPanel de Resumen Ejecutivo a Parametros de Cotizacion (cantidad_cajas)
+- VALIDADO: 10/10 backend tests (iteration_131) + 3/3 escenarios PDF manuales
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos

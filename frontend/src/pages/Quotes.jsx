@@ -1797,7 +1797,8 @@ export const Quotes = () => {
           costo_base_total: r.base,
           precio_tope: r.tope
         }))
-      } : null
+      } : null,
+      branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
     };
 
     try {
