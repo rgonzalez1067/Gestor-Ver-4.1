@@ -429,14 +429,14 @@ export const Quotes = () => {
     try {
       const [quotesRes, clientsRes, banksRes, servicesRes, integratorsRes, hardwareRes, templatesRes, pgCostsRes, pgDefaultsRes] = await Promise.all([
         api.get('/quotes'),
-        api.get('/clients'),
-        api.get('/banks'),
-        api.get('/services'), // Cargar catálogo de precios
-        api.get('/integrators'), // Cargar integradores
-        api.get('/hardware'), // Cargar dispositivos
-        api.get('/config/templates').catch(() => ({ data: {} })), // Cargar estado de plantillas
-        api.get('/pg-recurring-costs').catch(() => ({ data: null })), // Tabla costos recurrentes PG
-        api.get('/pg-defaults').catch(() => ({ data: null })) // Defaults PG (Persona Jurídica)
+        api.get('/clients').catch(() => ({ data: [] })),
+        api.get('/banks').catch(() => ({ data: [] })),
+        api.get('/services').catch(() => ({ data: [] })),
+        api.get('/integrators').catch(() => ({ data: [] })),
+        api.get('/hardware').catch(() => ({ data: [] })),
+        api.get('/config/templates').catch(() => ({ data: {} })),
+        api.get('/pg-recurring-costs').catch(() => ({ data: null })),
+        api.get('/pg-defaults').catch(() => ({ data: null }))
       ]);
       setQuotes(quotesRes.data);
       setClients(clientsRes.data);
