@@ -373,6 +373,8 @@ export const Integrators = () => {
       await api.post(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora`, bitacoraForm);
       toast.success('Gestión registrada');
       setBitacoraForm({ description: '', contact_id: '', contact_name: '', date: new Date().toISOString().slice(0, 10), commitment: '', commitment_deadline: '' });
+      // Clear uncontrolled inputs
+      document.querySelectorAll('[data-testid="bitacora-description"], [data-testid="bitacora-contact-input"], [data-testid="bitacora-commitment"]').forEach(el => { el.value = ''; el._init = false; });
       const res = await api.get(`/integrators/${bitacoraIntegrator.integrator_id}/bitacora`);
       setBitacoraEntries(res.data);
       fetchData();
@@ -1095,21 +1097,34 @@ export const Integrators = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {/* New Entry Form */}
-          <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+          {/* New Entry Form — solo si canCreate (edit o override integradores:create) */}
+          {canCreate && <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
             <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Nueva Gestión</p>
-            <Textarea value={bitacoraForm.description} onChange={(e) => setBitacoraForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="Describa la gestión realizada (llamada, reunión, correo de seguimiento...)" className="text-sm min-h-[60px]" data-testid="bitacora-description" />
+            <textarea
+              ref={el => { if (el && !el._init) { el._init = true; el.value = bitacoraForm.description; } }}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (window._bitDescTimer) clearTimeout(window._bitDescTimer);
+                window._bitDescTimer = setTimeout(() => setBitacoraForm(p => ({ ...p, description: val })), 300);
+              }}
+              placeholder="Describa la gestión realizada (llamada, reunión, correo de seguimiento...)"
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[60px]"
+              data-testid="bitacora-description"
+            />
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label className="text-[10px] text-slate-500">Persona contactada</Label>
                 <div className="relative">
-                  <Input
-                    value={bitacoraForm.contact_name}
-                    onChange={(e) => setBitacoraForm(p => ({ ...p, contact_name: e.target.value, contact_id: '' }))}
+                  <input
+                    ref={el => { if (el && !el._init) { el._init = true; el.value = bitacoraForm.contact_name; } }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (window._bitContactTimer) clearTimeout(window._bitContactTimer);
+                      window._bitContactTimer = setTimeout(() => setBitacoraForm(p => ({ ...p, contact_name: val, contact_id: '' })), 300);
+                    }}
                     list={`bitacora-contacts-${bitacoraIntegrator?.integrator_id}`}
                     placeholder="Escriba o seleccione..."
-                    className="h-8 text-xs"
+                    className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     data-testid="bitacora-contact-input"
                   />
                   <datalist id={`bitacora-contacts-${bitacoraIntegrator?.integrator_id}`}>
@@ -1130,15 +1145,24 @@ export const Integrators = () => {
             </div>
             <div>
               <Label className="text-[10px] text-slate-500">Compromiso establecido</Label>
-              <Input value={bitacoraForm.commitment} onChange={(e) => setBitacoraForm(p => ({ ...p, commitment: e.target.value }))}
-                placeholder="Ej: Enviar credenciales de prueba" className="h-8 text-xs" data-testid="bitacora-commitment" />
+              <input
+                ref={el => { if (el && !el._init) { el._init = true; el.value = bitacoraForm.commitment; } }}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (window._bitCommitTimer) clearTimeout(window._bitCommitTimer);
+                  window._bitCommitTimer = setTimeout(() => setBitacoraForm(p => ({ ...p, commitment: val })), 300);
+                }}
+                placeholder="Ej: Enviar credenciales de prueba"
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                data-testid="bitacora-commitment"
+              />
             </div>
             <div className="flex justify-end">
               <Button size="sm" className="h-8 text-xs bg-brand-green-600 hover:bg-brand-green-700" onClick={saveBitacoraEntry} data-testid="bitacora-save-btn">
                 <Plus size={13} className="mr-1" /> Registrar Gestión
               </Button>
             </div>
-          </div>
+          </div>}
 
           {/* Entries Timeline */}
           <div className="mt-2">
@@ -1162,7 +1186,7 @@ export const Integrators = () => {
                           </div>
                           {entry.commitment && (
                             <div className={`mt-2 flex items-start gap-2 p-2 rounded text-xs ${isOverdue ? 'bg-amber-100/70' : entry.commitment_completed ? 'bg-green-100/70' : 'bg-slate-50'}`}>
-                              <button onClick={() => toggleCommitmentComplete(entry)} className="mt-0.5 flex-shrink-0" data-testid={`toggle-commitment-${entry.entry_id}`}>
+                              <button onClick={() => toggleCommitmentComplete(entry)} className="mt-0.5 flex-shrink-0" disabled={!canEdit} data-testid={`toggle-commitment-${entry.entry_id}`}>
                                 {entry.commitment_completed
                                   ? <CheckCircle size={14} className="text-green-600" />
                                   : <Clock size={14} className={isOverdue ? 'text-amber-600' : 'text-slate-400'} />}
@@ -1178,9 +1202,9 @@ export const Integrators = () => {
                             </div>
                           )}
                         </div>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteBitacoraEntry(entry.entry_id)}>
+                        {canEdit && <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteBitacoraEntry(entry.entry_id)}>
                           <Trash2 size={12} />
-                        </Button>
+                        </Button>}
                       </div>
                     </div>
                   );
