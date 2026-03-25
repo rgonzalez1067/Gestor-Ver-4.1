@@ -4625,12 +4625,7 @@ export const Quotes = () => {
                       <BranchDetailPanel
                         branches={branchDetails}
                         onChange={setBranchDetails}
-                        totalEquipment={(() => {
-                          const total = quoteData.additional_items
-                            ?.filter(item => item.bank_name)
-                            .reduce((sum, item) => sum + (item.cantidad_cajas || 1), 0);
-                          return total || quoteData.cantidad_cajas || 1;
-                        })()}
+                        totalEquipment={parseInt(quoteData.cantidad_cajas) || 1}
                       />
                     )}
 
