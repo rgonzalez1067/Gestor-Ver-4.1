@@ -48,6 +48,8 @@ class TemplateQuotePDFRequest(BaseModel):
     is_production_client: bool = False
     # Fast Track: items de equipos para el PDF híbrido
     ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
+    # Detalle de sucursales
+    branch_details: List[dict] = []  # [{store_name, quantity}]
     # Segmento del cliente para determinar el tipo de PDF
     client_segment: str = "PYME"  # "PYME" o "CORP"
 
@@ -786,6 +788,63 @@ class DynamicQuotePDFGenerator:
                 ParagraphStyle('EqNota', parent=self.styles['TextoNormal'], fontSize=9, textColor=colors.HexColor("#64748B"), spaceAfter=8)
             ))
         
+        # ==================== PÁGINA CONDICIONAL: RELACIÓN DE TIENDAS ====================
+        branch_details = getattr(self.data, 'branch_details', []) or []
+        if branch_details:
+            elements.append(PageBreak())
+            elements.append(Paragraph("RELACIÓN DE TIENDAS", ParagraphStyle(
+                'TiendasTitulo',
+                parent=self.styles['TituloPortada'],
+                fontSize=18,
+                alignment=1,
+                spaceAfter=10
+            )))
+            elements.append(Spacer(1, 15))
+            
+            # Tabla de sucursales
+            branch_table_data = [
+                [
+                    Paragraph("<b>N°</b>", ParagraphStyle('BH', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)),
+                    Paragraph("<b>Nombre de Tienda / Sucursal</b>", ParagraphStyle('BH', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white)),
+                    Paragraph("<b>Cantidad de Cajas</b>", ParagraphStyle('BH', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)),
+                ]
+            ]
+            total_cajas = 0
+            for i, branch in enumerate(branch_details, 1):
+                qty = int(branch.get('quantity', 0))
+                total_cajas += qty
+                branch_table_data.append([
+                    Paragraph(str(i), ParagraphStyle('BC', fontName='Helvetica', fontSize=9, alignment=1)),
+                    Paragraph(str(branch.get('store_name', '')), ParagraphStyle('BN', fontName='Helvetica', fontSize=9)),
+                    Paragraph(str(qty), ParagraphStyle('BQ', fontName='Helvetica', fontSize=9, alignment=1)),
+                ])
+            # Fila de totales
+            branch_table_data.append([
+                Paragraph("", ParagraphStyle('BE', fontName='Helvetica', fontSize=9)),
+                Paragraph("<b>TOTAL</b>", ParagraphStyle('BT', fontName='Helvetica-Bold', fontSize=10, alignment=2)),
+                Paragraph(f"<b>{total_cajas}</b>", ParagraphStyle('BTQ', fontName='Helvetica-Bold', fontSize=10, alignment=1)),
+            ])
+            
+            col_widths_branch = [40, 340, 100]
+            branch_table = Table(branch_table_data, colWidths=col_widths_branch, repeatRows=1)
+            branch_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+                ('BACKGROUND', (0, -1), (-1, -1), HexColor('#F1F5F9')),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, HexColor('#F8FAFC')]),
+                ('TOPPADDING', (0, 1), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ]))
+            elements.append(branch_table)
+        
         # Salto de página para Términos
         elements.append(PageBreak())
         
@@ -1166,6 +1225,46 @@ class DynamicQuotePDFGenerator:
                 "La garantía cubre defectos de fábrica por 12 meses. No incluye daños por mal uso.",
                 ParagraphStyle('CorpEqNota', parent=self.styles['TextoNormal'], fontSize=9, textColor=colors.HexColor("#64748B"), spaceAfter=8)
             ))
+        
+        # ==================== PÁGINA CONDICIONAL: RELACIÓN DE TIENDAS (CORP) ====================
+        branch_details = getattr(self.data, 'branch_details', []) or []
+        if branch_details:
+            elements.append(PageBreak())
+            elements.append(Paragraph("RELACIÓN DE TIENDAS", ParagraphStyle(
+                'TiendasTituloCorp', parent=self.styles['TituloPortada'], fontSize=18, alignment=1, spaceAfter=10
+            )))
+            elements.append(Spacer(1, 15))
+            branch_table_data = [
+                [Paragraph("<b>N°</b>", ParagraphStyle('CBH', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1)),
+                 Paragraph("<b>Nombre de Tienda / Sucursal</b>", ParagraphStyle('CBH2', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white)),
+                 Paragraph("<b>Cantidad de Cajas</b>", ParagraphStyle('CBH3', fontName='Helvetica-Bold', fontSize=9, textColor=colors.white, alignment=1))]
+            ]
+            total_cajas = 0
+            for i, branch in enumerate(branch_details, 1):
+                qty = int(branch.get('quantity', 0))
+                total_cajas += qty
+                branch_table_data.append([
+                    Paragraph(str(i), ParagraphStyle('CBC', fontName='Helvetica', fontSize=9, alignment=1)),
+                    Paragraph(str(branch.get('store_name', '')), ParagraphStyle('CBN', fontName='Helvetica', fontSize=9)),
+                    Paragraph(str(qty), ParagraphStyle('CBQ', fontName='Helvetica', fontSize=9, alignment=1)),
+                ])
+            branch_table_data.append([
+                Paragraph("", ParagraphStyle('CBE', fontName='Helvetica', fontSize=9)),
+                Paragraph("<b>TOTAL</b>", ParagraphStyle('CBT', fontName='Helvetica-Bold', fontSize=10, alignment=2)),
+                Paragraph(f"<b>{total_cajas}</b>", ParagraphStyle('CBTQ', fontName='Helvetica-Bold', fontSize=10, alignment=1)),
+            ])
+            branch_table = Table(branch_table_data, colWidths=[40, 340, 100], repeatRows=1)
+            branch_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), self.COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'), ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8), ('TOPPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, -1), (-1, -1), HexColor('#F1F5F9')),
+                ('GRID', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, HexColor('#F8FAFC')]),
+                ('TOPPADDING', (0, 1), (-1, -1), 6), ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ]))
+            elements.append(branch_table)
         
         # NO añadir términos - el Anexo Corporativa los reemplaza
         # El anexo se fusiona externamente en config.py

@@ -12,6 +12,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown, Store } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
+import { BranchDetailPanel } from '../components/BranchDetailPanel';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
 import { MultiProductSelector } from '../components/MultiProductSelector';
@@ -191,6 +192,8 @@ export const Quotes = () => {
   const [ftEquipmentItems, setFtEquipmentItems] = useState([]);
   const [pgShowRecurringTable, setPgShowRecurringTable] = useState(false);
   const [pgFilteredProducts, setPgFilteredProducts] = useState([]);
+  // Detalle de sucursales (opcional para VPOS/MPOS/Fast Track)
+  const [branchDetails, setBranchDetails] = useState([]);
   
   // Estados para modales de confirmación
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1494,7 +1497,8 @@ export const Quotes = () => {
           hardware_type: item.hardware_type,
           quantity: item.quantity,
           unit_price_usd: item.unit_price_usd
-        })) : []
+        })) : [],
+        branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
       };
 
       const payload = {
@@ -1526,6 +1530,8 @@ export const Quotes = () => {
           tarifa: item.tarifa || 0,
           total: (item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)
         })),
+        // Detalle de sucursales (opcional)
+        branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
         // Incluir datos del PDF
         pdf_data: pdfData
       };
@@ -2737,6 +2743,8 @@ export const Quotes = () => {
     setProductionSelectedServiceId('');
     // Reset Fast Track equipment
     setFtEquipmentItems([]);
+    // Reset branch details
+    setBranchDetails([]);
   };
 
   // Marcar reparación como completada
@@ -4611,6 +4619,20 @@ export const Quotes = () => {
                       rows={2}
                       className="mt-2"
                     />
+
+                    {/* Detalle de Sucursales (opcional para VPOS/MPOS/Fast Track) */}
+                    {(quoteData.quote_type === 'VPOS' || isMPOS || isFastTrackType) && (
+                      <BranchDetailPanel
+                        branches={branchDetails}
+                        onChange={setBranchDetails}
+                        totalEquipment={(() => {
+                          const total = quoteData.additional_items
+                            ?.filter(item => item.bank_name)
+                            .reduce((sum, item) => sum + (item.cantidad_cajas || 1), 0);
+                          return total || quoteData.cantidad_cajas || 1;
+                        })()}
+                      />
+                    )}
 
                     <div className="mt-4 flex justify-end gap-3">
                       <Button

@@ -323,6 +323,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             descuento_recurrente=data.descuento_recurrente,
             is_production_client=data.is_production_client,
             production_items=data.production_items,
+            branch_details=data.branch_details,
             requires_pinpad_config=data.requires_pinpad_config,
             requires_vpn=data.requires_vpn,
             sede=user_sede,

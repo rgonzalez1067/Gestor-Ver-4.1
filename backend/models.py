@@ -485,6 +485,14 @@ class QuoteCreate(BaseModel):
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
+    # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
+    branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
+    # Segmento del cliente
+    client_segment: Optional[str] = None
+    # Flujo Irregular
+    is_irregular: Optional[bool] = None
+    irregular_exceptions: Optional[List[dict]] = None
+
 QUOTE_STATUSES = ["Borrador", "Enviada", "Aprobada", "Reparada", "Configurada", "Facturada", "Pagada", "Entregada", "Enviada a Imple"]
 
 # Flujo de transiciones permitidas por categoría
@@ -593,6 +601,8 @@ class Quote(BaseModel):
     is_production_client: bool = False
     production_items: List[dict] = []
     attachments: List[dict] = []  # Lista de anexos: {attachment_id, category, filename, url, uploaded_by, uploaded_at}
+    # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
+    branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
     # Flujo Irregular
     is_irregular: Optional[bool] = None  # True si tiene excepciones de flujo
     irregular_exceptions: Optional[List[dict]] = None  # Lista de excepciones registradas

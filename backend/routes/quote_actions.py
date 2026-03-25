@@ -1832,7 +1832,15 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
         "rollup_progress": None,
     }
 
-    # Soporte Multitienda
+    # Soporte Multitienda (heredado de branch_details de la cotización o enviado manualmente)
+    branch_details = quote.get("branch_details", [])
+    if not multistore_data and branch_details:
+        # Auto-heredar de branch_details
+        multistore_data = {
+            "is_multistore": True,
+            "stores": [{"name": b.get("store_name", ""), "box_count": int(b.get("quantity", 0))} for b in branch_details]
+        }
+    
     if multistore_data and multistore_data.get("is_multistore"):
         stores_raw = multistore_data.get("stores", [])
         project["project_type"] = "multistore"
