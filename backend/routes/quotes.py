@@ -127,6 +127,8 @@ class QuoteCreateWithPDF(BaseModel):
     requires_vpn: bool = True
     # Segmento de cliente
     client_segment: str = "PYME"
+    # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
+    branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
 
 @router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
