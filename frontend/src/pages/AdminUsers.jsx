@@ -4,7 +4,8 @@ import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
-import { Users, Shield, ShieldCheck, ShieldX, Search, RefreshCw, Crown, User as UserIcon } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Users, Shield, ShieldCheck, ShieldX, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Zap } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -28,8 +29,14 @@ const PERMISSION_OPTIONS = [
   { value: 'edit', label: 'Editar', icon: ShieldCheck, color: 'text-green-500' }
 ];
 
+// Permisos especiales disponibles (overrides)
+const SPECIAL_PERMISSIONS = [
+  { id: 'integradores:create', module: 'integradores', label: 'Crear Proyecto Integración', description: 'Permite crear nuevos proyectos aunque tenga permiso Leer' }
+];
+
 export const AdminUsers = () => {
   const [users, setUsers] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
@@ -47,8 +54,12 @@ export const AdminUsers = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/admin/users');
-      setUsers(response.data);
+      const [usersRes, whRes] = await Promise.all([
+        api.get('/admin/users'),
+        api.get('/inventory/warehouses').catch(() => ({ data: [] }))
+      ]);
+      setUsers(usersRes.data);
+      setWarehouses(whRes.data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       if (error.response?.status === 403) {
@@ -126,6 +137,40 @@ export const AdminUsers = () => {
       toast.error(error.response?.data?.detail || 'Error al actualizar estado');
     }
   };
+
+  const handleSpecialPermissionToggle = async (userId, permId, checked) => {
+    try {
+      const user = users.find(u => u.user_id === userId);
+      const current = user?.special_permissions || [];
+      const updated = checked
+        ? [...new Set([...current, permId])]
+        : current.filter(p => p !== permId);
+      
+      await api.put(`/admin/users/${userId}/special-permissions`, { special_permissions: updated });
+      
+      setUsers(prev => prev.map(u =>
+        u.user_id === userId ? { ...u, special_permissions: updated } : u
+      ));
+      toast.success('Permiso especial actualizado');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al actualizar permiso especial');
+    }
+  };
+
+  const handleAlmacenChange = async (userId, almacenId) => {
+    try {
+      const value = almacenId === '__none__' ? null : almacenId;
+      await api.put(`/admin/users/${userId}/almacen`, { almacen_asignado: value });
+      
+      setUsers(prev => prev.map(u =>
+        u.user_id === userId ? { ...u, almacen_asignado: value } : u
+      ));
+      toast.success(value ? 'Almacén asignado' : 'Almacén desasignado');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al asignar almacén');
+    }
+  };
+
   
   const filteredUsers = users.filter(user => {
     const searchLower = searchTerm.toLowerCase();
@@ -200,6 +245,12 @@ export const AdminUsers = () => {
                     </th>
                     <th className="sticky top-0 z-10 bg-slate-100 text-left py-4 px-4 text-sm font-semibold text-slate-700 border-b border-slate-200 min-w-[120px]">Rol</th>
                     <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-4 text-sm font-semibold text-slate-700 border-b border-slate-200 min-w-[80px]">Estado</th>
+                    <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-3 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[150px] whitespace-nowrap">
+                      <span className="flex items-center justify-center gap-1"><Warehouse size={13} />Almacén</span>
+                    </th>
+                    <th className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-3 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[160px] whitespace-nowrap">
+                      <span className="flex items-center justify-center gap-1"><Zap size={13} />Permisos Especiales</span>
+                    </th>
                     {MODULES.map(module => (
                       <th key={module.id} className="sticky top-0 z-10 bg-slate-100 text-center py-4 px-2 text-xs font-semibold text-slate-700 border-b border-slate-200 min-w-[110px] whitespace-nowrap">
                         {module.name}
@@ -210,14 +261,14 @@ export const AdminUsers = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={3 + MODULES.length} className="py-12 text-center text-slate-500">
+                      <td colSpan={5 + MODULES.length} className="py-12 text-center text-slate-500">
                         <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                         Cargando usuarios...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={3 + MODULES.length} className="py-12 text-center text-slate-500">
+                      <td colSpan={5 + MODULES.length} className="py-12 text-center text-slate-500">
                         No se encontraron usuarios
                       </td>
                     </tr>
@@ -299,6 +350,53 @@ export const AdminUsers = () => {
                               disabled={isCurrentUser}
                               data-testid={`user-status-${user.user_id}`}
                             />
+                          </td>
+                          
+                          {/* Almacén Asignado */}
+                          <td className="py-4 px-3 text-center">
+                            <Select
+                              value={user.almacen_asignado || '__none__'}
+                              onValueChange={(value) => handleAlmacenChange(user.user_id, value)}
+                            >
+                              <SelectTrigger className="w-36 h-8 text-xs">
+                                <SelectValue placeholder="Sin asignar" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">
+                                  <span className="text-slate-400">Sin asignar</span>
+                                </SelectItem>
+                                {warehouses.map(wh => (
+                                  <SelectItem key={wh.warehouse_id} value={wh.warehouse_id}>
+                                    <span className="flex items-center gap-1.5">
+                                      <Warehouse size={12} className="text-teal-600" />
+                                      {wh.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          
+                          {/* Permisos Especiales */}
+                          <td className="py-4 px-3">
+                            <div className="flex flex-col gap-1.5">
+                              {SPECIAL_PERMISSIONS.map(sp => {
+                                const isChecked = (user.special_permissions || []).includes(sp.id);
+                                return (
+                                  <label key={sp.id} className="flex items-center gap-1.5 cursor-pointer text-xs" title={sp.description}>
+                                    <Checkbox
+                                      checked={isChecked}
+                                      onCheckedChange={(checked) => handleSpecialPermissionToggle(user.user_id, sp.id, checked)}
+                                      className="h-3.5 w-3.5"
+                                      data-testid={`sp-${sp.id}-${user.user_id}`}
+                                    />
+                                    <span className={`${isChecked ? 'text-purple-700 font-medium' : 'text-slate-500'}`}>
+                                      {sp.label}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
                           </td>
                           
                           {/* Permisos por módulo */}

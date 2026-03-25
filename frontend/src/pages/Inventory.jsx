@@ -25,7 +25,8 @@ const MOV_LABELS = {
 };
 
 export default function Inventory() {
-  const { canEdit } = usePermission('inventarios');
+  const { canEdit, user: currentUser } = usePermission('inventarios');
+  const userAlmacen = currentUser?.almacen_asignado || null;
   const [warehouses, setWarehouses] = useState([]);
   const [hardware, setHardware] = useState([]);
   const [selectedWh, setSelectedWh] = useState(null);
@@ -483,6 +484,8 @@ export default function Inventory() {
   };
 
   const currentWh = warehouses.find(w => w.warehouse_id === selectedWh);
+  // Jurisdicción: si el usuario tiene almacén asignado, solo puede editar ese almacén
+  const canEditWarehouse = canEdit && (!userAlmacen || !selectedWh || userAlmacen === selectedWh);
 
   if (loading) {
     return (
@@ -538,7 +541,7 @@ export default function Inventory() {
                 </SelectContent>
               </Select>
             </div>
-            {currentWh && canEdit && (
+            {currentWh && canEditWarehouse && (
               <>
                 <Button size="sm" variant="outline" onClick={() => { setWhForm({ name: currentWh.name, location: currentWh.location || '', notes: currentWh.notes || '', responsible_user_id: currentWh.responsible_user_id || '' }); setWhEditing(currentWh.warehouse_id); setWhDialog(true); }}>
                   <Pencil size={14} className="mr-1" />Editar
@@ -565,7 +568,7 @@ export default function Inventory() {
             <>
               {/* Action buttons */}
               <div className="flex gap-2 mb-4">
-                {canEdit && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] }); setEntryDialog(true); }}
+                {canEditWarehouse && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] }); setEntryDialog(true); }}
                   data-testid="btn-entry" className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <PackagePlus size={14} className="mr-1.5" />Entrada
                 </Button>}
@@ -628,8 +631,8 @@ export default function Inventory() {
                                 if (v !== (item.min_stock || 0)) saveMinStock(item.item_id, v);
                               }}
                               onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }}
-                              disabled={!canEdit}
-                              className={`w-16 h-7 text-center text-xs border rounded ${item.below_min ? 'border-red-300 bg-red-50 text-red-700 font-bold' : 'border-slate-200'} ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                              disabled={!canEditWarehouse}
+                              className={`w-16 h-7 text-center text-xs border rounded ${item.below_min ? 'border-red-300 bg-red-50 text-red-700 font-bold' : 'border-slate-200'} ${!canEditWarehouse ? 'opacity-60 cursor-not-allowed' : ''}`}
                               data-testid={`min-stock-${item.item_id}`}
                             />
                           </td>
@@ -653,7 +656,7 @@ export default function Inventory() {
                                   ))}
                                 </div>
                               )}
-                              {canEdit && item.quantity > 0 && (
+                              {canEditWarehouse && item.quantity > 0 && (
                                 <div className="flex justify-end gap-1">
                                   <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-800"
                                     onClick={() => openExitForItem(item)} data-testid={`btn-exit-${item.item_id}`}>

@@ -39,7 +39,7 @@ const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 borde
 const CERT_CYCLE = ['P', 'C', 'N/A'];
 
 export const Integrators = () => {
-  const { canEdit } = usePermission('integradores');
+  const { canEdit, canCreate } = usePermission('integradores');
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
   const [implementadores, setImplementadores] = useState([]);
@@ -521,7 +521,7 @@ export const Integrators = () => {
               {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>}
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
-              {canEdit && <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
+              {canCreate && <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="bg-brand-green-600 hover:bg-brand-green-700" data-testid="create-integrator-btn"><Plus size={16} className="mr-1" />Nuevo Proyecto de Integración</Button>
                 </DialogTrigger>

@@ -390,11 +390,46 @@ async def update_pg_defaults(data: dict, authorization: Optional[str] = Header(N
 async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
     
-    # Filtrar por sede del usuario (admin puede ver todas)
+    # Construir filtro jerárquico basado en cargo del usuario
     query = {}
     if current_user.get("role") != "admin":
-        user_sede = current_user.get("sede", "PYME")
-        query["sede"] = user_sede
+        cargo = (current_user.get("cargo") or "").lower()
+        user_id = current_user.get("user_id")
+        user_depto = current_user.get("departamento", "")
+        
+        if "director" in cargo:
+            # Director: ve todo (sin filtro adicional)
+            pass
+        elif "gerente" in cargo:
+            # Gerente de Ventas: ve todo su departamento
+            # Buscar todos los user_ids del mismo departamento
+            if user_depto:
+                dept_users = await db.users.find(
+                    {"departamento": user_depto, "is_active": {"$ne": False}},
+                    {"_id": 0, "user_id": 1}
+                ).to_list(500)
+                dept_user_ids = [u["user_id"] for u in dept_users]
+                query["created_by_user_id"] = {"$in": dept_user_ids}
+            else:
+                query["created_by_user_id"] = user_id
+        elif "coordinador" in cargo:
+            # Coordinador: ve sus cotizaciones + las de Ejecutivos de su departamento
+            if user_depto:
+                team_users = await db.users.find(
+                    {"departamento": user_depto, "is_active": {"$ne": False},
+                     "$or": [
+                         {"cargo": {"$regex": "ejecutivo", "$options": "i"}},
+                         {"user_id": user_id}
+                     ]},
+                    {"_id": 0, "user_id": 1}
+                ).to_list(500)
+                team_user_ids = [u["user_id"] for u in team_users]
+                query["created_by_user_id"] = {"$in": team_user_ids}
+            else:
+                query["created_by_user_id"] = user_id
+        else:
+            # Ejecutivo u otro cargo: solo ve sus propias cotizaciones
+            query["created_by_user_id"] = user_id
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     

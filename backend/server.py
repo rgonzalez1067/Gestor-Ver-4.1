@@ -134,15 +134,24 @@ async def rbac_middleware(request: Request, call_next):
     user_level = permissions.get(target_module, "none")
     logging.info(f"RBAC check: user={user.get('email')} module={target_module} level={user_level} method={method}")
 
-    # Validar: Ninguno → 403
+    # Validar: Ninguno → 403 (pero verificar special_permissions primero)
+    special_perms = user.get("special_permissions", [])
+
     if user_level == "none":
+        # Verificar si tiene un override especial para esta acción
+        if method == "POST" and f"{target_module}:create" in special_perms:
+            logging.info(f"RBAC override: user={user.get('email')} special_permission={target_module}:create")
+            return await call_next(request)
         return JSONResponse(
             status_code=403,
             content={"detail": f"No tiene acceso al módulo '{target_module}'"}
         )
 
-    # Validar: Leer + método de escritura → 403
+    # Validar: Leer + método de escritura → 403 (pero verificar special_permissions primero)
     if user_level == "read" and method in WRITE_METHODS:
+        if method == "POST" and f"{target_module}:create" in special_perms:
+            logging.info(f"RBAC override: user={user.get('email')} special_permission={target_module}:create")
+            return await call_next(request)
         return JSONResponse(
             status_code=403,
             content={"detail": f"No tiene permisos de escritura en '{target_module}'"}

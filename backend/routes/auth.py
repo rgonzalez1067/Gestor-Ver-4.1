@@ -242,10 +242,14 @@ async def login_user(credentials: UserLogin):
         "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
         "cedula": user.get("cedula", ""),
         "role": user.get("role", "user"),
-        "sede": user.get("sede", "PYME"),  # Sede del usuario
+        "cargo": user.get("cargo", ""),
+        "departamento": user.get("departamento", ""),
+        "sede": user.get("sede", "PYME"),
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
+        "special_permissions": user.get("special_permissions", []),
+        "almacen_asignado": user.get("almacen_asignado", None),
         "picture": user.get("picture")
     }
     
@@ -343,6 +347,60 @@ async def update_user_permissions(user_id: str, permissions: dict, authorization
     
     updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
     return {"message": "Permisos actualizados", "user": updated_user}
+
+@router.put("/admin/users/{user_id}/special-permissions")
+async def update_special_permissions(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualizar permisos especiales de un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar permisos especiales")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    special_permissions = body.get("special_permissions", [])
+    # Validar formato: cada elemento debe ser "modulo:accion"
+    valid_flags = []
+    for flag in special_permissions:
+        if isinstance(flag, str) and ":" in flag:
+            valid_flags.append(flag)
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"special_permissions": valid_flags}}
+    )
+    
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Permisos especiales actualizados", "user": updated_user}
+
+@router.put("/admin/users/{user_id}/almacen")
+async def update_almacen_asignado(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Asignar almacén a un usuario (solo admin)"""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden asignar almacenes")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    almacen_id = body.get("almacen_asignado")
+    
+    # Validar que el almacén existe (si se proporciona uno)
+    if almacen_id:
+        wh = await db.warehouses.find_one({"warehouse_id": almacen_id}, {"_id": 0})
+        if not wh:
+            raise HTTPException(status_code=404, detail="Almacén no encontrado")
+    
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"almacen_asignado": almacen_id}}
+    )
+    
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Almacén asignado actualizado", "user": updated_user}
+
 
 @router.put("/admin/users/{user_id}/role")
 async def update_user_role(user_id: str, role: str, authorization: Optional[str] = Header(None)):

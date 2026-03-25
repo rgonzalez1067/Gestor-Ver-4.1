@@ -1,8 +1,9 @@
 /**
  * Hook RBAC para validar permisos por módulo.
- * Retorna { canView, canEdit, level } según los permisos del usuario actual.
+ * Retorna { canView, canEdit, canCreate, level } según los permisos del usuario actual.
  * - canView: true si el nivel es "read" o "edit"
  * - canEdit: true si el nivel es "edit"
+ * - canCreate: true si el nivel es "edit" O tiene special_permission "modulo:create"
  * - level: "none" | "read" | "edit"
  */
 export function usePermission(module) {
@@ -12,16 +13,20 @@ export function usePermission(module) {
 
   // Admin tiene acceso total
   if (user?.role === 'admin') {
-    return { canView: true, canEdit: true, level: 'edit' };
+    return { canView: true, canEdit: true, canCreate: true, level: 'edit', user };
   }
 
   const permissions = user?.permissions || {};
   const level = permissions[module] || 'none';
+  const specialPerms = user?.special_permissions || [];
+  const hasCreateOverride = specialPerms.includes(`${module}:create`);
 
   return {
     canView: level === 'read' || level === 'edit',
     canEdit: level === 'edit',
+    canCreate: level === 'edit' || hasCreateOverride,
     level,
+    user,
   };
 }
 

@@ -20,6 +20,22 @@ def is_serialized(item_type: str) -> bool:
     return (item_type or "").lower() in SERIALIZED_TYPES
 
 
+async def validate_warehouse_jurisdiction(user: dict, warehouse_id: str):
+    """Valida que el usuario tenga jurisdicción sobre el almacén.
+    Admin puede operar en cualquier almacén.
+    Usuarios normales solo pueden escribir en su almacén asignado."""
+    if user.get("role") == "admin":
+        return  # Admin bypass
+    almacen_asignado = user.get("almacen_asignado")
+    if not almacen_asignado:
+        return  # Sin almacén asignado → no se restringe (backward compatible)
+    if almacen_asignado != warehouse_id:
+        raise HTTPException(
+            status_code=403,
+            detail="No tiene jurisdicción sobre este almacén. Solo puede modificar su almacén asignado."
+        )
+
+
 # ==================== WAREHOUSES ====================
 
 @router.post("/inventory/warehouses")
@@ -56,7 +72,8 @@ async def list_warehouses(authorization: Optional[str] = Header(None)):
 
 @router.put("/inventory/warehouses/{warehouse_id}")
 async def update_warehouse(warehouse_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
+    await validate_warehouse_jurisdiction(current_user, warehouse_id)
     update = {}
     for f in ["name", "location", "notes"]:
         if f in body:
@@ -88,7 +105,8 @@ async def update_warehouse(warehouse_id: str, body: dict, authorization: Optiona
 
 @router.delete("/inventory/warehouses/{warehouse_id}")
 async def delete_warehouse(warehouse_id: str, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
+    await validate_warehouse_jurisdiction(current_user, warehouse_id)
     count = await db.inventory_movements.count_documents({"warehouse_id": warehouse_id})
     if count > 0:
         raise HTTPException(status_code=400, detail="No se puede eliminar un almacén con movimientos registrados")
@@ -179,6 +197,7 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
 async def create_entry(warehouse_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Registra entrada de inventario. Soporta modo 'precarga' (cuarentena técnica)."""
     user = await get_current_user(authorization)
+    await validate_warehouse_jurisdiction(user, warehouse_id)
 
     wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
     if not wh:
@@ -433,6 +452,7 @@ async def validate_serials_against_stock(
 async def create_exit(warehouse_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Registra salida manual de inventario."""
     user = await get_current_user(authorization)
+    await validate_warehouse_jurisdiction(user, warehouse_id)
 
     wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
     if not wh:
@@ -498,8 +518,10 @@ async def create_exit(warehouse_id: str, body: dict, authorization: Optional[str
 async def transfer_between_warehouses(body: dict, authorization: Optional[str] = Header(None)):
     """Transferencia atómica entre almacenes. Seriales se mueven intactos."""
     user = await get_current_user(authorization)
-
+    # Validar jurisdicción sobre el almacén origen
     source_id = body.get("source_warehouse_id")
+    if source_id:
+        await validate_warehouse_jurisdiction(user, source_id)
     dest_id = body.get("dest_warehouse_id")
     item_id = body.get("item_id")
     quantity = body.get("quantity", 0)
@@ -775,7 +797,8 @@ async def search_movements_by_client(client_name: str = "", authorization: Optio
 @router.put("/inventory/warehouses/{warehouse_id}/min-stock/{item_id}")
 async def set_min_stock(warehouse_id: str, item_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Define el stock mínimo para un ítem en un almacén."""
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
+    await validate_warehouse_jurisdiction(current_user, warehouse_id)
 
     min_stock = body.get("min_stock", 0)
     if not isinstance(min_stock, (int, float)) or min_stock < 0:
