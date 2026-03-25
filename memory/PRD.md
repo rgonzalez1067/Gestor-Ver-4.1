@@ -294,7 +294,11 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   2. HexColor sin prefijo colors. en tabla de sucursales de pdf_generator.py
   3. branch_details no incluido en exportCurrentQuoteToPDF del frontend
 - **Fix Data Source (2026-03-25)**: Cambiada fuente de verdad de totalEquipment en BranchDetailPanel de Resumen Ejecutivo a Parametros de Cotizacion (cantidad_cajas)
-- VALIDADO: 10/10 backend tests (iteration_131) + 3/3 escenarios PDF manuales
+- **Herencia Multitienda (2026-03-25)**: Flujo inteligente en "Enviar a Implementación":
+  - Escenario A: Detecta distribucion previa → muestra resumen → Confirmar/Modificar
+  - Escenario B: Sin datos previos + Multitienda → editor obligatorio
+  - Escenario C: Monotienda → avanza directo
+  - VALIDADO: 10/10 backend + 3/3 escenarios frontend (iteration_132)
 
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
