@@ -280,6 +280,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 **Mejora adicional**: Degradación elegante en Cotizaciones — `.catch(() => [])` en Promise.all para módulos secundarios con 403
 - VALIDADO: 19/19 backend + 100% frontend (iteration_130)
 
+### Detalle de Sucursales para Cotizaciones (2026-03-25)
+- **Panel BranchDetailPanel**: Componente opcional para cotizaciones VPOS/MPOS/Fast Track
+  - Entrada manual de sucursales (nombre + cantidad)
+  - Importacion masiva via Excel (columnas: Nombre Tienda | Cantidad)
+  - Validacion de cantidades: total sucursales debe coincidir con total equipos cotizados
+  - Indicadores visuales de estado de validacion (verde/rojo)
+- **PDF**: Nueva pagina "Relacion de Tiendas" generada automaticamente cuando existen branch_details
+- **Data Bridge**: branch_details de cotizacion se heredan como stores de proyecto multitienda al enviar a implementacion
+- **Bug fix critico**: Campo branch_details faltaba en modelo QuoteCreateWithPDF (corregido)
+- VALIDADO: 10/10 backend tests (iteration_131)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
