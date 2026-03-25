@@ -2242,7 +2242,7 @@ export const Quotes = () => {
   const handleSendToImplementation = async (quoteId, exceptionInfo, storesData = null) => {
     setActionLoading(quoteId);
     try {
-      const headers = {};
+      const headers = { ...getEmailHeaders() };
       if (exceptionInfo) {
         headers['x-exception-reason'] = exceptionInfo.reason;
         headers['x-regularization-date'] = exceptionInfo.regularization_date;
