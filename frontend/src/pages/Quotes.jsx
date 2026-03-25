@@ -250,7 +250,7 @@ export const Quotes = () => {
   const [isMultistore, setIsMultistore] = useState(null); // null = no decidido, true/false
   const [multistoreStores, setMultistoreStores] = useState([]);
   const [multistoreNewStore, setMultistoreNewStore] = useState({ name: '', box_count: '' });
-  const [multistorePhase, setMultistorePhase] = useState('ask'); // 'ask' | 'collect' | 'confirm'
+  const [multistorePhase, setMultistorePhase] = useState('ask'); // 'ask' | 'inherited' | 'collect' | 'confirm'
   const [multistoreSending, setMultistoreSending] = useState(false);
 
   useEffect(() => {
@@ -2274,10 +2274,22 @@ export const Quotes = () => {
     setMultistoreQuoteId(quoteId);
     setMultistoreExceptionInfo(exceptionInfo);
     setIsMultistore(null);
-    setMultistoreStores([]);
     setMultistoreNewStore({ name: '', box_count: '' });
-    setMultistorePhase('ask');
     setMultistoreSending(false);
+
+    // Pre-check: detectar distribución previa de sucursales
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const branchData = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0);
+
+    if (branchData.length > 0) {
+      // Escenario A: Hay distribución previa → mostrar herencia
+      setMultistoreStores(branchData.map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
+      setMultistorePhase('inherited');
+    } else {
+      // Sin distribución → flujo original (preguntar si es multitienda)
+      setMultistoreStores([]);
+      setMultistorePhase('ask');
+    }
     setMultistoreDialogOpen(true);
   };
 
@@ -2293,12 +2305,29 @@ export const Quotes = () => {
   const handleMultistoreAnswer = (answer) => {
     if (answer) {
       setIsMultistore(true);
+      // Escenario B: Multitienda sin datos previos → abrir editor obligatorio
+      setMultistoreStores([]);
       setMultistorePhase('collect');
     } else {
-      // No es multitienda — ejecutar directamente
+      // Escenario C: No es multitienda — ejecutar directamente (monotienda)
       setMultistoreDialogOpen(false);
       handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
     }
+  };
+
+  // Confirmar herencia de datos previos (Escenario A - Sí)
+  const confirmInheritedStores = async () => {
+    setMultistoreSending(true);
+    setMultistoreDialogOpen(false);
+    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, multistoreStores);
+    setMultistoreSending(false);
+  };
+
+  // Modificar distribución heredada (Escenario A - No)
+  const modifyInheritedStores = () => {
+    // Pasar a fase 'collect' con los datos pre-cargados para edición
+    setIsMultistore(true);
+    setMultistorePhase('collect');
   };
 
   const addMultistoreStore = () => {
@@ -4990,7 +5019,7 @@ export const Quotes = () => {
                 </DialogTitle>
               </DialogHeader>
 
-              {/* Fase 1: Pregunta Multitienda */}
+              {/* Fase 1: Pregunta Multitienda (solo si NO hay distribución previa) */}
               {multistorePhase === 'ask' && (
                 <div className="space-y-4 py-2" data-testid="multistore-ask-phase">
                   <p className="text-sm text-slate-600">¿Esta implementación es <strong>Multitienda</strong>?</p>
@@ -5002,6 +5031,61 @@ export const Quotes = () => {
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => handleMultistoreAnswer(true)} data-testid="multistore-yes-btn">
                       <Store size={14} className="mr-1.5" />
                       Sí, Multitienda
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase Herencia: Distribución pre-definida detectada */}
+              {multistorePhase === 'inherited' && (
+                <div className="space-y-4 py-2" data-testid="multistore-inherited-phase">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle size={16} className="text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800">Distribución de sucursales detectada</span>
+                    </div>
+                    <p className="text-xs text-blue-600">
+                      Se encontró una distribución previa de sucursales en esta cotización. ¿Desea utilizar esta misma configuración para el proyecto?
+                    </p>
+                  </div>
+
+                  {/* Tabla resumen de sucursales heredadas */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b">
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">#</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Sucursal</th>
+                          <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600">Cajas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {multistoreStores.map((store, idx) => (
+                          <tr key={idx} className="border-b last:border-0" data-testid={`inherited-row-${idx}`}>
+                            <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
+                            <td className="px-3 py-2 font-medium text-slate-800">{store.name}</td>
+                            <td className="px-3 py-2 text-center text-slate-700">{store.box_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50 border-t">
+                          <td colSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Total:</td>
+                          <td className="px-3 py-2 text-center font-bold text-slate-900">
+                            {multistoreStores.reduce((sum, s) => sum + (s.box_count || 0), 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2 border-t">
+                    <Button variant="outline" onClick={modifyInheritedStores} data-testid="inherited-modify-btn">
+                      No, Modificar
+                    </Button>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={confirmInheritedStores} data-testid="inherited-confirm-btn">
+                      <CheckCircle size={14} className="mr-1.5" />
+                      Sí, Confirmar y Enviar
                     </Button>
                   </div>
                 </div>
@@ -5096,7 +5180,19 @@ export const Quotes = () => {
 
                         {/* Botones de acción */}
                         <div className="flex justify-between items-center pt-3 border-t">
-                          <Button variant="ghost" size="sm" onClick={() => { setMultistorePhase('ask'); setMultistoreStores([]); }} data-testid="multistore-back-btn">
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            // Si venimos de herencia, volver a inherited; si no, volver a ask
+                            const quote = getMultistoreQuote();
+                            const hasPrior = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0).length > 0;
+                            if (hasPrior) {
+                              // Restaurar datos heredados y volver a fase inherited
+                              setMultistoreStores(quote.branch_details.filter(b => b.store_name && b.quantity > 0).map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
+                              setMultistorePhase('inherited');
+                            } else {
+                              setMultistorePhase('ask');
+                              setMultistoreStores([]);
+                            }
+                          }} data-testid="multistore-back-btn">
                             Volver
                           </Button>
                           <Button
