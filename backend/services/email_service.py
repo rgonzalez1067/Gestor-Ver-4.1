@@ -44,12 +44,18 @@ def _send_smtp(
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     # Adjuntos (compatible con formato Resend: {filename, content})
+    # content puede ser: base64 string (de Resend) o bytes crudos
     if attachments:
         for att in attachments:
             part = MIMEBase("application", "octet-stream")
             content = att.get("content", b"")
             if isinstance(content, str):
-                content = content.encode("utf-8")
+                # Viene como base64 string (formato Resend) → decodificar a bytes
+                import base64
+                try:
+                    content = base64.b64decode(content)
+                except Exception:
+                    content = content.encode("utf-8")
             part.set_payload(content)
             encoders.encode_base64(part)
             part.add_header("Content-Disposition", f'attachment; filename="{att.get("filename", "adjunto")}"')
