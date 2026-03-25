@@ -257,6 +257,29 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Matriz de permisos (AdminUsers): sticky headers/columns, zebra striping, hover de fila
 - VALIDADO: 24/24 backend + 100% frontend (iteration_129)
 
+### Evolución ABAC — Permisos Avanzados (2026-03-25)
+**Pilar 1: Permisos Especiales (Overrides)**
+- Campo `special_permissions` (array) en modelo de usuario: ej. `["integradores:create"]`
+- Middleware RBAC verifica overrides antes de bloquear: user con `read + integradores:create` → puede POST
+- Admin UI: Checkbox por override en Gestión de Usuarios
+
+**Pilar 2: Visibilidad Jerárquica de Cotizaciones**
+- Ejecutivo → solo sus propias cotizaciones
+- Coordinador → sus cotizaciones + Ejecutivos del mismo departamento
+- Gerente → todas las cotizaciones de su departamento
+- Director/Admin → todas las cotizaciones sin filtro
+- Filtro basado en campo `cargo` y `departamento` del usuario
+
+**Pilar 3: Jurisdicción de Inventario**
+- Campo `almacen_asignado` (warehouse_id) en perfil de usuario
+- Backend: `validate_warehouse_jurisdiction()` en todos los endpoints de escritura (entry/exit/transfer/min-stock)
+- Frontend: `canEditWarehouse` = canEdit AND (no almacén asignado OR almacén coincide)
+- Badge "Solo lectura (no asignado)" cuando el usuario tiene edit pero está en almacén ajeno
+- Admin UI: Dropdown de almacén asignado por usuario
+
+**Mejora adicional**: Degradación elegante en Cotizaciones — `.catch(() => [])` en Promise.all para módulos secundarios con 403
+- VALIDADO: 19/19 backend + 100% frontend (iteration_130)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 
