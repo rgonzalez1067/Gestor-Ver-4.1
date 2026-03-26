@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 
 // Sedes disponibles
 const SEDES = [
-  { id: 'PYME', name: 'PYME', shortName: 'PYME' },
-  { id: 'CORP', name: 'CORP', shortName: 'CORP' }
+  { id: 'PYME', name: 'Pyme', shortName: 'Pyme' },
+  { id: 'CORP', name: 'Corp', shortName: 'Corp' }
 ];
 
 // Tipos base de plantillas (sin sede)
@@ -60,6 +60,15 @@ const BASE_TEMPLATE_TYPES = [
     borderColor: 'border-cyan-200',
     title: 'Envío a Implementación',
     description: 'Se envía a Implementación con detalles técnicos'
+  },
+  {
+    baseId: 'payment_receipt',
+    icon: CheckCircle,
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    title: 'Envío de Comprobante de Pago',
+    description: 'Notifica a Ventas que el cliente pagó para enviar a Implementación'
   }
 ];
 
@@ -126,6 +135,13 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'integrator_name', label: 'Nombre del Integrador' },
     { key: 'pinpad_model', label: 'Modelo de Pinpad' },
     { key: 'services_table', label: 'Tabla de Servicios' },
+    { key: 'sede_name', label: 'Nombre de la Sede' }
+  ],
+  payment_receipt: [
+    { key: 'quote_number', label: 'Número de Cotización' },
+    { key: 'client_name', label: 'Nombre del Cliente' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'total_usd', label: 'Total USD' },
     { key: 'sede_name', label: 'Nombre de la Sede' }
   ]
 };
@@ -299,7 +315,7 @@ export const EmailTemplatesEditor = () => {
           <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
             <div className="flex items-center gap-2">
               <MapPin size={18} className="text-slate-600" />
-              <span className="font-semibold text-slate-800">Plantillas de Correo - Sede {sede.name} ({sede.shortName})</span>
+              <span className="font-semibold text-slate-800">Plantillas Sede {sede.name}</span>
             </div>
           </div>
           
