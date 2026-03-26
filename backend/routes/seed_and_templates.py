@@ -152,6 +152,7 @@ DEFAULT_EMAIL_TEMPLATES = {
 <li>Tipo: {quote_type}</li>
 <li>Total: ${total_usd} USD</li>
 </ul>
+<p>Si desea realizar algún ajuste en ella, escriba al correo <a href="mailto:{Email_Ejecutivo}">{Email_Ejecutivo}</a> de <strong>{Nombre_Ejecutivo}</strong>, Ejecutivo de Ventas de nuestro Equipo que lo atendió.</p>
 <p>Quedamos atentos a sus comentarios.</p>
 <p>Saludos cordiales,<br><strong>{company_name}</strong></p>
 </body>
@@ -268,6 +269,7 @@ BASE_EMAIL_TEMPLATES = {
 <li>Total: ${total_usd} USD</li>
 <li>Sede: {sede_name}</li>
 </ul>
+<p>Si desea realizar algún ajuste en ella, escriba al correo <a href="mailto:{Email_Ejecutivo}">{Email_Ejecutivo}</a> de <strong>{Nombre_Ejecutivo}</strong>, Ejecutivo de Ventas de nuestro Equipo que lo atendió.</p>
 <p>Quedamos atentos a sus comentarios.</p>
 <p>Saludos cordiales,<br><strong>{company_name}</strong></p>
 </body>

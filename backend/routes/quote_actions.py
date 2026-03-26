@@ -267,7 +267,9 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             "quote_number": quote.get('quote_number', ''),
             "client_name": client_name,
             "quote_type": quote.get('quote_type', 'N/A'),
-            "total_usd": f"{quote.get('total_usd', 0):.2f}"
+            "total_usd": f"{quote.get('total_usd', 0):.2f}",
+            "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+            "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
         }
         ft_subject = render_email_template(ft_template["subject"], template_vars)
         ft_html = render_email_template(ft_template["body_html"], template_vars)
@@ -396,7 +398,9 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
     template_vars = {
         "quote_number": quote.get("quote_number", ""),
         "client_name": client_name,
-        "total_usd": f"{quote.get('total_usd', 0):.2f}"
+        "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+        "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
@@ -453,14 +457,27 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     if not client_email or client_email == 'sin@email.com':
         client_email = f"cliente_{client.get('rif', 'unknown')}@simulado.local"
     
-    # Preparar plantilla
-    template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
+    # Preparar plantilla (buscar por sede primero, luego genérica)
+    sede = quote.get("sede", "PYME")
+    norm_sede = "PYME" if sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if sede in ("CORP", "Corp", "Corporativo") else sede
+    template = await db.email_templates.find_one({"template_id": f"quote_sent_{norm_sede}"}, {"_id": 0})
+    if not template:
+        template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} - {{company_name}}",
             "body_html": "<h2>Estimado {{client_name}}</h2><p>Adjunto encontrará la cotización <strong>{{quote_number}}</strong>.</p><p>Total: ${{total_usd}} USD</p>"
         }
     
+    # Resolver datos del ejecutivo creador
+    creator_name, creator_email = "", ""
+    creator_user_id = quote.get("created_by_user_id")
+    if creator_user_id:
+        creator = await db.users.find_one({"user_id": creator_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if creator:
+            creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
+            creator_email = creator.get("email", "")
+
     client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
     template_vars = {
         "quote_number": quote.get('quote_number', ''),
@@ -468,7 +485,10 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
         "client_rif": client.get('rif', 'N/A'),
         "quote_type": quote.get('quote_type', 'N/A'),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
-        "company_name": "Merchant Server"
+        "company_name": "Merchant Server",
+        "sede_name": norm_sede,
+        "Nombre_Ejecutivo": creator_name,
+        "Email_Ejecutivo": creator_email,
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
@@ -651,7 +671,9 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         "client_name": client_name,
         "client_rif": client.get('rif', 'N/A') if client else 'N/A',
         "invoice_number": invoice_number or 'No especificado',
-        "total_usd": f"{quote.get('total_usd', 0):.2f}"
+        "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+        "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
@@ -747,7 +769,9 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             "client_name": client_name,
             "client_rif": client.get('rif', 'N/A') if client else 'N/A',
             "client_address": client.get('address', 'N/A') if client else 'N/A',
-            "items_table": items_html
+            "items_table": items_html,
+            "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+            "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
         }
         subject = render_email_template(template["subject"], template_vars)
         html_content = render_email_template(template["body_html"], template_vars)

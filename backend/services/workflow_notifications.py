@@ -155,6 +155,15 @@ async def send_workflow_notification(
     # 2. Cargar y renderizar plantilla
     template = await _resolve_template(action, segment)
     
+    # Resolver datos del ejecutivo creador
+    creator_name, creator_email = "", ""
+    creator_user_id = quote.get("created_by_user_id")
+    if creator_user_id:
+        creator = await db.users.find_one({"user_id": creator_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if creator:
+            creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
+            creator_email = creator.get("email", "")
+
     template_vars = {
         "quote_number": quote_number,
         "client_name": quote.get("client_name", ""),
@@ -164,6 +173,8 @@ async def send_workflow_notification(
         "integrator_name": quote.get("integrator_name", ""),
         "pinpad_model": quote.get("pinpad_model", ""),
         "sede_name": segment,
+        "Nombre_Ejecutivo": creator_name,
+        "Email_Ejecutivo": creator_email,
     }
     if extra_template_vars:
         template_vars.update(extra_template_vars)

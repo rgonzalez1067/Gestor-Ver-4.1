@@ -100,7 +100,9 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'quote_type', label: 'Tipo de Cotización' },
     { key: 'total_usd', label: 'Total USD' },
     { key: 'company_name', label: 'Nombre de la Empresa' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   quote_approved: [
     { key: 'quote_number', label: 'Número de Cotización' },
@@ -109,7 +111,9 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'quote_type', label: 'Tipo de Cotización' },
     { key: 'total_usd', label: 'Total USD' },
     { key: 'approved_date', label: 'Fecha de Aprobación' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   invoice: [
     { key: 'quote_number', label: 'Número de Cotización' },
@@ -117,7 +121,9 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'invoice_number', label: 'Número de Factura' },
     { key: 'total_usd', label: 'Total USD' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   warehouse: [
     { key: 'quote_number', label: 'Número de Cotización' },
@@ -125,7 +131,9 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'client_address', label: 'Dirección del Cliente' },
     { key: 'items_table', label: 'Tabla de Items' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   implementation: [
     { key: 'quote_number', label: 'Número de Cotización' },
@@ -135,14 +143,18 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'integrator_name', label: 'Nombre del Integrador' },
     { key: 'pinpad_model', label: 'Modelo de Pinpad' },
     { key: 'services_table', label: 'Tabla de Servicios' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   payment_receipt: [
     { key: 'quote_number', label: 'Número de Cotización' },
     { key: 'client_name', label: 'Nombre del Cliente' },
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'total_usd', label: 'Total USD' },
-    { key: 'sede_name', label: 'Nombre de la Sede' }
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ]
 };
 
@@ -256,6 +268,8 @@ export const EmailTemplatesEditor = () => {
       pinpad_model: 'Verifone P400',
       approved_date: '24/02/2026',
       sede_name: 'Torre Banco Plaza',
+      Nombre_Ejecutivo: 'Rafael González',
+      Email_Ejecutivo: 'rgonzalez@megasoft.com.ve',
       items_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Producto</th><th style="padding:8px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Terminal POS</td><td style="padding:8px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
       services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>'
     };

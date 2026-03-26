@@ -346,6 +346,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Variables Dinámicas del Ejecutivo en Plantillas (2026-03-26)
+- Agregadas variables {Nombre_Ejecutivo} y {Email_Ejecutivo} a todas las plantillas de correo
+- Backend: lookup del creador (created_by_user_id → users) para resolver nombre y email
+- Corregido send-to-client para buscar plantilla por sede (quote_sent_PYME/CORP) antes de genérica
+- Plantillas default actualizadas con texto: "escriba al correo {Email_Ejecutivo} de {Nombre_Ejecutivo}"
+- Frontend: variables registradas en editor con valores de preview
+- VALIDADO: Backend sin errores, variables visibles en editor, preview correcto
+
 ### Fix Plantillas de Correo - Actualización Bloqueada (2026-03-26)
 - Eliminadas rutas duplicadas de email-templates en projects.py que conflictuaban con seed_and_templates.py
 - Causa raiz: projects.py registraba PUT /email-templates/{id} esperando Form(...) pero frontend enviaba JSON
