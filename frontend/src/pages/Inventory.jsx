@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import DebouncedInput from '../components/DebouncedInput';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -739,8 +740,8 @@ export default function Inventory() {
           <DialogContent className="max-w-sm" data-testid="warehouse-dialog">
             <DialogHeader><DialogTitle>{whEditing ? 'Editar' : 'Nuevo'} Almacén</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div><Label>Nombre *</Label><Input value={whForm.name} onChange={e => setWhForm({ ...whForm, name: e.target.value })} data-testid="wh-name" /></div>
-              <div><Label>Ubicación</Label><Input value={whForm.location} onChange={e => setWhForm({ ...whForm, location: e.target.value })} data-testid="wh-location" /></div>
+              <div><Label>Nombre *</Label><DebouncedInput value={whForm.name} onCommit={v => setWhForm(p => ({ ...p, name: v }))} data-testid="wh-name" /></div>
+              <div><Label>Ubicación</Label><DebouncedInput value={whForm.location} onCommit={v => setWhForm(p => ({ ...p, location: v }))} data-testid="wh-location" /></div>
               <div>
                 <Label>Responsable de Almacén</Label>
                 <Select value={whForm.responsible_user_id} onValueChange={v => setWhForm({ ...whForm, responsible_user_id: v })}>
@@ -757,7 +758,7 @@ export default function Inventory() {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Notas</Label><Input value={whForm.notes} onChange={e => setWhForm({ ...whForm, notes: e.target.value })} /></div>
+              <div><Label>Notas</Label><DebouncedInput value={whForm.notes} onCommit={v => setWhForm(p => ({ ...p, notes: v }))} /></div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setWhDialog(false)}>Cancelar</Button>
                 <Button onClick={saveWarehouse} data-testid="wh-save" className="bg-teal-600 hover:bg-teal-700 text-white">{whEditing ? 'Actualizar' : 'Crear'}</Button>
@@ -791,10 +792,10 @@ export default function Inventory() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Cantidad *</Label><Input type="number" min={1} value={entryForm.quantity} onChange={e => setEntryForm({ ...entryForm, quantity: parseInt(e.target.value) || 1 })} data-testid="entry-qty" /></div>
-                <div><Label>Costo Unitario ($)</Label><Input type="number" step="0.01" value={entryForm.unit_cost} onChange={e => setEntryForm({ ...entryForm, unit_cost: parseFloat(e.target.value) || 0 })} data-testid="entry-cost" /></div>
+                <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={entryForm.quantity} onCommit={v => setEntryForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="entry-qty" /></div>
+                <div><Label>Costo Unitario ($)</Label><DebouncedInput type="number" step="0.01" value={entryForm.unit_cost} onCommit={v => setEntryForm(p => ({ ...p, unit_cost: parseFloat(v) || 0 }))} data-testid="entry-cost" /></div>
               </div>
-              <div><Label>Notas</Label><Input value={entryForm.notes} onChange={e => setEntryForm({ ...entryForm, notes: e.target.value })} /></div>
+              <div><Label>Notas</Label><DebouncedInput value={entryForm.notes} onCommit={v => setEntryForm(p => ({ ...p, notes: v }))} /></div>
 
               {/* Toggle Precarga */}
               {entryNeedsSerial && (
@@ -854,11 +855,11 @@ export default function Inventory() {
             <div className="space-y-3">
               <p className="text-sm text-slate-700">Ítem: <strong>{hardware.find(h => h.hardware_id === exitForm.item_id)?.name}</strong></p>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Cantidad *</Label><Input type="number" min={1} value={exitForm.quantity} onChange={e => setExitForm({ ...exitForm, quantity: parseInt(e.target.value) || 1 })} data-testid="exit-qty" /></div>
-                <div><Label>Referencia</Label><Input value={exitForm.reference} onChange={e => setExitForm({ ...exitForm, reference: e.target.value })} placeholder="COT-XXXX..." /></div>
+                <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={exitForm.quantity} onCommit={v => setExitForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="exit-qty" /></div>
+                <div><Label>Referencia</Label><DebouncedInput value={exitForm.reference} onCommit={v => setExitForm(p => ({ ...p, reference: v }))} placeholder="COT-XXXX..." /></div>
               </div>
-              <div><Label>Cliente</Label><Input value={exitForm.client_name} onChange={e => setExitForm({ ...exitForm, client_name: e.target.value })} placeholder="Nombre del cliente..." /></div>
-              <div><Label>Notas</Label><Input value={exitForm.notes} onChange={e => setExitForm({ ...exitForm, notes: e.target.value })} /></div>
+              <div><Label>Cliente</Label><DebouncedInput value={exitForm.client_name} onCommit={v => setExitForm(p => ({ ...p, client_name: v }))} placeholder="Nombre del cliente..." /></div>
+              <div><Label>Notas</Label><DebouncedInput value={exitForm.notes} onCommit={v => setExitForm(p => ({ ...p, notes: v }))} /></div>
 
               {exitNeedsSerial && availableSerials.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
@@ -950,8 +951,8 @@ export default function Inventory() {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Cantidad *</Label><Input type="number" min={1} value={transferForm.quantity} onChange={e => setTransferForm({ ...transferForm, quantity: parseInt(e.target.value) || 1 })} data-testid="transfer-qty" /></div>
-              <div><Label>Notas</Label><Input value={transferForm.notes} onChange={e => setTransferForm({ ...transferForm, notes: e.target.value })} /></div>
+              <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={transferForm.quantity} onCommit={v => setTransferForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="transfer-qty" /></div>
+              <div><Label>Notas</Label><DebouncedInput value={transferForm.notes} onCommit={v => setTransferForm(p => ({ ...p, notes: v }))} /></div>
 
               {transferNeedsSerial && transferSerials.length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">

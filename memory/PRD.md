@@ -346,6 +346,18 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
+- Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
+  - Estado LOCAL interno (renders solo del componente, no del padre)
+  - Sincronización con padre solo en onBlur o tras debounce configurable
+  - Soporte para input y textarea via prop `as`
+- Aplicado a 4 módulos principales:
+  - Clients.jsx: 13 campos (formulario completo + contactos + búsqueda 400ms debounce)
+  - Inventory.jsx: 10 campos (almacén, entradas, salidas, transferencias)
+  - Integrators.jsx: 6 campos (nombre, app, contactos + búsqueda 400ms debounce)
+  - Quotes.jsx: 2 campos (mensaje custom + sucursales, aplicados anteriormente con defaultValue+onBlur)
+- VALIDADO: Compilación exitosa, formulario renderiza correctamente
+
 ### Ficha Técnica de Implementación - Nuevo PDF (2026-03-26)
 - Creado /app/backend/services/implementation_pdf.py: genera PDF operativo con 5 bloques
   - A. Identificación del Proyecto (tipo, comercio, RIF)

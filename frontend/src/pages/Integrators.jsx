@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
+import DebouncedInput from '../components/DebouncedInput';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
@@ -536,7 +537,7 @@ export const Integrators = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="col-span-2">
                           <Label>Nombre del Integrador *</Label>
-                          <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Ej: TechPay Solutions" required data-testid="integrator-name-input" />
+                          <DebouncedInput value={formData.name} onCommit={(v) => setFormData(prev => ({ ...prev, name: v }))} placeholder="Ej: TechPay Solutions" required data-testid="integrator-name-input" />
                         </div>
                         <div>
                           <Label>Tipo de Integración *</Label>
@@ -554,7 +555,7 @@ export const Integrators = () => {
                         </div>
                         <div className="col-span-2">
                           <Label>Nombre del Aplicativo *</Label>
-                          <Input value={formData.app_name} onChange={(e) => setFormData({ ...formData, app_name: e.target.value })} placeholder="Ej: PaymentHub v3" required data-testid="app-name-input" />
+                          <DebouncedInput value={formData.app_name} onCommit={(v) => setFormData(prev => ({ ...prev, app_name: v }))} placeholder="Ej: PaymentHub v3" required data-testid="app-name-input" />
                         </div>
                       </div>
                     </div>
@@ -608,14 +609,14 @@ export const Integrators = () => {
                       )}
                       {(formData.contacts || []).map((c, idx) => (
                         <div key={c.contact_id || idx} className="flex items-center gap-2 mb-2 bg-slate-50 rounded-lg p-2" data-testid={`contact-row-${idx}`}>
-                          <Input value={c.name} onChange={(e) => updateContact(idx, 'name', e.target.value)} placeholder="Nombre completo" className="h-8 text-xs flex-1" />
+                          <DebouncedInput value={c.name} onCommit={(v) => updateContact(idx, 'name', v)} placeholder="Nombre completo" className="h-8 text-xs flex-1" />
                           <div className="relative flex-1">
                             <Mail size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <Input value={c.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} placeholder="correo@empresa.com" className="h-8 text-xs pl-7" type="email" />
+                            <DebouncedInput value={c.email} onCommit={(v) => updateContact(idx, 'email', v)} placeholder="correo@empresa.com" className="h-8 text-xs pl-7" type="email" />
                           </div>
                           <div className="relative w-[140px]">
                             <Phone size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <Input value={c.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)} placeholder="+58 412..." className="h-8 text-xs pl-7" />
+                            <DebouncedInput value={c.phone} onCommit={(v) => updateContact(idx, 'phone', v)} placeholder="+58 412..." className="h-8 text-xs pl-7" />
                           </div>
                           <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeContact(idx)}>
                             <X size={14} />
@@ -638,7 +639,7 @@ export const Integrators = () => {
             <div className="flex flex-wrap gap-2 items-center">
               <div className="flex-1 min-w-[180px] relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <Input placeholder="Buscar nombre, aplicativo, gestor..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-sm" data-testid="search-input" />
+                <DebouncedInput placeholder="Buscar nombre, aplicativo, gestor..." value={searchTerm} onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9 h-9 text-sm" data-testid="search-input" />
               </div>
               <Select value={filterIntType} onValueChange={setFilterIntType}>
                 <SelectTrigger className="w-[110px] h-9 text-xs" data-testid="filter-int-type"><SelectValue placeholder="Tipo Int." /></SelectTrigger>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
@@ -9,6 +9,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
+import DebouncedInput from '../components/DebouncedInput';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -803,30 +804,33 @@ export const Clients = () => {
                         </div>
                         <div>
                           <Label className="text-xs">RIF</Label>
-                          <Input data-testid="client-rif-input" value={formData.rif}
-                            onChange={(e) => { setFormData({ ...formData, rif: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
+                          <DebouncedInput data-testid="client-rif-input" value={formData.rif}
+                            onCommit={(v) => setFormData(prev => ({ ...prev, rif: v }))}
+                            onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; })}
                             className={`h-9 font-mono ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
                             placeholder="J000000000" required />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Nombre Jurídico</Label>
-                            <Input data-testid="client-legal-name-input" value={formData.legal_name}
-                              onChange={(e) => { setFormData({ ...formData, legal_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
+                            <DebouncedInput data-testid="client-legal-name-input" value={formData.legal_name}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, legal_name: v }))}
+                              onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; })}
                               className={`h-9 ${rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
                           </div>
                           <div>
                             <Label className="text-xs">Nombre de Fantasía</Label>
-                            <Input data-testid="client-fantasy-name-input" value={formData.fantasy_name}
-                              onChange={(e) => { setFormData({ ...formData, fantasy_name: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
+                            <DebouncedInput data-testid="client-fantasy-name-input" value={formData.fantasy_name}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, fantasy_name: v }))}
+                              onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; })}
                               className={`h-9 ${rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Grupo Económico</Label>
-                            <Input data-testid="client-grupo-economico-input" value={formData.grupo_economico}
-                              onChange={(e) => setFormData({ ...formData, grupo_economico: e.target.value })}
+                            <DebouncedInput data-testid="client-grupo-economico-input" value={formData.grupo_economico}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, grupo_economico: v }))}
                               className="h-9" placeholder="Ej: Grupo Polar" />
                           </div>
                           <div>
@@ -857,16 +861,16 @@ export const Clients = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Cantidad de Tiendas</Label>
-                            <Input type="number" min="0" data-testid="client-cantidad-tiendas-input"
+                            <DebouncedInput type="number" min="0" data-testid="client-cantidad-tiendas-input"
                               value={formData.cantidad_tiendas}
-                              onChange={(e) => setFormData({ ...formData, cantidad_tiendas: e.target.value })}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, cantidad_tiendas: v }))}
                               className="h-9" placeholder="0" />
                           </div>
                           <div>
                             <Label className="text-xs">Cantidad de Cajas</Label>
-                            <Input type="number" min="0" data-testid="client-cantidad-cajas-input"
+                            <DebouncedInput type="number" min="0" data-testid="client-cantidad-cajas-input"
                               value={formData.cantidad_cajas}
-                              onChange={(e) => setFormData({ ...formData, cantidad_cajas: e.target.value })}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, cantidad_cajas: v }))}
                               className="h-9" placeholder="0" />
                           </div>
                         </div>
@@ -887,22 +891,23 @@ export const Clients = () => {
                         <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Ubicación y Sedes</h3>
                         <div>
                           <Label className="text-xs">Dirección Fiscal</Label>
-                          <textarea data-testid="client-address-input" value={formData.address}
-                            onChange={(e) => { setFormData({ ...formData, address: e.target.value }); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
+                          <DebouncedInput as="textarea" data-testid="client-address-input" value={formData.address}
+                            onCommit={(v) => setFormData(prev => ({ ...prev, address: v }))}
+                            onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; })}
                             className={`flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[56px] resize-none ${rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
                             placeholder="Av. Principal, Edificio..." />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Nombre de Sucursal</Label>
-                            <Input data-testid="client-sucursal-input" value={formData.sucursal}
-                              onChange={(e) => setFormData({ ...formData, sucursal: e.target.value })}
+                            <DebouncedInput data-testid="client-sucursal-input" value={formData.sucursal}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, sucursal: v }))}
                               className="h-9" placeholder="Sede Principal" required />
                           </div>
                           <div>
                             <Label className="text-xs">Dirección de Sucursal</Label>
-                            <Input data-testid="client-branch-address-input" value={formData.branch_address}
-                              onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
+                            <DebouncedInput data-testid="client-branch-address-input" value={formData.branch_address}
+                              onCommit={(v) => setFormData(prev => ({ ...prev, branch_address: v }))}
                               className="h-9" placeholder="Ubicación física" />
                           </div>
                         </div>
@@ -947,8 +952,8 @@ export const Clients = () => {
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <Input data-testid="client-aplicativo-input" value={formData.aplicativo}
-                                onChange={(e) => setFormData({ ...formData, aplicativo: e.target.value })}
+                              <DebouncedInput data-testid="client-aplicativo-input" value={formData.aplicativo}
+                                onCommit={(v) => setFormData(prev => ({ ...prev, aplicativo: v }))}
                                 className="h-9" placeholder={formData.integrador_id ? 'Escriba el aplicativo' : 'Seleccione integrador'}
                                 disabled={!formData.integrador_id} />
                             )}
@@ -1017,17 +1022,17 @@ export const Clients = () => {
                         <div key={idx} className="grid grid-cols-12 gap-2 mb-2 items-end p-2.5 bg-slate-50 rounded-lg border" data-testid={`contact-row-${idx}`}>
                           <div className="col-span-3">
                             <Label className="text-xs">Nombre</Label>
-                            <Input value={contact.full_name} onChange={(e) => updateContact(idx, 'full_name', e.target.value)}
+                            <DebouncedInput value={contact.full_name} onCommit={(v) => updateContact(idx, 'full_name', v)}
                               placeholder="Nombre completo" className="h-8 text-sm" data-testid={`contact-full-name-${idx}`} required />
                           </div>
                           <div className="col-span-2">
                             <Label className="text-xs">Teléfono</Label>
-                            <Input value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                            <DebouncedInput value={contact.phone} onCommit={(v) => updateContact(idx, 'phone', v)}
                               placeholder="0412..." className="h-8 text-sm" />
                           </div>
                           <div className="col-span-3">
                             <Label className="text-xs">Email</Label>
-                            <Input value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                            <DebouncedInput value={contact.email} onCommit={(v) => updateContact(idx, 'email', v)}
                               placeholder="email@..." className="h-8 text-sm" type="email" />
                           </div>
                           <div className="col-span-3">
@@ -1066,8 +1071,8 @@ export const Clients = () => {
           {/* Search */}
           <div className="mb-4 max-w-sm relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" data-testid="client-search" />
+            <DebouncedInput placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
+              onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
           </div>
 
 
@@ -1414,13 +1419,13 @@ export const Clients = () => {
               <h4 className="text-sm font-semibold text-slate-700">Nueva entrada</h4>
               <div>
                 <Label className="text-xs">Detalle del contacto *</Label>
-                <Textarea value={newLog.detail} onChange={(e) => setNewLog(p => ({ ...p, detail: e.target.value }))}
+                <DebouncedInput as="textarea" value={newLog.detail} onCommit={(v) => setNewLog(p => ({ ...p, detail: v }))}
                   placeholder="Resumen de la interacción con el cliente..." rows={2} data-testid="log-detail-input" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Acción resultante / Compromiso adquirido</Label>
-                  <Input value={newLog.action} onChange={(e) => setNewLog(p => ({ ...p, action: e.target.value }))}
+                  <DebouncedInput value={newLog.action} onCommit={(v) => setNewLog(p => ({ ...p, action: v }))}
                     placeholder="Ej: Llamar para confirmar recepción" data-testid="log-action-input" />
                 </div>
                 <div>
