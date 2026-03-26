@@ -346,6 +346,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Fix Plantillas de Correo - Actualización Bloqueada (2026-03-26)
+- Eliminadas rutas duplicadas de email-templates en projects.py que conflictuaban con seed_and_templates.py
+- Causa raiz: projects.py registraba PUT /email-templates/{id} esperando Form(...) pero frontend enviaba JSON
+- La ruta correcta en seed_and_templates.py usa modelo Pydantic EmailTemplate (JSON) que coincide con frontend
+- VALIDADO: PUT exitoso via curl y UI (toast "Plantilla guardada exitosamente")
+
 ### P1
 - Herencia de cantidad_cajas a campo VTID en cotizaciones VPOS
 - Verificacion Email y Recuperacion Contrasena

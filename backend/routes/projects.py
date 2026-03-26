@@ -822,64 +822,7 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
 
 # ==================== EMAIL TEMPLATES (CRUD) ====================
 
-@router.get("/email-templates")
-async def list_email_templates(authorization: Optional[str] = Header(None)):
-    """Listar todas las plantillas de email."""
-    await get_current_user(authorization)
-    templates = await db.email_templates.find({}, {"_id": 0}).to_list(None)
-    return templates
-
-
-@router.post("/email-templates")
-async def create_email_template(authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body_content: str = Form(...)):
-    """Crear plantilla de email (solo admin)."""
-    current_user = await get_current_user(authorization)
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
-
-    now = datetime.now(timezone.utc).isoformat()
-    template = {
-        "template_id": f"tpl_{uuid.uuid4().hex[:8]}",
-        "name": name.strip(),
-        "subject": subject.strip(),
-        "body": body_content,
-        "created_by": current_user.get("user_id"),
-        "created_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
-        "created_at": now,
-        "updated_at": now,
-    }
-    await db.email_templates.insert_one(template)
-    template.pop("_id", None)
-    return template
-
-
-@router.put("/email-templates/{template_id}")
-async def update_email_template(template_id: str, authorization: Optional[str] = Header(None), name: str = Form(...), subject: str = Form(...), body_content: str = Form(...)):
-    """Actualizar plantilla de email (solo admin)."""
-    current_user = await get_current_user(authorization)
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
-
-    result = await db.email_templates.update_one(
-        {"template_id": template_id},
-        {"$set": {"name": name.strip(), "subject": subject.strip(), "body": body_content, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
-    return {"message": "Plantilla actualizada"}
-
-
-@router.delete("/email-templates/{template_id}")
-async def delete_email_template(template_id: str, authorization: Optional[str] = Header(None)):
-    """Eliminar plantilla de email (solo admin)."""
-    current_user = await get_current_user(authorization)
-    if current_user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Solo administradores pueden gestionar plantillas")
-
-    result = await db.email_templates.delete_one({"template_id": template_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
-    return {"message": "Plantilla eliminada"}
+## Email template routes removed — handled by seed_and_templates.py
 
 
 
