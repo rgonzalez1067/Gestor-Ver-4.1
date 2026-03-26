@@ -574,23 +574,20 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     quote["client_name"] = client_name
     quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
 
-    # Preparar PDF attachment
-    pdf_buffer = None
-    pdf_url = quote.get("quote_pdf_url")
-    if pdf_url:
-        pdf_path = UPLOADS_DIR / pdf_url.replace("/uploads/", "")
-        if pdf_path.exists():
-            with open(pdf_path, 'rb') as f:
-                pdf_buffer = f.read()
+    # Generar PDF de Ficha Técnica de Implementación
+    from services.implementation_pdf import generate_implementation_pdf
+    contacts = client.get('contacts', []) if client else []
+    branches = quote.get('branch_details', [])
+    impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
 
-    # Workflow centralizado: send-to-implementation → Implementación (General) + PDF
+    # Workflow centralizado: send-to-implementation → Implementación (General) + PDF técnico
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
     email_results = await send_workflow_notification(
         action="send-to-implementation",
         quote=quote,
         current_user=current_user,
         custom_message=custom_message,
-        pdf_buffer=pdf_buffer,
+        pdf_buffer=impl_pdf_bytes,
         cc_emails=cc_emails,
     )
     

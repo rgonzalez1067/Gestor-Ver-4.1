@@ -346,6 +346,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Ficha Técnica de Implementación - Nuevo PDF (2026-03-26)
+- Creado /app/backend/services/implementation_pdf.py: genera PDF operativo con 5 bloques
+  - A. Identificación del Proyecto (tipo, comercio, RIF)
+  - B. Configuración Técnica (integrador, app, pinpad, patrocinador)
+  - C. Resumen Comercial (tabla cliente/cajas/dirección + bancos/productos)
+  - D. Distribución Logística (sucursales o "Sucursal Única" si no hay detalle)
+  - E. Directorio de Contactos (nombre, cargo, teléfono, email)
+- Integrado en endpoint send-to-implementation: genera y adjunta automáticamente
+- Fix: render_template ahora soporta tanto {key} como {{key}} para variables
+- VALIDADO: PDF generado (4.2 KB), email con attach=True, subject con variables resueltas
+
 ### Optimización Workflow de Acciones: Cotizaciones Pyme & Corp (2026-03-26)
 - Aprobación: Ahora adjunta PDF de la cotización al correo hacia Administración (WORKFLOW_MATRIX attach_pdf=True + carga desde quote_pdf_url)
 - Factura/Proforma: Adjunta archivo físico de factura con nombre descriptivo Factura_{Nro}_{Cliente}.ext + plantilla por sede

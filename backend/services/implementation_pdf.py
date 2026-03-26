@@ -1,0 +1,372 @@
+"""
+Generador de PDF: Ficha Técnica de Implementación
+Documento operativo para el equipo de operaciones/implementación.
+Se genera al accionar "Enviar a Implementación".
+"""
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.units import inch
+import io
+from datetime import datetime
+
+
+# Colores corporativos
+COLOR_AZUL = colors.HexColor("#00447C")
+COLOR_AZUL_CLARO = colors.HexColor("#E3F2FD")
+COLOR_VERDE = colors.HexColor("#28A745")
+COLOR_VERDE_CLARO = colors.HexColor("#E8F5E9")
+COLOR_GRIS = colors.HexColor("#F5F5F5")
+COLOR_AMARILLO = colors.HexColor("#FBBF24")
+COLOR_TEXTO = colors.HexColor("#333333")
+COLOR_BORDE = colors.HexColor("#E0E0E0")
+
+MESES_ES = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
+}
+
+
+def _build_styles():
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='DocTitle', fontName='Helvetica-Bold', fontSize=22,
+        textColor=COLOR_AZUL, alignment=1, spaceAfter=12
+    ))
+    styles.add(ParagraphStyle(
+        name='SectionHeader', fontName='Helvetica-Bold', fontSize=13,
+        textColor=colors.white, spaceBefore=14, spaceAfter=6
+    ))
+    styles.add(ParagraphStyle(
+        name='BlockLabel', fontName='Helvetica-Bold', fontSize=10,
+        textColor=COLOR_AZUL, spaceAfter=4
+    ))
+    styles.add(ParagraphStyle(
+        name='NormalText', fontName='Helvetica', fontSize=10,
+        textColor=COLOR_TEXTO, leading=14, spaceAfter=4
+    ))
+    styles.add(ParagraphStyle(
+        name='SmallText', fontName='Helvetica', fontSize=9,
+        textColor=COLOR_TEXTO, leading=12
+    ))
+    styles.add(ParagraphStyle(
+        name='FooterText', fontName='Helvetica', fontSize=8,
+        textColor=colors.HexColor("#888888"), alignment=1
+    ))
+    return styles
+
+
+def _section_banner(title, styles):
+    """Crea un banner de sección azul con texto blanco"""
+    t = Table([[Paragraph(title, styles['SectionHeader'])]], colWidths=[480])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), COLOR_AZUL),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('ROUNDEDCORNERS', [4, 4, 4, 4]),
+    ]))
+    return t
+
+
+def _key_value_table(pairs, styles):
+    """Tabla de pares clave-valor"""
+    data = []
+    for label, value in pairs:
+        data.append([
+            Paragraph(f"<b>{label}:</b>", styles['NormalText']),
+            Paragraph(str(value or 'N/A'), styles['NormalText'])
+        ])
+    t = Table(data, colWidths=[180, 300])
+    t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (0, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('BACKGROUND', (0, 0), (0, -1), COLOR_GRIS),
+    ]))
+    return t
+
+
+def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branches: list, logo_path: str = None) -> bytes:
+    """
+    Genera el PDF de Ficha Técnica de Implementación.
+    
+    Args:
+        quote: Documento de la cotización
+        client: Documento del cliente
+        contacts: Lista de contactos del cliente
+        branches: Lista de sucursales [{store_name, quantity}]
+        logo_path: Ruta al logo (opcional)
+    
+    Returns:
+        bytes del PDF generado
+    """
+    buf = io.BytesIO()
+    styles = _build_styles()
+    
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        leftMargin=50, rightMargin=50,
+        topMargin=60, bottomMargin=50
+    )
+    
+    elements = []
+    now = datetime.now()
+    fecha = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
+    quote_number = quote.get('quote_number', 'S/N')
+    client_name = client.get('legal_name') or client.get('fantasy_name') or 'N/A'
+    
+    # ==================== ENCABEZADO ====================
+    elements.append(Paragraph("FICHA TECNICA DE IMPLEMENTACION", styles['DocTitle']))
+    elements.append(Spacer(1, 4))
+    
+    # Metadata: Nro cotización y fecha
+    meta_data = [[
+        Paragraph(f"<b>Cotización:</b> {quote_number}", styles['NormalText']),
+        Paragraph(f"<b>Fecha:</b> {fecha}", styles['NormalText']),
+    ]]
+    meta_t = Table(meta_data, colWidths=[280, 200])
+    meta_t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, 0), (-1, -1), COLOR_AZUL_CLARO),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+    ]))
+    elements.append(meta_t)
+    elements.append(Spacer(1, 16))
+    
+    # ==================== BLOQUE A: IDENTIFICACIÓN DEL PROYECTO ====================
+    elements.append(_section_banner("A. IDENTIFICACION DEL PROYECTO", styles))
+    elements.append(Spacer(1, 6))
+    
+    quote_type = quote.get('quote_type', 'N/A')
+    tipo_display = 'VPOS / MPOS' if quote_type in ('VPOS_MPOS', 'VPOS') else 'Payment Gateway' if quote_type == 'GATEWAY' else 'Fast Track' if quote_type == 'FAST_TRACK' else quote_type
+    
+    elements.append(_key_value_table([
+        ("Tipo de Proyecto", tipo_display),
+        ("Nombre del Comercio", client_name),
+        ("RIF", client.get('rif', 'N/A')),
+    ], styles))
+    elements.append(Spacer(1, 14))
+    
+    # ==================== BLOQUE B: CONFIGURACIÓN TÉCNICA ====================
+    elements.append(_section_banner("B. CONFIGURACION TECNICA (Hardware & Software)", styles))
+    elements.append(Spacer(1, 6))
+    
+    elements.append(_key_value_table([
+        ("Nombre del Integrador", quote.get('integrator_name', 'N/A')),
+        ("Nombre del Aplicativo", quote.get('integrator_app_name', 'N/A')),
+        ("Modelo de Pinpad", quote.get('pinpad_model', 'N/A')),
+        ("Patrocinador de Pinpads", quote.get('sponsor_bank_name', 'N/A')),
+    ], styles))
+    elements.append(Spacer(1, 14))
+    
+    # ==================== BLOQUE C: RESUMEN COMERCIAL ====================
+    elements.append(_section_banner("C. RESUMEN COMERCIAL", styles))
+    elements.append(Spacer(1, 6))
+    elements.append(Paragraph("Resumen Ejecutivo", styles['BlockLabel']))
+    elements.append(Spacer(1, 4))
+    
+    # Tabla de resumen: Cliente | Cajas | Dirección
+    cantidad_cajas = quote.get('cantidad_cajas', 1)
+    direccion = client.get('address', 'No especificada')
+    
+    summary_row1 = [
+        [Paragraph("<b>Cliente</b>", styles['SmallText']),
+         Paragraph(str(client_name), styles['SmallText']),
+         Paragraph("<b>Cant. Cajas</b>", styles['SmallText']),
+         Paragraph(str(cantidad_cajas), styles['SmallText'])]
+    ]
+    t1 = Table(summary_row1, colWidths=[80, 200, 90, 110])
+    t1.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), COLOR_AMARILLO),
+        ('BACKGROUND', (2, 0), (2, 0), COLOR_AZUL_CLARO),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(t1)
+    
+    # Dirección
+    dir_row = [[Paragraph("<b>Dir. Fiscal</b>", styles['SmallText']),
+                Paragraph(str(direccion), styles['SmallText'])]]
+    t_dir = Table(dir_row, colWidths=[80, 400])
+    t_dir.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), COLOR_VERDE_CLARO),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(t_dir)
+    elements.append(Spacer(1, 6))
+    
+    # Tabla de Bancos / Productos (desde additional_items)
+    additional_items = quote.get('additional_items', [])
+    if additional_items:
+        bank_header = [
+            Paragraph("<b>Banco</b>", styles['SmallText']),
+            Paragraph("<b>Medio de Pago</b>", styles['SmallText']),
+            Paragraph("<b>Cajas</b>", styles['SmallText']),
+        ]
+        bank_data = [bank_header]
+        for item in additional_items:
+            bank_data.append([
+                Paragraph(str(item.get('bank_name', 'N/A')), styles['SmallText']),
+                Paragraph(str(item.get('name', item.get('concepto', 'N/A'))), styles['SmallText']),
+                Paragraph(str(item.get('quantity', cantidad_cajas)), styles['SmallText']),
+            ])
+        
+        bank_table = Table(bank_data, colWidths=[160, 230, 90])
+        bank_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]
+        # Alternar colores de fila
+        for i in range(1, len(bank_data)):
+            if i % 2 == 0:
+                bank_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+        bank_table.setStyle(TableStyle(bank_style))
+        elements.append(bank_table)
+    
+    elements.append(Spacer(1, 14))
+    
+    # ==================== BLOQUE D: DISTRIBUCIÓN LOGÍSTICA ====================
+    elements.append(_section_banner("D. DISTRIBUCION LOGISTICA (Sucursales)", styles))
+    elements.append(Spacer(1, 6))
+    
+    branch_header = [
+        Paragraph("<b>#</b>", styles['SmallText']),
+        Paragraph("<b>Nombre de Sucursal</b>", styles['SmallText']),
+        Paragraph("<b>Cant. Cajas</b>", styles['SmallText']),
+    ]
+    branch_data = [branch_header]
+    
+    if branches and len(branches) > 0:
+        for idx, b in enumerate(branches, 1):
+            branch_data.append([
+                Paragraph(str(idx), styles['SmallText']),
+                Paragraph(str(b.get('store_name', f'Sucursal {idx}')), styles['SmallText']),
+                Paragraph(str(b.get('quantity', 0)), styles['SmallText']),
+            ])
+    else:
+        # Sin detalle: Sucursal Única
+        branch_data.append([
+            Paragraph("1", styles['SmallText']),
+            Paragraph("Sucursal Unica", styles['SmallText']),
+            Paragraph(str(cantidad_cajas), styles['SmallText']),
+        ])
+    
+    # Fila de total
+    total_cajas = sum(b.get('quantity', 0) for b in branches) if branches else cantidad_cajas
+    branch_data.append([
+        Paragraph("", styles['SmallText']),
+        Paragraph("<b>TOTAL</b>", styles['SmallText']),
+        Paragraph(f"<b>{total_cajas}</b>", styles['SmallText']),
+    ])
+    
+    branch_table = Table(branch_data, colWidths=[40, 330, 110])
+    branch_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Fila total
+        ('BACKGROUND', (0, -1), (-1, -1), COLOR_AZUL_CLARO),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]
+    for i in range(1, len(branch_data) - 1):
+        if i % 2 == 0:
+            branch_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+    branch_table.setStyle(TableStyle(branch_style))
+    elements.append(branch_table)
+    elements.append(Spacer(1, 14))
+    
+    # ==================== BLOQUE E: DIRECTORIO DE CONTACTOS ====================
+    elements.append(_section_banner("E. DIRECTORIO DE CONTACTOS", styles))
+    elements.append(Spacer(1, 6))
+    
+    contact_header = [
+        Paragraph("<b>Nombre</b>", styles['SmallText']),
+        Paragraph("<b>Cargo / Rol</b>", styles['SmallText']),
+        Paragraph("<b>Telefono</b>", styles['SmallText']),
+        Paragraph("<b>Email</b>", styles['SmallText']),
+    ]
+    contact_data = [contact_header]
+    
+    if contacts:
+        for c in contacts:
+            name = c.get('full_name') or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or 'N/A'
+            contact_data.append([
+                Paragraph(str(name), styles['SmallText']),
+                Paragraph(str(c.get('role', c.get('position', 'N/A'))), styles['SmallText']),
+                Paragraph(str(c.get('phone', 'N/A')), styles['SmallText']),
+                Paragraph(str(c.get('email', 'N/A')), styles['SmallText']),
+            ])
+    else:
+        contact_data.append([
+            Paragraph("Sin contactos registrados", styles['SmallText']),
+            Paragraph("-", styles['SmallText']),
+            Paragraph("-", styles['SmallText']),
+            Paragraph("-", styles['SmallText']),
+        ])
+    
+    contact_table = Table(contact_data, colWidths=[130, 110, 110, 130])
+    contact_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]
+    for i in range(1, len(contact_data)):
+        if i % 2 == 0:
+            contact_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+    contact_table.setStyle(TableStyle(contact_style))
+    elements.append(contact_table)
+    
+    # ==================== PIE DE DOCUMENTO ====================
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(
+        f"Documento generado automaticamente el {fecha} | Ref: {quote_number}",
+        styles['FooterText']
+    ))
+    elements.append(Paragraph(
+        "Este documento es de uso interno y exclusivo del equipo de operaciones.",
+        styles['FooterText']
+    ))
+    
+    # Build
+    doc.build(elements)
+    return buf.getvalue()

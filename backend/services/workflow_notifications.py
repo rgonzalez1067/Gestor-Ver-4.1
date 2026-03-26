@@ -40,10 +40,11 @@ WORKFLOW_MATRIX = {
 
 
 def render_template(template_str: str, variables: dict) -> str:
-    """Renderiza variables {{key}} en una plantilla."""
+    """Renderiza variables {key} y {{key}} en una plantilla."""
     result = template_str
     for key, value in variables.items():
         result = result.replace(f"{{{{{key}}}}}", str(value or ""))
+        result = result.replace(f"{{{key}}}", str(value or ""))
     return result
 
 
@@ -197,8 +198,13 @@ async def send_workflow_notification(
     attachments = list(extra_attachments or [])
     if matrix.get("attach_pdf") and pdf_buffer:
         pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, "getvalue") else pdf_buffer
+        # Nombre descriptivo según la acción
+        if action == "send-to-implementation":
+            filename = f"Ficha_Implementacion_{quote_number}.pdf"
+        else:
+            filename = f"Cotizacion_{quote_number}.pdf"
         attachments.append({
-            "filename": f"cotizacion_{quote_number}.pdf",
+            "filename": filename,
             "content": base64.b64encode(pdf_bytes).decode("utf-8"),
         })
 
