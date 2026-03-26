@@ -236,17 +236,19 @@ export const QuotesTable = ({
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>}
                         {canEdit && <DropdownMenuSeparator />}
-                        {canEdit && (isEquipment || isRepair || isFastTrack ? (
+                        {canEdit && (isEquipment || isRepair || isFastTrack) && (
                           <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
-                            {quote.quote_status !== 'Pagada' && quote.quote_status !== 'Entregada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
+                            {quote.delivered_at && <span className="ml-auto text-xs text-teal-500">&#10003;</span>}
+                            {!quote.delivered_at && quote.quote_status === 'Pagada' && <span className="ml-auto text-xs text-teal-500">&#x25CF;</span>}
                           </DropdownMenuItem>
-                        ) : (
+                        )}
+                        {canEdit && (!isEquipment && !isRepair) && (
                           <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer">
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
-                            {quote.quote_status !== 'Pagada' && <span className="ml-auto text-[9px] text-orange-500">!</span>}
+                            {isFastTrack && !quote.delivered_at && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Entregar primero</span>}
                           </DropdownMenuItem>
-                        ))}
+                        )}
                         <DropdownMenuSeparator />
                         {canEdit && <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
                           className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">

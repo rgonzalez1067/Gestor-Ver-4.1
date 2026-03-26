@@ -853,10 +853,14 @@ async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    if quote.get("quote_category") != "equipment":
-        raise HTTPException(status_code=400, detail="Solo cotizaciones de equipos soportan entrega")
+    if quote.get("quote_category") not in ("equipment", "fast_track"):
+        raise HTTPException(status_code=400, detail="Solo cotizaciones de equipos o Fast Track soportan entrega")
 
-    equipment_items = quote.get("equipment_items", [])
+    # Para Fast Track usar ft_equipment_items, para equipment usar equipment_items
+    if quote.get("quote_category") == "fast_track":
+        equipment_items = quote.get("ft_equipment_items", [])
+    else:
+        equipment_items = quote.get("equipment_items", [])
 
     # Almacenes disponibles
     warehouses = await db.warehouses.find({}, {"_id": 0}).sort("name", 1).to_list(100)

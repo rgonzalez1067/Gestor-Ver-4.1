@@ -346,6 +346,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Flujo Logístico Fast Track - Entrega de Equipos (2026-03-26)
+- Backend: Abierto delivery-prep para fast_track (lee ft_equipment_items)
+- Frontend: Menú de acciones muestra AMBOS botones: "Marcar como Entregada" + "Enviar a Implementación"
+- Badge "Entregar primero" en botón de implementación cuando no se ha entregado
+- delivery-prep validado: retorna items de Fast Track con seriales y stock correcto
+- VALIDADO: Screenshot confirma menú dual, curl confirma delivery-prep funcional
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
