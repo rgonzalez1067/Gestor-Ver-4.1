@@ -321,6 +321,15 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Logs de envío registrados en colección email_logs de MongoDB
 - VALIDADO: Email de prueba enviado exitosamente via SMTP a gestor@megasoft.com.ve
 
+### Workflow Notifications (2026-03-26)
+- Creado helper centralizado: services/workflow_notifications.py
+- Matriz de 5 disparadores: send-to-client, approve, configure, collect, send-to-implementation
+- Resolución dinámica de buzones desde config (emails_by_sede)
+- Selección automática de plantilla por segmento (PYME/CORP)
+- Adjunto PDF automático en send-to-client y send-to-implementation
+- CC y mensajes personalizados heredados del modal "Personalizar Comunicación"
+- Refactorizado quote_actions.py: eliminado código duplicado (~200 líneas)
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 

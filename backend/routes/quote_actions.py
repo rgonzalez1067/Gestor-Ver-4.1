@@ -13,6 +13,7 @@ import base64
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template
 from models import *
 from services.email_service import send_email
+from services.workflow_notifications import send_workflow_notification
 from services.hoja_ruta_pdf import generate_nota_entrega_pdf
 
 router = APIRouter()
@@ -241,53 +242,33 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             await db.taller_equipos.insert_many(taller_docs)
             logger.info(f"Taller: {len(taller_docs)} equipo(s) ingresados para cotización {quote.get('quote_number')}")
     
-    # Preparar email
-    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    quote_sede = quote.get("sede", "PYME")
-    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-    sede_emails = emails_by_sede.get(quote_sede, {})
-    admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
-    sales_email = sede_emails.get("sales") if sede_emails else None
-
-    template = await db.email_templates.find_one({"template_id": "quote_approved"}, {"_id": 0})
-    if not template:
-        template = {
-            "subject": "Cotización {{quote_number}} Aprobada - Lista para Facturar",
-            "body_html": "<h2>Cotización Aprobada</h2><p>La cotización <strong>{{quote_number}}</strong> ha sido aprobada.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p>"
-        }
-    
-    template_vars = {
-        "quote_number": quote.get('quote_number', ''),
-        "client_name": client_name,
-        "quote_type": quote.get('quote_type', 'N/A'),
-        "total_usd": f"{quote.get('total_usd', 0):.2f}"
-    }
-    subject = render_email_template(template["subject"], template_vars)
-    html_content = render_email_template(template["body_html"], template_vars)
-    
-    # Agregar mensaje personalizado si existe
-    if custom_message and custom_message.strip():
-        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
-
-    # Parsear destinatarios adicionales
+    # Preparar email via Workflow Notification
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-
+    
     email_results = []
-    # Para reparaciones, NO enviar email a admin en aprobación (se envía al completar reparación)
     is_repair = quote.get("quote_category") == "repair"
-    # Para fast_track, notificar a Operaciones (no Admin) con plantilla de configuración de equipos
     is_fast_track = quote.get("quote_category") == "fast_track"
     
     if is_fast_track:
-        # Notificar a Operaciones con plantilla especial
-        ops_email = sede_emails.get("operations") or sede_emails.get("admin") or (config.get("operations_email") if config else None) or admin_email
+        # Notificar a Operaciones con plantilla especial de fast_track
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        quote_sede = quote.get("sede", "PYME")
+        emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+        sede_emails = emails_by_sede.get(quote_sede, {})
+        ops_email = sede_emails.get("operations") or sede_emails.get("admin") or (config.get("operations_email") if config else None)
+        
         ft_template = await db.email_templates.find_one({"template_id": "fast_track_config"}, {"_id": 0})
         if not ft_template:
             ft_template = {
                 "subject": "Configuración de Equipos (Pyme): {{quote_number}}",
                 "body_html": "<h2>Solicitud de Configuración de Equipos</h2><p>La cotización <strong>{{quote_number}}</strong> de tipo <strong>POS Stand Alone (Fast Track)</strong> ha sido aprobada.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p><p>Por favor proceda con la configuración de los equipos para su posterior despacho.</p>"
             }
+        template_vars = {
+            "quote_number": quote.get('quote_number', ''),
+            "client_name": client_name,
+            "quote_type": quote.get('quote_type', 'N/A'),
+            "total_usd": f"{quote.get('total_usd', 0):.2f}"
+        }
         ft_subject = render_email_template(ft_template["subject"], template_vars)
         ft_html = render_email_template(ft_template["body_html"], template_vars)
         if custom_message and custom_message.strip():
@@ -300,22 +281,14 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             r = await send_email(to=[cc], subject=f"[CC] {ft_subject}", html=ft_html, action="approve_ft_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
             email_results.append(r)
     elif not is_repair:
-        # Notificar a admin
-        if admin_email:
-            r = await send_email(to=[admin_email], subject=subject, html=html_content, action="approve_admin", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
-        # Notificar a ventas
-        if sales_email:
-            r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="approve_sales", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
-        # Si no hay destinatarios configurados, log simulado genérico
-        if not admin_email and not sales_email:
-            r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="approve_no_config", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
-        # Enviar a destinatarios adicionales (CC)
-        for cc in cc_emails:
-            r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="approve_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
+        # Workflow centralizado: approve → Administración + Ventas (sede)
+        email_results = await send_workflow_notification(
+            action="approve",
+            quote=quote,
+            current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+        )
 
     return {
         "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else " — Pendiente de Configuración" if is_fast_track else ""),
@@ -353,51 +326,20 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
         }}
     )
 
-    # Notificar a Administración para facturar (misma lógica que approve para implementaciones normales)
-    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    quote_sede = quote.get("sede", "PYME")
-    emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-    sede_emails = emails_by_sede.get(quote_sede, {})
-    admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
-    sales_email = sede_emails.get("sales") if sede_emails else None
-
+    # Workflow Notification: configure → Administración (sede)
     client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
     client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
-
-    template = await db.email_templates.find_one({"template_id": "fast_track_configured"}, {"_id": 0})
-    if not template:
-        template = {
-            "subject": "Equipos Configurados: {{quote_number}} - Lista para Facturar",
-            "body_html": "<h2>Equipos Configurados</h2><p>La cotización Fast Track <strong>{{quote_number}}</strong> ha completado la fase de configuración técnica.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p><p>Los equipos están listos. Proceda con la facturación.</p>"
-        }
-
-    template_vars = {
-        "quote_number": quote.get("quote_number", ""),
-        "client_name": client_name,
-        "total_usd": f"{quote.get('total_usd', 0):.2f}"
-    }
-    subject = render_email_template(template["subject"], template_vars)
-    html_content = render_email_template(template["body_html"], template_vars)
-
-    if custom_message and custom_message.strip():
-        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+    quote["client_name"] = client_name
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-
-    email_results = []
-    if admin_email:
-        r = await send_email(to=[admin_email], subject=subject, html=html_content, action="configure_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    if sales_email:
-        r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="configure_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    if not admin_email and not sales_email:
-        r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="configure_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="configure_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
+    
+    email_results = await send_workflow_notification(
+        action="configure",
+        quote=quote,
+        current_user=current_user,
+        custom_message=custom_message,
+        cc_emails=cc_emails,
+    )
 
     return {
         "message": "Equipos configurados. Notificación enviada a Administración para facturar.",
@@ -581,7 +523,7 @@ class SendToImplementationRequest(BaseModel):
     stores: Optional[list] = None
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
-async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
     """Envía la cotización al equipo de implementación. Soporta flujo irregular."""
     current_user = await get_current_user(authorization)
     
@@ -600,53 +542,27 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
-    
-    # Obtener email de implementación
-    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-    implementation_email = config.get('implementation_email') if config else None
-    if not implementation_email:
-        implementation_email = "implementacion@simulado.local"
-    
-    # Preparar template
-    services = quote.get('services', [])
-    services_html = "<table style='border-collapse:collapse;width:100%'><thead><tr style='background:#f3f4f6'><th style='padding:8px;border:1px solid #ddd;text-align:left'>Servicio</th><th style='padding:8px;border:1px solid #ddd;text-align:center'>Categoría</th></tr></thead><tbody>"
-    for svc in services:
-        services_html += f"<tr><td style='padding:8px;border:1px solid #ddd'>{svc.get('name','N/A')}</td><td style='padding:8px;border:1px solid #ddd;text-align:center'>{svc.get('category','N/A')}</td></tr>"
-    services_html += "</tbody></table>"
-    
-    template = await db.email_templates.find_one({"template_id": "implementation"}, {"_id": 0})
-    if not template:
-        template = {
-            "subject": "Nueva Implementación: {{quote_number}} - {{client_name}}",
-            "body_html": "<h2>Nueva implementación asignada</h2><p><strong>Cotización:</strong> {{quote_number}}</p><p><strong>Cliente:</strong> {{client_name}} ({{client_rif}})</p><p><strong>Integrador:</strong> {{integrator_name}}</p>{{services_table}}"
-        }
-    
-    template_vars = {
-        "quote_number": quote.get('quote_number', ''),
-        "client_name": client_name,
-        "client_rif": client.get('rif', 'N/A') if client else 'N/A',
-        "quote_type": quote.get('quote_type', 'N/A'),
-        "integrator_name": f"{quote.get('integrator_name', 'N/A')} ({quote.get('integrator_app_name', '')})",
-        "pinpad_model": quote.get('pinpad_model', 'N/A'),
-        "services_table": services_html
-    }
-    subject = render_email_template(template["subject"], template_vars)
-    html_content = render_email_template(template["body_html"], template_vars)
+    quote["client_name"] = client_name
+    quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
 
     # Preparar PDF attachment
-    pdf_attachments = None
+    pdf_buffer = None
     pdf_url = quote.get("quote_pdf_url")
     if pdf_url:
         pdf_path = UPLOADS_DIR / pdf_url.replace("/uploads/", "")
         if pdf_path.exists():
             with open(pdf_path, 'rb') as f:
-                pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
-            pdf_attachments = [{"filename": f"implementacion_{quote.get('quote_number', 'quote')}.pdf", "content": pdf_base64}]
+                pdf_buffer = f.read()
 
-    email_result = await send_email(
-        to=[implementation_email], subject=subject, html=html_content,
-        action="send_to_implementation", quote_id=quote_id, quote_number=quote.get('quote_number'),
-        attachments=pdf_attachments
+    # Workflow centralizado: send-to-implementation → Implementación (General) + PDF
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+    email_results = await send_workflow_notification(
+        action="send-to-implementation",
+        quote=quote,
+        current_user=current_user,
+        custom_message=custom_message,
+        pdf_buffer=pdf_buffer,
+        cc_emails=cc_emails,
     )
     
     await db.quotes.update_one(
@@ -666,7 +582,7 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     except Exception as e:
         logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
-    return {"message": f"Enviado a implementación: {implementation_email}", "new_status": "Enviada a Imple", **email_result}
+    return {"message": "Enviado a implementación", "new_status": "Enviada a Imple", "emails": email_results}
 
 
 # ==================== FLUJO DE FACTURACIÓN Y COBRO ====================
@@ -842,10 +758,19 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
         
         r = await send_email(to=[warehouse_email], subject=subject, html=html_content, action="collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))
         email_results.append(r)
-    
-    for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] Cobro registrado - {quote.get('quote_number', '')}", html=f"<p>Se ha registrado el cobro de la cotización {quote.get('quote_number', '')}.</p>", action="collect_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
-        email_results.append(r)
+    else:
+        # Workflow centralizado: collect → Ventas (sede) con plantilla payment_receipt
+        client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+        client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+        quote["client_name"] = client_name
+        
+        email_results = await send_workflow_notification(
+            action="collect",
+            quote=quote,
+            current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+        )
     
     return {"message": "Cotización marcada como Pagada", "emails": email_results}
 
