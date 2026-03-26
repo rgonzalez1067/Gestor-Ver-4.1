@@ -577,7 +577,19 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     # Generar PDF de Ficha Técnica de Implementación
     from services.implementation_pdf import generate_implementation_pdf
     contacts = client.get('contacts', []) if client else []
-    branches = quote.get('branch_details', [])
+
+    # PASO 1: Resolver distribución de sucursales (priorizar datos del modal multitienda)
+    if body and body.is_multistore and body.stores:
+        # Datos frescos del modal: convertir al formato branch_details
+        branches = [{"store_name": s.get("name", ""), "quantity": s.get("box_count", 0)} for s in body.stores]
+        # Persistir en BD para consistencia
+        await db.quotes.update_one({"quote_id": quote_id}, {"$set": {"branch_details": branches}})
+    else:
+        # PASO 2: Consulta fresca a la BD (no usar caché de la variable quote)
+        fresh_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "branch_details": 1})
+        branches = (fresh_quote or {}).get('branch_details', [])
+
+    # PASO 3: Generar PDF con datos actualizados
     impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
 
     # Workflow centralizado: send-to-implementation → Implementación (General) + PDF técnico
