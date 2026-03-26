@@ -330,6 +330,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - CC y mensajes personalizados heredados del modal "Personalizar Comunicación"
 - Refactorizado quote_actions.py: eliminado código duplicado (~200 líneas)
 
+### Fix Input Lag - Personalizar Comunicacion y Sucursales (2026-03-26)
+- Corregida latencia critica (Input Lag) en 2 campos de texto:
+  - `emailCustomMessage` en Quotes.jsx: cambiado de controlled (value+onChange) a uncontrolled (defaultValue+onBlur)
+  - `store_name` y `quantity` en BranchDetailPanel.jsx: cambiado onChange a onBlur
+- Causa raiz: cada keystroke disparaba setState del componente padre (5200+ lineas), causando re-render completo
+- Solucion: sincronizar estado del padre solo en onBlur, maxLength nativo del HTML para restriccion de caracteres
+- VALIDADO: Compilacion exitosa, app funcional
+
 ### Otros
 - Dashboard KPIs, Tasa BCV, Gestion usuarios con roles/permisos
 

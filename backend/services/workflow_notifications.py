@@ -59,7 +59,9 @@ async def _resolve_recipients(action: str, quote: dict, config: dict) -> list:
         return []
 
     recipient_key = matrix["recipient_key"]
-    sede = quote.get("sede", quote.get("client_segment", "PYME"))
+    # Normalizar sede: TBP → PYME (legacy)
+    raw_sede = quote.get("sede", quote.get("client_segment", "PYME"))
+    sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
     sede_emails = emails_by_sede.get(sede, {})
 
@@ -89,8 +91,11 @@ async def _resolve_template(action: str, segment: str) -> dict:
     matrix = WORKFLOW_MATRIX.get(action, {})
     template_base = matrix.get("template_base", action)
 
+    # Normalizar segmento
+    norm_segment = "PYME" if segment in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if segment in ("CORP", "Corp", "Corporativo") else segment
+
     # Intentar plantilla segmentada primero (ej: quote_approved_PYME)
-    template_id = f"{template_base}_{segment}"
+    template_id = f"{template_base}_{norm_segment}"
     template = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
 
     if not template:
@@ -205,7 +210,9 @@ async def send_workflow_notification(
 
     # 6. Notificar también a Ventas en aprobación (copia informativa)
     if action == "approve":
-        sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(segment, {})
+        raw_sede = quote.get("sede", quote.get("client_segment", "PYME"))
+        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+        sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
         sales_email = sede_emails.get("sales")
         if sales_email and sales_email not in recipients:
             r = await send_email(

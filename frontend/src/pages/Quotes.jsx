@@ -4878,13 +4878,13 @@ export const Quotes = () => {
                 <div>
                   <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 200 caracteres)</span></Label>
                   <Textarea
-                    value={emailCustomMessage}
-                    onChange={e => setEmailCustomMessage(e.target.value.slice(0, 200))}
+                    key={emailModalOpen ? 'modal-open' : 'modal-closed'}
+                    defaultValue={emailCustomMessage}
+                    onBlur={e => setEmailCustomMessage(e.target.value.slice(0, 200))}
                     placeholder="Ej: Estimado cliente, adjuntamos la documentación solicitada..."
                     className="mt-1 min-h-[70px] text-sm"
                     maxLength={200}
                     data-testid="email-custom-message" />
-                  <p className="text-[10px] text-slate-400 mt-1 text-right">{emailCustomMessage.length}/200</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>

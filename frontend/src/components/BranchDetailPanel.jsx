@@ -134,7 +134,7 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
           <div key={idx} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center" data-testid={`branch-row-${idx}`}>
             <Input
               defaultValue={branch.store_name}
-              onChange={(e) => updateRow(idx, 'store_name', e.target.value)}
+              onBlur={(e) => updateRow(idx, 'store_name', e.target.value)}
               placeholder={`Tienda ${idx + 1}`}
               className="h-8 text-xs"
               data-testid={`branch-name-${idx}`}
@@ -143,7 +143,7 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
               type="number"
               min={1}
               defaultValue={branch.quantity}
-              onChange={(e) => updateRow(idx, 'quantity', parseInt(e.target.value) || 0)}
+              onBlur={(e) => updateRow(idx, 'quantity', parseInt(e.target.value) || 0)}
               className="h-8 text-xs text-center"
               data-testid={`branch-qty-${idx}`}
             />
