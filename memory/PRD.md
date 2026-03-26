@@ -346,6 +346,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 
 ## Backlog
 
+### Optimización Workflow de Acciones: Cotizaciones Pyme & Corp (2026-03-26)
+- Aprobación: Ahora adjunta PDF de la cotización al correo hacia Administración (WORKFLOW_MATRIX attach_pdf=True + carga desde quote_pdf_url)
+- Factura/Proforma: Adjunta archivo físico de factura con nombre descriptivo Factura_{Nro}_{Cliente}.ext + plantilla por sede
+- Segmentación: Todas las acciones buscan plantilla por sede (template_base_PYME/CORP) antes de genérica
+- VALIDADO: email_log workflow_approve con has_attachment=True, backend sin errores
+
 ### Variables Dinámicas del Ejecutivo en Plantillas (2026-03-26)
 - Agregadas variables {Nombre_Ejecutivo} y {Email_Ejecutivo} a todas las plantillas de correo
 - Backend: lookup del creador (created_by_user_id → users) para resolver nombre y email

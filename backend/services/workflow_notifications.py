@@ -19,7 +19,7 @@ WORKFLOW_MATRIX = {
     "approve": {
         "recipient_key": "admin",           # Buzón Administración (sede)
         "template_base": "quote_approved",
-        "attach_pdf": False,
+        "attach_pdf": True,
     },
     "configure": {                          # Factura / Proforma
         "recipient_key": "admin",           # Buzón Administración (sede)
@@ -105,7 +105,7 @@ async def _resolve_template(action: str, segment: str) -> dict:
     if not template:
         # Fallback mínimo
         template = {
-            "subject": f"Notificación: {{{{quote_number}}}}",
+            "subject": "Notificación: {{quote_number}}",
             "body_html": f"<p>Acción <strong>{action}</strong> ejecutada para la cotización <strong>{{{{quote_number}}}}</strong>.</p>"
         }
 

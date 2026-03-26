@@ -283,13 +283,22 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             r = await send_email(to=[cc], subject=f"[CC] {ft_subject}", html=ft_html, action="approve_ft_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
             email_results.append(r)
     elif not is_repair:
-        # Workflow centralizado: approve → Administración + Ventas (sede)
+        # Cargar PDF de la cotización para adjuntar
+        pdf_buffer = None
+        pdf_url = quote.get("quote_pdf_url")
+        if pdf_url:
+            pdf_path = UPLOADS_DIR / pdf_url.replace("/uploads/", "")
+            if pdf_path.exists():
+                pdf_buffer = open(pdf_path, 'rb').read()
+
+        # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
         email_results = await send_workflow_notification(
             action="approve",
             quote=quote,
             current_user=current_user,
             custom_message=custom_message,
             cc_emails=cc_emails,
+            pdf_buffer=pdf_buffer,
         )
 
     return {
@@ -648,32 +657,46 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
     
-    # Enviar notificación
+    # Enviar notificación con archivo de Factura adjunto
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     quote_sede = quote.get("sede", "PYME")
+    norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-    sede_emails = emails_by_sede.get(quote_sede, {})
+    sede_emails = emails_by_sede.get(norm_sede, {})
     admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
     sales_email = sede_emails.get("sales") if sede_emails else None
 
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
     
-    template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
+    # Buscar plantilla por sede primero, luego genérica
+    template = await db.email_templates.find_one({"template_id": f"invoice_{norm_sede}"}, {"_id": 0})
+    if not template:
+        template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} Facturada",
             "body_html": "<h2>Cotización Facturada</h2><p>La cotización <strong>{{quote_number}}</strong> ha sido facturada.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Factura:</strong> {{invoice_number}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p>"
         }
     
+    # Resolver datos del ejecutivo creador
+    creator_name, creator_email = "", ""
+    creator_user_id = quote.get("created_by_user_id")
+    if creator_user_id:
+        creator = await db.users.find_one({"user_id": creator_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if creator:
+            creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
+            creator_email = creator.get("email", "")
+
     template_vars = {
         "quote_number": quote.get('quote_number', ''),
         "client_name": client_name,
         "client_rif": client.get('rif', 'N/A') if client else 'N/A',
         "invoice_number": invoice_number or 'No especificado',
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
-        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
-        "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
+        "sede_name": norm_sede,
+        "Nombre_Ejecutivo": creator_name,
+        "Email_Ejecutivo": creator_email,
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
@@ -685,6 +708,20 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
+    # Preparar adjunto de Factura con nombre descriptivo
+    factura_file = factura_attachments[-1]
+    factura_path = UPLOADS_DIR / factura_file.get("url", "").replace("/uploads/", "")
+    invoice_attachments = None
+    if factura_path.exists():
+        with open(factura_path, 'rb') as f:
+            factura_b64 = base64.b64encode(f.read()).decode('utf-8')
+        # Nombre descriptivo: Factura_{Nro_Cotizacion}_{Nombre_Cliente}.ext
+        original_name = factura_file.get("filename", "factura.pdf")
+        ext = original_name.rsplit('.', 1)[-1] if '.' in original_name else 'pdf'
+        safe_client = (client_name or "Cliente").replace(" ", "_").replace("/", "_")[:40]
+        descriptive_name = f"Factura_{quote.get('quote_number', 'SN')}_{safe_client}.{ext}"
+        invoice_attachments = [{"filename": descriptive_name, "content": factura_b64}]
+
     email_results = []
     recipients = [(admin_email, "invoice_admin"), (sales_email, "invoice_sales")]
     if not admin_email and not sales_email:
@@ -693,11 +730,11 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     for email, action in recipients:
         if email:
             prefix = "[VENTAS] " if "sales" in action else ""
-            r = await send_email(to=[email], subject=f"{prefix}{subject}", html=html_content, action=action, quote_id=quote_id, quote_number=quote.get('quote_number'))
+            r = await send_email(to=[email], subject=f"{prefix}{subject}", html=html_content, action=action, quote_id=quote_id, quote_number=quote.get('quote_number'), attachments=invoice_attachments)
             email_results.append(r)
     
     for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="invoice_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="invoice_cc", quote_id=quote_id, quote_number=quote.get('quote_number'), attachments=invoice_attachments)
         email_results.append(r)
 
     return {"message": "Cotización facturada exitosamente", "invoice_pdf_url": invoice_url, "invoice_number": invoice_number, "emails": email_results}
