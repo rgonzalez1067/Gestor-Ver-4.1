@@ -359,9 +359,9 @@ export const Clients = () => {
   const toggleTipoServicio = (tipo) => {
     setFormData(prev => ({
       ...prev,
-      tipo_servicio: prev.tipo_servicio.includes(tipo)
+      tipo_servicio: (prev.tipo_servicio || []).includes(tipo)
         ? prev.tipo_servicio.filter(t => t !== tipo)
-        : [...prev.tipo_servicio, tipo]
+        : [...(prev.tipo_servicio || []), tipo]
     }));
   };
 
@@ -556,15 +556,30 @@ export const Clients = () => {
     if (!rifResult) return;
     const highlighted = new Set();
 
+    // Partir del estado limpio para no perder campos obligatorios
     const newData = {
       rif: rifResult.rif || '',
       legal_name: rifResult.legal_name || '',
       fantasy_name: rifResult.legal_name || '',
       segment: 'Pymes',
+      condicion: 'Prospecto',
+      referidor: '',
       address: rifResult.address || '',
       branch_address: '',
       categoria_comercial: '',
       sucursal: addBranch ? '' : 'Principal',
+      grupo_economico: '',
+      ejecutivo_propietario: '',
+      ejecutivo_user_id: '',
+      cantidad_tiendas: '',
+      cantidad_cajas: '',
+      fecha_primer_contacto: '',
+      tipo_contacto: '',
+      tipo_servicio: [],
+      integrador_id: '',
+      integrador_name: '',
+      aplicativo: '',
+      modelo_impresora_fiscal: '',
       contacts: [emptyContact()]
     };
 
@@ -585,7 +600,7 @@ export const Clients = () => {
     if (addBranch) {
       toast.info('Complete el nombre de la sucursal para este cliente existente');
     } else {
-      toast.success('Datos extraídos del RIF. Verifique y complete los campos antes de guardar.');
+      toast.success('Datos del RIF recuperados. Verifique y complete los campos faltantes antes de guardar.');
     }
   };
 
@@ -966,7 +981,7 @@ export const Clients = () => {
                               <button key={ts} type="button" onClick={() => toggleTipoServicio(ts)}
                                 data-testid={`tipo-servicio-${ts.toLowerCase().replace(/\s/g, '-')}`}
                                 className={`px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
-                                  formData.tipo_servicio.includes(ts)
+                                  (formData.tipo_servicio || []).includes(ts)
                                     ? 'bg-blue-100 border-blue-300 text-blue-700'
                                     : 'bg-white border-slate-200 text-slate-500 hover:border-blue-200'
                                 }`}>
