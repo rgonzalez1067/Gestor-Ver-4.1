@@ -214,8 +214,9 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(t_dir)
     elements.append(Spacer(1, 6))
     
-    # Tabla de Bancos / Productos (desde additional_items)
-    additional_items = quote.get('additional_items', [])
+    # Tabla de Bancos / Productos (desde services con item_type == 'additional')
+    all_services = quote.get('services', [])
+    additional_items = [s for s in all_services if s.get('item_type') == 'additional']
     if additional_items:
         bank_header = [
             Paragraph("<b>Banco</b>", styles['SmallText']),
@@ -226,7 +227,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         for item in additional_items:
             bank_data.append([
                 Paragraph(str(item.get('bank_name', 'N/A')), styles['SmallText']),
-                Paragraph(str(item.get('name', item.get('concepto', 'N/A'))), styles['SmallText']),
+                Paragraph(str(item.get('item_name', item.get('name', 'N/A'))), styles['SmallText']),
                 Paragraph(str(item.get('quantity', cantidad_cajas)), styles['SmallText']),
             ])
         
