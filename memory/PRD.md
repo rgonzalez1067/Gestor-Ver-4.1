@@ -398,6 +398,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Flujos por categoría: repair (7 pasos con Reparada), fast_track (6 con Config.), equipment (5 con Entregada), implementation (5 con Imple.)
 - VALIDADO: 100% frontend (iteration_136)
 
+### Tooltip con Fechas en Stepper (2026-03-27)
+- Al hacer hover sobre pasos completados o actuales, se muestra tooltip con nombre de fase + fecha/hora exacta (formato: "27 mar. 2026, 12:54 p. m.")
+- Usa componente `Tooltip` de shadcn/ui con `delayDuration=200ms`
+- Pasos pendientes y bypassed no muestran tooltip de fecha (los bypassed mantienen su popover de justificación)
+- VALIDADO: Screenshot confirma tooltip funcional
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
