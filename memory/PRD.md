@@ -384,6 +384,20 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Frontend: Editor actualizado con variables y previews de la nueva plantilla
 - VALIDADO: 15/15 backend + 100% frontend (iteration_135)
 
+### Integridad Visual — Stepper Universal con "Camino Rojo" (2026-03-27)
+- **Nuevo componente `QuoteStatusStepper.jsx`**: Stepper universal para TODAS las categorías (repair, fast_track, equipment, implementation)
+  - Fases regulares completadas: Verde sólido (#10b981) + Check (✓)
+  - Fases saltadas (Irregular): Rojo claro (#fee2e2) + Alerta (⚠) — clickeable con popover de justificación
+  - Fase actual: Borde verde (#10b981) sin relleno
+  - Pendientes: Gris outline + Número de paso
+  - Paso final alcanzado: Verde sólido + Check (no borde)
+- **Detección automática de fases bypass**: Compara timestamps (`sent_to_client_at`, `approved_at`, etc.) vs `irregular_exceptions` para detectar qué pasos fueron saltados
+- **Badge "Irregular" persistente** en rojo con popover de historial de excepciones (acción, justificación, fecha, tope de regularización)
+- **Bug fix "Entregada"**: Ahora el stepper incluye `delivered_at` como timestamp y marca correctamente el paso final como completado
+- **Fix layout tabla**: Columna Acciones ahora sticky (`sticky right-0`) con sombra separadora, siempre visible sin importar el ancho de la tabla
+- Flujos por categoría: repair (7 pasos con Reparada), fast_track (6 con Config.), equipment (5 con Entregada), implementation (5 con Imple.)
+- VALIDADO: 100% frontend (iteration_136)
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
