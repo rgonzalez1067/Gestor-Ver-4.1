@@ -353,6 +353,14 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - delivery-prep validado: retorna items de Fast Track con seriales y stock correcto
 - VALIDADO: Screenshot confirma menú dual, curl confirma delivery-prep funcional
 
+### Estabilización Visual — Flujo de Reparaciones (2026-03-26)
+- Creado componente `RepairStatusPipeline.jsx`: Stepper visual persistente en tabla de cotizaciones para reparaciones
+  - 7 pasos: Borrador → Enviada → Aprobada → Reparada → Factura → Pagada → Entregada
+  - Estados visuales: completado (cyan), actual (borde cyan), pendiente (gris)
+  - Componente memoizado para evitar re-renders innecesarios
+- Tabla de cotizaciones: Acción renombrada de "Marcar como Reparada" a "Reparada"
+- VALIDADO: Screenshot confirma stepper visible y acción renombrada correctamente
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)

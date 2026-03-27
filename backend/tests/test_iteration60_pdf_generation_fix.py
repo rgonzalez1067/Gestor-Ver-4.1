@@ -16,7 +16,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://render-optimize-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://repair-flow-ui.preview.emergentagent.com')
 
 class TestPDFGenerationFix:
     """Tests for PDF generation fix in create_quote_with_pdf endpoint"""

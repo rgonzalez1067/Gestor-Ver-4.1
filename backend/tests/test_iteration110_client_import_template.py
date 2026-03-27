@@ -17,7 +17,7 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://render-optimize-2.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://repair-flow-ui.preview.emergentagent.com').rstrip('/')
 TEST_TOKEN = "PXA_At3PzYL78Px_Q1bCq0wqMNOB9wMc-ez1LVvz_ro"
 
 def get_headers():

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import RepairStatusPipeline from './RepairStatusPipeline';
 
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-600',
@@ -120,9 +121,13 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold whitespace-nowrap">${quote.total_usd?.toFixed(2) || '0.00'}</td>
                 <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                      {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
-                    </span>
+                    {isRepair ? (
+                      <RepairStatusPipeline currentStatus={quote.quote_status} />
+                    ) : (
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
+                        {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
+                      </span>
+                    )}
                     {quote.is_irregular && (
                       <Popover>
                         <PopoverTrigger asChild>
@@ -212,7 +217,7 @@ export const QuotesTable = ({
                         {canEdit && isRepair && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onRepairComplete(quote.quote_id)} className="cursor-pointer"
                             data-testid={`repair-complete-btn-${quote.quote_id}`}>
-                            <Wrench size={16} className="mr-2 text-cyan-600" /> Marcar como Reparada
+                            <Wrench size={16} className="mr-2 text-cyan-600" /> Reparada
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
