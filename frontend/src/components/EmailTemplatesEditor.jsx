@@ -155,6 +155,39 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'sede_name', label: 'Nombre de la Sede' },
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  repair_quote_sent: [
+    { key: 'nro_cotizacion', label: 'Nro. de Cotización' },
+    { key: 'nombre_cliente', label: 'Nombre del Cliente' },
+    { key: 'contacto_cliente', label: 'Contacto del Cliente' },
+    { key: 'modelos_resumen', label: 'Resumen de Modelos' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  repair_approved: [
+    { key: 'nro_cotizacion', label: 'Nro. de Cotización' },
+    { key: 'nombre_cliente', label: 'Nombre del Cliente' },
+    { key: 'contacto_cliente', label: 'Contacto del Cliente' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  repair_complete_client: [
+    { key: 'nro_cotizacion', label: 'Nro. de Cotización' },
+    { key: 'nombre_cliente', label: 'Nombre del Cliente' },
+    { key: 'contacto_cliente', label: 'Contacto del Cliente' },
+    { key: 'lista_modelos_seriales', label: 'Lista de Modelos y Seriales' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  repair_delivery: [
+    { key: 'nro_cotizacion', label: 'Nro. de Cotización' },
+    { key: 'nombre_cliente', label: 'Nombre del Cliente' },
+    { key: 'contacto_cliente', label: 'Contacto del Cliente' },
+    { key: 'tipo_nota_entrega', label: 'Tipo de Entrega (Parcial/Final)' },
+    { key: 'nro_nota_entrega', label: 'Nro. Nota de Entrega' },
+    { key: 'cantidad_entregada', label: 'Cantidad Entregada' },
+    { key: 'estatus_entrega', label: 'Estatus de Entrega' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' }
   ]
 };
 
@@ -271,7 +304,16 @@ export const EmailTemplatesEditor = () => {
       Nombre_Ejecutivo: 'Rafael González',
       Email_Ejecutivo: 'rgonzalez@megasoft.com.ve',
       items_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Producto</th><th style="padding:8px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Terminal POS</td><td style="padding:8px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
-      services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>'
+      services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>',
+      nro_cotizacion: 'COT-2024-001',
+      nombre_cliente: 'Empresa Ejemplo C.A.',
+      contacto_cliente: 'Juan Pérez',
+      modelos_resumen: 'Verifone P400 (x3), Verifone V240m (x2)',
+      lista_modelos_seriales: '<p><strong>Verifone P400</strong>: SN001, SN002, SN003</p><p><strong>Verifone V240m</strong>: SN004, SN005</p>',
+      tipo_nota_entrega: 'Entrega Final',
+      nro_nota_entrega: 'NE-2026-0015',
+      cantidad_entregada: '5',
+      estatus_entrega: 'Finalizado'
     };
     
     for (const v of variables) {

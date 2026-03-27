@@ -374,6 +374,135 @@ BASE_EMAIL_TEMPLATES = {
 </body>
 </html>
 """
+    },
+    "repair_quote_sent": {
+        "name": "Envío Cotización de Reparación",
+        "description": "Se envía al cliente cuando se genera una cotización de reparación de equipos",
+        "subject": "Presupuesto de Reparación - Cotización Nro. {nro_cotizacion} - {nombre_cliente}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Presupuesto de Reparación</h2>
+</div>
+<div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+  <p>Estimado(a) <strong>{contacto_cliente}</strong>,</p>
+  <p>Reciba un cordial saludo de parte de <strong>Mega Soft</strong>.</p>
+  <p>Hemos finalizado la evaluación técnica de sus equipos. Adjunto a este correo encontrará el detalle de los costos, repuestos y tiempos estimados para la reparación de sus terminales:</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; width: 100%;">
+    <tr><td style="padding: 10px 12px; border: 1px solid #ddd; background: #f8f9fa; width: 40%;"><strong>Equipos en revisión:</strong></td><td style="padding: 10px 12px; border: 1px solid #ddd;">{modelos_resumen}</td></tr>
+    <tr><td style="padding: 10px 12px; border: 1px solid #ddd; background: #f8f9fa;"><strong>Nro. de Control:</strong></td><td style="padding: 10px 12px; border: 1px solid #ddd;">{nro_cotizacion}</td></tr>
+  </table>
+
+  <p>Para proceder con el servicio, agradecemos su revisión y aprobación formal a través de nuestra plataforma.</p>
+
+  <div style="text-align: center; margin: 24px 0;">
+    <a href="#" style="display: inline-block; background: #f39c12; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 15px;">Ver y Aprobar Cotización</a>
+  </div>
+
+  <p>Quedamos atentos a cualquier duda técnica que pueda surgir. Puede escribirnos al correo <a href="mailto:{Email_Ejecutivo}" style="color: #2c3e50;">{Email_Ejecutivo}</a> de <strong>{Nombre_Ejecutivo}</strong>.</p>
+
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  <p style="font-size: 12px; color: #999;">Mega Soft — Servicio Técnico de Terminales de Pago</p>
+</div>
+</body>
+</html>
+"""
+    },
+    "repair_approved": {
+        "name": "Aprobación Cotización de Reparación",
+        "description": "Confirmación automática que recibe el cliente al aprobar una cotización de reparación",
+        "subject": "Confirmación de Aprobación - Cotización Nro. {nro_cotizacion}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Aprobación Confirmada</h2>
+</div>
+<div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+  <p>Hola, <strong>{contacto_cliente}</strong>.</p>
+  <p>Confirmamos que hemos recibido la aprobación de la cotización <strong>{nro_cotizacion}</strong>.</p>
+
+  <div style="background: #eafaf1; border-left: 4px solid #27ae60; padding: 14px 16px; border-radius: 4px; margin: 16px 0;">
+    <p style="margin: 0 0 8px; font-weight: bold; color: #27ae60;">¿Qué sigue ahora?</p>
+    <p style="margin: 0; font-size: 14px;">Sus equipos han sido ingresados formalmente a nuestro taller técnico para iniciar el proceso de reparación. Le notificaremos de forma automática en cuanto los equipos estén listos para ser retirados o despachados.</p>
+  </div>
+
+  <p>Puede consultar el estatus de su solicitud en cualquier momento comunicándose con su ejecutivo.</p>
+  <p>Gracias por confiar en el soporte técnico de <strong>Mega Soft</strong>.</p>
+
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  <p style="font-size: 12px; color: #999;">Mega Soft — Servicio Técnico de Terminales de Pago</p>
+</div>
+</body>
+</html>
+"""
+    },
+    "repair_complete_client": {
+        "name": "Notificación de Reparación Finalizada",
+        "description": "Se envía al cliente cuando el técnico marca la reparación como completada",
+        "subject": "Sus equipos ya han sido reparados - {nro_cotizacion}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Reparación Finalizada</h2>
+</div>
+<div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+  <p>Estimado(a) <strong>{contacto_cliente}</strong>,</p>
+  <p>Nos complace informarle que el proceso técnico de reparación para sus equipos bajo la cotización <strong>{nro_cotizacion}</strong> ha finalizado exitosamente.</p>
+
+  <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin: 16px 0;">
+    <p style="margin: 0 0 8px; font-weight: bold; color: #2c3e50;">Detalle de equipos listos:</p>
+    <div style="font-size: 14px;">{lista_modelos_seriales}</div>
+  </div>
+
+  <p>Actualmente, su solicitud ha pasado al departamento de <strong>Administración</strong> para la emisión de la Factura / Proforma correspondiente. Una vez gestionado el pago, procederemos con la entrega física de los activos.</p>
+
+  <p>Gracias por su paciencia y confianza en <strong>Mega Soft</strong>.</p>
+
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  <p style="font-size: 12px; color: #999;">Mega Soft — Servicio Técnico de Terminales de Pago</p>
+</div>
+</body>
+</html>
+"""
+    },
+    "repair_delivery": {
+        "name": "Orden de Entrega de Equipos Reparados",
+        "description": "Se envía al cliente cuando se genera la Nota de Entrega de equipos reparados",
+        "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Entrega de Equipos Reparados</h2>
+</div>
+<div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+  <p>Estimado(a) <strong>{contacto_cliente}</strong>,</p>
+  <p>Se ha generado una nueva <strong>{tipo_nota_entrega}</strong> relacionada con sus equipos en servicio técnico.</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; width: 100%;">
+    <tr><td style="padding: 10px 12px; border: 1px solid #ddd; background: #f8f9fa; width: 45%;"><strong>Nota de Entrega Nro:</strong></td><td style="padding: 10px 12px; border: 1px solid #ddd;">{nro_nota_entrega}</td></tr>
+    <tr><td style="padding: 10px 12px; border: 1px solid #ddd; background: #f8f9fa;"><strong>Equipos entregados:</strong></td><td style="padding: 10px 12px; border: 1px solid #ddd;">{cantidad_entregada} unidades</td></tr>
+    <tr><td style="padding: 10px 12px; border: 1px solid #ddd; background: #f8f9fa;"><strong>Estatus del Proyecto:</strong></td><td style="padding: 10px 12px; border: 1px solid #ddd;">{estatus_entrega}</td></tr>
+  </table>
+
+  <p>Adjunto encontrará el documento PDF con el detalle de los seriales entregados para su control de inventario.</p>
+
+  <div style="text-align: center; margin: 24px 0;">
+    <a href="#" style="display: inline-block; background: #f39c12; color: #ffffff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 15px;">Descargar Nota de Entrega</a>
+  </div>
+
+  <p>Favor confirmar la recepción de los equipos a la brevedad posible.</p>
+
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  <p style="font-size: 12px; color: #999;">Mega Soft — Servicio Técnico de Terminales de Pago</p>
+</div>
+</body>
+</html>
+"""
     }
 }
 

@@ -282,7 +282,50 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
         for cc in cc_emails:
             r = await send_email(to=[cc], subject=f"[CC] {ft_subject}", html=ft_html, action="approve_ft_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
             email_results.append(r)
-    elif not is_repair:
+    elif is_repair:
+        # Enviar confirmación de aprobación al CLIENTE
+        contacts = client.get('contacts', []) if client else []
+        client_email = None
+        if contacts:
+            client_email = contacts[0].get('email')
+        if not client_email:
+            contact1 = client.get('contact1') or {} if client else {}
+            client_email = contact1.get('email') if isinstance(contact1, dict) else None
+        if not client_email or client_email == 'sin@email.com':
+            client_email = f"cliente_{(client or {}).get('rif', 'unknown')}@simulado.local"
+
+        contacto_cliente = client_name
+        if contacts:
+            contacto_cliente = contacts[0].get('full_name') or contacts[0].get('name') or client_name
+
+        quote_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
+        ra_template = await db.email_templates.find_one({"template_id": f"repair_approved_{norm_sede}"}, {"_id": 0})
+        if not ra_template:
+            ra_template = await db.email_templates.find_one({"template_id": "repair_approved"}, {"_id": 0})
+        if not ra_template:
+            ra_template = {
+                "subject": "Confirmación de Aprobación - Cotización Nro. {nro_cotizacion}",
+                "body_html": "<h2>Aprobación Confirmada</h2><p>Hola, <strong>{contacto_cliente}</strong>. Confirmamos la aprobación de la cotización <strong>{nro_cotizacion}</strong>. Sus equipos han ingresado a nuestro taller técnico.</p>"
+            }
+        ra_vars = {
+            "nro_cotizacion": quote.get('quote_number', ''),
+            "quote_number": quote.get('quote_number', ''),
+            "nombre_cliente": client_name,
+            "client_name": client_name,
+            "contacto_cliente": contacto_cliente,
+            "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+            "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
+        }
+        ra_subject = render_email_template(ra_template["subject"], ra_vars)
+        ra_html = render_email_template(ra_template["body_html"], ra_vars)
+
+        r = await send_email(to=[client_email], subject=ra_subject, html=ra_html, action="repair_approved_client", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        email_results.append(r)
+        for cc in cc_emails:
+            r = await send_email(to=[cc], subject=f"[CC] {ra_subject}", html=ra_html, action="repair_approved_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+    else:
         # Cargar PDF de la cotización para adjuntar
         pdf_buffer = None
         pdf_url = quote.get("quote_pdf_url")
@@ -389,6 +432,7 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
     # Notificar a Administración (misma lógica que approve para no-reparaciones)
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     quote_sede = quote.get("sede", "PYME")
+    norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
     sede_emails = emails_by_sede.get(quote_sede, {})
     admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
@@ -397,6 +441,7 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
     client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
     client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
 
+    # --- Notificación INTERNA a Administración (plantilla repair_complete) ---
     template = await db.email_templates.find_one({"template_id": "repair_complete"}, {"_id": 0})
     if not template:
         template = {
@@ -434,6 +479,63 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
         r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="repair_complete_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
 
+    # --- Notificación al CLIENTE: Reparación Finalizada ---
+    contacts = client.get('contacts', []) if client else []
+    client_email = None
+    if contacts:
+        client_email = contacts[0].get('email')
+    if not client_email:
+        contact1 = client.get('contact1') or {} if client else {}
+        client_email = contact1.get('email') if isinstance(contact1, dict) else None
+    if not client_email or client_email == 'sin@email.com':
+        client_email = f"cliente_{(client or {}).get('rif', 'unknown')}@simulado.local"
+
+    contacto_cliente = client_name
+    if contacts:
+        contacto_cliente = contacts[0].get('full_name') or contacts[0].get('name') or client_name
+
+    # Construir lista de modelos/seriales desde taller_equipos
+    equipos_taller = await db.taller_equipos.find(
+        {"quote_id": quote_id, "estatus": "En reparación"}, {"_id": 0, "modelo": 1, "serial": 1}
+    ).to_list(5000)
+    modelos_map = {}
+    for eq in equipos_taller:
+        modelo = eq.get("modelo", "Sin modelo")
+        if modelo not in modelos_map:
+            modelos_map[modelo] = []
+        modelos_map[modelo].append(eq.get("serial", ""))
+    lista_modelos_seriales_html = ""
+    for modelo, serials in modelos_map.items():
+        lista_modelos_seriales_html += f"<p style='margin:4px 0'><strong>{modelo}</strong>: {', '.join(serials)}</p>"
+    if not lista_modelos_seriales_html:
+        # Fallback from repair_models in quote
+        for rm in quote.get("repair_models", []):
+            lista_modelos_seriales_html += f"<p style='margin:4px 0'><strong>{rm.get('model_name', 'N/A')}</strong>: {', '.join(rm.get('serials', []))}</p>"
+
+    rc_template = await db.email_templates.find_one({"template_id": f"repair_complete_client_{norm_sede}"}, {"_id": 0})
+    if not rc_template:
+        rc_template = await db.email_templates.find_one({"template_id": "repair_complete_client"}, {"_id": 0})
+    if not rc_template:
+        rc_template = {
+            "subject": "Sus equipos ya han sido reparados - {nro_cotizacion}",
+            "body_html": "<h2>Reparación Finalizada</h2><p>Estimado(a) <strong>{contacto_cliente}</strong>, el proceso de reparación para sus equipos bajo la cotización <strong>{nro_cotizacion}</strong> ha finalizado exitosamente.</p><div>{lista_modelos_seriales}</div><p>Su solicitud ha pasado a Administración para la emisión de la Factura correspondiente.</p>"
+        }
+    rc_vars = {
+        "nro_cotizacion": quote.get("quote_number", ""),
+        "quote_number": quote.get("quote_number", ""),
+        "nombre_cliente": client_name,
+        "client_name": client_name,
+        "contacto_cliente": contacto_cliente,
+        "lista_modelos_seriales": lista_modelos_seriales_html,
+        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
+        "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
+    }
+    rc_subject = render_email_template(rc_template["subject"], rc_vars)
+    rc_html = render_email_template(rc_template["body_html"], rc_vars)
+
+    r = await send_email(to=[client_email], subject=rc_subject, html=rc_html, action="repair_complete_client", quote_id=quote_id, quote_number=quote.get("quote_number"))
+    email_results.append(r)
+
     return {
         "message": "Reparación marcada como completada. Notificación enviada a Administración.",
         "quote_id": quote_id,
@@ -469,9 +571,17 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     # Preparar plantilla (buscar por sede primero, luego genérica)
     sede = quote.get("sede", "PYME")
     norm_sede = "PYME" if sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if sede in ("CORP", "Corp", "Corporativo") else sede
-    template = await db.email_templates.find_one({"template_id": f"quote_sent_{norm_sede}"}, {"_id": 0})
-    if not template:
-        template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
+    is_repair_quote = quote.get("quote_category") == "repair"
+
+    if is_repair_quote:
+        # Plantilla específica de reparaciones
+        template = await db.email_templates.find_one({"template_id": f"repair_quote_sent_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "repair_quote_sent"}, {"_id": 0})
+    else:
+        template = await db.email_templates.find_one({"template_id": f"quote_sent_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} - {{company_name}}",
@@ -488,9 +598,26 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
             creator_email = creator.get("email", "")
 
     client_name = client.get('fantasy_name') or client.get('legal_name') or 'Cliente'
+
+    # Resolver contacto principal del cliente
+    contacto_cliente = client_name
+    if contacts:
+        contacto_cliente = contacts[0].get('full_name') or contacts[0].get('name') or client_name
+
+    # Construir resumen de modelos para reparaciones
+    modelos_resumen = ""
+    if is_repair_quote:
+        repair_models = quote.get("repair_models", [])
+        if repair_models:
+            parts = [f"{rm.get('model_name', 'N/A')} (x{len(rm.get('serials', []))})" for rm in repair_models]
+            modelos_resumen = ", ".join(parts)
+
     template_vars = {
         "quote_number": quote.get('quote_number', ''),
+        "nro_cotizacion": quote.get('quote_number', ''),
         "client_name": client_name,
+        "nombre_cliente": client_name,
+        "contacto_cliente": contacto_cliente,
         "client_rif": client.get('rif', 'N/A'),
         "quote_type": quote.get('quote_type', 'N/A'),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
@@ -498,6 +625,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
         "sede_name": norm_sede,
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
+        "modelos_resumen": modelos_resumen,
     }
     subject = render_email_template(template["subject"], template_vars)
     html_content = render_email_template(template["body_html"], template_vars)
@@ -1321,6 +1449,7 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
     # Generar Nota de Entrega PDF
     hoja_ruta_url = None
+    correlativo = ""
     try:
         logo_path = None
         logo_file = UPLOADS_DIR / "logo.png"
@@ -1429,6 +1558,67 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         }})
 
     tipo_entrega = "FINAL" if is_final_delivery else "PARCIAL"
+
+    # --- Notificación al CLIENTE: Entrega de Equipos Reparados ---
+    try:
+        contacts_crm = client.get('contacts', []) if client else []
+        client_email_delivery = None
+        if contacts_crm:
+            client_email_delivery = contacts_crm[0].get('email')
+        if not client_email_delivery:
+            contact1_d = client.get('contact1') or {} if client else {}
+            client_email_delivery = contact1_d.get('email') if isinstance(contact1_d, dict) else None
+        if not client_email_delivery or client_email_delivery == 'sin@email.com':
+            client_email_delivery = f"cliente_{(client or {}).get('rif', 'unknown')}@simulado.local"
+
+        contacto_cliente_d = client_name
+        if contacts_crm:
+            contacto_cliente_d = contacts_crm[0].get('full_name') or contacts_crm[0].get('name') or client_name
+
+        quote_sede = quote.get("sede", "PYME")
+        norm_sede_d = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
+        rd_template = await db.email_templates.find_one({"template_id": f"repair_delivery_{norm_sede_d}"}, {"_id": 0})
+        if not rd_template:
+            rd_template = await db.email_templates.find_one({"template_id": "repair_delivery"}, {"_id": 0})
+        if not rd_template:
+            rd_template = {
+                "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
+                "body_html": "<h2>Entrega de Equipos Reparados</h2><p>Estimado(a) <strong>{contacto_cliente}</strong>, se ha generado una <strong>{tipo_nota_entrega}</strong> para sus equipos.</p><p>Nota: {nro_nota_entrega} | Equipos: {cantidad_entregada} | Estatus: {estatus_entrega}</p>"
+            }
+
+        rd_vars = {
+            "nro_cotizacion": quote.get("quote_number", ""),
+            "quote_number": quote.get("quote_number", ""),
+            "nombre_cliente": client_name,
+            "client_name": client_name,
+            "contacto_cliente": contacto_cliente_d,
+            "tipo_nota_entrega": "Entrega Final" if is_final_delivery else "Entrega Parcial",
+            "nro_nota_entrega": correlativo,
+            "cantidad_entregada": str(cantidad_entregando),
+            "estatus_entrega": "Finalizado" if is_final_delivery else "Pendiente",
+            "Nombre_Ejecutivo": user_name,
+        }
+        rd_subject = render_email_template(rd_template["subject"], rd_vars)
+        rd_html = render_email_template(rd_template["body_html"], rd_vars)
+
+        # Adjuntar PDF de Nota de Entrega
+        rd_attachments = None
+        if hoja_ruta_url:
+            ne_pdf_path = UPLOADS_DIR / hoja_ruta_url.replace("/uploads/", "")
+            if ne_pdf_path.exists():
+                with open(ne_pdf_path, 'rb') as f:
+                    ne_b64 = base64.b64encode(f.read()).decode('utf-8')
+                rd_attachments = [{"filename": f"NotaEntrega_{correlativo}.pdf", "content": ne_b64}]
+
+        r = await send_email(
+            to=[client_email_delivery], subject=rd_subject, html=rd_html,
+            action="repair_delivery_client", quote_id=quote_id, quote_number=quote.get("quote_number"),
+            attachments=rd_attachments
+        )
+        logger.info(f"[Repair Delivery] Notificación al cliente: {client_email_delivery} | {r.get('status')}")
+    except Exception as e:
+        logger.error(f"Error enviando notificación de entrega al cliente: {e}")
+
     return {
         "message": f"Entrega {tipo_entrega} registrada: {len(equipos_to_deliver)} equipo(s) entregados",
         "equipos_entregados": len(equipos_to_deliver),
