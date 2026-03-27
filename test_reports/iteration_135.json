@@ -1,0 +1,70 @@
+{
+  "summary": "Iteration 135: 5th Repair Email Template (repair_collect_warehouse) Testing Complete - Both PYME and CORP templates verified. Backend: 15/15 tests passed. Frontend: Template visible in Settings with correct variables and 'ORDEN DE DESPACHO' subject.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Settings - Email Logs Table",
+        "issues": ["React hydration warnings about span elements inside table elements (tr, tbody) - cosmetic issue, does not affect functionality"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_repair_collect_warehouse_template.py",
+    "/app/test_reports/pytest/pytest_results_iteration135.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_repair_collect_warehouse_template.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (Template visible in both PYME and CORP sections with correct variables)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "admin@test.com",
+      "password": "admin123"
+    }
+  },
+  "seed_data_creation": "No seed data created - templates are auto-generated from BASE_EMAIL_TEMPLATES",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "5th repair email template (repair_collect_warehouse) fully functional: Triggered when payment is confirmed via collect endpoint for repair quotes. Sends to Warehouse with CC to executor. Template has 'ORDEN DE DESPACHO' subject, contains {nro_cotizacion}, {nombre_cliente}, {lista_equipos_seriales}, {almacen_custodia} variables. Professional HTML design with #2c3e50 header and #f39c12 orange warning section for 'Instrucciones Operativas'. almacen_custodia maps sede to location: PYME='Torre Banco Plaza', CORP='Los Chaguaramos'.",
+  "features_verified": {
+    "repair_collect_warehouse": {
+      "description": "Pago de Reparación Recibido (Orden de Despacho)",
+      "template_ids": ["repair_collect_warehouse_PYME", "repair_collect_warehouse_CORP"],
+      "variables": ["nro_cotizacion", "nombre_cliente", "lista_equipos_seriales", "almacen_custodia", "Nombre_Ejecutivo", "Email_Ejecutivo"],
+      "backend_usage": "collect_quote endpoint for repair category (lines 959-1045 in quote_actions.py)",
+      "recipients": "Warehouse email + CC to executor (creator of quote)",
+      "subject_format": "ORDEN DE DESPACHO: Pago Confirmado - Cotización #{nro_cotizacion} - {nombre_cliente}",
+      "verified": true
+    }
+  },
+  "frontend_verification": {
+    "templates_panel": "Settings > Plantillas de Correo Electrónico",
+    "pyme_sede_section": "Found with repair_collect_warehouse_PYME template",
+    "corp_sede_section": "Found with repair_collect_warehouse_CORP template",
+    "template_name_displayed": "Pago de Reparación Recibido (Orden de Despacho) (Sede PYME/CORP)",
+    "edit_dialog": "Shows correct variables: Nro. de Cotización, Nombre del Cliente, Lista de Equipos y Seriales, Almacén de Custodia, Nombre del Ejecutivo, Email del Ejecutivo",
+    "data_testids": "email-template-repair_collect_warehouse_PYME, edit-template-repair_collect_warehouse_PYME"
+  },
+  "backend_tests_summary": {
+    "TestRepairCollectWarehouseInListing": "2/2 passed - Both PYME and CORP templates found in GET /api/email-templates",
+    "TestRepairCollectWarehousePYME": "7/7 passed - Template returns 200, has ORDEN DE DESPACHO subject, contains all required variables",
+    "TestRepairCollectWarehouseCORP": "3/3 passed - Template returns 200, has correct subject and variables",
+    "TestRepairCollectWarehouseUpdate": "1/1 passed - PUT update and reset work correctly",
+    "TestRepairCollectWarehouseDesign": "2/2 passed - Professional design with #2c3e50 header and warning section"
+  },
+  "mocked_apis": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}

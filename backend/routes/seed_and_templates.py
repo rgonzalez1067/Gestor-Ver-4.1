@@ -503,6 +503,51 @@ BASE_EMAIL_TEMPLATES = {
 </body>
 </html>
 """
+    },
+    "repair_collect_warehouse": {
+        "name": "Pago de Reparación Recibido (Orden de Despacho)",
+        "description": "Se envía al Almacén cuando se confirma el pago de una reparación para autorizar la salida de equipos en custodia",
+        "subject": "ORDEN DE DESPACHO: Pago Confirmado - Cotización #{nro_cotizacion} - {nombre_cliente}",
+        "body_html": """
+<html>
+<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+  <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Orden de Despacho — Equipos Reparados</h2>
+</div>
+<div style="padding: 24px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px;">
+  <p>Hola Equipo de Almacén,</p>
+  <p>El departamento de <strong>Administración</strong> ha confirmado la recepción del pago correspondiente a la reparación de equipos del cliente: <strong>{nombre_cliente}</strong>.</p>
+  <p>Por lo tanto, se autoriza la <strong>salida inmediata</strong> de los activos bajo custodia.</p>
+
+  <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin: 16px 0;">
+    <p style="margin: 0 0 10px; font-weight: bold; color: #2c3e50;">Detalles para el Despacho:</p>
+    <table style="border-collapse: collapse; width: 100%;">
+      <tr><td style="padding: 8px 12px; border: 1px solid #ddd; background: #f0f0f0; width: 40%;"><strong>Nro. de Cotización:</strong></td><td style="padding: 8px 12px; border: 1px solid #ddd;">{nro_cotizacion}</td></tr>
+      <tr><td style="padding: 8px 12px; border: 1px solid #ddd; background: #f0f0f0;"><strong>Ubicación de Origen:</strong></td><td style="padding: 8px 12px; border: 1px solid #ddd;">{almacen_custodia}</td></tr>
+    </table>
+  </div>
+
+  <div style="background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin: 16px 0;">
+    <p style="margin: 0 0 8px; font-weight: bold; color: #2c3e50;">Equipos a Entregar:</p>
+    <div style="font-size: 14px;">{lista_equipos_seriales}</div>
+  </div>
+
+  <div style="background: #fff8e1; border-left: 4px solid #f39c12; padding: 14px 16px; border-radius: 4px; margin: 16px 0;">
+    <p style="margin: 0 0 8px; font-weight: bold; color: #e67e22;">Instrucciones Operativas:</p>
+    <ol style="margin: 0; padding-left: 20px; font-size: 14px; color: #555;">
+      <li style="margin-bottom: 6px;">Localizar los equipos físicamente en el área de <strong>"Equipos Reparados"</strong>.</li>
+      <li style="margin-bottom: 6px;">Ingresar a la Cotización en MegaNexus y ejecutar la acción <strong>"Marcar como Entregada"</strong>.</li>
+      <li style="margin-bottom: 6px;">Generar la <strong>Nota de Entrega</strong> (asegurarse de que el sistema indique si es Parcial o Final según la cantidad entregada).</li>
+      <li>Adjuntar la Nota de Entrega al paquete antes de la salida.</li>
+    </ol>
+  </div>
+
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  <p style="font-size: 12px; color: #999;">Mega Soft — Servicio Técnico de Terminales de Pago</p>
+</div>
+</body>
+</html>
+"""
     }
 }
 

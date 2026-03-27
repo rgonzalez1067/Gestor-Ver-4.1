@@ -188,6 +188,14 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'cantidad_entregada', label: 'Cantidad Entregada' },
     { key: 'estatus_entrega', label: 'Estatus de Entrega' },
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' }
+  ],
+  repair_collect_warehouse: [
+    { key: 'nro_cotizacion', label: 'Nro. de Cotización' },
+    { key: 'nombre_cliente', label: 'Nombre del Cliente' },
+    { key: 'lista_equipos_seriales', label: 'Lista de Equipos y Seriales' },
+    { key: 'almacen_custodia', label: 'Almacén de Custodia' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ]
 };
 
@@ -313,7 +321,9 @@ export const EmailTemplatesEditor = () => {
       tipo_nota_entrega: 'Entrega Final',
       nro_nota_entrega: 'NE-2026-0015',
       cantidad_entregada: '5',
-      estatus_entrega: 'Finalizado'
+      estatus_entrega: 'Finalizado',
+      lista_equipos_seriales: '<p><strong>Verifone P400</strong> (3 uds): SN001, SN002, SN003</p><p><strong>Verifone V240m</strong> (2 uds): SN004, SN005</p>',
+      almacen_custodia: 'Torre Banco Plaza'
     };
     
     for (const v of variables) {

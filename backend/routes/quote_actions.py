@@ -956,6 +956,93 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
         
         r = await send_email(to=[warehouse_email], subject=subject, html=html_content, action="collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))
         email_results.append(r)
+    elif quote_category == "repair":
+        # Reparaciones: Enviar ORDEN DE DESPACHO al Almacén + CC al ejecutivo
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        quote_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
+        emails_by_sede = config.get("emails_by_sede", {}) if config else {}
+        sede_emails = emails_by_sede.get(norm_sede, {})
+        warehouse_email = sede_emails.get("warehouse") or (config.get("warehouse_email") if config else None)
+        if not warehouse_email:
+            warehouse_email = "almacen@simulado.local"
+
+        client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+        client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+
+        # Resolver almacén de custodia (sede del equipo)
+        sede_names = {"PYME": "Torre Banco Plaza", "TBP": "Torre Banco Plaza", "CORP": "Los Chaguaramos"}
+        almacen_custodia = sede_names.get(norm_sede, norm_sede)
+
+        # Construir lista de equipos/seriales desde taller_equipos
+        equipos_taller = await db.taller_equipos.find(
+            {"quote_id": quote_id, "estatus": "En reparación"}, {"_id": 0, "modelo": 1, "serial": 1}
+        ).to_list(5000)
+        modelos_map = {}
+        for eq in equipos_taller:
+            modelo = eq.get("modelo", "Sin modelo")
+            if modelo not in modelos_map:
+                modelos_map[modelo] = []
+            modelos_map[modelo].append(eq.get("serial", ""))
+        lista_equipos_html = ""
+        for modelo, serials in modelos_map.items():
+            lista_equipos_html += f"<p style='margin:4px 0'><strong>{modelo}</strong> ({len(serials)} uds): {', '.join(serials)}</p>"
+        if not lista_equipos_html:
+            # Fallback desde repair_models de la cotización
+            for rm in quote.get("repair_models", []):
+                srs = rm.get("serials", [])
+                lista_equipos_html += f"<p style='margin:4px 0'><strong>{rm.get('model_name', 'N/A')}</strong> ({len(srs)} uds): {', '.join(srs)}</p>"
+        if not lista_equipos_html:
+            lista_equipos_html = "<p>Ver detalle en la cotización del sistema.</p>"
+
+        # Cargar plantilla
+        rw_template = await db.email_templates.find_one({"template_id": f"repair_collect_warehouse_{norm_sede}"}, {"_id": 0})
+        if not rw_template:
+            rw_template = await db.email_templates.find_one({"template_id": "repair_collect_warehouse"}, {"_id": 0})
+        if not rw_template:
+            rw_template = {
+                "subject": "ORDEN DE DESPACHO: Pago Confirmado - Cotización #{nro_cotizacion} - {nombre_cliente}",
+                "body_html": "<h2>Orden de Despacho — Equipos Reparados</h2><p>Pago confirmado para <strong>{nombre_cliente}</strong>. Se autoriza la salida de los activos bajo custodia.</p><p><strong>Cotización:</strong> {nro_cotizacion}</p><div>{lista_equipos_seriales}</div><p><strong>Ubicación:</strong> {almacen_custodia}</p>"
+            }
+
+        # Resolver datos del ejecutivo creador
+        creator_name, creator_email = "", ""
+        creator_user_id = quote.get("created_by_user_id")
+        if creator_user_id:
+            creator = await db.users.find_one({"user_id": creator_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+            if creator:
+                creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
+                creator_email = creator.get("email", "")
+
+        rw_vars = {
+            "nro_cotizacion": quote.get("quote_number", ""),
+            "quote_number": quote.get("quote_number", ""),
+            "nombre_cliente": client_name,
+            "client_name": client_name,
+            "lista_equipos_seriales": lista_equipos_html,
+            "almacen_custodia": almacen_custodia,
+            "Nombre_Ejecutivo": creator_name,
+            "Email_Ejecutivo": creator_email,
+        }
+        rw_subject = render_email_template(rw_template["subject"], rw_vars)
+        rw_html = render_email_template(rw_template["body_html"], rw_vars)
+
+        if custom_message and custom_message.strip():
+            user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            rw_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+        # Enviar al Almacén
+        r = await send_email(to=[warehouse_email], subject=rw_subject, html=rw_html, action="repair_collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        email_results.append(r)
+
+        # CC al Ejecutivo creador (informativo)
+        if creator_email and "@" in creator_email:
+            r = await send_email(to=[creator_email], subject=f"[CC] {rw_subject}", html=rw_html, action="repair_collect_cc_exec", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
+
+        for cc in cc_emails:
+            r = await send_email(to=[cc], subject=f"[CC] {rw_subject}", html=rw_html, action="repair_collect_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            email_results.append(r)
     else:
         # Workflow centralizado: collect → Ventas (sede) con plantilla payment_receipt
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
