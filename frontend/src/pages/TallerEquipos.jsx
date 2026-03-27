@@ -29,7 +29,7 @@ export default function TallerEquipos() {
 
   // Filtros
   const [search, setSearch] = useState('');
-  const [estatus, setEstatus] = useState('all');
+  const [estatus, setEstatus] = useState('En reparación');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
 
