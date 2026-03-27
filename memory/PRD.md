@@ -361,6 +361,17 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Tabla de cotizaciones: Acción renombrada de "Marcar como Reparada" a "Reparada"
 - VALIDADO: Screenshot confirma stepper visible y acción renombrada correctamente
 
+### Plantillas de Correo — Flujo de Reparaciones (2026-03-27)
+- **4 nuevas plantillas de correo** para el ciclo completo de reparaciones (PYME + CORP = 8 variantes):
+  1. **Envío Cotización de Reparación** (`repair_quote_sent`): Presupuesto técnico con botón naranja "Ver y Aprobar". Variables: {contacto_cliente}, {modelos_resumen}, {nro_cotizacion}
+  2. **Aprobación Cotización de Reparación** (`repair_approved`): Confirmación al cliente con bloque "¿Qué sigue ahora?" Variables: {contacto_cliente}, {nro_cotizacion}
+  3. **Notificación Reparación Finalizada** (`repair_complete_client`): Aviso al cliente de equipos listos + detalle modelos/seriales. Variables: {lista_modelos_seriales}
+  4. **Orden de Entrega Equipos Reparados** (`repair_delivery`): Resumen entrega parcial/final + PDF adjunto automático. Variables: {tipo_nota_entrega}, {nro_nota_entrega}, {cantidad_entregada}, {estatus_entrega}
+- **Diseño**: Cabeceras Azul Corporativo (#2c3e50), Botones Naranja (#f39c12) para diferenciar de ventas
+- **Backend integrado**: send-to-client (repair), approve (repair→cliente), repair-complete (cliente+admin), repair-deliver (cliente+PDF)
+- **Frontend**: Editor de plantillas actualizado con variables específicas de reparación + valores de preview
+- VALIDADO: 13/13 backend + 100% frontend (iteration_134)
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
