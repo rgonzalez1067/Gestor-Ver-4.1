@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2 } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -35,7 +35,7 @@ export const Settings = () => {
   
   // Correos por sede
   const [emailsBySede, setEmailsBySede] = useState({
-    PYME: { admin: '', warehouse: '', sales: '' },
+    PYME: { admin: '', warehouse: '', sales: '', operations: '' },
     CORP: { admin: '', warehouse: '', sales: '' }
   });
   const [implementationEmail, setImplementationEmail] = useState('');
@@ -72,7 +72,8 @@ export const Settings = () => {
         PYME: {
           admin: response.data.emails_by_sede?.PYME?.admin || response.data.admin_email || '',
           warehouse: response.data.emails_by_sede?.PYME?.warehouse || response.data.warehouse_email || '',
-          sales: response.data.emails_by_sede?.PYME?.sales || ''
+          sales: response.data.emails_by_sede?.PYME?.sales || '',
+          operations: response.data.emails_by_sede?.PYME?.operations || response.data.operations_email || ''
         },
         CORP: {
           admin: response.data.emails_by_sede?.CORP?.admin || '',
@@ -569,6 +570,29 @@ export const Settings = () => {
                         data-testid={`sales-email-${sede.id}`}
                       />
                     </div>
+
+                    {/* Email de Operaciones - Solo Sede PYME */}
+                    {sede.id === 'PYME' && (
+                      <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Settings2 size={16} className="text-cyan-600" />
+                          <Label className="text-sm font-semibold text-cyan-800">
+                            Correo de Operaciones - Sede {sede.shortName}
+                          </Label>
+                        </div>
+                        <p className="text-xs text-cyan-700 mb-2">
+                          Recibe notificaciones de <strong>Fast Track</strong> (configuración de equipos) y flujos operativos de la sede Pyme.
+                        </p>
+                        <Input
+                          type="email"
+                          value={emailsBySede[sede.id]?.operations || ''}
+                          onChange={(e) => updateSedeEmail(sede.id, 'operations', e.target.value)}
+                          placeholder="operaciones.pyme@empresa.com"
+                          className="bg-white"
+                          data-testid={`operations-email-${sede.id}`}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
