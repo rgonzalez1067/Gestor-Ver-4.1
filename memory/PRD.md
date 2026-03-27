@@ -372,6 +372,18 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Frontend**: Editor de plantillas actualizado con variables específicas de reparación + valores de preview
 - VALIDADO: 13/13 backend + 100% frontend (iteration_134)
 
+### Plantilla Orden de Despacho — Pago de Reparación (2026-03-27)
+- **5ta plantilla de reparación**: `repair_collect_warehouse` (PYME + CORP = 2 variantes)
+  - Se dispara cuando Administración confirma el pago (`collect` endpoint para reparaciones)
+  - Destinatario: Almacén + CC al Ejecutivo creador
+  - Variables: {nro_cotizacion}, {nombre_cliente}, {lista_equipos_seriales}, {almacen_custodia}
+  - Incluye sección "Instrucciones Operativas" con 4 pasos para liberar equipos bajo custodia
+  - Mapeo automático de sede a ubicación: PYME→"Torre Banco Plaza", CORP→"Los Chaguaramos"
+  - Diseño: Cabecera #2c3e50, sección warning naranja #f39c12 para instrucciones
+- Backend: `collect_quote` ahora tiene 3 ramas: equipment→warehouse, **repair→repair_collect_warehouse**, else→Ventas
+- Frontend: Editor actualizado con variables y previews de la nueva plantilla
+- VALIDADO: 15/15 backend + 100% frontend (iteration_135)
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
