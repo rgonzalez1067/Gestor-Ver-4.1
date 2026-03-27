@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import RepairStatusPipeline from './RepairStatusPipeline';
+import QuoteStatusStepper from './QuoteStatusStepper';
 
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-600',
@@ -65,7 +65,7 @@ export const QuotesTable = ({
 
   return (
     <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
-      <table className="w-full min-w-[1050px]" data-testid="quotes-unified-table">
+      <table className="w-full min-w-[1200px]" data-testid="quotes-unified-table">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Número</th>
@@ -74,9 +74,9 @@ export const QuotesTable = ({
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Tipo</th>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Cliente</th>
             <th className="px-3 py-4 text-right text-xs font-medium text-slate-700 uppercase whitespace-nowrap">Total USD</th>
-            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Estado</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase" style={{minWidth: '220px'}}>Estado</th>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Fecha</th>
-            <th className="px-3 py-4 text-center text-xs font-medium text-slate-700 uppercase">Acciones</th>
+            <th className="px-3 py-4 text-center text-xs font-medium text-slate-700 uppercase sticky right-0 bg-slate-50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">Acciones</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -94,7 +94,7 @@ export const QuotesTable = ({
               : 'bg-brand-blue-50 text-brand-blue-600';
 
             return (
-              <tr key={quote.quote_id} className="hover:bg-slate-50" data-testid={`quote-row-${quote.quote_id}`}>
+              <tr key={quote.quote_id} className="hover:bg-slate-50 group" data-testid={`quote-row-${quote.quote_id}`}>
                 <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap">{quote.quote_number}</td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
@@ -121,31 +121,25 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold whitespace-nowrap">${quote.total_usd?.toFixed(2) || '0.00'}</td>
                 <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
-                    {isRepair ? (
-                      <RepairStatusPipeline currentStatus={quote.quote_status} />
-                    ) : (
-                      <span className={`px-2 py-1 text-xs font-medium rounded ${statusColor}`}>
-                        {STATUS_DISPLAY_NAMES[quote.quote_status] || 'Borrador'}
-                      </span>
-                    )}
+                    <QuoteStatusStepper quote={quote} onOpenBitacoraFlujo={onOpenBitacoraFlujo} />
                     {quote.is_irregular && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer hover:bg-orange-200 transition-colors"
+                          <button className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-red-100 text-red-700 border border-red-300 cursor-pointer hover:bg-red-200 transition-colors shrink-0"
                             data-testid={`irregular-badge-${quote.quote_id}`}>
                             Irregular <Eye size={10} />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-0" align="start">
-                          <div className="bg-orange-50 border-b border-orange-200 px-3 py-2">
-                            <p className="text-xs font-bold text-orange-800">Historial de Excepciones</p>
+                          <div className="bg-red-50 border-b border-red-200 px-3 py-2">
+                            <p className="text-xs font-bold text-red-800">Historial de Excepciones</p>
                           </div>
                           <div className="max-h-48 overflow-y-auto p-2 space-y-2">
                             {(quote.irregular_exceptions || []).map((exc, idx) => {
-                              const ACTION_NAMES = { approve: 'Aprobación', invoice: 'Factura / Proforma', collect: 'Cobranza', deliver: 'Entregar', 'send-to-implementation': 'Enviar a Imple.' };
+                              const ACTION_NAMES = { approve: 'Aprobación', invoice: 'Factura / Proforma', collect: 'Cobranza', deliver: 'Entregar', 'send-to-implementation': 'Enviar a Imple.', 'repair-deliver': 'Entrega Rep.', 'repair-complete': 'Reparación' };
                               return (
-                                <div key={idx} className="border-l-2 border-orange-400 pl-2 py-1">
-                                  <p className="text-[10px] font-semibold text-orange-700">{ACTION_NAMES[exc.action] || exc.action}</p>
+                                <div key={idx} className="border-l-2 border-red-400 pl-2 py-1">
+                                  <p className="text-[10px] font-semibold text-red-700">{ACTION_NAMES[exc.action] || exc.action}</p>
                                   <p className="text-[10px] text-slate-700 mt-0.5">{exc.reason}</p>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[9px] text-slate-400">{exc.created_at?.slice(0, 10)}</span>
@@ -161,9 +155,9 @@ export const QuotesTable = ({
                             )}
                           </div>
                           {onOpenBitacoraFlujo && (
-                            <div className="border-t border-orange-200 px-3 py-1.5">
+                            <div className="border-t border-red-200 px-3 py-1.5">
                               <button onClick={() => onOpenBitacoraFlujo(quote.quote_id, quote.quote_number)}
-                                className="text-[10px] text-orange-600 hover:text-orange-800 font-medium w-full text-center"
+                                className="text-[10px] text-red-600 hover:text-red-800 font-medium w-full text-center"
                                 data-testid={`open-bitacora-flujo-${quote.quote_id}`}>
                                 Ver historial completo
                               </button>
@@ -175,7 +169,7 @@ export const QuotesTable = ({
                   </div>
                 </td>
                 <td className="px-3 py-4 text-sm text-slate-600 whitespace-nowrap">{new Date(quote.created_at).toLocaleDateString('es-VE')}</td>
-                <td className="px-3 py-4">
+                <td className="px-3 py-4 sticky right-0 bg-white group-hover:bg-slate-50 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                   <div className="flex items-center justify-center gap-2">
                     <Button size="sm" variant="outline" onClick={() => onOpenAnexos(quote)}
                       className="text-brand-blue-600" disabled={isLoading}
