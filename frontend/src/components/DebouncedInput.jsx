@@ -21,7 +21,7 @@ const DebouncedInput = memo(function DebouncedInput({
   onCommit,
   debounceMs = 0,
   as = 'input',
-  onChange: externalOnChange,
+  onChange: _externalOnChange, // extracted but NOT used during typing
   ...rest
 }) {
   const [localValue, setLocalValue] = useState(externalValue ?? '');
@@ -44,16 +44,12 @@ const DebouncedInput = memo(function DebouncedInput({
   const handleChange = useCallback((e) => {
     const val = e.target.value;
     setLocalValue(val);
-
-    // Callback externo opcional (para highlight removal, etc.)
-    if (externalOnChange) externalOnChange(e);
-
-    // Debounce
+    // NO se propaga onChange al padre — estado 100% local durante escritura
     if (debounceMs > 0) {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => commit(val), debounceMs);
     }
-  }, [debounceMs, commit, externalOnChange]);
+  }, [debounceMs, commit]);
 
   const handleBlur = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);

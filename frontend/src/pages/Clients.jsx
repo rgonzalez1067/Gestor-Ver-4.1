@@ -145,7 +145,7 @@ export const Clients = () => {
       setShowCustomPrinterInput(true);
       setCustomPrinterName('');
     } else {
-      setFormData({ ...formData, modelo_impresora_fiscal: value === '_none_' ? '' : value });
+      setFormData(prev => ({ ...prev, modelo_impresora_fiscal: value === '_none_' ? '' : value }));
       setShowCustomPrinterInput(false);
     }
   };
@@ -808,7 +808,7 @@ export const Clients = () => {
                         </h3>
                         <div>
                           <Label className="text-xs">Condición</Label>
-                          <Select value={formData.condicion} onValueChange={(v) => setFormData({ ...formData, condicion: v })}>
+                          <Select value={formData.condicion} onValueChange={(v) => setFormData(prev => ({ ...prev, condicion: v }))}>
                             <SelectTrigger data-testid="client-condicion-select" className="h-9 font-medium">
                               <SelectValue />
                             </SelectTrigger>
@@ -820,8 +820,7 @@ export const Clients = () => {
                         <div>
                           <Label className="text-xs">RIF</Label>
                           <DebouncedInput data-testid="client-rif-input" value={formData.rif}
-                            onCommit={(v) => setFormData(prev => ({ ...prev, rif: v }))}
-                            onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; })}
+                            onCommit={(v) => { setFormData(prev => ({ ...prev, rif: v })); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('rif'); return n; }); }}
                             className={`h-9 font-mono ${rifHighlightFields.has('rif') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
                             placeholder="J000000000" required />
                         </div>
@@ -829,15 +828,13 @@ export const Clients = () => {
                           <div>
                             <Label className="text-xs">Nombre Jurídico</Label>
                             <DebouncedInput data-testid="client-legal-name-input" value={formData.legal_name}
-                              onCommit={(v) => setFormData(prev => ({ ...prev, legal_name: v }))}
-                              onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; })}
+                              onCommit={(v) => { setFormData(prev => ({ ...prev, legal_name: v })); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('legal_name'); return n; }); }}
                               className={`h-9 ${rifHighlightFields.has('legal_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
                           </div>
                           <div>
                             <Label className="text-xs">Nombre de Fantasía</Label>
                             <DebouncedInput data-testid="client-fantasy-name-input" value={formData.fantasy_name}
-                              onCommit={(v) => setFormData(prev => ({ ...prev, fantasy_name: v }))}
-                              onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; })}
+                              onCommit={(v) => { setFormData(prev => ({ ...prev, fantasy_name: v })); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('fantasy_name'); return n; }); }}
                               className={`h-9 ${rifHighlightFields.has('fantasy_name') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`} required />
                           </div>
                         </div>
@@ -850,7 +847,7 @@ export const Clients = () => {
                           </div>
                           <div>
                             <Label className="text-xs">Segmento</Label>
-                            <Select value={formData.segment} onValueChange={(v) => setFormData({ ...formData, segment: v })}>
+                            <Select value={formData.segment} onValueChange={(v) => setFormData(prev => ({ ...prev, segment: v }))}>
                               <SelectTrigger data-testid="client-segment-select" className="h-9"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {SEGMENT_OPTIONS.map(seg => <SelectItem key={seg} value={seg}>{seg}</SelectItem>)}
@@ -860,7 +857,7 @@ export const Clients = () => {
                         </div>
                         <div>
                           <Label className="text-xs">Referidor</Label>
-                          <Select value={formData.referidor || '_none_'} onValueChange={(v) => setFormData({ ...formData, referidor: v === '_none_' ? '' : v })}>
+                          <Select value={formData.referidor || '_none_'} onValueChange={(v) => setFormData(prev => ({ ...prev, referidor: v === '_none_' ? '' : v }))}>
                             <SelectTrigger data-testid="client-referidor-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="_none_">Seleccionar...</SelectItem>
@@ -891,7 +888,7 @@ export const Clients = () => {
                         </div>
                         <div>
                           <Label className="text-xs">Categoría Comercial</Label>
-                          <Select value={formData.categoria_comercial || '_none_'} onValueChange={(v) => setFormData({ ...formData, categoria_comercial: v === '_none_' ? '' : v })}>
+                          <Select value={formData.categoria_comercial || '_none_'} onValueChange={(v) => setFormData(prev => ({ ...prev, categoria_comercial: v === '_none_' ? '' : v }))}>
                             <SelectTrigger data-testid="client-categoria-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="_none_">Seleccionar...</SelectItem>
@@ -907,8 +904,7 @@ export const Clients = () => {
                         <div>
                           <Label className="text-xs">Dirección Fiscal</Label>
                           <DebouncedInput as="textarea" data-testid="client-address-input" value={formData.address}
-                            onCommit={(v) => setFormData(prev => ({ ...prev, address: v }))}
-                            onChange={() => setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; })}
+                            onCommit={(v) => { setFormData(prev => ({ ...prev, address: v })); setRifHighlightFields(prev => { const n = new Set(prev); n.delete('address'); return n; }); }}
                             className={`flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[56px] resize-none ${rifHighlightFields.has('address') ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : ''}`}
                             placeholder="Av. Principal, Edificio..." />
                         </div>
@@ -959,7 +955,7 @@ export const Clients = () => {
                           <div>
                             <Label className="text-xs">Aplicativo</Label>
                             {getAplicativos().length > 0 ? (
-                              <Select value={formData.aplicativo || '_none_'} onValueChange={(v) => setFormData({ ...formData, aplicativo: v === '_none_' ? '' : v })}>
+                              <Select value={formData.aplicativo || '_none_'} onValueChange={(v) => setFormData(prev => ({ ...prev, aplicativo: v === '_none_' ? '' : v }))}>
                                 <SelectTrigger data-testid="client-aplicativo-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="_none_">Seleccionar...</SelectItem>
