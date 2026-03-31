@@ -15,6 +15,7 @@ import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { BranchDetailPanel } from '../components/BranchDetailPanel';
 import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
+import { ApprovalBillingModal } from '../components/ApprovalBillingModal';
 import { MultiProductSelector } from '../components/MultiProductSelector';
 import { QuoteFilters } from '../components/quotes/QuoteFilters';
 import { QuotesTable } from '../components/quotes/QuotesTable';
@@ -203,6 +204,11 @@ export const Quotes = () => {
   const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [workflowQuoteId, setWorkflowQuoteId] = useState(null);
   const [workflowConfig, setWorkflowConfig] = useState(null);
+
+  // Estado para modal de Aprobación con Instrucción de Facturación
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [approvalQuoteId, setApprovalQuoteId] = useState(null);
+  const [approvalConfig, setApprovalConfig] = useState(null);
   
   // Estado para "Cliente en Producción"
   const [isProductionClient, setIsProductionClient] = useState(false);
@@ -2193,22 +2199,12 @@ export const Quotes = () => {
 
   // Abrir modal de workflow para Aprobar (requiere Orden de Compra)
   const openApproveConfirm = (quoteId, exceptionInfo) => {
-    setWorkflowQuoteId(quoteId);
-    setWorkflowConfig({
-      title: 'Aprobación de Cotización',
-      description: 'Para registrar la aprobación, debe cargar la Orden de Compra del cliente. Este documento es obligatorio para continuar.',
-      category: 'Orden de Compra',
-      acceptMultiple: false,
-      acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
-      actionLabel: 'Confirmar Aprobación',
-      actionColor: 'bg-green-600 hover:bg-green-700',
-      actionIcon: <CheckCircle size={20} className="text-green-600" />,
-      stateEndpoint: 'approve',
-      successMessage: 'Aprobación registrada exitosamente',
+    setApprovalQuoteId(quoteId);
+    setApprovalConfig({
       exceptionHeaders: exceptionInfo || null,
       emailHeaders: getEmailHeaders(),
     });
-    setWorkflowModalOpen(true);
+    setApprovalModalOpen(true);
   };
 
   // Abrir modal de workflow para Cobrar (requiere Comprobante de Pago - múltiple)
@@ -4798,6 +4794,16 @@ export const Quotes = () => {
             onSuccess={handleWorkflowSuccess}
             quoteId={workflowQuoteId}
             config={workflowConfig}
+          />
+
+          {/* Modal de Aprobación con Instrucción de Facturación */}
+          <ApprovalBillingModal
+            open={approvalModalOpen}
+            onClose={() => { setApprovalModalOpen(false); setApprovalQuoteId(null); setApprovalConfig(null); }}
+            onSuccess={() => { setApprovalModalOpen(false); setApprovalQuoteId(null); setApprovalConfig(null); fetchData(); }}
+            quoteId={approvalQuoteId}
+            quotes={quotes}
+            config={approvalConfig}
           />
 
           {/* Modal de Anexos */}

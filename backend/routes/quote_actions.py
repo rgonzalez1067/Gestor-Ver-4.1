@@ -177,9 +177,12 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
 
 
 @router.post("/quotes/{quote_id}/approve")
-async def approve_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
-    """Aprobar una cotización - Requiere anexo de Orden de Compra. Soporta flujo irregular y mensaje personalizado."""
+async def approve_quote(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+    """Aprobar una cotización con instrucción de facturación. Soporta flujo irregular, adjuntos y consolidación."""
     current_user = await get_current_user(authorization)
+    
+    if body is None:
+        body = {}
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
@@ -194,19 +197,27 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
         await mark_quote_irregular(quote_id, "approve", exception_reason, regularization_date)
         await log_audit_exception(quote_id, quote.get("quote_number"), "approve", "Enviada", current_status, exception_reason, regularization_date, current_user)
     
-    # Validar Orden de Compra
-    attachments = quote.get("attachments", [])
-    has_oc = any(a.get("category") == "Orden de Compra" for a in attachments)
-    if not has_oc:
-        raise HTTPException(status_code=422, detail="Debe cargar la Orden de Compra antes de aprobar la cotización")
-    
     # Obtener cliente
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
     
+    # Guardar datos de instrucción de facturación si se proporcionan
+    billing_data = {}
+    if body.get("consolidated_items"):
+        billing_data = {
+            "billing_instruction": {
+                "consolidated_items": body["consolidated_items"],
+                "exchange_rate": body.get("exchange_rate", 0),
+                "grand_total_usd": body.get("grand_total_usd", 0),
+                "grand_total_bs": body.get("grand_total_bs", 0),
+                "has_payment_proof": body.get("has_payment_proof", False),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        }
+    
     # Actualizar estado (solo si NO es regularización retroactiva)
     is_regul = is_regularization(current_status, "approve")
-    update_fields = {"approved_at": datetime.now(timezone.utc).isoformat()}
+    update_fields = {"approved_at": datetime.now(timezone.utc).isoformat(), **billing_data}
     if not is_regul:
         update_fields["quote_status"] = "Aprobada"
     
@@ -334,6 +345,19 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             if pdf_path.exists():
                 pdf_buffer = open(pdf_path, 'rb').read()
 
+        # Cargar soportes de pago adjuntos (si existen)
+        approval_attachments_b64 = []
+        quote_refreshed = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "attachments": 1})
+        for att in (quote_refreshed or {}).get("attachments", []):
+            if att.get("category") == "Soporte de Aprobación":
+                att_path = UPLOADS_DIR / att["url"].replace("/uploads/", "")
+                if att_path.exists():
+                    with open(att_path, 'rb') as f:
+                        approval_attachments_b64.append({
+                            "filename": att.get("original_name", "soporte.pdf"),
+                            "content": base64.b64encode(f.read()).decode('utf-8')
+                        })
+
         # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
         email_results = await send_workflow_notification(
             action="approve",
@@ -342,7 +366,11 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
             custom_message=custom_message,
             cc_emails=cc_emails,
             pdf_buffer=pdf_buffer,
+            extra_attachments=approval_attachments_b64 if approval_attachments_b64 else None,
         )
+
+    # Generar tabla de instrucción de facturación para incluir en respuesta
+    billing_instruction = billing_data.get("billing_instruction") if billing_data else None
 
     return {
         "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else " — Pendiente de Configuración" if is_fast_track else ""),
@@ -350,7 +378,8 @@ async def approve_quote(quote_id: str, authorization: Optional[str] = Header(Non
         "new_status": "Aprobada",
         "emails": email_results,
         "is_repair": is_repair,
-        "is_fast_track": is_fast_track
+        "is_fast_track": is_fast_track,
+        "billing_instruction": billing_instruction
     }
 
 
