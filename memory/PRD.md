@@ -413,6 +413,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Eliminada validación obligatoria de "Orden de Compra" (ahora es opcional "Comprobante de Pago")
 - VALIDADO: 100% backend + 100% frontend (iteration_137)
 
+### Optimización Modal Aprobación: Setup-Only + PDF Cálculos + IVA (2026-03-31)
+- **Filtro de Setup**: Tabla de facturación muestra SOLO `item_type='setup'` (excluye mantenimiento mensual/recurrente)
+- **IVA y Totales**: Filas de Subtotal (Setup), IVA (16%), TOTAL GENERAL con cálculos automáticos en $ y Bs.
+- **PDF de Cálculos Definitivos** (`billing_pdf.py`): Documento interno ReportLab con datos cliente, RIF, conceptos consolidados, tasa, IVA, totales, nombre ejecutor. Se adjunta automáticamente al correo de aprobación.
+- **Workflow actualizado**: Correo de aprobación ahora incluye: PDF Cotización Original + PDF Cálculos Definitivos + Soporte de pago (si aplica)
+- VALIDADO: 100% backend + 100% frontend (iteration_138)
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
