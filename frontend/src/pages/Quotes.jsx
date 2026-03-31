@@ -481,14 +481,17 @@ export const Quotes = () => {
 
   // Buscar precio en el catálogo de servicios según modelo seleccionado
   const findServicePrice = (productName) => {
-    const service = serviceCatalog.find(s => 
-      s.name.toLowerCase() === productName.toLowerCase() ||
-      s.name.toLowerCase().includes(productName.toLowerCase()) ||
-      productName.toLowerCase().includes(s.name.toLowerCase())
-    );
+    const normalize = (str) => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    const nameNorm = normalize(productName);
+    
+    const service = serviceCatalog.find(s => {
+      const sNorm = normalize(s.name);
+      return sNorm === nameNorm ||
+        sNorm.includes(nameNorm) ||
+        nameNorm.includes(sNorm);
+    });
     
     if (service) {
-      // Seleccionar precios según el modelo elegido
       const isOutsourcing = quoteData.pricing_model === 'outsourcing';
       return {
         setup_cost: isOutsourcing 
@@ -1443,7 +1446,7 @@ export const Quotes = () => {
             bank_name: item.bank_name || null,
             tipo_corp: findServiceTipoCorp(item.medio_pago_name)
           })),
-          ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
+          ...quoteData.additional_items.map(item => ({
             concepto: `${item.medio_pago_name} - ${item.bank_name}`,
             cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
             cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
@@ -1738,7 +1741,7 @@ export const Quotes = () => {
           bank_name: item.bank_name || null,
           tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
-        ...quoteData.additional_items.filter(i => i.tarifa_setup > 0).map(item => ({
+        ...quoteData.additional_items.map(item => ({
           concepto: `${item.medio_pago_name} - ${item.bank_name}`,
           cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
@@ -2434,28 +2437,36 @@ export const Quotes = () => {
     // Mapear items adicionales con campos específicos (bank_id, bank_name, tarifa_setup, tarifa_recurrente)
     // Los items adicionales SIEMPRE preservan sus valores originales de cantidad_bancos
     // Marcamos isFromDB=true para evitar que el useEffect los actualice
-    const mapAdditionalItem = (s) => ({
-      id: s.item_id || `additional_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      service_id: s.item_id || s.service_id || '',
-      medio_pago_name: s.item_name || s.name || '',
-      name: s.item_name || s.name || '',
-      quantity: s.quantity || 1,
-      // Campos específicos de items adicionales
-      bank_id: s.bank_id || '',
-      bank_name: s.bank_name || '',
-      tarifa_setup: s.tarifa_setup || 0,
-      tarifa_recurrente: s.tarifa_recurrente || 0,
-      // Fallback: si no hay tarifa_setup/recurrente, usar unit_price_usd dividido
-      unit_price_usd: s.unit_price_usd || 0,
-      total_usd: s.total_usd || 0,
-      // PRESERVAR valores originales de la BD
-      cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
-      cantidad_bancos: s.cantidad_bancos || 1,
-      isDefault: false,
-      isAutoLinked: false,
-      isFromDB: true, // Marca que viene de BD para evitar propagación automática
-      lockBancos: false // Items adicionales nunca tienen lockBancos
-    });
+    const mapAdditionalItem = (s) => {
+      const name = s.item_name || s.name || '';
+      let setup = s.tarifa_setup || 0;
+      let recurrente = s.tarifa_recurrente || 0;
+      // Recuperar precio del catálogo si viene con 0 (posible fallo de lookup original)
+      if (setup === 0 && recurrente === 0 && name) {
+        const catalogPrices = findServicePriceWithModel(name, quote.pricing_model || 'conventional');
+        if (catalogPrices.setup_cost > 0) setup = catalogPrices.setup_cost;
+        if (catalogPrices.monthly_cost > 0) recurrente = catalogPrices.monthly_cost;
+      }
+      return {
+        id: s.item_id || `additional_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        service_id: s.item_id || s.service_id || '',
+        medio_pago_name: name,
+        name: name,
+        quantity: s.quantity || 1,
+        bank_id: s.bank_id || '',
+        bank_name: s.bank_name || '',
+        tarifa_setup: setup,
+        tarifa_recurrente: recurrente,
+        unit_price_usd: s.unit_price_usd || 0,
+        total_usd: s.total_usd || 0,
+        cantidad_cajas: s.cantidad_cajas || s.quantity || 1,
+        cantidad_bancos: s.cantidad_bancos || 1,
+        isDefault: false,
+        isAutoLinked: false,
+        isFromDB: true,
+        lockBancos: false
+      };
+    };
     
     // Filtrar por categoría (puede ser 'category' o 'item_type')
     const getCategory = (s) => s.category || s.item_type || '';
@@ -4044,9 +4055,9 @@ export const Quotes = () => {
                             </td>
                           </tr>
                         ))}
-                        {/* Items adicionales con Setup */}
-                        {quoteData.additional_items.filter(i => i.tarifa_setup > 0).map((item, index) => {
-                          const realIndex = quoteData.additional_items.indexOf(item);
+                        {/* Items adicionales (medios de pago por banco) */}
+                        {quoteData.additional_items.map((item, index) => {
+                          const realIndex = index;
                           return (
                           <tr key={`add-setup-${index}`} className="bg-white border-l-4 border-l-amber-500">
                             <td className="px-3 py-2 text-center font-medium border border-slate-300">{quoteData.setup_items.length + index + 1}</td>
@@ -4083,7 +4094,9 @@ export const Quotes = () => {
                               />
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
-                              ${((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}
+                              {(item.tarifa_setup || 0) > 0
+                                ? `$${((item.tarifa_setup || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)).toFixed(2)}`
+                                : <span className="text-slate-500 italic text-xs">Incluido</span>}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <Button

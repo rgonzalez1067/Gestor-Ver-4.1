@@ -427,6 +427,21 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Bug fix**: Eliminada referencia a `setOverrides({})` inexistente en onChange de tasa de cambio (causaba error runtime)
 - VALIDADO: Screenshot confirma 3 items (2 setup + 1 additional), 0 recurrentes, precios read-only, cálculos correctos
 
+### Fix Crítico: Producto C2P/Débito Inmediato Invisible en Cotizador (2026-03-31)
+- **Bug**: Producto "Pago con C2P o Débito Inmediato" se insertaba con precio 0, desaparecía del wizard y reaparecía en Proyectos
+- **Causa raíz triple**:
+  1. **Typo en DB**: 11 bancos tenían "Débito Imediato" (sin N) vs catálogo "Débito Inmediato" → `findServicePrice()` fallaba
+  2. **Filtro UI**: `filter(i => i.tarifa_setup > 0)` en 3 ubicaciones ocultaba items con precio 0 del wizard y PDF
+  3. **Whitespace silencioso**: 9 servicios del catálogo con trailing space causaban fallos de matching
+- **Correcciones**:
+  - DB: Corregido typo en 11 bancos, 6 cotizaciones, 2 proyectos
+  - DB: Eliminado trailing whitespace en 9 nombres de servicios
+  - Frontend: Removido `filter(tarifa_setup > 0)` de las 3 ubicaciones (Quotes.jsx)
+  - Frontend: Items con precio 0 ahora muestran "Incluido" en vez de ocultarse
+  - Frontend: `findServicePrice()` ahora normaliza Unicode (acentos) y whitespace para matching robusto
+  - Frontend: `mapAdditionalItem()` recupera precios del catálogo al editar cotizaciones con precio 0
+- VALIDADO: 11 bancos verificados, compilación OK, test report iteration_139
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
