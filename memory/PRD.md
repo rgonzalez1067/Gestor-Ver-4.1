@@ -404,6 +404,15 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - Pasos pendientes y bypassed no muestran tooltip de fecha (los bypassed mantienen su popover de justificación)
 - VALIDADO: Screenshot confirma tooltip funcional
 
+### Modal de Aprobación con Instrucción de Facturación (2026-03-31)
+- **Nuevo componente `ApprovalBillingModal.jsx`**: Reemplaza WorkflowUploadModal para aprobaciones
+  1. **Carga Soporte Opcional**: Campo de upload de comprobante de pago anticipado, se adjunta al correo de Administración
+  2. **Tabla de Instrucción de Facturación**: Conceptos consolidados por nombre (GROUP BY item_name, SUM quantity + total_usd)
+  3. **Calculadora Bs./$**: Tasa auto-cargada desde `/exchange-rate/current`, cálculo en tiempo real, overrides manuales (estilo amber)
+- Backend: `approve_quote` acepta body JSON con `billing_instruction` (consolidated_items, exchange_rate, grand_total_usd, grand_total_bs), almacenado en MongoDB
+- Eliminada validación obligatoria de "Orden de Compra" (ahora es opcional "Comprobante de Pago")
+- VALIDADO: 100% backend + 100% frontend (iteration_137)
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
