@@ -420,6 +420,13 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Workflow actualizado**: Correo de aprobación ahora incluye: PDF Cotización Original + PDF Cálculos Definitivos + Soporte de pago (si aplica)
 - VALIDADO: 100% backend + 100% frontend (iteration_138)
 
+### Refinamiento Modal Aprobación: Productos + Precios Read-Only (2026-03-31)
+- **Filtro ampliado**: Tabla ahora incluye `setup` Y `additional` (productos/hardware). Excluye únicamente `recurring_basic` y `recurring_other`
+- **Precios estrictamente read-only**: Eliminados todos los campos de override manual de precios. Solo la Tasa de Cambio es editable
+- **Labels actualizados**: "Subtotal (Setup + Productos)" en UI y "Conceptos de Setup y Productos Consolidados" en PDF
+- **Bug fix**: Eliminada referencia a `setOverrides({})` inexistente en onChange de tasa de cambio (causaba error runtime)
+- VALIDADO: Screenshot confirma 3 items (2 setup + 1 additional), 0 recurrentes, precios read-only, cálculos correctos
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)

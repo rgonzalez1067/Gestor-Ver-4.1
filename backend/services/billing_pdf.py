@@ -59,7 +59,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     items = billing_instruction.get('consolidated_items', [])
     exchange_rate = billing_instruction.get('exchange_rate', 0)
 
-    elements.append(Paragraph("Conceptos de Setup Consolidados", header_style))
+    elements.append(Paragraph("Conceptos de Setup y Productos Consolidados", header_style))
     elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs. {exchange_rate:.2f} / $</b>", normal_style))
     elements.append(Spacer(1, 8))
 

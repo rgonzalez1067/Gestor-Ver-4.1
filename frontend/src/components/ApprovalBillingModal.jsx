@@ -193,7 +193,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 <Input
                   type="number" step="0.01" min="0"
                   value={exchangeRate}
-                  onChange={(e) => { setExchangeRate(e.target.value); setOverrides({}); }}
+                  onChange={(e) => setExchangeRate(e.target.value)}
                   className="w-24 h-8 text-sm text-right font-mono"
                   placeholder="36.50"
                   data-testid="exchange-rate-input"
@@ -201,7 +201,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
               </div>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Solo conceptos de <strong>Setup</strong> (excluye mantenimiento mensual). Consolidados por similitud. IVA 16% calculado automáticamente.
+              Conceptos de <strong>Setup y Productos</strong> (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.
             </p>
 
             <div className="overflow-x-auto">
@@ -233,7 +233,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
-                    <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>Subtotal (Setup)</td>
+                    <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>Subtotal (Setup + Productos)</td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">Bs. {grandTotalBs.toFixed(2)}</td>
