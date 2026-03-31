@@ -616,6 +616,7 @@ ATTACHMENT_CATEGORIES = [
     "Orden de Compra",
     "Factura",
     "Pagos",
+    "Soporte de Aprobación",
     "Otros"
 ]
 

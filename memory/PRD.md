@@ -442,6 +442,12 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Frontend: `mapAdditionalItem()` recupera precios del catálogo al editar cotizaciones con precio 0
 - VALIDADO: 11 bancos verificados, compilación OK, test report iteration_139
 
+### Fix: Categoría "Soporte de Aprobación" en Attachments (2026-03-31)
+- **Bug**: Al confirmar aprobación con comprobante de pago adjunto, el endpoint rechazaba la categoría "Soporte de Aprobación" con error 400
+- **Causa**: La categoría no estaba en la lista `ATTACHMENT_CATEGORIES` de models.py
+- **Fix**: Agregada "Soporte de Aprobación" a `ATTACHMENT_CATEGORIES`
+- VALIDADO: curl confirma upload exitoso con nueva categoría
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
