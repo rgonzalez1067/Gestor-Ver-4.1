@@ -32,27 +32,20 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     }
   }, [open]);
 
-  // Consolidate services: group by item_name, sum quantities and totals
+  // Consolidate services: ONLY setup items, grouped by name, summed
   const consolidated = useMemo(() => {
     if (!quote) return [];
     const services = quote.services || [];
     const map = {};
     for (const s of services) {
+      // Solo ítems de Setup (Instalación, Equipos, Derecho de Uso inicial)
+      if (s.item_type !== 'setup') continue;
       const name = s.item_name || s.name || 'Sin nombre';
       if (!map[name]) {
         map[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: s.unit_price_usd || s.price || 0 };
       }
       map[name].quantity += (s.quantity || 1);
       map[name].total_usd += (s.total_usd || s.subtotal_usd || 0);
-    }
-    // Also include additional items if present
-    for (const s of (quote.additional_items || [])) {
-      const name = s.item_name || s.name || 'Adicional';
-      if (!map[name]) {
-        map[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: s.unit_price_usd || 0 };
-      }
-      map[name].quantity += (s.quantity || 1);
-      map[name].total_usd += (s.total_usd || 0);
     }
     return Object.values(map);
   }, [quote]);
@@ -63,6 +56,11 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     const bsVal = overrides[idx] !== undefined ? parseFloat(overrides[idx]) || 0 : c.total_usd * rateNum;
     return sum + bsVal;
   }, 0);
+  const ivaRate = 0.16;
+  const ivaUsd = grandTotalUsd * ivaRate;
+  const ivaBs = grandTotalBs * ivaRate;
+  const grandTotalConIvaUsd = grandTotalUsd + ivaUsd;
+  const grandTotalConIvaBs = grandTotalBs + ivaBs;
 
   const resetState = useCallback(() => {
     setFiles([]);
@@ -118,6 +116,10 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         exchange_rate: rateNum,
         grand_total_usd: grandTotalUsd,
         grand_total_bs: grandTotalBs,
+        iva_usd: ivaUsd,
+        iva_bs: ivaBs,
+        grand_total_con_iva_usd: grandTotalConIvaUsd,
+        grand_total_con_iva_bs: grandTotalConIvaBs,
         has_payment_proof: files.length > 0,
       };
 
@@ -205,7 +207,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
               </div>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Conceptos consolidados por similitud. Los montos en Bs. se calculan en tiempo real. Puede sobreescribir valores individuales.
+              Solo conceptos de <strong>Setup</strong> (excluye mantenimiento mensual). Consolidados por similitud. IVA 16% calculado automáticamente.
             </p>
 
             <div className="overflow-x-auto">
@@ -244,11 +246,23 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-slate-100 font-semibold">
-                    <td className="px-3 py-2 text-xs text-slate-700" colSpan={2}>TOTAL</td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-900">${grandTotalUsd.toFixed(2)}</td>
+                  <tr className="bg-slate-50 border-t border-slate-200">
+                    <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>Subtotal (Setup)</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-900">Bs. {grandTotalBs.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">Bs. {grandTotalBs.toFixed(2)}</td>
+                  </tr>
+                  <tr className="bg-slate-50">
+                    <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>IVA (16%)</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">${ivaUsd.toFixed(2)}</td>
+                    <td className="px-3 py-1.5"></td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">Bs. {ivaBs.toFixed(2)}</td>
+                  </tr>
+                  <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                    <td className="px-3 py-2.5 text-xs text-slate-900" colSpan={2}>TOTAL GENERAL</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">${grandTotalConIvaUsd.toFixed(2)}</td>
+                    <td className="px-3 py-2.5"></td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">Bs. {grandTotalConIvaBs.toFixed(2)}</td>
                   </tr>
                 </tfoot>
               </table>

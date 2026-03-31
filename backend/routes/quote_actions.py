@@ -210,6 +210,10 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
                 "exchange_rate": body.get("exchange_rate", 0),
                 "grand_total_usd": body.get("grand_total_usd", 0),
                 "grand_total_bs": body.get("grand_total_bs", 0),
+                "iva_usd": body.get("iva_usd", 0),
+                "iva_bs": body.get("iva_bs", 0),
+                "grand_total_con_iva_usd": body.get("grand_total_con_iva_usd", 0),
+                "grand_total_con_iva_bs": body.get("grand_total_con_iva_bs", 0),
                 "has_payment_proof": body.get("has_payment_proof", False),
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -357,6 +361,20 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
                             "filename": att.get("original_name", "soporte.pdf"),
                             "content": base64.b64encode(f.read()).decode('utf-8')
                         })
+
+        # Generar PDF de Cálculos Definitivos (si hay billing_instruction)
+        if billing_data.get("billing_instruction") and billing_data["billing_instruction"].get("consolidated_items"):
+            try:
+                from services.billing_pdf import generate_billing_pdf
+                executor_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "Sistema"
+                billing_pdf_bytes = generate_billing_pdf(quote, client, billing_data["billing_instruction"], executor_name)
+                approval_attachments_b64.append({
+                    "filename": f"Calculos_Definitivos_{quote.get('quote_number', 'N-A')}.pdf",
+                    "content": base64.b64encode(billing_pdf_bytes).decode('utf-8')
+                })
+                logger.info(f"[Approve] PDF de Cálculos Definitivos generado para {quote.get('quote_number')}")
+            except Exception as e:
+                logger.error(f"Error generando PDF de Cálculos Definitivos: {e}")
 
         # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
         email_results = await send_workflow_notification(
