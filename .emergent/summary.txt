@@ -1,122 +1,133 @@
 <analysis>**original_problem_statement:** 
-El usuario solicitó una serie de optimizaciones críticas de rendimiento (Input Lag global), correcciones en la lógica de generación de PDFs (Ficha de Implementación y Multitienda), mejoras en los flujos de trabajo (adjuntos automáticos en aprobaciones y facturas, flujo logístico para Fast Track) y, finalmente, un ajuste en la interfaz de usuario para el flujo de Reparaciones (renombrar acción a Reparada e implementar una barra de progreso/stepper estático para estabilidad visual).
+The user requested continuous optimizations and features for a Quote Workflow Management platform (MegaNexus). Key objectives in this session included: creating a full suite of email templates for the Reparaciones (Repair) flow, fixing a critical login issue caused by corrupted password hashes, implementing a Red Path (visual warning) in the UI stepper for skipped/irregular workflow phases, completely eliminating typing latency in the Nuevo Cliente form, adding an Operations Email config for the PYME branch, and completely overhauling the Aprobación (Approve) action to act as an automated Billing Instruction generator (filtering specific item types, converting currencies in real-time, and generating a backend PDF).
 
-**User's preferred language:** Español (INSTRUCT next agent to respond in the user's preferred language only).
+**User's preferred language:** Spanish (Español). **INSTRUCT NEXT AGENT to respond and communicate in Spanish only.**
 
 **what currently exists?** 
-Plataforma Full-Stack (React + FastAPI + MongoDB) para la gestión de cotizaciones, clientes, inventario y proyectos. Cuenta con flujos dinámicos condicionales (PYME/CORP, Fast Track, Reparaciones), generación dinámica de PDFs con ReportLab, notificaciones por correo vía SMTP propio con plantillas dinámicas (variables inyectadas), y un rendimiento optimizado en los formularios pesados usando debouncing.
+A stable Full-Stack application (React + FastAPI + MongoDB) managing clients, quotes, inventory, and complex conditional workflows. It features dynamic ReportLab PDF generation, custom SMTP email notifications, advanced visual UI steppers that detect workflow irregularities, and forms optimized for zero-latency using / uncontrolled input patterns.
 
 **Last working item:**
-- **Last item agent was working**: Estabilización visual en el flujo de cotizaciones de Reparación. Se creó el componente  para mostrar un Stepper persistente y se actualizó la tabla de cotizaciones para mostrar Reparada en lugar de Marcar como Reparada.
-- **Status**: USER VERIFICATION PENDING (El agente completó la implementación y tomó el screenshot para verificar la interfaz, pero se quedó sin contexto para finalizar formalmente la tarea con el PRD).
-- **Agent Testing Done**: Y (Validado a través de captura de pantalla; compilación exitosa).
-- **Which testing method agent to use?**: manual testing by screenshot tool / python -c.
+- **Last item agent was working**: Refining the  (Billing Instruction Modal). The user requested adjusting the filter to INCLUDE both  and  (products/hardware) items, while strictly EXCLUDING recurring fees. Furthermore, the user requested that all prices be strictly read-only (pulled from the DB) to prevent manual overrides, leaving only the Exchange Rate as an editable field. The agent successfully modified the code but the session ended before compiling, testing, or updating the PRD.
+- **Status**: IN PROGRESS
+- **Agent Testing Done**: N
+- **Which testing method agent to use?**: Frontend testing agent or manual screenshot tool (to verify the modal renders correctly without the override inputs and includes the correct item types).
 - **User Testing Done**: N
 
 **All Pending/In progress Issue list:**
-(No hay bugs pendientes identificados en este momento; el agente resolvió de forma continua todos los reportes del usuario).
+Issue 1: Test and Validate Billing Modal Refinements (P0)
+- **Attempted fixes**: Agent successfully executed  on  to remove override states, make the Bs. total read-only, and include  in the item filter.
+- **Next debug checklist**: Check compilation (backend                          RUNNING   pid 48, uptime 0:00:17
+code-server                      STOPPED   Not started
+frontend                         STOPPED   Mar 31 04:37 PM
+mongodb                          RUNNING   pid 50, uptime 0:00:17
+nginx-code-proxy                 RUNNING   pid 47, uptime 0:00:17 / yarn run v1.22.22
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.), open the Aprobar modal on a quote containing hardware/products, verify the table is read-only for prices, and ensure the totals calculate correctly based solely on the exchange rate. 
+- **Why fix this issue and what will be achieved with the fix?**: Ensures financial integrity by preventing manual price tampering and ensures hardware is billed properly alongside setup fees.
+- **Status**: TESTING PENDING
+- **Is recurring issue?**: N
+- **Should Test frontend/backend/both after fix?**: Frontend (Screenshot tool or Testing Subagent)
+- **Blocked on other issue**: None.
 
 **In progress Task List:**
-Task 1: Finalizar reporte de Estabilización Visual del Flujo de Reparaciones (P0)
-- **Where to resume**: El código ya fue escrito y verificado visualmente. Solo falta revisar el último screenshot para confirmar que el stepper se ve correcto, actualizar el archivo  con esta mejora y llamar a la herramienta .
-- **What will be achieved with this?**: Completar la solicitud del usuario sobre la estabilidad visual en el pipeline de reparaciones.
+Task 1: Finalize Billing Modal Refinement Task (P0)
+- **Where to resume**: Verify the UI changes applied in the final step of the previous session. Once verified, update  with these refinements and call the  tool.
+- **What will be achieved with this?**: Closes out the user's latest request regarding billing integrity.
 - **Status**: IN PROGRESS
-- **Should Test frontend/backend/both after fix?**: Frontend (Screenshot ya tomado, solo evaluar).
-- **Blocked on something**: Ninguno.
+- **Should Test frontend/backend/both after fix?**: Frontend.
+- **Blocked on something**: Verification of Issue 1.
 
-**Upcoming and Future Tasks:**
+**Upcoming and Future Tasks**
 Upcoming Tasks:
-- **Verificación de Email y Recuperación de Contraseña (P1)**: Pendiente desde sesiones anteriores.
-- **Refactorización de  (P1)**: Archivo masivo (más de 5200 líneas). Requiere dividirse en sub-componentes para mejorar mantenibilidad, ya que ha sido la causa raíz de varios problemas de rendimiento pasados.
+- **P1**: Email Verification and Password Recovery (Verificación de Email y Recuperación de Contraseña).
+- **P1**: Refactoring  (Currently an overly massive file with 5200+ lines. Needs to be broken down into sub-components).
 
 Future Tasks:
-- **Módulo de Reportes de ventas (P2)**.
-- **Lógica Completado en Roadmap de Bancos (P2)**.
-- **Refactorización de componentes monolíticos (P2)**: , , .
+- **P2**: Sales Reports Module (Módulo de Reportes de ventas).
+- **P2**: Completed Logic in Banks Roadmap.
+- **P2**: Refactoring monolithic components (Inventory.jsx, Integrators.jsx, Clients.jsx).
 
-**Completed work in this session:**
-- Corrección de Input Lag global usando un nuevo componente  aplicado en Clients, Quotes, Inventory e Integrators (DONE).
-- Resolución de Error 422 en edición de plantillas (eliminadas rutas PUT duplicadas en ) (DONE).
-- Inyección de Variables Dinámicas del Ejecutivo (, ) en motor de plantillas (DONE).
-- Optimización de Workflow: Adjuntar PDF de cotización automático en Aprobación y adjuntar archivo subido en Facturación (DONE).
-- Nuevo PDF Ficha Técnica de Implementación para operaciones (DONE).
-- Fix bug en Ficha Técnica: Resumen Ejecutivo ahora muestra correctamente medios de pago (DONE).
-- Fix bug en Ficha Técnica: Sincronización de distribución Multitienda antes de generar el PDF (DONE).
-- Limpieza de BD (Cotizaciones/Proyectos) y Reorganización de Plantillas Base (DONE).
-- Fix Crítico en Mapeo de RIF: Corrección de pérdida de estado (tipo_servicio) que causaba crashes al escanear (DONE).
-- Habilitación de flujo Logístico (Marcar como Entregada) en cotizaciones Fast Track (DONE).
-- Creación de stepper visual estático  para el flujo de Reparaciones (DONE).
+**Completed work in this session**
+- Closed previous pending task regarding RepairStatusPipeline UI (DONE)
+- Created 5 new Email Templates for Repair Flow in both PYME & CORP branches (Quote sent, Approved, Completed, Delivery, Order to Dispatch) (DONE)
+- Fixed critical Auth/Login Bug by migrating corrupted  hashes to system-standard  (DONE)
+- Implemented  (Red Path) universal UI component to highlight skipped/irregular workflow phases (DONE)
+- Added date/time hover Tooltips to the status stepper (DONE)
+- Updated TallerEquipos default filter to En Reparación (DONE)
+- Fixed severe React Input Latency in  by migrating  to strict / behavior (DONE)
+- Added Correo de Operaciones to Settings exclusively for Sede PYME (DONE)
+- Overhauled Approve action: Created  and  for automated billing instructions, calculating IVA and consolidating setup items (DONE - final UI refinements pending).
 
-**Earlier issues found/mentioned but not fixed:**
-- Ninguno. Todos los issues reportados por el usuario fueron abordados.
+**Earlier issues found/mentioned but not fixed**
+None.
 
-**Known issue recurrence from previous fork:**
-- Issue recurrence: Problemas de latencia/Input Lag en el Frontend.
-- Recurrence count: 3 (En esta iteración se abordó con una solución global robusta ).
-- Status: RESOLVED
+**Known issue recurrence from previous fork**
+- **Issue recurrence**: React UI Input Latency / Main Thread blocking on large forms.
+- **Recurrence count**: 4 (Definitively addressed in this session).
+- **Status**: RESOLVED (Solution was to stop tracking keystrokes in global state and use  for data commits).
+- **Note**: Next agent must NOT reintroduce  state updates for text fields in large forms. Always use uncontrolled inputs or .
 
-**Code Architecture:**
+**Code Architecture**
 
 
-**Key Technical Concepts:**
-- **Frontend**: React. Uso de componentes no controlados temporalmente () para evitar re-renderizados masivos en formularios gigantes. Steppers visuales.
-- **Backend**: FastAPI. Inyección de dependencias dinámicas para ReportLab (generación de PDFs en memoria) y manejo dinámico de diccionarios de MongoDB.
-- **DB**: MongoDB (uso extensivo de diccionarios embutidos como , ).
+**Key Technical Concepts**
+- **Frontend**: React. Extensive use of  and isolated component state to prevent massive DOM re-renders.
+- **Backend**: FastAPI. 
+- **PDF Generation**:  used extensively for in-memory PDF generation based on quote states.
+- **Auth**: Passwords use custom  ( format). Do NOT use standard .
 
-**key DB schema:**
-- :  (array con  para productos de bancos),  (sucursales multitienda),  (equipos para Fast Track).
-- : plantillas HTML base parametrizadas con etiquetas .
+**key DB schema**
+- : items array contains objects with  (, , , ). 
+- : Base HTML templates using  for string replacement.
+- : Tracks irregular workflows (skipped steps).
 
-**changes in tech stack:**
-- Ningún cambio de stack.
+**changes in tech stack**
+- None.
 
-**All files of reference:**
--  (Nuevo componente vital para rendimiento).
--  (Nuevo UI para el flujo de reparación).
--  (Contiene la lógica reparada del RIF Digital).
--  (Generador del PDF de ficha técnica).
--  (Lógica central de estados y workflows de cotizaciones).
--  (Motor centralizado de correos; observar cómo maneja adjuntos y variables simples vs dobles llaves).
+**All files of reference**
+-  (New, currently actively being modified for product inclusion and read-only pricing).
+-  (New, generates the internal billing calculations document).
+-  (Updated to handle attachments, IVA calculation, and new PDF dispatching on Approval).
+-  (New universal timeline stepper).
+-  (Refactored to eliminate latency).
+-  (Review for password hashing rules).
 
-**Areas that need refactoring:**
--  (Urgente: P1). Componente masivo propenso a problemas.
+**Areas that need refactoring**
+-  (Critical P1 - 5200+ lines, very bloated).
 
-**key api endpoints:**
-- : Integra PDF de Ficha Técnica, guardado previo de multitienda y correo.
--  y : Soportan flujo de entrega físico para Equipos y ahora también Fast Track.
+**key api endpoints**
+- : Now accepts a JSON body with  (containing , , , etc.) and handles multipart form data for optional payment proof attachments.
 
-**Critical Info for New Agent:**
-- **Rendimiento React:** Si debes agregar nuevos campos de texto en componentes grandes (como Clients o Quotes), **usa siempre ** para evitar reintroducir el bug de Input Lag.
-- **Renderizado de Correos:** En , la función de reemplazo de variables ahora busca simple llave () para coincidir con la BD. No uses dobles llaves en nuevas variables.
-- El usuario quiere flujos lógicos rigurosos. Por ejemplo, en Fast Track, primero se debe Entregar y luego Enviar a Implementación.
-- Para la acción actual en progreso, simplemente verifica el screenshot generado al final, confirma que se vea bien, y aplica el  actualizando el PRD.
+**Critical Info for New Agent**
+- **Form Latency Rule**: Do not bind  events to global states in large parent components (like  or ). Use the established / pattern via  or uncontrolled refs.
+- **Password Hashing Rule**: If creating or modifying users,  in  generates a  string. **Do not use bcrypt**, as it breaks the existing login flow.
+- **Item Types**: The billing modal is currently configured to filter out  and . It should ONLY show  and . 
+- **Last Action Context**: The code for the latest user request (read-only prices and adding  products to the billing modal) has already been written. Your immediate first step should be to run the app, test this modal visually, ensure the calculations work with the exchange rate, update the PRD, and use the finish tool.
 
-**documents and test reports created in this job:**
-- El PRD  fue actualizado continuamente con todos los parches anteriores.
-- (Test agent no fue ejecutado en las tareas más recientes de UI; se validó por bash y screenshots).
+**documents and test reports created in this job**
+-  (Continuously updated)
+-  through  (High usage of testing agent for all major features).
 
-**Last 10 User Messages and any pending HUMAN messages:**
-1. **User**: Solicitó corregir bug de Resumen Ejecutivo vacío en Ficha Técnica. (COMPLETED)
-2. **User**: Solicitó limpiar BD de Cotizaciones y Proyectos. (COMPLETED)
-3. **User**: Solicitó eliminar plantillas específicas y crear plantillas nuevas de proyecto. (COMPLETED)
-4. **User**: Reportó incidencia crítica de Latencia Global (Input Lag) pidiendo manejo de estado local / Debouncing. (COMPLETED)
-5. **User**: Reportó bug crítico en escaneo RIF (mapping failure al hacer autofill). (COMPLETED)
-6. **User**: Reportó que PDF de implementación ignoraba la distribución Multitienda del modal previo. (COMPLETED)
-7. **User**: Solicitó integración de flujo logístico (Marcar como Entregada) en cotizaciones Fast Track. (COMPLETED)
-8. **User**: Aclaró que la entrega física en Fast Track debe ocurrir ANTES del envío a implementación. (COMPLETED)
-9. **User**: Solicitó estabilización visual en Reparaciones (Renombrar a Reparada y fijar Stepper). (COMPLETED / FINISH PENDING)
+**Last 10 User Messages and any pending HUMAN messages** 
+1. **User**: Requested default filter En Reparación in Taller Equipos. (COMPLETED)
+2. **User**: Reported critical Input Latency in the Nuevo Cliente form, demanding a structural zero-latency fix using uncontrolled components/onBlur. (COMPLETED)
+3. **User**: Requested a specific Correo de Operaciones field in settings exclusively for PYME branch. (COMPLETED)
+4. **User**: Requested massive overhaul of Aprobar step: add upload field for payment proofs, build a consolidated billing table, and include currency exchange math. (COMPLETED)
+5. **User**: Reported missing credits (Support Subagent handled). (RESOLVED)
+6. **User**: Refined the Aprobar overhaul: 1. Filter out recurring items, only show setup. 2. Generate a backend PDF of this billing instruction. 3. Send PDF + Quote + Proof to admin. (COMPLETED)
+7. **User**: (Latest) Refined billing items again: Include Products () alongside setup. Make prices strictly read-only to prevent manual tampering, allowing edits only to the exchange rate. (IN PROGRESS - Code written, testing/finish pending).
 
 **Project Health Check:**
-- Saludable. Flujos complejos estabilizados. Bugs críticos de concurrencia y UI resueltos. 
+Healthy.
 
-**3rd Party Integrations:**
-- SMTP Nativo (Gmail) — requiere User Creds (Configurado).
-- OpenAI / LLMs — uses Emergent LLM Key.
+**3rd Party Integrations** 
+- OpenAI GPT models — uses Emergent LLM Key
+- Native SMTP (Gmail) — requires User API Key (Already configured via UI)
 
-**Testing status:**
-- Testing agent used after significant changes: NO (Se usó intensivamente validación manual por bash/python y screenshot tool para velocidad).
-- Troubleshoot agent used after agent stuck in loop: NO.
-- Known regressions: Ninguna detectada.
+**Testing status**
+- Testing agent used after significant changes: YES (Heavily used, iterations 134-138)
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: None manually, subagent generated JSONs.
+- Known regressions: None.
 
-**What agent forgot to execute:**
-- El agente completó la implementación del  y tomó el screenshot exitoso para comprobar la UI, pero no llamó a la herramienta  con la actualización final del PRD debido a límites de contexto. Se debe cerrar formalmente esta tarea.</analysis>
+**What agent forgot to execute**
+The agent completed the file edits () for the very last user request (making billing modal prices read-only and adding product filters), but ran out of context before it could take a screenshot, run the testing subagent, update the PRD, and call the  tool.</analysis>

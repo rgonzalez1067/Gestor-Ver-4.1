@@ -17,7 +17,6 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [exchangeRate, setExchangeRate] = useState('');
-  const [overrides, setOverrides] = useState({});
   const fileInputRef = useRef(null);
 
   const quote = useMemo(() => quotes?.find(q => q.quote_id === quoteId), [quotes, quoteId]);
@@ -32,14 +31,14 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     }
   }, [open]);
 
-  // Consolidate services: ONLY setup items, grouped by name, summed
+  // Consolidate services: Setup + Productos (additional). Excluir recurrentes.
   const consolidated = useMemo(() => {
     if (!quote) return [];
     const services = quote.services || [];
     const map = {};
     for (const s of services) {
-      // Solo ítems de Setup (Instalación, Equipos, Derecho de Uso inicial)
-      if (s.item_type !== 'setup') continue;
+      // Excluir únicamente recurrentes (fee mensual, mantenimiento)
+      if (s.item_type === 'recurring_basic' || s.item_type === 'recurring_other') continue;
       const name = s.item_name || s.name || 'Sin nombre';
       if (!map[name]) {
         map[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: s.unit_price_usd || s.price || 0 };
@@ -52,10 +51,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
   const rateNum = parseFloat(exchangeRate) || 0;
   const grandTotalUsd = consolidated.reduce((sum, c) => sum + c.total_usd, 0);
-  const grandTotalBs = consolidated.reduce((sum, c, idx) => {
-    const bsVal = overrides[idx] !== undefined ? parseFloat(overrides[idx]) || 0 : c.total_usd * rateNum;
-    return sum + bsVal;
-  }, 0);
+  const grandTotalBs = grandTotalUsd * rateNum;
   const ivaRate = 0.16;
   const ivaUsd = grandTotalUsd * ivaRate;
   const ivaBs = grandTotalBs * ivaRate;
@@ -65,7 +61,6 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const resetState = useCallback(() => {
     setFiles([]);
     setUploading(false);
-    setOverrides({});
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -105,13 +100,12 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
       // Send consolidation data as body for the billing instruction
       const billingData = {
-        consolidated_items: consolidated.map((c, idx) => ({
+        consolidated_items: consolidated.map((c) => ({
           name: c.name,
           quantity: c.quantity,
           total_usd: c.total_usd,
           exchange_rate: rateNum,
-          total_bs: overrides[idx] !== undefined ? parseFloat(overrides[idx]) || 0 : c.total_usd * rateNum,
-          is_override: overrides[idx] !== undefined
+          total_bs: c.total_usd * rateNum,
         })),
         exchange_rate: rateNum,
         grand_total_usd: grandTotalUsd,
@@ -224,22 +218,14 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 <tbody>
                   {consolidated.map((item, idx) => {
                     const bsCalc = item.total_usd * rateNum;
-                    const bsValue = overrides[idx] !== undefined ? overrides[idx] : bsCalc.toFixed(2);
-                    const isOverridden = overrides[idx] !== undefined;
                     return (
                       <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-2 text-slate-800 text-xs">{item.name}</td>
                         <td className="px-3 py-2 text-center text-slate-600 text-xs">{item.quantity}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">${item.total_usd.toFixed(2)}</td>
                         <td className="px-3 py-2 text-center text-xs text-slate-400 font-mono">{rateNum > 0 ? rateNum.toFixed(2) : '—'}</td>
-                        <td className="px-3 py-2 text-right">
-                          <Input
-                            type="number" step="0.01" min="0"
-                            value={bsValue}
-                            onChange={(e) => setOverrides(prev => ({ ...prev, [idx]: e.target.value }))}
-                            className={`w-28 h-7 text-xs text-right font-mono ml-auto ${isOverridden ? 'border-amber-400 bg-amber-50' : ''}`}
-                            data-testid={`bs-amount-${idx}`}
-                          />
+                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">
+                          {rateNum > 0 ? `Bs. ${bsCalc.toFixed(2)}` : '—'}
                         </td>
                       </tr>
                     );
@@ -267,12 +253,6 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 </tfoot>
               </table>
             </div>
-
-            {Object.keys(overrides).length > 0 && (
-              <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
-                <AlertTriangle size={10} /> Valores en amarillo han sido ajustados manualmente.
-              </p>
-            )}
           </div>
         </div>
 
