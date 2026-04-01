@@ -468,6 +468,25 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
   - Agregados: Fecha de Facturación, Fuente de tasa, nota de comprobante de aprobación
 - VALIDADO: Testing Agent iteration_140 — Backend 100% (9/9), Frontend 100%
 
+### Control de Gobernanza y Responsabilidad — Pipeline Nuevos Productos (2026-04-01)
+- **Nuevo sistema de "Responsable Activo"**: Campo `usuario_responsable_fase` en productos controla escritura en bitácora y transiciones
+- **Fase Negociación → DESA**: Requiere asignar Líder de Proyecto vía modal. Sin LP no se puede avanzar.
+- **Fase DESA → SQA**: Solo el LP asignado puede mover. Al entrar a SQA, responsable se limpia para que Gerente SQA asigne Analista.
+- **Fase SQA → IMPLE**: Solo el Analista SQA asignado puede autorizar el paso.
+- **Bitácora restringida**: Solo el responsable activo puede escribir/editar/eliminar entradas. Resto: Solo Lectura con banner visual.
+- **UI**:
+  - Badge de responsable (LP/SQA) visible en la fila del producto
+  - Modal de asignación con selector de usuarios y explicación de gobernanza
+  - Banner verde "Modo Editor" para el responsable, banner amarillo "Solo Lectura" para el resto
+  - Icono de candado y mensaje cuando bitácora está en Solo Lectura
+- **Auditoría**: Colección `np_responsable_assignments` registra cada asignación con timestamp, asignador, fase
+- **Colecciones nuevas**: `np_responsable_assignments`
+- **Endpoints nuevos**:
+  - `POST /api/new-products/{id}/assign-responsable` — Asignar LP o Analista SQA
+  - `GET /api/new-products/{id}/assignments` — Historial de asignaciones
+- VALIDADO: Testing Agent iteration_141 — Backend 100%, Frontend 100%
+
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
