@@ -1,7 +1,7 @@
 # PRD — Gestor MegaNexus
 
 ## Descripción General
-Plataforma interna de gestión operativa para MegaNexus Venezuela. Incluye módulos de Clientes, Cotizaciones, Facturación, Proyectos de Implementación, Inventario, Integradores, Bancos, Pipeline de Nuevos Productos, y administración de usuarios/roles.
+Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de Clientes, Cotizaciones, Facturación, Proyectos de Implementación, Inventario, Integradores, Bancos, Pipeline de Nuevos Productos, y administración de usuarios/roles.
 
 ## Arquitectura
 - **Frontend**: React + Shadcn/UI + TailwindCSS
@@ -13,52 +13,38 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Incluye módu
 ### Proyectos (Implementación)
 - Matriz de implementación por banco/producto
 - **Notificaciones Automatizadas con Prefijos Dinámicos**:
-  - Envío 1: `[Primer Envío] + Asunto de la Plantilla`
-  - Envío 2: `[Primer Recordatorio] + Asunto`
-  - Envío 3: `[Segundo Recordatorio] + Asunto`
-  - Envío 4+: `[Tercer Recordatorio] + Asunto`
-  - Plantilla fija por tipo: `project_notify_client` (cliente) / `project_notify_bank` (banco)
-  - El contenido se mantiene íntegro; solo cambia el prefijo del asunto
-  - Historial visible con conteo y fechas en el diálogo
-- **Variables dinámicas de plantillas** (10 variables + estándar):
-  - `{Nombre_Cliente}`, `{Contacto_Principal}`, `{Nombre_Sucursal}`, `{Cantidad_Cajas}`
-  - `{Integrador}`, `{Aplicativo_Integracion}`
-  - `{Nombre_Implementador}`, `{Correo_Implementador}`, `{Telefono_Implementador}`
-  - `{Matriz_Bancos_Productos}` (Tabla HTML)
-- **Vista Previa de Email**: `POST preview-notification`, `POST preview-adhoc-email`, `GET template-variables`
-- **Panel de Variables en Editor de Plantillas**: Sección separada para plantillas de proyecto, inserción en Asunto y Cuerpo
+  - [Primer Envío] → [Primer Recordatorio] → [Segundo Recordatorio] → [Tercer Recordatorio]
+  - Plantilla fija; solo el prefijo del asunto cambia por conteo
+- **Data Binding Correcto de Destinatarios**:
+  - Cliente: emails de `contacts[]` de la ficha (no placeholders)
+  - Banco: email de `contact_email` o `contacts[]`
+  - UI muestra destinatarios resueltos como chips verdes
+- **Destinatarios Adicionales (CC)**:
+  - Campo de texto para agregar correos CC separados por coma
+  - Backend procesa TO (DB) + CC (manuales) por separado
+  - Historial registra tanto TO como CC
+- **Variables dinámicas** (13 variables): Nombre_Cliente, Contacto_Principal, Nombre_Sucursal, Cantidad_Cajas, Integrador, Aplicativo_Integracion, Nombre_Implementador, Correo_Implementador, Telefono_Implementador, Matriz_Bancos_Productos, project_number, ticket_number, quote_number
+- **Vista Previa de Email** con variables resueltas
+- **Panel de Variables en Editor de Plantillas**: Inserción en Asunto y Cuerpo
 
 ### Cotizaciones
 - RBAC con `special_permissions`
-- Wizard de Equipos/Accesorios con forcedMode
 
 ### Facturación
-- Histórico de Tasas de Cambio (BCV API automatizado)
-- PDF layout corregido
+- Tasas de Cambio BCV automatizadas
 
 ### Pipeline Nuevos Productos
 - Governance: "Responsable Activo" write-locks
 
-### Administración
-- RBAC: Roles + special_permissions
-- Editor de Plantillas con panel de variables interactivo
-- POST /api/email-templates para crear nuevas plantillas (fix 405)
-
 ## Archivos Clave
-- `/app/backend/services/project_template_vars.py` — Resolución de variables
-- `/app/backend/routes/projects.py` — Notificaciones con prefijos, preview, send
-- `/app/backend/routes/seed_and_templates.py` — PROJECT_EMAIL_TEMPLATES, CRUD endpoints
-- `/app/frontend/src/pages/ProjectDetail.jsx` — UI de notificaciones con historial
-- `/app/frontend/src/components/EmailTemplatesEditor.jsx` — Editor con Panel de Variables
+- `/app/backend/services/project_template_vars.py`
+- `/app/backend/services/email_service.py` (soporte CC)
+- `/app/backend/routes/projects.py`
+- `/app/backend/routes/seed_and_templates.py`
+- `/app/frontend/src/pages/ProjectDetail.jsx`
+- `/app/frontend/src/components/EmailTemplatesEditor.jsx`
 
 ## Backlog
-
-### P0 (Resuelto)
-- ~~Notificaciones con prefijos dinámicos por conteo~~
-- ~~Panel de Variables en Editor de Plantillas~~
-- ~~Variables del Implementador~~
-- ~~Fix Error 405~~
-- ~~RBAC Quotes buttons~~
 
 ### P1 (Próximos)
 - Herencia `cantidad_cajas` → campo VTID en VPOS
