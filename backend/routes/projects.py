@@ -11,6 +11,7 @@ import json
 from config import db, get_current_user
 from models import PROJECT_STATUSES
 from services.email_service import send_email
+from services.project_template_vars import resolve_project_template_vars
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -311,8 +312,110 @@ async def send_sequential_notification(project_id: str, body: SequentialNotifyRe
     return await _send_sequential_notification(project_id, body.target, body.bank_name, authorization, body.level)
 
 
+def _render_vars(template_str: str, variables: dict) -> str:
+    """Renderiza variables {key} y {{key}} en una plantilla."""
+    result = template_str
+    for key, value in variables.items():
+        result = result.replace(f"{{{{{key}}}}}", str(value or ""))
+        result = result.replace(f"{{{key}}}", str(value or ""))
+    return result
+
+
+async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], level: str, template_vars: dict) -> dict:
+    """Resuelve destinatarios, asunto y HTML de una notificación de proyecto.
+    Returns: {to_list, subject, html, entity_label}
+    """
+    subject_suffix = NOTIFICATION_SUBJECTS.get(level, level)
+    ticket = project.get("ticket_number", "")
+    ticket_label = f"[Ticket {ticket}] " if ticket else ""
+
+    # Add notification-specific vars
+    template_vars["notification_level"] = level
+    template_vars["notification_subject"] = subject_suffix
+
+    if target == "client":
+        client = None
+        client_id = project.get("client_id")
+        if client_id:
+            client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+        client_email = client.get("email", "") if client else ""
+        client_name = project.get("client_name", "Cliente")
+        to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
+        entity_label = f"Cliente ({client_name})"
+
+        # Try to find template in DB
+        template = await db.email_templates.find_one({"template_id": "project_notify_client"}, {"_id": 0})
+        if template and template.get("body_html"):
+            subject = _render_vars(template.get("subject", f"{ticket_label}{subject_suffix}: {{project_number}}"), template_vars)
+            html = _render_vars(template.get("body_html", ""), template_vars)
+        else:
+            subject = f"{ticket_label}{subject_suffix}: {project.get('project_number', '')}"
+            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2 style="color:#2c3e50;">{subject_suffix}</h2>
+{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
+<p>Estimado/a <strong>{template_vars.get('Contacto_Principal', client_name)}</strong>,</p>
+<p>Le informamos sobre el estado de su proyecto de implementación <strong>{project.get('project_number','')}</strong>.</p>
+<p><strong>Nivel:</strong> {level}</p>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cliente:</td><td style="padding:4px 0;font-weight:600;">{template_vars.get('Nombre_Cliente', client_name)}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cotización:</td><td style="padding:4px 0;">{project.get('quote_number','')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Integrador:</td><td style="padding:4px 0;">{template_vars.get('Integrador', '—')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Sucursal:</td><td style="padding:4px 0;">{template_vars.get('Nombre_Sucursal', '—')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cajas:</td><td style="padding:4px 0;">{template_vars.get('Cantidad_Cajas', '—')}</td></tr>
+</table>
+<h3 style="color:#2c3e50;margin-top:20px;">Bancos y Productos</h3>
+{template_vars.get('Matriz_Bancos_Productos', '')}
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
+    else:
+        bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
+        if not bank:
+            bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        bank_email = ""
+        if bank:
+            bank_email = bank.get("contact_email", "")
+            if not bank_email:
+                contacts = bank.get("contacts", [])
+                if contacts:
+                    bank_email = contacts[0].get("email", "")
+        to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
+        entity_label = f"Banco ({bank_name})"
+
+        # Bank-specific products for the matrix
+        bank_products = list(project.get("implementation_matrix", {}).get(bank_name, {}).keys())
+        template_vars["bank_name"] = bank_name
+        template_vars["bank_products"] = ", ".join(bank_products)
+
+        # Try to find template in DB
+        template = await db.email_templates.find_one({"template_id": "project_notify_bank"}, {"_id": 0})
+        if template and template.get("body_html"):
+            subject = _render_vars(template.get("subject", f"{ticket_label}{subject_suffix}: {bank_name} — {{project_number}}"), template_vars)
+            html = _render_vars(template.get("body_html", ""), template_vars)
+        else:
+            products_html = "".join(f"<li>{p}</li>" for p in bank_products)
+            subject = f"{ticket_label}{subject_suffix}: {bank_name} — {project.get('project_number', '')}"
+            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2 style="color:#2c3e50;">{subject_suffix} — {bank_name}</h2>
+{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
+<p>Estimados contactos de <strong>{bank_name}</strong>,</p>
+<p>Proyecto <strong>{project.get('project_number','')}</strong> para <strong>{template_vars.get('Nombre_Cliente', project.get('client_name',''))}</strong>.</p>
+<p><strong>Nivel:</strong> {level}</p>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Contacto Principal:</td><td style="padding:4px 0;">{template_vars.get('Contacto_Principal', '—')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Integrador:</td><td style="padding:4px 0;">{template_vars.get('Integrador', '—')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Sucursal:</td><td style="padding:4px 0;">{template_vars.get('Nombre_Sucursal', '—')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cajas:</td><td style="padding:4px 0;">{template_vars.get('Cantidad_Cajas', '—')}</td></tr>
+</table>
+<h3 style="color:#2c3e50;">Productos del Banco</h3>
+<ul>{products_html}</ul>
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
+
+    return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label}
+
+
 async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None):
-    """Lógica unificada de notificaciones secuenciales."""
+    """Lógica unificada de notificaciones secuenciales con plantillas dinámicas."""
     current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
@@ -320,8 +423,6 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-    ticket = project.get("ticket_number", "")
-    ticket_label = f"[Ticket {ticket}] " if ticket else ""
     notification_history = project.get("notification_history", {})
 
     # Determinar clave de historial
@@ -333,7 +434,6 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     # Determinar nivel actual
     if level is None:
-        # Auto-detectar: primer nivel no ejecutado
         level = None
         for lvl in NOTIFICATION_LEVELS:
             if lvl not in executed_levels:
@@ -363,56 +463,15 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         if bank_name not in matrix:
             raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
 
-    # Construir email según target
-    subject_suffix = NOTIFICATION_SUBJECTS.get(level, level)
+    # Resolver variables del proyecto
+    template_vars = await resolve_project_template_vars(project)
 
-    if target == "client":
-        client = None
-        client_id = project.get("client_id")
-        if client_id:
-            client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
-        client_email = client.get("email", "") if client else ""
-        client_name = project.get("client_name", "Cliente")
-        to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
-
-        subject = f"{ticket_label}{subject_suffix}: {project.get('project_number', '')}"
-        html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
-<h2>{subject_suffix}</h2>
-{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
-<p>Estimado/a <strong>{client_name}</strong>,</p>
-<p>Le informamos sobre el estado de su proyecto de implementación <strong>{project.get('project_number','')}</strong>.</p>
-<p><strong>Nivel:</strong> {level}</p>
-<ul><li>Cotización: {project.get('quote_number','')}</li><li>Tipo: {project.get('quote_type','')}</li><li>Pinpad: {project.get('pinpad_model','—')}</li></ul>
-<!-- PLACEHOLDER: Plantilla HTML aprobada -->
-<hr><p style="color:#999;font-size:12px;">Correo automático de MegaNexus.</p></div>"""
-        entity_label = f"Cliente ({client_name})"
-    else:
-        bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
-        if not bank:
-            bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
-        bank_email = ""
-        if bank:
-            bank_email = bank.get("contact_email", "")
-            if not bank_email:
-                contacts = bank.get("contacts", [])
-                if contacts:
-                    bank_email = contacts[0].get("email", "")
-        to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
-
-        products = list(project.get("implementation_matrix", {}).get(bank_name, {}).keys())
-        products_html = "".join(f"<li>{p}</li>" for p in products)
-        subject = f"{ticket_label}{subject_suffix}: {bank_name} — {project.get('project_number', '')}"
-        html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
-<h2>{subject_suffix} — {bank_name}</h2>
-{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
-<p>Estimados contactos de <strong>{bank_name}</strong>,</p>
-<p>Proyecto <strong>{project.get('project_number','')}</strong> para <strong>{project.get('client_name','')}</strong>.</p>
-<p><strong>Nivel:</strong> {level}</p>
-<p><strong>Productos:</strong></p><ul>{products_html}</ul>
-<ul><li>Integrador: {project.get('integrator_name','—')}</li><li>Aplicativo: {project.get('integrator_app_name','—')}</li><li>Pinpad: {project.get('pinpad_model','—')}</li></ul>
-<!-- PLACEHOLDER: Plantilla HTML aprobada para bancos -->
-<hr><p style="color:#999;font-size:12px;">Correo automático de MegaNexus.</p></div>"""
-        entity_label = f"Banco ({bank_name})"
+    # Construir email con plantillas + variables
+    email_data = await _resolve_notification_email(project, target, bank_name, level, template_vars)
+    to_list = email_data["to_list"]
+    subject = email_data["subject"]
+    html = email_data["html"]
+    entity_label = email_data["entity_label"]
 
     email_result = await send_email(
         to=to_list, subject=subject, html=html,
@@ -470,6 +529,116 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         "bank_name": bank_name,
         "recipients": to_list,
     }
+
+
+
+# ==================== PREVIEW ENDPOINTS ====================
+
+class PreviewNotificationRequest(BaseModel):
+    target: str  # "client" or "bank"
+    bank_name: Optional[str] = None
+    level: str = "Primera Comunicación"
+
+
+@router.post("/projects/{project_id}/preview-notification")
+async def preview_notification(project_id: str, body: PreviewNotificationRequest, authorization: Optional[str] = Header(None)):
+    """Vista previa de una notificación de proyecto sin enviarla."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    if body.level not in NOTIFICATION_LEVELS:
+        raise HTTPException(status_code=400, detail=f"Nivel inválido. Válidos: {NOTIFICATION_LEVELS}")
+
+    # Resolver variables del proyecto
+    template_vars = await resolve_project_template_vars(project)
+
+    # Construir email (sin enviar)
+    email_data = await _resolve_notification_email(project, body.target, body.bank_name, body.level, template_vars)
+
+    return {
+        "subject": email_data["subject"],
+        "html": email_data["html"],
+        "recipients": email_data["to_list"],
+        "entity_label": email_data["entity_label"],
+        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+        "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
+    }
+
+
+class PreviewAdhocRequest(BaseModel):
+    subject: str
+    message: str
+    include_matrix: bool = False
+
+
+@router.post("/projects/{project_id}/preview-adhoc-email")
+async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, authorization: Optional[str] = Header(None)):
+    """Vista previa de un correo ad-hoc con variables del proyecto resueltas."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Resolver variables del proyecto
+    template_vars = await resolve_project_template_vars(project)
+
+    # Renderizar asunto y mensaje con variables
+    rendered_subject = _render_vars(body.subject, template_vars)
+    rendered_message = _render_vars(body.message, template_vars)
+
+    ticket = project.get("ticket_number", "")
+    ticket_label = f"[Ticket {ticket}] " if ticket else ""
+
+    message_html = rendered_message.replace("\n", "<br>")
+    matrix_section = ""
+    if body.include_matrix:
+        matrix_section = f"<hr>{template_vars.get('Matriz_Bancos_Productos', '')}"
+
+    html = f"""<div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <p>{message_html}</p>
+        {matrix_section}
+        <hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | {f'Ticket: {ticket} | ' if ticket else ''}Cliente: {template_vars.get('Nombre_Cliente', project.get("client_name", ""))}</p>
+    </div>"""
+
+    return {
+        "subject": f"{ticket_label}{rendered_subject}",
+        "html": html,
+        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+    }
+
+
+@router.get("/projects/{project_id}/template-variables")
+async def get_project_template_variables(project_id: str, authorization: Optional[str] = Header(None)):
+    """Obtener las variables resueltas de un proyecto (para mostrar en el editor)."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    template_vars = await resolve_project_template_vars(project)
+    return {
+        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+        "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
+        "available_tags": [
+            {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
+            {"key": "Contacto_Principal", "label": "Contacto Principal", "source": "Contactos.nombre_apellido"},
+            {"key": "Nombre_Sucursal", "label": "Nombre de Sucursal", "source": "Sucursales.nombre"},
+            {"key": "Cantidad_Cajas", "label": "Cantidad de Cajas", "source": "Sucursales.nro_cajas"},
+            {"key": "Integrador", "label": "Integrador", "source": "Proyecto.integrador"},
+            {"key": "Matriz_Bancos_Productos", "label": "Tabla Bancos/Productos (HTML)", "source": "Proyecto.implementation_matrix"},
+            {"key": "project_number", "label": "Nro. Proyecto", "source": "Proyecto.project_number"},
+            {"key": "quote_number", "label": "Nro. Cotización", "source": "Proyecto.quote_number"},
+            {"key": "ticket_number", "label": "Nro. Ticket", "source": "Proyecto.ticket_number"},
+            {"key": "client_rif", "label": "RIF del Cliente", "source": "Clientes.rif"},
+            {"key": "quote_type", "label": "Tipo de Cotización", "source": "Proyecto.quote_type"},
+            {"key": "integrator_app_name", "label": "Aplicativo", "source": "Proyecto.integrator_app_name"},
+            {"key": "pinpad_model", "label": "Modelo Pinpad", "source": "Proyecto.pinpad_model"},
+            {"key": "assigned_to", "label": "Asignado a", "source": "Proyecto.assigned_to_name"},
+        ],
+    }
+
 
 
 @router.get("/projects/{project_id}/notification-history")

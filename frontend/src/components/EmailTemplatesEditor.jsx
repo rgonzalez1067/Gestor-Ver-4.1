@@ -69,6 +69,24 @@ const BASE_TEMPLATE_TYPES = [
     borderColor: 'border-green-200',
     title: 'Envío de Comprobante de Pago',
     description: 'Notifica a Ventas que el cliente pagó para enviar a Implementación'
+  },
+  {
+    baseId: 'project_notify_client',
+    icon: Mail,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    title: 'Notificación de Proyecto — Cliente',
+    description: 'Comunicaciones secuenciales al cliente durante implementación'
+  },
+  {
+    baseId: 'project_notify_bank',
+    icon: Mail,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    title: 'Notificación de Proyecto — Banco',
+    description: 'Comunicaciones secuenciales a bancos durante implementación'
   }
 ];
 
@@ -196,7 +214,44 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'almacen_custodia', label: 'Almacén de Custodia' },
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
-  ]
+  ],
+  // === Plantillas de Notificaciones de Proyectos (Implementación) ===
+  project_notify_client: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente (Razón Social)' },
+    { key: 'Contacto_Principal', label: 'Contacto Principal del Cliente' },
+    { key: 'Nombre_Sucursal', label: 'Nombre de Sucursal(es)' },
+    { key: 'Cantidad_Cajas', label: 'Cantidad de Cajas (PDVs)' },
+    { key: 'Integrador', label: 'Integrador Asignado' },
+    { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
+    { key: 'project_number', label: 'Nro. de Proyecto' },
+    { key: 'quote_number', label: 'Nro. de Cotización' },
+    { key: 'ticket_number', label: 'Nro. de Ticket' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'quote_type', label: 'Tipo de Cotización' },
+    { key: 'pinpad_model', label: 'Modelo de Pinpad' },
+    { key: 'notification_level', label: 'Nivel de Notificación' },
+    { key: 'notification_subject', label: 'Asunto de Notificación' },
+    { key: 'assigned_to', label: 'Asignado a' },
+  ],
+  project_notify_bank: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente (Razón Social)' },
+    { key: 'Contacto_Principal', label: 'Contacto Principal del Cliente' },
+    { key: 'Nombre_Sucursal', label: 'Nombre de Sucursal(es)' },
+    { key: 'Cantidad_Cajas', label: 'Cantidad de Cajas (PDVs)' },
+    { key: 'Integrador', label: 'Integrador Asignado' },
+    { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
+    { key: 'bank_name', label: 'Nombre del Banco' },
+    { key: 'bank_products', label: 'Productos del Banco' },
+    { key: 'project_number', label: 'Nro. de Proyecto' },
+    { key: 'quote_number', label: 'Nro. de Cotización' },
+    { key: 'ticket_number', label: 'Nro. de Ticket' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'quote_type', label: 'Tipo de Cotización' },
+    { key: 'integrator_app_name', label: 'Aplicativo del Integrador' },
+    { key: 'pinpad_model', label: 'Modelo de Pinpad' },
+    { key: 'notification_level', label: 'Nivel de Notificación' },
+    { key: 'notification_subject', label: 'Asunto de Notificación' },
+  ],
 };
 
 // Función para obtener variables de una plantilla específica

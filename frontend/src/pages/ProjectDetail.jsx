@@ -61,6 +61,11 @@ const ProjectDetail = () => {
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [emailDetailData, setEmailDetailData] = useState(null);
 
+  // Preview de email
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   // Admin: template management
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [templateForm, setTemplateForm] = useState({ name: '', subject: '', body: '' });
@@ -249,6 +254,39 @@ const ProjectDetail = () => {
       fetchProject();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al enviar correo'); }
     finally { setEmailSending(false); }
+  };
+
+  // ==================== PREVIEW DE EMAIL ====================
+  const previewNotification = async (target, bankName, level) => {
+    setPreviewLoading(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/preview-notification`, {
+        target: target || 'client',
+        bank_name: bankName || null,
+        level: level || 'Primera Comunicación',
+      });
+      setPreviewData(res.data);
+      setPreviewOpen(true);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
+    finally { setPreviewLoading(false); }
+  };
+
+  const previewAdhocEmail = async () => {
+    if (!emailForm.subject.trim() || !emailForm.message.trim()) {
+      toast.error('Escriba asunto y mensaje para la vista previa');
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/preview-adhoc-email`, {
+        subject: emailForm.subject,
+        message: emailForm.message,
+        include_matrix: attachMatrix,
+      });
+      setPreviewData(res.data);
+      setPreviewOpen(true);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
+    finally { setPreviewLoading(false); }
   };
 
   // ==================== BITÁCORA ====================
@@ -695,11 +733,18 @@ const ProjectDetail = () => {
                     {isExecuted ? (
                       <CheckCircle2 size={20} className="text-emerald-500" />
                     ) : isEnabled ? (
-                      <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white h-8 text-xs"
-                        disabled={notifSending === level} onClick={() => sendNotification(level)}
-                        data-testid={`send-notif-${idx}`}>
-                        <Send size={12} className="mr-1" />{notifSending === level ? 'Enviando...' : 'Enviar'}
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                          disabled={previewLoading} onClick={() => previewNotification(notifTarget?.type, notifTarget?.bankName, level)}
+                          data-testid={`preview-notif-${idx}`}>
+                          <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
+                        </Button>
+                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white h-8 text-xs"
+                          disabled={notifSending === level} onClick={() => sendNotification(level)}
+                          data-testid={`send-notif-${idx}`}>
+                          <Send size={12} className="mr-1" />{notifSending === level ? 'Enviando...' : 'Enviar'}
+                        </Button>
+                      </div>
                     ) : (
                       <Lock size={16} className="text-slate-300" />
                     )}
@@ -809,9 +854,26 @@ const ProjectDetail = () => {
                 {attachMatrix && <p className="text-[10px] text-indigo-500 mt-1">Se adjuntará una tabla HTML con el estatus actual de la matriz de seguimiento</p>}
               </div>
 
+              {/* Variables disponibles */}
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
+                <div className="flex flex-wrap gap-1">
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Matriz_Bancos_Productos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                    <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
+                      title={`Insertar ${v}`}>{v}</button>
+                  ))}
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-3 border-t">
                 <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={emailSending}>Cancelar</Button>
+                <Button variant="outline" onClick={previewAdhocEmail}
+                  disabled={previewLoading || !emailForm.subject.trim() || !emailForm.message.trim()}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50 gap-1.5" data-testid="preview-adhoc-email-btn">
+                  <Eye size={14} />{previewLoading ? 'Cargando...' : 'Vista Previa'}
+                </Button>
                 <Button onClick={handleSendAdhocEmail}
                   disabled={emailSending || !emailForm.subject.trim() || !emailForm.message.trim() || !emailForm.recipients.some(r => r.trim())}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5" data-testid="send-adhoc-email-btn">
@@ -925,6 +987,67 @@ const ProjectDetail = () => {
                 </div>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== EMAIL PREVIEW DIALOG ==================== */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="email-preview-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Eye size={20} className="text-blue-500" />Vista Previa del Correo</DialogTitle>
+            </DialogHeader>
+            {previewData && (
+              <div className="space-y-4">
+                {/* Header info */}
+                <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-sm border border-slate-200">
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium text-slate-500 min-w-[80px]">Asunto:</span>
+                    <span className="text-slate-800 font-medium">{previewData.subject}</span>
+                  </div>
+                  {previewData.recipients && (
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-slate-500 min-w-[80px]">Para:</span>
+                      <span className="text-slate-700">{previewData.recipients.join(', ')}</span>
+                    </div>
+                  )}
+                  {previewData.entity_label && (
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium text-slate-500 min-w-[80px]">Destino:</span>
+                      <span className="text-slate-700">{previewData.entity_label}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Variables resueltas */}
+                {previewData.variables && Object.keys(previewData.variables).length > 0 && (
+                  <details className="bg-blue-50 rounded-lg border border-blue-200">
+                    <summary className="px-3 py-2 text-xs font-semibold text-blue-700 cursor-pointer select-none">Variables Resueltas ({Object.keys(previewData.variables).length})</summary>
+                    <div className="px-3 pb-3 grid grid-cols-2 gap-x-4 gap-y-1">
+                      {Object.entries(previewData.variables).map(([k, v]) => (
+                        <div key={k} className="flex items-start gap-1.5 text-[11px]">
+                          <code className="text-blue-600 font-mono shrink-0">{`{${k}}`}</code>
+                          <span className="text-slate-600 truncate" title={String(v)}>{String(v || '—').slice(0, 60)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                {/* Rendered HTML Preview */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-slate-100 px-3 py-2 border-b">
+                    <p className="text-xs font-semibold text-slate-500 uppercase">Contenido del Correo</p>
+                  </div>
+                  <div className="p-4 bg-white">
+                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: previewData.html }} />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button variant="outline" onClick={() => setPreviewOpen(false)} data-testid="close-preview-btn">Cerrar</Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </main>
