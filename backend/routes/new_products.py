@@ -1,4 +1,7 @@
-"""Route module: new_products.py — Pipeline de I+D de Nuevos Productos"""
+"""Route module: new_products.py — Pipeline de I+D de Nuevos Productos
+   Con control de gobernanza: responsable activo por fase, bitácora restringida,
+   y transiciones controladas.
+"""
 from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
 from datetime import datetime, timezone
@@ -38,6 +41,24 @@ async def _log_transition(product_id: str, old_status: str, new_status: str, use
     doc = entry.model_dump()
     doc["timestamp"] = doc["timestamp"].isoformat()
     await db.np_status_transitions.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+async def _log_assignment(product_id: str, assigned_user_id: str, assigned_name: str, role: str, phase: str, assigned_by: dict):
+    """Registra una asignación de responsable en el log de auditoría."""
+    assigner_name = f"{assigned_by.get('first_name', '')} {assigned_by.get('last_name', '')}".strip() or assigned_by.get("email", "")
+    doc = {
+        "product_id": product_id,
+        "assigned_user_id": assigned_user_id,
+        "assigned_name": assigned_name,
+        "role": role,
+        "phase": phase,
+        "assigned_by_user_id": assigned_by.get("user_id", ""),
+        "assigned_by_name": assigner_name,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.np_responsable_assignments.insert_one(doc)
     doc.pop("_id", None)
     return doc
 
@@ -102,14 +123,87 @@ async def delete_new_product(product_id: str, authorization: Optional[str] = Hea
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     await db.new_product_evolution.delete_many({"product_id": product_id})
     await db.np_status_transitions.delete_many({"product_id": product_id})
+    await db.np_responsable_assignments.delete_many({"product_id": product_id})
     return {"message": "Producto eliminado"}
+
+
+# ==================== ASIGNACIÓN DE RESPONSABLE ====================
+
+@router.post("/new-products/{product_id}/assign-responsable")
+async def assign_responsable(product_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Asigna un responsable de fase al producto. Registra auditoría."""
+    user = await get_current_user(authorization)
+
+    product = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    assigned_user_id = body.get("user_id")
+    role = body.get("role")  # "Líder de Proyecto" o "Analista SQA"
+
+    if not assigned_user_id or not role:
+        raise HTTPException(status_code=400, detail="Se requiere 'user_id' y 'role'")
+
+    if role not in ["Líder de Proyecto", "Analista SQA"]:
+        raise HTTPException(status_code=400, detail="Rol inválido. Opciones: 'Líder de Proyecto', 'Analista SQA'")
+
+    # Buscar el usuario a asignar
+    target_user = await db.users.find_one({"user_id": assigned_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Usuario a asignar no encontrado")
+
+    assigned_name = f"{target_user.get('first_name', '')} {target_user.get('last_name', '')}".strip() or target_user.get("email", "")
+
+    # Actualizar el producto con el nuevo responsable
+    await db.new_products.update_one(
+        {"product_id": product_id},
+        {"$set": {
+            "usuario_responsable_fase": assigned_user_id,
+            "responsable_nombre": assigned_name,
+            "responsable_role": role,
+        }}
+    )
+
+    # Registrar en log de auditoría
+    await _log_assignment(product_id, assigned_user_id, assigned_name, role, product["status"], user)
+
+    # Registrar en la bitácora de evolución automáticamente
+    auto_entry = NewProductEvolutionEntry(
+        product_id=product_id,
+        comment=f"Asignación de responsable: {assigned_name} como {role}",
+        phase=product["status"],
+        date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    )
+    auto_doc = auto_entry.model_dump()
+    auto_doc["created_at"] = auto_doc["created_at"].isoformat()
+    auto_doc["auto_generated"] = True
+    await db.new_product_evolution.insert_one(auto_doc)
+
+    updated = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
+    return updated
+
+
+@router.get("/new-products/{product_id}/assignments")
+async def get_assignments(product_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene el historial de asignaciones de responsables."""
+    await get_current_user(authorization)
+    assignments = await db.np_responsable_assignments.find(
+        {"product_id": product_id}, {"_id": 0}
+    ).sort("timestamp", -1).to_list(100)
+    return assignments
 
 
 # ==================== STATUS CHANGE + HAND-OFF ====================
 
 @router.put("/new-products/{product_id}/status")
 async def update_new_product_status(product_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    """Actualiza el estado de un producto. Si pasa a IMPLE, ejecuta hand-off automático al banco."""
+    """Actualiza el estado de un producto con control de gobernanza.
+    
+    Reglas:
+    - Negociación → DESA: Requiere asignar un Líder de Proyecto (responsable_user_id + responsable_role)
+    - DESA → SQA: Solo el Líder de Proyecto asignado puede mover
+    - SQA → IMPLE: Solo el Analista SQA asignado puede mover (validación de calidad)
+    """
     user = await get_current_user(authorization)
 
     new_status = body.get("status")
@@ -126,6 +220,63 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     old_status = product["status"]
     if new_status == old_status:
         return product
+
+    current_user_id = user.get("user_id", "")
+    responsable_id = product.get("usuario_responsable_fase")
+
+    # === GOBERNANZA: Restricciones de transición ===
+
+    # 1. Negociación → DESA: Requiere asignar Líder de Proyecto
+    if old_status == "Negociación" and new_status == "DESA":
+        resp_user_id = body.get("responsable_user_id")
+        if not resp_user_id:
+            raise HTTPException(status_code=400, detail="GOBERNANZA: Para mover a DESA debe asignar un Líder de Proyecto")
+
+        # Buscar y asignar el Líder de Proyecto
+        target = await db.users.find_one({"user_id": resp_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if not target:
+            raise HTTPException(status_code=404, detail="Usuario a asignar no encontrado")
+
+        assigned_name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
+        await db.new_products.update_one(
+            {"product_id": product_id},
+            {"$set": {
+                "usuario_responsable_fase": resp_user_id,
+                "responsable_nombre": assigned_name,
+                "responsable_role": "Líder de Proyecto",
+            }}
+        )
+        await _log_assignment(product_id, resp_user_id, assigned_name, "Líder de Proyecto", "DESA", user)
+
+    # 2. DESA → SQA: Solo el Líder de Proyecto puede mover
+    elif old_status == "DESA" and new_status == "SQA":
+        if responsable_id and current_user_id != responsable_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"GOBERNANZA: Solo el Líder de Proyecto asignado ({product.get('responsable_nombre', 'N/A')}) puede mover de DESA a SQA"
+            )
+        # Limpiar responsable al entrar a SQA (el Gerente de SQA asignará al Analista)
+        await db.new_products.update_one(
+            {"product_id": product_id},
+            {"$set": {
+                "usuario_responsable_fase": None,
+                "responsable_nombre": None,
+                "responsable_role": None,
+            }}
+        )
+
+    # 3. SQA → IMPLE: Solo el Analista SQA asignado puede mover
+    elif old_status == "SQA" and new_status == "IMPLE":
+        if not responsable_id:
+            raise HTTPException(
+                status_code=403,
+                detail="GOBERNANZA: No hay Analista SQA asignado. El Gerente de SQA debe asignar un analista antes de pasar a IMPLE."
+            )
+        if current_user_id != responsable_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"GOBERNANZA: Solo el Analista SQA asignado ({product.get('responsable_nombre', 'N/A')}) puede autorizar el paso a IMPLE"
+            )
 
     # Registrar transición con lead time
     transition = await _log_transition(product_id, old_status, new_status, user)
@@ -173,7 +324,7 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         )
         intg_doc = integration.model_dump()
         intg_doc["created_at"] = intg_doc["created_at"].isoformat()
-        intg_doc["source_product_id"] = product_id  # Link bidireccional
+        intg_doc["source_product_id"] = product_id
 
         await db.banks.update_one(
             {"bank_id": bank_id},
@@ -188,7 +339,6 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
                 "promoted_at": datetime.now(timezone.utc).isoformat()
             }}
         )
-        # Log the Promovido transition too
         await _log_transition(product_id, "IMPLE", "Promovido", user)
         promoted = True
         logging.info(f"Hand-off ejecutado: '{product['service_name']}' → integración '{intg_doc['integration_id']}' en banco '{product['bank_name']}'")
@@ -229,10 +379,24 @@ async def get_evolution(product_id: str, authorization: Optional[str] = Header(N
 
 @router.post("/new-products/{product_id}/evolution")
 async def add_evolution(product_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    """Agrega entrada a la bitácora. Solo el responsable de la fase activa puede escribir."""
+    user = await get_current_user(authorization)
     product = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # === GOBERNANZA: Solo el responsable de fase puede escribir ===
+    responsable_id = product.get("usuario_responsable_fase")
+    current_user_id = user.get("user_id", "")
+    user_role = user.get("role", "")
+
+    if responsable_id and current_user_id != responsable_id and user_role != "admin":
+        responsable_name = product.get("responsable_nombre", "N/A")
+        responsable_role = product.get("responsable_role", "N/A")
+        raise HTTPException(
+            status_code=403,
+            detail=f"GOBERNANZA: Solo {responsable_name} ({responsable_role}) puede escribir en la bitácora durante la fase {product['status']}. Su acceso es de Solo Lectura."
+        )
 
     entry = NewProductEvolutionEntry(
         product_id=product_id,
@@ -242,6 +406,8 @@ async def add_evolution(product_id: str, body: dict, authorization: Optional[str
     )
     doc = entry.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["author_user_id"] = current_user_id
+    doc["author_name"] = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", "")
     await db.new_product_evolution.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -249,7 +415,23 @@ async def add_evolution(product_id: str, body: dict, authorization: Optional[str
 
 @router.patch("/new-products/{product_id}/evolution/{entry_id}")
 async def update_evolution(product_id: str, entry_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    """Actualiza una entrada de bitácora. Solo el responsable puede editar."""
+    user = await get_current_user(authorization)
+    product = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # === GOBERNANZA ===
+    responsable_id = product.get("usuario_responsable_fase")
+    current_user_id = user.get("user_id", "")
+    user_role = user.get("role", "")
+
+    if responsable_id and current_user_id != responsable_id and user_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=f"GOBERNANZA: Solo el responsable activo ({product.get('responsable_nombre', 'N/A')}) puede modificar la bitácora."
+        )
+
     update_fields = {}
     for field in ["comment", "phase", "date"]:
         if field in body:
@@ -268,7 +450,23 @@ async def update_evolution(product_id: str, entry_id: str, body: dict, authoriza
 
 @router.delete("/new-products/{product_id}/evolution/{entry_id}")
 async def delete_evolution(product_id: str, entry_id: str, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    """Elimina una entrada de bitácora. Solo el responsable puede eliminar."""
+    user = await get_current_user(authorization)
+    product = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # === GOBERNANZA ===
+    responsable_id = product.get("usuario_responsable_fase")
+    current_user_id = user.get("user_id", "")
+    user_role = user.get("role", "")
+
+    if responsable_id and current_user_id != responsable_id and user_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=f"GOBERNANZA: Solo el responsable activo ({product.get('responsable_nombre', 'N/A')}) puede eliminar entradas de la bitácora."
+        )
+
     result = await db.new_product_evolution.delete_one({"entry_id": entry_id, "product_id": product_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Entrada no encontrada")

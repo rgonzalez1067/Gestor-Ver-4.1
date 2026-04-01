@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft } from 'lucide-react';
+import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft, Shield, UserCheck, Lock, AlertTriangle } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -55,10 +55,11 @@ const PipelineDots = ({ currentStatus }) => {
 };
 
 export const NewProducts = () => {
-  const { canEdit } = usePermission('nuevos_productos');
+  const { canEdit, user: currentUser } = usePermission('nuevos_productos');
   const [products, setProducts] = useState([]);
   const [banks, setBanks] = useState([]);
   const [services, setServices] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
@@ -73,16 +74,23 @@ export const NewProducts = () => {
   const [evoForm, setEvoForm] = useState({ comment: '', phase: 'Negociación', date: new Date().toISOString().slice(0, 10) });
   const [evoEditing, setEvoEditing] = useState(null);
 
+  // Gobernanza: asignación de responsable
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignContext, setAssignContext] = useState({ productId: '', newStatus: '', role: '', currentProduct: null });
+  const [assignUserId, setAssignUserId] = useState('');
+
   const fetchData = useCallback(async () => {
     try {
-      const [prodRes, bankRes, svcRes] = await Promise.all([
+      const [prodRes, bankRes, svcRes, usersRes] = await Promise.all([
         api.get('/new-products'),
         api.get('/banks'),
-        api.get('/services')
+        api.get('/services'),
+        api.get('/auth/users'),
       ]);
       setProducts(prodRes.data);
       setBanks(bankRes.data);
       setServices(svcRes.data.filter(s => s.service_type === 'Producto' || !s.service_type));
+      setAllUsers(usersRes.data || []);
     } catch {
       toast.error('Error al cargar datos');
     } finally { setLoading(false); }
@@ -114,9 +122,45 @@ export const NewProducts = () => {
     }
   };
 
+  // Gobernanza: Interceptar cambios de estado que requieren asignación
   const handleStatusChange = async (productId, newStatus) => {
+    const product = products.find(p => p.product_id === productId);
+    if (!product) return;
+
+    // Negociación → DESA: Requiere asignar Líder de Proyecto
+    if (product.status === 'Negociación' && newStatus === 'DESA') {
+      setAssignContext({ productId, newStatus, role: 'Líder de Proyecto', currentProduct: product });
+      setAssignUserId('');
+      setAssignOpen(true);
+      return;
+    }
+
+    // SQA → IMPLE: Solo Analista SQA puede mover
+    if (product.status === 'SQA' && newStatus === 'IMPLE') {
+      if (!product.usuario_responsable_fase) {
+        toast.error('Debe asignar un Analista SQA antes de pasar a IMPLE');
+        return;
+      }
+      if (currentUser?.user_id !== product.usuario_responsable_fase) {
+        toast.error(`Solo ${product.responsable_nombre} (Analista SQA) puede autorizar el paso a IMPLE`);
+        return;
+      }
+    }
+
+    // DESA → SQA: Solo el Líder de Proyecto puede mover
+    if (product.status === 'DESA' && newStatus === 'SQA') {
+      if (product.usuario_responsable_fase && currentUser?.user_id !== product.usuario_responsable_fase) {
+        toast.error(`Solo ${product.responsable_nombre} (Líder de Proyecto) puede mover de DESA a SQA`);
+        return;
+      }
+    }
+
+    executeStatusChange(productId, newStatus);
+  };
+
+  const executeStatusChange = async (productId, newStatus, extraBody = {}) => {
     try {
-      const res = await api.put(`/new-products/${productId}/status`, { status: newStatus });
+      const res = await api.put(`/new-products/${productId}/status`, { status: newStatus, ...extraBody });
       if (res.data._handoff) {
         toast.success('Producto promovido. Insertado automáticamente en integraciones del banco.', { duration: 5000 });
       } else {
@@ -125,6 +169,41 @@ export const NewProducts = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar estado');
+    }
+  };
+
+  // Confirmar asignación de Líder de Proyecto y mover a DESA
+  const handleConfirmAssign = async () => {
+    if (!assignUserId) { toast.error('Seleccione un usuario'); return; }
+    await executeStatusChange(assignContext.productId, assignContext.newStatus, {
+      responsable_user_id: assignUserId,
+    });
+    setAssignOpen(false);
+    setAssignUserId('');
+  };
+
+  // Asignar Analista SQA (cuando el producto está en SQA sin responsable)
+  const handleAssignAnalyst = async (productId) => {
+    const product = products.find(p => p.product_id === productId);
+    if (!product) return;
+    setAssignContext({ productId, newStatus: null, role: 'Analista SQA', currentProduct: product });
+    setAssignUserId('');
+    setAssignOpen(true);
+  };
+
+  const handleConfirmAnalystAssign = async () => {
+    if (!assignUserId) { toast.error('Seleccione un usuario'); return; }
+    try {
+      await api.post(`/new-products/${assignContext.productId}/assign-responsable`, {
+        user_id: assignUserId,
+        role: 'Analista SQA',
+      });
+      toast.success('Analista SQA asignado exitosamente');
+      setAssignOpen(false);
+      setAssignUserId('');
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al asignar');
     }
   };
 
@@ -157,6 +236,12 @@ export const NewProducts = () => {
     finally { setEvoLoading(false); }
   };
 
+  // Gobernanza: ¿El usuario actual es el responsable activo?
+  const isResponsable = evoProduct?.usuario_responsable_fase === currentUser?.user_id;
+  const hasResponsable = !!evoProduct?.usuario_responsable_fase;
+  const isAdmin = currentUser?.role === 'admin';
+  const canWriteBitacora = !hasResponsable || isResponsable || isAdmin;
+
   const saveEvoEntry = async () => {
     if (!evoForm.comment.trim()) { toast.error('Escriba un comentario'); return; }
     try {
@@ -171,7 +256,9 @@ export const NewProducts = () => {
       setEvoForm({ comment: '', phase: evoProduct?.status === 'Promovido' ? 'IMPLE' : (evoProduct?.status || 'Negociación'), date: new Date().toISOString().slice(0, 10) });
       const res = await api.get(`/new-products/${evoProduct.product_id}/evolution`);
       setEvoEntries(res.data);
-    } catch { toast.error('Error al guardar'); }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar');
+    }
   };
 
   const startEditEvo = (entry) => {
@@ -184,7 +271,9 @@ export const NewProducts = () => {
       await api.delete(`/new-products/${evoProduct.product_id}/evolution/${entryId}`);
       setEvoEntries(prev => prev.filter(e => e.entry_id !== entryId));
       toast.success('Entrada eliminada');
-    } catch { toast.error('Error al eliminar'); }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
+    }
   };
 
   // Merge evolution entries + transitions into unified timeline
@@ -203,6 +292,34 @@ export const NewProducts = () => {
   const activeProducts = products.filter(p => p.status !== 'Promovido');
   const promotedProducts = products.filter(p => p.status === 'Promovido');
   const timeline = evoOpen ? buildTimeline() : [];
+
+  // Determine which statuses a user can select for a given product
+  const getAvailableStatuses = (product) => {
+    // All statuses except Promovido
+    return PIPELINE_STATUSES;
+  };
+
+  // Responsable badge for product row
+  const ResponsableBadge = ({ product: p }) => {
+    if (!p.usuario_responsable_fase) {
+      if (p.status === 'SQA') {
+        return (
+          <Button size="sm" variant="outline"
+            className="h-6 text-[10px] border-amber-300 text-amber-600 hover:bg-amber-50 px-2 gap-1"
+            onClick={(e) => { e.stopPropagation(); handleAssignAnalyst(p.product_id); }}
+            data-testid={`np-assign-sqa-${p.product_id}`}>
+            <AlertTriangle size={10} />Asignar SQA
+          </Button>
+        );
+      }
+      return null;
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] rounded-full font-medium" title={`${p.responsable_role}: ${p.responsable_nombre}`}>
+        <UserCheck size={10} />{p.responsable_nombre?.split(' ')[0]} <span className="text-emerald-500">({p.responsable_role?.replace('Líder de Proyecto', 'LP').replace('Analista SQA', 'SQA')})</span>
+      </span>
+    );
+  };
 
   if (loading) {
     return (
@@ -270,19 +387,19 @@ export const NewProducts = () => {
                       <p className="text-xs text-slate-500">{p.component_type}</p>
                       {p.tipo_corp && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 text-indigo-700 rounded">{p.tipo_corp}</span>}
                     </div>
-                    <div className="min-w-[120px]">
+                    <div className="min-w-[100px]">
                       <p className="text-xs text-slate-400 flex items-center gap-1">
                         <Building2 size={11} />{p.bank_name}
                       </p>
                     </div>
                     <PipelineDots currentStatus={p.status} />
-                    <div className="min-w-[140px]">
+                    <div className="min-w-[130px]">
                       <Select value={p.status} onValueChange={(v) => handleStatusChange(p.product_id, v)}>
                         <SelectTrigger className="h-8 text-xs" data-testid={`np-status-${p.product_id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {PIPELINE_STATUSES.map(s => (
+                          {getAvailableStatuses(p).map(s => (
                             <SelectItem key={s.id} value={s.id}>
                               <StatusBadge status={s.id} />
                             </SelectItem>
@@ -290,6 +407,7 @@ export const NewProducts = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    <ResponsableBadge product={p} />
                     {p.notes && <p className="text-xs text-slate-500 flex-1 truncate">{p.notes}</p>}
                     <Button size="sm" variant="ghost" title="Bitácora de Evolución"
                       onClick={() => openEvolution(p)}
@@ -436,6 +554,63 @@ export const NewProducts = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* ==================== ASSIGN RESPONSABLE MODAL ==================== */}
+        <Dialog open={assignOpen} onOpenChange={(o) => { if (!o) setAssignOpen(false); }}>
+          <DialogContent className="max-w-md" data-testid="assign-responsable-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <Shield size={20} className="text-indigo-600" />
+                Asignar {assignContext.role}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                <p className="text-xs text-indigo-800 font-semibold mb-1">Control de Gobernanza</p>
+                <p className="text-xs text-indigo-700">
+                  {assignContext.role === 'Líder de Proyecto'
+                    ? 'El Líder de Proyecto asignado será el único con permiso de escritura en la bitácora durante la fase DESA. También será quien autorice el paso a SQA.'
+                    : 'El Analista SQA asignado será el único con permiso de escritura en la bitácora durante la fase SQA. También será quien autorice el paso a IMPLE.'
+                  }
+                </p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Producto</p>
+                <p className="text-sm font-semibold text-slate-800">{assignContext.currentProduct?.service_name}</p>
+                <p className="text-xs text-slate-400">{assignContext.currentProduct?.bank_name} — {assignContext.currentProduct?.component_type}</p>
+              </div>
+
+              <div>
+                <Label className="text-sm font-semibold">Seleccionar {assignContext.role}</Label>
+                <Select value={assignUserId} onValueChange={setAssignUserId}>
+                  <SelectTrigger data-testid="assign-user-select" className="mt-1">
+                    <SelectValue placeholder="Seleccione un usuario..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allUsers.map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.first_name} {u.last_name} {u.cargo ? `(${u.cargo})` : ''} — {u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancelar</Button>
+                <Button
+                  onClick={assignContext.role === 'Líder de Proyecto' ? handleConfirmAssign : handleConfirmAnalystAssign}
+                  disabled={!assignUserId}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  data-testid="assign-confirm-btn">
+                  <UserCheck size={16} className="mr-1.5" />
+                  Asignar y {assignContext.newStatus ? `Mover a ${assignContext.newStatus}` : 'Confirmar'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* ==================== EVOLUTION + TRANSITIONS MODAL ==================== */}
         <Dialog open={evoOpen} onOpenChange={(o) => { if (!o) { setEvoOpen(false); setEvoEditing(null); } }}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="np-evolution-modal">
@@ -447,38 +622,72 @@ export const NewProducts = () => {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Form to add evolution entry */}
-            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
-              <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
-                placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="np-evo-comment" />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-slate-500">Fase</Label>
-                  <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
-                    <SelectTrigger className="h-8 text-xs" data-testid="np-evo-phase-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {PIPELINE_STATUSES.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[10px] text-slate-500">Fecha</Label>
-                  <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" data-testid="np-evo-date" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                {evoEditing && (
-                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
-                    setEvoEditing(null);
-                    setEvoForm({ comment: '', phase: evoProduct?.status === 'Promovido' ? 'IMPLE' : (evoProduct?.status || 'Negociación'), date: new Date().toISOString().slice(0, 10) });
-                  }}>Cancelar Edición</Button>
+            {/* Gobernanza: Info de responsable y modo */}
+            {hasResponsable && (
+              <div className={`rounded-lg border p-3 flex items-start gap-2 ${isResponsable ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                {isResponsable ? (
+                  <>
+                    <UserCheck size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-800">Modo Editor — Usted es el {evoProduct?.responsable_role}</p>
+                      <p className="text-xs text-emerald-700">Tiene permiso de escritura en la bitácora de esta fase.</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800">Modo Solo Lectura</p>
+                      <p className="text-xs text-amber-700">
+                        El responsable activo es <strong>{evoProduct?.responsable_nombre}</strong> ({evoProduct?.responsable_role}).
+                        Solo esta persona puede escribir en la bitácora durante la fase {evoProduct?.status}.
+                      </p>
+                    </div>
+                  </>
                 )}
-                <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white" onClick={saveEvoEntry} data-testid="np-evo-save-btn">
-                  {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
-                </Button>
               </div>
-            </div>
+            )}
+
+            {/* Form to add evolution entry — only if user can write */}
+            {canWriteBitacora ? (
+              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
+                <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
+                  placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="np-evo-comment" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-slate-500">Fase</Label>
+                    <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
+                      <SelectTrigger className="h-8 text-xs" data-testid="np-evo-phase-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PIPELINE_STATUSES.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-slate-500">Fecha</Label>
+                    <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" data-testid="np-evo-date" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  {evoEditing && (
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => {
+                      setEvoEditing(null);
+                      setEvoForm({ comment: '', phase: evoProduct?.status === 'Promovido' ? 'IMPLE' : (evoProduct?.status || 'Negociación'), date: new Date().toISOString().slice(0, 10) });
+                    }}>Cancelar Edición</Button>
+                  )}
+                  <Button size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white" onClick={saveEvoEntry} data-testid="np-evo-save-btn">
+                    {evoEditing ? 'Actualizar' : '+ Registrar Hito'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-100 rounded-lg border border-slate-200 p-4 text-center">
+                <Lock size={20} className="mx-auto text-slate-400 mb-1" />
+                <p className="text-sm text-slate-500 font-medium">Bitácora en modo Solo Lectura</p>
+                <p className="text-xs text-slate-400">Solo {evoProduct?.responsable_nombre} ({evoProduct?.responsable_role}) puede agregar entradas.</p>
+              </div>
+            )}
 
             {/* Unified Timeline */}
             <div className="mt-2">
@@ -526,27 +735,32 @@ export const NewProducts = () => {
 
                     // Evolution entry
                     const dotColor = getStatusStyle(item.phase).dot || 'bg-slate-400';
+                    const isAutoEntry = item.auto_generated;
                     return (
                       <div key={item.entry_id} className="relative pb-4" data-testid={`np-evo-entry-${item.entry_id}`}>
                         <div className={`absolute left-[-18px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white ${dotColor}`} />
-                        <div className="bg-white border border-slate-200 rounded-lg p-3 ml-1">
+                        <div className={`border rounded-lg p-3 ml-1 ${isAutoEntry ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1.5">
                                 <StatusBadge status={item.phase} />
                                 <span className="text-[10px] text-slate-400">{item.date}</span>
+                                {isAutoEntry && <span className="text-[9px] px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded font-medium">Auto</span>}
+                                {item.author_name && <span className="text-[9px] text-slate-400">por {item.author_name}</span>}
                                 {item.updated_at && <span className="text-[9px] text-slate-300 italic">editado</span>}
                               </div>
                               <p className="text-sm text-slate-800 whitespace-pre-wrap break-words">{item.comment}</p>
                             </div>
-                            <div className="flex items-center gap-0.5 flex-shrink-0">
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(item)} data-testid={`np-evo-edit-${item.entry_id}`}>
-                                <Pencil size={11} />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(item.entry_id)} data-testid={`np-evo-delete-${item.entry_id}`}>
-                                <Trash2 size={11} />
-                              </Button>
-                            </div>
+                            {canWriteBitacora && !isAutoEntry && (
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-purple-600" onClick={() => startEditEvo(item)} data-testid={`np-evo-edit-${item.entry_id}`}>
+                                  <Pencil size={11} />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => deleteEvoEntry(item.entry_id)} data-testid={`np-evo-delete-${item.entry_id}`}>
+                                  <Trash2 size={11} />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

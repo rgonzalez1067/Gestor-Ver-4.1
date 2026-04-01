@@ -266,6 +266,10 @@ class NewProduct(BaseModel):
     bank_name: str = ""
     status: Literal["Negociación", "DESA", "SQA", "IMPLE", "Promovido"] = "Negociación"
     notes: Optional[str] = None
+    # Gobernanza: Responsable activo de la fase
+    usuario_responsable_fase: Optional[str] = None  # user_id del responsable
+    responsable_nombre: Optional[str] = None  # Nombre para display
+    responsable_role: Optional[str] = None  # "Líder de Proyecto" o "Analista SQA"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class NewProductCreate(BaseModel):
