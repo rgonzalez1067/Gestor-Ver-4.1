@@ -143,6 +143,21 @@ async def resolve_project_template_vars(project: dict) -> dict:
     # === {Integrador} ===
     integrador = project.get("integrator_name", "—")
 
+    # === {Nombre_Implementador}, {Correo_Implementador}, {Telefono_Implementador} ===
+    nombre_implementador = ""
+    correo_implementador = ""
+    telefono_implementador = ""
+    assigned_to_id = project.get("assigned_to")
+    if assigned_to_id:
+        impl_user = await db.users.find_one({"user_id": assigned_to_id}, {"_id": 0})
+        if impl_user:
+            nombre_implementador = f"{impl_user.get('first_name', '')} {impl_user.get('last_name', '')}".strip()
+            correo_implementador = impl_user.get("email", "")
+            telefono_implementador = impl_user.get("phone", impl_user.get("telefono", ""))
+
+    # === {Aplicativo_Integracion} ===
+    aplicativo_integracion = project.get("integrator_app_name", "—")
+
     # === {Matriz_Bancos_Productos} ===
     matrix = project.get("implementation_matrix", {})
     matriz_html = _build_matrix_html(matrix)
@@ -158,6 +173,10 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Nombre_Sucursal": nombre_sucursal,
         "Cantidad_Cajas": cantidad_cajas,
         "Integrador": integrador,
+        "Aplicativo_Integracion": aplicativo_integracion,
+        "Nombre_Implementador": nombre_implementador,
+        "Correo_Implementador": correo_implementador,
+        "Telefono_Implementador": telefono_implementador,
         "Matriz_Bancos_Productos": matriz_html,
 
         # Variables estándar del proyecto

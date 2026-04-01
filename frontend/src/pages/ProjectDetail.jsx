@@ -858,7 +858,7 @@ const ProjectDetail = () => {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
                 <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Matriz_Bancos_Productos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                     <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
                       title={`Insertar ${v}`}>{v}</button>

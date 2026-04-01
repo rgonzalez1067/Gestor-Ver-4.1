@@ -551,6 +551,64 @@ BASE_EMAIL_TEMPLATES = {
     }
 }
 
+# Plantillas globales de Proyecto (no se dividen por sede)
+PROJECT_EMAIL_TEMPLATES = {
+    "project_notify_client": {
+        "template_id": "project_notify_client",
+        "name": "Notificación de Proyecto — Cliente",
+        "description": "Comunicaciones secuenciales al cliente durante implementación",
+        "subject": "[Ticket {ticket_number}] {notification_subject}: {project_number}",
+        "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2 style="color:#2c3e50;">{notification_subject}</h2>
+<p><strong>Ticket:</strong> {ticket_number}</p>
+<p>Estimado/a <strong>{Contacto_Principal}</strong>,</p>
+<p>Le informamos sobre el estado de su proyecto de implementación <strong>{project_number}</strong>.</p>
+<p><strong>Nivel:</strong> {notification_level}</p>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cliente:</td><td style="padding:4px 0;font-weight:600;">{Nombre_Cliente}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cotización:</td><td style="padding:4px 0;">{quote_number}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Integrador:</td><td style="padding:4px 0;">{Integrador}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Sucursal:</td><td style="padding:4px 0;">{Nombre_Sucursal}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cajas:</td><td style="padding:4px 0;">{Cantidad_Cajas}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Implementador:</td><td style="padding:4px 0;">{Nombre_Implementador}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Contacto Impl.:</td><td style="padding:4px 0;">{Correo_Implementador} | {Telefono_Implementador}</td></tr>
+</table>
+<h3 style="color:#2c3e50;margin-top:20px;">Bancos y Productos</h3>
+{Matriz_Bancos_Productos}
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>""",
+        "is_active": True,
+        "is_project_template": True,
+    },
+    "project_notify_bank": {
+        "template_id": "project_notify_bank",
+        "name": "Notificación de Proyecto — Banco",
+        "description": "Comunicaciones secuenciales a bancos durante implementación",
+        "subject": "[Ticket {ticket_number}] {notification_subject}: {bank_name} — {project_number}",
+        "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
+<h2 style="color:#2c3e50;">{notification_subject} — {bank_name}</h2>
+<p><strong>Ticket:</strong> {ticket_number}</p>
+<p>Estimados contactos de <strong>{bank_name}</strong>,</p>
+<p>Proyecto <strong>{project_number}</strong> para <strong>{Nombre_Cliente}</strong>.</p>
+<p><strong>Nivel:</strong> {notification_level}</p>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Contacto Principal:</td><td style="padding:4px 0;">{Contacto_Principal}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Integrador:</td><td style="padding:4px 0;">{Integrador}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Aplicativo:</td><td style="padding:4px 0;">{Aplicativo_Integracion}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Sucursal:</td><td style="padding:4px 0;">{Nombre_Sucursal}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Cajas:</td><td style="padding:4px 0;">{Cantidad_Cajas}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Implementador:</td><td style="padding:4px 0;">{Nombre_Implementador}</td></tr>
+<tr><td style="padding:4px 12px 4px 0;color:#666;">Contacto Impl.:</td><td style="padding:4px 0;">{Correo_Implementador} | {Telefono_Implementador}</td></tr>
+</table>
+<h3 style="color:#2c3e50;">Productos</h3>
+<p>{bank_products}</p>
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>""",
+        "is_active": True,
+        "is_project_template": True,
+    },
+}
+
 # Generar todas las plantillas por sede
 def generate_email_templates_by_sede():
     templates = {}
@@ -574,18 +632,23 @@ EMAIL_TEMPLATES_BY_SEDE = generate_email_templates_by_sede()
 
 @router.get("/email-templates")
 async def get_email_templates(authorization: Optional[str] = Header(None)):
-    """Obtiene todas las plantillas de correo (por sede)"""
+    """Obtiene todas las plantillas de correo (por sede + plantillas de proyecto globales)"""
     await get_current_user(authorization)
     
-    templates = await db.email_templates.find({}, {"_id": 0}).to_list(100)
+    templates = await db.email_templates.find({}, {"_id": 0}).to_list(200)
     
-    # Si no hay plantillas, devolver las predeterminadas por sede
+    # Si no hay plantillas, devolver las predeterminadas por sede + proyecto
     if not templates:
-        return list(EMAIL_TEMPLATES_BY_SEDE.values())
+        return list(EMAIL_TEMPLATES_BY_SEDE.values()) + list(PROJECT_EMAIL_TEMPLATES.values())
     
     # Asegurar que todas las plantillas por sede existan
     template_ids = [t["template_id"] for t in templates]
     for template_id, default_template in EMAIL_TEMPLATES_BY_SEDE.items():
+        if template_id not in template_ids:
+            templates.append(default_template)
+    
+    # Asegurar que plantillas de proyecto existan
+    for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
         if template_id not in template_ids:
             templates.append(default_template)
     
@@ -607,21 +670,39 @@ async def get_email_template(template_id: str, authorization: Optional[str] = He
     template = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
     
     if not template:
-        # Buscar primero en plantillas por sede
+        # Buscar primero en plantillas de proyecto
+        if template_id in PROJECT_EMAIL_TEMPLATES:
+            return PROJECT_EMAIL_TEMPLATES[template_id]
+        # Luego en plantillas por sede
         if template_id in EMAIL_TEMPLATES_BY_SEDE:
             return EMAIL_TEMPLATES_BY_SEDE[template_id]
-        # Luego buscar en plantillas legacy
+        # Luego en plantillas legacy
         if template_id in DEFAULT_EMAIL_TEMPLATES:
             return DEFAULT_EMAIL_TEMPLATES[template_id]
         raise HTTPException(status_code=404, detail="Plantilla no encontrada")
     
     return template
 
+@router.post("/email-templates")
+async def create_email_template(template: EmailTemplate, authorization: Optional[str] = Header(None)):
+    """Crea una nueva plantilla de correo"""
+    await get_current_user(authorization)
+    
+    existing = await db.email_templates.find_one({"template_id": template.template_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya existe una plantilla con ese ID")
+    
+    template_data = template.model_dump()
+    template_data["created_at"] = datetime.now(timezone.utc).isoformat()
+    template_data["updated_at"] = template_data["created_at"]
+    
+    await db.email_templates.insert_one(template_data)
+    
+    return {"message": "Plantilla creada exitosamente", "template_id": template.template_id}
+
 @router.put("/email-templates/{template_id}")
-async def update_email_template_legacy(template_id: str, template: EmailTemplate, authorization: Optional[str] = Header(None)):
-    """Actualiza una plantilla de correo - LEGACY: Use /api/email-templates/{id} with FormData instead"""
-    # This route is deprecated - the new CRUD routes are in projects.py
-    # Keeping for backward compatibility but recommending FormData version
+async def update_email_template(template_id: str, template: EmailTemplate, authorization: Optional[str] = Header(None)):
+    """Actualiza o crea una plantilla de correo"""
     await get_current_user(authorization)
     
     # Validar que el template_id coincida

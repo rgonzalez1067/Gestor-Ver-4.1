@@ -636,6 +636,10 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "integrator_app_name", "label": "Aplicativo", "source": "Proyecto.integrator_app_name"},
             {"key": "pinpad_model", "label": "Modelo Pinpad", "source": "Proyecto.pinpad_model"},
             {"key": "assigned_to", "label": "Asignado a", "source": "Proyecto.assigned_to_name"},
+            {"key": "Aplicativo_Integracion", "label": "Aplicativo de Integración", "source": "Proyecto.integrator_app_name"},
+            {"key": "Nombre_Implementador", "label": "Nombre del Implementador", "source": "Usuarios.nombre (asignado)"},
+            {"key": "Correo_Implementador", "label": "Correo del Implementador", "source": "Usuarios.email (asignado)"},
+            {"key": "Telefono_Implementador", "label": "Teléfono del Implementador", "source": "Usuarios.phone (asignado)"},
         ],
     }
 

@@ -69,9 +69,13 @@ const BASE_TEMPLATE_TYPES = [
     borderColor: 'border-green-200',
     title: 'Envío de Comprobante de Pago',
     description: 'Notifica a Ventas que el cliente pagó para enviar a Implementación'
-  },
+  }
+];
+
+// Plantillas globales de Proyecto (no se dividen por sede)
+const PROJECT_TEMPLATE_TYPES = [
   {
-    baseId: 'project_notify_client',
+    templateId: 'project_notify_client',
     icon: Mail,
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
@@ -80,7 +84,7 @@ const BASE_TEMPLATE_TYPES = [
     description: 'Comunicaciones secuenciales al cliente durante implementación'
   },
   {
-    baseId: 'project_notify_bank',
+    templateId: 'project_notify_bank',
     icon: Mail,
     color: 'text-teal-600',
     bgColor: 'bg-teal-50',
@@ -222,6 +226,10 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Nombre_Sucursal', label: 'Nombre de Sucursal(es)' },
     { key: 'Cantidad_Cajas', label: 'Cantidad de Cajas (PDVs)' },
     { key: 'Integrador', label: 'Integrador Asignado' },
+    { key: 'Aplicativo_Integracion', label: 'Aplicativo de Integración' },
+    { key: 'Nombre_Implementador', label: 'Nombre del Implementador' },
+    { key: 'Correo_Implementador', label: 'Correo del Implementador' },
+    { key: 'Telefono_Implementador', label: 'Teléfono del Implementador' },
     { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
     { key: 'project_number', label: 'Nro. de Proyecto' },
     { key: 'quote_number', label: 'Nro. de Cotización' },
@@ -239,6 +247,10 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Nombre_Sucursal', label: 'Nombre de Sucursal(es)' },
     { key: 'Cantidad_Cajas', label: 'Cantidad de Cajas (PDVs)' },
     { key: 'Integrador', label: 'Integrador Asignado' },
+    { key: 'Aplicativo_Integracion', label: 'Aplicativo de Integración' },
+    { key: 'Nombre_Implementador', label: 'Nombre del Implementador' },
+    { key: 'Correo_Implementador', label: 'Correo del Implementador' },
+    { key: 'Telefono_Implementador', label: 'Teléfono del Implementador' },
     { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
     { key: 'bank_name', label: 'Nombre del Banco' },
     { key: 'bank_products', label: 'Productos del Banco' },
@@ -366,6 +378,24 @@ export const EmailTemplatesEditor = () => {
       sede_name: 'Torre Banco Plaza',
       Nombre_Ejecutivo: 'Rafael González',
       Email_Ejecutivo: 'rgonzalez@megasoft.com.ve',
+      // Variables de Proyecto
+      Nombre_Cliente: 'MegaFarma, C.A.',
+      Contacto_Principal: 'Pedro Pérez',
+      Nombre_Sucursal: 'Norte, Sur, Este',
+      Cantidad_Cajas: 'Norte: 5 | Sur: 2 | Este: 3 (Total: 10)',
+      Integrador: 'A2 Softway C.A.',
+      Aplicativo_Integracion: 'A2 Softway POS',
+      Nombre_Implementador: 'Carlos Rodríguez',
+      Correo_Implementador: 'crodriguez@meganexus.com',
+      Telefono_Implementador: '+58 412 555-0123',
+      Matriz_Bancos_Productos: '<table style="border-collapse:collapse;width:100%;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:8px;border:1px solid #ddd;">Banco</th><th style="padding:8px;border:1px solid #ddd;">Producto / Servicio</th><th style="padding:8px;border:1px solid #ddd;text-align:center;">Cantidad</th></tr></thead><tbody><tr><td style="padding:8px;border:1px solid #ddd;">Banco Mercantil</td><td style="padding:8px;border:1px solid #ddd;">Tarjeta de Crédito/Débito</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr><tr style="background:#f8f9fa;"><td style="padding:8px;border:1px solid #ddd;">Banesco</td><td style="padding:8px;border:1px solid #ddd;">C2P o Débito Inmediato</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr></tbody></table>',
+      project_number: 'PRY-2026-03-001-PRI',
+      ticket_number: '56785',
+      bank_name: 'Banco Mercantil',
+      bank_products: 'Tarjeta de Crédito/Débito, C2P o Débito Inmediato',
+      notification_level: 'Primera Comunicación',
+      notification_subject: 'Notificación de Implementación',
+      assigned_to: 'Carlos Rodríguez',
       items_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Producto</th><th style="padding:8px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Terminal POS</td><td style="padding:8px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
       services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>',
       nro_cotizacion: 'COT-2024-001',
@@ -390,18 +420,26 @@ export const EmailTemplatesEditor = () => {
     setPreviewDialogOpen(true);
   };
 
-  const insertVariable = (variable) => {
-    const textarea = document.getElementById('template-body');
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = formData.body_html;
+  const insertVariable = (variable, targetField = 'body') => {
+    const elementId = targetField === 'subject' ? 'template-subject' : 'template-body';
+    const fieldKey = targetField === 'subject' ? 'subject' : 'body_html';
+    const el = document.getElementById(elementId);
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const text = formData[fieldKey];
       const before = text.substring(0, start);
       const after = text.substring(end);
       const newText = before + `{${variable}}` + after;
-      setFormData(prev => ({ ...prev, body_html: newText }));
+      setFormData(prev => ({ ...prev, [fieldKey]: newText }));
+      // Restore cursor position after insert
+      setTimeout(() => {
+        el.focus();
+        const newPos = start + variable.length + 2;
+        el.setSelectionRange(newPos, newPos);
+      }, 50);
     } else {
-      setFormData(prev => ({ ...prev, body_html: prev.body_html + `{${variable}}` }));
+      setFormData(prev => ({ ...prev, [fieldKey]: prev[fieldKey] + `{${variable}}` }));
     }
   };
 
@@ -419,8 +457,11 @@ export const EmailTemplatesEditor = () => {
     templatesBySede[sede.id] = templates.filter(t => t.template_id?.endsWith(`_${sede.id}`));
   });
   
-  // Plantillas sin sede (legacy)
-  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_PYME') && !t.template_id?.endsWith('_CORP'));
+  // Plantillas legacy (sin sede)
+  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_PYME') && !t.template_id?.endsWith('_CORP') && !t.is_project_template && !PROJECT_TEMPLATE_TYPES.some(pt => pt.templateId === t.template_id));
+
+  // Plantillas de proyecto (globales)
+  const projectTemplates = templates.filter(t => t.is_project_template || PROJECT_TEMPLATE_TYPES.some(pt => pt.templateId === t.template_id));
 
   return (
     <div className="space-y-6">
@@ -499,6 +540,72 @@ export const EmailTemplatesEditor = () => {
         </div>
       ))}
 
+      {/* ===== Sección: Plantillas de Proyecto (Implementación) ===== */}
+      {projectTemplates.length > 0 && (
+        <div className="border border-orange-200 rounded-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-orange-50 to-teal-50 px-4 py-3 border-b border-orange-200">
+            <div className="flex items-center gap-2">
+              <Settings2 size={18} className="text-orange-600" />
+              <span className="font-semibold text-slate-800">Plantillas de Proyecto (Implementación)</span>
+            </div>
+            <p className="text-xs text-slate-600 mt-1">
+              Plantillas para las comunicaciones secuenciales con clientes y bancos durante el proceso de implementación.
+              Las variables se resuelven automáticamente desde los datos del proyecto.
+            </p>
+          </div>
+          
+          <div className="p-4 space-y-3">
+            {projectTemplates.map((template) => {
+              const ptConfig = PROJECT_TEMPLATE_TYPES.find(pt => pt.templateId === template.template_id) || {};
+              const IconComponent = ptConfig.icon || Mail;
+              
+              return (
+                <div 
+                  key={template.template_id}
+                  className={`p-3 rounded-lg border ${ptConfig.borderColor || 'border-slate-200'} ${ptConfig.bgColor || 'bg-slate-50'}`}
+                  data-testid={`email-template-${template.template_id}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg bg-white ${ptConfig.color || 'text-slate-600'}`}>
+                        <IconComponent size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-slate-900 text-sm">{ptConfig.title || template.name}</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">{ptConfig.description || template.description}</p>
+                        <div className="mt-1 text-xs text-slate-500">
+                          <span className="font-medium">Asunto:</span> {template.subject?.substring(0, 50)}...
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(template)}
+                        className="h-7 text-xs"
+                        data-testid={`edit-template-${template.template_id}`}
+                      >
+                        <Edit size={12} className="mr-1" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReset(template.template_id)}
+                        className="h-7 text-slate-500 hover:text-red-600"
+                      >
+                        <RotateCcw size={12} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Plantillas legacy (sin sede) - mostrar si existen */}
       {legacyTemplates.length > 0 && (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -576,22 +683,53 @@ export const EmailTemplatesEditor = () => {
               />
             </div>
 
-            {/* Variables disponibles */}
-            <div>
-              <Label className="font-semibold mb-2 block">Variables Disponibles</Label>
-              <div className="flex flex-wrap gap-2 p-3 bg-slate-50 rounded-lg border">
-                {getTemplateVariables(editingTemplate?.template_id).map((v) => (
-                  <button
-                    key={v.key}
-                    onClick={() => insertVariable(v.key)}
-                    className="px-2 py-1 text-xs bg-white border border-slate-300 rounded hover:bg-slate-100 hover:border-brand-blue-500 transition-colors"
-                    title={`Insertar {${v.key}}`}
-                  >
-                    {v.label}
-                  </button>
-                ))}
+            {/* Variables disponibles — Panel mejorado */}
+            {getTemplateVariables(editingTemplate?.template_id).length > 0 && (
+              <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                <div className="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-indigo-500" />
+                    <span className="text-xs font-semibold text-indigo-700 uppercase">Panel de Variables ({getTemplateVariables(editingTemplate?.template_id).length})</span>
+                  </div>
+                  <span className="text-[10px] text-indigo-500">Click para insertar en el campo activo</span>
+                </div>
+                <div className="p-3 bg-white space-y-2.5">
+                  <div>
+                    <p className="text-[10px] font-medium text-slate-400 uppercase mb-1">Insertar en Asunto</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {getTemplateVariables(editingTemplate?.template_id).map((v) => (
+                        <button
+                          key={`subj-${v.key}`}
+                          onClick={() => insertVariable(v.key, 'subject')}
+                          className="px-2 py-0.5 text-[11px] bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 hover:border-blue-400 transition-colors text-blue-700 font-mono cursor-pointer"
+                          title={`Insertar {${v.key}} en el asunto`}
+                          data-testid={`var-subject-${v.key}`}
+                        >
+                          {`{${v.key}}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="border-t pt-2">
+                    <p className="text-[10px] font-medium text-slate-400 uppercase mb-1">Insertar en Cuerpo</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {getTemplateVariables(editingTemplate?.template_id).map((v) => (
+                        <button
+                          key={`body-${v.key}`}
+                          onClick={() => insertVariable(v.key, 'body')}
+                          className="group px-2 py-1 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50 hover:border-indigo-400 transition-colors cursor-pointer"
+                          title={`Insertar {${v.key}} en el cuerpo`}
+                          data-testid={`var-body-${v.key}`}
+                        >
+                          <span className="font-mono text-indigo-600 text-[11px]">{`{${v.key}}`}</span>
+                          <span className="ml-1.5 text-slate-400 group-hover:text-slate-600">{v.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Cuerpo del correo */}
             <div>
