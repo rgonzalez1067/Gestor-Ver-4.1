@@ -32,7 +32,11 @@ const PERMISSION_OPTIONS = [
 
 // Permisos especiales disponibles (overrides)
 const SPECIAL_PERMISSIONS = [
-  { id: 'integradores:create', module: 'integradores', label: 'Crear Proyecto Integración', description: 'Permite crear nuevos proyectos aunque tenga permiso Leer' }
+  { id: 'integradores:create', module: 'integradores', label: 'Crear Proyecto Integración', description: 'Permite crear nuevos proyectos aunque tenga permiso Leer' },
+  { id: 'cotizaciones:impl_pyme', module: 'cotizaciones', label: 'Implementaciones PYME', description: 'Acceso a cotizaciones de implementación PYME (VPOS, MPOS, Gateway, Link)' },
+  { id: 'cotizaciones:impl_corp', module: 'cotizaciones', label: 'Implementaciones Corporativas', description: 'Acceso a cotizaciones de implementación Corporativa' },
+  { id: 'cotizaciones:equipos', module: 'cotizaciones', label: 'Equipos y Accesorios', description: 'Acceso a cotizaciones de venta de equipos, dispositivos y accesorios' },
+  { id: 'cotizaciones:reparaciones', module: 'cotizaciones', label: 'Reparaciones', description: 'Acceso a cotizaciones de reparación de equipos (POS, Pinpad)' },
 ];
 
 // Componente Supervisor con búsqueda tipo Typeahead

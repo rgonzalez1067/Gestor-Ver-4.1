@@ -26,7 +26,7 @@ const ACCESSORY_TYPES = ['Accesorio', 'Base'];
 // Tipos para selección de modelo en reparaciones (POS y Pinpad)
 const REPAIR_MODEL_TYPES = ['POS', 'Pinpad'];
 
-export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware }) => {
+export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware, forcedMode = '' }) => {
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
   const [equipmentCategory, setEquipmentCategory] = useState(''); // "Verifone", "Morefun", "Accesorio" o "Reparacion"
@@ -40,6 +40,15 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [repairDescription, setRepairDescription] = useState('');
   const [equipmentSerialNumber, setEquipmentSerialNumber] = useState('');
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
+
+  // Si hay forcedMode, pre-seleccionar la categoría al abrir
+  useEffect(() => {
+    if (open && forcedMode === 'repair') {
+      setEquipmentCategory('Reparacion');
+    } else if (open && forcedMode === 'equipment') {
+      setEquipmentCategory('');
+    }
+  }, [open, forcedMode]);
 
   // Carga masiva de seriales (legacy - mantener para compatibilidad)
   const [bulkUploadLoading, setBulkUploadLoading] = useState(false);
@@ -408,7 +417,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Package className="text-brand-blue-600" />
-              Nueva Cotización: Equipos, Accesorios y Reparaciones
+              {forcedMode === 'repair' ? 'Nueva Cotización: Reparaciones' : forcedMode === 'equipment' ? 'Nueva Cotización: Equipos y Accesorios' : 'Nueva Cotización: Equipos, Accesorios y Reparaciones'}
             </DialogTitle>
           </DialogHeader>
 
@@ -485,9 +494,15 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
               <h3 className="font-semibold text-lg text-slate-800">Paso 2: Tipo de Cotización</h3>
               <p className="text-slate-600 text-sm">Seleccione la categoría de ítems a cotizar.</p>
               
-              {/* Selección de Categoría Principal - 4 categorías */}
+              {/* Selección de Categoría Principal — filtrada por modo */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {EQUIPMENT_CATEGORIES.map((cat) => {
+                {EQUIPMENT_CATEGORIES
+                  .filter(cat => {
+                    if (forcedMode === 'repair') return cat.id === 'Reparacion';
+                    if (forcedMode === 'equipment') return cat.id !== 'Reparacion';
+                    return true;
+                  })
+                  .map((cat) => {
                   const IconComponent = cat.icon;
                   return (
                     <button

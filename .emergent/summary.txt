@@ -1,133 +1,138 @@
-<analysis>**original_problem_statement:** 
-The user requested continuous optimizations and features for a Quote Workflow Management platform (MegaNexus). Key objectives in this session included: creating a full suite of email templates for the Reparaciones (Repair) flow, fixing a critical login issue caused by corrupted password hashes, implementing a Red Path (visual warning) in the UI stepper for skipped/irregular workflow phases, completely eliminating typing latency in the Nuevo Cliente form, adding an Operations Email config for the PYME branch, and completely overhauling the Aprobación (Approve) action to act as an automated Billing Instruction generator (filtering specific item types, converting currencies in real-time, and generating a backend PDF).
+<analysis>**original_problem_statement:**
+The user requested several major features and fixes: 1) Resolving a critical bug where C2P / Débito Inmediato products were hidden in the UI due to zero-pricing and DB typos. 2) Adding missing Soporte de Aprobación attachment categories. 3) Automating the USD/BS Exchange Rate using a historical BCV database and adjusting the Billing PDF layout. 4) Implementing a strict Governance Control (Responsable Activo) for the New Products Pipeline. 5) Restructuring the Quotes Menu to split the creation flow into 3 separate buttons (Implementaciones, Equipos y Accesorios, Reparaciones), governed strictly by RBAC (Role-Based Access Control) using .
 
-**User's preferred language:** Spanish (Español). **INSTRUCT NEXT AGENT to respond and communicate in Spanish only.**
+**User's preferred language:** Spanish (Español)
+INSTRUCT NEXT AGENT: You MUST respond and communicate in Spanish only.
 
-**what currently exists?** 
-A stable Full-Stack application (React + FastAPI + MongoDB) managing clients, quotes, inventory, and complex conditional workflows. It features dynamic ReportLab PDF generation, custom SMTP email notifications, advanced visual UI steppers that detect workflow irregularities, and forms optimized for zero-latency using / uncontrolled input patterns.
+**what currently exists?**
+A highly customized React/FastAPI/MongoDB platform. It features an automated billing workflow with historical exchange rates (BCV), dynamic ReportLab PDF generation, a New Products Pipeline with strict Active Responsible edit-locks, and a Quotes system currently undergoing RBAC restructuring to separate workflows by operational vertical.
 
 **Last working item:**
-- **Last item agent was working**: Refining the  (Billing Instruction Modal). The user requested adjusting the filter to INCLUDE both  and  (products/hardware) items, while strictly EXCLUDING recurring fees. Furthermore, the user requested that all prices be strictly read-only (pulled from the DB) to prevent manual overrides, leaving only the Exchange Rate as an editable field. The agent successfully modified the code but the session ended before compiling, testing, or updating the PRD.
+- **Last item agent was working**: Implementing RBAC in  to show 3 separate creation buttons (Implementaciones, Equipos, Reparaciones) based on the user's  array. The agent successfully updated the UI,  (added ), and extracted the RBAC logic to a  block. However, during testing, a user with the  permission is not seeing the Reparaciones button.
 - **Status**: IN PROGRESS
-- **Agent Testing Done**: N
-- **Which testing method agent to use?**: Frontend testing agent or manual screenshot tool (to verify the modal renders correctly without the override inputs and includes the correct item types).
+- **Agent Testing Done**: Y (Agent tested via screenshots and caught the bug before ending the session).
+- **Which testing method agent to use?**: Frontend screenshot tool for UI visibility testing, followed by manual curl or testing subagent if logic gets complex.
 - **User Testing Done**: N
 
 **All Pending/In progress Issue list:**
-Issue 1: Test and Validate Billing Modal Refinements (P0)
-- **Attempted fixes**: Agent successfully executed  on  to remove override states, make the Bs. total read-only, and include  in the item filter.
-- **Next debug checklist**: Check compilation (backend                          RUNNING   pid 48, uptime 0:00:17
-code-server                      STOPPED   Not started
-frontend                         STOPPED   Mar 31 04:37 PM
-mongodb                          RUNNING   pid 50, uptime 0:00:17
-nginx-code-proxy                 RUNNING   pid 47, uptime 0:00:17 / yarn run v1.22.22
-info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.), open the Aprobar modal on a quote containing hardware/products, verify the table is read-only for prices, and ensure the totals calculate correctly based solely on the exchange rate. 
-- **Why fix this issue and what will be achieved with the fix?**: Ensures financial integrity by preventing manual price tampering and ensures hardware is billed properly alongside setup fees.
-- **Status**: TESTING PENDING
+Issue 1: Quotes Menu RBAC Buttons Visibility Bug (P0)
+- **Attempted fixes**: Agent modified  to replace an IIFE with a  block to calculate permissions (, , ) based on . Despite the analyst user having  in their profile, the UI did not render the Reparaciones button.
+- **Next debug checklist**: 
+  - Check  around lines 108-138 (where  calculates permissions). 
+  - Ensure  (extracted from ) correctly populates .
+  - Check if the overarching  or  from  is blocking the rendering of the button container entirely, before the specific  are evaluated.
+- **Why fix this issue and what will be achieved with the fix?**: Ensures operational security by restricting users to only quote the verticals they are authorized for.
+- **Status**: IN PROGRESS
 - **Is recurring issue?**: N
-- **Should Test frontend/backend/both after fix?**: Frontend (Screenshot tool or Testing Subagent)
+- **Should Test frontend/backend/both after fix?**: Frontend (Screenshot tool).
 - **Blocked on other issue**: None.
 
 **In progress Task List:**
-Task 1: Finalize Billing Modal Refinement Task (P0)
-- **Where to resume**: Verify the UI changes applied in the final step of the previous session. Once verified, update  with these refinements and call the  tool.
-- **What will be achieved with this?**: Closes out the user's latest request regarding billing integrity.
+Task 1: Complete Quotes Menu Restructuring (P0)
+- **Where to resume**: Fix Issue 1 (Visibility bug in ). Once the buttons appear correctly for users with specific , ensure the underlying wizards ( in ) and tables filter correctly based on these permissions.
+- **What will be achieved with this?**: Fulfills the user's request to segregate operations (Implementations vs Equipment vs Repairs) visually and technically.
 - **Status**: IN PROGRESS
 - **Should Test frontend/backend/both after fix?**: Frontend.
-- **Blocked on something**: Verification of Issue 1.
+- **Blocked on something**: Issue 1.
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- **P1**: Email Verification and Password Recovery (Verificación de Email y Recuperación de Contraseña).
-- **P1**: Refactoring  (Currently an overly massive file with 5200+ lines. Needs to be broken down into sub-components).
+- **P1**: Herencia  → campo VTID en VPOS.
+- **P1**: Verificación de Email y Recuperación de Contraseña.
+- **P1**: Refactorización de  (Critical: File is now 5300+ lines long).
 
 Future Tasks:
-- **P2**: Sales Reports Module (Módulo de Reportes de ventas).
-- **P2**: Completed Logic in Banks Roadmap.
-- **P2**: Refactoring monolithic components (Inventory.jsx, Integrators.jsx, Clients.jsx).
+- **P2**: Módulo de Reportes de Ventas.
+- **P2**: Lógica Completado en Roadmap Bancos.
+- **P2**: Refactorización de componentes monolíticos (Inventory, Integrators, Clients).
 
 **Completed work in this session**
-- Closed previous pending task regarding RepairStatusPipeline UI (DONE)
-- Created 5 new Email Templates for Repair Flow in both PYME & CORP branches (Quote sent, Approved, Completed, Delivery, Order to Dispatch) (DONE)
-- Fixed critical Auth/Login Bug by migrating corrupted  hashes to system-standard  (DONE)
-- Implemented  (Red Path) universal UI component to highlight skipped/irregular workflow phases (DONE)
-- Added date/time hover Tooltips to the status stepper (DONE)
-- Updated TallerEquipos default filter to En Reparación (DONE)
-- Fixed severe React Input Latency in  by migrating  to strict / behavior (DONE)
-- Added Correo de Operaciones to Settings exclusively for Sede PYME (DONE)
-- Overhauled Approve action: Created  and  for automated billing instructions, calculating IVA and consolidating setup items (DONE - final UI refinements pending).
+- Fixed P0 ApprovalBillingModal functionality (Read-only prices, filtered recurring items) (DONE).
+- Fixed Critical C2P/Débito Inmediato zero-price bug: Removed UI filters (), fixed DB typo (Imediato), and added Unicode normalizer to  (DONE).
+- Fixed Soporte de Aprobación invalid category error in  &  (DONE).
+- Implemented  (BCV API automated fetch) + DatePicker in Approval Modal for retroactive billing calculation (DONE).
+- Fixed PDF layout overlapping text for high Bs. amounts (DONE).
+- Implemented New Products Pipeline Governance: Responsable Activo write-locks for the Bitácora, auto-assignment modals, and Read-Only enforcement for non-assigned users (DONE).
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence**: React UI Input Latency / Main Thread blocking on large forms.
-- **Recurrence count**: 4 (Definitively addressed in this session).
-- **Status**: RESOLVED (Solution was to stop tracking keystrokes in global state and use  for data commits).
-- **Note**: Next agent must NOT reintroduce  state updates for text fields in large forms. Always use uncontrolled inputs or .
+- **Issue recurrence**: Monolithic component complexity (). 
+- **Recurrence count**: Persistent.
+- **Status**: IN PROGRESS (File size > 5300 lines is causing subtle bugs like the current RBAC visibility issue. Requires careful splitting).
 
 **Code Architecture**
-
+forcedMode
 
 **Key Technical Concepts**
-- **Frontend**: React. Extensive use of  and isolated component state to prevent massive DOM re-renders.
-- **Backend**: FastAPI. 
-- **PDF Generation**:  used extensively for in-memory PDF generation based on quote states.
-- **Auth**: Passwords use custom  ( format). Do NOT use standard .
+- **Frontend**: React. Heavy use of  custom hook for RBAC.
+- **Backend**: FastAPI.
+- **RBAC Logic**: Handled via  array in the user model (e.g., ). 
+- **Exchange Rate**: Fetched from  and stored historically.
 
 **key DB schema**
-- : items array contains objects with  (, , , ). 
-- : Base HTML templates using  for string replacement.
-- : Tracks irregular workflows (skipped steps).
+- : 
+- : Added  for governance control.
+- :  array controls granular UI access.
 
 **changes in tech stack**
 - None.
 
 **All files of reference**
--  (New, currently actively being modified for product inclusion and read-only pricing).
--  (New, generates the internal billing calculations document).
--  (Updated to handle attachments, IVA calculation, and new PDF dispatching on Approval).
--  (New universal timeline stepper).
--  (Refactored to eliminate latency).
--  (Review for password hashing rules).
+-  (Actively working here - Bug in RBAC visibility logic).
+-  (Modified for forcedMode).
+-  (RBAC hook).
+-  (Governance limits).
 
 **Areas that need refactoring**
--  (Critical P1 - 5200+ lines, very bloated).
+-  (Over 5300 lines. Critical refactoring needed as it handles 4+ different wizards and massive state arrays).
 
 **key api endpoints**
-- : Now accepts a JSON body with  (containing , , , etc.) and handles multipart form data for optional payment proof attachments.
+-  (New)
+-  (New - BCV fetch)
+- 
 
 **Critical Info for New Agent**
-- **Form Latency Rule**: Do not bind  events to global states in large parent components (like  or ). Use the established / pattern via  or uncontrolled refs.
-- **Password Hashing Rule**: If creating or modifying users,  in  generates a  string. **Do not use bcrypt**, as it breaks the existing login flow.
-- **Item Types**: The billing modal is currently configured to filter out  and . It should ONLY show  and . 
-- **Last Action Context**: The code for the latest user request (read-only prices and adding  products to the billing modal) has already been written. Your immediate first step should be to run the app, test this modal visually, ensure the calculations work with the exchange rate, update the PRD, and use the finish tool.
+- **C2P Zero-Price Rule**: NEVER reintroduce  in . Products with zero setup cost (like C2P) MUST remain visible in the UI and arrays.
+- **Quotes RBAC Bug**: The user Analista () has the  special permission, but the UI is hiding the button. Check if the parent  that wraps the buttons is being hidden by a global  or  check from , overriding the granular  checks.
+- **File constraints**:  is extremely large. Avoid using  blindly; always  the specific chunk first to ensure you are modifying the correct  or render block.
 
 **documents and test reports created in this job**
--  (Continuously updated)
--  through  (High usage of testing agent for all major features).
+- 
+-  (Updated with Analista user)
+-  (C2P fix validation)
+-  (Exchange Rate/Modal validation)
+-  (Governance validation)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: Requested default filter En Reparación in Taller Equipos. (COMPLETED)
-2. **User**: Reported critical Input Latency in the Nuevo Cliente form, demanding a structural zero-latency fix using uncontrolled components/onBlur. (COMPLETED)
-3. **User**: Requested a specific Correo de Operaciones field in settings exclusively for PYME branch. (COMPLETED)
-4. **User**: Requested massive overhaul of Aprobar step: add upload field for payment proofs, build a consolidated billing table, and include currency exchange math. (COMPLETED)
-5. **User**: Reported missing credits (Support Subagent handled). (RESOLVED)
-6. **User**: Refined the Aprobar overhaul: 1. Filter out recurring items, only show setup. 2. Generate a backend PDF of this billing instruction. 3. Send PDF + Quote + Proof to admin. (COMPLETED)
-7. **User**: (Latest) Refined billing items again: Include Products () alongside setup. Make prices strictly read-only to prevent manual tampering, allowing edits only to the exchange rate. (IN PROGRESS - Code written, testing/finish pending).
+1. **User**: Confirmed execution of P0. (COMPLETED)
+2. **User**: Reported critical bug: C2P / Débito Inmediato disappearing due to 0 price. (COMPLETED)
+3. **User**: Reported bug with Soporte de Aprobación category during upload. Provided screenshot. (COMPLETED)
+4. **User**: Requested complete overhaul of Exchange Rate to use historical DB logging, Datepicker in Approval modal, and fixed PDF overlaps. Provided PDF screenshot. (COMPLETED)
+5. **User**: Approved plan for Exchange Rate automation. (COMPLETED)
+6. **User**: Requested Governance Control for New Products Pipeline (Responsable Activo locking Bitácora). Provided diagram. (COMPLETED)
+7. **User**: Clarified Governance requirements (Roles mapped from DB). (COMPLETED)
+8. **User**: Requested Quotes Menu restructuring: Split into 3 buttons governed by RBAC . Provided wireframe. (IN PROGRESS - Bug encountered)
+9. **User**: Clarified Quotes menu request (No new page needed, just conditional buttons based on existing profiles logic). (IN PROGRESS)
+10. **User**: Mañana continuamos (Session paused).
 
 **Project Health Check:**
-Healthy.
+- Broken: Quotes.jsx RBAC button visibility logic for granular permissions.
 
 **3rd Party Integrations** 
 - OpenAI GPT models — uses Emergent LLM Key
-- Native SMTP (Gmail) — requires User API Key (Already configured via UI)
+- Native SMTP (Gmail) — requires User API Key
+- Exchangedyn API (BCV Rates) — Open API, no key required.
 
 **Testing status**
-- Testing agent used after significant changes: YES (Heavily used, iterations 134-138)
+- Testing agent used after significant changes: YES (iterations 139, 140, 141)
 - Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None manually, subagent generated JSONs.
-- Known regressions: None.
+- Test files created: None manually.
+- Known regressions: Quotes creation buttons hidden for users with specialized permissions.
+
+**Credentials to test flow:**
+Check  (Specifically  for testing the broken RBAC Quotes UI).
 
 **What agent forgot to execute**
-The agent completed the file edits () for the very last user request (making billing modal prices read-only and adding product filters), but ran out of context before it could take a screenshot, run the testing subagent, update the PRD, and call the  tool.</analysis>
+The agent paused before successfully debugging why  was not rendering the Reparaciones button for the test user despite the user profile containing the correct . The fix requires revisiting the visibility logic in .</analysis>

@@ -106,7 +106,7 @@ const QUOTE_CATEGORY_LABELS = {
 
 
 export const Quotes = () => {
-  const { canEdit } = usePermission('cotizaciones');
+  const { canEdit, user: currentUser } = usePermission('cotizaciones');
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
   const [banks, setBanks] = useState([]);
@@ -119,6 +119,7 @@ export const Quotes = () => {
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
+  const [equipmentWizardMode, setEquipmentWizardMode] = useState(''); // 'equipment' o 'repair'
   
   
   
@@ -133,6 +134,30 @@ export const Quotes = () => {
   const [filterSegment, setFilterSegment] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+
+  // RBAC: Permisos especiales de cotizaciones
+  const rbac = useMemo(() => {
+    const sp = currentUser?.special_permissions || [];
+    const isAdm = currentUser?.role === 'admin';
+    const hasImplPyme = isAdm || sp.includes('cotizaciones:impl_pyme');
+    const hasImplCorp = isAdm || sp.includes('cotizaciones:impl_corp');
+    const hasEquipos = isAdm || sp.includes('cotizaciones:equipos');
+    const hasReparaciones = isAdm || sp.includes('cotizaciones:reparaciones');
+    const hasAnyImpl = hasImplPyme || hasImplCorp;
+    const hasAnyCotPerm = sp.some(p => p.startsWith('cotizaciones:'));
+    const showButtons = canEdit && (isAdm || hasAnyImpl || hasEquipos || hasReparaciones);
+    return { hasImplPyme, hasImplCorp, hasEquipos, hasReparaciones, hasAnyImpl, hasAnyCotPerm, showButtons, isAdm };
+  }, [currentUser, canEdit]);
+
+  // RBAC: Filtrar cotizaciones según permisos
+  const rbacFilteredQuotes = useMemo(() => {
+    if (rbac.isAdm || !rbac.hasAnyCotPerm) return quotes;
+    const allowed = [];
+    if (rbac.hasImplPyme || rbac.hasImplCorp) allowed.push('implementation', 'fast_track');
+    if (rbac.hasEquipos) allowed.push('equipment');
+    if (rbac.hasReparaciones) allowed.push('repair');
+    return quotes.filter(q => allowed.includes(q.quote_category));
+  }, [quotes, rbac]);
   
   // Estado para edición de cotización existente
   const [editingQuoteId, setEditingQuoteId] = useState(null);
@@ -2939,46 +2964,71 @@ export const Quotes = () => {
             </div>
           </div>
 
-          {/* Botones de Nueva Cotización */}
-          {canEdit && <div className="flex items-center gap-3 mb-6">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
-                  <Plus size={20} className="mr-2" />
-                  Nueva Implementación
-                  <ChevronDown size={16} className="ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-72">
-                <DropdownMenuItem onClick={() => openWizard('PYME')} className="py-3 cursor-pointer" data-testid="new-impl-pyme">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                      <Users size={16} className="text-emerald-700" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Clientes Pymes</p>
-                      <p className="text-xs text-slate-500">Flujos estandarizados y ágiles</p>
-                    </div>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openWizard('CORP')} className="py-3 cursor-pointer" data-testid="new-impl-corp">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Building2 size={16} className="text-blue-700" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">Clientes Corporativos</p>
-                      <p className="text-xs text-slate-500">Proyectos de gran envergadura</p>
-                    </div>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button onClick={() => setEquipmentWizardOpen(true)} data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
-              <Plus size={20} className="mr-2" />
-              Nueva Cotización: Equipos, Accesorios y Reparaciones
-            </Button>
-          </div>}
+          {/* Botones de Nueva Cotización — Visibilidad por Permisos Especiales */}
+          {rbac.showButtons && (
+              <div className="flex items-center gap-3 mb-6">
+                {/* Botón 1: Implementaciones */}
+                {rbac.hasAnyImpl && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button data-testid="create-quote-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                        <Plus size={20} className="mr-2" />
+                        Implementaciones
+                        <ChevronDown size={16} className="ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-72">
+                      {rbac.hasImplPyme && (
+                        <DropdownMenuItem onClick={() => openWizard('PYME')} className="py-3 cursor-pointer" data-testid="new-impl-pyme">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                              <Users size={16} className="text-emerald-700" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Clientes Pymes</p>
+                              <p className="text-xs text-slate-500">VPOS, MPOS, Gateway, Link de Pago</p>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                      {rbac.hasImplCorp && (
+                        <DropdownMenuItem onClick={() => openWizard('CORP')} className="py-3 cursor-pointer" data-testid="new-impl-corp">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                              <Building2 size={16} className="text-blue-700" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Clientes Corporativos</p>
+                              <p className="text-xs text-slate-500">Proyectos de gran envergadura</p>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {/* Botón 2: Equipos y Accesorios */}
+                {rbac.hasEquipos && (
+                  <Button onClick={() => { setEquipmentWizardMode('equipment'); setEquipmentWizardOpen(true); }}
+                    data-testid="create-equipment-quote-button"
+                    className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
+                    <Plus size={20} className="mr-2" />
+                    Equipos y Accesorios
+                  </Button>
+                )}
+
+                {/* Botón 3: Reparaciones */}
+                {rbac.hasReparaciones && (
+                  <Button onClick={() => { setEquipmentWizardMode('repair'); setEquipmentWizardOpen(true); }}
+                    data-testid="create-repair-quote-button"
+                    className="bg-amber-600 hover:bg-amber-700 text-white">
+                    <Plus size={20} className="mr-2" />
+                    Reparaciones
+                  </Button>
+                )}
+              </div>
+          )}
 
           {/* Filtros Rápidos */}
           <QuoteFilters
@@ -3004,9 +3054,9 @@ export const Quotes = () => {
             </div>
           )}
 
-          {/* Panel de Gestión Único - Todas las Cotizaciones */}
+          {/* Panel de Gestión Único - Todas las Cotizaciones (filtradas por RBAC) */}
           <QuotesTable
-            quotes={quotes}
+            quotes={rbacFilteredQuotes}
             clients={clients}
             filterClient={filterClient}
             filterStatus={filterStatus}
@@ -4768,13 +4818,14 @@ export const Quotes = () => {
             loading={pdfPreviewLoading}
           />
 
-          {/* Wizard de Equipos y Accesorios */}
+          {/* Wizard de Equipos y Accesorios / Reparaciones */}
           <EquipmentQuoteWizard
             open={equipmentWizardOpen}
-            onClose={() => setEquipmentWizardOpen(false)}
+            onClose={() => { setEquipmentWizardOpen(false); setEquipmentWizardMode(''); }}
             onQuoteCreated={fetchData}
             clients={clients}
             hardware={allHardware}
+            forcedMode={equipmentWizardMode}
           />
 
           {/* Modal de confirmación para Eliminar */}
