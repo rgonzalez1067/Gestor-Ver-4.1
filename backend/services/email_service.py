@@ -33,12 +33,15 @@ def _send_smtp(
     html: str,
     sender: str,
     attachments: list = None,
+    cc: List[str] = None,
 ) -> dict:
     """Envío síncrono vía SMTP (se ejecuta en thread aparte)."""
     msg = MIMEMultipart("mixed")
     msg["From"] = sender
     msg["To"] = ", ".join(to)
     msg["Subject"] = subject
+    if cc:
+        msg["Cc"] = ", ".join(cc)
 
     # Cuerpo HTML
     msg.attach(MIMEText(html, "html", "utf-8"))
@@ -61,12 +64,15 @@ def _send_smtp(
             part.add_header("Content-Disposition", f'attachment; filename="{att.get("filename", "adjunto")}"')
             msg.attach(part)
 
+    # All recipients for sendmail (TO + CC)
+    all_recipients = list(to) + (cc or [])
+
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
         server.ehlo()
         server.starttls()
         server.ehlo()
         server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(sender, to, msg.as_string())
+        server.sendmail(sender, all_recipients, msg.as_string())
 
     return {"status": "sent", "method": "smtp"}
 
@@ -80,12 +86,17 @@ async def send_email(
     quote_number: str = None,
     attachments: list = None,
     sender: str = None,
+    cc: List[str] = None,
 ) -> dict:
     """
-    Envía un email.
+    Envía un email con soporte para CC.
     Prioridad: 1) SMTP propio  2) Resend  3) Simulado.
     """
     sender = sender or SENDER_EMAIL
+    # Filter empty emails
+    to = [e for e in to if e and e.strip() and '@' in e]
+    cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
+
     email_log = {
         "email_log_id": f"eml_{uuid.uuid4().hex[:12]}",
         "action": action,
@@ -93,6 +104,7 @@ async def send_email(
         "quote_number": quote_number,
         "from": sender,
         "to": to,
+        "cc": cc,
         "subject": subject,
         "html_preview": html[:500],
         "has_attachment": bool(attachments),
@@ -103,7 +115,7 @@ async def send_email(
     if SMTP_AVAILABLE:
         try:
             result = await asyncio.to_thread(
-                _send_smtp, to, subject, html, sender, attachments
+                _send_smtp, to, subject, html, sender, attachments, cc
             )
             email_log["status"] = "sent"
             email_log["method"] = "smtp"

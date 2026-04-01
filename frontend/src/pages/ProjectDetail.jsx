@@ -40,6 +40,7 @@ const ProjectDetail = () => {
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [notifTarget, setNotifTarget] = useState(null); // {type: 'client'|'bank', bankName?}
   const [notifSending, setNotifSending] = useState(null); // level string being sent
+  const [resolvedRecipients, setResolvedRecipients] = useState([]);
 
   // Otras Notificaciones (ad-hoc avanzado)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -114,9 +115,20 @@ const ProjectDetail = () => {
   };
 
   // ==================== SEQUENTIAL NOTIFICATIONS ====================
-  const openNotifDialog = (type, bankName) => {
+  const openNotifDialog = async (type, bankName) => {
     setNotifTarget({ type, bankName });
+    setAdditionalRecipients('');
     fetchSuggestedContacts();
+    // Resolver destinatarios reales desde el backend
+    try {
+      const res = await api.post(`/projects/${projectId}/preview-notification`, {
+        target: type,
+        bank_name: bankName || null,
+      });
+      setResolvedRecipients(res.data.recipients || []);
+    } catch {
+      setResolvedRecipients([]);
+    }
     setNotifDialogOpen(true);
   };
 
@@ -128,15 +140,24 @@ const ProjectDetail = () => {
   };
 
   const NOTIFICATION_PREFIXES = ['Primer Envío', 'Primer Recordatorio', 'Segundo Recordatorio', 'Tercer Recordatorio'];
+  const [additionalRecipients, setAdditionalRecipients] = useState('');
 
   const sendNotification = async () => {
     setNotifSending('sending');
     try {
+      // Parse additional recipients (comma or semicolon separated)
+      const ccList = additionalRecipients
+        .split(/[,;]/)
+        .map(e => e.trim())
+        .filter(e => e && e.includes('@'));
+
       const res = await api.post(`/projects/${projectId}/send-notification`, {
         target: notifTarget.type,
         bank_name: notifTarget.bankName || null,
+        additional_recipients: ccList.length > 0 ? ccList : null,
       });
       toast.success(res.data.message);
+      setAdditionalRecipients('');
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al enviar notificación');
@@ -731,7 +752,7 @@ const ProjectDetail = () => {
                     <div className={`p-4 rounded-lg border-2 transition-all ${
                       sendCount === 0 ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
                     }`} data-testid="next-send-block">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
                             sendCount === 0 ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'
@@ -741,25 +762,60 @@ const ProjectDetail = () => {
                             <p className="text-xs text-slate-500">
                               Plantilla: <span className="font-medium">{notifTarget?.type === 'client' ? 'Notificación de Proyecto — Cliente' : 'Notificación de Proyecto — Banco'}</span>
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              El asunto se prefijará automáticamente con [{nextPrefix}]
-                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
-                            disabled={previewLoading} onClick={() => previewNotification(notifTarget?.type, notifTarget?.bankName)}
-                            data-testid="preview-next-notif">
-                            <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
-                          </Button>
-                          <Button size="sm" className={`h-8 text-xs text-white ${
-                            sendCount === 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-amber-500 hover:bg-amber-600'
-                          }`}
-                            disabled={!!notifSending} onClick={sendNotification}
-                            data-testid="send-next-notif">
-                            <Send size={12} className="mr-1" />{notifSending ? 'Enviando...' : 'Enviar'}
-                          </Button>
+                      </div>
+
+                      {/* Destinatarios resueltos */}
+                      <div className="mb-3 space-y-2">
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios Principales (TO) — desde Base de Datos</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {resolvedRecipients.length === 0 ? (
+                              <span className="text-xs text-red-500 italic">Sin correos registrados en la ficha</span>
+                            ) : (
+                              resolvedRecipients.map((email, i) => (
+                                <span key={i} className="px-2 py-0.5 text-xs bg-emerald-50 border border-emerald-200 rounded text-emerald-700 font-mono" data-testid={`resolved-recipient-${i}`}>
+                                  {email}
+                                </span>
+                              ))
+                            )}
+                          </div>
                         </div>
+
+                        {/* Campo de destinatarios adicionales (CC) */}
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
+                            Destinatarios Adicionales (CC) — separados por coma
+                          </label>
+                          <input
+                            type="text"
+                            value={additionalRecipients}
+                            onChange={(e) => setAdditionalRecipients(e.target.value)}
+                            placeholder="gerente@empresa.com, compras@empresa.com"
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                            data-testid="additional-recipients-input"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Estos correos recibirán copia (CC) de la notificación
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Botones de acción */}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                          disabled={previewLoading} onClick={() => previewNotification(notifTarget?.type, notifTarget?.bankName)}
+                          data-testid="preview-next-notif">
+                          <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
+                        </Button>
+                        <Button size="sm" className={`h-8 text-xs text-white ${
+                          sendCount === 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
+                          disabled={!!notifSending} onClick={sendNotification}
+                          data-testid="send-next-notif">
+                          <Send size={12} className="mr-1" />{notifSending ? 'Enviando...' : 'Enviar'}
+                        </Button>
                       </div>
                     </div>
                   </div>

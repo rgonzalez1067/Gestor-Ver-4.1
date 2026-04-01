@@ -306,12 +306,16 @@ async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: O
 class SequentialNotifyRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
+    additional_recipients: Optional[List[str]] = None  # CC emails
 
 
 @router.post("/projects/{project_id}/send-notification")
 async def send_sequential_notification(project_id: str, body: SequentialNotifyRequest, authorization: Optional[str] = Header(None)):
     """Enviar notificación al cliente o banco. El prefijo se calcula automáticamente por conteo."""
-    return await _send_sequential_notification(project_id, body.target, body.bank_name, authorization)
+    return await _send_sequential_notification(
+        project_id, body.target, body.bank_name, authorization,
+        additional_recipients=body.additional_recipients
+    )
 
 
 def _render_vars(template_str: str, variables: dict) -> str:
@@ -331,10 +335,8 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     # Determinar prefijo según conteo de envíos
     prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
     prefix_label = NOTIFICATION_PREFIXES[prefix_idx]
-    prefix_tag = f"[{prefix_label}]"
 
     ticket = project.get("ticket_number", "")
-    ticket_label = f"[Ticket {ticket}] " if ticket else ""
 
     # Add notification-specific vars
     template_vars["notification_level"] = prefix_label
@@ -345,9 +347,31 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         client_id = project.get("client_id")
         if client_id:
             client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
-        client_email = client.get("email", "") if client else ""
         client_name = project.get("client_name", "Cliente")
-        to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
+
+        # === DATA BINDING CORRECTO: extraer emails de contacts[] ===
+        to_list = []
+        if client:
+            contacts = client.get("contacts", [])
+            # Contacto principal = primer contacto
+            if contacts:
+                primary_email = contacts[0].get("email", "")
+                if primary_email and "@" in primary_email:
+                    to_list.append(primary_email)
+            # Contactos secundarios notificables
+            for c in contacts[1:]:
+                c_email = c.get("email", "")
+                if c_email and "@" in c_email and c_email not in to_list:
+                    to_list.append(c_email)
+            # Fallback al email top-level del cliente
+            if not to_list:
+                top_email = client.get("email", "")
+                if top_email and "@" in top_email:
+                    to_list.append(top_email)
+
+        if not to_list:
+            to_list = []  # Sin destinatarios → el frontend avisará
+
         entity_label = f"Cliente ({client_name})"
 
         # Siempre usar plantilla del DB
@@ -375,17 +399,26 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
 <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
 <p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
     else:
+        # === DATA BINDING CORRECTO: extraer emails del banco ===
         bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
         if not bank:
             bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
-        bank_email = ""
+        to_list = []
         if bank:
-            bank_email = bank.get("contact_email", "")
-            if not bank_email:
-                contacts = bank.get("contacts", [])
-                if contacts:
-                    bank_email = contacts[0].get("email", "")
-        to_list = [bank_email] if bank_email else [f"contacto@{bank_name.lower().replace(' ', '')}.com"]
+            # Email principal del banco
+            main_email = bank.get("contact_email", "")
+            if main_email and "@" in main_email:
+                to_list.append(main_email)
+            # Contactos del banco
+            contacts = bank.get("contacts", [])
+            for c in contacts:
+                c_email = c.get("email", "")
+                if c_email and "@" in c_email and c_email not in to_list:
+                    to_list.append(c_email)
+
+        if not to_list:
+            to_list = []  # Sin destinatarios → frontend avisará
+
         entity_label = f"Banco ({bank_name})"
 
         # Bank-specific products for the matrix
@@ -421,7 +454,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
-async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None):
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None):
     """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
     
     El cuerpo del correo siempre viene de la plantilla configurada.
@@ -474,7 +507,11 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         to=to_list, subject=subject, html=html,
         action=f"notification_{target}_{prefix_label.replace(' ', '_').lower()}",
         quote_id=project.get("quote_id"), quote_number=project.get("quote_number"),
+        cc=additional_recipients,
     )
+
+    # CC list for logging
+    cc_list = [e for e in (additional_recipients or []) if e and e.strip() and '@' in e]
 
     # Registrar en historial
     entry = {
@@ -483,6 +520,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         "sent_at": now,
         "sent_by": user_name,
         "recipients": to_list,
+        "cc": cc_list,
         "subject": subject,
         "email_status": email_result.get("status"),
     }
