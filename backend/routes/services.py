@@ -322,8 +322,6 @@ async def get_current_exchange_rate(authorization: Optional[str] = Header(None))
     latest_rate = await db.exchange_rates.find_one({}, {"_id": 0}, sort=[("date", -1)])
     
     if latest_rate:
-        if isinstance(latest_rate.get('date'), str):
-            latest_rate['date'] = latest_rate['date']
         return latest_rate
     
     return {"rate": 0, "source": "Sin datos", "date": datetime.now(timezone.utc).isoformat()}
@@ -363,6 +361,7 @@ async def update_exchange_rate(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=502, detail="No se pudo obtener la tasa de ninguna fuente BCV")
     
     now = datetime.now(timezone.utc)
+    date_str = now.strftime('%Y-%m-%d')
     new_rate = {
         "rate": rate_value,
         "source": source_name,
@@ -374,6 +373,103 @@ async def update_exchange_rate(authorization: Optional[str] = Header(None)):
     await db.exchange_rates.update_many({"active": True}, {"$set": {"active": False}})
     await db.exchange_rates.insert_one(new_rate)
     new_rate.pop("_id", None)
+
+    # Guardar en histórico automáticamente
+    existing_hist = await db.historico_tasas_cambio.find_one({"fecha": date_str})
+    if not existing_hist:
+        await db.historico_tasas_cambio.insert_one({
+            "fecha": date_str,
+            "valor_tasa": rate_value,
+            "moneda": "USD/BS",
+            "fuente": source_name,
+            "usuario_registro": current_user.get("email", "system"),
+            "created_at": now.isoformat()
+        })
+    else:
+        await db.historico_tasas_cambio.update_one(
+            {"fecha": date_str},
+            {"$set": {"valor_tasa": rate_value, "fuente": source_name, "usuario_registro": current_user.get("email", "system"), "updated_at": now.isoformat()}}
+        )
     
     return new_rate
+
+
+# ==================== HISTÓRICO DE TASAS DE CAMBIO ====================
+
+@router.get("/exchange-rate/history")
+async def get_exchange_rate_history(authorization: Optional[str] = Header(None)):
+    """Obtiene el historial completo de tasas de cambio, ordenado por fecha descendente."""
+    await get_current_user(authorization)
+    rates = await db.historico_tasas_cambio.find({}, {"_id": 0}).sort("fecha", -1).to_list(365)
+    return rates
+
+
+@router.get("/exchange-rate/by-date/{fecha}")
+async def get_exchange_rate_by_date(fecha: str, authorization: Optional[str] = Header(None)):
+    """Obtiene la tasa de cambio para una fecha específica (formato YYYY-MM-DD)."""
+    await get_current_user(authorization)
+    
+    rate = await db.historico_tasas_cambio.find_one({"fecha": fecha}, {"_id": 0})
+    if rate:
+        return {"found": True, **rate}
+    
+    return {"found": False, "fecha": fecha, "message": "No hay tasa registrada para esta fecha"}
+
+
+@router.post("/exchange-rate/manual")
+async def set_manual_exchange_rate(body: dict, authorization: Optional[str] = Header(None)):
+    """Registra manualmente una tasa de cambio para una fecha específica."""
+    current_user = await get_current_user(authorization)
+    
+    fecha = body.get("fecha")
+    valor_tasa = body.get("valor_tasa")
+    
+    if not fecha or not valor_tasa:
+        raise HTTPException(status_code=400, detail="Se requiere 'fecha' (YYYY-MM-DD) y 'valor_tasa'")
+    
+    try:
+        valor_tasa = float(valor_tasa)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="'valor_tasa' debe ser un número válido")
+    
+    if valor_tasa <= 0:
+        raise HTTPException(status_code=400, detail="La tasa debe ser mayor a 0")
+    
+    now = datetime.now(timezone.utc)
+    
+    existing = await db.historico_tasas_cambio.find_one({"fecha": fecha})
+    if existing:
+        await db.historico_tasas_cambio.update_one(
+            {"fecha": fecha},
+            {"$set": {
+                "valor_tasa": valor_tasa,
+                "fuente": "Manual",
+                "usuario_registro": current_user.get("email", "system"),
+                "updated_at": now.isoformat()
+            }}
+        )
+    else:
+        await db.historico_tasas_cambio.insert_one({
+            "fecha": fecha,
+            "valor_tasa": valor_tasa,
+            "moneda": "USD/BS",
+            "fuente": "Manual",
+            "usuario_registro": current_user.get("email", "system"),
+            "created_at": now.isoformat()
+        })
+
+    # También actualizar la tasa activa si es la fecha de hoy
+    today_str = now.strftime('%Y-%m-%d')
+    if fecha == today_str:
+        await db.exchange_rates.update_many({"active": True}, {"$set": {"active": False}})
+        new_active = {
+            "rate": valor_tasa,
+            "source": "Manual",
+            "date": now.isoformat(),
+            "updated_by": current_user.get("email", "system"),
+            "active": True,
+        }
+        await db.exchange_rates.insert_one(new_active)
+    
+    return {"message": f"Tasa de {valor_tasa:.2f} registrada para {fecha}", "fecha": fecha, "valor_tasa": valor_tasa, "fuente": "Manual"}
 

@@ -3,33 +3,76 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Upload, FileText, X, Loader2, CheckCircle, AlertTriangle, Calculator, DollarSign } from 'lucide-react';
+import { Upload, FileText, X, Loader2, CheckCircle, AlertTriangle, Calculator, CalendarIcon, ShieldCheck } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
 /**
  * ApprovalBillingModal — Modal de Aprobación con:
- *  1. Carga opcional de soporte (comprobante de pago anticipado)
- *  2. Tabla de Instrucción de Facturación (consolidación de conceptos)
- *  3. Calculadora de conversión Bs./$ con tasa de cambio
+ *  1. Carga opcional de soporte de pago anticipado
+ *  2. Carga opcional de comprobante de aprobación de cotización
+ *  3. Fecha de facturación con auto-lookup de tasa histórica BCV
+ *  4. Tabla de Instrucción de Facturación consolidada
  */
 export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes, config }) {
-  const [files, setFiles] = useState([]);
+  const [paymentFiles, setPaymentFiles] = useState([]);
+  const [approvalFiles, setApprovalFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [billingDate, setBillingDate] = useState('');
   const [exchangeRate, setExchangeRate] = useState('');
-  const fileInputRef = useRef(null);
+  const [rateSource, setRateSource] = useState('');
+  const [rateLookupStatus, setRateLookupStatus] = useState('idle'); // idle | loading | found | not_found | manual
+  const [manualRateMode, setManualRateMode] = useState(false);
+  const paymentFileRef = useRef(null);
+  const approvalFileRef = useRef(null);
 
   const quote = useMemo(() => quotes?.find(q => q.quote_id === quoteId), [quotes, quoteId]);
 
-  // Fetch current exchange rate on open
+  // Set default billing date to today
   useEffect(() => {
     if (open) {
-      api.get('/exchange-rate/current').then(res => {
-        const rate = res.data?.rate || res.data?.tasa;
-        if (rate) setExchangeRate(String(rate));
-      }).catch(() => {});
+      const today = new Date().toISOString().split('T')[0];
+      setBillingDate(today);
     }
   }, [open]);
+
+  // Fetch rate when billing date changes
+  useEffect(() => {
+    if (!billingDate || !open) return;
+    
+    setRateLookupStatus('loading');
+    setManualRateMode(false);
+    
+    api.get(`/exchange-rate/by-date/${billingDate}`).then(res => {
+      if (res.data?.found) {
+        setExchangeRate(String(res.data.valor_tasa));
+        setRateSource(res.data.fuente || 'Histórico');
+        setRateLookupStatus('found');
+      } else {
+        // Try fetching current rate as fallback
+        api.get('/exchange-rate/current').then(curr => {
+          const rate = curr.data?.rate || curr.data?.tasa;
+          if (rate && rate > 0) {
+            setExchangeRate(String(rate));
+            setRateSource(curr.data?.source || 'Tasa vigente');
+            setRateLookupStatus('not_found');
+          } else {
+            setExchangeRate('');
+            setRateSource('');
+            setRateLookupStatus('not_found');
+          }
+        }).catch(() => {
+          setExchangeRate('');
+          setRateSource('');
+          setRateLookupStatus('not_found');
+        });
+      }
+    }).catch(() => {
+      setExchangeRate('');
+      setRateSource('');
+      setRateLookupStatus('not_found');
+    });
+  }, [billingDate, open]);
 
   // Consolidate services: Setup + Productos (additional). Excluir recurrentes.
   const consolidated = useMemo(() => {
@@ -37,7 +80,6 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     const services = quote.services || [];
     const map = {};
     for (const s of services) {
-      // Excluir únicamente recurrentes (fee mensual, mantenimiento)
       if (s.item_type === 'recurring_basic' || s.item_type === 'recurring_other') continue;
       const name = s.item_name || s.name || 'Sin nombre';
       if (!map[name]) {
@@ -59,29 +101,53 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const grandTotalConIvaBs = grandTotalBs + ivaBs;
 
   const resetState = useCallback(() => {
-    setFiles([]);
+    setPaymentFiles([]);
+    setApprovalFiles([]);
     setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    setBillingDate('');
+    setExchangeRate('');
+    setRateSource('');
+    setRateLookupStatus('idle');
+    setManualRateMode(false);
+    if (paymentFileRef.current) paymentFileRef.current.value = '';
+    if (approvalFileRef.current) approvalFileRef.current.value = '';
   }, []);
 
   const handleClose = () => { resetState(); onClose(); };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = (e, setFn, inputRef) => {
     const selected = Array.from(e.target.files || []);
     if (!selected.length) return;
     const oversized = selected.filter(f => f.size > 10 * 1024 * 1024);
     if (oversized.length) { toast.error('Los archivos no deben superar los 10MB'); return; }
-    setFiles(prev => [...prev, ...selected]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    setFn(prev => [...prev, ...selected]);
+    if (inputRef.current) inputRef.current.value = '';
   };
 
-  const removeFile = (index) => setFiles(prev => prev.filter((_, i) => i !== index));
+  const removeFile = (index, setFn) => setFn(prev => prev.filter((_, i) => i !== index));
+
+  const handleSaveManualRate = async () => {
+    const val = parseFloat(exchangeRate);
+    if (!val || val <= 0) { toast.error('Ingrese una tasa válida'); return; }
+    try {
+      await api.post('/exchange-rate/manual', { fecha: billingDate, valor_tasa: val });
+      setRateSource('Manual');
+      setRateLookupStatus('found');
+      setManualRateMode(false);
+      toast.success(`Tasa de ${val.toFixed(2)} registrada para ${billingDate}`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al registrar tasa');
+    }
+  };
 
   const handleSubmit = async () => {
+    if (!rateNum || rateNum <= 0) { toast.error('La tasa de cambio es requerida'); return; }
+    if (!billingDate) { toast.error('La fecha de facturación es requerida'); return; }
+
     setUploading(true);
     try {
-      // Step 1: Upload files if any (optional - comprobante de pago)
-      for (const file of files) {
+      // Step 1: Upload payment proof files
+      for (const file of paymentFiles) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('category', 'Soporte de Aprobación');
@@ -90,7 +156,17 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         });
       }
 
-      // Step 2: Call approve endpoint
+      // Step 2: Upload approval proof files
+      for (const file of approvalFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'Orden de Compra');
+        await api.post(`/quotes/${quoteId}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
+      // Step 3: Call approve endpoint
       const exHeaders = {};
       if (config?.exceptionHeaders) {
         exHeaders['x-exception-reason'] = config.exceptionHeaders.reason;
@@ -98,7 +174,6 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       }
       if (config?.emailHeaders) Object.assign(exHeaders, config.emailHeaders);
 
-      // Send consolidation data as body for the billing instruction
       const billingData = {
         consolidated_items: consolidated.map((c) => ({
           name: c.name,
@@ -108,13 +183,16 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           total_bs: c.total_usd * rateNum,
         })),
         exchange_rate: rateNum,
+        rate_source: rateSource,
+        billing_date: billingDate,
         grand_total_usd: grandTotalUsd,
         grand_total_bs: grandTotalBs,
         iva_usd: ivaUsd,
         iva_bs: ivaBs,
         grand_total_con_iva_usd: grandTotalConIvaUsd,
         grand_total_con_iva_bs: grandTotalConIvaBs,
-        has_payment_proof: files.length > 0,
+        has_payment_proof: paymentFiles.length > 0,
+        has_approval_proof: approvalFiles.length > 0,
       };
 
       await api.post(`/quotes/${quoteId}/approve`, billingData, { headers: exHeaders });
@@ -131,6 +209,41 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
   if (!config || !quote) return null;
 
+  const FileUploadZone = ({ label, description, files, setFiles, inputRef, icon: Icon, color, testIdPrefix, optional = true }) => (
+    <div className="border border-slate-200 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon size={16} className={color} />
+        <Label className="text-sm font-semibold text-slate-800">{label}</Label>
+        {optional && <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">Opcional</span>}
+      </div>
+      <p className="text-xs text-slate-500 mb-3">{description}</p>
+      <label className={`flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg cursor-pointer transition-colors
+        ${files.length > 0 ? 'border-green-400 bg-green-50/50' : 'border-slate-300 hover:border-blue-400'}`}
+        data-testid={`${testIdPrefix}-dropzone`}>
+        <Upload size={16} className={files.length > 0 ? 'text-green-600' : 'text-slate-400'} />
+        <span className={`text-sm ${files.length > 0 ? 'text-green-700' : 'text-slate-500'}`}>
+          {files.length > 0 ? `${files.length} archivo(s)` : 'Seleccionar archivo(s)'}
+        </span>
+        <input ref={inputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+          multiple onChange={(e) => handleFileSelect(e, setFiles, inputRef)} data-testid={`${testIdPrefix}-input`} />
+      </label>
+      {files.length > 0 && (
+        <div className="space-y-1 mt-2">
+          {files.map((file, idx) => (
+            <div key={idx} className="flex items-center gap-2 bg-white rounded-md px-3 py-1.5 border border-slate-200">
+              <FileText size={13} className="text-red-500 shrink-0" />
+              <span className="text-xs truncate flex-1">{file.name}</span>
+              <span className="text-[10px] text-slate-400">{(file.size / 1024).toFixed(0)} KB</span>
+              <button onClick={() => removeFile(idx, setFiles)} className="text-slate-400 hover:text-red-500">
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="approval-billing-modal">
@@ -141,65 +254,103 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
+        <div className="space-y-4 py-2">
 
-          {/* 1. Soporte de Pago Anticipado (Opcional) */}
-          <div className="border border-slate-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Upload size={16} className="text-blue-600" />
-              <Label className="text-sm font-semibold text-slate-800">Comprobante de Pago Anticipado</Label>
-              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-medium">Opcional</span>
-            </div>
-            <p className="text-xs text-slate-500 mb-3">
-              Si el cliente canceló por adelantado, anexe el comprobante. Se adjuntará al correo de Administración.
-            </p>
-            <label className={`flex items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors
-              ${files.length > 0 ? 'border-green-400 bg-green-50/50' : 'border-slate-300 hover:border-blue-400'}`}
-              data-testid="approval-upload-dropzone">
-              <Upload size={18} className={files.length > 0 ? 'text-green-600' : 'text-slate-400'} />
-              <span className={`text-sm ${files.length > 0 ? 'text-green-700' : 'text-slate-500'}`}>
-                {files.length > 0 ? `${files.length} archivo(s)` : 'Seleccionar archivo(s)'}
-              </span>
-              <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                multiple onChange={handleFileSelect} data-testid="approval-file-input" />
-            </label>
-            {files.length > 0 && (
-              <div className="space-y-1 mt-2">
-                {files.map((file, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-white rounded-md px-3 py-1.5 border border-slate-200">
-                    <FileText size={13} className="text-red-500 shrink-0" />
-                    <span className="text-xs truncate flex-1">{file.name}</span>
-                    <span className="text-[10px] text-slate-400">{(file.size / 1024).toFixed(0)} KB</span>
-                    <button onClick={() => removeFile(idx)} className="text-slate-400 hover:text-red-500">
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* 1. Upload: Comprobante de Pago Anticipado */}
+          <FileUploadZone
+            label="Comprobante de Pago Anticipado"
+            description="Si el cliente canceló por adelantado, anexe el comprobante. Se adjuntará al correo de Administración."
+            files={paymentFiles}
+            setFiles={setPaymentFiles}
+            inputRef={paymentFileRef}
+            icon={Upload}
+            color="text-blue-600"
+            testIdPrefix="payment-proof"
+          />
 
-          {/* 2. Instrucción de Facturación (Consolidación) */}
+          {/* 2. Upload: Comprobante de Aprobación de Cotización */}
+          <FileUploadZone
+            label="Comprobante de Aprobación de Cotización"
+            description="Respaldo legal de aprobación del cliente: orden de compra, correo firmado o captura de aprobación."
+            files={approvalFiles}
+            setFiles={setApprovalFiles}
+            inputRef={approvalFileRef}
+            icon={ShieldCheck}
+            color="text-indigo-600"
+            testIdPrefix="approval-proof"
+          />
+
+          {/* 3. Instrucción de Facturación */}
           <div className="border border-slate-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Calculator size={16} className="text-purple-600" />
                 <Label className="text-sm font-semibold text-slate-800">Instrucción de Facturación</Label>
               </div>
-              {/* 3. Tasa de Cambio */}
-              <div className="flex items-center gap-2">
-                <DollarSign size={14} className="text-emerald-600" />
-                <Label className="text-xs text-slate-600 whitespace-nowrap">Tasa Bs./$:</Label>
+            </div>
+
+            {/* Fecha de Facturación + Tasa automática */}
+            <div className="flex flex-wrap items-end gap-4 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex-1 min-w-[180px]">
+                <Label className="text-xs text-slate-600 mb-1 flex items-center gap-1">
+                  <CalendarIcon size={12} /> Fecha de Facturación
+                </Label>
                 <Input
-                  type="number" step="0.01" min="0"
-                  value={exchangeRate}
-                  onChange={(e) => setExchangeRate(e.target.value)}
-                  className="w-24 h-8 text-sm text-right font-mono"
-                  placeholder="36.50"
-                  data-testid="exchange-rate-input"
+                  type="date"
+                  value={billingDate}
+                  onChange={(e) => setBillingDate(e.target.value)}
+                  className="h-9 text-sm"
+                  data-testid="billing-date-input"
                 />
               </div>
+              <div className="flex-1 min-w-[160px]">
+                <Label className="text-xs text-slate-600 mb-1">Tasa Bs./$ (BCV)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number" step="0.01" min="0"
+                    value={exchangeRate}
+                    onChange={(e) => { setExchangeRate(e.target.value); setManualRateMode(true); }}
+                    disabled={rateLookupStatus === 'loading' || (rateLookupStatus === 'found' && !manualRateMode)}
+                    className={`h-9 text-sm text-right font-mono flex-1 ${rateLookupStatus === 'found' && !manualRateMode ? 'bg-green-50 border-green-300' : ''}`}
+                    placeholder="0.00"
+                    data-testid="exchange-rate-input"
+                  />
+                  {rateLookupStatus === 'loading' && <Loader2 size={16} className="animate-spin text-slate-400" />}
+                  {rateLookupStatus === 'found' && !manualRateMode && <CheckCircle size={16} className="text-green-500 shrink-0" />}
+                </div>
+              </div>
+              <div className="min-w-[100px]">
+                <Label className="text-xs text-slate-600 mb-1">Fuente</Label>
+                <div className="h-9 flex items-center px-2 bg-white border border-slate-200 rounded-md text-xs text-slate-600 font-medium truncate">
+                  {rateSource || '—'}
+                </div>
+              </div>
             </div>
+
+            {/* Alerta si no hay tasa para la fecha */}
+            {rateLookupStatus === 'not_found' && (
+              <div className="flex items-start gap-2 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-amber-800 font-semibold">No hay tasa registrada para {billingDate}</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Se muestra la tasa vigente como referencia. Puede editarla manualmente y registrarla para esta fecha.
+                  </p>
+                  {manualRateMode && parseFloat(exchangeRate) > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+                      onClick={handleSaveManualRate}
+                      data-testid="save-manual-rate-btn"
+                    >
+                      Registrar tasa {parseFloat(exchangeRate).toFixed(2)} para {billingDate}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-slate-500 mb-3">
               Conceptos de <strong>Setup y Productos</strong> (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.
             </p>
@@ -261,7 +412,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           <Button variant="outline" onClick={handleClose} disabled={uploading}>Cancelar</Button>
           <Button
             onClick={handleSubmit}
-            disabled={uploading}
+            disabled={uploading || rateNum <= 0 || !billingDate}
             className="bg-green-600 hover:bg-green-700"
             data-testid="approval-submit-btn"
           >
