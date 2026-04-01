@@ -448,6 +448,26 @@ Plataforma full-stack para gestion de cotizaciones, clientes, bancos, medios de 
 - **Fix**: Agregada "Soporte de Aprobación" a `ATTACHMENT_CATEGORIES`
 - VALIDADO: curl confirma upload exitoso con nueva categoría
 
+### Sistema de Histórico de Tasas de Cambio + Automatización del Modal de Aprobación (2026-04-01)
+- **Nueva colección**: `historico_tasas_cambio` con campos: fecha, valor_tasa, moneda, fuente, usuario_registro
+- **Endpoints nuevos**:
+  - `GET /api/exchange-rate/by-date/{fecha}` — Consulta tasa por fecha específica
+  - `POST /api/exchange-rate/manual` — Registro manual de tasa para una fecha
+  - `GET /api/exchange-rate/history` — Historial completo de tasas
+  - `POST /api/exchange-rate/update` — Ahora también guarda automáticamente en histórico
+- **Modal de Aprobación rediseñado** (`ApprovalBillingModal.jsx`):
+  - Input de "Tasa de Cambio" reemplazado por DatePicker de "Fecha de Facturación"
+  - Al seleccionar fecha → auto-busca tasa en historico_tasas_cambio
+  - Si tasa encontrada → campo read-only con check verde y fuente
+  - Si no existe → alerta amarilla + campo editable + botón "Registrar tasa para esta fecha"
+  - Nuevo upload: "Comprobante de Aprobación de Cotización" (adicional al de Pago Anticipado)
+- **Fix PDF** (`billing_pdf.py`):
+  - Resuelto solapamiento de títulos sobre valores numéricos
+  - Toda celda usa Paragraph con word-wrap automático
+  - Columnas rebalanceadas: Concepto 6.5cm, Total Bs. 4.2cm
+  - Agregados: Fecha de Facturación, Fuente de tasa, nota de comprobante de aprobación
+- VALIDADO: Testing Agent iteration_140 — Backend 100% (9/9), Frontend 100%
+
 ### Corrección Latencia Generalizada - DebouncedInput Global (2026-03-26)
 - Creado componente reutilizable /app/frontend/src/components/DebouncedInput.jsx
   - Estado LOCAL interno (renders solo del componente, no del padre)
