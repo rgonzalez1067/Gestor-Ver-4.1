@@ -62,15 +62,18 @@ class AdhocEmailRequest(BaseModel):
     image_urls: Optional[List[str]] = None
 
 
-NOTIFICATION_LEVELS = [
-    "Primera Comunicación",
+NOTIFICATION_PREFIXES = [
+    "Primer Envío",
     "Primer Recordatorio",
     "Segundo Recordatorio",
     "Tercer Recordatorio",
 ]
 
+# Legacy mapping for backwards compatibility
+NOTIFICATION_LEVELS = NOTIFICATION_PREFIXES
+
 NOTIFICATION_SUBJECTS = {
-    "Primera Comunicación": "Notificación de Implementación",
+    "Primer Envío": "Notificación de Implementación",
     "Primer Recordatorio": "1er Recordatorio — Implementación",
     "Segundo Recordatorio": "2do Recordatorio — Implementación",
     "Tercer Recordatorio": "3er Recordatorio (Urgente) — Implementación",
@@ -303,13 +306,12 @@ async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: O
 class SequentialNotifyRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
-    level: str  # one of NOTIFICATION_LEVELS
 
 
 @router.post("/projects/{project_id}/send-notification")
 async def send_sequential_notification(project_id: str, body: SequentialNotifyRequest, authorization: Optional[str] = Header(None)):
-    """Enviar notificación secuencial (cualquier nivel) a cliente o banco."""
-    return await _send_sequential_notification(project_id, body.target, body.bank_name, authorization, body.level)
+    """Enviar notificación al cliente o banco. El prefijo se calcula automáticamente por conteo."""
+    return await _send_sequential_notification(project_id, body.target, body.bank_name, authorization)
 
 
 def _render_vars(template_str: str, variables: dict) -> str:
@@ -321,17 +323,22 @@ def _render_vars(template_str: str, variables: dict) -> str:
     return result
 
 
-async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], level: str, template_vars: dict) -> dict:
+async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], send_count: int, template_vars: dict) -> dict:
     """Resuelve destinatarios, asunto y HTML de una notificación de proyecto.
-    Returns: {to_list, subject, html, entity_label}
+    El asunto se prefija automáticamente según el conteo de envíos.
+    Returns: {to_list, subject, html, entity_label, prefix}
     """
-    subject_suffix = NOTIFICATION_SUBJECTS.get(level, level)
+    # Determinar prefijo según conteo de envíos
+    prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
+    prefix_label = NOTIFICATION_PREFIXES[prefix_idx]
+    prefix_tag = f"[{prefix_label}]"
+
     ticket = project.get("ticket_number", "")
     ticket_label = f"[Ticket {ticket}] " if ticket else ""
 
     # Add notification-specific vars
-    template_vars["notification_level"] = level
-    template_vars["notification_subject"] = subject_suffix
+    template_vars["notification_level"] = prefix_label
+    template_vars["notification_subject"] = prefix_label
 
     if target == "client":
         client = None
@@ -343,19 +350,19 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         to_list = [client_email] if client_email else ["cliente@ejemplo.com"]
         entity_label = f"Cliente ({client_name})"
 
-        # Try to find template in DB
+        # Siempre usar plantilla del DB
         template = await db.email_templates.find_one({"template_id": "project_notify_client"}, {"_id": 0})
         if template and template.get("body_html"):
-            subject = _render_vars(template.get("subject", f"{ticket_label}{subject_suffix}: {{project_number}}"), template_vars)
+            raw_subject = _render_vars(template.get("subject", "Implementación: {project_number}"), template_vars)
+            subject = f"[{prefix_label}] {raw_subject}"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
-            subject = f"{ticket_label}{subject_suffix}: {project.get('project_number', '')}"
+            subject = f"[{prefix_label}] Implementación: {project.get('project_number', '')}"
             html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
-<h2 style="color:#2c3e50;">{subject_suffix}</h2>
+<h2 style="color:#2c3e50;">[{prefix_label}] Implementación</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
 <p>Estimado/a <strong>{template_vars.get('Contacto_Principal', client_name)}</strong>,</p>
 <p>Le informamos sobre el estado de su proyecto de implementación <strong>{project.get('project_number','')}</strong>.</p>
-<p><strong>Nivel:</strong> {level}</p>
 <table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
 <tr><td style="padding:4px 12px 4px 0;color:#666;">Cliente:</td><td style="padding:4px 0;font-weight:600;">{template_vars.get('Nombre_Cliente', client_name)}</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#666;">Cotización:</td><td style="padding:4px 0;">{project.get('quote_number','')}</td></tr>
@@ -386,20 +393,20 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template_vars["bank_name"] = bank_name
         template_vars["bank_products"] = ", ".join(bank_products)
 
-        # Try to find template in DB
+        # Siempre usar plantilla del DB
         template = await db.email_templates.find_one({"template_id": "project_notify_bank"}, {"_id": 0})
         if template and template.get("body_html"):
-            subject = _render_vars(template.get("subject", f"{ticket_label}{subject_suffix}: {bank_name} — {{project_number}}"), template_vars)
+            raw_subject = _render_vars(template.get("subject", "{bank_name} — {project_number}"), template_vars)
+            subject = f"[{prefix_label}] {raw_subject}"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
             products_html = "".join(f"<li>{p}</li>" for p in bank_products)
-            subject = f"{ticket_label}{subject_suffix}: {bank_name} — {project.get('project_number', '')}"
+            subject = f"[{prefix_label}] {bank_name} — {project.get('project_number', '')}"
             html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
-<h2 style="color:#2c3e50;">{subject_suffix} — {bank_name}</h2>
+<h2 style="color:#2c3e50;">[{prefix_label}] {bank_name}</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
 <p>Estimados contactos de <strong>{bank_name}</strong>,</p>
 <p>Proyecto <strong>{project.get('project_number','')}</strong> para <strong>{template_vars.get('Nombre_Cliente', project.get('client_name',''))}</strong>.</p>
-<p><strong>Nivel:</strong> {level}</p>
 <table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;">
 <tr><td style="padding:4px 12px 4px 0;color:#666;">Contacto Principal:</td><td style="padding:4px 0;">{template_vars.get('Contacto_Principal', '—')}</td></tr>
 <tr><td style="padding:4px 12px 4px 0;color:#666;">Integrador:</td><td style="padding:4px 0;">{template_vars.get('Integrador', '—')}</td></tr>
@@ -411,11 +418,19 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
 <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
 <p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
 
-    return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label}
+    return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
 async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None):
-    """Lógica unificada de notificaciones secuenciales con plantillas dinámicas."""
+    """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
+    
+    El cuerpo del correo siempre viene de la plantilla configurada.
+    El asunto se prefija automáticamente:
+      Envío 1: [Primer Envío]
+      Envío 2: [Primer Recordatorio]
+      Envío 3: [Segundo Recordatorio]
+      Envío 4+: [Tercer Recordatorio]
+    """
     current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
@@ -430,31 +445,9 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     # Obtener historial para esta entidad
     entity_history = notification_history.get(history_key, [])
-    executed_levels = [h["level"] for h in entity_history]
+    send_count = len(entity_history)  # Cuántas veces se ha enviado antes
 
-    # Determinar nivel actual
-    if level is None:
-        level = None
-        for lvl in NOTIFICATION_LEVELS:
-            if lvl not in executed_levels:
-                level = lvl
-                break
-        if level is None:
-            raise HTTPException(status_code=400, detail="Todos los niveles de notificación ya fueron enviados")
-    else:
-        if level not in NOTIFICATION_LEVELS:
-            raise HTTPException(status_code=400, detail=f"Nivel inválido. Válidos: {NOTIFICATION_LEVELS}")
-
-    # Validar secuencialidad
-    level_idx = NOTIFICATION_LEVELS.index(level)
-    for i in range(level_idx):
-        if NOTIFICATION_LEVELS[i] not in executed_levels:
-            raise HTTPException(status_code=400, detail=f"Debe ejecutar '{NOTIFICATION_LEVELS[i]}' antes de '{level}'")
-
-    if level in executed_levels:
-        raise HTTPException(status_code=400, detail=f"'{level}' ya fue enviada")
-
-    # Para bancos: verificar que cliente tenga al menos la Primera Comunicación
+    # Para bancos: verificar que cliente tenga al menos un envío
     if target == "bank":
         client_history = notification_history.get("client", [])
         if not client_history:
@@ -463,11 +456,15 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         if bank_name not in matrix:
             raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
 
+    # Determinar el prefijo basado en conteo
+    prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
+    prefix_label = NOTIFICATION_PREFIXES[prefix_idx]
+
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
 
-    # Construir email con plantillas + variables
-    email_data = await _resolve_notification_email(project, target, bank_name, level, template_vars)
+    # Construir email con plantilla + prefijo dinámico
+    email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars)
     to_list = email_data["to_list"]
     subject = email_data["subject"]
     html = email_data["html"]
@@ -475,35 +472,43 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     email_result = await send_email(
         to=to_list, subject=subject, html=html,
-        action=f"notification_{target}_{level.replace(' ', '_').lower()}",
+        action=f"notification_{target}_{prefix_label.replace(' ', '_').lower()}",
         quote_id=project.get("quote_id"), quote_number=project.get("quote_number"),
     )
 
     # Registrar en historial
-    entry = {"level": level, "sent_at": now, "sent_by": user_name, "recipients": to_list, "subject": subject, "email_status": email_result.get("status")}
+    entry = {
+        "level": prefix_label,
+        "send_number": send_count + 1,
+        "sent_at": now,
+        "sent_by": user_name,
+        "recipients": to_list,
+        "subject": subject,
+        "email_status": email_result.get("status"),
+    }
     entity_history.append(entry)
     notification_history[history_key] = entity_history
 
     update_set = {"notification_history": notification_history, "updated_at": now}
 
-    # Primera Comunicación al cliente desbloquea la matriz
-    if target == "client" and level == "Primera Comunicación":
+    # Primer envío al cliente desbloquea la matriz
+    if target == "client" and send_count == 0:
         update_set["client_notified"] = True
         update_set["client_notified_at"] = now
         update_set["client_notified_by"] = user_name
 
-    # Primera Comunicación al banco registra en bank_notifications (compat)
-    if target == "bank" and level == "Primera Comunicación":
+    # Primer envío al banco registra en bank_notifications (compat)
+    if target == "bank" and send_count == 0:
         bank_notifications = project.get("bank_notifications", {})
         bank_notifications[bank_name] = {"notified_at": now, "notified_by": user_name, "products": list(project.get("implementation_matrix", {}).get(bank_name, {}).keys()), "email_status": email_result.get("status")}
         update_set["bank_notifications"] = bank_notifications
 
     await db.projects.update_one({"project_id": project_id}, {"$set": update_set})
 
-    # Auto-registrar en bitácora con contenido completo
+    # Auto-registrar en bitácora
     bitacora_entry = {
         "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
-        "text": f"[{level}] {entity_label} — {subject}",
+        "text": f"[{prefix_label}] {entity_label} — {subject}",
         "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
@@ -513,7 +518,8 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
             "subject": subject,
             "recipients": to_list,
             "html_content": html,
-            "level": level,
+            "level": prefix_label,
+            "send_number": send_count + 1,
             "target": target,
             "bank_name": bank_name,
             "sent_at": now,
@@ -522,9 +528,10 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
     return {
-        "message": f"{level} enviada a {entity_label} ({email_result.get('status', 'unknown')})",
+        "message": f"[{prefix_label}] enviada a {entity_label} ({email_result.get('status', 'unknown')})",
         "status": email_result.get("status"),
-        "level": level,
+        "level": prefix_label,
+        "send_number": send_count + 1,
         "target": target,
         "bank_name": bank_name,
         "recipients": to_list,
@@ -537,31 +544,38 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 class PreviewNotificationRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
-    level: str = "Primera Comunicación"
 
 
 @router.post("/projects/{project_id}/preview-notification")
 async def preview_notification(project_id: str, body: PreviewNotificationRequest, authorization: Optional[str] = Header(None)):
-    """Vista previa de una notificación de proyecto sin enviarla."""
+    """Vista previa de la próxima notificación de proyecto (prefijo automático por conteo)."""
     await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    if body.level not in NOTIFICATION_LEVELS:
-        raise HTTPException(status_code=400, detail=f"Nivel inválido. Válidos: {NOTIFICATION_LEVELS}")
+    # Calcular conteo de envíos anteriores
+    notification_history = project.get("notification_history", {})
+    history_key = "client" if body.target == "client" else f"bank_{body.bank_name}"
+    entity_history = notification_history.get(history_key, [])
+    send_count = len(entity_history)
 
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
 
-    # Construir email (sin enviar)
-    email_data = await _resolve_notification_email(project, body.target, body.bank_name, body.level, template_vars)
+    # Construir email (sin enviar) con prefijo basado en conteo
+    email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars)
+
+    # Determinar próximo prefijo
+    prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
 
     return {
         "subject": email_data["subject"],
         "html": email_data["html"],
         "recipients": email_data["to_list"],
         "entity_label": email_data["entity_label"],
+        "prefix": NOTIFICATION_PREFIXES[prefix_idx],
+        "send_number": send_count + 1,
         "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
     }

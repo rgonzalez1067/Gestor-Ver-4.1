@@ -557,7 +557,7 @@ PROJECT_EMAIL_TEMPLATES = {
         "template_id": "project_notify_client",
         "name": "Notificación de Proyecto — Cliente",
         "description": "Comunicaciones secuenciales al cliente durante implementación",
-        "subject": "[Ticket {ticket_number}] {notification_subject}: {project_number}",
+        "subject": "Implementación Proyecto {project_number} — {Nombre_Cliente}",
         "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
 <h2 style="color:#2c3e50;">{notification_subject}</h2>
 <p><strong>Ticket:</strong> {ticket_number}</p>
@@ -584,7 +584,7 @@ PROJECT_EMAIL_TEMPLATES = {
         "template_id": "project_notify_bank",
         "name": "Notificación de Proyecto — Banco",
         "description": "Comunicaciones secuenciales a bancos durante implementación",
-        "subject": "[Ticket {ticket_number}] {notification_subject}: {bank_name} — {project_number}",
+        "subject": "Implementación {bank_name} — Proyecto {project_number}",
         "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
 <h2 style="color:#2c3e50;">{notification_subject} — {bank_name}</h2>
 <p><strong>Ticket:</strong> {ticket_number}</p>

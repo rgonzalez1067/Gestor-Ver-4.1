@@ -25,12 +25,6 @@ const PHASE_COLORS = {
   'En Producción': 'bg-emerald-100 text-emerald-800',
 };
 
-const NOTIFICATION_LEVELS = [
-  'Primera Comunicación',
-  'Primer Recordatorio',
-  'Segundo Recordatorio',
-  'Tercer Recordatorio',
-];
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -133,13 +127,14 @@ const ProjectDetail = () => {
     return nh[key] || [];
   };
 
-  const sendNotification = async (level) => {
-    setNotifSending(level);
+  const NOTIFICATION_PREFIXES = ['Primer Envío', 'Primer Recordatorio', 'Segundo Recordatorio', 'Tercer Recordatorio'];
+
+  const sendNotification = async () => {
+    setNotifSending('sending');
     try {
       const res = await api.post(`/projects/${projectId}/send-notification`, {
         target: notifTarget.type,
         bank_name: notifTarget.bankName || null,
-        level,
       });
       toast.success(res.data.message);
       fetchProject();
@@ -257,13 +252,12 @@ const ProjectDetail = () => {
   };
 
   // ==================== PREVIEW DE EMAIL ====================
-  const previewNotification = async (target, bankName, level) => {
+  const previewNotification = async (target, bankName) => {
     setPreviewLoading(true);
     try {
       const res = await api.post(`/projects/${projectId}/preview-notification`, {
         target: target || 'client',
         bank_name: bankName || null,
-        level: level || 'Primera Comunicación',
       });
       setPreviewData(res.data);
       setPreviewOpen(true);
@@ -705,53 +699,72 @@ const ProjectDetail = () => {
                 })()}
               </div>
 
-              {/* Niveles secuenciales */}
-              <div className="space-y-2">
-              {NOTIFICATION_LEVELS.map((level, idx) => {
+              {/* Historial de envíos y próximo envío */}
+              {(() => {
                 const history = notifTarget ? getEntityHistory(notifTarget) : [];
-                const executedLevels = history.map(h => h.level);
-                const isExecuted = executedLevels.includes(level);
-                const prevExecuted = idx === 0 || executedLevels.includes(NOTIFICATION_LEVELS[idx - 1]);
-                const isEnabled = !isExecuted && prevExecuted;
-                const executedEntry = history.find(h => h.level === level);
+                const sendCount = history.length;
+                const prefixIdx = Math.min(sendCount, NOTIFICATION_PREFIXES.length - 1);
+                const nextPrefix = NOTIFICATION_PREFIXES[prefixIdx];
 
                 return (
-                  <div key={level} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-                    isExecuted ? 'bg-emerald-50 border-emerald-200' : isEnabled ? 'bg-white border-amber-200 hover:border-amber-300' : 'bg-slate-50 border-slate-200 opacity-50'
-                  }`} data-testid={`notif-level-${idx}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isExecuted ? 'bg-emerald-500 text-white' : isEnabled ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-200 text-slate-400'
-                      }`}>{idx + 1}</div>
-                      <div>
-                        <p className={`text-sm font-medium ${isExecuted ? 'text-emerald-700' : 'text-slate-700'}`}>{level}</p>
-                        {isExecuted && executedEntry && (
-                          <p className="text-[10px] text-emerald-500">{executedEntry.sent_by} · {new Date(executedEntry.sent_at).toLocaleString('es-VE')}</p>
-                        )}
+                  <div className="space-y-3">
+                    {/* Historial de envíos anteriores */}
+                    {history.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold text-slate-500 uppercase">Historial de Envíos ({history.length})</p>
+                        {history.map((entry, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 border border-emerald-200" data-testid={`notif-history-${idx}`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">{idx + 1}</div>
+                              <div>
+                                <p className="text-sm font-medium text-emerald-700">[{entry.level}]</p>
+                                <p className="text-[10px] text-emerald-500">{entry.sent_by} · {new Date(entry.sent_at).toLocaleString('es-VE')}</p>
+                              </div>
+                            </div>
+                            <CheckCircle2 size={18} className="text-emerald-500" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Próximo envío */}
+                    <div className={`p-4 rounded-lg border-2 transition-all ${
+                      sendCount === 0 ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
+                    }`} data-testid="next-send-block">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+                            sendCount === 0 ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'
+                          }`}>{sendCount + 1}</div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">Próximo envío: [{nextPrefix}]</p>
+                            <p className="text-xs text-slate-500">
+                              Plantilla: <span className="font-medium">{notifTarget?.type === 'client' ? 'Notificación de Proyecto — Cliente' : 'Notificación de Proyecto — Banco'}</span>
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              El asunto se prefijará automáticamente con [{nextPrefix}]
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                            disabled={previewLoading} onClick={() => previewNotification(notifTarget?.type, notifTarget?.bankName)}
+                            data-testid="preview-next-notif">
+                            <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
+                          </Button>
+                          <Button size="sm" className={`h-8 text-xs text-white ${
+                            sendCount === 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-amber-500 hover:bg-amber-600'
+                          }`}
+                            disabled={!!notifSending} onClick={sendNotification}
+                            data-testid="send-next-notif">
+                            <Send size={12} className="mr-1" />{notifSending ? 'Enviando...' : 'Enviar'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    {isExecuted ? (
-                      <CheckCircle2 size={20} className="text-emerald-500" />
-                    ) : isEnabled ? (
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
-                          disabled={previewLoading} onClick={() => previewNotification(notifTarget?.type, notifTarget?.bankName, level)}
-                          data-testid={`preview-notif-${idx}`}>
-                          <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
-                        </Button>
-                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white h-8 text-xs"
-                          disabled={notifSending === level} onClick={() => sendNotification(level)}
-                          data-testid={`send-notif-${idx}`}>
-                          <Send size={12} className="mr-1" />{notifSending === level ? 'Enviando...' : 'Enviar'}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Lock size={16} className="text-slate-300" />
-                    )}
                   </div>
                 );
-              })}
-              </div>
+              })()}
             </div>
           </DialogContent>
         </Dialog>
