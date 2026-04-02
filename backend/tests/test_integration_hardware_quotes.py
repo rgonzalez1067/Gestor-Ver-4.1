@@ -8,7 +8,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quotes-rbac-fix.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://workflow-opt.preview.emergentagent.com').rstrip('/')
 AUTH_HEADER = {"Authorization": "Bearer test_import_session_token_2024"}
 
 
