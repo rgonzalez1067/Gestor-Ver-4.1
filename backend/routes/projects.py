@@ -29,10 +29,18 @@ class ProjectStatusUpdate(BaseModel):
 
 class ProjectAssign(BaseModel):
     assigned_to_user_id: str
-    ticket_number: str
     estimated_delivery_date: Optional[str] = None
     reassignment_comment: Optional[str] = None
     reassignment_date: Optional[str] = None
+
+
+class TicketNumberUpdate(BaseModel):
+    ticket_number: str
+
+
+class VTIDGenerateRequest(BaseModel):
+    prefix: str
+    start_number: int = 1
 
 
 class PhaseUpdate(BaseModel):
@@ -130,16 +138,6 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Validar ticket_number obligatorio
-    ticket = assignment.ticket_number.strip()
-    if not ticket:
-        raise HTTPException(status_code=400, detail="El Número de Ticket es obligatorio")
-
-    # Verificar unicidad del ticket (excepto si es el mismo proyecto reasignado)
-    existing = await db.projects.find_one({"ticket_number": ticket, "project_id": {"$ne": project_id}}, {"_id": 0, "project_id": 1})
-    if existing:
-        raise HTTPException(status_code=400, detail=f"El Número de Ticket '{ticket}' ya está asignado a otro proyecto")
-
     implementer = await db.users.find_one({"user_id": assignment.assigned_to_user_id}, {"_id": 0})
     if not implementer:
         raise HTTPException(status_code=404, detail="Implementador no encontrado")
@@ -154,7 +152,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         "assigned_by_user_id": current_user.get("user_id"),
         "assigned_by_name": assigner_name,
         "assigned_at": now,
-        "ticket_number": ticket,
+        "fecha_asignacion": now,
         "status": "Asignado / En Proceso",
         "updated_at": now,
     }
@@ -163,8 +161,8 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
 
     previous_assignee = project.get("assigned_to_name", "")
     is_reassignment = bool(previous_assignee)
-    
-    note_text = f"Proyecto {'reasignado' if is_reassignment else 'asignado'} a {implementer_name}. Ticket: {ticket}."
+
+    note_text = f"Proyecto {'reasignado' if is_reassignment else 'asignado'} a {implementer_name}."
     if is_reassignment and previous_assignee:
         note_text += f" (Anterior: {previous_assignee})"
     if assignment.reassignment_date:
@@ -184,21 +182,21 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
 
     await db.projects.update_one({"project_id": project_id}, {"$set": update_data, "$push": {"notes": note}})
 
-    # Notificar al implementador (con ticket en asunto)
+    # Notificar al implementador
     impl_email = implementer.get("email")
     if impl_email:
         try:
             await send_email(
                 to=[impl_email],
-                subject=f"[Ticket {ticket}] Proyecto Asignado: {project.get('project_number', project_id)}",
-                html=f"<h2>Nuevo proyecto asignado</h2><p><strong>Ticket:</strong> {ticket}</p><p><strong>Proyecto:</strong> {project.get('project_number')}</p><p><strong>Cliente:</strong> {project.get('client_name')} ({project.get('client_rif')})</p><p><strong>Asignado por:</strong> {assigner_name}</p>",
+                subject=f"Proyecto Asignado: {project.get('project_number', project_id)}",
+                html=f"<h2>Nuevo proyecto asignado</h2><p><strong>Proyecto:</strong> {project.get('project_number')}</p><p><strong>Cliente:</strong> {project.get('client_name')} ({project.get('client_rif')})</p><p><strong>Asignado por:</strong> {assigner_name}</p>",
                 action="assign_project",
                 quote_id=project.get("quote_id")
             )
         except Exception as e:
             logger.warning(f"Error notificando implementador: {e}")
 
-    return {"message": "Proyecto asignado exitosamente", "assigned_to": implementer_name, "ticket_number": ticket}
+    return {"message": "Proyecto asignado exitosamente", "assigned_to": implementer_name}
 
 
 @router.put("/projects/{project_id}/status")
@@ -692,6 +690,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Nombre_Implementador", "label": "Nombre del Implementador", "source": "Usuarios.nombre (asignado)"},
             {"key": "Correo_Implementador", "label": "Correo del Implementador", "source": "Usuarios.email (asignado)"},
             {"key": "Telefono_Implementador", "label": "Teléfono del Implementador", "source": "Usuarios.phone (asignado)"},
+            {"key": "Lista_VTID", "label": "Lista de Terminales Virtuales (HTML)", "source": "Proyecto.vtids"},
         ],
     }
 
@@ -1083,3 +1082,159 @@ async def migrate_project_matrices(authorization: Optional[str] = Header(None)):
             updated += 1
     
     return {"message": f"Matrices actualizadas: {updated} proyectos"}
+
+
+# ==================== TICKET NUMBER (SECURITY LOCK) ====================
+
+@router.put("/projects/{project_id}/ticket")
+async def update_ticket_number(project_id: str, body: TicketNumberUpdate, authorization: Optional[str] = Header(None)):
+    """Permite al implementador registrar el Número de Ticket para desbloquear la ejecución del proyecto."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    ticket = body.ticket_number.strip()
+    if not ticket:
+        raise HTTPException(status_code=400, detail="El Número de Ticket es obligatorio")
+
+    # Verificar unicidad del ticket
+    existing = await db.projects.find_one({"ticket_number": ticket, "project_id": {"$ne": project_id}}, {"_id": 0, "project_id": 1})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"El Número de Ticket '{ticket}' ya está asignado a otro proyecto")
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+
+    note = {
+        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+        "text": f"Ticket registrado: {ticket} (por {user_name})",
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+    }
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"ticket_number": ticket, "updated_at": now}, "$push": {"notes": note}}
+    )
+
+    return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket}
+
+
+# ==================== VTID GENERATOR ====================
+
+@router.post("/projects/{project_id}/vtids/generate")
+async def generate_vtids(project_id: str, body: VTIDGenerateRequest, authorization: Optional[str] = Header(None)):
+    """Genera VTIDs secuenciales para el proyecto basado en la cantidad total de cajas."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    prefix = body.prefix.strip().upper()
+    if not prefix:
+        raise HTTPException(status_code=400, detail="El prefijo es obligatorio")
+    if len(prefix) > 10:
+        raise HTTPException(status_code=400, detail="El prefijo no puede superar 10 caracteres")
+
+    # Calcular total de cajas
+    stores = project.get("stores", [])
+    if stores:
+        total_boxes = sum(s.get("box_count", 0) for s in stores)
+    else:
+        services = project.get("services", [])
+        total_boxes = max((s.get("cantidad_cajas", 0) for s in services), default=0) if services else 0
+
+    if total_boxes <= 0:
+        raise HTTPException(status_code=400, detail="El proyecto no tiene cajas registradas. No se pueden generar VTIDs.")
+
+    start = max(body.start_number, 1)
+    vtids = []
+    for i in range(total_boxes):
+        num = start + i
+        vtid_code = f"{prefix}{str(num).zfill(3)}"
+        vtids.append({
+            "vtid_id": f"vtid_{uuid.uuid4().hex[:8]}",
+            "code": vtid_code,
+            "sequence": num,
+        })
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+
+    note = {
+        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+        "text": f"VTIDs generados ({len(vtids)}): {prefix}{str(start).zfill(3)} → {prefix}{str(start + total_boxes - 1).zfill(3)} (por {user_name})",
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+    }
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {
+            "$set": {
+                "vtids": vtids,
+                "vtid_prefix": prefix,
+                "vtid_generated_at": now,
+                "vtid_generated_by": user_name,
+                "updated_at": now,
+            },
+            "$push": {"notes": note},
+        }
+    )
+
+    return {
+        "message": f"{len(vtids)} VTIDs generados exitosamente",
+        "vtids": vtids,
+        "total": len(vtids),
+        "prefix": prefix,
+    }
+
+
+@router.get("/projects/{project_id}/vtids")
+async def get_vtids(project_id: str, authorization: Optional[str] = Header(None)):
+    """Obtiene los VTIDs generados para un proyecto."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "vtids": 1, "vtid_prefix": 1, "vtid_generated_at": 1, "vtid_generated_by": 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    return {
+        "vtids": project.get("vtids", []),
+        "prefix": project.get("vtid_prefix", ""),
+        "generated_at": project.get("vtid_generated_at"),
+        "generated_by": project.get("vtid_generated_by"),
+    }
+
+
+@router.delete("/projects/{project_id}/vtids")
+async def delete_vtids(project_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina los VTIDs generados de un proyecto."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+
+    note = {
+        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+        "text": f"VTIDs eliminados (por {user_name})",
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+    }
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {
+            "$set": {"updated_at": now},
+            "$unset": {"vtids": "", "vtid_prefix": "", "vtid_generated_at": "", "vtid_generated_by": ""},
+            "$push": {"notes": note},
+        }
+    )
+
+    return {"message": "VTIDs eliminados exitosamente"}

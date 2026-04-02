@@ -12,7 +12,8 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
-  Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList
+  Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
+  Hash, Trash2, AlertCircle, Shield
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -66,6 +67,16 @@ const ProjectDetail = () => {
   const [templateForm, setTemplateForm] = useState({ name: '', subject: '', body: '' });
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [templateSaving, setTemplateSaving] = useState(false);
+
+  // Security Lock: ticket number
+  const [ticketInput, setTicketInput] = useState('');
+  const [ticketSaving, setTicketSaving] = useState(false);
+
+  // VTID Generator
+  const [vtidPrefix, setVtidPrefix] = useState('');
+  const [vtidStartNumber, setVtidStartNumber] = useState(1);
+  const [vtidGenerating, setVtidGenerating] = useState(false);
+  const [vtidDeleting, setVtidDeleting] = useState(false);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -324,6 +335,44 @@ const ProjectDetail = () => {
     setTemplatesDialogOpen(true);
   };
 
+  // ==================== SECURITY LOCK: TICKET NUMBER ====================
+  const handleSaveTicket = async () => {
+    if (!ticketInput.trim()) { toast.error('Ingrese el Número de Ticket'); return; }
+    setTicketSaving(true);
+    try {
+      await api.put(`/projects/${projectId}/ticket`, { ticket_number: ticketInput.trim() });
+      toast.success('Ticket registrado exitosamente');
+      setTicketInput('');
+      fetchProject();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al registrar ticket'); }
+    finally { setTicketSaving(false); }
+  };
+
+  // ==================== VTID GENERATOR ====================
+  const handleGenerateVTIDs = async () => {
+    if (!vtidPrefix.trim()) { toast.error('Ingrese un prefijo'); return; }
+    setVtidGenerating(true);
+    try {
+      const res = await api.post(`/projects/${projectId}/vtids/generate`, {
+        prefix: vtidPrefix.trim(),
+        start_number: vtidStartNumber,
+      });
+      toast.success(res.data.message);
+      fetchProject();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al generar VTIDs'); }
+    finally { setVtidGenerating(false); }
+  };
+
+  const handleDeleteVTIDs = async () => {
+    setVtidDeleting(true);
+    try {
+      await api.delete(`/projects/${projectId}/vtids`);
+      toast.success('VTIDs eliminados');
+      fetchProject();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar VTIDs'); }
+    finally { setVtidDeleting(false); }
+  };
+
   const handleSaveTemplate = async () => {
     if (!templateForm.name.trim() || !templateForm.subject.trim()) { toast.error('Nombre y asunto son obligatorios'); return; }
     setTemplateSaving(true);
@@ -360,6 +409,7 @@ const ProjectDetail = () => {
   }
 
   const isMultistore = project.project_type === 'multistore';
+  const isLocked = !!project.assigned_to_name && !project.ticket_number;
   const clientNotified = project.client_notified === true;
   const bankNotifications = project.bank_notifications || {};
   const matrix = project.implementation_matrix || {};
@@ -449,6 +499,9 @@ const ProjectDetail = () => {
                     <div>
                       <p className="text-xs text-slate-500">Implementador</p>
                       <p className="text-sm font-semibold text-slate-700">{project.assigned_to_name}</p>
+                      {(project.fecha_asignacion || project.assigned_at) && (
+                        <p className="text-[10px] text-slate-400">Asignado el: {new Date(project.fecha_asignacion || project.assigned_at).toLocaleDateString('es-VE')}</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -485,11 +538,46 @@ const ProjectDetail = () => {
             </div>
           </div>
 
+          {/* ============ SECURITY LOCK: TICKET REQUIRED ============ */}
+          {project.assigned_to_name && !project.ticket_number && (
+            <div className="mb-6 bg-amber-50 border-2 border-amber-300 rounded-xl p-5" data-testid="security-lock-banner">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <Shield size={24} className="text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-amber-900">Proyecto Bloqueado — Ticket Requerido</h3>
+                  <p className="text-sm text-amber-700 mt-1">Para desbloquear las funciones de ejecución, registre el Número de Ticket proporcionado por el sistema de gestión.</p>
+                  <div className="flex items-end gap-3 mt-3">
+                    <div className="flex-1 max-w-sm">
+                      <Label className="text-xs font-medium text-amber-800">Número de Ticket</Label>
+                      <Input
+                        placeholder="Ej: TK-2026-0001"
+                        value={ticketInput}
+                        onChange={e => setTicketInput(e.target.value)}
+                        className="mt-1 h-9 border-amber-300 focus:ring-amber-400"
+                        data-testid="security-lock-ticket-input"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSaveTicket}
+                      disabled={ticketSaving || !ticketInput.trim()}
+                      className="h-9 bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                      data-testid="security-lock-save-btn"
+                    >
+                      <Lock size={14} />{ticketSaving ? 'Guardando...' : 'Desbloquear'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ============ NOTIFICATION SECTION ============ */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-slate-900">Matriz de Implementación</h2>
-              <Button onClick={() => openNotifDialog('client')} className={`gap-2 ${clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
+              <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
                 {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
                 Notificaciones
               </Button>
@@ -615,6 +703,97 @@ const ProjectDetail = () => {
                   </div>
                 );
               })()}
+            </div>
+          )}
+
+          {/* ============ VTID GENERATOR ============ */}
+          {project.ticket_number && (
+            <div className="mb-6" data-testid="vtid-section">
+              <h2 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <Hash size={20} className="text-indigo-600" />Terminales Virtuales (VTID)
+              </h2>
+
+              {/* Generador */}
+              {(!project.vtids || project.vtids.length === 0) ? (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+                  <p className="text-sm text-indigo-700 mb-3">Genere los IDs de terminales virtuales para este proyecto. Se creará uno por cada caja registrada.</p>
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div>
+                      <Label className="text-xs font-medium text-indigo-800">Prefijo</Label>
+                      <Input
+                        placeholder="Ej: MS, VT, TM"
+                        value={vtidPrefix}
+                        onChange={e => setVtidPrefix(e.target.value.toUpperCase())}
+                        className="mt-1 h-9 w-32 border-indigo-300 focus:ring-indigo-400 uppercase"
+                        maxLength={10}
+                        data-testid="vtid-prefix-input"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-indigo-800">Inicio</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={vtidStartNumber}
+                        onChange={e => setVtidStartNumber(parseInt(e.target.value) || 1)}
+                        className="mt-1 h-9 w-20 border-indigo-300 focus:ring-indigo-400"
+                        data-testid="vtid-start-input"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleGenerateVTIDs}
+                      disabled={vtidGenerating || !vtidPrefix.trim()}
+                      className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                      data-testid="vtid-generate-btn"
+                    >
+                      <Hash size={14} />{vtidGenerating ? 'Generando...' : 'Generar VTIDs'}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-indigo-500 mt-2">
+                    Total de cajas del proyecto: <span className="font-bold">{
+                      project.stores?.length > 0
+                        ? project.stores.reduce((sum, s) => sum + (s.box_count || 0), 0)
+                        : Math.max(...(project.services || []).map(s => s.cantidad_cajas || 0), 0)
+                    }</span> — Se generará un VTID por cada caja.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-indigo-900">
+                        {project.vtids.length} Terminal{project.vtids.length !== 1 ? 'es' : ''} Generado{project.vtids.length !== 1 ? 's' : ''}
+                      </p>
+                      <p className="text-[10px] text-indigo-500">
+                        Prefijo: <span className="font-bold">{project.vtid_prefix}</span>
+                        {project.vtid_generated_by && <> · Generado por: {project.vtid_generated_by}</>}
+                        {project.vtid_generated_at && <> · {new Date(project.vtid_generated_at).toLocaleDateString('es-VE')}</>}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={handleDeleteVTIDs}
+                      disabled={vtidDeleting}
+                      className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1"
+                      data-testid="vtid-delete-btn"
+                    >
+                      <Trash2 size={12} />{vtidDeleting ? 'Eliminando...' : 'Eliminar'}
+                    </Button>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {project.vtids.map((vtid, idx) => (
+                        <div key={vtid.vtid_id || idx}
+                          className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-center"
+                          data-testid={`vtid-item-${idx}`}>
+                          <p className="text-sm font-bold font-mono text-indigo-700">{vtid.code}</p>
+                          <p className="text-[10px] text-slate-400">#{vtid.sequence}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -927,7 +1106,7 @@ const ProjectDetail = () => {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
                 <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                     <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
                       title={`Insertar ${v}`}>{v}</button>

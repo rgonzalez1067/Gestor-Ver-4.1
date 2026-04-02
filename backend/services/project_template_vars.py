@@ -63,6 +63,36 @@ def _build_matrix_html(implementation_matrix: dict) -> str:
     return html
 
 
+def _build_vtid_list_html(vtids: list) -> str:
+    """Genera una lista HTML de VTIDs generados."""
+    if not vtids:
+        return "<p><em>Sin terminales virtuales generados.</em></p>"
+
+    html = (
+        '<table style="border-collapse:collapse;width:auto;font-family:Arial,sans-serif;font-size:13px;">'
+        '<thead>'
+        '<tr style="background:#2c3e50;color:white;">'
+        '<th style="padding:8px 16px;text-align:center;border:1px solid #ddd;">#</th>'
+        '<th style="padding:8px 16px;text-align:left;border:1px solid #ddd;">VTID</th>'
+        '</tr>'
+        '</thead><tbody>'
+    )
+
+    for idx, vtid in enumerate(vtids):
+        bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+        code = vtid.get("code", "")
+        html += (
+            f'<tr style="background:{bg};">'
+            f'<td style="padding:6px 16px;text-align:center;border:1px solid #e9ecef;">{idx + 1}</td>'
+            f'<td style="padding:6px 16px;border:1px solid #e9ecef;font-weight:bold;">{code}</td>'
+            f'</tr>'
+        )
+
+    html += '</tbody></table>'
+    return html
+
+
+
 def _build_stores_summary(stores: list) -> tuple:
     """Genera resúmenes de sucursales y cajas.
     Returns: (nombre_sucursal_str, cantidad_cajas_str)
@@ -162,6 +192,10 @@ async def resolve_project_template_vars(project: dict) -> dict:
     matrix = project.get("implementation_matrix", {})
     matriz_html = _build_matrix_html(matrix)
 
+    # === {Lista_VTID} ===
+    vtids = project.get("vtids", [])
+    lista_vtid = _build_vtid_list_html(vtids)
+
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
 
@@ -178,6 +212,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Correo_Implementador": correo_implementador,
         "Telefono_Implementador": telefono_implementador,
         "Matriz_Bancos_Productos": matriz_html,
+        "Lista_VTID": lista_vtid,
 
         # Variables estándar del proyecto
         "project_number": project_number,

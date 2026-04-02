@@ -79,7 +79,6 @@ const Projects = () => {
     const isReassign = !!project.assigned_to_name;
     setAssignForm({
       assigned_to_user_id: '',
-      ticket_number: project.ticket_number || '',
       estimated_delivery_date: project.estimated_delivery_date || '',
       reassignment_comment: '',
       reassignment_date: isReassign ? new Date().toISOString().slice(0, 10) : ''
@@ -90,7 +89,6 @@ const Projects = () => {
 
   const handleAssign = async () => {
     if (!assignForm.assigned_to_user_id) { toast.error('Seleccione un implementador'); return; }
-    if (!assignForm.ticket_number.trim()) { toast.error('El Número de Ticket es obligatorio'); return; }
     const isReassign = !!assignProject.assigned_to_name;
     if (isReassign && !assignForm.reassignment_comment.trim()) { toast.error('Ingrese un comentario para la reasignación'); return; }
     setAssignLoading(true);
@@ -456,18 +454,6 @@ const Projects = () => {
                 )}
 
                 <div>
-                  <Label className="text-sm">Número de Ticket <span className="text-red-500">*</span></Label>
-                  <Input
-                    placeholder="Ej: TK-2026-0001"
-                    value={assignForm.ticket_number}
-                    onChange={e => setAssignForm({ ...assignForm, ticket_number: e.target.value })}
-                    className="mt-1"
-                    data-testid="assign-ticket-number"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">Identificador único del proyecto para comunicaciones</p>
-                </div>
-
-                <div>
                   <Label className="text-sm">Nuevo Implementador</Label>
                   <Select value={assignForm.assigned_to_user_id} onValueChange={v => setAssignForm({ ...assignForm, assigned_to_user_id: v })}>
                     <SelectTrigger className="mt-1" data-testid="select-implementer"><SelectValue placeholder="Seleccionar implementador..." /></SelectTrigger>
@@ -508,7 +494,7 @@ const Projects = () => {
                 <div className="flex justify-end gap-3 pt-2 border-t">
                   <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancelar</Button>
                   <Button onClick={handleAssign}
-                    disabled={assignLoading || !assignForm.assigned_to_user_id || !assignForm.ticket_number.trim() || (assignProject.assigned_to_name && !assignForm.reassignment_comment.trim())}
+                    disabled={assignLoading || !assignForm.assigned_to_user_id || (assignProject.assigned_to_name && !assignForm.reassignment_comment.trim())}
                     className={`text-white ${assignProject.assigned_to_name ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                     data-testid="assign-confirm-btn">
                     {assignLoading ? 'Procesando...' : assignProject.assigned_to_name ? 'Reasignar Proyecto' : 'Asignar Proyecto'}
