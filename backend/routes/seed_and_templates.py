@@ -381,7 +381,7 @@ BASE_EMAIL_TEMPLATES = {
         "subject": "Presupuesto de Reparación - Cotización Nro. {nro_cotizacion} - {nombre_cliente}",
         "body_html": """
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<body style="font-family: Arial, sans-serif; color: #333; width: 95%; max-width: 900px; margin: 0 auto;">
 <div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Presupuesto de Reparación</h2>
 </div>
@@ -416,7 +416,7 @@ BASE_EMAIL_TEMPLATES = {
         "subject": "Confirmación de Aprobación - Cotización Nro. {nro_cotizacion}",
         "body_html": """
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<body style="font-family: Arial, sans-serif; color: #333; width: 95%; max-width: 900px; margin: 0 auto;">
 <div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Aprobación Confirmada</h2>
 </div>
@@ -445,7 +445,7 @@ BASE_EMAIL_TEMPLATES = {
         "subject": "Sus equipos ya han sido reparados - {nro_cotizacion}",
         "body_html": """
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<body style="font-family: Arial, sans-serif; color: #333; width: 95%; max-width: 900px; margin: 0 auto;">
 <div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Reparación Finalizada</h2>
 </div>
@@ -475,7 +475,7 @@ BASE_EMAIL_TEMPLATES = {
         "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
         "body_html": """
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<body style="font-family: Arial, sans-serif; color: #333; width: 95%; max-width: 900px; margin: 0 auto;">
 <div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Entrega de Equipos Reparados</h2>
 </div>
@@ -510,7 +510,7 @@ BASE_EMAIL_TEMPLATES = {
         "subject": "ORDEN DE DESPACHO: Pago Confirmado - Cotización #{nro_cotizacion} - {nombre_cliente}",
         "body_html": """
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+<body style="font-family: Arial, sans-serif; color: #333; width: 95%; max-width: 900px; margin: 0 auto;">
 <div style="background: #2c3e50; padding: 20px 24px; border-radius: 8px 8px 0 0;">
   <h2 style="color: #ffffff; margin: 0; font-size: 20px;">Orden de Despacho — Equipos Reparados</h2>
 </div>
@@ -558,7 +558,7 @@ PROJECT_EMAIL_TEMPLATES = {
         "name": "Notificación de Proyecto — Cliente",
         "description": "Comunicaciones secuenciales al cliente durante implementación",
         "subject": "Implementación Proyecto {project_number} — {Nombre_Cliente}",
-        "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
+        "body_html": """<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;">
 <h2 style="color:#2c3e50;">{notification_subject}</h2>
 <p><strong>Ticket:</strong> {ticket_number}</p>
 <p>Estimado/a <strong>{Contacto_Principal}</strong>,</p>
@@ -585,7 +585,7 @@ PROJECT_EMAIL_TEMPLATES = {
         "name": "Notificación de Proyecto — Banco",
         "description": "Comunicaciones secuenciales a bancos durante implementación",
         "subject": "Implementación {bank_name} — Proyecto {project_number}",
-        "body_html": """<div style="font-family:Arial,sans-serif;max-width:600px;">
+        "body_html": """<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;">
 <h2 style="color:#2c3e50;">{notification_subject} — {bank_name}</h2>
 <p><strong>Ticket:</strong> {ticket_number}</p>
 <p>Estimados contactos de <strong>{bank_name}</strong>,</p>

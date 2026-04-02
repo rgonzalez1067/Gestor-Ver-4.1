@@ -41,6 +41,7 @@ class TicketNumberUpdate(BaseModel):
 class VTIDGenerateRequest(BaseModel):
     prefix: str
     start_number: int = 1
+    store_id: Optional[str] = None
 
 
 class PhaseUpdate(BaseModel):
@@ -305,6 +306,8 @@ class SequentialNotifyRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
     additional_recipients: Optional[List[str]] = None  # CC emails
+    custom_html: Optional[str] = None  # Editable preview override
+    custom_subject: Optional[str] = None  # Editable subject override
 
 
 @router.post("/projects/{project_id}/send-notification")
@@ -312,7 +315,9 @@ async def send_sequential_notification(project_id: str, body: SequentialNotifyRe
     """Enviar notificación al cliente o banco. El prefijo se calcula automáticamente por conteo."""
     return await _send_sequential_notification(
         project_id, body.target, body.bank_name, authorization,
-        additional_recipients=body.additional_recipients
+        additional_recipients=body.additional_recipients,
+        custom_html=body.custom_html,
+        custom_subject=body.custom_subject,
     )
 
 
@@ -380,7 +385,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
             subject = f"[{prefix_label}] Implementación: {project.get('project_number', '')}"
-            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+            html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
 <h2 style="color:#2c3e50;">[{prefix_label}] Implementación</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
 <p>Estimado/a <strong>{template_vars.get('Contacto_Principal', client_name)}</strong>,</p>
@@ -433,7 +438,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         else:
             products_html = "".join(f"<li>{p}</li>" for p in bank_products)
             subject = f"[{prefix_label}] {bank_name} — {project.get('project_number', '')}"
-            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;">
+            html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
 <h2 style="color:#2c3e50;">[{prefix_label}] {bank_name}</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
 <p>Estimados contactos de <strong>{bank_name}</strong>,</p>
@@ -452,7 +457,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
-async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None):
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None):
     """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
     
     El cuerpo del correo siempre viene de la plantilla configurada.
@@ -497,8 +502,8 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     # Construir email con plantilla + prefijo dinámico
     email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars)
     to_list = email_data["to_list"]
-    subject = email_data["subject"]
-    html = email_data["html"]
+    subject = custom_subject if custom_subject else email_data["subject"]
+    html = custom_html if custom_html else email_data["html"]
     entity_label = email_data["entity_label"]
 
     email_result = await send_email(
@@ -646,7 +651,7 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     if body.include_matrix:
         matrix_section = f"<hr>{template_vars.get('Matriz_Bancos_Productos', '')}"
 
-    html = f"""<div style="font-family: Arial, sans-serif; max-width: 600px;">
+    html = f"""<div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
         <p>{message_html}</p>
         {matrix_section}
         <hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | {f'Ticket: {ticket} | ' if ticket else ''}Cliente: {template_vars.get('Nombre_Cliente', project.get("client_name", ""))}</p>
@@ -933,7 +938,7 @@ async def send_adhoc_email(
     # Incluir matrix_html si fue enviada (separada del conteo de caracteres)
     matrix_section = f"<hr>{matrix_html}" if matrix_html.strip() else ""
     html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px;">
+    <div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
         <p>{message_html}</p>
         {matrix_section}
         {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
@@ -1122,11 +1127,11 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
     return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket}
 
 
-# ==================== VTID GENERATOR ====================
+# ==================== VTID GENERATOR (PER-STORE) ====================
 
 @router.post("/projects/{project_id}/vtids/generate")
 async def generate_vtids(project_id: str, body: VTIDGenerateRequest, authorization: Optional[str] = Header(None)):
-    """Genera VTIDs secuenciales para el proyecto basado en la cantidad total de cajas."""
+    """Genera VTIDs secuenciales. Si store_id se provee, genera para esa sucursal."""
     current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
@@ -1138,80 +1143,126 @@ async def generate_vtids(project_id: str, body: VTIDGenerateRequest, authorizati
     if len(prefix) > 10:
         raise HTTPException(status_code=400, detail="El prefijo no puede superar 10 caracteres")
 
-    # Calcular total de cajas
     stores = project.get("stores", [])
-    if stores:
-        total_boxes = sum(s.get("box_count", 0) for s in stores)
-    else:
-        services = project.get("services", [])
-        total_boxes = max((s.get("cantidad_cajas", 0) for s in services), default=0) if services else 0
-
-    if total_boxes <= 0:
-        raise HTTPException(status_code=400, detail="El proyecto no tiene cajas registradas. No se pueden generar VTIDs.")
-
-    start = max(body.start_number, 1)
-    vtids = []
-    for i in range(total_boxes):
-        num = start + i
-        vtid_code = f"{prefix}{str(num).zfill(3)}"
-        vtids.append({
-            "vtid_id": f"vtid_{uuid.uuid4().hex[:8]}",
-            "code": vtid_code,
-            "sequence": num,
-        })
+    is_multistore = project.get("project_type") == "multistore" and len(stores) > 0
 
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    start = max(body.start_number, 1)
 
-    note = {
-        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
-        "text": f"VTIDs generados ({len(vtids)}): {prefix}{str(start).zfill(3)} → {prefix}{str(start + total_boxes - 1).zfill(3)} (por {user_name})",
-        "created_by": current_user.get("user_id", ""),
-        "created_by_name": user_name,
-        "created_at": now,
-    }
+    if is_multistore:
+        # MULTITIENDA: generar VTIDs por sucursal
+        if not body.store_id:
+            raise HTTPException(status_code=400, detail="Para proyectos multitienda, debe especificar la sucursal (store_id)")
+        store = next((s for s in stores if s.get("store_id") == body.store_id), None)
+        if not store:
+            raise HTTPException(status_code=404, detail="Sucursal no encontrada")
+        total_boxes = store.get("box_count", 0)
+        if total_boxes <= 0:
+            raise HTTPException(status_code=400, detail=f"La sucursal '{store.get('name', '')}' no tiene cajas registradas.")
 
-    await db.projects.update_one(
-        {"project_id": project_id},
-        {
-            "$set": {
+        vtids = []
+        for i in range(total_boxes):
+            num = start + i
+            vtids.append({
+                "vtid_id": f"vtid_{uuid.uuid4().hex[:8]}",
+                "code": f"{prefix}{str(num).zfill(3)}",
+                "sequence": num,
+            })
+
+        # Update store's vtids within the stores array
+        await db.projects.update_one(
+            {"project_id": project_id, "stores.store_id": body.store_id},
+            {"$set": {
+                "stores.$.vtids": vtids,
+                "stores.$.vtid_prefix": prefix,
+                "stores.$.vtid_generated_at": now,
+                "stores.$.vtid_generated_by": user_name,
+                "updated_at": now,
+            }}
+        )
+        store_name = store.get("name", body.store_id)
+        note_text = f"VTIDs generados para {store_name} ({len(vtids)}): {prefix}{str(start).zfill(3)} → {prefix}{str(start + total_boxes - 1).zfill(3)} (por {user_name})"
+    else:
+        # TIENDA ÚNICA: generar a nivel de proyecto
+        services = project.get("services", [])
+        total_boxes = max((s.get("cantidad_cajas", 0) for s in services), default=0) if services else 0
+        if total_boxes <= 0:
+            raise HTTPException(status_code=400, detail="El proyecto no tiene cajas registradas.")
+
+        vtids = []
+        for i in range(total_boxes):
+            num = start + i
+            vtids.append({
+                "vtid_id": f"vtid_{uuid.uuid4().hex[:8]}",
+                "code": f"{prefix}{str(num).zfill(3)}",
+                "sequence": num,
+            })
+
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {
                 "vtids": vtids,
                 "vtid_prefix": prefix,
                 "vtid_generated_at": now,
                 "vtid_generated_by": user_name,
                 "updated_at": now,
-            },
-            "$push": {"notes": note},
-        }
-    )
+            }}
+        )
+        note_text = f"VTIDs generados ({len(vtids)}): {prefix}{str(start).zfill(3)} → {prefix}{str(start + total_boxes - 1).zfill(3)} (por {user_name})"
+
+    note = {
+        "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+        "text": note_text,
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+    }
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"notes": note}})
 
     return {
         "message": f"{len(vtids)} VTIDs generados exitosamente",
         "vtids": vtids,
         "total": len(vtids),
         "prefix": prefix,
+        "store_id": body.store_id,
     }
 
 
 @router.get("/projects/{project_id}/vtids")
 async def get_vtids(project_id: str, authorization: Optional[str] = Header(None)):
-    """Obtiene los VTIDs generados para un proyecto."""
+    """Obtiene todos los VTIDs del proyecto (globales + por sucursal)."""
     await get_current_user(authorization)
-    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "vtids": 1, "vtid_prefix": 1, "vtid_generated_at": 1, "vtid_generated_by": 1})
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    stores = project.get("stores", [])
+    store_vtids = []
+    for s in stores:
+        if s.get("vtids"):
+            store_vtids.append({
+                "store_id": s.get("store_id"),
+                "store_name": s.get("name", ""),
+                "box_count": s.get("box_count", 0),
+                "vtids": s.get("vtids", []),
+                "prefix": s.get("vtid_prefix", ""),
+                "generated_at": s.get("vtid_generated_at"),
+                "generated_by": s.get("vtid_generated_by"),
+            })
 
     return {
         "vtids": project.get("vtids", []),
         "prefix": project.get("vtid_prefix", ""),
         "generated_at": project.get("vtid_generated_at"),
         "generated_by": project.get("vtid_generated_by"),
+        "store_vtids": store_vtids,
     }
 
 
 @router.delete("/projects/{project_id}/vtids")
-async def delete_vtids(project_id: str, authorization: Optional[str] = Header(None)):
-    """Elimina los VTIDs generados de un proyecto."""
+async def delete_vtids(project_id: str, store_id: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Elimina VTIDs. Si store_id se provee, solo elimina los de esa sucursal."""
     current_user = await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
@@ -1220,21 +1271,36 @@ async def delete_vtids(project_id: str, authorization: Optional[str] = Header(No
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
+    if store_id:
+        store = next((s for s in project.get("stores", []) if s.get("store_id") == store_id), None)
+        store_name = store.get("name", store_id) if store else store_id
+        await db.projects.update_one(
+            {"project_id": project_id, "stores.store_id": store_id},
+            {"$unset": {
+                "stores.$.vtids": "",
+                "stores.$.vtid_prefix": "",
+                "stores.$.vtid_generated_at": "",
+                "stores.$.vtid_generated_by": "",
+            }, "$set": {"updated_at": now}}
+        )
+        note_text = f"VTIDs de {store_name} eliminados (por {user_name})"
+    else:
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {
+                "$set": {"updated_at": now},
+                "$unset": {"vtids": "", "vtid_prefix": "", "vtid_generated_at": "", "vtid_generated_by": ""},
+            }
+        )
+        note_text = f"VTIDs eliminados (por {user_name})"
+
     note = {
         "note_id": f"pn_{uuid.uuid4().hex[:8]}",
-        "text": f"VTIDs eliminados (por {user_name})",
+        "text": note_text,
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
         "created_at": now,
     }
-
-    await db.projects.update_one(
-        {"project_id": project_id},
-        {
-            "$set": {"updated_at": now},
-            "$unset": {"vtids": "", "vtid_prefix": "", "vtid_generated_at": "", "vtid_generated_by": ""},
-            "$push": {"notes": note},
-        }
-    )
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"notes": note}})
 
     return {"message": "VTIDs eliminados exitosamente"}

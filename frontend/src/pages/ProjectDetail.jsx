@@ -13,7 +13,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -57,10 +57,14 @@ const ProjectDetail = () => {
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [emailDetailData, setEmailDetailData] = useState(null);
 
-  // Preview de email
+  // Preview de email (ahora editable)
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSubject, setPreviewSubject] = useState('');
+  const [previewSending, setPreviewSending] = useState(false);
+  const [previewContext, setPreviewContext] = useState(null); // {type: 'sequential'|'adhoc', target, bankName}
+  const editorRef = useRef(null);
 
   // Admin: template management
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
@@ -283,7 +287,7 @@ const ProjectDetail = () => {
     finally { setEmailSending(false); }
   };
 
-  // ==================== PREVIEW DE EMAIL ====================
+  // ==================== PREVIEW DE EMAIL (EDITABLE) ====================
   const previewNotification = async (target, bankName) => {
     setPreviewLoading(true);
     try {
@@ -292,6 +296,8 @@ const ProjectDetail = () => {
         bank_name: bankName || null,
       });
       setPreviewData(res.data);
+      setPreviewSubject(res.data.subject || '');
+      setPreviewContext({ type: 'sequential', target, bankName });
       setPreviewOpen(true);
     } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
     finally { setPreviewLoading(false); }
@@ -310,9 +316,115 @@ const ProjectDetail = () => {
         include_matrix: attachMatrix,
       });
       setPreviewData(res.data);
+      setPreviewSubject(res.data.subject || '');
+      setPreviewContext({ type: 'adhoc' });
       setPreviewOpen(true);
     } catch (err) { toast.error(err.response?.data?.detail || 'Error generando vista previa'); }
     finally { setPreviewLoading(false); }
+  };
+
+  const handleEditorPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const base64 = ev.target.result;
+          document.execCommand('insertImage', false, base64);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
+
+  const handleEditorDrop = (e) => {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const base64 = ev.target.result;
+          if (editorRef.current) {
+            const img = document.createElement('img');
+            img.src = base64;
+            img.style.maxWidth = '100%';
+            editorRef.current.appendChild(img);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  };
+
+  const handleInsertImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/gif,image/webp';
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const base64 = ev.target.result;
+        if (editorRef.current) {
+          editorRef.current.focus();
+          document.execCommand('insertImage', false, base64);
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
+  const sendFromPreview = async () => {
+    if (!editorRef.current) return;
+    const editedHtml = editorRef.current.innerHTML;
+    const editedSubject = previewSubject;
+    setPreviewSending(true);
+
+    try {
+      if (previewContext?.type === 'sequential') {
+        const ccList = additionalRecipients
+          .split(/[,;]/)
+          .map(e => e.trim())
+          .filter(e => e && e.includes('@'));
+
+        const res = await api.post(`/projects/${projectId}/send-notification`, {
+          target: previewContext.target,
+          bank_name: previewContext.bankName || null,
+          additional_recipients: ccList.length > 0 ? ccList : null,
+          custom_html: editedHtml,
+          custom_subject: editedSubject,
+        });
+        toast.success(res.data.message);
+        setPreviewOpen(false);
+        setNotifDialogOpen(false);
+        setAdditionalRecipients('');
+        fetchProject();
+      } else if (previewContext?.type === 'adhoc') {
+        const validRecipients = emailForm.recipients.filter(r => r.trim());
+        const formData = new FormData();
+        formData.append('recipients', JSON.stringify(validRecipients));
+        formData.append('subject', editedSubject);
+        formData.append('message', editedHtml);
+        if (attachMatrix) formData.append('matrix_html', generateMatrixHTML());
+        emailFiles.forEach(f => formData.append('files', f));
+        const res = await api.post(`/projects/${projectId}/send-adhoc-email`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        toast.success(res.data.message);
+        setPreviewOpen(false);
+        setEmailDialogOpen(false);
+        fetchProject();
+      }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al enviar'); }
+    finally { setPreviewSending(false); }
   };
 
   // ==================== BITÁCORA ====================
@@ -348,14 +460,15 @@ const ProjectDetail = () => {
     finally { setTicketSaving(false); }
   };
 
-  // ==================== VTID GENERATOR ====================
-  const handleGenerateVTIDs = async () => {
+  // ==================== VTID GENERATOR (PER-STORE) ====================
+  const handleGenerateVTIDs = async (storeId) => {
     if (!vtidPrefix.trim()) { toast.error('Ingrese un prefijo'); return; }
     setVtidGenerating(true);
     try {
       const res = await api.post(`/projects/${projectId}/vtids/generate`, {
         prefix: vtidPrefix.trim(),
         start_number: vtidStartNumber,
+        store_id: storeId || null,
       });
       toast.success(res.data.message);
       fetchProject();
@@ -363,10 +476,13 @@ const ProjectDetail = () => {
     finally { setVtidGenerating(false); }
   };
 
-  const handleDeleteVTIDs = async () => {
+  const handleDeleteVTIDs = async (storeId) => {
     setVtidDeleting(true);
     try {
-      await api.delete(`/projects/${projectId}/vtids`);
+      const url = storeId
+        ? `/projects/${projectId}/vtids?store_id=${storeId}`
+        : `/projects/${projectId}/vtids`;
+      await api.delete(url);
       toast.success('VTIDs eliminados');
       fetchProject();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al eliminar VTIDs'); }
@@ -713,86 +829,115 @@ const ProjectDetail = () => {
                 <Hash size={20} className="text-indigo-600" />Terminales Virtuales (VTID)
               </h2>
 
-              {/* Generador */}
-              {(!project.vtids || project.vtids.length === 0) ? (
-                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
-                  <p className="text-sm text-indigo-700 mb-3">Genere los IDs de terminales virtuales para este proyecto. Se creará uno por cada caja registrada.</p>
-                  <div className="flex items-end gap-3 flex-wrap">
-                    <div>
-                      <Label className="text-xs font-medium text-indigo-800">Prefijo</Label>
-                      <Input
-                        placeholder="Ej: MS, VT, TM"
-                        value={vtidPrefix}
-                        onChange={e => setVtidPrefix(e.target.value.toUpperCase())}
-                        className="mt-1 h-9 w-32 border-indigo-300 focus:ring-indigo-400 uppercase"
-                        maxLength={10}
-                        data-testid="vtid-prefix-input"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-indigo-800">Inicio</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={vtidStartNumber}
-                        onChange={e => setVtidStartNumber(parseInt(e.target.value) || 1)}
-                        className="mt-1 h-9 w-20 border-indigo-300 focus:ring-indigo-400"
-                        data-testid="vtid-start-input"
-                      />
-                    </div>
-                    <Button
-                      onClick={handleGenerateVTIDs}
-                      disabled={vtidGenerating || !vtidPrefix.trim()}
-                      className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                      data-testid="vtid-generate-btn"
-                    >
-                      <Hash size={14} />{vtidGenerating ? 'Generando...' : 'Generar VTIDs'}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-indigo-500 mt-2">
-                    Total de cajas del proyecto: <span className="font-bold">{
-                      project.stores?.length > 0
-                        ? project.stores.reduce((sum, s) => sum + (s.box_count || 0), 0)
-                        : Math.max(...(project.services || []).map(s => s.cantidad_cajas || 0), 0)
-                    }</span> — Se generará un VTID por cada caja.
-                  </p>
+              {isMultistore ? (
+                /* MULTITIENDA: VTIDs por sucursal */
+                <div className="space-y-4">
+                  {(project.stores || []).map(store => {
+                    const storeVtids = store.vtids || [];
+                    const hasVtids = storeVtids.length > 0;
+                    return (
+                      <div key={store.store_id} className="bg-white border border-slate-200 rounded-xl overflow-hidden" data-testid={`vtid-store-${store.store_id}`}>
+                        <div className={`px-4 py-3 border-b flex items-center justify-between ${hasVtids ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                              <Store size={14} className="text-blue-600" />{store.name}
+                              <span className="text-xs font-normal text-slate-500">({store.box_count} caja{store.box_count !== 1 ? 's' : ''})</span>
+                            </p>
+                            {hasVtids && (
+                              <p className="text-[10px] text-indigo-500 mt-0.5">
+                                Prefijo: <span className="font-bold">{store.vtid_prefix}</span>
+                                {store.vtid_generated_by && <> · {store.vtid_generated_by}</>}
+                                {store.vtid_generated_at && <> · {new Date(store.vtid_generated_at).toLocaleDateString('es-VE')}</>}
+                              </p>
+                            )}
+                          </div>
+                          {hasVtids ? (
+                            <Button variant="outline" size="sm" onClick={() => handleDeleteVTIDs(store.store_id)}
+                              disabled={vtidDeleting} className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1"
+                              data-testid={`vtid-delete-${store.store_id}`}>
+                              <Trash2 size={12} />{vtidDeleting ? '...' : 'Eliminar'}
+                            </Button>
+                          ) : (
+                            <div className="flex items-end gap-2">
+                              <Input placeholder="Prefijo" value={vtidPrefix} onChange={e => setVtidPrefix(e.target.value.toUpperCase())}
+                                className="h-8 w-24 text-xs border-indigo-300 uppercase" maxLength={10} data-testid={`vtid-prefix-${store.store_id}`} />
+                              <Input type="number" min={1} value={vtidStartNumber} onChange={e => setVtidStartNumber(parseInt(e.target.value) || 1)}
+                                className="h-8 w-16 text-xs border-indigo-300" data-testid={`vtid-start-${store.store_id}`} />
+                              <Button size="sm" onClick={() => handleGenerateVTIDs(store.store_id)}
+                                disabled={vtidGenerating || !vtidPrefix.trim()}
+                                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+                                data-testid={`vtid-generate-${store.store_id}`}>
+                                <Hash size={12} />{vtidGenerating ? '...' : 'Generar'}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        {hasVtids && (
+                          <div className="p-3">
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-1.5">
+                              {storeVtids.map((vtid, idx) => (
+                                <div key={vtid.vtid_id || idx}
+                                  className="px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-center"
+                                  data-testid={`vtid-${store.store_id}-${idx}`}>
+                                  <p className="text-xs font-bold font-mono text-indigo-700">{vtid.code}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-200 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-indigo-900">
-                        {project.vtids.length} Terminal{project.vtids.length !== 1 ? 'es' : ''} Generado{project.vtids.length !== 1 ? 's' : ''}
-                      </p>
-                      <p className="text-[10px] text-indigo-500">
-                        Prefijo: <span className="font-bold">{project.vtid_prefix}</span>
-                        {project.vtid_generated_by && <> · Generado por: {project.vtid_generated_by}</>}
-                        {project.vtid_generated_at && <> · {new Date(project.vtid_generated_at).toLocaleDateString('es-VE')}</>}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline" size="sm"
-                      onClick={handleDeleteVTIDs}
-                      disabled={vtidDeleting}
-                      className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1"
-                      data-testid="vtid-delete-btn"
-                    >
-                      <Trash2 size={12} />{vtidDeleting ? 'Eliminando...' : 'Eliminar'}
-                    </Button>
-                  </div>
-                  <div className="p-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                      {project.vtids.map((vtid, idx) => (
-                        <div key={vtid.vtid_id || idx}
-                          className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-center"
-                          data-testid={`vtid-item-${idx}`}>
-                          <p className="text-sm font-bold font-mono text-indigo-700">{vtid.code}</p>
-                          <p className="text-[10px] text-slate-400">#{vtid.sequence}</p>
-                        </div>
-                      ))}
+                /* TIENDA ÚNICA: VTIDs a nivel de proyecto */
+                (!project.vtids || project.vtids.length === 0) ? (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+                    <p className="text-sm text-indigo-700 mb-3">Genere los IDs de terminales virtuales. Se creará uno por cada caja registrada.</p>
+                    <div className="flex items-end gap-3 flex-wrap">
+                      <div>
+                        <Label className="text-xs font-medium text-indigo-800">Prefijo</Label>
+                        <Input placeholder="Ej: MS, VT" value={vtidPrefix} onChange={e => setVtidPrefix(e.target.value.toUpperCase())}
+                          className="mt-1 h-9 w-32 border-indigo-300 uppercase" maxLength={10} data-testid="vtid-prefix-input" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-indigo-800">Inicio</Label>
+                        <Input type="number" min={1} value={vtidStartNumber} onChange={e => setVtidStartNumber(parseInt(e.target.value) || 1)}
+                          className="mt-1 h-9 w-20 border-indigo-300" data-testid="vtid-start-input" />
+                      </div>
+                      <Button onClick={() => handleGenerateVTIDs(null)} disabled={vtidGenerating || !vtidPrefix.trim()}
+                        className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5" data-testid="vtid-generate-btn">
+                        <Hash size={14} />{vtidGenerating ? 'Generando...' : 'Generar VTIDs'}
+                      </Button>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-200 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-indigo-900">{project.vtids.length} Terminal{project.vtids.length !== 1 ? 'es' : ''}</p>
+                        <p className="text-[10px] text-indigo-500">
+                          Prefijo: <span className="font-bold">{project.vtid_prefix}</span>
+                          {project.vtid_generated_by && <> · {project.vtid_generated_by}</>}
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteVTIDs(null)}
+                        disabled={vtidDeleting} className="h-7 text-xs text-red-500 border-red-200 hover:bg-red-50 gap-1" data-testid="vtid-delete-btn">
+                        <Trash2 size={12} />{vtidDeleting ? '...' : 'Eliminar'}
+                      </Button>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {project.vtids.map((vtid, idx) => (
+                          <div key={vtid.vtid_id || idx} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-center" data-testid={`vtid-item-${idx}`}>
+                            <p className="text-sm font-bold font-mono text-indigo-700">{vtid.code}</p>
+                            <p className="text-[10px] text-slate-400">#{vtid.sequence}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
           )}
@@ -980,6 +1125,20 @@ const ProjectDetail = () => {
                           </p>
                         </div>
                       </div>
+
+                      {/* Panel de Variables Disponibles */}
+                      <details className="bg-indigo-50 rounded-lg border border-indigo-200 mb-3">
+                        <summary className="px-3 py-2 text-[10px] font-semibold text-indigo-700 cursor-pointer select-none flex items-center gap-1">
+                          <ClipboardList size={12} />Variables disponibles para la plantilla
+                        </summary>
+                        <div className="px-3 pb-2 flex flex-wrap gap-1">
+                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                            <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
+                              title={`Clic para copiar ${v}`}>{v}</span>
+                          ))}
+                        </div>
+                      </details>
 
                       {/* Botones de acción */}
                       <div className="flex items-center justify-end gap-2">
@@ -1238,35 +1397,40 @@ const ProjectDetail = () => {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== EMAIL PREVIEW DIALOG ==================== */}
+        {/* ==================== EMAIL PREVIEW / EDITOR DIALOG ==================== */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="email-preview-dialog">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="email-preview-dialog">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Eye size={20} className="text-blue-500" />Vista Previa del Correo</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Edit3 size={20} className="text-blue-500" />Editor de Envío Final</DialogTitle>
             </DialogHeader>
             {previewData && (
-              <div className="space-y-4">
-                {/* Header info */}
+              <div className="space-y-3">
+                {/* Editable subject */}
                 <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-sm border border-slate-200">
-                  <div className="flex items-start gap-2">
-                    <span className="font-medium text-slate-500 min-w-[80px]">Asunto:</span>
-                    <span className="text-slate-800 font-medium">{previewData.subject}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-500 min-w-[70px] shrink-0">Asunto:</span>
+                    <Input
+                      value={previewSubject}
+                      onChange={e => setPreviewSubject(e.target.value)}
+                      className="h-8 text-sm font-medium"
+                      data-testid="preview-subject-input"
+                    />
                   </div>
                   {previewData.recipients && (
                     <div className="flex items-start gap-2">
-                      <span className="font-medium text-slate-500 min-w-[80px]">Para:</span>
-                      <span className="text-slate-700">{previewData.recipients.join(', ')}</span>
+                      <span className="font-medium text-slate-500 min-w-[70px]">Para:</span>
+                      <span className="text-slate-700 text-xs">{previewData.recipients.join(', ')}</span>
                     </div>
                   )}
                   {previewData.entity_label && (
                     <div className="flex items-start gap-2">
-                      <span className="font-medium text-slate-500 min-w-[80px]">Destino:</span>
-                      <span className="text-slate-700">{previewData.entity_label}</span>
+                      <span className="font-medium text-slate-500 min-w-[70px]">Destino:</span>
+                      <span className="text-slate-700 text-xs">{previewData.entity_label}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Variables resueltas */}
+                {/* Variables resolved (collapsible) */}
                 {previewData.variables && Object.keys(previewData.variables).length > 0 && (
                   <details className="bg-blue-50 rounded-lg border border-blue-200">
                     <summary className="px-3 py-2 text-xs font-semibold text-blue-700 cursor-pointer select-none">Variables Resueltas ({Object.keys(previewData.variables).length})</summary>
@@ -1281,18 +1445,43 @@ const ProjectDetail = () => {
                   </details>
                 )}
 
-                {/* Rendered HTML Preview */}
+                {/* EDITABLE HTML content */}
                 <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-2 border-b">
-                    <p className="text-xs font-semibold text-slate-500 uppercase">Contenido del Correo</p>
+                  <div className="bg-slate-100 px-3 py-2 border-b flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 uppercase">Contenido Editable — Modifique antes de enviar</p>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={handleInsertImage} className="h-7 px-2 text-xs gap-1 text-slate-600 hover:text-indigo-700" data-testid="preview-insert-image-btn">
+                        <ImagePlus size={14} />Imagen
+                      </Button>
+                    </div>
                   </div>
-                  <div className="p-4 bg-white">
-                    <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: previewData.html }} />
+                  <div
+                    ref={editorRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onPaste={handleEditorPaste}
+                    onDrop={handleEditorDrop}
+                    onDragOver={e => e.preventDefault()}
+                    className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto prose prose-sm max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
+                    dangerouslySetInnerHTML={{ __html: previewData.html }}
+                    data-testid="preview-editable-content"
+                  />
+                  <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">
+                    <p className="text-[10px] text-amber-700">Los cambios realizados aquí solo afectan este envío. La plantilla base NO se modifica. Puede pegar imágenes directamente (Ctrl+V) o arrastrar archivos JPG/PNG.</p>
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
-                  <Button variant="outline" onClick={() => setPreviewOpen(false)} data-testid="close-preview-btn">Cerrar</Button>
+                {/* Action buttons */}
+                <div className="flex justify-between items-center pt-2">
+                  <Button variant="outline" onClick={() => setPreviewOpen(false)} data-testid="close-preview-btn">Cancelar</Button>
+                  <Button
+                    onClick={sendFromPreview}
+                    disabled={previewSending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    data-testid="preview-send-btn"
+                  >
+                    <Send size={16} />{previewSending ? 'Enviando...' : 'Enviar Correo'}
+                  </Button>
                 </div>
               </div>
             )}

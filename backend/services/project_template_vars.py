@@ -92,6 +92,39 @@ def _build_vtid_list_html(vtids: list) -> str:
     return html
 
 
+def _build_vtid_list_html_grouped(groups: list) -> str:
+    """Genera HTML de VTIDs agrupados por sucursal."""
+    if not groups:
+        return "<p><em>Sin terminales virtuales generados.</em></p>"
+
+    html = ""
+    for group in groups:
+        name = group.get("name", "")
+        vtids = group.get("vtids", [])
+        if not vtids:
+            continue
+        html += f'<h4 style="color:#2c3e50;margin:16px 0 8px 0;font-family:Arial,sans-serif;">{name}</h4>'
+        html += (
+            '<table style="border-collapse:collapse;width:auto;font-family:Arial,sans-serif;font-size:13px;">'
+            '<thead><tr style="background:#2c3e50;color:white;">'
+            '<th style="padding:8px 16px;text-align:center;border:1px solid #ddd;">#</th>'
+            '<th style="padding:8px 16px;text-align:left;border:1px solid #ddd;">VTID</th>'
+            '</tr></thead><tbody>'
+        )
+        for idx, vtid in enumerate(vtids):
+            bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+            code = vtid.get("code", "")
+            html += (
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:6px 16px;text-align:center;border:1px solid #e9ecef;">{idx + 1}</td>'
+                f'<td style="padding:6px 16px;border:1px solid #e9ecef;font-weight:bold;">{code}</td>'
+                f'</tr>'
+            )
+        html += '</tbody></table>'
+    return html if html else "<p><em>Sin terminales virtuales generados.</em></p>"
+
+
+
 
 def _build_stores_summary(stores: list) -> tuple:
     """Genera resúmenes de sucursales y cajas.
@@ -193,8 +226,17 @@ async def resolve_project_template_vars(project: dict) -> dict:
     matriz_html = _build_matrix_html(matrix)
 
     # === {Lista_VTID} ===
+    # Combine project-level + store-level VTIDs
     vtids = project.get("vtids", [])
-    lista_vtid = _build_vtid_list_html(vtids)
+    stores_for_vtid = project.get("stores", [])
+    all_vtids_grouped = []
+    if vtids:
+        all_vtids_grouped.append({"name": "General", "vtids": vtids})
+    for s in stores_for_vtid:
+        s_vtids = s.get("vtids", [])
+        if s_vtids:
+            all_vtids_grouped.append({"name": s.get("name", "Sucursal"), "vtids": s_vtids})
+    lista_vtid = _build_vtid_list_html_grouped(all_vtids_grouped) if all_vtids_grouped else _build_vtid_list_html(vtids)
 
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
