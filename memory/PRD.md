@@ -23,9 +23,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Campo de texto para agregar correos CC separados por coma
   - Backend procesa TO (DB) + CC (manuales) por separado
   - Historial registra tanto TO como CC
-- **Variables dinámicas** (13 variables): Nombre_Cliente, Contacto_Principal, Nombre_Sucursal, Cantidad_Cajas, Integrador, Aplicativo_Integracion, Nombre_Implementador, Correo_Implementador, Telefono_Implementador, Matriz_Bancos_Productos, project_number, ticket_number, quote_number
+- **Variables dinámicas** (14 variables): Nombre_Cliente, Contacto_Principal, Nombre_Sucursal, Cantidad_Cajas, Integrador, Aplicativo_Integracion, Nombre_Implementador, Correo_Implementador, Telefono_Implementador, Matriz_Bancos_Productos, Lista_VTID, project_number, ticket_number, quote_number
 - **Vista Previa de Email** con variables resueltas
 - **Panel de Variables en Editor de Plantillas**: Inserción en Asunto y Cuerpo
+- **Asignación Simplificada**: Sin ticket en modal, fecha_asignacion automática
+- **Candado de Seguridad**: Proyecto bloqueado si no tiene ticket_number registrado, input para desbloquear
+- **Generador VTID**: Terminales virtuales secuenciales (prefijo + 3 dígitos), persistidos en BD, sección visual en ProjectDetail
 
 ### Cotizaciones
 - RBAC con `special_permissions`
@@ -47,11 +50,10 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ## Backlog
 
 ### P1 (Próximos)
-- Herencia `cantidad_cajas` → campo VTID en VPOS
 - Verificación de Email y Recuperación de Contraseña
 - Refactorización de `Quotes.jsx` (5300+ líneas)
 
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas
 - Lógica "Completado" en Roadmap Bancos
-- Refactorización componentes monolíticos
+- Refactorización componentes monolíticos (ProjectDetail.jsx, Inventory.jsx, Integrators.jsx, Clients.jsx)
