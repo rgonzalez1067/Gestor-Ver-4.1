@@ -364,7 +364,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         elements.append(Paragraph("SERVIDOR DE INSTALACIÓN", styles['SectionHeader']))
         elements.append(Spacer(1, 6))
         srv_data = [
-            [Paragraph("Servidor", styles['TableHeaderText']), Paragraph("Nombre", styles['TableHeaderText'])],
+            [Paragraph("<b>Servidor</b>", styles['SmallText']), Paragraph("<b>Nombre</b>", styles['SmallText'])],
             [Paragraph("Servidor asignado", styles['SmallText']), Paragraph(server_name, styles['SmallText'])],
         ]
         srv_table = Table(srv_data, colWidths=[200, 280])
@@ -391,7 +391,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         elements.append(Paragraph("MODELO Y SERIALES DE POS / PINPAD", styles['SectionHeader']))
         elements.append(Spacer(1, 6))
         eq_data = [
-            [Paragraph("Modelo", styles['TableHeaderText']), Paragraph("Serial", styles['TableHeaderText']), Paragraph("Origen", styles['TableHeaderText'])],
+            [Paragraph("<b>Modelo</b>", styles['SmallText']), Paragraph("<b>Serial</b>", styles['SmallText']), Paragraph("<b>Origen</b>", styles['SmallText'])],
         ]
         for eq in all_serials:
             source_label = "Inventario" if eq in pinpad_serials else "Taller/Entrega"
