@@ -26,15 +26,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - `_create_project_from_quote` restaurada con cuerpo completo
   - Búsqueda de equipos diferenciada: Fast Track por quote_id, VPOS/MPOS por RIF+estatus
   - Si falla PDF o proyecto, se retorna error 500 sin enviar email
+- **Flujo Extendido PYME (Feb 2026)**:
+  - Activado cuando `client_segment` es PYME o el `quote_number` contiene '-PYME'
+  - **Servidor de Instalación**: Dropdown (Multicomercio MSC / MSC2 / Otro + texto libre). Guardado en `project.server_name`
+  - **Protocolo Pinpads**: Pregunta cerrada Sí/No.
+    - No: conversión directa sin equipos
+    - Sí: Dropdown de modelos (hardware con type POS/Pinpad y asset_type='Bien') → Búsqueda en Salidas de Inventario (últimos 15 días, por RIF cliente + modelo) → Selección de seriales
+  - Datos guardados en `project.pinpad_serials[]`
+  - **PDF actualizado**: Secciones "Servidor de Instalación" y "Modelo y Seriales de POS/Pinpad"
+  - **ProjectDetail actualizado**: Widgets de servidor y pinpads vinculados
+  - **Variables de email**: `{Modelo_Seriales_POS}`, `{Servidor_Instalacion}`
+  - **Endpoints nuevos**: `GET /api/quotes/{id}/pinpad-models`, `GET /api/quotes/{id}/inventory-serials?model_id=X`
 - **Motor de Reemplazo de Variables ROBUSTO**:
-  - 17 variables dinámicas con resolución completa
+  - 19 variables dinámicas (incluye nuevas: Modelo_Seriales_POS, Servidor_Instalacion)
   - `_clean_html_in_braces` limpia tags HTML inyectados por el editor rico
-  - Cadena de fallback para Nombre_Cliente, Implementador correctamente vinculado
 - **Editor de Envío Final**: Editable con soporte de imágenes (Object Storage)
 - **VTIDs por Sucursal**: Generación independiente por sucursal
 - **Notificaciones Secuenciales** con prefijos dinámicos y CC
 - **Asignación Simplificada** + Candado de Seguridad
-- **Ancho Fluido en Emails**: width:95%; max-width:900px
 
 ### Cotizaciones
 - RBAC con `special_permissions`
@@ -59,10 +68,9 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 
 ### P1 (Próximos)
 - Verificación de Email y Recuperación de Contraseña
-- Refactorización de `Quotes.jsx` (5400+ líneas)
+- Refactorización de `Quotes.jsx` (5700+ líneas)
 
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas
 - Lógica "Completado" en Roadmap Bancos
-- Refactorización componentes monolíticos (`ProjectDetail.jsx` 1600+)
-- Ficha Técnica PDF con equipos vinculados
+- Refactorización componentes monolíticos (`ProjectDetail.jsx` 1700+)
