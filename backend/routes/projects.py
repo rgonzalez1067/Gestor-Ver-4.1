@@ -326,11 +326,48 @@ async def send_sequential_notification(project_id: str, body: SequentialNotifyRe
 
 
 def _render_vars(template_str: str, variables: dict) -> str:
-    """Renderiza variables {key} y {{key}} en una plantilla."""
+    """Renderiza variables {key} y {{key}} en una plantilla.
+    También maneja el caso donde el editor HTML inyecta tags dentro de las llaves.
+    """
     result = template_str
+
+    # Paso 1: Limpiar HTML tags dentro de llaves (ej: <span>{</span>Nombre<span>}</span>)
+    result = _clean_html_in_braces(result)
+
+    # Paso 2: Reemplazo estándar
     for key, value in variables.items():
         result = result.replace(f"{{{{{key}}}}}", str(value or ""))
         result = result.replace(f"{{{key}}}", str(value or ""))
+    return result
+
+
+def _clean_html_in_braces(html: str) -> str:
+    """Limpia etiquetas HTML que el editor rico pueda insertar dentro de variables {Variable}.
+    Ej: <span>{</span><b>Nombre_Cliente</b><span>}</span> → {Nombre_Cliente}
+    """
+    # Pattern: find sequences that look like a variable with HTML tags mixed in
+    # This handles: {<span>Nombre_Cliente</span>}, <b>{</b>Nombre<b>}</b>, etc.
+    html_tag = r'(?:<[^>]*>)*'
+    pattern = re.compile(
+        r'(' + html_tag + r'\{' + html_tag + r')'  # Opening brace with possible tags
+        r'([A-Za-z_][A-Za-z0-9_]*)'                 # Variable name (clean)
+        r'(' + html_tag + r'\}' + html_tag + r')',   # Closing brace with possible tags
+    )
+
+    def replacer(m):
+        var_name = m.group(2)
+        return '{' + var_name + '}'
+
+    # Also handle cases where the variable name itself has HTML tags in it
+    # e.g., {<span>Nombre</span>_<span>Cliente</span>}
+    inner_tag_pattern = re.compile(r'\{([^}]*<[^>]*>[^}]*)\}')
+
+    def clean_inner(m):
+        inner = re.sub(r'<[^>]*>', '', m.group(1))
+        return '{' + inner.strip() + '}'
+
+    result = inner_tag_pattern.sub(clean_inner, html)
+    result = pattern.sub(replacer, result)
     return result
 
 
@@ -509,6 +546,12 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     subject = custom_subject if custom_subject else email_data["subject"]
     html = custom_html if custom_html else email_data["html"]
     entity_label = email_data["entity_label"]
+
+    # CRITICAL: Re-apply variable replacement on custom_html (user may have inserted variables in editor)
+    if custom_html:
+        html = _render_vars(html, template_vars)
+    if custom_subject:
+        subject = _render_vars(subject, template_vars)
 
     # Process base64 images → upload to storage for email compatibility
     html = await _replace_base64_images(html, current_user.get("user_id", "system"))
@@ -913,9 +956,6 @@ async def send_adhoc_email(
 
     if not subject.strip():
         raise HTTPException(status_code=400, detail="El asunto es obligatorio")
-    # Solo contar el cuerpo del mensaje, excluyendo metadatos/matrix/adjuntos
-    if len(message) > 1000:
-        raise HTTPException(status_code=400, detail="El mensaje no puede exceder 1000 caracteres")
 
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
@@ -952,6 +992,11 @@ async def send_adhoc_email(
         {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
     </div>
     """
+
+    # Resolve variables in adhoc emails too
+    template_vars = await resolve_project_template_vars(project)
+    html = _render_vars(html, template_vars)
+    full_subject = _render_vars(full_subject, template_vars)
 
     # Process base64 images → upload to storage
     html = await _replace_base64_images(html, current_user.get("user_id", "system"))
