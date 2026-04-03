@@ -26,6 +26,113 @@ const PHASE_COLORS = {
   'En Producción': 'bg-emerald-100 text-emerald-800',
 };
 
+// ==================== TEMPLATE BODY EDITOR CON RESALTADO Y AUTOCOMPLETE ====================
+const ALL_TOKENS = [
+  'Nombre_Cliente','Rif_Cliente','Contacto_Principal','Datos_Contacto','Telefono_Contacto','Email_Contacto',
+  'Nro_Proyecto','Ticket_Nro','Tipo_Proyecto','Fecha_Asignacion','Nombre_Sucursal','Cantidad_Cajas',
+  'Servidor_Instalacion','Nombre_Implementador','Correo_Implementador','Integrador','Aplicativo_Integracion',
+  'Modelo_Seriales_POS','Modelo_Seriales_Equipos','Lista_VTID','Matriz_Bancos_Productos',
+];
+
+const TemplateBodyEditor = ({ value, onChange }) => {
+  const textareaRef = useRef(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestIdx, setSuggestIdx] = useState(0);
+  const [cursorPos, setCursorPos] = useState(0);
+  const [braceStart, setBraceStart] = useState(-1);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    const pos = e.target.selectionStart;
+    onChange(val);
+    setCursorPos(pos);
+
+    // Detect if we're inside a `{...` token being typed
+    const before = val.slice(0, pos);
+    const lastBrace = before.lastIndexOf('{');
+    const lastClose = before.lastIndexOf('}');
+    if (lastBrace > lastClose) {
+      const partial = before.slice(lastBrace + 1);
+      if (!/\s/.test(partial) && partial.length <= 40) {
+        const filtered = ALL_TOKENS.filter(t => t.toLowerCase().startsWith(partial.toLowerCase()));
+        setSuggestions(filtered);
+        setSuggestIdx(0);
+        setBraceStart(lastBrace);
+        setShowSuggestions(filtered.length > 0);
+        return;
+      }
+    }
+    setShowSuggestions(false);
+  };
+
+  const insertSuggestion = (token) => {
+    const before = value.slice(0, braceStart);
+    const after = value.slice(cursorPos);
+    const newVal = before + `{${token}}` + after;
+    onChange(newVal);
+    setShowSuggestions(false);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newPos = before.length + token.length + 2;
+        textareaRef.current.selectionStart = newPos;
+        textareaRef.current.selectionEnd = newPos;
+        textareaRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!showSuggestions) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSuggestIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSuggestIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' || e.key === 'Tab') {
+      if (suggestions[suggestIdx]) { e.preventDefault(); insertSuggestion(suggestions[suggestIdx]); }
+    }
+    else if (e.key === 'Escape') { setShowSuggestions(false); }
+  };
+
+  // Render highlighted preview (tokens in blue)
+  const renderHighlighted = () => {
+    if (!value) return null;
+    const parts = value.split(/(\{[A-Za-z_]+\})/g);
+    return parts.map((part, i) =>
+      /^\{[A-Za-z_]+\}$/.test(part)
+        ? <span key={i} className="bg-blue-100 text-blue-700 rounded px-0.5 font-mono text-[11px]">{part}</span>
+        : <span key={i} className="text-transparent">{part}</span>
+    );
+  };
+
+  return (
+    <div className="relative mt-1" data-testid="template-body-editor">
+      {/* Highlighted overlay */}
+      <div className="absolute inset-0 pointer-events-none p-3 text-sm whitespace-pre-wrap break-words overflow-hidden font-sans leading-[1.625]"
+        aria-hidden="true">
+        {renderHighlighted()}
+      </div>
+      {/* Actual textarea */}
+      <textarea ref={textareaRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
+        placeholder="Contenido de la plantilla... Escribe { para autocompletar variables"
+        className="w-full text-sm min-h-[200px] resize-y border border-slate-200 rounded-lg p-3 bg-transparent relative z-10 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none caret-slate-800 leading-[1.625]"
+        style={{ color: 'rgba(15,23,42,0.85)' }}
+        data-testid="template-body" />
+      {/* Autocomplete dropdown */}
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-50 bg-white border border-blue-200 rounded-lg shadow-lg max-h-48 overflow-y-auto w-64 left-4"
+          style={{ top: '60px' }} data-testid="token-autocomplete">
+          {suggestions.map((s, i) => (
+            <button key={s} className={`w-full text-left px-3 py-1.5 text-xs font-mono hover:bg-blue-50 transition-colors ${i === suggestIdx ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+              onMouseDown={(e) => { e.preventDefault(); insertSuggestion(s); }}
+              data-testid={`suggest-${s}`}>
+              <span className="text-blue-400">{'{'}</span>{s}<span className="text-blue-400">{'}'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -1379,13 +1486,13 @@ const ProjectDetail = () => {
 
         {/* ==================== TEMPLATES ADMIN DIALOG ==================== */}
         <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
-          <DialogContent className="max-w-4xl" data-testid="templates-dialog">
+          <DialogContent className="max-w-5xl" data-testid="templates-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><ClipboardList size={20} className="text-slate-600" />Gestionar Plantillas de Correo</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-5 gap-6 min-h-[400px]">
-              {/* Lista de plantillas (col-2) */}
-              <div className="col-span-2 border-r border-slate-200 pr-6">
+            <div className="grid grid-cols-12 gap-4 min-h-[400px]">
+              {/* Lista de plantillas (col-3) */}
+              <div className="col-span-3 border-r border-slate-200 pr-4">
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
                 <div className="space-y-2 max-h-[450px] overflow-y-auto">
                   {emailTemplates.length === 0 ? (
@@ -1413,8 +1520,8 @@ const ProjectDetail = () => {
                 </div>
               </div>
 
-              {/* Formulario de edición (col-3) */}
-              <div className="col-span-3">
+              {/* Formulario de edición (col-6) */}
+              <div className="col-span-6">
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-3">{editingTemplateId ? 'Editar Plantilla' : 'Nueva Plantilla'}</p>
                 <div className="space-y-3">
                   <div>
@@ -1431,9 +1538,10 @@ const ProjectDetail = () => {
                   </div>
                   <div>
                     <Label className="text-sm">Cuerpo del mensaje</Label>
-                    <Textarea placeholder="Contenido de la plantilla..." value={templateForm.body}
-                      onChange={e => setTemplateForm(p => ({ ...p, body: e.target.value }))}
-                      className="text-sm min-h-[200px] mt-1 resize-y" data-testid="template-body" />
+                    <TemplateBodyEditor
+                      value={templateForm.body}
+                      onChange={val => setTemplateForm(p => ({ ...p, body: val }))}
+                    />
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button onClick={handleSaveTemplate} disabled={templateSaving || !templateForm.name.trim() || !templateForm.subject.trim()}
@@ -1445,6 +1553,68 @@ const ProjectDetail = () => {
                         className="text-sm">Nueva Plantilla</Button>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* Panel Diccionario de Variables (col-3) */}
+              <div className="col-span-3 border-l border-slate-200 pl-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Variables Disponibles</p>
+                <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para copiarla al portapapeles e insertarla en el editor.</p>
+                <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
+                  {[
+                    { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
+                      { token: 'Nombre_Cliente', desc: 'Razón social del cliente' },
+                      { token: 'Rif_Cliente', desc: 'RIF del cliente' },
+                      { token: 'Contacto_Principal', desc: 'Nombre del contacto' },
+                      { token: 'Datos_Contacto', desc: 'Contacto + Tel + Email' },
+                      { token: 'Telefono_Contacto', desc: 'Teléfono del contacto' },
+                      { token: 'Email_Contacto', desc: 'Correo del contacto' },
+                    ]},
+                    { cat: 'Proyecto', icon: <FileText size={14} className="text-violet-500" />, vars: [
+                      { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
+                      { token: 'Ticket_Nro', desc: 'Número de ticket' },
+                      { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
+                      { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
+                      { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },
+                      { token: 'Cantidad_Cajas', desc: 'Cantidad de cajas' },
+                    ]},
+                    { cat: 'Infraestructura', icon: <Server size={14} className="text-emerald-500" />, vars: [
+                      { token: 'Servidor_Instalacion', desc: 'Servidor asignado' },
+                      { token: 'Nombre_Implementador', desc: 'Implementador asignado' },
+                      { token: 'Correo_Implementador', desc: 'Correo del implementador' },
+                      { token: 'Integrador', desc: 'Nombre del integrador' },
+                      { token: 'Aplicativo_Integracion', desc: 'App de integración' },
+                    ]},
+                    { cat: 'Hardware', icon: <CreditCard size={14} className="text-amber-500" />, vars: [
+                      { token: 'Modelo_Seriales_POS', desc: 'Tabla de POS/Pinpad' },
+                      { token: 'Modelo_Seriales_Equipos', desc: 'Tabla de equipos' },
+                      { token: 'Lista_VTID', desc: 'Lista de VTIDs' },
+                      { token: 'Matriz_Bancos_Productos', desc: 'Matriz de bancos' },
+                    ]},
+                  ].map(group => (
+                    <div key={group.cat}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        {group.icon}
+                        <span className="text-xs font-bold text-slate-700">{group.cat}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {group.vars.map(v => (
+                          <button key={v.token} title={v.desc}
+                            data-testid={`var-token-${v.token}`}
+                            className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-blue-100 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md cursor-pointer transition-all group"
+                            onClick={() => {
+                              const tag = `{${v.token}}`;
+                              try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch(e) { toast.success(`Insertado: ${tag}`); }
+                              setTemplateForm(p => ({ ...p, body: p.body + tag }));
+                            }}>
+                            <span className="text-slate-500 group-hover:text-blue-500">{'{'}</span>
+                            <span>{v.token}</span>
+                            <span className="text-slate-500 group-hover:text-blue-500">{'}'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
