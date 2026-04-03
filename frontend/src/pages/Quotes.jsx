@@ -291,6 +291,16 @@ export const Quotes = () => {
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [equipmentSelected, setEquipmentSelected] = useState({}); // Map of equipo_id -> boolean
 
+  // Estado para flujo PYME extendido (Servidor + Pinpads)
+  const [pymeServerName, setPymeServerName] = useState(''); // 'Multicomercio MSC' | 'Multicomercio MSC2' | custom
+  const [pymeServerCustom, setPymeServerCustom] = useState('');
+  const [pymeNeedsPinpads, setPymeNeedsPinpads] = useState(null); // null | true | false
+  const [pymePinpadModels, setPymePinpadModels] = useState([]); // [{hardware_id, name, type}]
+  const [pymePinpadSelectedModel, setPymePinpadSelectedModel] = useState(''); // hardware_id
+  const [pymePinpadSerials, setPymePinpadSerials] = useState([]); // [{serial, modelo, movement_id, ...}]
+  const [pymePinpadSerialsSelected, setPymePinpadSerialsSelected] = useState({}); // Map serial -> boolean
+  const [pymePinpadLoading, setPymePinpadLoading] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -2295,6 +2305,20 @@ export const Quotes = () => {
           source: eq.source,
         }));
       }
+      // PYME extended: server_name
+      const effectiveServer = pymeServerName === 'Otro' ? pymeServerCustom : pymeServerName;
+      if (effectiveServer) {
+        body.server_name = effectiveServer;
+      }
+      // PYME extended: pinpad_serials
+      const selectedPinpadSerials = pymePinpadSerials.filter(s => pymePinpadSerialsSelected[s.serial]);
+      if (selectedPinpadSerials.length > 0) {
+        body.pinpad_serials = selectedPinpadSerials.map(s => ({
+          modelo: s.modelo,
+          serial: s.serial,
+          movement_id: s.movement_id || '',
+        }));
+      }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
       if (response.data.status === 'simulated') {
@@ -2323,12 +2347,32 @@ export const Quotes = () => {
     setEquipmentList([]);
     setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
     setEquipmentSelected({});
+    // Reset PYME flow
+    setPymeServerName('');
+    setPymeServerCustom('');
+    setPymeNeedsPinpads(null);
+    setPymePinpadModels([]);
+    setPymePinpadSelectedModel('');
+    setPymePinpadSerials([]);
+    setPymePinpadSerialsSelected({});
     setMultistorePhase('project_type');
     setMultistoreDialogOpen(true);
   };
 
   const handleProjectTypeSelect = async (type) => {
     setProjectTypeImpl(type);
+
+    // Detectar si es PYME para flujo extendido
+    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    const segment = (quote?.client_segment || '').toLowerCase();
+    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
+
+    if (isPyme) {
+      // Flujo PYME: server selection → pinpad question → pinpad selection
+      setMultistorePhase('server');
+      return;
+    }
+
     if (type === 'payment_gateway') {
       // Payment Gateway: skip equipment, go to multistore question
       advanceToMultistorePhase();
@@ -2362,8 +2406,18 @@ export const Quotes = () => {
     const selected = allEquip.filter(eq => equipmentSelected[eq.equipo_id]);
     setEquipmentList(selected);
 
-    // Pre-check branch data for multistore
+    // Check PYME: if PYME, skip multistore — go straight to confirm/send
     const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    const segment = (quote?.client_segment || '').toLowerCase();
+    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
+    if (isPyme) {
+      // PYME flow: close dialog and send directly
+      setMultistoreDialogOpen(false);
+      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+      return;
+    }
+
+    // Pre-check branch data for multistore
     const branchData = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0);
     if (branchData.length > 0) {
       setMultistoreStores(branchData.map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
@@ -2372,6 +2426,65 @@ export const Quotes = () => {
       setMultistoreStores([]);
       setMultistorePhase('ask');
     }
+  };
+
+  // ==================== FLUJO PYME EXTENDIDO ====================
+
+  const handlePymeServerContinue = () => {
+    const server = pymeServerName === 'Otro' ? pymeServerCustom.trim() : pymeServerName;
+    if (!server) {
+      toast.error('Seleccione o ingrese el servidor de instalación');
+      return;
+    }
+    setMultistorePhase('pinpad_question');
+  };
+
+  const handlePymePinpadAnswer = async (needsPinpads) => {
+    setPymeNeedsPinpads(needsPinpads);
+    if (!needsPinpads) {
+      // No necesita pinpads: proceder directamente a conversión
+      setMultistoreDialogOpen(false);
+      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+    } else {
+      // Sí necesita pinpads: cargar modelos disponibles
+      setMultistorePhase('pinpad_selection');
+      setPymePinpadLoading(true);
+      try {
+        const res = await api.get(`/quotes/${multistoreQuoteId}/pinpad-models`);
+        setPymePinpadModels(res.data.models || []);
+      } catch (err) {
+        toast.error('Error cargando modelos de POS/Pinpad');
+      } finally {
+        setPymePinpadLoading(false);
+      }
+    }
+  };
+
+  const handlePymePinpadModelSelect = async (modelId) => {
+    setPymePinpadSelectedModel(modelId);
+    setPymePinpadSerials([]);
+    setPymePinpadSerialsSelected({});
+    if (!modelId) return;
+    setPymePinpadLoading(true);
+    try {
+      const res = await api.get(`/quotes/${multistoreQuoteId}/inventory-serials?model_id=${modelId}`);
+      const serials = res.data.serials || [];
+      setPymePinpadSerials(serials);
+      // Auto-select all
+      const sel = {};
+      serials.forEach(s => { sel[s.serial] = true; });
+      setPymePinpadSerialsSelected(sel);
+    } catch (err) {
+      toast.error('Error buscando seriales en inventario');
+    } finally {
+      setPymePinpadLoading(false);
+    }
+  };
+
+  const handlePymePinpadConfirm = () => {
+    // Confirm and proceed to send
+    setMultistoreDialogOpen(false);
+    handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
   };
 
   const getMultistoreQuote = () => quotes.find(q => q.quote_id === multistoreQuoteId);
@@ -5169,6 +5282,151 @@ export const Quotes = () => {
                       <p className="text-sm font-bold text-slate-800">Pasarela de Pago (Payment Gateway)</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">Flujo 100% digital — sin vinculación de equipos físicos</p>
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase PYME: Servidor de Instalación */}
+              {multistorePhase === 'server' && (
+                <div className="space-y-4 py-2" data-testid="pyme-server-phase">
+                  <p className="text-sm text-slate-600 font-medium">Servidor de Instalación</p>
+                  <p className="text-xs text-slate-400">Seleccione el servidor donde se realizará la configuración.</p>
+                  <div className="grid gap-2">
+                    {['Multicomercio MSC', 'Multicomercio MSC2', 'Otro'].map(opt => (
+                      <button key={opt} onClick={() => { setPymeServerName(opt); if (opt !== 'Otro') setPymeServerCustom(''); }}
+                        className={`w-full text-left p-3 rounded-lg border-2 transition-all text-sm ${pymeServerName === opt ? 'border-blue-500 bg-blue-50 font-semibold text-blue-800' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-slate-700'}`}
+                        data-testid={`server-option-${opt.replace(/\s/g, '-').toLowerCase()}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  {pymeServerName === 'Otro' && (
+                    <input type="text" value={pymeServerCustom} onChange={e => setPymeServerCustom(e.target.value)}
+                      placeholder="Nombre del servidor personalizado..."
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
+                      data-testid="server-custom-input" />
+                  )}
+                  <div className="flex gap-3 justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('project_type')} data-testid="server-back-btn">
+                      Atrás
+                    </Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handlePymeServerContinue}
+                      disabled={!pymeServerName || (pymeServerName === 'Otro' && !pymeServerCustom.trim())} data-testid="server-continue-btn">
+                      Continuar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase PYME: ¿Requiere Pinpads? */}
+              {multistorePhase === 'pinpad_question' && (
+                <div className="space-y-4 py-2" data-testid="pyme-pinpad-question-phase">
+                  <p className="text-sm text-slate-600 font-medium">¿La implementación requiere Pinpads?</p>
+                  <p className="text-xs text-slate-400">Si requiere dispositivos POS o Pinpad, seleccione "Sí" para vincular los seriales desde el inventario.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => handlePymePinpadAnswer(true)}
+                      className="p-4 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-center"
+                      data-testid="pinpad-yes-btn">
+                      <p className="text-sm font-bold text-emerald-700">Sí</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Seleccionar modelo y seriales</p>
+                    </button>
+                    <button onClick={() => handlePymePinpadAnswer(false)}
+                      className="p-4 rounded-lg border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all text-center"
+                      data-testid="pinpad-no-btn">
+                      <p className="text-sm font-bold text-slate-700">No</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Continuar sin equipos</p>
+                    </button>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('server')} data-testid="pinpad-question-back-btn">
+                      Atrás
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase PYME: Selección de Modelo y Seriales de Pinpad */}
+              {multistorePhase === 'pinpad_selection' && (
+                <div className="space-y-3 py-2" data-testid="pyme-pinpad-selection-phase">
+                  <p className="text-sm font-medium text-slate-700">Selección de Modelo y Seriales</p>
+
+                  {/* Dropdown de modelo */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Modelo de POS / Pinpad</label>
+                    <select value={pymePinpadSelectedModel} onChange={e => handlePymePinpadModelSelect(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none bg-white"
+                      data-testid="pinpad-model-select">
+                      <option value="">Seleccionar modelo...</option>
+                      {pymePinpadModels.map(m => (
+                        <option key={m.hardware_id} value={m.hardware_id}>{m.name} ({m.type})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Loading */}
+                  {pymePinpadLoading && (
+                    <div className="text-center py-4 text-sm text-slate-400">Buscando seriales en inventario (últimos 15 días)...</div>
+                  )}
+
+                  {/* Lista de seriales */}
+                  {!pymePinpadLoading && pymePinpadSelectedModel && pymePinpadSerials.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">Seriales encontrados ({pymePinpadSerials.length})</p>
+                      <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-emerald-50 border-b sticky top-0">
+                              <th className="w-8 px-2 py-1.5">
+                                <input type="checkbox" checked={pymePinpadSerials.every(s => pymePinpadSerialsSelected[s.serial])}
+                                  onChange={e => { const sel = {}; pymePinpadSerials.forEach(s => { sel[s.serial] = e.target.checked; }); setPymePinpadSerialsSelected(sel); }}
+                                  data-testid="pinpad-serial-select-all" />
+                              </th>
+                              <th className="text-left px-2 py-1.5 text-slate-600">Serial</th>
+                              <th className="text-left px-2 py-1.5 text-slate-600">Modelo</th>
+                              <th className="text-left px-2 py-1.5 text-slate-600">Fecha</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pymePinpadSerials.map(s => (
+                              <tr key={s.serial} className="border-b last:border-0 hover:bg-emerald-50/30">
+                                <td className="px-2 py-1.5">
+                                  <input type="checkbox" checked={!!pymePinpadSerialsSelected[s.serial]}
+                                    onChange={e => setPymePinpadSerialsSelected(prev => ({...prev, [s.serial]: e.target.checked}))}
+                                    data-testid={`pinpad-serial-${s.serial}`} />
+                                </td>
+                                <td className="px-2 py-1.5 font-mono text-slate-800">{s.serial}</td>
+                                <td className="px-2 py-1.5 text-slate-600">{s.modelo}</td>
+                                <td className="px-2 py-1.5 text-slate-500">{s.date ? new Date(s.date).toLocaleDateString('es-VE') : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sin seriales */}
+                  {!pymePinpadLoading && pymePinpadSelectedModel && pymePinpadSerials.length === 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                      <p className="text-sm text-amber-800 font-medium">No se encontraron seriales</p>
+                      <p className="text-xs text-amber-600 mt-1">No hay salidas de inventario para este modelo al RIF del cliente en los últimos 15 días.</p>
+                    </div>
+                  )}
+
+                  {/* Resumen de selección */}
+                  {Object.values(pymePinpadSerialsSelected).filter(Boolean).length > 0 && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <p className="text-xs text-emerald-700 font-medium">{Object.values(pymePinpadSerialsSelected).filter(Boolean).length} serial(es) seleccionado(s)</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('pinpad_question')} data-testid="pinpad-selection-back-btn">
+                      Atrás
+                    </Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handlePymePinpadConfirm} data-testid="pinpad-confirm-btn">
+                      Confirmar y Enviar
+                    </Button>
                   </div>
                 </div>
               )}

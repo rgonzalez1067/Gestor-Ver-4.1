@@ -299,6 +299,14 @@ async def resolve_project_template_vars(project: dict) -> dict:
     equipments = project.get("equipments", [])
     modelo_seriales_html = _build_equipment_html(equipments)
 
+    # === {Modelo_Seriales_POS} === (Pinpads desde inventario - flujo PYME)
+    pinpad_serials = project.get("pinpad_serials", [])
+    all_pos_serials = pinpad_serials + equipments
+    modelo_seriales_pos_html = _build_equipment_html(all_pos_serials) if all_pos_serials else "<em>Sin equipos POS/Pinpad vinculados</em>"
+
+    # === {Servidor_Instalacion} === (flujo PYME)
+    servidor_instalacion = project.get("server_name", "")
+
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
 
@@ -320,6 +328,8 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Matriz_Bancos_Productos": matriz_html,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,
+        "Modelo_Seriales_POS": modelo_seriales_pos_html,
+        "Servidor_Instalacion": servidor_instalacion or "No asignado",
 
         # Variables estándar del proyecto
         "project_number": project_number,

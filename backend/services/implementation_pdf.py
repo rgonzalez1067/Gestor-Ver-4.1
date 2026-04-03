@@ -356,6 +356,67 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
             contact_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
     contact_table.setStyle(TableStyle(contact_style))
     elements.append(contact_table)
+
+    # ==================== INFORMACIÓN DEL SERVIDOR (PYME) ====================
+    server_name = quote.get("server_name") or ""
+    if server_name:
+        elements.append(Spacer(1, 18))
+        elements.append(Paragraph("SERVIDOR DE INSTALACIÓN", styles['SectionHeader']))
+        elements.append(Spacer(1, 6))
+        srv_data = [
+            [Paragraph("Servidor", styles['TableHeaderText']), Paragraph("Nombre", styles['TableHeaderText'])],
+            [Paragraph("Servidor asignado", styles['SmallText']), Paragraph(server_name, styles['SmallText'])],
+        ]
+        srv_table = Table(srv_data, colWidths=[200, 280])
+        srv_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]
+        srv_table.setStyle(TableStyle(srv_style))
+        elements.append(srv_table)
+
+    # ==================== MODELO Y SERIALES DE POS/PINPAD ====================
+    pinpad_serials = quote.get("pinpad_serials") or []
+    equipments = quote.get("equipments") or []
+    all_serials = pinpad_serials + equipments
+    if all_serials:
+        elements.append(Spacer(1, 18))
+        elements.append(Paragraph("MODELO Y SERIALES DE POS / PINPAD", styles['SectionHeader']))
+        elements.append(Spacer(1, 6))
+        eq_data = [
+            [Paragraph("Modelo", styles['TableHeaderText']), Paragraph("Serial", styles['TableHeaderText']), Paragraph("Origen", styles['TableHeaderText'])],
+        ]
+        for eq in all_serials:
+            source_label = "Inventario" if eq in pinpad_serials else "Taller/Entrega"
+            eq_data.append([
+                Paragraph(str(eq.get("modelo", "N/A")), styles['SmallText']),
+                Paragraph(str(eq.get("serial", "N/A")), styles['SmallText']),
+                Paragraph(source_label, styles['SmallText']),
+            ])
+        eq_table = Table(eq_data, colWidths=[180, 180, 120])
+        eq_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]
+        for i in range(1, len(eq_data)):
+            if i % 2 == 0:
+                eq_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+        eq_table.setStyle(TableStyle(eq_style))
+        elements.append(eq_table)
     
     # ==================== PIE DE DOCUMENTO ====================
     elements.append(Spacer(1, 30))

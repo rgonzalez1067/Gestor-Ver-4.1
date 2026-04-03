@@ -727,6 +727,8 @@ class SendToImplementationRequest(BaseModel):
     stores: Optional[list] = None
     project_type_impl: Optional[str] = None  # "pos_fast_track", "vpos_mpos", "payment_gateway"
     equipment_serials: Optional[list] = None  # [{modelo, serial, nota_entrega_id?}]
+    server_name: Optional[str] = None  # "Multicomercio MSC", "Multicomercio MSC2", o texto libre
+    pinpad_serials: Optional[list] = None  # [{modelo, serial, movement_id}]
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
 async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
@@ -767,6 +769,13 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         branches = (fresh_quote or {}).get('branch_details', [])
 
     # PASO 3: Generar PDF (si falla, retornar error sin enviar email ni tocar BD)
+    # Inyectar datos PYME (servidor/pinpads) en el quote para el PDF
+    if body and body.server_name:
+        quote["server_name"] = body.server_name
+    if body and body.pinpad_serials:
+        quote["pinpad_serials"] = body.pinpad_serials
+    if body and body.equipment_serials:
+        quote["equipments"] = body.equipment_serials
     try:
         impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
     except Exception as e:
@@ -786,7 +795,9 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         if body and body.equipment_serials:
             equipment_data = body.equipment_serials
         pt_impl = body.project_type_impl if body else None
-        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl)
+        srv_name = body.server_name if body else None
+        pp_serials = body.pinpad_serials if body else None
+        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials)
     except HTTPException:
         raise
     except Exception as e:
@@ -2037,6 +2048,89 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
     return {"email_logs": logs, "count": len(logs)}
 
 
+# ==================== PYME EXTENDED FLOW: PINPAD MODELS & INVENTORY SERIALS ====================
+
+@router.get("/quotes/{quote_id}/pinpad-models")
+async def get_pinpad_models(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Retorna modelos de POS/Pinpad clasificados como 'Bien' para selección en flujo PYME."""
+    await get_current_user(authorization)
+    models = []
+    async for hw in db.hardware.find(
+        {"type": {"$in": ["POS", "Pinpad"]}, "asset_type": "Bien"},
+        {"_id": 0}
+    ):
+        models.append({
+            "hardware_id": hw.get("hardware_id", ""),
+            "name": hw.get("name", ""),
+            "type": hw.get("type", ""),
+        })
+    return {"models": models}
+
+
+@router.get("/quotes/{quote_id}/inventory-serials")
+async def get_inventory_serials(quote_id: str, model_id: str, authorization: Optional[str] = Header(None)):
+    """Busca seriales de salidas de inventario por RIF del cliente, modelo y últimos 15 días."""
+    await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    if not client:
+        return {"serials": [], "client_rif": ""}
+
+    client_rif = (client.get("rif", "") or "").replace("-", "").replace(" ", "").upper().strip()
+    if not client_rif:
+        return {"serials": [], "client_rif": ""}
+
+    # Buscar todos los client_id con el mismo RIF normalizado
+    all_client_ids = []
+    async for cl in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1}):
+        cl_rif = (cl.get("rif", "") or "").replace("-", "").replace(" ", "").upper().strip()
+        if cl_rif == client_rif:
+            all_client_ids.append(cl["client_id"])
+
+    # Fecha límite: últimos 15 días
+    from datetime import timedelta
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=15)).isoformat()
+
+    # Buscar salidas de inventario que coincidan
+    serials_found = []
+    query = {
+        "movement_type": "salida",
+        "item_id": model_id,
+        "created_at": {"$gte": cutoff_date},
+        "$or": [
+            {"client_id": {"$in": all_client_ids}},
+        ],
+        "serials": {"$exists": True, "$ne": []},
+    }
+    # También buscar por nombre de cliente si no hay client_id en el movimiento
+    client_names = set()
+    async for cl in db.clients.find({"client_id": {"$in": all_client_ids}}, {"_id": 0, "legal_name": 1, "fantasy_name": 1}):
+        if cl.get("legal_name"):
+            client_names.add(cl["legal_name"])
+        if cl.get("fantasy_name"):
+            client_names.add(cl["fantasy_name"])
+
+    if client_names:
+        query["$or"].append({"client_name": {"$in": list(client_names)}})
+
+    async for mov in db.inventory_movements.find(query, {"_id": 0}):
+        for serial in mov.get("serials", []):
+            serials_found.append({
+                "serial": serial,
+                "modelo": mov.get("item_name", ""),
+                "movement_id": mov.get("movement_id", ""),
+                "warehouse": mov.get("warehouse_id", ""),
+                "date": mov.get("created_at", ""),
+                "reference": mov.get("reference", ""),
+            })
+
+    return {"serials": serials_found, "client_rif": client_rif}
+
+
 # ==================== EQUIPMENT SEARCH FOR IMPLEMENTATION ====================
 
 @router.get("/quotes/{quote_id}/equipment-for-implementation")
@@ -2172,7 +2266,7 @@ async def get_equipment_for_implementation(quote_id: str, project_type: Optional
 
 # ==================== PROJECT TRIGGER ====================
 
-async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None, equipment_data: list = None, project_type_impl: str = None):
+async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None, equipment_data: list = None, project_type_impl: str = None, server_name: str = None, pinpad_serials: list = None):
     """Crea un proyecto a partir de una cotización enviada a implementación"""
     existing = await db.projects.find_one({"quote_id": quote_id})
     if existing:
@@ -2327,6 +2421,35 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
     # Tipo de Proyecto de Implementación (POS Fast Track / VPOS-MPOS / Payment Gateway)
     if project_type_impl:
         project["project_type_impl"] = project_type_impl
+
+    # Servidor de instalación (flujo PYME)
+    if server_name:
+        project["server_name"] = server_name
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Servidor de instalación: {server_name}",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
+
+    # Pinpad seriales seleccionados (flujo PYME)
+    if pinpad_serials and isinstance(pinpad_serials, list):
+        project["pinpad_serials"] = pinpad_serials
+        pp_models = {}
+        for pp in pinpad_serials:
+            m = pp.get("modelo", "Desconocido")
+            if m not in pp_models:
+                pp_models[m] = 0
+            pp_models[m] += 1
+        pp_summary = ", ".join(f"{m} x{c}" for m, c in pp_models.items())
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Pinpads vinculados desde inventario: {pp_summary} ({len(pinpad_serials)} serial(es))",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
 
     # Equipos vinculados (seriales y modelos)
     if equipment_data and isinstance(equipment_data, list):

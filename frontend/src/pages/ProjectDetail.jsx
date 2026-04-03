@@ -669,6 +669,39 @@ const ProjectDetail = () => {
                 </div>
               )}
 
+              {/* Bloque 2.6: Servidor de Instalación (PYME) */}
+              {project.server_name && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="server-section">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Servidor de Instalación</p>
+                  <p className="text-sm font-semibold text-blue-700" data-testid="server-name">{project.server_name}</p>
+                </div>
+              )}
+
+              {/* Bloque 2.7: Pinpads desde Inventario (PYME) */}
+              {project.pinpad_serials && project.pinpad_serials.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="pinpad-serials-section">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS / Pinpad (Inventario)</p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-emerald-50 border-b">
+                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Modelo</th>
+                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Serial</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {project.pinpad_serials.map((pp, idx) => (
+                          <tr key={idx} className="border-b last:border-0" data-testid={`pinpad-serial-row-${idx}`}>
+                            <td className="px-3 py-1.5 text-slate-800">{pp.modelo}</td>
+                            <td className="px-3 py-1.5 font-mono font-bold text-emerald-700">{pp.serial}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Bloque 3: Avance y Acciones */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance y Acciones</p>
