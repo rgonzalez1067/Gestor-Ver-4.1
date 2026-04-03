@@ -21,6 +21,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Tipo de Proyecto visible en ficha del proyecto (`project_type_impl`)
   - Sección "Modelo y Seriales de Equipos" en ProjectDetail
   - Variable `{Modelo_Seriales_Equipos}` para plantillas de email (tabla HTML Modelo-Serial)
+- **Flujo Transaccional Seguro (Fix P0 — Feb 2026)**:
+  - Orden: PDF → Proyecto → Email (sin emails fantasma)
+  - `_create_project_from_quote` restaurada con cuerpo completo
+  - Búsqueda de equipos diferenciada: Fast Track por quote_id, VPOS/MPOS por RIF+estatus
+  - Si falla PDF o proyecto, se retorna error 500 sin enviar email
 - **Motor de Reemplazo de Variables ROBUSTO**:
   - 17 variables dinámicas con resolución completa
   - `_clean_html_in_braces` limpia tags HTML inyectados por el editor rico
@@ -46,6 +51,7 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/backend/routes/quote_actions.py`
 - `/app/backend/services/project_template_vars.py`
 - `/app/backend/services/object_storage.py`
+- `/app/backend/services/implementation_pdf.py`
 - `/app/frontend/src/pages/ProjectDetail.jsx`
 - `/app/frontend/src/pages/Quotes.jsx`
 
@@ -58,5 +64,5 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas
 - Lógica "Completado" en Roadmap Bancos
-- Refactorización componentes monolíticos
+- Refactorización componentes monolíticos (`ProjectDetail.jsx` 1600+)
 - Ficha Técnica PDF con equipos vinculados

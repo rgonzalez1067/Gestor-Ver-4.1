@@ -766,10 +766,34 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         fresh_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "branch_details": 1})
         branches = (fresh_quote or {}).get('branch_details', [])
 
-    # PASO 3: Generar PDF con datos actualizados
-    impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
+    # PASO 3: Generar PDF (si falla, retornar error sin enviar email ni tocar BD)
+    try:
+        impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
+    except Exception as e:
+        logger.error(f"Error generando PDF de implementación para {quote_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generando Ficha Técnica PDF: {str(e)}")
 
-    # Workflow centralizado: send-to-implementation → Implementación (General) + PDF técnico
+    # PASO 4: Crear Proyecto PRIMERO (transaccional a nivel de aplicación)
+    # Si falla, NO se envía email ni se modifica la cotización
+    try:
+        quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+        if not quote_for_project:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada al crear proyecto")
+        multistore_data = None
+        if body and body.is_multistore and body.stores:
+            multistore_data = {"is_multistore": True, "stores": body.stores}
+        equipment_data = None
+        if body and body.equipment_serials:
+            equipment_data = body.equipment_serials
+        pt_impl = body.project_type_impl if body else None
+        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creando proyecto: {str(e)}")
+
+    # PASO 5: Solo enviar email si el proyecto se creó exitosamente
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
     email_results = await send_workflow_notification(
         action="send-to-implementation",
@@ -779,27 +803,6 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         pdf_buffer=impl_pdf_bytes,
         cc_emails=cc_emails,
     )
-    
-    await db.quotes.update_one(
-        {"quote_id": quote_id},
-        {"$set": {"sent_to_implementation_at": datetime.now(timezone.utc).isoformat(), "quote_status": "Enviada a Imple"}}
-    )
-
-    # TRIGGER: Crear Proyecto y eliminar cotización
-    try:
-        # Re-leer la cotización antes de eliminarla para tener todos los datos
-        quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
-        if quote_for_project:
-            multistore_data = None
-            if body and body.is_multistore and body.stores:
-                multistore_data = {"is_multistore": True, "stores": body.stores}
-            equipment_data = None
-            if body and body.equipment_serials:
-                equipment_data = body.equipment_serials
-            project_type_impl = body.project_type_impl if body else None
-            await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, project_type_impl)
-    except Exception as e:
-        logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
     return {"message": "Enviado a implementación", "new_status": "Enviada a Imple", "emails": email_results}
 
@@ -2034,22 +2037,17 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
     return {"email_logs": logs, "count": len(logs)}
 
 
-# ==================== PROJECT TRIGGER ====================
-
-async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None, equipment_data: list = None, project_type_impl: str = None):
-    """Crea un proyecto a partir de una cotización enviada a implementación"""
-    existing = await db.projects.find_one({"quote_id": quote_id})
-    if existing:
-        logger.info(f"Proyecto ya existe para cotización {quote_id}")
-        return
-
-
-
 # ==================== EQUIPMENT SEARCH FOR IMPLEMENTATION ====================
 
 @router.get("/quotes/{quote_id}/equipment-for-implementation")
-async def get_equipment_for_implementation(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Busca equipos entregados vinculados a la cotización o al cliente (por RIF) para vincular al proyecto."""
+async def get_equipment_for_implementation(quote_id: str, project_type: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Busca equipos para vincular al proyecto de implementación.
+    
+    Lógica de búsqueda según tipo de proyecto:
+    - POS Fast Track: Busca seriales en taller_equipos por quote_id (sin filtro de estatus)
+    - VPOS/MPOS: Busca equipos entregados al cliente por RIF normalizado con estatus 'Entregado'
+    - Sin tipo / otro: Combinación de ambas búsquedas
+    """
     await get_current_user(authorization)
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -2060,43 +2058,109 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
     client = await db.clients.find_one({"client_id": client_id}, {"_id": 0}) if client_id else None
     client_rif = client.get("rif", "") if client else ""
 
-    # 1. Equipment directly linked to this quote
     quote_equipment = []
-    cursor = db.taller_equipos.find({"quote_id": quote_id, "estatus": "Entregado"}, {"_id": 0})
-    async for eq in cursor:
-        quote_equipment.append({
-            "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
-            "modelo": eq.get("modelo", ""),
-            "serial": eq.get("serial", ""),
-            "marca": eq.get("marca", ""),
-            "estatus": eq.get("estatus", ""),
-            "source": "cotizacion",
-        })
-
-    # 2. Equipment linked to client via RIF (delivered to same client, other quotes)
     rif_equipment = []
-    if client_rif:
-        # Find all clients with same RIF
-        client_ids = []
-        async for cl in db.clients.find({"rif": client_rif}, {"_id": 0, "client_id": 1}):
-            client_ids.append(cl["client_id"])
 
-        if client_ids:
-            cursor2 = db.taller_equipos.find({
-                "client_id": {"$in": client_ids},
-                "estatus": "Entregado",
-                "quote_id": {"$ne": quote_id},
-            }, {"_id": 0})
-            async for eq in cursor2:
-                rif_equipment.append({
-                    "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
-                    "modelo": eq.get("modelo", ""),
-                    "serial": eq.get("serial", ""),
-                    "marca": eq.get("marca", ""),
-                    "estatus": eq.get("estatus", ""),
-                    "quote_number": eq.get("quote_number", ""),
-                    "source": "cliente_rif",
-                })
+    if project_type == "pos_fast_track":
+        # FAST TRACK: Buscar por quote_id (todos los estatus — incluye los recién ingresados al taller)
+        cursor = db.taller_equipos.find({"quote_id": quote_id}, {"_id": 0})
+        async for eq in cursor:
+            quote_equipment.append({
+                "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+                "modelo": eq.get("modelo", ""),
+                "serial": eq.get("serial", ""),
+                "marca": eq.get("marca", ""),
+                "estatus": eq.get("estatus", ""),
+                "source": "cotizacion",
+            })
+
+    elif project_type == "vpos_mpos":
+        # VPOS/MPOS: Buscar por RIF del cliente normalizado + estatus 'Entregado'
+        if client_rif:
+            # Normalizar RIF: quitar guiones, espacios, convertir a mayúsculas
+            normalized_rif = client_rif.replace("-", "").replace(" ", "").upper().strip()
+            # Buscar todos los clientes con ese RIF (normalizado)
+            all_client_ids = []
+            async for cl in db.clients.find({}, {"_id": 0, "client_id": 1, "rif": 1}):
+                cl_rif = (cl.get("rif", "") or "").replace("-", "").replace(" ", "").upper().strip()
+                if cl_rif == normalized_rif:
+                    all_client_ids.append(cl["client_id"])
+
+            if all_client_ids:
+                cursor = db.taller_equipos.find({
+                    "client_id": {"$in": all_client_ids},
+                    "estatus": "Entregado",
+                }, {"_id": 0})
+                async for eq in cursor:
+                    rif_equipment.append({
+                        "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+                        "modelo": eq.get("modelo", ""),
+                        "serial": eq.get("serial", ""),
+                        "marca": eq.get("marca", ""),
+                        "estatus": eq.get("estatus", ""),
+                        "quote_number": eq.get("quote_number", ""),
+                        "source": "cliente_rif",
+                    })
+
+                # También buscar en notas_entrega si existe la colección
+                try:
+                    ne_cursor = db.notas_entrega.find({
+                        "client_id": {"$in": all_client_ids},
+                        "estatus": "Entregado",
+                    }, {"_id": 0})
+                    async for ne in ne_cursor:
+                        for eq in ne.get("equipos", []):
+                            eq_id = eq.get("equipo_id", eq.get("taller_equipo_id", ""))
+                            # Evitar duplicados
+                            if not any(r["equipo_id"] == eq_id for r in rif_equipment if eq_id):
+                                rif_equipment.append({
+                                    "equipo_id": eq_id,
+                                    "modelo": eq.get("modelo", ""),
+                                    "serial": eq.get("serial", ""),
+                                    "marca": eq.get("marca", ""),
+                                    "estatus": "Entregado",
+                                    "quote_number": ne.get("quote_number", ""),
+                                    "source": "nota_entrega",
+                                })
+                except Exception:
+                    pass  # notas_entrega collection may not exist
+
+    else:
+        # Fallback genérico: buscar ambos tipos
+        # 1. Equipment linked to this quote
+        cursor = db.taller_equipos.find({"quote_id": quote_id}, {"_id": 0})
+        async for eq in cursor:
+            quote_equipment.append({
+                "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+                "modelo": eq.get("modelo", ""),
+                "serial": eq.get("serial", ""),
+                "marca": eq.get("marca", ""),
+                "estatus": eq.get("estatus", ""),
+                "source": "cotizacion",
+            })
+
+        # 2. Equipment linked to client via RIF (delivered)
+        if client_rif:
+            client_ids = []
+            async for cl in db.clients.find({"rif": client_rif}, {"_id": 0, "client_id": 1}):
+                client_ids.append(cl["client_id"])
+
+            if client_ids:
+                cursor2 = db.taller_equipos.find({
+                    "client_id": {"$in": client_ids},
+                    "estatus": "Entregado",
+                    "quote_id": {"$ne": quote_id},
+                }, {"_id": 0})
+                async for eq in cursor2:
+                    rif_equipment.append({
+                        "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+                        "modelo": eq.get("modelo", ""),
+                        "serial": eq.get("serial", ""),
+                        "marca": eq.get("marca", ""),
+                        "estatus": eq.get("estatus", ""),
+                        "quote_number": eq.get("quote_number", ""),
+                        "source": "cliente_rif",
+                    })
 
     return {
         "quote_equipment": quote_equipment,
@@ -2104,6 +2168,16 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
         "client_rif": client_rif,
         "total": len(quote_equipment) + len(rif_equipment),
     }
+
+
+# ==================== PROJECT TRIGGER ====================
+
+async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None, equipment_data: list = None, project_type_impl: str = None):
+    """Crea un proyecto a partir de una cotización enviada a implementación"""
+    existing = await db.projects.find_one({"quote_id": quote_id})
+    if existing:
+        logger.info(f"Proyecto ya existe para cotización {quote_id}")
+        return
 
     # Obtener datos del cliente
     client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
@@ -2145,10 +2219,6 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
     # Construir matriz de implementación desde los items 'additional'
-    # Los items 'additional' son los medios de pago que el usuario seleccionó
-    # explícitamente para cada banco (ej: "TDD/TDC Suscripción" para "Banco Mercantil").
-    # NO usar recurring_basic/recurring_other ya que incluyen tarifas base y costos
-    # de infraestructura que NO representan implementaciones por banco.
     implementation_matrix = {}
     for item in quote.get("services", []):
         if item.get("item_type") != "additional":
@@ -2226,12 +2296,11 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
     # Soporte Multitienda (heredado de branch_details de la cotización o enviado manualmente)
     branch_details = quote.get("branch_details", [])
     if not multistore_data and branch_details:
-        # Auto-heredar de branch_details
         multistore_data = {
             "is_multistore": True,
             "stores": [{"name": b.get("store_name", ""), "box_count": int(b.get("quantity", 0))} for b in branch_details]
         }
-    
+
     if multistore_data and multistore_data.get("is_multistore"):
         stores_raw = multistore_data.get("stores", [])
         project["project_type"] = "multistore"
@@ -2278,6 +2347,7 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
         })
 
     await db.projects.insert_one(project)
+    project.pop("_id", None)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")
 
     # Eliminar la cotización origen
@@ -2289,8 +2359,8 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
         impl_manager_email = config.get("implementation_manager_email") if config else None
         if impl_manager_email:
-            subject = f"Nuevo Proyecto: {project_number} - {client_name}"
-            body = f"""
+            notif_subject = f"Nuevo Proyecto: {project_number} - {client_name}"
+            notif_html = f"""
             <h2>Nuevo Proyecto Pendiente de Asignación</h2>
             <p><strong>Proyecto:</strong> {project_number}</p>
             <p><strong>Cliente:</strong> {client_name} ({client_rif})</p>
@@ -2301,6 +2371,6 @@ async def get_equipment_for_implementation(quote_id: str, authorization: Optiona
             <hr>
             <p>Ingrese al sistema para asignar este proyecto a un implementador.</p>
             """
-            await send_email(to=impl_manager_email, subject=subject, html_content=body, quote_id=quote_id)
+            await send_email(to=[impl_manager_email], subject=notif_subject, html=notif_html, action="new_project_notification", quote_id=quote_id)
     except Exception as e:
         logger.warning(f"Error notificando gerente de implementación: {e}")

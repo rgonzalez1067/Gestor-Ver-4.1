@@ -2337,7 +2337,7 @@ export const Quotes = () => {
       setMultistorePhase('equipment');
       setEquipmentLoading(true);
       try {
-        const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation`);
+        const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation?project_type=${type}`);
         setEquipmentAvailable(res.data);
         // Auto-select all quote equipment
         const sel = {};
