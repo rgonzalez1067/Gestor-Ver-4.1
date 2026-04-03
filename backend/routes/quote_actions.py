@@ -2052,11 +2052,11 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
 
 @router.get("/quotes/{quote_id}/pinpad-models")
 async def get_pinpad_models(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Retorna modelos de POS/Pinpad clasificados como 'Bien' para selección en flujo PYME."""
+    """Retorna modelos de POS/Pinpad físicos (excluyendo servicios como licencias/garantías) para selección en flujo PYME."""
     await get_current_user(authorization)
     models = []
     async for hw in db.hardware.find(
-        {"type": {"$in": ["POS", "Pinpad"]}, "asset_type": "Bien"},
+        {"type": {"$in": ["POS", "Pinpad"]}, "asset_type": {"$ne": "Servicio"}},
         {"_id": 0}
     ):
         models.append({
