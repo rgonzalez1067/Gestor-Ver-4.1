@@ -13,7 +13,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -568,15 +568,38 @@ const ProjectDetail = () => {
 
           {/* Header */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-6">
-            {/* Fila superior: Título + Estado */}
-            <div className="flex items-start justify-between mb-5">
+            {/* Fila superior: Título + Estado + Acciones */}
+            <div className="flex items-start justify-between mb-5 gap-4">
               <h1 className="text-2xl font-bold text-slate-900" data-testid="project-title">Detalle para Implementación del Proyecto</h1>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border shrink-0 ${
-                project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                project.status === 'Detenido por Cliente/Banco' ? 'bg-red-100 text-red-800 border-red-200' :
-                'bg-emerald-100 text-emerald-800 border-emerald-200'
-              }`} data-testid="project-status">{project.status}</span>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
+                  project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                  project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                  project.status === 'Detenido por Cliente/Banco' ? 'bg-red-100 text-red-800 border-red-200' :
+                  'bg-emerald-100 text-emerald-800 border-emerald-200'
+                }`} data-testid="project-status">{project.status}</span>
+                {isMultistore && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                    <Store size={12} />Multitienda ({project.stores?.length || 0})
+                  </span>
+                )}
+                {rollup.global_progress !== undefined && (
+                  <div className="flex items-center gap-2 w-40">
+                    <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${rollup.global_progress >= 100 ? 'bg-emerald-500' : rollup.global_progress >= 50 ? 'bg-blue-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(rollup.global_progress, 100)}%` }} />
+                    </div>
+                    <span className="text-xs font-bold text-slate-700" data-testid="header-progress">{rollup.global_progress}%</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-7 px-2" data-testid="adhoc-email-btn">
+                    <Megaphone size={12} />Notificaciones
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="text-xs gap-1 border-slate-200 text-slate-600 hover:bg-slate-50 h-7 px-2" data-testid="manage-templates-btn">
+                    <ClipboardList size={12} />Plantillas
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* Bloques de información en grid */}
@@ -613,7 +636,7 @@ const ProjectDetail = () => {
                 </div>
               </div>
 
-              {/* Bloque 2: Implementación */}
+              {/* Bloque 2: Implementación (incluye servidor) */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Implementación</p>
                 <div className="flex items-center gap-3">
@@ -642,94 +665,46 @@ const ProjectDetail = () => {
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Bloque 2.5: Equipos Vinculados */}
-              {project.equipments && project.equipments.length > 0 && (
-                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="equipment-section">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo y Seriales de Equipos</p>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b">
-                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Modelo</th>
-                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Serial</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {project.equipments.map((eq, idx) => (
-                          <tr key={idx} className="border-b last:border-0" data-testid={`equipment-row-${idx}`}>
-                            <td className="px-3 py-1.5 text-slate-800">{eq.modelo}</td>
-                            <td className="px-3 py-1.5 font-mono font-bold text-slate-700">{eq.serial}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Bloque 2.6: Servidor de Instalación (PYME) */}
-              {project.server_name && (
-                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="server-section">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Servidor de Instalación</p>
-                  <p className="text-sm font-semibold text-blue-700" data-testid="server-name">{project.server_name}</p>
-                </div>
-              )}
-
-              {/* Bloque 2.7: Pinpads desde Inventario (PYME) */}
-              {project.pinpad_serials && project.pinpad_serials.length > 0 && (
-                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="pinpad-serials-section">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS / Pinpad (Inventario)</p>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="bg-emerald-50 border-b">
-                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Modelo</th>
-                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Serial</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {project.pinpad_serials.map((pp, idx) => (
-                          <tr key={idx} className="border-b last:border-0" data-testid={`pinpad-serial-row-${idx}`}>
-                            <td className="px-3 py-1.5 text-slate-800">{pp.modelo}</td>
-                            <td className="px-3 py-1.5 font-mono font-bold text-emerald-700">{pp.serial}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Bloque 3: Avance y Acciones */}
-              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avance y Acciones</p>
-                {isMultistore && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                    <Store size={12} />Multitienda ({project.stores?.length || 0})
-                  </span>
-                )}
-                {rollup.global_progress !== undefined && (
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1.5">Progreso Global</p>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${rollup.global_progress >= 100 ? 'bg-emerald-500' : rollup.global_progress >= 50 ? 'bg-blue-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(rollup.global_progress, 100)}%` }} />
-                      </div>
-                      <span className="text-sm font-bold text-slate-700 min-w-[36px] text-right" data-testid="header-progress">{rollup.global_progress}%</span>
+                {project.server_name && (
+                  <div className="flex items-center gap-3 pt-1 mt-1 border-t border-slate-100">
+                    <Server size={18} className="text-blue-600 shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-500">Servidor de Instalación</p>
+                      <p className="text-sm font-semibold text-blue-700" data-testid="server-name">{project.server_name}</p>
                     </div>
                   </div>
                 )}
-                <div className="flex flex-col gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={openEmailDialog} className="w-full justify-center text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50" data-testid="adhoc-email-btn">
-                    <Megaphone size={14} />Otras Notificaciones
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="w-full justify-center text-xs gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50" data-testid="manage-templates-btn">
-                    <ClipboardList size={14} />Plantillas
-                  </Button>
-                </div>
               </div>
+
+              {/* Bloque 2.5: Equipos Vinculados — Grid Horizontal */}
+              {project.equipments && project.equipments.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="equipment-section">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo y Seriales de Equipos</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {project.equipments.map((eq, idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" data-testid={`equipment-row-${idx}`}>
+                        <p className="text-[10px] text-slate-500 truncate">{eq.modelo}</p>
+                        <p className="text-xs font-mono font-bold text-slate-800">S/N: {eq.serial}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bloque 2.7: Pinpads desde Inventario (PYME) — Grid Horizontal */}
+              {project.pinpad_serials && project.pinpad_serials.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="pinpad-serials-section">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS / Pinpad (Inventario)</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {project.pinpad_serials.map((pp, idx) => (
+                      <div key={idx} className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" data-testid={`pinpad-serial-row-${idx}`}>
+                        <p className="text-[10px] text-emerald-600 truncate">{pp.modelo}</p>
+                        <p className="text-xs font-mono font-bold text-emerald-800">S/N: {pp.serial}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
