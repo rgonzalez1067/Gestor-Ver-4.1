@@ -1,5 +1,6 @@
 """Route module: projects.py - Módulo de Proyectos (Post-Venta)"""
-from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form, Query
+from fastapi.responses import Response
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel
@@ -7,11 +8,14 @@ import uuid
 import logging
 import os
 import json
+import base64
+import re
 
 from config import db, get_current_user
 from models import PROJECT_STATUSES
 from services.email_service import send_email
 from services.project_template_vars import resolve_project_template_vars
+from services.object_storage import init_storage, put_object, get_object
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -506,6 +510,9 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     html = custom_html if custom_html else email_data["html"]
     entity_label = email_data["entity_label"]
 
+    # Process base64 images → upload to storage for email compatibility
+    html = await _replace_base64_images(html, current_user.get("user_id", "system"))
+
     email_result = await send_email(
         to=to_list, subject=subject, html=html,
         action=f"notification_{target}_{prefix_label.replace(' ', '_').lower()}",
@@ -679,6 +686,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
         "available_tags": [
             {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
             {"key": "Contacto_Principal", "label": "Contacto Principal", "source": "Contactos.nombre_apellido"},
+            {"key": "Datos_Contacto", "label": "Datos del Contacto (nombre, tel, email)", "source": "Contactos.full_info"},
             {"key": "Nombre_Sucursal", "label": "Nombre de Sucursal", "source": "Sucursales.nombre"},
             {"key": "Cantidad_Cajas", "label": "Cantidad de Cajas", "source": "Sucursales.nro_cajas"},
             {"key": "Integrador", "label": "Integrador", "source": "Proyecto.integrador"},
@@ -944,6 +952,9 @@ async def send_adhoc_email(
         {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
     </div>
     """
+
+    # Process base64 images → upload to storage
+    html = await _replace_base64_images(html, current_user.get("user_id", "system"))
 
     email_result = await send_email(
         to=to_list,
@@ -1304,3 +1315,122 @@ async def delete_vtids(project_id: str, store_id: Optional[str] = None, authoriz
     await db.projects.update_one({"project_id": project_id}, {"$push": {"notes": note}})
 
     return {"message": "VTIDs eliminados exitosamente"}
+
+
+# ==================== IMAGE UPLOAD & SERVING ====================
+
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp",
+}
+
+
+@router.post("/projects/upload-image")
+async def upload_image(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Upload image to object storage and return public URL."""
+    current_user = await get_current_user(authorization)
+    user_id = current_user.get("user_id", "unknown")
+
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "png"
+    if ext not in MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Formato no soportado. Use: {', '.join(MIME_TYPES.keys())}")
+
+    content_type = MIME_TYPES.get(ext, "application/octet-stream")
+    data = await file.read()
+
+    if len(data) > 10 * 1024 * 1024:  # 10MB limit
+        raise HTTPException(status_code=400, detail="La imagen excede el tamaño máximo de 10MB")
+
+    file_id = uuid.uuid4().hex[:12]
+    storage_path = f"{os.environ.get('APP_NAME', 'meganexus')}/email-images/{user_id}/{file_id}.{ext}"
+
+    try:
+        result = put_object(storage_path, data, content_type)
+    except Exception as e:
+        logger.error(f"Image upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Error al subir imagen al servidor")
+
+    # Store reference
+    await db.uploaded_images.insert_one({
+        "image_id": file_id,
+        "storage_path": result.get("path", storage_path),
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "uploaded_by": user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Return the serving URL (goes through our backend)
+    base_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+    public_url = f"{base_url}/api/projects/images/{file_id}.{ext}"
+
+    return {"url": public_url, "image_id": file_id, "filename": file.filename}
+
+
+@router.get("/projects/images/{filename}")
+async def serve_image(filename: str):
+    """Serve uploaded image without auth (for email rendering)."""
+    file_id = filename.split(".")[0] if "." in filename else filename
+    record = await db.uploaded_images.find_one({"image_id": file_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+
+    try:
+        data, ct = get_object(record["storage_path"])
+    except Exception as e:
+        logger.error(f"Image download failed: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener imagen")
+
+    return Response(content=data, media_type=record.get("content_type", ct))
+
+
+@router.post("/projects/process-email-images")
+async def process_email_images(authorization: Optional[str] = Header(None)):
+    """Process HTML content: replace base64 images with uploaded URLs."""
+    await get_current_user(authorization)
+    return {"message": "Use send endpoints - base64 images are processed automatically"}
+
+
+async def _replace_base64_images(html: str, user_id: str) -> str:
+    """Replace all base64 image data URIs in HTML with uploaded URLs."""
+    base64_pattern = re.compile(r'src="data:image/(jpeg|jpg|png|gif|webp);base64,([^"]+)"')
+    matches = list(base64_pattern.finditer(html))
+
+    if not matches:
+        return html
+
+    base_url = os.environ.get("REACT_APP_BACKEND_URL", "")
+
+    for match in matches:
+        ext = match.group(1)
+        if ext == "jpeg":
+            ext = "jpg"
+        b64_data = match.group(2)
+
+        try:
+            img_data = base64.b64decode(b64_data)
+        except Exception:
+            continue
+
+        file_id = uuid.uuid4().hex[:12]
+        storage_path = f"{os.environ.get('APP_NAME', 'meganexus')}/email-images/{user_id}/{file_id}.{ext}"
+        content_type = MIME_TYPES.get(ext, "image/png")
+
+        try:
+            result = put_object(storage_path, img_data, content_type)
+            await db.uploaded_images.insert_one({
+                "image_id": file_id,
+                "storage_path": result.get("path", storage_path),
+                "original_filename": f"pasted_{file_id}.{ext}",
+                "content_type": content_type,
+                "size": result.get("size", len(img_data)),
+                "uploaded_by": user_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            public_url = f"{base_url}/api/projects/images/{file_id}.{ext}"
+            html = html.replace(match.group(0), f'src="{public_url}"')
+        except Exception as e:
+            logger.warning(f"Failed to upload base64 image: {e}")
+
+    return html

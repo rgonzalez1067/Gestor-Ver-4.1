@@ -167,16 +167,25 @@ async def resolve_project_template_vars(project: dict) -> dict:
     project_number = project.get("project_number", "")
     quote_number = project.get("quote_number", "")
 
-    # === {Nombre_Cliente} — from clientes.razon_social ===
+    # === {Nombre_Cliente} — from clientes.razon_social / legal_name / fantasy_name ===
     client_name = project.get("client_name", "")
     client_id = project.get("client_id")
     razon_social = client_name  # fallback
     contacto_principal = ""
+    contacto_telefono = ""
+    contacto_email = ""
 
     if client_id:
         client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
         if client:
-            razon_social = client.get("razon_social") or client.get("nombre_comercial") or client.get("name") or client_name
+            razon_social = (
+                client.get("razon_social")
+                or client.get("legal_name")
+                or client.get("fantasy_name")
+                or client.get("nombre_comercial")
+                or client.get("name")
+                or client_name
+            )
             # {Contacto_Principal} — primer contacto
             contacts = client.get("contacts", [])
             if contacts:
@@ -188,6 +197,15 @@ async def resolve_project_template_vars(project: dict) -> dict:
                     contacto_principal = f"{first} {last}".strip()
                 if not contacto_principal:
                     contacto_principal = c.get("name", c.get("email", ""))
+                contacto_telefono = c.get("phone", c.get("telefono", ""))
+                contacto_email = c.get("email", "")
+            else:
+                # Fallback: contact1 field (legacy)
+                c1 = client.get("contact1", {})
+                if c1:
+                    contacto_principal = c1.get("name", "")
+                    contacto_telefono = c1.get("phone", "")
+                    contacto_email = c1.get("email", "")
 
     # === {Nombre_Sucursal} y {Cantidad_Cajas} ===
     stores = project.get("stores", [])
@@ -207,16 +225,16 @@ async def resolve_project_template_vars(project: dict) -> dict:
     integrador = project.get("integrator_name", "—")
 
     # === {Nombre_Implementador}, {Correo_Implementador}, {Telefono_Implementador} ===
-    nombre_implementador = ""
+    nombre_implementador = project.get("assigned_to_name", "")
     correo_implementador = ""
     telefono_implementador = ""
-    assigned_to_id = project.get("assigned_to")
+    assigned_to_id = project.get("assigned_to_user_id")
     if assigned_to_id:
         impl_user = await db.users.find_one({"user_id": assigned_to_id}, {"_id": 0})
         if impl_user:
-            nombre_implementador = f"{impl_user.get('first_name', '')} {impl_user.get('last_name', '')}".strip()
+            nombre_implementador = f"{impl_user.get('first_name', '')} {impl_user.get('last_name', '')}".strip() or nombre_implementador
             correo_implementador = impl_user.get("email", "")
-            telefono_implementador = impl_user.get("phone", impl_user.get("telefono", ""))
+            telefono_implementador = impl_user.get("phone", "") or impl_user.get("telefono", "")
 
     # === {Aplicativo_Integracion} ===
     aplicativo_integracion = project.get("integrator_app_name", "—")
@@ -246,6 +264,9 @@ async def resolve_project_template_vars(project: dict) -> dict:
         # Variables nuevas (Diccionario Técnico)
         "Nombre_Cliente": razon_social,
         "Contacto_Principal": contacto_principal,
+        "Datos_Contacto": f"{contacto_principal} | Tel: {contacto_telefono} | Email: {contacto_email}" if contacto_principal else "—",
+        "Telefono_Contacto": contacto_telefono,
+        "Email_Contacto": contacto_email,
         "Nombre_Sucursal": nombre_sucursal,
         "Cantidad_Cajas": cantidad_cajas,
         "Integrador": integrador,

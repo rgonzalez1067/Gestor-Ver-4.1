@@ -323,7 +323,7 @@ const ProjectDetail = () => {
     finally { setPreviewLoading(false); }
   };
 
-  const handleEditorPaste = (e) => {
+  const handleEditorPaste = async (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
     for (const item of items) {
@@ -331,36 +331,49 @@ const ProjectDetail = () => {
         e.preventDefault();
         const file = item.getAsFile();
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const base64 = ev.target.result;
-          document.execCommand('insertImage', false, base64);
-        };
-        reader.readAsDataURL(file);
+        await uploadAndInsertImage(file);
         return;
       }
     }
   };
 
-  const handleEditorDrop = (e) => {
+  const handleEditorDrop = async (e) => {
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
     for (const file of files) {
       if (file.type.startsWith('image/')) {
         e.preventDefault();
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const base64 = ev.target.result;
-          if (editorRef.current) {
-            const img = document.createElement('img');
-            img.src = base64;
-            img.style.maxWidth = '100%';
-            editorRef.current.appendChild(img);
-          }
-        };
-        reader.readAsDataURL(file);
+        await uploadAndInsertImage(file);
         return;
       }
+    }
+  };
+
+  const uploadAndInsertImage = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      toast.info('Subiendo imagen...');
+      const res = await api.post('/projects/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = res.data.url;
+      if (editorRef.current) {
+        editorRef.current.focus();
+        document.execCommand('insertImage', false, url);
+      }
+      toast.success('Imagen insertada');
+    } catch (err) {
+      toast.error('Error al subir imagen. Verifique el formato (JPG/PNG) y tamaño (<10MB)');
+      // Fallback: insert as base64 (will be converted on send)
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        if (editorRef.current) {
+          editorRef.current.focus();
+          document.execCommand('insertImage', false, ev.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -368,20 +381,18 @@ const ProjectDetail = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/jpeg,image/png,image/gif,image/webp';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target.result;
-        if (editorRef.current) {
-          editorRef.current.focus();
-          document.execCommand('insertImage', false, base64);
-        }
-      };
-      reader.readAsDataURL(file);
+      await uploadAndInsertImage(file);
     };
     input.click();
+  };
+
+  const insertVariableInEditor = (variable) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand('insertText', false, variable);
   };
 
   const sendFromPreview = async () => {
@@ -1132,7 +1143,7 @@ const ProjectDetail = () => {
                           <ClipboardList size={12} />Variables disponibles para la plantilla
                         </summary>
                         <div className="px-3 pb-2 flex flex-wrap gap-1">
-                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                             <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                               title={`Clic para copiar ${v}`}>{v}</span>
@@ -1265,7 +1276,7 @@ const ProjectDetail = () => {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
                 <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                     <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
                       title={`Insertar ${v}`}>{v}</button>
@@ -1455,6 +1466,22 @@ const ProjectDetail = () => {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Variables insert panel */}
+                  <details className="bg-indigo-50 border-b border-indigo-200">
+                    <summary className="px-3 py-1.5 text-[10px] font-semibold text-indigo-700 cursor-pointer select-none flex items-center gap-1">
+                      <ClipboardList size={11} />Insertar Variable en el editor
+                    </summary>
+                    <div className="px-3 pb-2 flex flex-wrap gap-1">
+                      {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                        <button key={v} type="button" onClick={() => insertVariableInEditor(v)}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
+                          title={`Insertar ${v} en la posición del cursor`}>{v}</button>
+                      ))}
+                    </div>
+                    <p className="px-3 pb-1.5 text-[9px] text-indigo-400">Las variables insertadas aquí se procesan automáticamente antes del envío.</p>
+                  </details>
+
                   <div
                     ref={editorRef}
                     contentEditable

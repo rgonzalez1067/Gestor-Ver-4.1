@@ -195,9 +195,17 @@ async def create_indexes():
         await db.projects.create_index([("project_id", 1)], unique=True)
         await db.projects.create_index([("quote_id", 1)])
         await db.projects.create_index([("status", 1)])
+        await db.uploaded_images.create_index([("image_id", 1)], unique=True)
         logging.info("MongoDB indexes created successfully")
     except Exception as e:
         logging.warning(f"Error creating indexes: {e}")
+
+    # Initialize object storage
+    try:
+        from services.object_storage import init_storage
+        init_storage()
+    except Exception as e:
+        logging.warning(f"Object storage init failed (images will not work): {e}")
 
 
 @app.on_event("shutdown")
