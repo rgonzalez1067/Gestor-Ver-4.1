@@ -281,8 +281,15 @@ export const Quotes = () => {
   const [isMultistore, setIsMultistore] = useState(null); // null = no decidido, true/false
   const [multistoreStores, setMultistoreStores] = useState([]);
   const [multistoreNewStore, setMultistoreNewStore] = useState({ name: '', box_count: '' });
-  const [multistorePhase, setMultistorePhase] = useState('ask'); // 'ask' | 'inherited' | 'collect' | 'confirm'
+  const [multistorePhase, setMultistorePhase] = useState('project_type'); // 'project_type' | 'equipment' | 'ask' | 'inherited' | 'collect' | 'confirm'
   const [multistoreSending, setMultistoreSending] = useState(false);
+
+  // Estado para tipo de proyecto y equipos
+  const [projectTypeImpl, setProjectTypeImpl] = useState(null); // 'pos_fast_track' | 'vpos_mpos' | 'payment_gateway'
+  const [equipmentList, setEquipmentList] = useState([]); // Equipos seleccionados
+  const [equipmentAvailable, setEquipmentAvailable] = useState({ quote_equipment: [], rif_equipment: [] });
+  const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const [equipmentSelected, setEquipmentSelected] = useState({}); // Map of equipo_id -> boolean
 
   useEffect(() => {
     fetchData();
@@ -2276,6 +2283,18 @@ export const Quotes = () => {
         body.is_multistore = true;
         body.stores = storesData;
       }
+      if (projectTypeImpl) {
+        body.project_type_impl = projectTypeImpl;
+      }
+      if (equipmentList && equipmentList.length > 0) {
+        body.equipment_serials = equipmentList.map(eq => ({
+          modelo: eq.modelo,
+          serial: eq.serial,
+          marca: eq.marca || '',
+          equipo_id: eq.equipo_id,
+          source: eq.source,
+        }));
+      }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
       if (response.data.status === 'simulated') {
@@ -2300,21 +2319,59 @@ export const Quotes = () => {
     setIsMultistore(null);
     setMultistoreNewStore({ name: '', box_count: '' });
     setMultistoreSending(false);
+    setProjectTypeImpl(null);
+    setEquipmentList([]);
+    setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
+    setEquipmentSelected({});
+    setMultistorePhase('project_type');
+    setMultistoreDialogOpen(true);
+  };
 
-    // Pre-check: detectar distribución previa de sucursales
-    const quote = quotes.find(q => q.quote_id === quoteId);
+  const handleProjectTypeSelect = async (type) => {
+    setProjectTypeImpl(type);
+    if (type === 'payment_gateway') {
+      // Payment Gateway: skip equipment, go to multistore question
+      advanceToMultistorePhase();
+    } else {
+      // POS or VPOS/MPOS: load equipment
+      setMultistorePhase('equipment');
+      setEquipmentLoading(true);
+      try {
+        const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation`);
+        setEquipmentAvailable(res.data);
+        // Auto-select all quote equipment
+        const sel = {};
+        (res.data.quote_equipment || []).forEach(eq => { sel[eq.equipo_id] = true; });
+        if (type === 'pos_fast_track') {
+          // POS Fast Track: auto-select ALL quote equipment
+          // (already done above)
+        }
+        setEquipmentSelected(sel);
+      } catch (err) {
+        toast.error('Error cargando equipos');
+        setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
+      } finally {
+        setEquipmentLoading(false);
+      }
+    }
+  };
+
+  const advanceToMultistorePhase = () => {
+    // Build final equipment list from selections
+    const allEquip = [...(equipmentAvailable.quote_equipment || []), ...(equipmentAvailable.rif_equipment || [])];
+    const selected = allEquip.filter(eq => equipmentSelected[eq.equipo_id]);
+    setEquipmentList(selected);
+
+    // Pre-check branch data for multistore
+    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
     const branchData = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0);
-
     if (branchData.length > 0) {
-      // Escenario A: Hay distribución previa → mostrar herencia
       setMultistoreStores(branchData.map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
       setMultistorePhase('inherited');
     } else {
-      // Sin distribución → flujo original (preguntar si es multitienda)
       setMultistoreStores([]);
       setMultistorePhase('ask');
     }
-    setMultistoreDialogOpen(true);
   };
 
   const getMultistoreQuote = () => quotes.find(q => q.quote_id === multistoreQuoteId);
@@ -2372,13 +2429,13 @@ export const Quotes = () => {
 
   const confirmMultistore = async () => {
     const totalCajas = getMultistoreTotalCajas();
-    if (multistoreAssignedBoxes !== totalCajas) {
+    if (isMultistore && multistoreAssignedBoxes !== totalCajas) {
       toast.error(`Debe asignar exactamente ${totalCajas} caja(s). Asignadas: ${multistoreAssignedBoxes}`);
       return;
     }
     setMultistoreSending(true);
     setMultistoreDialogOpen(false);
-    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, multistoreStores);
+    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, isMultistore ? multistoreStores : null);
     setMultistoreSending(false);
   };
 
@@ -5079,7 +5136,7 @@ export const Quotes = () => {
             onDelivered={() => fetchData()}
           />
 
-          {/* Diálogo Multitienda */}
+          {/* Diálogo Multitienda + Tipo de Proyecto + Equipos */}
           <Dialog open={multistoreDialogOpen} onOpenChange={(open) => { if (!open && !multistoreSending) { setMultistoreDialogOpen(false); } }}>
             <DialogContent className="max-w-lg" data-testid="multistore-dialog">
               <DialogHeader>
@@ -5088,6 +5145,133 @@ export const Quotes = () => {
                   Enviar a Implementación
                 </DialogTitle>
               </DialogHeader>
+
+              {/* Fase 0: Tipo de Proyecto */}
+              {multistorePhase === 'project_type' && (
+                <div className="space-y-4 py-2" data-testid="project-type-phase">
+                  <p className="text-sm text-slate-600 font-medium">Seleccione el tipo de proyecto:</p>
+                  <div className="grid gap-3">
+                    <button onClick={() => handleProjectTypeSelect('pos_fast_track')}
+                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                      data-testid="project-type-pos">
+                      <p className="text-sm font-bold text-slate-800">POS Stand Alone / Fast Track</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Equipos de la Gestión de Entrega vinculada a esta cotización</p>
+                    </button>
+                    <button onClick={() => handleProjectTypeSelect('vpos_mpos')}
+                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all"
+                      data-testid="project-type-vpos">
+                      <p className="text-sm font-bold text-slate-800">VPOS / MPOS</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Busca equipos entregados al cliente por RIF en Notas de Entrega</p>
+                    </button>
+                    <button onClick={() => handleProjectTypeSelect('payment_gateway')}
+                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                      data-testid="project-type-gateway">
+                      <p className="text-sm font-bold text-slate-800">Pasarela de Pago (Payment Gateway)</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Flujo 100% digital — sin vinculación de equipos físicos</p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase Equipment: Selección de equipos */}
+              {multistorePhase === 'equipment' && (
+                <div className="space-y-3 py-2" data-testid="equipment-phase">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-700">
+                      {projectTypeImpl === 'pos_fast_track' ? 'Equipos de la Cotización' : 'Equipos Entregados al Cliente'}
+                    </p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                      {projectTypeImpl === 'pos_fast_track' ? 'POS / Fast Track' : 'VPOS / MPOS'}
+                    </span>
+                  </div>
+
+                  {equipmentLoading ? (
+                    <div className="text-center py-8 text-sm text-slate-400">Buscando equipos...</div>
+                  ) : (
+                    <>
+                      {/* Equipos de la cotización */}
+                      {equipmentAvailable.quote_equipment?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 mb-1">Vinculados a esta cotización</p>
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-blue-50 border-b">
+                                  <th className="w-8 px-2 py-1.5"><input type="checkbox" checked={equipmentAvailable.quote_equipment.every(eq => equipmentSelected[eq.equipo_id])} onChange={e => { const s = {...equipmentSelected}; equipmentAvailable.quote_equipment.forEach(eq => { s[eq.equipo_id] = e.target.checked; }); setEquipmentSelected(s); }} /></th>
+                                  <th className="text-left px-2 py-1.5 text-slate-600">Modelo</th>
+                                  <th className="text-left px-2 py-1.5 text-slate-600">Serial</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {equipmentAvailable.quote_equipment.map(eq => (
+                                  <tr key={eq.equipo_id} className="border-b last:border-0 hover:bg-blue-50/30">
+                                    <td className="px-2 py-1.5"><input type="checkbox" checked={!!equipmentSelected[eq.equipo_id]} onChange={e => setEquipmentSelected(s => ({...s, [eq.equipo_id]: e.target.checked}))} /></td>
+                                    <td className="px-2 py-1.5 font-medium text-slate-800">{eq.modelo}</td>
+                                    <td className="px-2 py-1.5 font-mono text-slate-600">{eq.serial}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Equipos del cliente (por RIF) — solo para VPOS/MPOS */}
+                      {projectTypeImpl === 'vpos_mpos' && equipmentAvailable.rif_equipment?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-violet-700 mb-1">Otros equipos del cliente (RIF: {equipmentAvailable.client_rif})</p>
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-violet-50 border-b">
+                                  <th className="w-8 px-2 py-1.5"><input type="checkbox" checked={equipmentAvailable.rif_equipment.every(eq => equipmentSelected[eq.equipo_id])} onChange={e => { const s = {...equipmentSelected}; equipmentAvailable.rif_equipment.forEach(eq => { s[eq.equipo_id] = e.target.checked; }); setEquipmentSelected(s); }} /></th>
+                                  <th className="text-left px-2 py-1.5 text-slate-600">Modelo</th>
+                                  <th className="text-left px-2 py-1.5 text-slate-600">Serial</th>
+                                  <th className="text-left px-2 py-1.5 text-slate-600">Cotización</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {equipmentAvailable.rif_equipment.map(eq => (
+                                  <tr key={eq.equipo_id} className="border-b last:border-0 hover:bg-violet-50/30">
+                                    <td className="px-2 py-1.5"><input type="checkbox" checked={!!equipmentSelected[eq.equipo_id]} onChange={e => setEquipmentSelected(s => ({...s, [eq.equipo_id]: e.target.checked}))} /></td>
+                                    <td className="px-2 py-1.5 font-medium text-slate-800">{eq.modelo}</td>
+                                    <td className="px-2 py-1.5 font-mono text-slate-600">{eq.serial}</td>
+                                    <td className="px-2 py-1.5 text-slate-500">{eq.quote_number || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sin equipos encontrados */}
+                      {(equipmentAvailable.quote_equipment?.length === 0 && equipmentAvailable.rif_equipment?.length === 0) && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                          <p className="text-sm text-amber-800 font-medium">No se encontraron equipos entregados</p>
+                          <p className="text-xs text-amber-600 mt-1">Puede continuar sin vincular equipos o verificar las Notas de Entrega.</p>
+                        </div>
+                      )}
+
+                      {/* Resumen de selección */}
+                      {Object.values(equipmentSelected).filter(Boolean).length > 0 && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                          <p className="text-xs text-emerald-700 font-medium">{Object.values(equipmentSelected).filter(Boolean).length} equipo(s) seleccionado(s)</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 justify-between pt-2 border-t">
+                        <Button variant="outline" size="sm" onClick={() => setMultistorePhase('project_type')} data-testid="equipment-back-btn">
+                          Atrás
+                        </Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={advanceToMultistorePhase} data-testid="equipment-continue-btn">
+                          Continuar
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Fase 1: Pregunta Multitienda (solo si NO hay distribución previa) */}
               {multistorePhase === 'ask' && (

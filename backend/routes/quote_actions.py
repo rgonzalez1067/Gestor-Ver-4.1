@@ -725,6 +725,8 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
 class SendToImplementationRequest(BaseModel):
     is_multistore: Optional[bool] = False
     stores: Optional[list] = None
+    project_type_impl: Optional[str] = None  # "pos_fast_track", "vpos_mpos", "payment_gateway"
+    equipment_serials: Optional[list] = None  # [{modelo, serial, nota_entrega_id?}]
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
 async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
@@ -791,7 +793,11 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
             multistore_data = None
             if body and body.is_multistore and body.stores:
                 multistore_data = {"is_multistore": True, "stores": body.stores}
-            await _create_project_from_quote(quote_for_project, quote_id, multistore_data)
+            equipment_data = None
+            if body and body.equipment_serials:
+                equipment_data = body.equipment_serials
+            project_type_impl = body.project_type_impl if body else None
+            await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, project_type_impl)
     except Exception as e:
         logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
@@ -2030,12 +2036,74 @@ async def get_email_logs(limit: int = 50, authorization: Optional[str] = Header(
 
 # ==================== PROJECT TRIGGER ====================
 
-async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None):
+async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data: dict = None, equipment_data: list = None, project_type_impl: str = None):
     """Crea un proyecto a partir de una cotización enviada a implementación"""
     existing = await db.projects.find_one({"quote_id": quote_id})
     if existing:
         logger.info(f"Proyecto ya existe para cotización {quote_id}")
         return
+
+
+
+# ==================== EQUIPMENT SEARCH FOR IMPLEMENTATION ====================
+
+@router.get("/quotes/{quote_id}/equipment-for-implementation")
+async def get_equipment_for_implementation(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Busca equipos entregados vinculados a la cotización o al cliente (por RIF) para vincular al proyecto."""
+    await get_current_user(authorization)
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    client_id = quote.get("client_id")
+    client = await db.clients.find_one({"client_id": client_id}, {"_id": 0}) if client_id else None
+    client_rif = client.get("rif", "") if client else ""
+
+    # 1. Equipment directly linked to this quote
+    quote_equipment = []
+    cursor = db.taller_equipos.find({"quote_id": quote_id, "estatus": "Entregado"}, {"_id": 0})
+    async for eq in cursor:
+        quote_equipment.append({
+            "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+            "modelo": eq.get("modelo", ""),
+            "serial": eq.get("serial", ""),
+            "marca": eq.get("marca", ""),
+            "estatus": eq.get("estatus", ""),
+            "source": "cotizacion",
+        })
+
+    # 2. Equipment linked to client via RIF (delivered to same client, other quotes)
+    rif_equipment = []
+    if client_rif:
+        # Find all clients with same RIF
+        client_ids = []
+        async for cl in db.clients.find({"rif": client_rif}, {"_id": 0, "client_id": 1}):
+            client_ids.append(cl["client_id"])
+
+        if client_ids:
+            cursor2 = db.taller_equipos.find({
+                "client_id": {"$in": client_ids},
+                "estatus": "Entregado",
+                "quote_id": {"$ne": quote_id},
+            }, {"_id": 0})
+            async for eq in cursor2:
+                rif_equipment.append({
+                    "equipo_id": eq.get("equipo_id", eq.get("taller_equipo_id", "")),
+                    "modelo": eq.get("modelo", ""),
+                    "serial": eq.get("serial", ""),
+                    "marca": eq.get("marca", ""),
+                    "estatus": eq.get("estatus", ""),
+                    "quote_number": eq.get("quote_number", ""),
+                    "source": "cliente_rif",
+                })
+
+    return {
+        "quote_equipment": quote_equipment,
+        "rif_equipment": rif_equipment,
+        "client_rif": client_rif,
+        "total": len(quote_equipment) + len(rif_equipment),
+    }
 
     # Obtener datos del cliente
     client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
@@ -2182,6 +2250,28 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
         project["notes"].append({
             "note_id": f"pn_{uuid.uuid4().hex[:8]}",
             "text": f"Proyecto Multitienda con {len(stores_raw)} tienda(s): {', '.join(s.get('name', '') for s in stores_raw)}",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
+
+    # Tipo de Proyecto de Implementación (POS Fast Track / VPOS-MPOS / Payment Gateway)
+    if project_type_impl:
+        project["project_type_impl"] = project_type_impl
+
+    # Equipos vinculados (seriales y modelos)
+    if equipment_data and isinstance(equipment_data, list):
+        project["equipments"] = equipment_data
+        models_summary = {}
+        for eq in equipment_data:
+            modelo = eq.get("modelo", "Desconocido")
+            if modelo not in models_summary:
+                models_summary[modelo] = 0
+            models_summary[modelo] += 1
+        summary_text = ", ".join(f"{m} x{c}" for m, c in models_summary.items())
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Equipos vinculados: {summary_text} ({len(equipment_data)} serial(es))",
             "created_by": "system",
             "created_by_name": "Sistema",
             "created_at": now.isoformat(),

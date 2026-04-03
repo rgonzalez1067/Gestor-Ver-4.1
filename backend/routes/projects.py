@@ -747,6 +747,8 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Correo_Implementador", "label": "Correo del Implementador", "source": "Usuarios.email (asignado)"},
             {"key": "Telefono_Implementador", "label": "Teléfono del Implementador", "source": "Usuarios.phone (asignado)"},
             {"key": "Lista_VTID", "label": "Lista de Terminales Virtuales (HTML)", "source": "Proyecto.vtids"},
+            {"key": "Modelo_Seriales_Equipos", "label": "Tabla de Modelo y Seriales de Equipos", "source": "Proyecto.equipments"},
+            {"key": "Datos_Contacto", "label": "Datos completos del Contacto Principal", "source": "Clientes.contacts[0]"},
         ],
     }
 

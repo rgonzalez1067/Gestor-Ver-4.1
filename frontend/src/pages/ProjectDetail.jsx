@@ -584,6 +584,16 @@ const ProjectDetail = () => {
               {/* Bloque 1: Datos del Proyecto */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del Proyecto</p>
+                {project.project_type_impl && (
+                  <div>
+                    <p className="text-xs text-slate-500">Tipo de Proyecto</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="project-type-impl">
+                      {project.project_type_impl === 'pos_fast_track' ? 'POS Stand Alone / Fast Track' :
+                       project.project_type_impl === 'vpos_mpos' ? 'VPOS / MPOS' :
+                       project.project_type_impl === 'payment_gateway' ? 'Pasarela de Pago' : project.project_type_impl}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-slate-500">Ticket</p>
                   {project.ticket_number ? (
@@ -633,6 +643,31 @@ const ProjectDetail = () => {
                   </div>
                 )}
               </div>
+
+              {/* Bloque 2.5: Equipos Vinculados */}
+              {project.equipments && project.equipments.length > 0 && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="equipment-section">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo y Seriales de Equipos</p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b">
+                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Modelo</th>
+                          <th className="text-left px-3 py-1.5 text-slate-600 font-semibold">Serial</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {project.equipments.map((eq, idx) => (
+                          <tr key={idx} className="border-b last:border-0" data-testid={`equipment-row-${idx}`}>
+                            <td className="px-3 py-1.5 text-slate-800">{eq.modelo}</td>
+                            <td className="px-3 py-1.5 font-mono font-bold text-slate-700">{eq.serial}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Bloque 3: Avance y Acciones */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
@@ -1143,7 +1178,7 @@ const ProjectDetail = () => {
                           <ClipboardList size={12} />Variables disponibles para la plantilla
                         </summary>
                         <div className="px-3 pb-2 flex flex-wrap gap-1">
-                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                             <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                               title={`Clic para copiar ${v}`}>{v}</span>
@@ -1276,7 +1311,7 @@ const ProjectDetail = () => {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
                 <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                     <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
                       title={`Insertar ${v}`}>{v}</button>
@@ -1473,7 +1508,7 @@ const ProjectDetail = () => {
                       <ClipboardList size={11} />Insertar Variable en el editor
                     </summary>
                     <div className="px-3 pb-2 flex flex-wrap gap-1">
-                      {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                      {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                         <button key={v} type="button" onClick={() => insertVariableInEditor(v)}
                           className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                           title={`Insertar ${v} en la posición del cursor`}>{v}</button>

@@ -126,6 +126,45 @@ def _build_vtid_list_html_grouped(groups: list) -> str:
 
 
 
+def _build_equipment_html(equipments: list) -> str:
+    """Genera tabla HTML de equipos (Modelo - Serial)."""
+    if not equipments:
+        return "<p><em>Sin equipos asignados.</em></p>"
+
+    # Group by modelo
+    by_model = {}
+    for eq in equipments:
+        modelo = eq.get("modelo", "Desconocido")
+        serial = eq.get("serial", "—")
+        if modelo not in by_model:
+            by_model[modelo] = []
+        by_model[modelo].append(serial)
+
+    html = (
+        '<table style="border-collapse:collapse;width:auto;font-family:Arial,sans-serif;font-size:13px;">'
+        '<thead><tr style="background:#2c3e50;color:white;">'
+        '<th style="padding:8px 16px;text-align:left;border:1px solid #ddd;">Modelo</th>'
+        '<th style="padding:8px 16px;text-align:left;border:1px solid #ddd;">Serial</th>'
+        '</tr></thead><tbody>'
+    )
+
+    idx = 0
+    for modelo, serials in by_model.items():
+        for serial in serials:
+            bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+            html += (
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:6px 16px;border:1px solid #e9ecef;">{modelo}</td>'
+                f'<td style="padding:6px 16px;border:1px solid #e9ecef;font-weight:bold;">{serial}</td>'
+                f'</tr>'
+            )
+            idx += 1
+
+    html += '</tbody></table>'
+    return html
+
+
+
 def _build_stores_summary(stores: list) -> tuple:
     """Genera resúmenes de sucursales y cajas.
     Returns: (nombre_sucursal_str, cantidad_cajas_str)
@@ -256,6 +295,10 @@ async def resolve_project_template_vars(project: dict) -> dict:
             all_vtids_grouped.append({"name": s.get("name", "Sucursal"), "vtids": s_vtids})
     lista_vtid = _build_vtid_list_html_grouped(all_vtids_grouped) if all_vtids_grouped else _build_vtid_list_html(vtids)
 
+    # === {Modelo_Seriales_Equipos} ===
+    equipments = project.get("equipments", [])
+    modelo_seriales_html = _build_equipment_html(equipments)
+
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
 
@@ -276,6 +319,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Telefono_Implementador": telefono_implementador,
         "Matriz_Bancos_Productos": matriz_html,
         "Lista_VTID": lista_vtid,
+        "Modelo_Seriales_Equipos": modelo_seriales_html,
 
         # Variables estándar del proyecto
         "project_number": project_number,
