@@ -12,40 +12,51 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 
 ### Proyectos (Implementación)
 - Matriz de implementación por banco/producto
-- **Motor de Reemplazo de Variables (Parser) ROBUSTO**:
-  - 16 variables dinámicas con resolución completa
-  - `_render_vars` ejecuta en TODOS los flujos: estándar, custom_html, custom_subject, adhoc
-  - `_clean_html_in_braces` limpia HTML tags inyectados por el editor rico dentro de `{...}`
-  - Cadena de fallback para Nombre_Cliente: `razon_social → legal_name → fantasy_name → nombre_comercial`
-  - Implementador resuelto via `assigned_to_user_id` (no `assigned_to`)
-  - `Datos_Contacto`: formato completo "Nombre | Tel: phone | Email: email"
-- **Editor de Envío Final (Editable Preview)**:
-  - Asunto y cuerpo HTML editables con resolución de variables al enviar
-  - Soporte para pegar imágenes JPG/PNG (auto-upload a Object Storage)
-  - Panel "Insertar Variable en el editor" con 16 variables clickeables
-  - Los cambios NO afectan la plantilla base
-- **VTIDs por Sucursal (Multitienda)**: Generación independiente por sucursal
-- **Object Storage para Imágenes**: Upload automático, base64→URL conversion
-- **Ancho Fluido en Emails**: width:95%; max-width:900px
+- **Vinculación Logística en "Enviar a Implementación"**:
+  - Modal con selector de Tipo de Proyecto: POS Fast Track / VPOS-MPOS / Payment Gateway
+  - POS Fast Track: carga automática de seriales desde cotización (taller_equipos)
+  - VPOS/MPOS: busca equipos entregados al cliente por RIF (auto + selección manual)
+  - Payment Gateway: omite sección de equipos (flujo digital)
+  - Equipos seleccionados se persisten en `project.equipments[]`
+  - Tipo de Proyecto visible en ficha del proyecto (`project_type_impl`)
+  - Sección "Modelo y Seriales de Equipos" en ProjectDetail
+  - Variable `{Modelo_Seriales_Equipos}` para plantillas de email (tabla HTML Modelo-Serial)
+- **Motor de Reemplazo de Variables ROBUSTO**:
+  - 17 variables dinámicas con resolución completa
+  - `_clean_html_in_braces` limpia tags HTML inyectados por el editor rico
+  - Cadena de fallback para Nombre_Cliente, Implementador correctamente vinculado
+- **Editor de Envío Final**: Editable con soporte de imágenes (Object Storage)
+- **VTIDs por Sucursal**: Generación independiente por sucursal
 - **Notificaciones Secuenciales** con prefijos dinámicos y CC
-- **Asignación Simplificada**: Sin ticket en modal, fecha_asignacion automática
-- **Candado de Seguridad**: Proyecto bloqueado si no tiene ticket_number
+- **Asignación Simplificada** + Candado de Seguridad
+- **Ancho Fluido en Emails**: width:95%; max-width:900px
+
+### Cotizaciones
+- RBAC con `special_permissions`
+- Flujo de excepción para pasos saltados
+
+### Facturación
+- Tasas de Cambio BCV automatizadas
+
+### Pipeline Nuevos Productos
+- Governance: "Responsable Activo" write-locks
 
 ## Archivos Clave
 - `/app/backend/routes/projects.py`
+- `/app/backend/routes/quote_actions.py`
 - `/app/backend/services/project_template_vars.py`
 - `/app/backend/services/object_storage.py`
-- `/app/backend/services/email_service.py`
 - `/app/frontend/src/pages/ProjectDetail.jsx`
-- `/app/frontend/src/pages/Projects.jsx`
+- `/app/frontend/src/pages/Quotes.jsx`
 
 ## Backlog
 
 ### P1 (Próximos)
 - Verificación de Email y Recuperación de Contraseña
-- Refactorización de `Quotes.jsx` (5300+ líneas)
+- Refactorización de `Quotes.jsx` (5400+ líneas)
 
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas
 - Lógica "Completado" en Roadmap Bancos
 - Refactorización componentes monolíticos
+- Ficha Técnica PDF con equipos vinculados
