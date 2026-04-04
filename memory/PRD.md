@@ -69,7 +69,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Eliminado botón "Plantillas de Correo" del módulo de Cotizaciones (Quotes.jsx)
   - Editor maestro en Configuración potenciado con sidebar de Variables Dinámicas categorizado (Cliente, Financiero, Ejecutivo, Implementación)
   - Tokens CSS mejorados: fondo `#EBF8FF`, texto `#2C5282`, sin sobreimpresión
-  - Botón de Copiar en cada variable del panel lateral
+- **Abr 2026**: Optimización Fast Track — Captura Unificada de Hardware:
+  - Nuevo dropdown obligatorio "Modelo de POS / PINPAD" en Detalles de Integración para Fast Track
+  - Combina dispositivos POS + Pinpads (11 items filtrados por clasificación "Bien")
+  - Bypass automático de "Equipos a Despachar" al seleccionar modelo en Integración
+  - Herencia de datos: el modelo viaja a Ficha Técnica, Proyecto y Notificaciones
 
 ## Backlog
 
