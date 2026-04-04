@@ -67,7 +67,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     rate_source = billing_instruction.get('rate_source', 'Manual')
 
     elements.append(Paragraph("Conceptos de Setup y Productos Consolidados", header_style))
-    elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs. {exchange_rate:,.2f} / $</b> — Fuente: {rate_source}", normal_style))
+    elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs.{exchange_rate:,.2f} / $</b> — Fuente: {rate_source}", normal_style))
     elements.append(Spacer(1, 8))
 
     # Table header - use Paragraphs for headers too
@@ -90,7 +90,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
             Paragraph(str(item.get('quantity', 1)), cell_center_style),
             Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
             Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
-            Paragraph(f"Bs. {bs_val:,.2f}", cell_right_style),
+            Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
         ])
 
     # Summary rows style
@@ -102,7 +102,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     table_data.append([
         Paragraph('<b>SUBTOTAL</b>', cell_bold_style), '',
         Paragraph(f"<b>${subtotal_usd:,.2f}</b>", cell_bold_right), '',
-        Paragraph(f"<b>Bs. {subtotal_bs:,.2f}</b>", cell_bold_right),
+        Paragraph(f"<nobr><b>Bs.{subtotal_bs:,.2f}</b></nobr>", cell_bold_right),
     ])
 
     # IVA row
@@ -111,7 +111,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     table_data.append([
         Paragraph('IVA (16%)', cell_style), '',
         Paragraph(f"${iva_usd:,.2f}", cell_right_style), '',
-        Paragraph(f"Bs. {iva_bs:,.2f}", cell_right_style),
+        Paragraph(f"<nobr>Bs.{iva_bs:,.2f}</nobr>", cell_right_style),
     ])
 
     # Total row
@@ -121,13 +121,13 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     total_white_left = ParagraphStyle('TotalWhiteLeft', parent=total_white_style, alignment=0)
     table_data.append([
         Paragraph('<b>TOTAL GENERAL</b>', total_white_left), '',
-        Paragraph(f"<b>${total_usd:,.2f}</b>", total_white_style), '',
-        Paragraph(f"<b>Bs. {total_bs:,.2f}</b>", total_white_style),
+        Paragraph(f"<nobr><b>${total_usd:,.2f}</b></nobr>", total_white_style), '',
+        Paragraph(f"<nobr><b>Bs.{total_bs:,.2f}</b></nobr>", total_white_style),
     ])
 
     num_items = len(items)
-    # Adjusted column widths: wider concept, wider Bs. total for large numbers
-    col_widths = [6.5*cm, 1.5*cm, 2.8*cm, 2.5*cm, 4.2*cm]
+    # Adjusted column widths: wider Bs. total column for large numbers in single line
+    col_widths = [5.8*cm, 1.5*cm, 2.8*cm, 2.5*cm, 4.9*cm]
     t = Table(table_data, colWidths=col_widths)
 
     style_commands = [
