@@ -1111,7 +1111,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             r = await send_email(to=[cc], subject=f"[CC] {rw_subject}", html=rw_html, action="repair_collect_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
             email_results.append(r)
     else:
-        # Workflow centralizado: collect → Ventas (sede) con plantilla payment_receipt
+        # Workflow centralizado: collect → Ventas (sede) con plantilla comprobante_pago
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
         client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
         quote["client_name"] = client_name
@@ -1123,6 +1123,32 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             custom_message=custom_message,
             cc_emails=cc_emails,
         )
+    
+    # Registrar audit trail en la cotización (status_history)
+    raw_sede = quote.get("sede", quote.get("client_segment", "PYME"))
+    norm_sede_audit = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+    user_name_audit = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "Sistema"
+    # Extraer emails de los resultados de envío (campo 'message' contiene "Email enviado a X")
+    sent_addresses = []
+    for r in email_results:
+        if r.get("status") in ("sent", "simulated"):
+            msg = r.get("message", "")
+            if "enviado a " in msg:
+                sent_addresses.append(msg.split("enviado a ")[-1])
+    audit_detail = f"Notificación de pago enviada a Ventas Sede {norm_sede_audit}"
+    if sent_addresses:
+        audit_detail += f" ({', '.join(sent_addresses)})"
+    
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$push": {"status_history": {
+            "status": "Pagada",
+            "action": "collect",
+            "detail": audit_detail,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user": user_name_audit
+        }}}
+    )
     
     return {"message": "Cotización marcada como Pagada", "emails": email_results}
 

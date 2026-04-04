@@ -65,6 +65,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Ajuste Workflow Cobranza PYME:
+  - Acción `collect` dispara template `comprobante_pago_PYME` con variables `{Nombre_Cliente}`, `{Cotizacion_Nro}`
+  - Correo dirigido a buzón Ventas Sede PYME (`emails_by_sede[PYME].sales`)
+  - Normalización de sede: TBP → PYME (legacy)
+  - Registro de audit trail en `status_history` de la cotización con detalle de destinatario
 - **Abr 2026**: Centralización de gestión de plantillas de correo:
   - Eliminado botón "Plantillas de Correo" del módulo de Cotizaciones (Quotes.jsx)
   - Editor maestro en Configuración potenciado con sidebar de Variables Dinámicas categorizado (Cliente, Financiero, Ejecutivo, Implementación)
