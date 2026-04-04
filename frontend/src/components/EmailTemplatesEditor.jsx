@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -72,6 +72,55 @@ const BASE_TEMPLATE_TYPES = [
   }
 ];
 
+// Plantillas de Equipos (separadas por sede PYME/CORP)
+const EQUIPMENT_TEMPLATE_TYPES = [
+  {
+    baseId: 'equipment_sent',
+    icon: Mail,
+    color: 'text-sky-600',
+    bgColor: 'bg-sky-50',
+    borderColor: 'border-sky-200',
+    title: 'Envío de Cotización de Equipos a Clientes',
+    description: 'Se envía al cliente con la propuesta económica de equipos'
+  },
+  {
+    baseId: 'equipment_approved',
+    icon: CheckCircle,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    title: 'Aprobación de Cotización de Equipos',
+    description: 'Se envía a Administración al aprobar cotización de equipos'
+  },
+  {
+    baseId: 'equipment_invoice',
+    icon: FileText,
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-50',
+    borderColor: 'border-indigo-200',
+    title: 'Facturación de Equipos',
+    description: 'Se envía cuando se carga la factura de venta de equipos'
+  },
+  {
+    baseId: 'equipment_collect',
+    icon: CreditCard,
+    color: 'text-rose-600',
+    bgColor: 'bg-rose-50',
+    borderColor: 'border-rose-200',
+    title: 'Envío de Comprobante de Pago de Equipos',
+    description: 'Se envía al recibir el soporte de pago por compra de equipos'
+  },
+  {
+    baseId: 'equipment_delivery',
+    icon: Warehouse,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    title: 'Orden de Entrega de Equipos',
+    description: 'Se envía a Logística para preparar y despachar los equipos'
+  }
+];
+
 // Plantillas globales de Proyecto (no se dividen por sede)
 const PROJECT_TEMPLATE_TYPES = [
   {
@@ -103,6 +152,15 @@ const generateTemplateConfig = () => {
       config[templateId] = {
         ...template,
         title: `${template.title} (Sede ${sede.shortName})`,
+        sede: sede.id,
+        sedeName: sede.name
+      };
+    });
+    EQUIPMENT_TEMPLATE_TYPES.forEach(template => {
+      const templateId = `${template.baseId}_${sede.id}`;
+      config[templateId] = {
+        ...template,
+        title: `${template.title} (${sede.shortName})`,
         sede: sede.id,
         sedeName: sede.name
       };
@@ -219,6 +277,46 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
+  // === Plantillas de Equipos (Ventas) ===
+  equipment_sent: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Monto_Total', label: 'Monto Total USD' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  equipment_approved: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Rif_Cliente', label: 'RIF del Cliente' },
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Monto_Total', label: 'Monto Total USD' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  equipment_invoice: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Referencia_Factura', label: 'Referencia de Factura' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  equipment_collect: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Rif_Cliente', label: 'RIF del Cliente' },
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Monto_Total', label: 'Monto Total USD' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  equipment_delivery: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Rif_Cliente', label: 'RIF del Cliente' },
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Direccion_Entrega', label: 'Dirección de Entrega' },
+    { key: 'items_table', label: 'Tabla de Equipos (HTML)' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
   // === Plantillas de Notificaciones de Proyectos (Implementación) ===
   project_notify_client: [
     { key: 'Nombre_Cliente', label: 'Nombre del Cliente (Razón Social)' },
@@ -294,11 +392,14 @@ const VARIABLE_CATEGORIES = [
       { key: 'nro_cotizacion', label: 'Nro. cotización (reparación)' },
       { key: 'quote_type', label: 'Tipo de cotización' },
       { key: 'total_usd', label: 'Total en USD' },
+      { key: 'Monto_Total', label: 'Monto total USD (equipos)' },
       { key: 'invoice_number', label: 'Número de factura' },
+      { key: 'Referencia_Factura', label: 'Referencia de factura (equipos)' },
       { key: 'sede_name', label: 'Sede (PYME / CORP)' },
       { key: 'company_name', label: 'Nombre de la empresa' },
       { key: 'items_table', label: 'Tabla HTML de productos' },
       { key: 'services_table', label: 'Tabla de servicios' },
+      { key: 'Direccion_Entrega', label: 'Dirección de entrega' },
     ],
   },
   {
@@ -481,7 +582,15 @@ export const EmailTemplatesEditor = () => {
       cantidad_entregada: '5',
       estatus_entrega: 'Finalizado',
       lista_equipos_seriales: '<p><strong>Verifone P400</strong> (3 uds): SN001, SN002, SN003</p><p><strong>Verifone V240m</strong> (2 uds): SN004, SN005</p>',
-      almacen_custodia: 'Torre Banco Plaza'
+      almacen_custodia: 'Torre Banco Plaza',
+      // Variables de Equipos
+      Monto_Total: '3,500.00',
+      Monto_Pagado: '3,500.00',
+      Referencia_Factura: 'FAC-EQ-2026-001',
+      Direccion_Entrega: 'Av. Libertador, Centro Comercial, Local 5, Caracas',
+      Modelo_Equipo: 'Verifone P400',
+      Cantidad: '5',
+      Banco_Destino: 'Banco Mercantil'
     };
     
     for (const v of variables) {

@@ -377,6 +377,8 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
                 logger.error(f"Error generando PDF de Cálculos Definitivos: {e}")
 
         # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
+        # Para equipos, usar plantilla específica de equipos
+        eq_template_override = "equipment_approved" if quote.get("quote_category") == "equipment" else None
         email_results = await send_workflow_notification(
             action="approve",
             quote=quote,
@@ -385,6 +387,7 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
             cc_emails=cc_emails,
             pdf_buffer=pdf_buffer,
             extra_attachments=approval_attachments_b64 if approval_attachments_b64 else None,
+            template_base_override=eq_template_override,
         )
 
     # Generar tabla de instrucción de facturación para incluir en respuesta
@@ -619,12 +622,18 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     sede = quote.get("sede", "PYME")
     norm_sede = "PYME" if sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if sede in ("CORP", "Corp", "Corporativo") else sede
     is_repair_quote = quote.get("quote_category") == "repair"
+    is_equipment_quote = quote.get("quote_category") == "equipment"
 
     if is_repair_quote:
         # Plantilla específica de reparaciones
         template = await db.email_templates.find_one({"template_id": f"repair_quote_sent_{norm_sede}"}, {"_id": 0})
         if not template:
             template = await db.email_templates.find_one({"template_id": "repair_quote_sent"}, {"_id": 0})
+    elif is_equipment_quote:
+        # Plantilla específica de equipos
+        template = await db.email_templates.find_one({"template_id": f"equipment_sent_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "equipment_sent"}, {"_id": 0})
     else:
         template = await db.email_templates.find_one({"template_id": f"quote_sent_{norm_sede}"}, {"_id": 0})
         if not template:
@@ -874,9 +883,15 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
     
     # Buscar plantilla por sede primero, luego genérica
-    template = await db.email_templates.find_one({"template_id": f"invoice_{norm_sede}"}, {"_id": 0})
-    if not template:
-        template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
+    is_equipment_quote = quote.get("quote_category") == "equipment"
+    if is_equipment_quote:
+        template = await db.email_templates.find_one({"template_id": f"equipment_invoice_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "equipment_invoice"}, {"_id": 0})
+    else:
+        template = await db.email_templates.find_one({"template_id": f"invoice_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} Facturada",
@@ -894,10 +909,15 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
 
     template_vars = {
         "quote_number": quote.get('quote_number', ''),
+        "Cotizacion_Nro": quote.get('quote_number', ''),
+        "Nombre_Cliente": client_name,
         "client_name": client_name,
+        "Rif_Cliente": client.get('rif', 'N/A') if client else 'N/A',
         "client_rif": client.get('rif', 'N/A') if client else 'N/A',
         "invoice_number": invoice_number or 'No especificado',
+        "Referencia_Factura": invoice_number or 'No especificado',
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
         "sede_name": norm_sede,
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
@@ -981,48 +1001,20 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
     
     if quote_category == "equipment":
-        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        quote_sede = quote.get("sede", "PYME")
-        emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-        sede_emails = emails_by_sede.get(quote_sede, {})
-        warehouse_email = sede_emails.get("warehouse") or (config.get("warehouse_email") if config else None)
-        if not warehouse_email:
-            warehouse_email = "almacen@simulado.local"
-        
+        # Usar plantilla equipment_collect para notificar pago de equipos
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
         client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
-        
-        equipment_items = quote.get('equipment_items', [])
-        items_html = "<table style='border-collapse:collapse;width:100%;max-width:400px'><thead><tr style='background:#f3f4f6'><th style='padding:8px;border:1px solid #ddd;text-align:left'>Producto</th><th style='padding:8px;border:1px solid #ddd;text-align:center'>Cantidad</th></tr></thead><tbody>"
-        for item in equipment_items:
-            items_html += f"<tr><td style='padding:8px;border:1px solid #ddd'>{item.get('name','N/A')}</td><td style='padding:8px;border:1px solid #ddd;text-align:center'>{item.get('quantity',1)}</td></tr>"
-        items_html += "</tbody></table>"
-        
-        template = await db.email_templates.find_one({"template_id": "warehouse"}, {"_id": 0})
-        if not template:
-            template = {
-                "subject": "Despacho Pendiente: {{quote_number}} - {{client_name}}",
-                "body_html": "<h2>Nuevo despacho pendiente</h2><p><strong>Cotización:</strong> {{quote_number}}</p><p><strong>Cliente:</strong> {{client_name}} ({{client_rif}})</p><p><strong>Dirección:</strong> {{client_address}}</p>{{items_table}}"
-            }
-        
-        template_vars = {
-            "quote_number": quote.get('quote_number', ''),
-            "client_name": client_name,
-            "client_rif": client.get('rif', 'N/A') if client else 'N/A',
-            "client_address": client.get('address', 'N/A') if client else 'N/A',
-            "items_table": items_html,
-            "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
-            "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
-        }
-        subject = render_email_template(template["subject"], template_vars)
-        html_content = render_email_template(template["body_html"], template_vars)
-        
-        if custom_message and custom_message.strip():
-            user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-            html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
-        
-        r = await send_email(to=[warehouse_email], subject=subject, html=html_content, action="collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))
-        email_results.append(r)
+        quote["client_name"] = client_name
+        quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
+
+        email_results = await send_workflow_notification(
+            action="collect",
+            quote=quote,
+            current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+            template_base_override="equipment_collect",
+        )
     elif quote_category == "repair":
         # Reparaciones: Enviar ORDEN DE DESPACHO al Almacén + CC al ejecutivo
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})

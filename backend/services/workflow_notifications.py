@@ -91,23 +91,28 @@ async def _resolve_template(action: str, segment: str) -> dict:
     """Carga la plantilla correcta según acción y segmento."""
     matrix = WORKFLOW_MATRIX.get(action, {})
     template_base = matrix.get("template_base", action)
+    return await _resolve_template_by_base(template_base, segment, action)
 
+
+async def _resolve_template_by_base(template_base: str, segment: str, action: str = "") -> dict:
+    """Carga la plantilla correcta según base y segmento."""
     # Normalizar segmento
     norm_segment = "PYME" if segment in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if segment in ("CORP", "Corp", "Corporativo") else segment
 
-    # Intentar plantilla segmentada primero (ej: quote_approved_PYME)
+    # Intentar plantilla segmentada primero (ej: equipment_approved_PYME)
     template_id = f"{template_base}_{norm_segment}"
     template = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
 
     if not template:
-        # Fallback a plantilla genérica (ej: quote_approved)
+        # Fallback a plantilla genérica (ej: equipment_approved)
         template = await db.email_templates.find_one({"template_id": template_base}, {"_id": 0})
 
     if not template:
         # Fallback mínimo
+        action_label = action or template_base
         template = {
             "subject": "Notificación: {{quote_number}}",
-            "body_html": f"<p>Acción <strong>{action}</strong> ejecutada para la cotización <strong>{{{{quote_number}}}}</strong>.</p>"
+            "body_html": f"<p>Acción <strong>{action_label}</strong> ejecutada para la cotización <strong>{{{{quote_number}}}}</strong>.</p>"
         }
 
     return template
@@ -123,6 +128,7 @@ async def send_workflow_notification(
     extra_attachments: list = None,
     override_recipients: list = None,
     extra_template_vars: dict = None,
+    template_base_override: str = None,
 ) -> list:
     """
     Motor centralizado de notificaciones del workflow.
@@ -154,7 +160,10 @@ async def send_workflow_notification(
         recipients = await _resolve_recipients(action, quote, config)
 
     # 2. Cargar y renderizar plantilla
-    template = await _resolve_template(action, segment)
+    if template_base_override:
+        template = await _resolve_template_by_base(template_base_override, segment)
+    else:
+        template = await _resolve_template(action, segment)
     
     # Resolver datos del ejecutivo creador
     creator_name, creator_email = "", ""
