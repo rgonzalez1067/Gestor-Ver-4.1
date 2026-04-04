@@ -162,6 +162,12 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             subtotal_usd = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
             total_usd = subtotal_usd
         
+        # Sumar hardware Fast Track sincronizado desde Integración
+        ft_hw_subtotal = 0
+        if data.ft_equipment_items:
+            ft_hw_subtotal = sum((it.get("quantity", 1) * it.get("unit_price_usd", 0)) for it in data.ft_equipment_items)
+            total_usd += ft_hw_subtotal
+        
         total_bs = total_usd * exchange_rate
         
         # Obtener la sede del usuario actual
@@ -620,6 +626,11 @@ class QuoteUpdate(BaseModel):
     # Cliente en producción
     is_production_client: Optional[bool] = None
     production_items: Optional[List[dict]] = None
+    # Fast Track hardware
+    ft_equipment_items: Optional[List[dict]] = None
+    ft_hardware_subtotal: Optional[float] = None
+    requires_pinpad_config: Optional[bool] = None
+    requires_vpn: Optional[bool] = None
 
 @router.put("/quotes/{quote_id}")
 async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):

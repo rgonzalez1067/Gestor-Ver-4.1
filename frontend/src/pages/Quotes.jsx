@@ -1168,7 +1168,18 @@ export const Quotes = () => {
   // Totales netos
   const totalNetoSetup = subtotalSetup - montoDescuentoSetup;
   const totalNetoRecurrente = (subtotalRecurrente + subtotalProduction) - montoDescuentoRecurrente;
-  const grandTotal = totalNetoSetup + totalNetoRecurrente;
+
+  // Subtotal de hardware Fast Track (espejo del modelo seleccionado en Integración)
+  const ftHardwareSubtotal = (() => {
+    if (quoteData.quote_type !== 'FAST_TRACK') return 0;
+    if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+      const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+      if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_usd || 0);
+    }
+    return ftEquipmentItems.reduce((acc, it) => acc + (it.quantity * it.unit_price_usd), 0);
+  })();
+
+  const grandTotal = totalNetoSetup + totalNetoRecurrente + ftHardwareSubtotal;
 
   // === PG (Payment Gateway) Functions ===
   
@@ -1558,6 +1569,15 @@ export const Quotes = () => {
           quantity: item.quantity,
           unit_price_usd: item.unit_price_usd
         })) : [],
+        // Incluir modelo sincronizado desde Integración para Fast Track
+        ft_synced_hardware: (() => {
+          if (quoteData.quote_type !== 'FAST_TRACK') return null;
+          if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+            const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+            if (hw) return { hardware_id: hw.hardware_id, name: hw.name, type: hw.type, quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 };
+          }
+          return null;
+        })(),
         branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
       };
 
@@ -1569,7 +1589,17 @@ export const Quotes = () => {
         pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
-        ft_equipment_items: (quoteData.quote_type === 'FAST_TRACK' && isMegaSoftSponsor) ? ftEquipmentItems : [],
+        ft_equipment_items: (() => {
+          if (quoteData.quote_type !== 'FAST_TRACK') return [];
+          // Si hay modelo sincronizado desde Integración, usarlo como único item
+          if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+            const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+            if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+          }
+          // Fallback: items manuales (Mega Soft)
+          if (isMegaSoftSponsor) return ftEquipmentItems;
+          return [];
+        })(),
         integrator_id: quoteData.integrator_id,
         integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name,
@@ -2901,6 +2931,26 @@ export const Quotes = () => {
       const subtotal = allServices.reduce((sum, item) => sum + (item.total_usd || 0), 0);
       const total = subtotal - (quoteData.descuento || 0);
       
+      // Calcular costo de hardware Fast Track
+      const ftHwSubtotal = (() => {
+        if (quoteData.quote_type !== 'FAST_TRACK') return 0;
+        if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+          const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+          if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_usd || 0);
+        }
+        return ftEquipmentItems.reduce((acc, it) => acc + (it.quantity * it.unit_price_usd), 0);
+      })();
+
+      // Construir ft_equipment_items sincronizado
+      const syncedFtItems = (() => {
+        if (quoteData.quote_type !== 'FAST_TRACK') return [];
+        if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+          const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+          if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+        }
+        return ftEquipmentItems;
+      })();
+
       // Actualizar la cotización duplicada
       await api.put(`/quotes/${newQuoteId}`, {
         quote_type: quoteData.quote_type,
@@ -2910,13 +2960,14 @@ export const Quotes = () => {
         integrator_id: quoteData.integrator_id,
         integrator_name: integrator?.name || '',
         integrator_app_name: integrator?.app_name || quoteData.integrator_app_name || '',
-        // Campos opcionales - enviar vacío si es "none"
         pinpad_id: quoteData.pinpad_id === 'none' ? '' : quoteData.pinpad_id,
         pinpad_model: quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (pinpad?.name || '') : '',
         sponsor_bank_id: quoteData.sponsor_bank_id === 'none' ? '' : quoteData.sponsor_bank_id,
         sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (sponsorBank?.name || '') : '',
         subtotal_usd: subtotal,
-        total_usd: total,
+        total_usd: total + ftHwSubtotal,
+        ft_hardware_subtotal: ftHwSubtotal,
+        ft_equipment_items: syncedFtItems,
         descuento: quoteData.descuento || 0,
         descuento_setup: quoteData.descuento_setup || 0,
         descuento_recurrente: quoteData.descuento_recurrente || 0,
@@ -3813,18 +3864,50 @@ export const Quotes = () => {
                     Equipos a Despachar (Cotizacion de Equipos)
                   </h3>
 
-                  {/* Bypass: modelo ya seleccionado en Detalles de Integración */}
+                  {/* Espejo de datos: modelo sincronizado desde Detalles de Integración */}
                   {quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4" data-testid="ft-hardware-bypass">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CheckCircle2 size={16} className="text-emerald-600" />
-                        <span className="text-sm font-semibold text-emerald-800">Modelo capturado en Detalles de Integración</span>
+                    <div data-testid="ft-hardware-mirror">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-center gap-2">
+                        <CheckCircle2 size={14} className="text-blue-600" />
+                        <span className="text-xs text-blue-700">
+                          Modelo sincronizado desde <strong>Detalles de Integración</strong> — Solo lectura.
+                        </span>
                       </div>
-                      <p className="text-xs text-emerald-600 ml-6">
-                        <strong>{selectedPinpad?.name || 'Modelo seleccionado'}</strong> ({selectedPinpad?.type || 'Equipo'}) — Este modelo se hereda automáticamente a la Ficha Técnica y al proyecto.
-                      </p>
-                      <p className="text-[10px] text-emerald-500 ml-6 mt-1">
-                        No es necesario cargar equipos adicionales en esta sección. Si requiere equipos extra para cotización híbrida, limpie el campo de modelo arriba.
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse" data-testid="ft-hardware-readonly-table">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="border p-2 text-left text-sm font-medium text-slate-700">Equipo</th>
+                              <th className="border p-2 text-left text-sm font-medium text-slate-700 w-24">Tipo</th>
+                              <th className="border p-2 text-center text-sm font-medium text-slate-700 w-20">Cant.</th>
+                              <th className="border p-2 text-right text-sm font-medium text-slate-700 w-32">P. Unit. (USD)</th>
+                              <th className="border p-2 text-right text-sm font-medium text-slate-700 w-32">Subtotal (USD)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="bg-white">
+                              <td className="border p-2 text-sm font-semibold text-slate-800">{selectedPinpad?.name || '—'}</td>
+                              <td className="border p-2 text-sm text-slate-600">{selectedPinpad?.type || 'POS'}</td>
+                              <td className="border p-2 text-center text-sm font-medium">{parseInt(quoteData.cantidad_cajas) || 1}</td>
+                              <td className="border p-2 text-right text-sm font-medium">${(selectedPinpad?.price_usd || 0).toFixed(2)}</td>
+                              <td className="border p-2 text-right text-sm font-bold text-slate-900">
+                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_usd || 0)).toFixed(2)}
+                              </td>
+                            </tr>
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-800 text-white">
+                              <td colSpan={3} className="border p-2 text-right text-sm font-bold">Total Equipos (USD):</td>
+                              <td className="border p-2"></td>
+                              <td className="border p-2 text-right text-sm font-bold">
+                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_usd || 0)).toFixed(2)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-2">
+                        Este monto se incluye en el Total General de la cotización. Para cambiar el modelo, modifique el campo arriba en Detalles de Integración.
                       </p>
                     </div>
                   ) : (
@@ -4816,10 +4899,22 @@ export const Quotes = () => {
                   </div>
 
                   {/* Resumen General */}
-                  <div className="bg-slate-900 text-white p-4 mt-4 rounded-b-lg">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold">TOTAL GENERAL (Setup + Recurrente)</span>
-                      <span className="text-2xl font-bold font-mono">${grandTotal.toFixed(2)} USD</span>
+                  <div className="bg-slate-900 text-white p-4 mt-4 rounded-b-lg" data-testid="grand-total-section">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-slate-300 text-sm">
+                        <span>Implementación (Servicios)</span>
+                        <span className="font-mono">${(totalNetoSetup + totalNetoRecurrente).toFixed(2)}</span>
+                      </div>
+                      {ftHardwareSubtotal > 0 && (
+                        <div className="flex justify-between items-center text-slate-300 text-sm">
+                          <span>Equipos (Hardware)</span>
+                          <span className="font-mono">${ftHardwareSubtotal.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-slate-700 pt-2 flex justify-between items-center">
+                        <span className="text-lg font-semibold">TOTAL GENERAL{ftHardwareSubtotal > 0 ? ' (Servicios + Hardware)' : ' (Setup + Recurrente)'}</span>
+                        <span className="text-2xl font-bold font-mono">${grandTotal.toFixed(2)} USD</span>
+                      </div>
                     </div>
                   </div>
 

@@ -1,0 +1,86 @@
+{
+  "summary": "Iteration 155: Testing Fast Track Hardware Visibility and Cost Integration. All features verified successfully via UI testing and backend API tests.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuotesTable", "issues": ["React hydration warning: <tr> cannot be child of <span> - cosmetic issue, doesn't affect functionality (pre-existing from iteration 154)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_155.json",
+    "/app/backend/tests/test_fast_track_hardware.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ftHardwareSubtotal correctly calculated only for FAST_TRACK quotes (line 1174)",
+    "Read-only table with data-testid='ft-hardware-readonly-table' correctly implemented (lines 3877-3900)",
+    "Blue banner 'Modelo sincronizado desde Detalles de Integración — Solo lectura' correctly shown (lines 3870-3874)",
+    "TOTAL GENERAL footer correctly shows breakdown: Implementación (Servicios) + Equipos (Hardware) (lines 4902-4918)",
+    "grandTotal calculation includes ftHardwareSubtotal (line 1182)",
+    "Backend QuoteUpdate model accepts ft_equipment_items and ft_hardware_subtotal (lines 630-631)",
+    "Backend create-with-pdf endpoint sums ft_equipment_items cost into total_usd (lines 167-169)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fast_track_hardware.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": "admin@meganexus.com / Admin123!",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fast Track hardware visibility and cost integration feature is complete. When editing Fast Track quotes, the 'Equipos a Despachar' section shows a read-only table with the model selected in 'Detalles de Integración'. The TOTAL GENERAL footer shows breakdown: Implementación (Servicios) + Equipos (Hardware). For non-Fast Track quotes (VPOS), the hardware line is NOT shown.",
+  "features_verified": {
+    "fast_track_edit_form": {
+      "read_only_table": {
+        "data_testid": "ft-hardware-readonly-table - VERIFIED",
+        "columns": ["Equipo", "Tipo", "Cant.", "P. Unit. (USD)", "Subtotal (USD)"],
+        "example_data": "Morefun MF960, POS, 1, $140.00, $140.00"
+      },
+      "blue_banner": {
+        "data_testid": "ft-hardware-mirror - VERIFIED",
+        "text": "Modelo sincronizado desde Detalles de Integración — Solo lectura"
+      },
+      "total_general_footer": {
+        "data_testid": "grand-total-section - VERIFIED",
+        "breakdown": {
+          "implementacion_servicios": "$48.50",
+          "equipos_hardware": "$140.00 (when Morefun MF960 selected)",
+          "total_general": "$188.50 USD"
+        },
+        "label": "TOTAL GENERAL (Servicios + Hardware)"
+      },
+      "model_dropdown": {
+        "label": "Modelo de POS / PINPAD *",
+        "required": true,
+        "options_include": ["Morefun MF960 — POS ($140)", "Morefun MF919 — POS ($240)"]
+      }
+    },
+    "dynamic_calculation": {
+      "model_change_test": {
+        "from": "Morefun MF919 ($240)",
+        "to": "Morefun MF960 ($140)",
+        "hardware_subtotal_updated": "VERIFIED - $240 -> $140",
+        "total_general_updated": "VERIFIED - $288.50 -> $188.50"
+      }
+    },
+    "non_fast_track_quotes": {
+      "vpos_no_hardware_line": "VERIFIED via code review - ftHardwareSubtotal returns 0 for non-FAST_TRACK quotes (line 1174)"
+    },
+    "backend_api": {
+      "ft_equipment_items_field": "VERIFIED - stored in quote document",
+      "ft_hardware_subtotal_field": "VERIFIED - accepted in QuoteUpdate model",
+      "total_includes_hardware": "VERIFIED - create-with-pdf sums ft_equipment_items into total_usd"
+    }
+  },
+  "test_quotes_used": [
+    "COT-2026-04-014-PYME (Fast Track) - quo_5a806c1936e2"
+  ]
+}
