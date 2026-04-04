@@ -104,12 +104,13 @@ async def seed_banks(authorization: Optional[str] = Header(None)):
 
 class EmailTemplate(BaseModel):
     """Modelo para plantillas de correo"""
-    template_id: str  # 'quote_sent', 'invoice', 'warehouse', 'implementation'
+    template_id: str
     name: str
     subject: str
-    body_html: str  # Cuerpo del correo en HTML
+    body_html: str
     description: Optional[str] = None
     is_active: bool = True
+    context: Optional[str] = None  # "COTIZACIONES" | "IMPLEMENTACION" | "ADMINISTRACION"
 
 # Plantillas predeterminadas
 DEFAULT_EMAIL_TEMPLATES = {
@@ -631,35 +632,31 @@ def generate_email_templates_by_sede():
 EMAIL_TEMPLATES_BY_SEDE = generate_email_templates_by_sede()
 
 @router.get("/email-templates")
-async def get_email_templates(authorization: Optional[str] = Header(None)):
-    """Obtiene todas las plantillas de correo (por sede + plantillas de proyecto globales)"""
+async def get_email_templates(context: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Obtiene plantillas de correo, opcionalmente filtradas por contexto (COTIZACIONES|IMPLEMENTACION|ADMINISTRACION)"""
     await get_current_user(authorization)
-    
-    templates = await db.email_templates.find({}, {"_id": 0}).to_list(200)
-    
-    # Si no hay plantillas, devolver las predeterminadas por sede + proyecto
-    if not templates:
-        return list(EMAIL_TEMPLATES_BY_SEDE.values()) + list(PROJECT_EMAIL_TEMPLATES.values())
-    
-    # Asegurar que todas las plantillas por sede existan
-    template_ids = [t["template_id"] for t in templates]
-    for template_id, default_template in EMAIL_TEMPLATES_BY_SEDE.items():
-        if template_id not in template_ids:
-            templates.append(default_template)
-    
-    # Asegurar que plantillas de proyecto existan
-    for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
-        if template_id not in template_ids:
-            templates.append(default_template)
-    
-    # También incluir plantillas legacy si existen
-    for template_id, default_template in DEFAULT_EMAIL_TEMPLATES.items():
-        if template_id not in template_ids:
-            # Solo agregar si no hay versión por sede
-            sede_version_exists = any(t["template_id"].startswith(template_id + "_") for t in templates)
-            if not sede_version_exists:
+
+    query = {}
+    if context:
+        query["context"] = context.upper()
+
+    templates = await db.email_templates.find(query, {"_id": 0}).to_list(200)
+
+    # Si no hay filtro de contexto, incluir plantillas predeterminadas que falten
+    if not context:
+        template_ids = [t["template_id"] for t in templates]
+        for template_id, default_template in EMAIL_TEMPLATES_BY_SEDE.items():
+            if template_id not in template_ids:
                 templates.append(default_template)
-    
+        for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
+            if template_id not in template_ids:
+                templates.append(default_template)
+        for template_id, default_template in DEFAULT_EMAIL_TEMPLATES.items():
+            if template_id not in template_ids:
+                sede_version_exists = any(t["template_id"].startswith(template_id + "_") for t in templates)
+                if not sede_version_exists:
+                    templates.append(default_template)
+
     return templates
 
 @router.get("/email-templates/{template_id}")
@@ -759,3 +756,32 @@ async def delete_email_template(template_id: str, authorization: Optional[str] =
 # Función auxiliar para renderizar plantillas con variables
 
 
+# ==================== SEED: Plantilla Comprobante de Pago ====================
+SEED_TEMPLATE_COMPROBANTE = {
+    "template_id": "comprobante_pago",
+    "name": "Envio de Comprobante de Pago",
+    "subject": "Confirmacion de Recepcion de Pago - {Nombre_Cliente} - {Cotizacion_Nro}",
+    "body_html": """<div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#00447C;border-radius:6px 6px 0 0">
+<tr><td style="padding:20px 30px;color:#fff;font-size:22px;font-weight:bold">Confirmacion de Recepcion de Pago</td></tr>
+</table>
+<div style="border:1px solid #E0E0E0;border-top:none;padding:25px 30px;background:#fff">
+<p style="font-size:15px;color:#333">Estimado/a <strong>{Nombre_Cliente}</strong>,</p>
+<p style="font-size:14px;color:#555">Por medio de la presente, confirmamos la recepcion del comprobante de pago correspondiente a la cotizacion <strong>{Cotizacion_Nro}</strong>.</p>
+<table width="100%" cellpadding="8" cellspacing="0" style="border:1px solid #E0E0E0;border-radius:4px;margin:15px 0">
+<tr style="background:#E3F2FD"><td style="font-weight:bold;font-size:13px;color:#00447C;width:200px">Cliente</td><td style="font-size:13px">{Nombre_Cliente}</td></tr>
+<tr><td style="font-weight:bold;font-size:13px;color:#00447C">RIF</td><td style="font-size:13px">{Rif_Cliente}</td></tr>
+<tr style="background:#E3F2FD"><td style="font-weight:bold;font-size:13px;color:#00447C">Cotizacion</td><td style="font-size:13px">{Cotizacion_Nro}</td></tr>
+<tr><td style="font-weight:bold;font-size:13px;color:#00447C">Contacto</td><td style="font-size:13px">{Contacto_Principal}</td></tr>
+</table>
+<p style="font-size:14px;color:#555">Nuestro equipo procedera a validar el pago y actualizar el estatus de su cotizacion. Si tiene alguna consulta, no dude en comunicarse con nosotros.</p>
+<p style="font-size:14px;color:#333;margin-top:20px">Atentamente,<br><strong>Equipo de Ventas MegaNexus</strong></p>
+</div>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border:1px solid #E0E0E0;border-top:none;border-radius:0 0 6px 6px">
+<tr><td style="padding:12px 30px;font-size:11px;color:#999;text-align:center">Este correo fue generado automaticamente por el Gestor MegaNexus.</td></tr>
+</table>
+</div>""",
+    "description": "Plantilla para confirmar la recepcion de comprobante de pago al cliente",
+    "is_active": True,
+    "context": "COTIZACIONES",
+}

@@ -284,6 +284,41 @@ export const Quotes = () => {
   const [multistorePhase, setMultistorePhase] = useState('project_type'); // 'project_type' | 'equipment' | 'ask' | 'inherited' | 'collect' | 'confirm'
   const [multistoreSending, setMultistoreSending] = useState(false);
 
+  // Estado para gestión de plantillas de cotización
+  const [quoteTemplatesOpen, setQuoteTemplatesOpen] = useState(false);
+  const [quoteTemplates, setQuoteTemplates] = useState([]);
+  const [quoteTemplateForm, setQuoteTemplateForm] = useState({ name: '', subject: '', body: '' });
+  const [editingQuoteTemplateId, setEditingQuoteTemplateId] = useState(null);
+  const [quoteTemplateSaving, setQuoteTemplateSaving] = useState(false);
+
+  const fetchQuoteTemplates = async () => {
+    try { const res = await api.get('/email-templates?context=COTIZACIONES'); setQuoteTemplates(res.data || []); }
+    catch { setQuoteTemplates([]); }
+  };
+
+  const handleSaveQuoteTemplate = async () => {
+    if (!quoteTemplateForm.name.trim() || !quoteTemplateForm.subject.trim()) { toast.error('Nombre y asunto son obligatorios'); return; }
+    setQuoteTemplateSaving(true);
+    try {
+      const tid = editingQuoteTemplateId || `tpl_cot_${Date.now()}`;
+      const payload = { template_id: tid, name: quoteTemplateForm.name, subject: quoteTemplateForm.subject, body_html: quoteTemplateForm.body, context: 'COTIZACIONES' };
+      if (editingQuoteTemplateId) { await api.put(`/email-templates/${editingQuoteTemplateId}`, payload); toast.success('Plantilla actualizada'); }
+      else { await api.post('/email-templates', payload); toast.success('Plantilla creada'); }
+      setQuoteTemplateForm({ name: '', subject: '', body: '' }); setEditingQuoteTemplateId(null); fetchQuoteTemplates();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error guardando plantilla'); }
+    finally { setQuoteTemplateSaving(false); }
+  };
+
+  const handleDeleteQuoteTemplate = async (tid) => {
+    if (!window.confirm('¿Está seguro de eliminar esta plantilla? Esta acción no se puede deshacer.')) return;
+    try {
+      await api.delete(`/email-templates/${tid}`);
+      toast.success('Plantilla eliminada');
+      if (editingQuoteTemplateId === tid) { setEditingQuoteTemplateId(null); setQuoteTemplateForm({ name: '', subject: '', body: '' }); }
+      fetchQuoteTemplates();
+    } catch { toast.error('Error eliminando plantilla'); }
+  };
+
   // Estado para tipo de proyecto y equipos
   const [projectTypeImpl, setProjectTypeImpl] = useState(null); // 'pos_fast_track' | 'vpos_mpos' | 'payment_gateway'
   const [equipmentList, setEquipmentList] = useState([]); // Equipos seleccionados
@@ -3132,6 +3167,10 @@ export const Quotes = () => {
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizaciones</h1>
               <p className="text-slate-600">Genere cotizaciones profesionales para sus clientes</p>
             </div>
+            <Button variant="outline" size="sm" onClick={() => { setQuoteTemplatesOpen(true); fetchQuoteTemplates(); }}
+              className="text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50" data-testid="quote-templates-btn">
+              <Mail size={14} />Plantillas de Correo
+            </Button>
           </div>
 
           {/* Botones de Nueva Cotización — Visibilidad por Permisos Especiales */}
@@ -5725,6 +5764,90 @@ export const Quotes = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* ==================== PLANTILLAS DE COTIZACIÓN DIALOG ==================== */}
+        <Dialog open={quoteTemplatesOpen} onOpenChange={setQuoteTemplatesOpen}>
+          <DialogContent className="max-w-4xl" data-testid="quote-templates-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Mail size={20} className="text-indigo-600" />Plantillas de Correo — Cotizaciones</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-5 gap-4 min-h-[350px]">
+              {/* Lista */}
+              <div className="col-span-2 border-r border-slate-200 pr-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {quoteTemplates.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">No hay plantillas de cotización</p>
+                  ) : quoteTemplates.map(t => (
+                    <div key={t.template_id} className={`p-3 rounded-lg border cursor-pointer transition-all ${editingQuoteTemplateId === t.template_id ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                      data-testid={`cot-template-${t.template_id}`}>
+                      <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">Asunto: {t.subject}</p>
+                      <div className="flex gap-2 mt-2">
+                        <Button variant="outline" size="sm" className="h-7 text-xs"
+                          onClick={() => { setEditingQuoteTemplateId(t.template_id); setQuoteTemplateForm({ name: t.name, subject: t.subject, body: t.body_html || t.body || '' }); }}>
+                          Editar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs text-red-500 hover:text-red-700 border-red-200"
+                          onClick={() => handleDeleteQuoteTemplate(t.template_id)} data-testid={`cot-delete-${t.template_id}`}>
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Editor */}
+              <div className="col-span-3 space-y-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase">{editingQuoteTemplateId ? 'Editar Plantilla' : 'Nueva Plantilla'}</p>
+                <div>
+                  <label className="text-sm font-medium">Nombre</label>
+                  <Input placeholder="Ej: Comprobante de pago..." value={quoteTemplateForm.name}
+                    onChange={e => setQuoteTemplateForm(p => ({ ...p, name: e.target.value }))}
+                    className="h-9 text-sm mt-1" data-testid="cot-template-name" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Asunto</label>
+                  <Input placeholder="Asunto del correo (usa {variables})" value={quoteTemplateForm.subject}
+                    onChange={e => setQuoteTemplateForm(p => ({ ...p, subject: e.target.value }))}
+                    className="h-9 text-sm mt-1" data-testid="cot-template-subject" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Cuerpo</label>
+                  <textarea value={quoteTemplateForm.body} onChange={e => setQuoteTemplateForm(p => ({ ...p, body: e.target.value }))}
+                    placeholder="Contenido HTML de la plantilla..."
+                    className="w-full text-sm min-h-[150px] resize-y border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none mt-1"
+                    data-testid="cot-template-body" />
+                </div>
+                {/* Variables rápidas */}
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Variables disponibles</p>
+                  <div className="flex flex-wrap gap-1">
+                    {['Nombre_Cliente','Rif_Cliente','Cotizacion_Nro','Contacto_Principal','Telefono_Contacto','Email_Contacto','Datos_Contacto'].map(v => (
+                      <button key={v} className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 hover:bg-indigo-100 border border-slate-200 rounded transition-colors"
+                        onClick={() => { const tag = `{${v}}`; setQuoteTemplateForm(p => ({ ...p, body: p.body + tag })); }}>
+                        {`{${v}}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={handleSaveQuoteTemplate} disabled={quoteTemplateSaving || !quoteTemplateForm.name.trim() || !quoteTemplateForm.subject.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm" data-testid="cot-save-template">
+                    {quoteTemplateSaving ? 'Guardando...' : editingQuoteTemplateId ? 'Actualizar' : 'Crear Plantilla'}
+                  </Button>
+                  {editingQuoteTemplateId && (
+                    <Button variant="outline" size="sm" onClick={() => { setEditingQuoteTemplateId(null); setQuoteTemplateForm({ name: '', subject: '', body: '' }); }}>
+                      Nueva
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );

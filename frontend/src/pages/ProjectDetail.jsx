@@ -201,7 +201,7 @@ const ProjectDetail = () => {
 
   const fetchTemplates = async () => {
     try {
-      const res = await api.get('/email-templates');
+      const res = await api.get('/email-templates?context=IMPLEMENTACION');
       setEmailTemplates(res.data || []);
     } catch (err) {
       console.error('Error cargando plantillas:', err);
@@ -617,6 +617,7 @@ const ProjectDetail = () => {
         name: templateForm.name,
         subject: templateForm.subject,
         body_html: templateForm.body,
+        context: 'IMPLEMENTACION',
       };
       if (editingTemplateId) {
         await api.put(`/email-templates/${editingTemplateId}`, payload);
