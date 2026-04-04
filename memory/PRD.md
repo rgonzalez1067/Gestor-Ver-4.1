@@ -75,7 +75,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Tabla read-only en "Equipos a Despachar" sincronizada desde Integración (Modelo, Tipo, Cant., Precio, Subtotal)
   - Hardware sumado al TOTAL GENERAL: Implementación (Servicios) + Equipos (Hardware)
   - Backend: `ft_equipment_items` y `ft_hardware_subtotal` almacenados en cotización y sumados al `total_usd`
-  - PDF: Página "COTIZACIÓN DE EQUIPOS" con tabla de hardware (Modelo, Tipo, Cant., Precio, Total) + Subtotal, IVA 16%, TOTAL. Aparece antes de la página de Términos. RESUMEN DE LA COTIZACIÓN incluye fila "Equipos (Hardware)" sumada al TOTAL GENERAL.
+- **Abr 2026**: Optimización Ingreso a Inventario:
+  - Excluidos items de Mantenimiento del dropdown de Entrada de Inventario
+  - Seriales obligatorios solo para POS/Pinpad con clasificación "Bien" (activos físicos rastreables)
+  - Items tipo Servicio muestran solo Cantidad y Costo (sin seriales ni Precarga)
+  - Regla aplicada a Entrada, Salida y Transferencia
 
 ## Backlog
 

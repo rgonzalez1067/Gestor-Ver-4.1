@@ -155,7 +155,8 @@ export default function Inventory() {
 
   // ==================== ENTRY ====================
   const selectedEntryItem = hardware.find(h => h.hardware_id === entryForm.item_id);
-  const entryNeedsSerial = selectedEntryItem && isSerializedType(selectedEntryItem.type);
+  // Seriales solo para POS/Pinpad con clasificación "Bien" (activos rastreables)
+  const entryNeedsSerial = selectedEntryItem && isSerializedType(selectedEntryItem.type) && selectedEntryItem.asset_type === 'Bien';
 
   const addSerial = () => {
     const s = serialInput.trim();
@@ -200,7 +201,7 @@ export default function Inventory() {
 
   // ==================== EXIT ====================
   const selectedExitItem = hardware.find(h => h.hardware_id === exitForm.item_id);
-  const exitNeedsSerial = selectedExitItem && isSerializedType(selectedExitItem.type);
+  const exitNeedsSerial = selectedExitItem && isSerializedType(selectedExitItem.type) && selectedExitItem.asset_type === 'Bien';
 
   const openExitForItem = (item) => {
     setExitForm({ item_id: item.item_id, quantity: 1, reference: '', client_name: '', notes: '', serials: [] });
@@ -259,7 +260,7 @@ export default function Inventory() {
 
   // ==================== TRANSFER ====================
   const selectedTransferItem = hardware.find(h => h.hardware_id === transferForm.item_id);
-  const transferNeedsSerial = selectedTransferItem && isSerializedType(selectedTransferItem.type);
+  const transferNeedsSerial = selectedTransferItem && isSerializedType(selectedTransferItem.type) && selectedTransferItem.asset_type === 'Bien';
 
   const openTransferForItem = (item) => {
     setTransferForm({ dest_warehouse_id: '', item_id: item.item_id, quantity: 1, notes: '', serials: [] });
@@ -780,11 +781,11 @@ export default function Inventory() {
                 }}>
                   <SelectTrigger data-testid="entry-item"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                   <SelectContent>
-                    {hardware.map(h => (
+                    {hardware.filter(h => h.type !== 'Mantenimiento').map(h => (
                       <SelectItem key={h.hardware_id} value={h.hardware_id}>
                         <span className="flex items-center gap-2">
-                          {isSerializedType(h.type) ? <Cpu size={12} className="text-purple-500" /> : <Box size={12} className="text-slate-400" />}
-                          {h.name} <span className="text-xs text-slate-400">({h.type})</span>
+                          {isSerializedType(h.type) && h.asset_type === 'Bien' ? <Cpu size={12} className="text-purple-500" /> : <Box size={12} className="text-slate-400" />}
+                          {h.name} <span className="text-xs text-slate-400">({h.type}{h.asset_type === 'Servicio' ? ' — Servicio' : ''})</span>
                         </span>
                       </SelectItem>
                     ))}
