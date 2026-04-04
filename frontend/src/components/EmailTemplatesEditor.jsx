@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -265,6 +265,79 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'notification_subject', label: 'Asunto de Notificación' },
   ],
 };
+
+// Categorías de variables para el panel lateral del editor
+const VARIABLE_CATEGORIES = [
+  {
+    cat: 'Cliente',
+    icon: 'Building2',
+    iconColor: 'text-blue-500',
+    vars: [
+      { key: 'Nombre_Cliente', label: 'Razón social del cliente' },
+      { key: 'Rif_Cliente', label: 'RIF del cliente' },
+      { key: 'Contacto_Principal', label: 'Nombre del contacto' },
+      { key: 'Datos_Contacto', label: 'Contacto + Tel + Email' },
+      { key: 'Telefono_Contacto', label: 'Teléfono del contacto' },
+      { key: 'Email_Contacto', label: 'Correo del contacto' },
+      { key: 'client_name', label: 'Nombre del cliente (alias)' },
+      { key: 'client_rif', label: 'RIF del cliente (alias)' },
+      { key: 'client_address', label: 'Dirección del cliente' },
+    ],
+  },
+  {
+    cat: 'Financiero (Ventas)',
+    icon: 'CreditCard',
+    iconColor: 'text-violet-500',
+    vars: [
+      { key: 'Cotizacion_Nro', label: 'Número de cotización' },
+      { key: 'quote_number', label: 'Número de cotización (alias)' },
+      { key: 'nro_cotizacion', label: 'Nro. cotización (reparación)' },
+      { key: 'quote_type', label: 'Tipo de cotización' },
+      { key: 'total_usd', label: 'Total en USD' },
+      { key: 'invoice_number', label: 'Número de factura' },
+      { key: 'sede_name', label: 'Sede (PYME / CORP)' },
+      { key: 'company_name', label: 'Nombre de la empresa' },
+      { key: 'items_table', label: 'Tabla HTML de productos' },
+      { key: 'services_table', label: 'Tabla de servicios' },
+    ],
+  },
+  {
+    cat: 'Ejecutivo',
+    icon: 'Users',
+    iconColor: 'text-emerald-500',
+    vars: [
+      { key: 'Nombre_Ejecutivo', label: 'Nombre del ejecutivo' },
+      { key: 'Email_Ejecutivo', label: 'Correo del ejecutivo' },
+      { key: 'contacto_cliente', label: 'Contacto del cliente' },
+    ],
+  },
+  {
+    cat: 'Implementación (Técnico)',
+    icon: 'Server',
+    iconColor: 'text-amber-500',
+    vars: [
+      { key: 'Servidor_Instalacion', label: 'Servidor asignado' },
+      { key: 'Lista_VTID', label: 'Lista de VTIDs' },
+      { key: 'Modelo_Seriales_POS', label: 'Tabla de POS/Pinpad' },
+      { key: 'Modelo_Seriales_Equipos', label: 'Tabla de equipos' },
+      { key: 'Nombre_Implementador', label: 'Implementador asignado' },
+      { key: 'Correo_Implementador', label: 'Correo del implementador' },
+      { key: 'Telefono_Implementador', label: 'Teléfono del implementador' },
+      { key: 'Integrador', label: 'Nombre del integrador' },
+      { key: 'Aplicativo_Integracion', label: 'App de integración' },
+      { key: 'Nombre_Sucursal', label: 'Sucursal(es)' },
+      { key: 'Cantidad_Cajas', label: 'Cantidad de cajas' },
+      { key: 'Matriz_Bancos_Productos', label: 'Tabla de bancos y productos' },
+      { key: 'project_number', label: 'Nro. de proyecto' },
+      { key: 'ticket_number', label: 'Nro. de ticket' },
+      { key: 'integrator_name', label: 'Integrador (alias)' },
+      { key: 'pinpad_model', label: 'Modelo de pinpad' },
+    ],
+  },
+];
+
+// Mapa de iconos para renderización
+const ICON_MAP = { Building2, CreditCard, Users, Server };
 
 // Función para obtener variables de una plantilla específica
 const getTemplateVariables = (templateId) => {
@@ -657,9 +730,9 @@ export const EmailTemplatesEditor = () => {
         </div>
       )}
 
-      {/* Dialog de edición */}
+      {/* Dialog de edición — Layout con sidebar de variables */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" data-testid="master-template-edit-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="text-brand-blue-600" size={20} />
@@ -667,125 +740,142 @@ export const EmailTemplatesEditor = () => {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* Asunto */}
-            <div>
-              <Label htmlFor="template-subject" className="font-semibold">
-                Asunto del Correo
-              </Label>
-              <Input
-                id="template-subject"
-                value={formData.subject}
-                onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                placeholder="Asunto del correo..."
-                className="mt-1"
-                data-testid="template-subject-input"
-              />
+          <div className="grid grid-cols-3 gap-6 py-4">
+            {/* Col 1-2: Editor */}
+            <div className="col-span-2 space-y-4">
+              {/* Asunto */}
+              <div>
+                <Label htmlFor="template-subject" className="font-semibold">
+                  Asunto del Correo
+                </Label>
+                <Input
+                  id="template-subject"
+                  value={formData.subject}
+                  onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+                  placeholder="Asunto del correo..."
+                  className="mt-1"
+                  data-testid="template-subject-input"
+                />
+              </div>
+
+              {/* Cuerpo del correo */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <Label htmlFor="template-body" className="font-semibold">
+                    Cuerpo del Correo (HTML)
+                  </Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openPreview}
+                    className="text-brand-blue-600"
+                  >
+                    <Eye size={14} className="mr-1" />
+                    Vista Previa
+                  </Button>
+                </div>
+                <Textarea
+                  id="template-body"
+                  value={formData.body_html}
+                  onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
+                  placeholder="Contenido HTML del correo..."
+                  rows={18}
+                  className="font-mono text-sm"
+                  data-testid="template-body-input"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Use HTML para dar formato. Las variables entre llaves se reemplazan automáticamente.
+                </p>
+              </div>
+
+              {/* Acciones */}
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleReset(editingTemplate?.template_id)}
+                  className="text-slate-500"
+                >
+                  <RotateCcw size={14} className="mr-1" />
+                  Restablecer
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-brand-green-600 hover:bg-brand-green-700"
+                    data-testid="save-template-btn"
+                  >
+                    <Save size={14} className="mr-1" />
+                    {saving ? 'Guardando...' : 'Guardar Plantilla'}
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            {/* Variables disponibles — Panel mejorado */}
-            {getTemplateVariables(editingTemplate?.template_id).length > 0 && (
-              <div className="border border-indigo-200 rounded-lg overflow-hidden">
-                <div className="bg-indigo-50 px-3 py-2 border-b border-indigo-100 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <AlertCircle size={14} className="text-indigo-500" />
-                    <span className="text-xs font-semibold text-indigo-700 uppercase">Panel de Variables ({getTemplateVariables(editingTemplate?.template_id).length})</span>
-                  </div>
-                  <span className="text-[10px] text-indigo-500">Click para insertar en el campo activo</span>
-                </div>
-                <div className="p-3 bg-white space-y-2.5">
-                  <div>
-                    <p className="text-[10px] font-medium text-slate-400 uppercase mb-1">Insertar en Asunto</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {getTemplateVariables(editingTemplate?.template_id).map((v) => (
-                        <button
-                          key={`subj-${v.key}`}
-                          onClick={() => insertVariable(v.key, 'subject')}
-                          className="px-2 py-0.5 text-[11px] bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 hover:border-blue-400 transition-colors text-blue-700 font-mono cursor-pointer"
-                          title={`Insertar {${v.key}} en el asunto`}
-                          data-testid={`var-subject-${v.key}`}
-                        >
-                          {`{${v.key}}`}
-                        </button>
-                      ))}
+            {/* Col 3: Panel Diccionario de Variables (Sidebar) */}
+            <div className="col-span-1 border-l border-slate-200 pl-4" data-testid="master-variables-sidebar">
+              <p className="text-xs font-semibold text-slate-600 uppercase mb-1">Panel de Variables</p>
+              <p className="text-[10px] text-slate-400 mb-3">Clic en una variable para copiarla e insertarla en el cuerpo.</p>
+              <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+                {VARIABLE_CATEGORIES.map(group => {
+                  const IconComp = ICON_MAP[group.icon] || FileText;
+                  return (
+                    <div key={group.cat}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <IconComp size={14} className={group.iconColor} />
+                        <span className="text-xs font-bold text-slate-700">{group.cat}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-1">
+                        {group.vars.map(v => (
+                          <button
+                            key={v.key}
+                            title={v.label}
+                            data-testid={`master-var-${v.key}`}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-mono rounded-md cursor-pointer transition-all
+                              bg-[#EBF8FF] text-[#2C5282] border border-[#BEE3F8]
+                              hover:bg-[#BEE3F8] hover:border-[#90CDF4] hover:text-[#2A4365]"
+                            onClick={() => {
+                              const tag = `{${v.key}}`;
+                              try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch(e) { /* fallback */ }
+                              insertVariable(v.key, 'body');
+                            }}
+                          >
+                            <span>{`{${v.key}}`}</span>
+                            <Copy size={10} className="opacity-40" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="border-t pt-2">
-                    <p className="text-[10px] font-medium text-slate-400 uppercase mb-1">Insertar en Cuerpo</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {getTemplateVariables(editingTemplate?.template_id).map((v) => (
-                        <button
-                          key={`body-${v.key}`}
-                          onClick={() => insertVariable(v.key, 'body')}
-                          className="group px-2 py-1 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50 hover:border-indigo-400 transition-colors cursor-pointer"
-                          title={`Insertar {${v.key}} en el cuerpo`}
-                          data-testid={`var-body-${v.key}`}
-                        >
-                          <span className="font-mono text-indigo-600 text-[11px]">{`{${v.key}}`}</span>
-                          <span className="ml-1.5 text-slate-400 group-hover:text-slate-600">{v.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            )}
 
-            {/* Cuerpo del correo */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label htmlFor="template-body" className="font-semibold">
-                  Cuerpo del Correo (HTML)
-                </Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openPreview}
-                  className="text-brand-blue-600"
-                >
-                  <Eye size={14} className="mr-1" />
-                  Vista Previa
-                </Button>
-              </div>
-              <Textarea
-                id="template-body"
-                value={formData.body_html}
-                onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
-                placeholder="Contenido HTML del correo..."
-                rows={15}
-                className="font-mono text-sm"
-                data-testid="template-body-input"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Puede usar HTML para dar formato al correo. Las variables entre llaves serán reemplazadas automáticamente.
-              </p>
+              {/* Variables específicas de la plantilla actual */}
+              {getTemplateVariables(editingTemplate?.template_id).length > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-200">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase mb-2">Variables de esta plantilla</p>
+                  <div className="flex flex-wrap gap-1">
+                    {getTemplateVariables(editingTemplate?.template_id).map(v => (
+                      <button
+                        key={`spec-${v.key}`}
+                        title={v.label}
+                        data-testid={`spec-var-${v.key}`}
+                        className="px-1.5 py-0.5 text-[10px] font-mono rounded
+                          bg-[#EBF8FF] text-[#2C5282] border border-[#BEE3F8]
+                          hover:bg-[#BEE3F8] hover:border-[#90CDF4] cursor-pointer transition-all"
+                        onClick={() => insertVariable(v.key, 'body')}
+                      >
+                        {`{${v.key}}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => handleReset(editingTemplate?.template_id)}
-              className="text-slate-500"
-            >
-              <RotateCcw size={14} className="mr-1" />
-              Restablecer Predeterminado
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-brand-green-600 hover:bg-brand-green-700"
-                data-testid="save-template-btn"
-              >
-                <Save size={14} className="mr-1" />
-                {saving ? 'Guardando...' : 'Guardar Plantilla'}
-              </Button>
-            </div>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
