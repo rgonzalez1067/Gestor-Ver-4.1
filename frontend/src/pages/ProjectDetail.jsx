@@ -92,29 +92,29 @@ const TemplateBodyEditor = ({ value, onChange }) => {
     else if (e.key === 'Escape') { setShowSuggestions(false); }
   };
 
-  // Render highlighted preview (tokens in blue)
+  // Render highlighted preview (tokens as blue pills, rest invisible)
   const renderHighlighted = () => {
     if (!value) return null;
     const parts = value.split(/(\{[A-Za-z_]+\})/g);
     return parts.map((part, i) =>
       /^\{[A-Za-z_]+\}$/.test(part)
-        ? <span key={i} className="bg-blue-100 text-blue-700 rounded px-0.5 font-mono text-[11px]">{part}</span>
-        : <span key={i} className="text-transparent">{part}</span>
+        ? <mark key={i} className="bg-blue-100 text-blue-700 rounded px-0.5 font-mono text-[11px] border border-blue-200" style={{ color: 'transparent', background: 'rgba(219,234,254,0.7)', borderRadius: '3px', padding: '1px 2px' }}>{part}</mark>
+        : <span key={i} style={{ color: 'transparent' }}>{part}</span>
     );
   };
 
   return (
     <div className="relative mt-1" data-testid="template-body-editor">
-      {/* Highlighted overlay */}
-      <div className="absolute inset-0 pointer-events-none p-3 text-sm whitespace-pre-wrap break-words overflow-hidden font-sans leading-[1.625]"
-        aria-hidden="true">
+      {/* Highlighted background layer — only shows colored backgrounds behind tokens */}
+      <div className="absolute inset-0 pointer-events-none p-3 text-sm whitespace-pre-wrap break-words overflow-hidden font-sans leading-[1.625] select-none"
+        aria-hidden="true" style={{ zIndex: 0 }}>
         {renderHighlighted()}
       </div>
-      {/* Actual textarea */}
+      {/* Actual textarea — text fully visible on top */}
       <textarea ref={textareaRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
         placeholder="Contenido de la plantilla... Escribe { para autocompletar variables"
-        className="w-full text-sm min-h-[200px] resize-y border border-slate-200 rounded-lg p-3 bg-transparent relative z-10 focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none caret-slate-800 leading-[1.625]"
-        style={{ color: 'rgba(15,23,42,0.85)' }}
+        className="w-full text-sm min-h-[200px] resize-y border border-slate-200 rounded-lg p-3 bg-transparent relative focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none leading-[1.625]"
+        style={{ zIndex: 1, color: '#1e293b', caretColor: '#1e293b' }}
         data-testid="template-body" />
       {/* Autocomplete dropdown */}
       {showSuggestions && suggestions.length > 0 && (
@@ -611,15 +611,18 @@ const ProjectDetail = () => {
     if (!templateForm.name.trim() || !templateForm.subject.trim()) { toast.error('Nombre y asunto son obligatorios'); return; }
     setTemplateSaving(true);
     try {
-      const fd = new FormData();
-      fd.append('name', templateForm.name);
-      fd.append('subject', templateForm.subject);
-      fd.append('body_content', templateForm.body);
+      const tid = editingTemplateId || `tpl_${Date.now()}`;
+      const payload = {
+        template_id: tid,
+        name: templateForm.name,
+        subject: templateForm.subject,
+        body_html: templateForm.body,
+      };
       if (editingTemplateId) {
-        await api.put(`/email-templates/${editingTemplateId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.put(`/email-templates/${editingTemplateId}`, payload);
         toast.success('Plantilla actualizada');
       } else {
-        await api.post('/email-templates', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.post('/email-templates', payload);
         toast.success('Plantilla creada');
       }
       setTemplateForm({ name: '', subject: '', body: '' });
@@ -630,9 +633,11 @@ const ProjectDetail = () => {
   };
 
   const handleDeleteTemplate = async (tid) => {
+    if (!window.confirm('¿Está seguro de eliminar esta plantilla? Esta acción no se puede deshacer.')) return;
     try {
       await api.delete(`/email-templates/${tid}`);
       toast.success('Plantilla eliminada');
+      if (editingTemplateId === tid) { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }
       fetchTemplates();
     } catch { toast.error('Error eliminando plantilla'); }
   };
@@ -1506,7 +1511,7 @@ const ProjectDetail = () => {
                       {t.body && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{t.body.slice(0, 100)}{t.body.length > 100 ? '...' : ''}</p>}
                       <div className="flex gap-2 mt-2">
                         <Button variant="outline" size="sm" className="h-7 text-xs gap-1" data-testid={`edit-template-${t.template_id}`}
-                          onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body || '' }); }}>
+                          onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body_html || t.body || '' }); }}>
                           Editar
                         </Button>
                         <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"

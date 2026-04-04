@@ -745,6 +745,17 @@ async def reset_email_template(template_id: str, authorization: Optional[str] = 
     
     return {"message": "Plantilla restablecida a valores predeterminados", "template": default_template}
 
+
+@router.delete("/email-templates/{template_id}")
+async def delete_email_template(template_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina una plantilla de correo"""
+    await get_current_user(authorization)
+    result = await db.email_templates.delete_one({"template_id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return {"message": "Plantilla eliminada exitosamente", "template_id": template_id}
+
+
 # Función auxiliar para renderizar plantillas con variables
 
 
