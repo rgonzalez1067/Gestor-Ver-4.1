@@ -65,7 +65,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
-- **Abr 2026**: Homologación del panel de Variables en el editor de Plantillas de Cotizaciones (Quotes.jsx). Se reemplazó la sección básica "Variables rápidas" con un Diccionario de Variables categorizado (Cliente, Cotización, Ejecutivo, Facturación) con iconos, descripciones y click-to-copy, idéntico al de ProjectDetail.jsx.
+- **Abr 2026**: Centralización de gestión de plantillas de correo:
+  - Eliminado botón "Plantillas de Correo" del módulo de Cotizaciones (Quotes.jsx)
+  - Editor maestro en Configuración potenciado con sidebar de Variables Dinámicas categorizado (Cliente, Financiero, Ejecutivo, Implementación)
+  - Tokens CSS mejorados: fondo `#EBF8FF`, texto `#2C5282`, sin sobreimpresión
+  - Botón de Copiar en cada variable del panel lateral
 
 ## Backlog
 
