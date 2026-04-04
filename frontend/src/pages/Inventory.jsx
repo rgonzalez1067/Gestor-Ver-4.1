@@ -779,13 +779,14 @@ export default function Inventory() {
                   const hw = hardware.find(h => h.hardware_id === v);
                   setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_usd || 0, serials: [] });
                 }}>
-                  <SelectTrigger data-testid="entry-item"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                  <SelectTrigger data-testid="entry-item" className="truncate"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                   <SelectContent>
                     {hardware.filter(h => h.type !== 'Mantenimiento').map(h => (
                       <SelectItem key={h.hardware_id} value={h.hardware_id}>
-                        <span className="flex items-center gap-2">
-                          {isSerializedType(h.type) && h.asset_type === 'Bien' ? <Cpu size={12} className="text-purple-500" /> : <Box size={12} className="text-slate-400" />}
-                          {h.name} <span className="text-xs text-slate-400">({h.type}{h.asset_type === 'Servicio' ? ' — Servicio' : ''})</span>
+                        <span className="flex items-center gap-2 min-w-0">
+                          {isSerializedType(h.type) && h.asset_type === 'Bien' ? <Cpu size={12} className="text-purple-500 shrink-0" /> : <Box size={12} className="text-slate-400 shrink-0" />}
+                          <span className="truncate">{h.name}</span>
+                          <span className="text-xs text-slate-400 shrink-0">({h.type}{h.asset_type === 'Servicio' ? ' — Srv' : ''})</span>
                         </span>
                       </SelectItem>
                     ))}
