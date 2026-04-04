@@ -5767,15 +5767,15 @@ export const Quotes = () => {
 
         {/* ==================== PLANTILLAS DE COTIZACIÓN DIALOG ==================== */}
         <Dialog open={quoteTemplatesOpen} onOpenChange={setQuoteTemplatesOpen}>
-          <DialogContent className="max-w-4xl" data-testid="quote-templates-dialog">
+          <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto" data-testid="quote-templates-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Mail size={20} className="text-indigo-600" />Plantillas de Correo — Cotizaciones</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-5 gap-4 min-h-[350px]">
+            <div className="grid grid-cols-8 gap-4 min-h-[350px]">
               {/* Lista */}
               <div className="col-span-2 border-r border-slate-200 pr-4">
                 <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                <div className="space-y-2 max-h-[430px] overflow-y-auto">
                   {quoteTemplates.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-8">No hay plantillas de cotización</p>
                   ) : quoteTemplates.map(t => (
@@ -5820,18 +5820,6 @@ export const Quotes = () => {
                     className="w-full text-sm min-h-[150px] resize-y border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none mt-1"
                     data-testid="cot-template-body" />
                 </div>
-                {/* Variables rápidas */}
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Variables disponibles</p>
-                  <div className="flex flex-wrap gap-1">
-                    {['Nombre_Cliente','Rif_Cliente','Cotizacion_Nro','Contacto_Principal','Telefono_Contacto','Email_Contacto','Datos_Contacto'].map(v => (
-                      <button key={v} className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 hover:bg-indigo-100 border border-slate-200 rounded transition-colors"
-                        onClick={() => { const tag = `{${v}}`; setQuoteTemplateForm(p => ({ ...p, body: p.body + tag })); }}>
-                        {`{${v}}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <div className="flex gap-2 pt-2">
                   <Button onClick={handleSaveQuoteTemplate} disabled={quoteTemplateSaving || !quoteTemplateForm.name.trim() || !quoteTemplateForm.subject.trim()}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm" data-testid="cot-save-template">
@@ -5842,6 +5830,63 @@ export const Quotes = () => {
                       Nueva
                     </Button>
                   )}
+                </div>
+              </div>
+
+              {/* Panel Diccionario de Variables (col-3) */}
+              <div className="col-span-3 border-l border-slate-200 pl-4" data-testid="cot-variables-dictionary">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Variables Disponibles</p>
+                <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para copiarla e insertarla en el editor.</p>
+                <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
+                  {[
+                    { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
+                      { token: 'Nombre_Cliente', desc: 'Razón social del cliente' },
+                      { token: 'Rif_Cliente', desc: 'RIF del cliente' },
+                      { token: 'Contacto_Principal', desc: 'Nombre del contacto' },
+                      { token: 'Datos_Contacto', desc: 'Contacto + Tel + Email' },
+                      { token: 'Telefono_Contacto', desc: 'Teléfono del contacto' },
+                      { token: 'Email_Contacto', desc: 'Correo del contacto' },
+                    ]},
+                    { cat: 'Cotización', icon: <FileText size={14} className="text-violet-500" />, vars: [
+                      { token: 'Cotizacion_Nro', desc: 'Número de cotización' },
+                      { token: 'quote_number', desc: 'Número de cotización (alias)' },
+                      { token: 'quote_type', desc: 'Tipo de cotización' },
+                      { token: 'total_usd', desc: 'Total en USD' },
+                      { token: 'sede_name', desc: 'Sede (PYME / CORP)' },
+                      { token: 'company_name', desc: 'Nombre de la empresa' },
+                    ]},
+                    { cat: 'Ejecutivo', icon: <Users size={14} className="text-emerald-500" />, vars: [
+                      { token: 'Nombre_Ejecutivo', desc: 'Nombre del ejecutivo' },
+                      { token: 'Email_Ejecutivo', desc: 'Correo del ejecutivo' },
+                    ]},
+                    { cat: 'Facturación', icon: <Receipt size={14} className="text-amber-500" />, vars: [
+                      { token: 'invoice_number', desc: 'Número de factura' },
+                      { token: 'items_table', desc: 'Tabla HTML de productos' },
+                    ]},
+                  ].map(group => (
+                    <div key={group.cat}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        {group.icon}
+                        <span className="text-xs font-bold text-slate-700">{group.cat}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {group.vars.map(v => (
+                          <button key={v.token} title={v.desc}
+                            data-testid={`cot-var-token-${v.token}`}
+                            className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-200 hover:border-indigo-300 rounded-md cursor-pointer transition-all group"
+                            onClick={() => {
+                              const tag = `{${v.token}}`;
+                              try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch(e) { toast.success(`Insertado: ${tag}`); }
+                              setQuoteTemplateForm(p => ({ ...p, body: p.body + tag }));
+                            }}>
+                            <span className="text-slate-500 group-hover:text-indigo-500">{'{'}</span>
+                            <span>{v.token}</span>
+                            <span className="text-slate-500 group-hover:text-indigo-500">{'}'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
