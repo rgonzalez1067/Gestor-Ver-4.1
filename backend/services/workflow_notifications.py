@@ -28,7 +28,7 @@ WORKFLOW_MATRIX = {
     },
     "collect": {                            # Cobranza
         "recipient_key": "sales",           # Buzón Ventas (sede)
-        "template_base": "payment_receipt",
+        "template_base": "comprobante_pago",
         "attach_pdf": False,                # Comprobante va aparte si aplica
     },
     "send-to-implementation": {
@@ -167,15 +167,25 @@ async def send_workflow_notification(
 
     template_vars = {
         "quote_number": quote_number,
+        "Cotizacion_Nro": quote_number,
+        "nro_cotizacion": quote_number,
         "client_name": quote.get("client_name", ""),
+        "Nombre_Cliente": quote.get("client_name", ""),
         "client_rif": quote.get("client_rif", ""),
+        "Rif_Cliente": quote.get("client_rif", ""),
         "quote_type": quote.get("quote_type", "N/A"),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
         "integrator_name": quote.get("integrator_name", ""),
         "pinpad_model": quote.get("pinpad_model", ""),
         "sede_name": segment,
+        "company_name": quote.get("company_name", "Merchant Server"),
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
+        "Contacto_Principal": quote.get("client_contact", ""),
+        "Telefono_Contacto": quote.get("client_phone", ""),
+        "Email_Contacto": quote.get("client_email", ""),
+        "Datos_Contacto": quote.get("client_contact", ""),
     }
     if extra_template_vars:
         template_vars.update(extra_template_vars)
