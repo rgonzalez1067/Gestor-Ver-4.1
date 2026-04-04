@@ -722,6 +722,13 @@ class QuotePDFRequest(BaseModel):
     pg_setup_items: List[dict] = []  # Items de setup PG para PDF
     pg_recurring_cost: Optional[dict] = None  # Recurring cost data for PG
     is_production_client: bool = False
+    # Fast Track: items de equipos para la página de cotización de hardware
+    ft_equipment_items: List[dict] = []  # [{name, hardware_type, quantity, unit_price_usd}]
+    # Campos adicionales
+    quote_number: str = ""
+    cliente_contacto: str = ""
+    template_type: str = ""
+    client_segment: str = "PYME"
 
 class User(BaseModel):
     user_id: str

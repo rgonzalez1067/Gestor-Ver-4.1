@@ -1563,20 +1563,14 @@ export const Quotes = () => {
           tarifa: parseFloat(item.tarifa) || 0,
           tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
-        ft_equipment_items: (quoteData.quote_type === 'FAST_TRACK' && isMegaSoftSponsor) ? ftEquipmentItems.map(item => ({
-          name: item.name,
-          hardware_type: item.hardware_type,
-          quantity: item.quantity,
-          unit_price_usd: item.unit_price_usd
-        })) : [],
-        // Incluir modelo sincronizado desde Integración para Fast Track
-        ft_synced_hardware: (() => {
-          if (quoteData.quote_type !== 'FAST_TRACK') return null;
+        ft_equipment_items: (() => {
+          if (quoteData.quote_type !== 'FAST_TRACK') return [];
           if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
             const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-            if (hw) return { hardware_id: hw.hardware_id, name: hw.name, type: hw.type, quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 };
+            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
           }
-          return null;
+          if (isMegaSoftSponsor) return ftEquipmentItems.map(item => ({ name: item.name, hardware_type: item.hardware_type, quantity: item.quantity, unit_price_usd: item.unit_price_usd }));
+          return [];
         })(),
         branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
       };
@@ -1890,7 +1884,16 @@ export const Quotes = () => {
           precio_tope: r.tope
         }))
       } : null,
-      branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
+      branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
+      // Fast Track: equipo sincronizado desde Detalles de Integración
+      ft_equipment_items: (() => {
+        if (quoteData.quote_type !== 'FAST_TRACK') return [];
+        if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+          const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+          if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+        }
+        return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
+      })()
     };
 
     try {
@@ -2056,7 +2059,15 @@ export const Quotes = () => {
             costo_base_total: r.base,
             precio_tope: r.tope
           }))
-        } : null
+        } : null,
+        ft_equipment_items: (() => {
+          if (quoteData.quote_type !== 'FAST_TRACK') return [];
+          if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+            const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+          }
+          return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
+        })()
       };
       
       const token = localStorage.getItem('session_token');

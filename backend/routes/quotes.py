@@ -14,7 +14,8 @@ from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGener
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import traceback
 
@@ -909,14 +910,29 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     elements.append(Paragraph("<b>RESUMEN DE LA COTIZACIÓN</b>", styles['Heading2']))
     elements.append(Spacer(1, 0.05*inch))
     
-    summary_data = [
+    # Incluir costo de equipos Fast Track en resumen
+    ft_equip_total = 0
+    if data.quote_type == 'FAST_TRACK' and data.ft_equipment_items:
+        ft_equip_total = sum(
+            (item.get("quantity", 1) * item.get("unit_price_usd", 0))
+            for item in data.ft_equipment_items
+        )
+    
+    total_general = total_setup + total_recurrente + ft_equip_total
+    
+    summary_rows = [
         ["Concepto", "Subtotal", "Descuento", "Total Neto"],
         ["Inversión Inicial (Setup)", f"${subtotal_setup:.2f}", f"-${descuento_setup:.2f} ({desc_setup_pct}%)", f"${total_setup:.2f}"],
         ["Costos Recurrentes (Mensual)", f"${subtotal_recurrente:.2f}", f"-${descuento_recurrente:.2f} ({desc_recurrente_pct}%)", f"${total_recurrente:.2f}"],
-        ["", "", "TOTAL GENERAL:", f"${total_general:.2f}"],
     ]
+    if ft_equip_total > 0:
+        summary_rows.append(["Equipos (Hardware)", f"${ft_equip_total:.2f}", "-$0.00 (0%)", f"${ft_equip_total:.2f}"])
+    summary_rows.append(["", "", "TOTAL GENERAL:", f"${total_general:.2f}"])
+    
+    summary_data = summary_rows
     
     summary_table = Table(summary_data, colWidths=[2.5*inch, 1.3*inch, 1.3*inch, 1.3*inch])
+    total_row_idx = len(summary_data) - 1
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.2, 0.2, 0.2)),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -927,12 +943,82 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
         ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.Color(0.95, 0.95, 0.95)]),
         # Total general
-        ('FONTNAME', (2, -1), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (2, -1), (-1, -1), 11),
-        ('BACKGROUND', (2, -1), (-1, -1), colors.Color(0.1, 0.4, 0.7)),
-        ('TEXTCOLOR', (2, -1), (-1, -1), colors.whitesmoke),
+        ('FONTNAME', (2, total_row_idx), (-1, total_row_idx), 'Helvetica-Bold'),
+        ('FONTSIZE', (2, total_row_idx), (-1, total_row_idx), 11),
+        ('BACKGROUND', (2, total_row_idx), (-1, total_row_idx), colors.Color(0.1, 0.4, 0.7)),
+        ('TEXTCOLOR', (2, total_row_idx), (-1, total_row_idx), colors.whitesmoke),
     ]))
     elements.append(summary_table)
+    
+    # ==================== PÁGINA DE COTIZACIÓN DE EQUIPOS (Fast Track) ====================
+    if data.quote_type == 'FAST_TRACK' and data.ft_equipment_items:
+        elements.append(PageBreak())
+        elements.append(Paragraph("<b>COTIZACIÓN DE EQUIPOS</b>", styles['Heading2']))
+        elements.append(Spacer(1, 0.1*inch))
+        elements.append(Paragraph(
+            f"Detalle de hardware incluido en la cotización <b>{data.quote_number or ''}</b> para <b>{data.cliente_nombre}</b>.",
+            styles['Normal']
+        ))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        # Tabla de equipos
+        equip_header = ["N°", "Equipo", "Tipo", "Cantidad", "P. Unit. (USD)", "Total (USD)"]
+        equip_rows = [equip_header]
+        equip_subtotal = 0
+        for idx, item in enumerate(data.ft_equipment_items, 1):
+            qty = item.get("quantity", 1)
+            price = item.get("unit_price_usd", 0)
+            total_item = qty * price
+            equip_subtotal += total_item
+            equip_rows.append([
+                str(idx),
+                item.get("name", "N/A"),
+                item.get("hardware_type", "POS"),
+                str(qty),
+                f"${price:,.2f}",
+                f"${total_item:,.2f}"
+            ])
+        
+        # IVA y Total
+        iva_rate = 0.16
+        iva_amount = equip_subtotal * iva_rate
+        equip_total_con_iva = equip_subtotal + iva_amount
+        
+        equip_rows.append(["", "", "", "", "Subtotal:", f"${equip_subtotal:,.2f}"])
+        equip_rows.append(["", "", "", "", f"IVA ({int(iva_rate*100)}%):", f"${iva_amount:,.2f}"])
+        equip_rows.append(["", "", "", "", "TOTAL:", f"${equip_total_con_iva:,.2f}"])
+        
+        equip_table = Table(equip_rows, colWidths=[0.4*inch, 2.2*inch, 0.9*inch, 0.8*inch, 1.2*inch, 1.2*inch])
+        num_items = len(data.ft_equipment_items)
+        equip_table.setStyle(TableStyle([
+            # Header
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#00447C")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, num_items), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, num_items), [colors.white, colors.Color(0.95, 0.95, 0.97)]),
+            # Subtotal row
+            ('FONTNAME', (4, num_items+1), (-1, num_items+1), 'Helvetica-Bold'),
+            ('LINEABOVE', (4, num_items+1), (-1, num_items+1), 1, colors.grey),
+            # IVA row
+            ('FONTNAME', (4, num_items+2), (-1, num_items+2), 'Helvetica'),
+            # Total row
+            ('FONTNAME', (4, num_items+3), (-1, num_items+3), 'Helvetica-Bold'),
+            ('FONTSIZE', (4, num_items+3), (-1, num_items+3), 11),
+            ('BACKGROUND', (4, num_items+3), (-1, num_items+3), colors.HexColor("#00447C")),
+            ('TEXTCOLOR', (4, num_items+3), (-1, num_items+3), colors.whitesmoke),
+        ]))
+        elements.append(equip_table)
+        
+        elements.append(Spacer(1, 0.2*inch))
+        elements.append(Paragraph(
+            "<i>Los precios de equipos están sujetos a disponibilidad de inventario. "
+            "IVA calculado según la normativa fiscal vigente.</i>",
+            ParagraphStyle('EquipNote', fontSize=8, textColor=colors.grey)
+        ))
     
     # ==================== RESUMEN EJECUTIVO ====================
     elements.append(Spacer(1, 0.25*inch))
