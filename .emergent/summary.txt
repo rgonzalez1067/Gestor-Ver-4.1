@@ -1,138 +1,134 @@
-<analysis>**original_problem_statement:**
-The user requested several major features and fixes: 1) Resolving a critical bug where C2P / Débito Inmediato products were hidden in the UI due to zero-pricing and DB typos. 2) Adding missing Soporte de Aprobación attachment categories. 3) Automating the USD/BS Exchange Rate using a historical BCV database and adjusting the Billing PDF layout. 4) Implementing a strict Governance Control (Responsable Activo) for the New Products Pipeline. 5) Restructuring the Quotes Menu to split the creation flow into 3 separate buttons (Implementaciones, Equipos y Accesorios, Reparaciones), governed strictly by RBAC (Role-Based Access Control) using .
+<analysis><handoff summary>
+**original_problem_statement:**
+The session started with a critical P0 bug where the Enviar a Implementación (Quote to Project conversion) process crashed due to missing serials, causing ghost emails and failed DB updates. Subsequently, the user requested an extensive list of UI/UX improvements, logic adjustments, PDF styling, and architecture changes, including: a PYME-specific extended equipment selection flow, a Dictionary of Variables for the Email Templates editor, contextual segregation of Email Templates (Cotizaciones vs Implementación), and duplicating specific templates.
 
-**User's preferred language:** Spanish (Español)
-INSTRUCT NEXT AGENT: You MUST respond and communicate in Spanish only.
+PRODUCT REQUIREMENTS:
+- Fix Quote-to-Project crash and transactional sequence.
+- Implement extended PYME flow gathering Server Info and Pinpad serials (from the last 15 days of inventory movements).
+- Include Server and Hardware in the Implementation PDF with improved visual contrast (white on blue headers) and reordered sections.
+- Enhance UI density in  (grid view for serials, repositioned actions).
+- Add an interactive, auto-completing Variables Dictionary in the template editor and fix its CRUD persistence bugs.
+- Segregate Email Templates contextually (Sales vs. Operations) and add specific Comprobante de Pago templates for Corp and Pyme.
 
-**what currently exists?**
-A highly customized React/FastAPI/MongoDB platform. It features an automated billing workflow with historical exchange rates (BCV), dynamic ReportLab PDF generation, a New Products Pipeline with strict Active Responsible edit-locks, and a Quotes system currently undergoing RBAC restructuring to separate workflows by operational vertical.
+**User's preferred language**: Spanish
+**INSTRUCT NEXT AGENT:** You MUST respond and communicate in Spanish only.
 
-**Last working item:**
-- **Last item agent was working**: Implementing RBAC in  to show 3 separate creation buttons (Implementaciones, Equipos, Reparaciones) based on the user's  array. The agent successfully updated the UI,  (added ), and extracted the RBAC logic to a  block. However, during testing, a user with the  permission is not seeing the Reparaciones button.
-- **Status**: IN PROGRESS
-- **Agent Testing Done**: Y (Agent tested via screenshots and caught the bug before ending the session).
-- **Which testing method agent to use?**: Frontend screenshot tool for UI visibility testing, followed by manual curl or testing subagent if logic gets complex.
+**what currently exists?** 
+A React/FastAPI/MongoDB platform. It features an advanced Quotes and Projects module, complete with a dynamic email notification engine and PDF Ficha Técnica generation. The platform now segregates email templates by  (COTIZACIONES vs IMPLEMENTACION) and includes a specialized extended PYME conversion flow that dynamically fetches hardware serials and server data.
+
+**Last working item**: 
+- **Last item agent was working**: Duplicating the Envío de Comprobante de Pago email template into specific Corp and Pyme versions within the COTIZACIONES context and deleting the generic one.
+- **Status**: USER VERIFICATION PENDING
+- **Agent Testing Done**: Y (Executed via backend python script, verified DB output).
+- **Which testing method agent to use?**: NA (Database seeded correctly).
 - **User Testing Done**: N
 
-**All Pending/In progress Issue list:**
-Issue 1: Quotes Menu RBAC Buttons Visibility Bug (P0)
-- **Attempted fixes**: Agent modified  to replace an IIFE with a  block to calculate permissions (, , ) based on . Despite the analyst user having  in their profile, the UI did not render the Reparaciones button.
-- **Next debug checklist**: 
-  - Check  around lines 108-138 (where  calculates permissions). 
-  - Ensure  (extracted from ) correctly populates .
-  - Check if the overarching  or  from  is blocking the rendering of the button container entirely, before the specific  are evaluated.
-- **Why fix this issue and what will be achieved with the fix?**: Ensures operational security by restricting users to only quote the verticals they are authorized for.
-- **Status**: IN PROGRESS
-- **Is recurring issue?**: N
-- **Should Test frontend/backend/both after fix?**: Frontend (Screenshot tool).
-- **Blocked on other issue**: None.
+**All Pending/In progress Issue list**: 
+There are no pending immediate bugs from the user's explicit requests in this session, as all reported issues were successfully closed. Refer to Upcoming/Future Tasks for refactoring debt.
 
-**In progress Task List:**
-Task 1: Complete Quotes Menu Restructuring (P0)
-- **Where to resume**: Fix Issue 1 (Visibility bug in ). Once the buttons appear correctly for users with specific , ensure the underlying wizards ( in ) and tables filter correctly based on these permissions.
-- **What will be achieved with this?**: Fulfills the user's request to segregate operations (Implementations vs Equipment vs Repairs) visually and technically.
-- **Status**: IN PROGRESS
-- **Should Test frontend/backend/both after fix?**: Frontend.
-- **Blocked on something**: Issue 1.
-
-**Upcoming and Future Tasks**
-Upcoming Tasks:
-- **P1**: Herencia  → campo VTID en VPOS.
-- **P1**: Verificación de Email y Recuperación de Contraseña.
-- **P1**: Refactorización de  (Critical: File is now 5300+ lines long).
-
-Future Tasks:
-- **P2**: Módulo de Reportes de Ventas.
-- **P2**: Lógica Completado en Roadmap Bancos.
-- **P2**: Refactorización de componentes monolíticos (Inventory, Integrators, Clients).
-
-**Completed work in this session**
-- Fixed P0 ApprovalBillingModal functionality (Read-only prices, filtered recurring items) (DONE).
-- Fixed Critical C2P/Débito Inmediato zero-price bug: Removed UI filters (), fixed DB typo (Imediato), and added Unicode normalizer to  (DONE).
-- Fixed Soporte de Aprobación invalid category error in  &  (DONE).
-- Implemented  (BCV API automated fetch) + DatePicker in Approval Modal for retroactive billing calculation (DONE).
-- Fixed PDF layout overlapping text for high Bs. amounts (DONE).
-- Implemented New Products Pipeline Governance: Responsable Activo write-locks for the Bitácora, auto-assignment modals, and Read-Only enforcement for non-assigned users (DONE).
-
-**Earlier issues found/mentioned but not fixed**
+**In progress Task List**: 
 None.
 
-**Known issue recurrence from previous fork**
-- **Issue recurrence**: Monolithic component complexity (). 
-- **Recurrence count**: Persistent.
-- **Status**: IN PROGRESS (File size > 5300 lines is causing subtle bugs like the current RBAC visibility issue. Requires careful splitting).
+**Upcoming and Future Tasks**:
+- **P1**: Verificación de Email y Recuperación de Contraseña.
+- **P1**: Refactorización de  (Critical: File is over 5800+ lines long, causing context/AST overhead).
+- **P2**: Módulo de Reportes de Ventas.
+- **P2**: Lógica Completado en Roadmap Bancos.
+- **P2**: Refactorización de  (1800+ líneas).
 
-**Code Architecture**
-forcedMode
+**Completed work in this session**:
+- Bug P0 Enviar a Implementación Crash (DONE)
+- PYME Extended Project Creation Flow (Server + Pinpads) (DONE)
+- Pinpads Equipment Catalog Filter Fix (excluding ) (DONE)
+- PDF TableHeaderText Style Bug Fix (DONE)
+- UI/UX Density Optimization in  (DONE)
+- Email Template Variables Dictionary + Autocomplete (DONE)
+- Email Template Persistence & CRUD Bugs Fix (DONE)
+- Quotes Table Total  visual formatting (DONE)
+- PDF Design Optimization (Contrast and hierarchy) (DONE)
+- Email Templates Context Segregation (Cotizaciones vs Implementación) (DONE)
+- Seed & Duplication of Comprobante de Pago template (DONE)
 
-**Key Technical Concepts**
-- **Frontend**: React. Heavy use of  custom hook for RBAC.
-- **Backend**: FastAPI.
-- **RBAC Logic**: Handled via  array in the user model (e.g., ). 
-- **Exchange Rate**: Fetched from  and stored historically.
+**Earlier issues found/mentioned but not fixed**:
+None explicitly pending.
 
-**key DB schema**
-- : 
-- : Added  for governance control.
-- :  array controls granular UI access.
+**Known issue recurrence from previous fork**:
+- **Issue recurrence in previous fork**: Monolithic frontend component complexity ( and  continue to grow significantly).
+- **Recurrence count**: Persistent across multiple forks.
+- **Status**: IN PROGRESS (Needs dedicated refactoring phase).
 
-**changes in tech stack**
+**Code Architecture**:
+
+
+**Key Technical Concepts**:
+- **Frontend**: React, Tailwind, contentEditable (Rich Text Email Editor with token highlighting & autocomplete).
+- **Backend**: FastAPI, MongoDB, ReportLab (PDFs).
+- **Scope Filtering**: Email templates strictly segmented using  field to prevent cross-departmental pollution.
+
+**key DB schema**:
+- : {template_id, name, subject, body_html, context (COTIZACIONES | IMPLEMENTACION | ADMINISTRACION)}
+- : {project_type_impl, server_name, pinpad_serials, ...}
+-  & : Used for resolving available physical POS/Pinpads models and tracking recent serials.
+
+**changes in tech stack**:
 - None.
 
-**All files of reference**
--  (Actively working here - Bug in RBAC visibility logic).
--  (Modified for forcedMode).
--  (RBAC hook).
--  (Governance limits).
+**All files of reference**: 
+-  (Updated with PYME flow, model fetching, serial fetching)
+-  (Updated structure, headers styling)
+-  (PYME conditional flow, Sales template UI added)
+-  (Re-layout, variable dictionary, implementation template UI)
+-  (Added  filter,  endpoint, payload mapping)
+-  (Updated)
 
-**Areas that need refactoring**
--  (Over 5300 lines. Critical refactoring needed as it handles 4+ different wizards and massive state arrays).
+**Areas that need refactoring**: 
+-  (Crucial to break down into smaller components like , , ).
 
-**key api endpoints**
--  (New)
--  (New - BCV fetch)
+**key api endpoints**:
+-  (Fetches non-service hardware)
+-  (Fetches recent serial deliveries by RIF)
+-  (Fetches scoped templates)
+-  (New CRUD action)
+
+**Critical Info for New Agent**:
+- **Transactions**: App-level rollback logic is in place for  because native MongoDB replica set transactions aren't guaranteed on the instance.
+- **Email Templates**: Do not mix contexts.  uses ,  uses .
+- **Hardware Fetching**: Filtering uses  rather than strictly  due to historical DB inconsistencies.
+
+**documents and test reports created in this job**:
+- 
+-  (P0 Bug)
+-  (PYME Extended flow testing)
 - 
 
-**Critical Info for New Agent**
-- **C2P Zero-Price Rule**: NEVER reintroduce  in . Products with zero setup cost (like C2P) MUST remain visible in the UI and arrays.
-- **Quotes RBAC Bug**: The user Analista () has the  special permission, but the UI is hiding the button. Check if the parent  that wraps the buttons is being hidden by a global  or  check from , overriding the granular  checks.
-- **File constraints**:  is extremely large. Avoid using  blindly; always  the specific chunk first to ensure you are modifying the correct  or render block.
+**Last 10 User Messages and any pending HUMAN messages**: 
+1. **User**: Requests duplicating the generic Envio de Comprobante de Pago template to Pyme and Corp versions within their context. (COMPLETED)
+2. **User**: Requested segregating Email Templates by context (COTIZACIONES vs IMPLEMENTACION) so sales and operations don't mix templates. (COMPLETED)
+3. **User**: Requested PDF Design optimization (white text on blue headers, reorder sequence of information). (COMPLETED)
+4. **User**: 🚩 Bug Report: Missing  format in Total column for  items in Quotes table. (COMPLETED)
+5. **User**: 🚩 Bug Report: UI/UX & Persistence issues in Templates (CSS overlap making tokens unreadable, missing Delete button, Update 405 error). (COMPLETED)
+6. **User**: Requested UI feature: Master Variables Panel/Dictionary inside the email template editor with click-to-copy/autocomplete. (COMPLETED)
+7. **User**: Requested UI density fix in  (Server info into Implementation card, Action buttons to top right, Serial matrix grid). (COMPLETED)
+8. **User**: 🚩 Bug Report: TableHeaderText style not found causing PDF crash. (COMPLETED)
+9. **User**: 🚩 Bug Report: Pinpad equipment catalog dropdown incomplete (showing only 3 items, filtering issue). (COMPLETED)
+10. **User**: Confirmed DB details for the PYME Extended Flow (using  and ). (COMPLETED)
 
-**documents and test reports created in this job**
-- 
--  (Updated with Analista user)
--  (C2P fix validation)
--  (Exchange Rate/Modal validation)
--  (Governance validation)
+**Project Health Check**:
+- Broken: None
+- Mocked: None
 
-**Last 10 User Messages and any pending HUMAN messages** 
-1. **User**: Confirmed execution of P0. (COMPLETED)
-2. **User**: Reported critical bug: C2P / Débito Inmediato disappearing due to 0 price. (COMPLETED)
-3. **User**: Reported bug with Soporte de Aprobación category during upload. Provided screenshot. (COMPLETED)
-4. **User**: Requested complete overhaul of Exchange Rate to use historical DB logging, Datepicker in Approval modal, and fixed PDF overlaps. Provided PDF screenshot. (COMPLETED)
-5. **User**: Approved plan for Exchange Rate automation. (COMPLETED)
-6. **User**: Requested Governance Control for New Products Pipeline (Responsable Activo locking Bitácora). Provided diagram. (COMPLETED)
-7. **User**: Clarified Governance requirements (Roles mapped from DB). (COMPLETED)
-8. **User**: Requested Quotes Menu restructuring: Split into 3 buttons governed by RBAC . Provided wireframe. (IN PROGRESS - Bug encountered)
-9. **User**: Clarified Quotes menu request (No new page needed, just conditional buttons based on existing profiles logic). (IN PROGRESS)
-10. **User**: Mañana continuamos (Session paused).
+**3rd Party Integrations**: 
+- Emergent Object Storage — uses Emergent LLM Key ( must remain in backend ).
+- SMTP / Resend — requires User API Key.
 
-**Project Health Check:**
-- Broken: Quotes.jsx RBAC button visibility logic for granular permissions.
-
-**3rd Party Integrations** 
-- OpenAI GPT models — uses Emergent LLM Key
-- Native SMTP (Gmail) — requires User API Key
-- Exchangedyn API (BCV Rates) — Open API, no key required.
-
-**Testing status**
-- Testing agent used after significant changes: YES (iterations 139, 140, 141)
+**Testing status**:
+- Testing agent used after significant changes: YES (Iter 151, 152).
 - Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None manually.
-- Known regressions: Quotes creation buttons hidden for users with specialized permissions.
+- Known regressions: None
 
-**Credentials to test flow:**
-Check  (Specifically  for testing the broken RBAC Quotes UI).
+**Credentials to test flow**:
+Check 
 
-**What agent forgot to execute**
-The agent paused before successfully debugging why  was not rendering the Reparaciones button for the test user despite the user profile containing the correct . The fix requires revisiting the visibility logic in .</analysis>
+**What agent forgot to execute**:
+The agent fully completed the final script execution for duplicating the templates but did not finish with a formal UI screenshot to physically verify the exact text renders on the frontend—though the Python DB script successfully verified the DB transformation. 
+</handoff summary></analysis>
