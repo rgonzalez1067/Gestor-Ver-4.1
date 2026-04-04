@@ -4228,6 +4228,7 @@ export const Quotes = () => {
                                   {item.totalOverride !== undefined && item.totalOverride !== null && (
                                     <Unlock size={12} className="text-amber-500" title="Monto editado manualmente" />
                                   )}
+                                  <span className="text-sm">$</span>
                                   <Input
                                     type="number"
                                     min="0"
@@ -4236,7 +4237,6 @@ export const Quotes = () => {
                                     onChange={(e) => {
                                       const val = parseFloat(e.target.value);
                                       const stdTotal = calcularTotalEstandar(item);
-                                      // If value matches standard calc, remove override
                                       if (val === stdTotal || e.target.value === '') {
                                         updateSetupItem(index, 'totalOverride', undefined);
                                       } else {
