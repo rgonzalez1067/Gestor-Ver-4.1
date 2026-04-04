@@ -65,6 +65,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Plantillas de Correo para Ventas de Equipos (10 templates):
+  - 5 plantillas base × 2 segmentos (PYME/CORP) = 10 templates en `email_templates`
+  - Plantillas: equipment_sent, equipment_approved, equipment_invoice, equipment_collect, equipment_delivery
+  - Layout Maestro: 900px, header azul #003366, footer gris #edf2f7
+  - Variables: {Nombre_Cliente}, {Cotizacion_Nro}, {Monto_Total}, {Referencia_Factura}, {Direccion_Entrega}, {items_table}
+  - Backend: `template_base_override` en `send_workflow_notification` para selección automática por categoría
+  - Frontend: `EQUIPMENT_TEMPLATE_TYPES` en EmailTemplatesEditor con iconos y colores diferenciados
 - **Abr 2026**: Ajuste Workflow Cobranza PYME:
   - Acción `collect` dispara template `comprobante_pago_PYME` con variables `{Nombre_Cliente}`, `{Cotizacion_Nro}`
   - Correo dirigido a buzón Ventas Sede PYME (`emails_by_sede[PYME].sales`)
