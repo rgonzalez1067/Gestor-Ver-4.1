@@ -1394,7 +1394,9 @@ export const Quotes = () => {
     try {
       const client = clients.find(c => c.client_id === quoteData.client_id);
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-      const pinpad = (quoteData.quote_type === 'MPOS' ? posDevices : pinpads).find(p => p.hardware_id === quoteData.pinpad_id);
+      const pinpad = (quoteData.quote_type === 'FAST_TRACK')
+        ? [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)
+        : (quoteData.quote_type === 'MPOS' ? posDevices : pinpads).find(p => p.hardware_id === quoteData.pinpad_id);
       const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
 
       const allItems = [
@@ -1550,7 +1552,7 @@ export const Quotes = () => {
           tarifa: parseFloat(item.tarifa) || 0,
           tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
-        ft_equipment_items: (isFastTrackType && isMegaSoftSponsor) ? ftEquipmentItems.map(item => ({
+        ft_equipment_items: (quoteData.quote_type === 'FAST_TRACK' && isMegaSoftSponsor) ? ftEquipmentItems.map(item => ({
           name: item.name,
           hardware_type: item.hardware_type,
           quantity: item.quantity,
@@ -1562,12 +1564,12 @@ export const Quotes = () => {
       const payload = {
         client_id: quoteData.client_id,
         client_segment: quoteData.client_segment || 'PYME',
-        quote_category: isFastTrackType ? 'fast_track' : 'implementation',
+        quote_category: quoteData.quote_type === 'FAST_TRACK' ? 'fast_track' : 'implementation',
         quote_type: quoteData.quote_type,
         pricing_model: quoteData.pricing_model,
         services: allItems,
         hardware: [],
-        ft_equipment_items: (isFastTrackType && isMegaSoftSponsor) ? ftEquipmentItems : [],
+        ft_equipment_items: (quoteData.quote_type === 'FAST_TRACK' && isMegaSoftSponsor) ? ftEquipmentItems : [],
         integrator_id: quoteData.integrator_id,
         integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name,
@@ -1750,7 +1752,9 @@ export const Quotes = () => {
 
     // Obtener datos de integración y hardware
     const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-    const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+    const pinpad = (quoteData.quote_type === 'FAST_TRACK')
+      ? [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)
+      : pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
     const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
 
     // Determinar tipo de plantilla según el tipo de cotización
@@ -2824,7 +2828,9 @@ export const Quotes = () => {
       
       // Luego actualizar la nueva cotización con los datos editados
       const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
-      const pinpad = pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+      const pinpad = (quoteData.quote_type === 'FAST_TRACK')
+        ? [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)
+        : pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
       const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
       
       // Combinar todos los servicios con el formato correcto
@@ -3087,7 +3093,9 @@ export const Quotes = () => {
   const selectedIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
   // Campos opcionales - no buscar si el valor es "none"
   const selectedPinpad = quoteData.pinpad_id && quoteData.pinpad_id !== 'none' 
-    ? pinpads.find(p => p.hardware_id === quoteData.pinpad_id) 
+    ? (quoteData.quote_type === 'FAST_TRACK'
+        ? [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)
+        : pinpads.find(p => p.hardware_id === quoteData.pinpad_id))
     : null;
   const selectedSponsorBank = quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none'
     ? banks.find(b => b.bank_id === quoteData.sponsor_bank_id)
@@ -3695,33 +3703,57 @@ export const Quotes = () => {
                     </div>
                   </div>
 
-                  {/* Campo 2: Modelo de Pinpad/POS - Solo para VPOS/MPOS (NO Fast Track) */}
-                  {!isPaymentGateway && !isFastTrackType && (
+                  {/* Campo 2: Modelo de POS/Pinpad — Visible para VPOS/MPOS y Fast Track */}
+                  {!isPaymentGateway && (
                   <div>
                     <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                       <Cpu size={14} className="text-brand-green-600" />
-                      {isMPOS ? 'Modelo de POS' : 'Modelo de Pinpad'} <span className="text-slate-400 text-xs font-normal">(Opcional)</span>
+                      {isFastTrackType ? 'Modelo de POS / PINPAD' : isMPOS ? 'Modelo de POS' : 'Modelo de Pinpad'}
+                      {isFastTrackType
+                        ? <span className="text-red-500">*</span>
+                        : <span className="text-slate-400 text-xs font-normal">(Opcional)</span>}
                     </Label>
                     <Select 
                       value={quoteData.pinpad_id} 
                       onValueChange={(value) => setQuoteData({ ...quoteData, pinpad_id: value })}
                     >
                       <SelectTrigger data-testid="select-pinpad">
-                        <SelectValue placeholder={`Seleccione ${isMPOS ? 'POS' : 'modelo'}...`} />
+                        <SelectValue placeholder={isFastTrackType ? 'Seleccione modelo (obligatorio)...' : `Seleccione ${isMPOS ? 'POS' : 'modelo'}...`} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Sin {isMPOS ? 'POS' : 'Pinpad'}</SelectItem>
-                        {(isMPOS ? posDevices : pinpads).length === 0 ? (
-                          <SelectItem value="no-devices" disabled>No hay {isMPOS ? 'POS' : 'Pinpads'} disponibles</SelectItem>
+                        {!isFastTrackType && (
+                          <SelectItem value="none">Sin {isMPOS ? 'POS' : 'Pinpad'}</SelectItem>
+                        )}
+                        {isFastTrackType ? (
+                          // Fast Track: mostrar POS + Pinpads combinados (solo tipo Bien)
+                          [...posDevices, ...pinpads].length === 0 ? (
+                            <SelectItem value="no-devices" disabled>No hay dispositivos disponibles</SelectItem>
+                          ) : (
+                            [...posDevices, ...pinpads].map((device) => (
+                              <SelectItem key={device.hardware_id} value={device.hardware_id}>
+                                {device.name} — {device.type} {device.price_usd > 0 && `($${device.price_usd})`}
+                              </SelectItem>
+                            ))
+                          )
                         ) : (
-                          (isMPOS ? posDevices : pinpads).map((device) => (
-                            <SelectItem key={device.hardware_id} value={device.hardware_id}>
-                              {device.name} {device.price_usd > 0 && `($${device.price_usd})`}
-                            </SelectItem>
-                          ))
+                          // VPOS/MPOS: lógica original
+                          (isMPOS ? posDevices : pinpads).length === 0 ? (
+                            <SelectItem value="no-devices" disabled>No hay {isMPOS ? 'POS' : 'Pinpads'} disponibles</SelectItem>
+                          ) : (
+                            (isMPOS ? posDevices : pinpads).map((device) => (
+                              <SelectItem key={device.hardware_id} value={device.hardware_id}>
+                                {device.name} {device.price_usd > 0 && `($${device.price_usd})`}
+                              </SelectItem>
+                            ))
+                          )
                         )}
                       </SelectContent>
                     </Select>
+                    {isFastTrackType && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Este modelo se hereda a la Ficha Técnica y al proyecto. No requiere carga en "Equipos a Despachar".
+                      </p>
+                    )}
                   </div>
                   )}
 
@@ -3766,7 +3798,7 @@ export const Quotes = () => {
                     <CheckCircle2 size={18} className="text-brand-blue-600" />
                     <span className="text-sm text-brand-blue-700 font-medium">
                       Integrador: {selectedIntegrator?.name} ({quoteData.integrator_app_name})
-                      {selectedPinpad && ` • Pinpad: ${selectedPinpad.name}`}
+                      {selectedPinpad && ` • ${isFastTrackType ? 'Modelo' : 'Pinpad'}: ${selectedPinpad.name}`}
                       {selectedSponsorBank && ` • Patrocinador: ${selectedSponsorBank.name}`}
                     </span>
                   </div>
@@ -3780,6 +3812,23 @@ export const Quotes = () => {
                     <span className="w-7 h-7 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm">2</span>
                     Equipos a Despachar (Cotizacion de Equipos)
                   </h3>
+
+                  {/* Bypass: modelo ya seleccionado en Detalles de Integración */}
+                  {quoteData.pinpad_id && quoteData.pinpad_id !== 'none' ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4" data-testid="ft-hardware-bypass">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        <span className="text-sm font-semibold text-emerald-800">Modelo capturado en Detalles de Integración</span>
+                      </div>
+                      <p className="text-xs text-emerald-600 ml-6">
+                        <strong>{selectedPinpad?.name || 'Modelo seleccionado'}</strong> ({selectedPinpad?.type || 'Equipo'}) — Este modelo se hereda automáticamente a la Ficha Técnica y al proyecto.
+                      </p>
+                      <p className="text-[10px] text-emerald-500 ml-6 mt-1">
+                        No es necesario cargar equipos adicionales en esta sección. Si requiere equipos extra para cotización híbrida, limpie el campo de modelo arriba.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
                   <p className="text-xs text-slate-500 mb-3">
                     Estos equipos se incluiran como pagina adicional en el PDF hibrido.
                   </p>
@@ -3886,6 +3935,8 @@ export const Quotes = () => {
                     <div className="text-center py-6 text-slate-400 text-sm border-2 border-dashed rounded-lg">
                       Seleccione equipos del catalogo para incluir en la cotizacion hibrida
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               )}
