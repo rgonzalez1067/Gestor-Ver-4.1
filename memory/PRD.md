@@ -72,8 +72,9 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - **Abr 2026**: Optimización Fast Track — Captura Unificada de Hardware:
   - Nuevo dropdown obligatorio "Modelo de POS / PINPAD" en Detalles de Integración para Fast Track
   - Combina dispositivos POS + Pinpads (11 items filtrados por clasificación "Bien")
-  - Bypass automático de "Equipos a Despachar" al seleccionar modelo en Integración
-  - Herencia de datos: el modelo viaja a Ficha Técnica, Proyecto y Notificaciones
+  - Tabla read-only en "Equipos a Despachar" sincronizada desde Integración (Modelo, Tipo, Cant., Precio, Subtotal)
+  - Hardware sumado al TOTAL GENERAL: Implementación (Servicios) + Equipos (Hardware)
+  - Backend: `ft_equipment_items` y `ft_hardware_subtotal` almacenados en cotización y sumados al `total_usd`
 
 ## Backlog
 
