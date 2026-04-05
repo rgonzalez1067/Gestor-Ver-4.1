@@ -78,6 +78,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Orden fijo: Aprobación → Configuración → Factura / Proforma
   - Comportamiento dual: si status="Aprobada" → Marcar como Configurada; otro status → Abrir wizard de edición
   - Propósito: acceso permanente a Detalles de Integración y Hardware en cualquier etapa del ciclo
+- **Abr 2026**: Plantilla "Aprobación de Cotización Fast Track (Pyme)":
+  - Nueva plantilla `fast_track_approved_PYME` en BD (template_id)
+  - Layout maestro 900px con header #003366, secciones de Datos de Cotización y Detalles de Hardware
+  - Variables: {Cotizacion_Nro}, {Nombre_Cliente}, {Rif_Cliente}, {Monto_Total}, {Modelo_Equipo}, {Cantidad}
+  - Registrada en EmailTemplatesEditor con ícono violeta y variables editables
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`

@@ -69,6 +69,15 @@ const BASE_TEMPLATE_TYPES = [
     borderColor: 'border-green-200',
     title: 'Envío de Comprobante de Pago',
     description: 'Notifica a Ventas que el cliente pagó para enviar a Implementación'
+  },
+  {
+    baseId: 'fast_track_approved',
+    icon: Settings2,
+    color: 'text-violet-600',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-200',
+    title: 'Aprobación de Cotización Fast Track',
+    description: 'Se envía al aprobar cotización POS Stand Alone (Fast Track)'
   }
 ];
 
@@ -233,6 +242,16 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'client_rif', label: 'RIF del Cliente' },
     { key: 'total_usd', label: 'Total USD' },
     { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  fast_track_approved: [
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Rif_Cliente', label: 'RIF del Cliente' },
+    { key: 'Monto_Total', label: 'Monto Total USD' },
+    { key: 'Modelo_Equipo', label: 'Modelo de POS / PINPAD' },
+    { key: 'Cantidad', label: 'Cantidad de Equipos' },
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
