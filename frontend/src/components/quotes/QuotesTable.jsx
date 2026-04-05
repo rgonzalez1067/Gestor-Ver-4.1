@@ -40,7 +40,7 @@ export const QuotesTable = ({
   actionLoading, canEdit,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
-  onOpenBitacoraFlujo,
+  onOpenBitacoraFlujo, onOpenFtConfig,
   clearFilters,
 }) => {
   const filteredQuotes = quotes.filter(quote => {
@@ -215,11 +215,15 @@ export const QuotesTable = ({
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
-                        {canEdit && isFastTrack && quote.quote_status === 'Aprobada' && (
-                          <DropdownMenuItem onSelect={() => onConfigure(quote.quote_id)} className="cursor-pointer"
+                        {canEdit && isFastTrack && (
+                          <DropdownMenuItem
+                            onSelect={() => quote.quote_status === 'Aprobada' ? onConfigure(quote.quote_id) : onOpenFtConfig(quote)}
+                            className="cursor-pointer"
                             data-testid={`configure-btn-${quote.quote_id}`}>
-                            <Settings size={16} className="mr-2 text-indigo-600" /> Marcar como Configurada
-                            <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>
+                            <Settings size={16} className="mr-2 text-indigo-600" />
+                            {quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración'}
+                            {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
+                            {!quote.configured_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
                           </DropdownMenuItem>
                         )}
                         {canEdit && <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">

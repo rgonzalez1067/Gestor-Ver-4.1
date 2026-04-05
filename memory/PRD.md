@@ -73,6 +73,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Normalización de sede en template_vars: TBP → PYME (cosmético en asunto/cuerpo del email)
   - Variable `{Nombre_Sucursal}` agregada al motor de notificaciones
   - Formulario de recolección de datos técnicos intacto (sin cambios en frontend)
+- **Abr 2026**: Botón "Configuración" siempre visible en Fast Track:
+  - Botón "Configuración" siempre visible en el menú de acciones para cotizaciones Fast Track
+  - Orden fijo: Aprobación → Configuración → Factura / Proforma
+  - Comportamiento dual: si status="Aprobada" → Marcar como Configurada; otro status → Abrir wizard de edición
+  - Propósito: acceso permanente a Detalles de Integración y Hardware en cualquier etapa del ciclo
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`

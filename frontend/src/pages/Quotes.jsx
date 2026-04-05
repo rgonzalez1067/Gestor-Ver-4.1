@@ -3334,6 +3334,7 @@ export const Quotes = () => {
               openEmailModal('configure', id);
               setPendingAction({ quoteId: id, action: 'configure', proceedFn: handleConfigure, exceptionHeaders: null });
             }}
+            onOpenFtConfig={(quote) => handleEditQuote(quote)}
             onOpenBitacoraFlujo={openBitacoraFlujo}
             onDelete={openDeleteConfirm}
             clearFilters={() => {
