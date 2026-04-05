@@ -65,6 +65,15 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Sistema Dinámico de Referidores en Ficha de Clientes:
+  - Nuevo selector de dos niveles: Tipo de Referidor (Banco/Cliente Existente/Otro) + campo dinámico
+  - Banco → dropdown con 30 instituciones financieras de la BD `banks`
+  - Cliente Existente → dropdown buscable de 315+ clientes registrados
+  - Otro → campo de texto libre para fuentes no categorizadas
+  - Nuevos campos BD: `referidor_tipo`, `referidor_id` (FK polimórfica), `referidor_nombre`
+  - Endpoint `/api/clients/referidor-options` para alimentar dropdowns
+  - Plantilla de importación actualizada con columnas `Referidor Tipo` y `Referidor Identificador`
+  - Validación cruzada en importación: BANCO→verifica existencia en BD, CLIENTE→verifica RIF existente
 - **Abr 2026**: Plantillas de Correo para Ventas de Equipos (10 templates):
   - 5 plantillas base × 2 segmentos (PYME/CORP) = 10 templates en `email_templates`
   - Plantillas: equipment_sent, equipment_approved, equipment_invoice, equipment_collect, equipment_delivery
