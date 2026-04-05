@@ -65,7 +65,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
-- **Abr 2026**: Sistema Dinámico de Referidores en Ficha de Clientes:
+- **Abr 2026**: Corrección Sistema de Referidores — Lista Maestra + Cascada:
+  - Mantenida la lista maestra original (Correo de Ventas, Integrador, Directores, Corporativo, etc.)
+  - Agregadas nuevas opciones: Ventas Directas, Página Web, Redes Sociales, Alianzas Externas, Banco, Cliente Referidor
+  - Campo unificado "Origen del Cliente" (14 opciones) con cascada condicional
+  - Solo "Banco" y "Cliente Referidor" activan dropdowns secundarios
+  - Plantilla de importación actualizada con columnas: Origen Tipo, Referidor Nombre, Referidor ID
+- **Abr 2026**: Sistema Dinámico de Referidores en Ficha de Clientes (primera versión):
   - Nuevo selector de dos niveles: Tipo de Referidor (Banco/Cliente Existente/Otro) + campo dinámico
   - Banco → dropdown con 30 instituciones financieras de la BD `banks`
   - Cliente Existente → dropdown buscable de 315+ clientes registrados
