@@ -65,6 +65,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Notificación "Enviar a Implementación" para Cotizaciones de Implementación:
+  - Verificado y corregido flujo de notificación al ejecutar "Enviar a Implementación"
+  - Plantilla: `implementation_PYME` (Envío a Implementación Sede Pyme)
+  - Destinatario: `implementation_email` global de `app_settings` (Correo de Implementación General)
+  - PDF de Ficha Técnica adjunto automáticamente ✅
+  - Normalización de sede en template_vars: TBP → PYME (cosmético en asunto/cuerpo del email)
+  - Variable `{Nombre_Sucursal}` agregada al motor de notificaciones
+  - Formulario de recolección de datos técnicos intacto (sin cambios en frontend)
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`

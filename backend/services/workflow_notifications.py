@@ -148,7 +148,9 @@ async def send_workflow_notification(
         Lista de resultados de envío
     """
     config = await _load_config()
-    segment = quote.get("sede", quote.get("client_segment", "PYME"))
+    raw_segment = quote.get("sede", quote.get("client_segment", "PYME"))
+    segment = raw_segment  # Raw for recipient resolution (handles legacy)
+    norm_segment = "PYME" if raw_segment in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_segment in ("CORP", "Corp", "Corporativo") else raw_segment
     matrix = WORKFLOW_MATRIX.get(action, {})
     quote_id = quote.get("quote_id", "")
     quote_number = quote.get("quote_number", "")
@@ -187,7 +189,7 @@ async def send_workflow_notification(
         "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
         "integrator_name": quote.get("integrator_name", ""),
         "pinpad_model": quote.get("pinpad_model", ""),
-        "sede_name": segment,
+        "sede_name": norm_segment,
         "company_name": quote.get("company_name", "Merchant Server"),
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
@@ -195,6 +197,7 @@ async def send_workflow_notification(
         "Telefono_Contacto": quote.get("client_phone", ""),
         "Email_Contacto": quote.get("client_email", ""),
         "Datos_Contacto": quote.get("client_contact", ""),
+        "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
     }
     if extra_template_vars:
         template_vars.update(extra_template_vars)
