@@ -369,8 +369,9 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         'Nombre Fantasía': ['DemoCorp', 'DemoCorp Norte', 'OtraCorp'],
         'Segmento': ['Corporativo', 'Corporativo', 'Pymes'],
         'Condición': ['Cliente', 'Prospecto', 'Prospecto'],
-        'Referidor Tipo': ['BANCO', 'CLIENTE', 'OTRO'],
-        'Referidor Identificador': ['Banco Mercantil', 'J-12345678-9', 'Correo de Ventas'],
+        'Origen Tipo': ['Banco', 'Cliente Referidor', 'Correo de Ventas'],
+        'Referidor Nombre': ['Banco Mercantil', 'MEGA SOFT COMPUTACION C.A.', ''],
+        'Referidor ID': ['', 'J-00334455-6', ''],
         'Dirección Fiscal': ['Av. Libertador, Edif. Torre X, Caracas', 'CC San Ignacio, Valencia', ''],
         'Dirección Sucursal': ['', 'Av. Bolívar Norte, Local 5', ''],
         'Categoría Comercial': ['Retail', 'Restaurante', 'Tecnología'],
@@ -404,25 +405,26 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
             {'Campo': 'Nombre Fantasía', 'Columna': 'D', 'Descripción': 'Nombre comercial o marca. Si se omite, se usa el Nombre Jurídico.', 'Obligatorio': 'No', 'Ejemplo': 'DemoCorp'},
             {'Campo': 'Segmento', 'Columna': 'E', 'Descripción': 'Segmento comercial. Valores: Pymes, Corporativo, Emprendedor, Mixto. Default: Pymes.', 'Obligatorio': 'No', 'Ejemplo': 'Corporativo'},
             {'Campo': 'Condición', 'Columna': 'F', 'Descripción': 'Estado del cliente. Valores: Prospecto, Cliente. Default: Prospecto.', 'Obligatorio': 'No', 'Ejemplo': 'Prospecto'},
-            {'Campo': 'Referidor Tipo', 'Columna': 'G', 'Descripción': 'Tipo de referidor. Valores: BANCO (institución financiera), CLIENTE (comercio ya registrado), OTRO (texto libre).', 'Obligatorio': 'No', 'Ejemplo': 'BANCO'},
-            {'Campo': 'Referidor Identificador', 'Columna': 'H', 'Descripción': 'Si Tipo=BANCO: nombre del banco. Si Tipo=CLIENTE: RIF del cliente referidor (debe existir en el sistema). Si Tipo=OTRO: texto libre.', 'Obligatorio': 'No', 'Ejemplo': 'Banco Mercantil'},
-            {'Campo': 'Dirección Fiscal', 'Columna': 'I', 'Descripción': 'Dirección fiscal o principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Av. Libertador, Caracas'},
-            {'Campo': 'Dirección Sucursal', 'Columna': 'J', 'Descripción': 'Dirección de la sucursal (si difiere de la fiscal).', 'Obligatorio': 'No', 'Ejemplo': 'CC San Ignacio, Local 5'},
-            {'Campo': 'Categoría Comercial', 'Columna': 'K', 'Descripción': 'Tipo de negocio. Ver hoja "Valores Válidos" para la lista completa.', 'Obligatorio': 'No', 'Ejemplo': 'Retail'},
-            {'Campo': 'Grupo Económico', 'Columna': 'L', 'Descripción': 'Nombre del grupo económico al que pertenece.', 'Obligatorio': 'No', 'Ejemplo': 'Grupo Demo'},
-            {'Campo': 'Ejecutivo Propietario', 'Columna': 'M', 'Descripción': 'Nombre del ejecutivo de ventas asignado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': ejecutivo_names[0] if ejecutivo_names else 'Rafael González'},
-            {'Campo': 'Cantidad Tiendas', 'Columna': 'N', 'Descripción': 'Número de tiendas o locales del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '5'},
-            {'Campo': 'Cantidad Cajas', 'Columna': 'O', 'Descripción': 'Número de cajas registradoras del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '12'},
-            {'Campo': 'Fecha Primer Contacto', 'Columna': 'P', 'Descripción': 'Fecha del primer contacto. Formatos: DD/MM/AAAA o AAAA-MM-DD. No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
-            {'Campo': 'Tipo Contacto', 'Columna': 'Q', 'Descripción': 'Medio de contacto inicial: Llamada, Correo, Presencial, Referido, Otro.', 'Obligatorio': 'No', 'Ejemplo': 'Llamada'},
-            {'Campo': 'Tipo Servicio', 'Columna': 'R', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
-            {'Campo': 'Integrador', 'Columna': 'S', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
-            {'Campo': 'Aplicativo', 'Columna': 'T', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
-            {'Campo': 'Contacto Nombre', 'Columna': 'U', 'Descripción': 'Nombre del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos'},
-            {'Campo': 'Contacto Apellido', 'Columna': 'V', 'Descripción': 'Apellido del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'Pérez'},
-            {'Campo': 'Contacto Teléfono', 'Columna': 'W', 'Descripción': 'Teléfono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
-            {'Campo': 'Contacto Email', 'Columna': 'X', 'Descripción': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
-            {'Campo': 'Contacto Rol', 'Columna': 'Y', 'Descripción': 'Rol del contacto: Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
+            {'Campo': 'Origen Tipo', 'Columna': 'G', 'Descripción': 'Origen del cliente. Valores de la lista maestra: Correo de Ventas, Integrador, Directores, Corporativo, Ventas Directas (Ejecutivo), Página Web / Landing Page, Redes Sociales, Alianzas Externas, Banco, Cliente Referidor, o nombres propios.', 'Obligatorio': 'No', 'Ejemplo': 'Banco'},
+            {'Campo': 'Referidor Nombre', 'Columna': 'H', 'Descripción': 'Si Origen=Banco: nombre del banco. Si Origen=Cliente Referidor: nombre o RIF del cliente referidor. Vacío para los demás orígenes.', 'Obligatorio': 'No', 'Ejemplo': 'Banco Mercantil'},
+            {'Campo': 'Referidor ID', 'Columna': 'I', 'Descripción': 'RIF del cliente referidor o código del banco (opcional, usado para validación cruzada).', 'Obligatorio': 'No', 'Ejemplo': 'J-00334455-6'},
+            {'Campo': 'Dirección Fiscal', 'Columna': 'J', 'Descripción': 'Dirección fiscal o principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Av. Libertador, Caracas'},
+            {'Campo': 'Dirección Sucursal', 'Columna': 'K', 'Descripción': 'Dirección de la sucursal (si difiere de la fiscal).', 'Obligatorio': 'No', 'Ejemplo': 'CC San Ignacio, Local 5'},
+            {'Campo': 'Categoría Comercial', 'Columna': 'L', 'Descripción': 'Tipo de negocio. Ver hoja "Valores Válidos" para la lista completa.', 'Obligatorio': 'No', 'Ejemplo': 'Retail'},
+            {'Campo': 'Grupo Económico', 'Columna': 'M', 'Descripción': 'Nombre del grupo económico al que pertenece.', 'Obligatorio': 'No', 'Ejemplo': 'Grupo Demo'},
+            {'Campo': 'Ejecutivo Propietario', 'Columna': 'N', 'Descripción': 'Nombre del ejecutivo de ventas asignado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': ejecutivo_names[0] if ejecutivo_names else 'Rafael González'},
+            {'Campo': 'Cantidad Tiendas', 'Columna': 'O', 'Descripción': 'Número de tiendas o locales del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '5'},
+            {'Campo': 'Cantidad Cajas', 'Columna': 'P', 'Descripción': 'Número de cajas registradoras del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '12'},
+            {'Campo': 'Fecha Primer Contacto', 'Columna': 'Q', 'Descripción': 'Fecha del primer contacto. Formatos: DD/MM/AAAA o AAAA-MM-DD. No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
+            {'Campo': 'Tipo Contacto', 'Columna': 'R', 'Descripción': 'Medio de contacto inicial: Llamada, Correo, Presencial, Referido, Otro.', 'Obligatorio': 'No', 'Ejemplo': 'Llamada'},
+            {'Campo': 'Tipo Servicio', 'Columna': 'S', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
+            {'Campo': 'Integrador', 'Columna': 'T', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
+            {'Campo': 'Aplicativo', 'Columna': 'U', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
+            {'Campo': 'Contacto Nombre', 'Columna': 'V', 'Descripción': 'Nombre del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos'},
+            {'Campo': 'Contacto Apellido', 'Columna': 'W', 'Descripción': 'Apellido del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'Pérez'},
+            {'Campo': 'Contacto Teléfono', 'Columna': 'X', 'Descripción': 'Teléfono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
+            {'Campo': 'Contacto Email', 'Columna': 'Y', 'Descripción': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
+            {'Campo': 'Contacto Rol', 'Columna': 'Z', 'Descripción': 'Rol del contacto: Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
         ]
         pd.DataFrame(fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
@@ -435,7 +437,12 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
             'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
             'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
         ]
-        referidores_tipos = ['BANCO', 'CLIENTE', 'OTRO']
+        referidores_origenes = [
+            'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
+            'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez',
+            'Ventas Directas (Ejecutivo)', 'Página Web / Landing Page', 'Redes Sociales',
+            'Alianzas Externas', 'Banco', 'Cliente Referidor',
+        ]
         # Get bank names for reference
         bank_docs = await db.banks.find({}, {"_id": 0, "name": 1}).sort("name", 1).to_list(100)
         bank_names = [b["name"] for b in bank_docs]
@@ -445,14 +452,14 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         segmentos = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto']
         condiciones = ['Prospecto', 'Cliente']
         
-        max_len = max(len(categorias), len(referidores_tipos), len(ejecutivo_names), len(integrador_names), len(roles), len(bank_names), 15)
+        max_len = max(len(categorias), len(referidores_origenes), len(ejecutivo_names), len(integrador_names), len(roles), len(bank_names), 15)
         pad = lambda lst: lst + [''] * (max_len - len(lst))
         
         values_data = {
             'Segmentos (Col E)': pad(segmentos),
             'Condiciones (Col F)': pad(condiciones),
-            'Referidor Tipo (Col G)': pad(referidores_tipos),
-            'Bancos Registrados (Col H si Tipo=BANCO)': pad(bank_names),
+            'Orígenes del Cliente (Col G)': pad(referidores_origenes),
+            'Bancos Registrados (Col H si Origen=Banco)': pad(bank_names),
             'Categorías Comerciales (Col K)': pad(categorias),
             'Tipos de Contacto (Col Q)': pad(tipos_contacto),
             'Tipos de Servicio (Col R)': pad(tipos_servicio),

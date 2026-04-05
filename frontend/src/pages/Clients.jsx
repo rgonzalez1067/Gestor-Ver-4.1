@@ -19,7 +19,10 @@ const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
 const REFERIDOR_OPTIONS = [
   'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
-  'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
+  'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez',
+  'Ventas Directas (Ejecutivo)', 'Página Web / Landing Page', 'Redes Sociales',
+  'Alianzas Externas',
+  'Banco', 'Cliente Referidor'
 ];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo', 'Propietario', 'Director'];
 const CATEGORIAS_COMERCIALES = [
@@ -870,120 +873,104 @@ export const Clients = () => {
                             </Select>
                           </div>
                         </div>
-                        {/* Datos de Captación — Referidor dinámico */}
+                        {/* Datos de Captación — Origen del Cliente con cascada */}
                         <div className="space-y-2">
                           <Label className="text-xs font-semibold text-slate-600">Datos de Captación</Label>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Origen del Cliente</Label>
+                            <Select
+                              value={formData.referidor || '_none_'}
+                              onValueChange={(v) => {
+                                const val = v === '_none_' ? '' : v;
+                                const isBanco = val === 'Banco';
+                                const isCliente = val === 'Cliente Referidor';
+                                setFormData(prev => ({
+                                  ...prev,
+                                  referidor: val,
+                                  referidor_tipo: isBanco ? 'BANCO' : isCliente ? 'CLIENTE' : (val ? 'OTRO' : ''),
+                                  referidor_id: '',
+                                  referidor_nombre: '',
+                                }));
+                                setReferidorSearch('');
+                              }}
+                            >
+                              <SelectTrigger data-testid="client-referidor-select" className="h-9"><SelectValue placeholder="Seleccionar origen..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">Sin especificar</SelectItem>
+                                {REFERIDOR_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {/* Dropdown secundario: Banco */}
+                          {formData.referidor === 'Banco' && (
                             <div>
-                              <Label className="text-xs">Tipo de Referidor</Label>
+                              <Label className="text-xs">Seleccionar Banco</Label>
                               <Select
-                                value={formData.referidor_tipo || '_none_'}
+                                value={formData.referidor_id || '_none_'}
                                 onValueChange={(v) => {
-                                  const tipo = v === '_none_' ? '' : v;
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    referidor_tipo: tipo,
-                                    referidor_id: '',
-                                    referidor_nombre: '',
-                                    referidor: tipo === 'OTRO' ? prev.referidor : ''
-                                  }));
-                                  setReferidorSearch('');
+                                  if (v === '_none_') {
+                                    setFormData(prev => ({ ...prev, referidor_id: '', referidor_nombre: '' }));
+                                  } else {
+                                    const bank = referidorOptions.banks.find(b => b.id === v);
+                                    setFormData(prev => ({ ...prev, referidor_id: v, referidor_nombre: bank?.name || '' }));
+                                  }
                                 }}
                               >
-                                <SelectTrigger data-testid="client-referidor-tipo-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                                <SelectTrigger data-testid="client-referidor-banco-select" className="h-9"><SelectValue placeholder="Seleccionar banco..." /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="_none_">Ninguno</SelectItem>
-                                  <SelectItem value="BANCO">Banco</SelectItem>
-                                  <SelectItem value="CLIENTE">Cliente Existente</SelectItem>
-                                  <SelectItem value="OTRO">Otro</SelectItem>
+                                  <SelectItem value="_none_">Seleccionar...</SelectItem>
+                                  {referidorOptions.banks.map(b => (
+                                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             </div>
+                          )}
+                          {/* Dropdown secundario: Cliente Referidor */}
+                          {formData.referidor === 'Cliente Referidor' && (
                             <div>
-                              {formData.referidor_tipo === 'BANCO' && (
-                                <>
-                                  <Label className="text-xs">Banco Referidor</Label>
-                                  <Select
-                                    value={formData.referidor_id || '_none_'}
-                                    onValueChange={(v) => {
-                                      if (v === '_none_') {
-                                        setFormData(prev => ({ ...prev, referidor_id: '', referidor_nombre: '', referidor: '' }));
-                                      } else {
-                                        const bank = referidorOptions.banks.find(b => b.id === v);
-                                        setFormData(prev => ({ ...prev, referidor_id: v, referidor_nombre: bank?.name || '', referidor: bank?.name || '' }));
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger data-testid="client-referidor-banco-select" className="h-9"><SelectValue placeholder="Seleccionar banco..." /></SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="_none_">Seleccionar...</SelectItem>
-                                      {referidorOptions.banks.map(b => (
-                                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </>
-                              )}
-                              {formData.referidor_tipo === 'CLIENTE' && (
-                                <>
-                                  <Label className="text-xs">Cliente Referidor</Label>
-                                  <Select
-                                    value={formData.referidor_id || '_none_'}
-                                    onValueChange={(v) => {
-                                      if (v === '_none_') {
-                                        setFormData(prev => ({ ...prev, referidor_id: '', referidor_nombre: '', referidor: '' }));
-                                      } else {
-                                        const cl = referidorOptions.clients.find(c => c.id === v);
-                                        setFormData(prev => ({ ...prev, referidor_id: v, referidor_nombre: cl?.name || '', referidor: cl?.name || '' }));
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger data-testid="client-referidor-cliente-select" className="h-9"><SelectValue placeholder="Buscar cliente..." /></SelectTrigger>
-                                    <SelectContent>
-                                      <div className="px-2 py-1.5">
-                                        <Input
-                                          placeholder="Buscar por nombre o RIF..."
-                                          value={referidorSearch}
-                                          onChange={(e) => setReferidorSearch(e.target.value)}
-                                          className="h-8 text-xs"
-                                          data-testid="client-referidor-cliente-search"
-                                        />
-                                      </div>
-                                      <SelectItem value="_none_">Seleccionar...</SelectItem>
-                                      {referidorOptions.clients
-                                        .filter(c => {
-                                          if (!referidorSearch) return true;
-                                          const q = referidorSearch.toLowerCase();
-                                          return c.name.toLowerCase().includes(q) || c.rif.toLowerCase().includes(q);
-                                        })
-                                        .slice(0, 50)
-                                        .map(c => (
-                                          <SelectItem key={c.id} value={c.id}>
-                                            <span className="truncate">{c.name}</span>
-                                            <span className="ml-1 text-xs text-slate-400">({c.rif})</span>
-                                          </SelectItem>
-                                        ))
-                                      }
-                                    </SelectContent>
-                                  </Select>
-                                </>
-                              )}
-                              {formData.referidor_tipo === 'OTRO' && (
-                                <>
-                                  <Label className="text-xs">Referidor (texto libre)</Label>
-                                  <DebouncedInput
-                                    data-testid="client-referidor-otro-input"
-                                    value={formData.referidor}
-                                    onCommit={(v) => setFormData(prev => ({ ...prev, referidor: v, referidor_nombre: v }))}
-                                    className="h-9" placeholder="Ej: Correo de Ventas, Directores..."
-                                  />
-                                </>
-                              )}
-                              {!formData.referidor_tipo && (
-                                <div className="h-9 flex items-center text-xs text-slate-400 italic">Seleccione un tipo de referidor</div>
-                              )}
+                              <Label className="text-xs">Seleccionar Cliente Referidor</Label>
+                              <Select
+                                value={formData.referidor_id || '_none_'}
+                                onValueChange={(v) => {
+                                  if (v === '_none_') {
+                                    setFormData(prev => ({ ...prev, referidor_id: '', referidor_nombre: '' }));
+                                  } else {
+                                    const cl = referidorOptions.clients.find(c => c.id === v);
+                                    setFormData(prev => ({ ...prev, referidor_id: v, referidor_nombre: cl?.name || '' }));
+                                  }
+                                }}
+                              >
+                                <SelectTrigger data-testid="client-referidor-cliente-select" className="h-9"><SelectValue placeholder="Buscar cliente..." /></SelectTrigger>
+                                <SelectContent>
+                                  <div className="px-2 py-1.5">
+                                    <Input
+                                      placeholder="Buscar por nombre o RIF..."
+                                      value={referidorSearch}
+                                      onChange={(e) => setReferidorSearch(e.target.value)}
+                                      className="h-8 text-xs"
+                                      data-testid="client-referidor-cliente-search"
+                                    />
+                                  </div>
+                                  <SelectItem value="_none_">Seleccionar...</SelectItem>
+                                  {referidorOptions.clients
+                                    .filter(c => {
+                                      if (!referidorSearch) return true;
+                                      const q = referidorSearch.toLowerCase();
+                                      return c.name.toLowerCase().includes(q) || c.rif.toLowerCase().includes(q);
+                                    })
+                                    .slice(0, 50)
+                                    .map(c => (
+                                      <SelectItem key={c.id} value={c.id}>
+                                        <span className="truncate">{c.name}</span>
+                                        <span className="ml-1 text-xs text-slate-400">({c.rif})</span>
+                                      </SelectItem>
+                                    ))
+                                  }
+                                </SelectContent>
+                              </Select>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
 
