@@ -260,7 +260,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="approval-billing-modal">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="approval-billing-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <CheckCircle size={22} className="text-green-600" />
@@ -378,25 +378,30 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
             <div className="overflow-x-auto">
               <table className="w-full text-sm" data-testid="billing-consolidation-table">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-600">
+                  <tr className="bg-slate-700 text-white">
+                    <th className="px-3 py-2 text-left text-xs font-medium">
                       {isEquipmentQuote ? 'Equipo / Accesorio' : 'Concepto Consolidado'}
                     </th>
-                    <th className="px-3 py-2 text-center text-xs font-medium text-slate-600">Cant.</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Monto ($)</th>
-                    <th className="px-3 py-2 text-center text-xs font-medium text-slate-600 w-24">Tasa</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Total (Bs.)</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium">Cant.</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">Monto ($)</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium w-20">Tasa Bs./$</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">C.U. Bs.</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">Total (Bs.)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {consolidated.map((item, idx) => {
                     const bsCalc = item.total_usd * rateNum;
+                    const costoUnitBs = (item.quantity > 0 && rateNum > 0) ? (bsCalc / item.quantity) : 0;
                     return (
                       <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-2 text-slate-800 text-xs">{item.name}</td>
                         <td className="px-3 py-2 text-center text-slate-600 text-xs">{item.quantity}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">${item.total_usd.toFixed(2)}</td>
                         <td className="px-3 py-2 text-center text-xs text-slate-400 font-mono">{rateNum > 0 ? rateNum.toFixed(2) : '—'}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">
+                          {costoUnitBs > 0 ? `Bs. ${costoUnitBs.toFixed(2)}` : '—'}
+                        </td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">
                           {rateNum > 0 ? `Bs. ${bsCalc.toFixed(2)}` : '—'}
                         </td>
@@ -411,17 +416,20 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
+                    <td className="px-3 py-2"></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">Bs. {grandTotalBs.toFixed(2)}</td>
                   </tr>
                   <tr className="bg-slate-50">
                     <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>IVA (16%)</td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">${ivaUsd.toFixed(2)}</td>
                     <td className="px-3 py-1.5"></td>
+                    <td className="px-3 py-1.5"></td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">Bs. {ivaBs.toFixed(2)}</td>
                   </tr>
                   <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
                     <td className="px-3 py-2.5 text-xs text-slate-900" colSpan={2}>TOTAL GENERAL</td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">${grandTotalConIvaUsd.toFixed(2)}</td>
+                    <td className="px-3 py-2.5"></td>
                     <td className="px-3 py-2.5"></td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">Bs. {grandTotalConIvaBs.toFixed(2)}</td>
                   </tr>

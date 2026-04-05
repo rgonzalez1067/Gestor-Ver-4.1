@@ -65,6 +65,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Columna "Costo Unitario Bs." en Modal de Aprobación:
+  - Nueva columna "C.U. Bs." (Total Bs. / Cantidad) en tabla de facturación
+  - Aplica a ambos flujos: Implementación y Equipos/Accesorios
+  - Encabezado de tabla con fondo oscuro y texto blanco
+  - Modal expandido a max-w-4xl para acomodar 6 columnas
 - **Abr 2026**: Fix Modal Aprobación Cotización de Equipos:
   - Corregido cruce de contexto: modal ahora lee `equipment_items` en vez de `services` para categoría "equipment"
   - Título dinámico: "Aprobación de Cotización de Equipos y Accesorios" vs "Aprobación de Cotización"
