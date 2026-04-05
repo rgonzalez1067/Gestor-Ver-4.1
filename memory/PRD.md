@@ -65,6 +65,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Fix Modal Aprobación Cotización de Equipos:
+  - Corregido cruce de contexto: modal ahora lee `equipment_items` en vez de `services` para categoría "equipment"
+  - Título dinámico: "Aprobación de Cotización de Equipos y Accesorios" vs "Aprobación de Cotización"
+  - Tabla: encabezado "Equipo / Accesorio", subtotal "Equipos y Accesorios"
+  - Anexos: "Orden de Compra / Autorización" para equipos vs "Comprobante de Aprobación" para implementación
+  - Cálculo correcto en Bs. basado en total hardware × tasa BCV
 - **Abr 2026**: Corrección Sistema de Referidores — Lista Maestra + Cascada:
   - Mantenida la lista maestra original (Correo de Ventas, Integrador, Directores, Corporativo, etc.)
   - Agregadas nuevas opciones: Ventas Directas, Página Web, Redes Sociales, Alianzas Externas, Banco, Cliente Referidor

@@ -27,6 +27,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const approvalFileRef = useRef(null);
 
   const quote = useMemo(() => quotes?.find(q => q.quote_id === quoteId), [quotes, quoteId]);
+  const isEquipmentQuote = quote?.quote_category === 'equipment';
 
   // Set default billing date to today
   useEffect(() => {
@@ -74,9 +75,22 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     });
   }, [billingDate, open]);
 
-  // Consolidate services: Setup + Productos (additional). Excluir recurrentes.
+  // Consolidate items: para equipos usa equipment_items, para implementación usa services
   const consolidated = useMemo(() => {
     if (!quote) return [];
+
+    if (isEquipmentQuote) {
+      // Cotización de Equipos y Accesorios: usar equipment_items
+      const items = quote.equipment_items || [];
+      return items.map(item => ({
+        name: item.name || item.hardware_name || 'Equipo',
+        quantity: item.quantity || 1,
+        unit_price_usd: item.unit_price_usd || item.price || 0,
+        total_usd: (item.unit_price_usd || item.price || 0) * (item.quantity || 1),
+      }));
+    }
+
+    // Cotización de Implementación: usar services (excluir recurrentes)
     const services = quote.services || [];
     const map = {};
     for (const s of services) {
@@ -89,7 +103,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       map[name].total_usd += (s.total_usd || s.subtotal_usd || 0);
     }
     return Object.values(map);
-  }, [quote]);
+  }, [quote, isEquipmentQuote]);
 
   const rateNum = parseFloat(exchangeRate) || 0;
   const grandTotalUsd = consolidated.reduce((sum, c) => sum + c.total_usd, 0);
@@ -250,7 +264,9 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <CheckCircle size={22} className="text-green-600" />
-            Aprobación de Cotización — {quote.quote_number}
+            {isEquipmentQuote
+              ? `Aprobación de Cotización de Equipos y Accesorios — ${quote.quote_number}`
+              : `Aprobación de Cotización — ${quote.quote_number}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -270,8 +286,10 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
           {/* 2. Upload: Comprobante de Aprobación de Cotización */}
           <FileUploadZone
-            label="Comprobante de Aprobación de Cotización"
-            description="Respaldo legal de aprobación del cliente: orden de compra, correo firmado o captura de aprobación."
+            label={isEquipmentQuote ? "Orden de Compra / Autorización" : "Comprobante de Aprobación de Cotización"}
+            description={isEquipmentQuote
+              ? "Respaldo de la compra de equipos: orden de compra, autorización de compra o correo de aprobación del cliente."
+              : "Respaldo legal de aprobación del cliente: orden de compra, correo firmado o captura de aprobación."}
             files={approvalFiles}
             setFiles={setApprovalFiles}
             inputRef={approvalFileRef}
@@ -352,14 +370,18 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
             )}
 
             <p className="text-xs text-slate-500 mb-3">
-              Conceptos de <strong>Setup y Productos</strong> (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.
+              {isEquipmentQuote
+                ? 'Equipos y accesorios cotizados. IVA 16% calculado automáticamente.'
+                : 'Conceptos de Setup y Productos (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.'}
             </p>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm" data-testid="billing-consolidation-table">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-600">Concepto Consolidado</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-600">
+                      {isEquipmentQuote ? 'Equipo / Accesorio' : 'Concepto Consolidado'}
+                    </th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-slate-600">Cant.</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-slate-600">Monto ($)</th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-slate-600 w-24">Tasa</th>
@@ -384,7 +406,9 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
-                    <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>Subtotal (Setup + Productos)</td>
+                    <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>
+                      {isEquipmentQuote ? 'Subtotal (Equipos y Accesorios)' : 'Subtotal (Setup + Productos)'}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">Bs. {grandTotalBs.toFixed(2)}</td>
