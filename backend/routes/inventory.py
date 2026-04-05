@@ -124,9 +124,10 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
     await get_current_user(authorization)
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id}, {"_id": 0}
-    ).to_list(10000)
+    ).sort("created_at", 1).to_list(10000)
 
     stock = {}  # item_id -> { name, type, qty, cost_total, serials[], precarga_qty, precarga_serials[] }
+    serial_dates_map = {}  # item_id -> { serial -> acquisition_date }
     for m in movements:
         iid = m["item_id"]
         if iid not in stock:
@@ -143,12 +144,13 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
                 "has_precarga": False,
                 "precarga_movements": [],
             }
+            serial_dates_map[iid] = {}
 
         is_precarga = m.get("certification_status") == "precarga"
         sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        acq_date = m.get("acquisition_date") or m.get("created_at", "")
 
         if is_precarga:
-            # Precargas no suman al stock disponible
             stock[iid]["precarga_qty"] += m["quantity"]
             if m.get("serials"):
                 stock[iid]["precarga_serials"].extend(m["serials"])
@@ -166,15 +168,22 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
             if m.get("serials"):
                 if sign > 0:
                     stock[iid]["serials"].extend(m["serials"])
+                    for s in m["serials"]:
+                        serial_dates_map[iid][s] = acq_date
                 else:
                     for s in m["serials"]:
                         if s in stock[iid]["serials"]:
                             stock[iid]["serials"].remove(s)
+                        serial_dates_map[iid].pop(s, None)
 
     result = []
     for item in stock.values():
         qty = item["quantity"]
-        item["avg_cost"] = round(item["cost_total"] / qty, 2) if qty > 0 else 0
+        item["weighted_cost"] = round(item["cost_total"] / qty, 2) if qty > 0 else 0
+        # FIFO: ordenar seriales por fecha de adquisición más antigua
+        iid = item["item_id"]
+        dates = serial_dates_map.get(iid, {})
+        item["serials"].sort(key=lambda s: dates.get(s, "9999"))
         result.append(item)
 
     result.sort(key=lambda x: x["item_name"])
@@ -209,6 +218,7 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
     serials = body.get("serials", [])
     notes = body.get("notes", "")
     is_precarga = body.get("is_precarga", False)
+    acquisition_date = body.get("acquisition_date", "")
 
     if not item_id or quantity <= 0:
         raise HTTPException(status_code=400, detail="item_id y quantity > 0 son obligatorios")
@@ -258,6 +268,7 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
     doc = movement.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
     doc["certification_status"] = cert_status
+    doc["acquisition_date"] = acquisition_date
     await db.inventory_movements.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -494,7 +505,7 @@ async def create_exit(warehouse_id: str, body: dict, authorization: Optional[str
         item_type=item.get("type", "General"),
         movement_type="salida",
         quantity=quantity,
-        unit_cost=stock.get("avg_cost", item.get("price_usd", 0)),
+        unit_cost=stock.get("weighted_cost", item.get("price_usd", 0)),
         serials=serials if requires_serial else [],
         reference=reference,
         client_name=client_name,
@@ -565,7 +576,7 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
         warehouse_id=source_id, item_id=item_id,
         item_name=item["name"], item_type=item.get("type", "General"),
         movement_type="transferencia_salida", quantity=quantity,
-        unit_cost=source_stock.get("avg_cost", 0),
+        unit_cost=source_stock.get("weighted_cost", 0),
         serials=serials if requires_serial else [],
         reference=f"Transferencia a {dst_wh['name']}",
         transfer_id=transfer_id, notes=notes, created_by=user_name,
@@ -579,7 +590,7 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
         warehouse_id=dest_id, item_id=item_id,
         item_name=item["name"], item_type=item.get("type", "General"),
         movement_type="transferencia_entrada", quantity=quantity,
-        unit_cost=source_stock.get("avg_cost", 0),
+        unit_cost=source_stock.get("weighted_cost", 0),
         serials=serials if requires_serial else [],
         reference=f"Transferencia desde {src_wh['name']}",
         transfer_id=transfer_id, notes=notes, created_by=user_name,
@@ -722,6 +733,7 @@ async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[st
             "notes": m.get("notes", ""),
             "created_by": m.get("created_by", ""),
             "certification_status": m.get("certification_status", "certificado"),
+            "acquisition_date": m.get("acquisition_date", ""),
         })
 
     # Info del producto
@@ -899,14 +911,15 @@ async def check_stock_alert(warehouse_id: str, item_id: str, item_name: str):
         logger.error(f"Error en check_stock_alert: {e}")
 
 async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
-    """Calcula stock actual de un ítem en un almacén. Excluye precargas."""
+    """Calcula stock actual de un ítem en un almacén. Excluye precargas. Seriales ordenados FIFO."""
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
-    ).to_list(10000)
+    ).sort("created_at", 1).to_list(10000)
 
     qty = 0
     cost_total = 0
     serials = []
+    serial_dates = {}  # serial -> acquisition_date (para FIFO)
     for m in movements:
         # Excluir precargas del stock disponible
         if m.get("certification_status") == "precarga":
@@ -914,17 +927,25 @@ async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
         sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
         qty += sign * m["quantity"]
         cost_total += sign * m["quantity"] * m.get("unit_cost", 0)
+        acq_date = m.get("acquisition_date") or m.get("created_at", "")
         if m.get("serials"):
             if sign > 0:
                 serials.extend(m["serials"])
+                for s in m["serials"]:
+                    serial_dates[s] = acq_date
             else:
                 for s in m["serials"]:
                     if s in serials:
                         serials.remove(s)
+                    serial_dates.pop(s, None)
+
+    # Ordenar seriales por fecha de adquisición (FIFO: más antiguos primero)
+    serials.sort(key=lambda s: serial_dates.get(s, "9999"))
 
     return {
         "quantity": qty,
         "cost_total": cost_total,
-        "avg_cost": round(cost_total / qty, 2) if qty > 0 else 0,
+        "weighted_cost": round(cost_total / qty, 2) if qty > 0 else 0,
         "serials": serials,
+        "serial_dates": serial_dates,
     }

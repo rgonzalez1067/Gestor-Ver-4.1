@@ -880,5 +880,6 @@ class InventoryMovement(BaseModel):
     transfer_id: str = ""    # ID que vincula salida+entrada en transferencias
     created_by: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    acquisition_date: str = ""  # Fecha de adquisición (YYYY-MM-DD) para lógica FIFO
 
 SERIALIZED_TYPES = ["pos", "pinpad", "mpos"]

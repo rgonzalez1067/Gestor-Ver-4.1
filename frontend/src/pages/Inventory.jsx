@@ -47,7 +47,7 @@ export default function Inventory() {
   const [deleteWh, setDeleteWh] = useState({ open: false, id: null, name: '' });
 
   // Entry form
-  const [entryForm, setEntryForm] = useState({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] });
+  const [entryForm, setEntryForm] = useState({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' });
   const [serialInput, setSerialInput] = useState('');
 
   // Exit form
@@ -181,6 +181,7 @@ export default function Inventory() {
 
   const submitEntry = async () => {
     if (!entryForm.item_id || entryForm.quantity < 1) { toast.error('Complete los campos'); return; }
+    if (!entryForm.acquisition_date) { toast.error('Seleccione la Fecha de Adquisición'); return; }
     if (entryNeedsSerial && entryForm.serials.length !== entryForm.quantity) {
       toast.error(`Debe registrar exactamente ${entryForm.quantity} serial(es). Tiene ${entryForm.serials.length}`);
       return;
@@ -193,7 +194,7 @@ export default function Inventory() {
       });
       toast.success(isPrecarga ? 'Precarga registrada (pendiente certificación)' : 'Entrada registrada');
       setEntryDialog(false);
-      setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] });
+      setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' });
       setIsPrecarga(false);
       fetchStock();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
@@ -570,7 +571,7 @@ export default function Inventory() {
             <>
               {/* Action buttons */}
               <div className="flex gap-2 mb-4">
-                {canEditWarehouse && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [] }); setEntryDialog(true); }}
+                {canEditWarehouse && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' }); setEntryDialog(true); }}
                   data-testid="btn-entry" className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <PackagePlus size={14} className="mr-1.5" />Entrada
                 </Button>}
@@ -589,7 +590,7 @@ export default function Inventory() {
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Tipo</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Saldo</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Stock Mín.</th>
-                        <th className="px-4 py-3 text-center font-medium text-slate-600">Costo Prom.</th>
+                        <th className="px-4 py-3 text-center font-medium text-slate-600">Costo Ponderado</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Seriales</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-600">Acciones</th>
                       </tr>
@@ -638,7 +639,7 @@ export default function Inventory() {
                               data-testid={`min-stock-${item.item_id}`}
                             />
                           </td>
-                          <td className="px-4 py-3 text-center text-slate-600">${item.avg_cost?.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center text-slate-600">${item.weighted_cost?.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
                             {item.requires_serial ? (
                               <span className="text-xs text-purple-600">{item.serials?.length || 0} registrados</span>
@@ -777,7 +778,7 @@ export default function Inventory() {
                 <Label>Bien / Servicio *</Label>
                 <Select value={entryForm.item_id} onValueChange={v => {
                   const hw = hardware.find(h => h.hardware_id === v);
-                  setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_usd || 0, serials: [] });
+                  setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_usd || 0, serials: [], acquisition_date: entryForm.acquisition_date });
                 }}>
                   <SelectTrigger data-testid="entry-item" className="truncate"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                   <SelectContent>
@@ -796,6 +797,10 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={entryForm.quantity} onCommit={v => setEntryForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="entry-qty" /></div>
                 <div><Label>Costo Unitario ($)</Label><DebouncedInput type="number" step="0.01" value={entryForm.unit_cost} onCommit={v => setEntryForm(p => ({ ...p, unit_cost: parseFloat(v) || 0 }))} data-testid="entry-cost" /></div>
+              </div>
+              <div>
+                <Label>Fecha de Adquisición *</Label>
+                <Input type="date" value={entryForm.acquisition_date} onChange={e => setEntryForm(p => ({ ...p, acquisition_date: e.target.value }))} data-testid="entry-acquisition-date" className="w-full" />
               </div>
               <div><Label>Notas</Label><DebouncedInput value={entryForm.notes} onCommit={v => setEntryForm(p => ({ ...p, notes: v }))} /></div>
 
@@ -842,7 +847,7 @@ export default function Inventory() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setEntryDialog(false)}>Cancelar</Button>
                 <Button onClick={submitEntry} data-testid="entry-submit" className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  disabled={!entryForm.item_id || entryForm.quantity < 1 || (entryNeedsSerial && entryForm.serials.length !== entryForm.quantity)}>
+                  disabled={!entryForm.item_id || entryForm.quantity < 1 || !entryForm.acquisition_date || (entryNeedsSerial && entryForm.serials.length !== entryForm.quantity)}>
                   Registrar Entrada
                 </Button>
               </div>

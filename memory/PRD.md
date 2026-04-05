@@ -91,6 +91,12 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
     - Cobranza → Almacén PYME + plantilla `equipment_delivery_PYME` (Orden de Entrega)
     - Marcada para Entregar → Ventas PYME + mensaje "Equipos listos" + Nota de Entrega PDF
   - Enviar Cotización y Enviar a Implementación ya funcionaban correctamente (sin cambios)
+- **Abr 2026**: Optimización de Inventario (Fecha de Adquisición + Costo Ponderado + FIFO):
+  - Campo "Fecha de Adquisición" (DatePicker, obligatorio) en formulario de entrada
+  - Renombrado "Costo Prom." → "Costo Ponderado" en tabla de stock
+  - Cálculo de Costo Promedio Ponderado: CP = (V_exist × CP_prev + V_entry × C_entry) / V_total
+  - Lógica FIFO para salidas: seriales ordenados por fecha de adquisición más antigua
+  - Archivos modificados: `inventory.py`, `models.py`, `Inventory.jsx`
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`
