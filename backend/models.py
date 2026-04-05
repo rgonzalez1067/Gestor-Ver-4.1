@@ -40,6 +40,9 @@ class ClientCreate(BaseModel):
     segment: str = "Pymes"
     condicion: str = "Prospecto"
     referidor: Optional[str] = None
+    referidor_tipo: Optional[str] = None  # BANCO | CLIENTE | OTRO
+    referidor_id: Optional[str] = None    # bank_id o client_id del referidor
+    referidor_nombre: Optional[str] = None # Nombre display del referidor
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None
@@ -68,6 +71,9 @@ class Client(BaseModel):
     segment: str = "Pymes"
     condicion: str = "Prospecto"
     referidor: Optional[str] = None
+    referidor_tipo: Optional[str] = None  # BANCO | CLIENTE | OTRO
+    referidor_id: Optional[str] = None    # bank_id o client_id del referidor
+    referidor_nombre: Optional[str] = None # Nombre display del referidor
     address: Optional[str] = None
     branch_address: Optional[str] = None
     categoria_comercial: Optional[str] = None

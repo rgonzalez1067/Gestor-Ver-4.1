@@ -1,0 +1,61 @@
+{
+  "summary": "Iteration 158: Complete testing of Dynamic Referidor Field feature. All 8 backend tests passed. Frontend UI verified - two-level referidor selector (Tipo + dynamic secondary field) working correctly with all 4 options: Banco (30 banks), Cliente Existente (315+ clients with search), Otro (free text), Ninguno (hidden secondary).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration158_referidor_feature.py",
+    "/app/test_reports/pytest/pytest_results_iteration158.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GET /api/clients/referidor-options returns 30+ banks and 315+ clients correctly",
+    "POST /api/clients with referidor_tipo=BANCO/CLIENTE/OTRO creates clients with correct referidor fields",
+    "PUT /api/clients/{id} updates referidor_tipo successfully",
+    "GET /api/clients/{id} returns referidor_tipo, referidor_id, referidor_nombre fields",
+    "GET /api/clients/template has 'Referidor Tipo' and 'Referidor Identificador' columns",
+    "POST /api/clients/import validates referidor_tipo BANCO/CLIENTE/OTRO with cross-reference validation",
+    "Frontend 'Datos de Captación' section visible in client form",
+    "Frontend dynamic selector: BANCO→bank dropdown, CLIENTE→searchable client dropdown, OTRO→free text, NINGUNO→hidden",
+    "Edit client form pre-loads referidor fields correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration158_referidor_feature.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": "admin@meganexus.com / Admin123!",
+  "seed_data_creation": "Test clients created and cleaned up during tests",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dynamic Referidor feature fully implemented. The client form has a two-level selector: 'Tipo de Referidor' (BANCO/CLIENTE/OTRO/Ninguno) and a dynamic secondary field that changes based on selection. Banks are fetched from /api/clients/referidor-options (30 banks), clients are searchable (315+ clients). Import template updated with 'Referidor Tipo' and 'Referidor Identificador' columns with validation.",
+  "features_verified": {
+    "backend_endpoints": {
+      "GET /api/clients/referidor-options": "VERIFIED - Returns 30+ banks and 315+ clients",
+      "POST /api/clients (BANCO)": "VERIFIED - Creates client with referidor_tipo=BANCO and bank_id",
+      "POST /api/clients (CLIENTE)": "VERIFIED - Creates client with referidor_tipo=CLIENTE and client_id",
+      "POST /api/clients (OTRO)": "VERIFIED - Creates client with referidor_tipo=OTRO and free text",
+      "PUT /api/clients/{id}": "VERIFIED - Updates referidor_tipo",
+      "GET /api/clients/{id}": "VERIFIED - Returns referidor_tipo, referidor_id, referidor_nombre",
+      "GET /api/clients/template": "VERIFIED - Has 'Referidor Tipo' and 'Referidor Identificador' columns",
+      "POST /api/clients/import": "VERIFIED - Validates referidor_tipo with cross-reference"
+    },
+    "frontend_ui": {
+      "datos_captacion_section": "VERIFIED - 'Datos de Captación' section visible",
+      "tipo_referidor_dropdown": "VERIFIED - Shows Ninguno, Banco, Cliente Existente, Otro options",
+      "banco_dropdown": "VERIFIED - Shows 31 bank options when BANCO selected",
+      "cliente_dropdown": "VERIFIED - Shows searchable client list when CLIENTE selected",
+      "otro_input": "VERIFIED - Shows free text input when OTRO selected",
+      "ninguno_hidden": "VERIFIED - Secondary field hidden when NINGUNO selected",
+      "edit_preload": "VERIFIED - Referidor fields pre-load correctly when editing"
+    }
+  }
+}

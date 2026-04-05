@@ -7,6 +7,7 @@ import uuid
 import logging
 import io
 import os
+import re
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -343,6 +344,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'Segmento': 'segment', 'segmento': 'segment',
             'Condición': 'condicion', 'condicion': 'condicion', 'Condicion': 'condicion',
             'Referidor': 'referidor', 'referidor': 'referidor',
+            'Referidor Tipo': 'referidor_tipo', 'referidor_tipo': 'referidor_tipo',
+            'Referidor Identificador': 'referidor_identificador', 'referidor_identificador': 'referidor_identificador',
             'Dirección Fiscal': 'address', 'Dirección': 'address', 'dirección': 'address',
             'direccion': 'address', 'dirección_fiscal': 'address', 'direccion_fiscal': 'address',
             'Dirección Sucursal': 'branch_address', 'dirección_sucursal': 'branch_address',
@@ -420,10 +423,6 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
             'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
         ]
-        valid_referidores = [
-            'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
-            'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez', 'Otro Cliente'
-        ]
         
         # Pre-load ejecutivos and integradores for validation
         ejecutivos_db = await db.users.find(
@@ -465,18 +464,20 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
         
         col_letters = {
             'rif': 'A', 'sucursal': 'B', 'legal_name': 'C', 'fantasy_name': 'D',
-            'segment': 'E', 'condicion': 'F', 'referidor': 'G', 'address': 'H',
-            'branch_address': 'I', 'categoria_comercial': 'J', 'grupo_economico': 'K',
-            'ejecutivo_propietario': 'L', 'cantidad_tiendas': 'M', 'cantidad_cajas': 'N',
-            'fecha_primer_contacto': 'O', 'tipo_contacto': 'P', 'tipo_servicio': 'Q',
-            'integrador_name': 'R', 'aplicativo': 'S',
-            'contact_name': 'T', 'contact_lastname': 'U', 'contact_phone': 'V',
-            'contact_email': 'W', 'contact_role': 'X',
+            'segment': 'E', 'condicion': 'F', 'referidor_tipo': 'G', 'referidor_identificador': 'H',
+            'address': 'I', 'branch_address': 'J', 'categoria_comercial': 'K',
+            'grupo_economico': 'L', 'ejecutivo_propietario': 'M',
+            'cantidad_tiendas': 'N', 'cantidad_cajas': 'O',
+            'fecha_primer_contacto': 'P', 'tipo_contacto': 'Q', 'tipo_servicio': 'R',
+            'integrador_name': 'S', 'aplicativo': 'T',
+            'contact_name': 'U', 'contact_lastname': 'V', 'contact_phone': 'W',
+            'contact_email': 'X', 'contact_role': 'Y',
         }
         col_friendly = {
             'rif': 'RIF', 'sucursal': 'Sucursal', 'legal_name': 'Nombre Jurídico',
             'fantasy_name': 'Nombre Fantasía', 'segment': 'Segmento', 'condicion': 'Condición',
-            'referidor': 'Referidor', 'address': 'Dirección Fiscal',
+            'referidor_tipo': 'Referidor Tipo', 'referidor_identificador': 'Referidor Identificador',
+            'address': 'Dirección Fiscal',
             'branch_address': 'Dirección Sucursal', 'categoria_comercial': 'Categoría Comercial',
             'grupo_economico': 'Grupo Económico', 'ejecutivo_propietario': 'Ejecutivo Propietario',
             'cantidad_tiendas': 'Cantidad Tiendas', 'cantidad_cajas': 'Cantidad Cajas',
@@ -502,6 +503,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                 segment = _safe(row, 'segment', 'Pymes')
                 condicion = _safe(row, 'condicion', 'Prospecto')
                 referidor = _safe(row, 'referidor')
+                referidor_tipo_raw = _safe(row, 'referidor_tipo')
+                referidor_ident = _safe(row, 'referidor_identificador')
                 sucursal = _safe(row, 'sucursal', 'Principal')
                 address = _safe(row, 'address')
                 branch_address = _safe(row, 'branch_address')
@@ -557,13 +560,57 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                         suggested_action=f'Corrija la celda F{row_num}. Use exactamente: Prospecto o Cliente.'))
                     condicion = 'Prospecto'
                 
-                # === Referidor validation ===
-                if referidor and referidor not in valid_referidores:
-                    row_errors.append(ImportError(row=row_num, column=_col_ref('referidor'), value=referidor,
-                        error_type='invalid',
-                        message=f'Fila {row_num}, Col G (Referidor): Se recibió "{referidor}" pero no coincide con ningún referidor válido. Verifique la lista en "Valores Válidos".',
-                        suggested_action=f'Corrija la celda G{row_num}. Valores aceptados: {", ".join(valid_referidores)}.'))
-                
+                # === Referidor validation (nuevo sistema de tipos) ===
+                referidor_tipo = None
+                referidor_id = None
+                referidor_nombre = None
+                valid_ref_tipos = ['BANCO', 'CLIENTE', 'OTRO']
+                if referidor_tipo_raw:
+                    ref_tipo_upper = referidor_tipo_raw.upper().strip()
+                    if ref_tipo_upper not in valid_ref_tipos:
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('referidor_tipo'), value=referidor_tipo_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col G (Referidor Tipo): Se recibió "{referidor_tipo_raw}" pero solo se aceptan: {", ".join(valid_ref_tipos)}.',
+                            suggested_action=f'Corrija la celda G{row_num}. Use exactamente: BANCO, CLIENTE u OTRO.'))
+                    else:
+                        referidor_tipo = ref_tipo_upper
+                        if referidor_tipo == 'BANCO' and referidor_ident:
+                            # Buscar banco por nombre
+                            bank_match = await db.banks.find_one(
+                                {"name": {"$regex": f"^{re.escape(referidor_ident.strip())}$", "$options": "i"}},
+                                {"_id": 0, "bank_id": 1, "name": 1}
+                            )
+                            if bank_match:
+                                referidor_id = bank_match["bank_id"]
+                                referidor_nombre = bank_match["name"]
+                                referidor = bank_match["name"]
+                            else:
+                                row_errors.append(ImportError(row=row_num, column=_col_ref('referidor_identificador'), value=referidor_ident,
+                                    error_type='invalid',
+                                    message=f'Fila {row_num}, Col H (Referidor Identificador): El banco "{referidor_ident}" no está registrado en el sistema.',
+                                    suggested_action=f'Corrija la celda H{row_num}. Consulte la hoja "Valores Válidos" para ver los bancos disponibles.'))
+                        elif referidor_tipo == 'CLIENTE' and referidor_ident:
+                            # Buscar cliente por RIF
+                            ref_client = await db.clients.find_one(
+                                {"rif": {"$regex": re.escape(re.sub(r'[^A-Za-z0-9]', '', referidor_ident)), "$options": "i"}},
+                                {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "rif": 1}
+                            )
+                            if ref_client:
+                                referidor_id = ref_client["client_id"]
+                                referidor_nombre = ref_client.get("fantasy_name") or ref_client.get("legal_name", "")
+                                referidor = referidor_nombre
+                            else:
+                                row_errors.append(ImportError(row=row_num, column=_col_ref('referidor_identificador'), value=referidor_ident,
+                                    error_type='invalid',
+                                    message=f'Fila {row_num}, Col H (Referidor Identificador): No se encontró un cliente con RIF "{referidor_ident}" en el sistema.',
+                                    suggested_action=f'Corrija la celda H{row_num}. Si Tipo=CLIENTE, el RIF debe pertenecer a un comercio ya registrado. Registre primero al referidor.'))
+                        elif referidor_tipo == 'OTRO':
+                            referidor = referidor_ident or referidor or None
+                            referidor_nombre = referidor
+                elif referidor:
+                    # Legacy: si solo viene 'referidor' sin tipo, mantener compatibilidad
+                    referidor_tipo = 'OTRO'
+                    referidor_nombre = referidor                
                 # === Categoría Comercial validation ===
                 if categoria_comercial and categoria_comercial not in valid_categorias:
                     row_errors.append(ImportError(row=row_num, column=_col_ref('categoria_comercial'), value=categoria_comercial,
@@ -712,6 +759,9 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     segment=segment,
                     condicion=condicion,
                     referidor=referidor or None,
+                    referidor_tipo=referidor_tipo or None,
+                    referidor_id=referidor_id or None,
+                    referidor_nombre=referidor_nombre or None,
                     sucursal=sucursal,
                     address=address or None,
                     branch_address=branch_address or None,
