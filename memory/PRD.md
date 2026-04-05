@@ -65,6 +65,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
+  - 4 acciones cableadas con plantillas y buzones correctos:
+    1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`
+    2. Aprobación → Admin sede PYME → `equipment_approved_PYME`
+    3. Factura/Proforma → Ventas sede PYME → `equipment_invoice_PYME`
+    4. Cobranza → Almacén sede PYME → `equipment_collect_PYME`
+  - Variables resueltas: {Nombre_Cliente}, {Cotizacion_Nro}, {Monto_Total}, {Referencia_Factura}
+  - Flujo aislado de implementaciones (solo aplica cuando quote_category='equipment')
 - **Abr 2026**: Columna "C.U. Bs." en PDF de Facturación:
   - Agregada columna "C.U. Bs." (Costo Unitario = Total Bs. / Cantidad) en `billing_pdf.py`
   - Aplica a ambos PDFs: Implementación (encabezado "Concepto") y Equipos (encabezado "Equipo / Accesorio")

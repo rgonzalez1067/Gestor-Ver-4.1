@@ -607,16 +607,23 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    # Obtener email del contacto (si no tiene, usar simulado)
+    # Obtener email(s) del contacto
     contacts = client.get('contacts', [])
-    client_email = None
-    if contacts:
-        client_email = contacts[0].get('email')
-    if not client_email:
+    client_emails = []
+    for c in contacts:
+        em = c.get('email', '')
+        if em and em != 'sin@email.com' and '@' in em:
+            client_emails.append(em)
+    # Fallback: contact1 legacy
+    if not client_emails:
         contact1 = client.get('contact1') or {}
-        client_email = contact1.get('email') if isinstance(contact1, dict) else None
-    if not client_email or client_email == 'sin@email.com':
-        client_email = f"cliente_{client.get('rif', 'unknown')}@simulado.local"
+        legacy_email = contact1.get('email') if isinstance(contact1, dict) else None
+        if legacy_email and legacy_email != 'sin@email.com' and '@' in legacy_email:
+            client_emails.append(legacy_email)
+    # Fallback simulado
+    if not client_emails:
+        client_emails = [f"cliente_{client.get('rif', 'unknown')}@simulado.local"]
+    client_email = client_emails[0]  # Primary for main send
     
     # Preparar plantilla (buscar por sede primero, luego genérica)
     sede = quote.get("sede", "PYME")
@@ -671,12 +678,16 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     template_vars = {
         "quote_number": quote.get('quote_number', ''),
         "nro_cotizacion": quote.get('quote_number', ''),
+        "Cotizacion_Nro": quote.get('quote_number', ''),
         "client_name": client_name,
         "nombre_cliente": client_name,
+        "Nombre_Cliente": client_name,
+        "Rif_Cliente": client.get('rif', 'N/A'),
         "contacto_cliente": contacto_cliente,
         "client_rif": client.get('rif', 'N/A'),
         "quote_type": quote.get('quote_type', 'N/A'),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Monto_Total": f"{quote.get('total_usd', 0):,.2f}",
         "company_name": "Merchant Server",
         "sede_name": norm_sede,
         "Nombre_Ejecutivo": creator_name,
@@ -705,11 +716,19 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
             pdf_attachments = [{"filename": f"cotizacion_{quote.get('quote_number', 'quote')}.pdf", "content": pdf_base64}]
 
     # Enviar (real o simulado)
-    email_result = await send_email(
-        to=[client_email], subject=subject, html=html_content,
-        action="send_to_client", quote_id=quote_id, quote_number=quote.get('quote_number'),
-        attachments=pdf_attachments
-    )
+    # Para equipos: enviar a TODOS los emails registrados del cliente
+    if is_equipment_quote and len(client_emails) > 1:
+        email_result = await send_email(
+            to=client_emails, subject=subject, html=html_content,
+            action="send_to_client", quote_id=quote_id, quote_number=quote.get('quote_number'),
+            attachments=pdf_attachments
+        )
+    else:
+        email_result = await send_email(
+            to=[client_email], subject=subject, html=html_content,
+            action="send_to_client", quote_id=quote_id, quote_number=quote.get('quote_number'),
+            attachments=pdf_attachments
+        )
     
     # Enviar a destinatarios adicionales (CC)
     cc_results = []
@@ -947,9 +966,15 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         invoice_attachments = [{"filename": descriptive_name, "content": factura_b64}]
 
     email_results = []
-    recipients = [(admin_email, "invoice_admin"), (sales_email, "invoice_sales")]
-    if not admin_email and not sales_email:
-        recipients = [("admin@sede.local", "invoice_no_config")]
+    # Para equipos: enviar SOLO a Ventas sede. Para implementación: a Admin + Ventas
+    if is_equipment_quote:
+        recipients = [(sales_email, "invoice_sales")]
+        if not sales_email:
+            recipients = [("ventas@sede.local", "invoice_no_config")]
+    else:
+        recipients = [(admin_email, "invoice_admin"), (sales_email, "invoice_sales")]
+        if not admin_email and not sales_email:
+            recipients = [("admin@sede.local", "invoice_no_config")]
     
     for email, action in recipients:
         if email:
@@ -1002,10 +1027,20 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     if quote_category == "equipment":
         # Usar plantilla equipment_collect para notificar pago de equipos
+        # Destino: Almacén sede (warehouse)
         client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
         client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
         quote["client_name"] = client_name
         quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
+
+        # Resolver warehouse email de la sede
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        raw_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+        sede_emails = config.get("emails_by_sede", {}).get(norm_sede, {}) if config else {}
+        warehouse_email = sede_emails.get("warehouse")
+        if not warehouse_email:
+            warehouse_email = "almacen@simulado.local"
 
         email_results = await send_workflow_notification(
             action="collect",
@@ -1014,6 +1049,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             custom_message=custom_message,
             cc_emails=cc_emails,
             template_base_override="equipment_collect",
+            override_recipients=[warehouse_email],
         )
     elif quote_category == "repair":
         # Reparaciones: Enviar ORDEN DE DESPACHO al Almacén + CC al ejecutivo
