@@ -65,31 +65,38 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     items = billing_instruction.get('consolidated_items', [])
     exchange_rate = billing_instruction.get('exchange_rate', 0)
     rate_source = billing_instruction.get('rate_source', 'Manual')
+    is_equipment = quote.get('quote_category') == 'equipment'
 
-    elements.append(Paragraph("Conceptos de Setup y Productos Consolidados", header_style))
+    section_title = "Equipos y Accesorios Cotizados" if is_equipment else "Conceptos de Setup y Productos Consolidados"
+    elements.append(Paragraph(section_title, header_style))
     elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs.{exchange_rate:,.2f} / $</b> — Fuente: {rate_source}", normal_style))
     elements.append(Spacer(1, 8))
 
-    # Table header - use Paragraphs for headers too
+    # Table header
     header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontSize=9, textColor=colors.white, fontName='Helvetica-Bold', leading=11)
     header_center = ParagraphStyle('HeaderCenter', parent=header_cell_style, alignment=1)
     header_right = ParagraphStyle('HeaderRight', parent=header_cell_style, alignment=2)
 
+    concept_label = 'Equipo / Accesorio' if is_equipment else 'Concepto'
     table_data = [[
-        Paragraph('Concepto', header_cell_style),
+        Paragraph(concept_label, header_cell_style),
         Paragraph('Cant.', header_center),
         Paragraph('Monto ($)', header_right),
         Paragraph('Tasa Bs./$', header_center),
+        Paragraph('C.U. Bs.', header_right),
         Paragraph('Total (Bs.)', header_right),
     ]]
 
     for item in items:
         bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
+        qty = item.get('quantity', 1) or 1
+        cu_bs = bs_val / qty if qty > 0 else 0
         table_data.append([
             Paragraph(item.get('name', 'N/A'), cell_style),
-            Paragraph(str(item.get('quantity', 1)), cell_center_style),
+            Paragraph(str(qty), cell_center_style),
             Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
             Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
+            Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
             Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
         ])
 
@@ -99,9 +106,10 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     # Subtotal row
     subtotal_usd = billing_instruction.get('grand_total_usd', 0)
     subtotal_bs = billing_instruction.get('grand_total_bs', 0)
+    subtotal_label = 'SUBTOTAL (Equipos)' if is_equipment else 'SUBTOTAL'
     table_data.append([
-        Paragraph('<b>SUBTOTAL</b>', cell_bold_style), '',
-        Paragraph(f"<b>${subtotal_usd:,.2f}</b>", cell_bold_right), '',
+        Paragraph(f'<b>{subtotal_label}</b>', cell_bold_style), '',
+        Paragraph(f"<b>${subtotal_usd:,.2f}</b>", cell_bold_right), '', '',
         Paragraph(f"<nobr><b>Bs.{subtotal_bs:,.2f}</b></nobr>", cell_bold_right),
     ])
 
@@ -110,7 +118,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     iva_bs = billing_instruction.get('iva_bs', subtotal_bs * 0.16)
     table_data.append([
         Paragraph('IVA (16%)', cell_style), '',
-        Paragraph(f"${iva_usd:,.2f}", cell_right_style), '',
+        Paragraph(f"${iva_usd:,.2f}", cell_right_style), '', '',
         Paragraph(f"<nobr>Bs.{iva_bs:,.2f}</nobr>", cell_right_style),
     ])
 
@@ -121,13 +129,13 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     total_white_left = ParagraphStyle('TotalWhiteLeft', parent=total_white_style, alignment=0)
     table_data.append([
         Paragraph('<b>TOTAL GENERAL</b>', total_white_left), '',
-        Paragraph(f"<nobr><b>${total_usd:,.2f}</b></nobr>", total_white_style), '',
+        Paragraph(f"<nobr><b>${total_usd:,.2f}</b></nobr>", total_white_style), '', '',
         Paragraph(f"<nobr><b>Bs.{total_bs:,.2f}</b></nobr>", total_white_style),
     ])
 
     num_items = len(items)
-    # Adjusted column widths: wider Bs. total column for large numbers in single line
-    col_widths = [5.8*cm, 1.5*cm, 2.8*cm, 2.5*cm, 4.9*cm]
+    # Column widths: 6 columns with C.U. Bs. added
+    col_widths = [4.8*cm, 1.3*cm, 2.5*cm, 2.2*cm, 3.2*cm, 3.5*cm]
     t = Table(table_data, colWidths=col_widths)
 
     style_commands = [

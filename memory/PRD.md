@@ -65,6 +65,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - `/app/frontend/src/pages/Quotes.jsx`
 
 ## Historial Reciente
+- **Abr 2026**: Columna "C.U. Bs." en PDF de Facturación:
+  - Agregada columna "C.U. Bs." (Costo Unitario = Total Bs. / Cantidad) en `billing_pdf.py`
+  - Aplica a ambos PDFs: Implementación (encabezado "Concepto") y Equipos (encabezado "Equipo / Accesorio")
+  - 6 columnas: Concepto, Cant., Monto($), Tasa, C.U. Bs., Total(Bs.)
+  - Título de sección dinámico: "Equipos y Accesorios Cotizados" vs "Conceptos de Setup y Productos Consolidados"
 - **Abr 2026**: Columna "Costo Unitario Bs." en Modal de Aprobación:
   - Nueva columna "C.U. Bs." (Total Bs. / Cantidad) en tabla de facturación
   - Aplica a ambos flujos: Implementación y Equipos/Accesorios
