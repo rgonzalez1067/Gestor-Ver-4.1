@@ -4,7 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -78,6 +78,15 @@ const BASE_TEMPLATE_TYPES = [
     borderColor: 'border-violet-200',
     title: 'Aprobación de Cotización Fast Track',
     description: 'Se envía al aprobar cotización POS Stand Alone (Fast Track)'
+  },
+  {
+    baseId: 'serial_preassignment',
+    icon: Box,
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
+    borderColor: 'border-cyan-200',
+    title: 'Preasignación de Seriales',
+    description: 'Notifica al Almacén la reserva de seriales para una cotización'
   }
 ];
 
@@ -252,6 +261,14 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Monto_Total', label: 'Monto Total USD' },
     { key: 'Modelo_Equipo', label: 'Modelo de POS / PINPAD' },
     { key: 'Cantidad', label: 'Cantidad de Equipos' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  serial_preassignment: [
+    { key: 'Cotizacion_Nro', label: 'Número de Cotización' },
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente' },
+    { key: 'Modelo_Equipo', label: 'Modelo de Equipo' },
+    { key: 'Lista_Seriales', label: 'Lista de Seriales Preasignados' },
     { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
