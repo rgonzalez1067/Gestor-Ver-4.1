@@ -265,38 +265,31 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
     is_fast_track = quote.get("quote_category") == "fast_track"
     
     if is_fast_track:
-        # Notificar a Operaciones con plantilla especial de fast_track
+        # Fast Track: Notificar a Administración + Operaciones con plantilla fast_track_approved
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        quote_sede = quote.get("sede", "PYME")
-        emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-        sede_emails = emails_by_sede.get(quote_sede, {})
-        ops_email = sede_emails.get("operations") or sede_emails.get("admin") or (config.get("operations_email") if config else None)
+        raw_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+        sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
         
-        ft_template = await db.email_templates.find_one({"template_id": "fast_track_config"}, {"_id": 0})
-        if not ft_template:
-            ft_template = {
-                "subject": "Configuración de Equipos (Pyme): {{quote_number}}",
-                "body_html": "<h2>Solicitud de Configuración de Equipos</h2><p>La cotización <strong>{{quote_number}}</strong> de tipo <strong>POS Stand Alone (Fast Track)</strong> ha sido aprobada.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p><p>Por favor proceda con la configuración de los equipos para su posterior despacho.</p>"
-            }
-        template_vars = {
-            "quote_number": quote.get('quote_number', ''),
-            "client_name": client_name,
-            "quote_type": quote.get('quote_type', 'N/A'),
-            "total_usd": f"{quote.get('total_usd', 0):.2f}",
-            "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
-            "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
-        }
-        ft_subject = render_email_template(ft_template["subject"], template_vars)
-        ft_html = render_email_template(ft_template["body_html"], template_vars)
-        if custom_message and custom_message.strip():
-            user_name_str = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-            ft_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name_str}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
-        if ops_email:
-            r = await send_email(to=[ops_email], subject=ft_subject, html=ft_html, action="approve_ft_operations", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
-        for cc in cc_emails:
-            r = await send_email(to=[cc], subject=f"[CC] {ft_subject}", html=ft_html, action="approve_ft_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
-            email_results.append(r)
+        ft_recipients = []
+        admin_email = sede_emails.get("admin")
+        ops_email = sede_emails.get("operations")
+        if admin_email:
+            ft_recipients.append(admin_email)
+        if ops_email and ops_email != admin_email:
+            ft_recipients.append(ops_email)
+        if not ft_recipients:
+            ft_recipients.append("admin@sede.local")
+
+        email_results = await send_workflow_notification(
+            action="approve",
+            quote=quote,
+            current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+            template_base_override="fast_track_approved",
+            override_recipients=ft_recipients,
+        )
     elif is_repair:
         # Enviar confirmación de aprobación al CLIENTE
         contacts = client.get('contacts', []) if client else []
@@ -430,20 +423,58 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
         }}
     )
 
-    # Workflow Notification: configure → Administración (sede)
+    # Workflow Notification: configure → Almacén (sede) con mensaje de pre-alerta
     client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
     client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
     quote["client_name"] = client_name
+    quote["client_rif"] = client.get("rif", "N/A") if client else "N/A"
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-    
-    email_results = await send_workflow_notification(
-        action="configure",
-        quote=quote,
-        current_user=current_user,
-        custom_message=custom_message,
-        cc_emails=cc_emails,
-    )
+
+    # Resolver warehouse email de la sede
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    raw_sede = quote.get("sede", "PYME")
+    norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+    sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
+    warehouse_email = sede_emails.get("warehouse")
+    if not warehouse_email:
+        warehouse_email = "almacen@sede.local"
+
+    # Resolver datos del ejecutivo creador
+    creator_name, creator_email = "", ""
+    creator_user_id = quote.get("created_by_user_id")
+    if creator_user_id:
+        creator = await db.users.find_one({"user_id": creator_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if creator:
+            creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
+            creator_email = creator.get("email", "")
+
+    ft_config_subject = f"Equipos Configurados - {quote.get('quote_number', '')} - {client_name}"
+    ft_config_html = f'''<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:700px;margin:0 auto;">
+<div style="background:#003366;color:#fff;padding:18px 28px;border-radius:6px 6px 0 0;">
+<h2 style="margin:0;font-size:18px;">Gestión de Almacén — Equipos Configurados</h2></div>
+<div style="padding:24px 28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;">
+<p>Equipos configurados por Operaciones, disponibles para ser entregados.</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;margin:16px 0;">
+<tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;width:40%;">Cotización</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{quote.get("quote_number", "")}</td></tr>
+<tr><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Cliente</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{client_name}</td></tr>
+<tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Tipo</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">POS Stand Alone (Fast Track)</td></tr>
+</table>
+<p style="font-size:14px;color:#64748b;"><strong>Ejecutivo:</strong> {creator_name} ({creator_email})</p>
+<p style="margin-top:12px;padding:10px 14px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:14px;color:#92400e;">
+<strong>Nota:</strong> Los equipos están listos para despacho una vez se registre el pago/facturación.</p>
+</div></div>'''
+
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        ft_config_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:500]}</p></div>'
+
+    email_results = []
+    r = await send_email(to=[warehouse_email], subject=ft_config_subject, html=ft_config_html, action="configure_ft_warehouse", quote_id=quote_id, quote_number=quote.get("quote_number"))
+    email_results.append(r)
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {ft_config_subject}", html=ft_config_html, action="configure_ft_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
 
     return {
         "message": "Equipos configurados. Notificación enviada a Administración para facturar.",
@@ -903,7 +934,8 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     
     # Buscar plantilla por sede primero, luego genérica
     is_equipment_quote = quote.get("quote_category") == "equipment"
-    if is_equipment_quote:
+    is_fast_track_quote = quote.get("quote_category") == "fast_track"
+    if is_equipment_quote or is_fast_track_quote:
         template = await db.email_templates.find_one({"template_id": f"equipment_invoice_{norm_sede}"}, {"_id": 0})
         if not template:
             template = await db.email_templates.find_one({"template_id": "equipment_invoice"}, {"_id": 0})
@@ -966,8 +998,8 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         invoice_attachments = [{"filename": descriptive_name, "content": factura_b64}]
 
     email_results = []
-    # Para equipos: enviar SOLO a Ventas sede. Para implementación: a Admin + Ventas
-    if is_equipment_quote:
+    # Para equipos y fast_track: enviar SOLO a Ventas sede. Para implementación: a Admin + Ventas
+    if is_equipment_quote or is_fast_track_quote:
         recipients = [(sales_email, "invoice_sales")]
         if not sales_email:
             recipients = [("ventas@sede.local", "invoice_no_config")]
@@ -1049,6 +1081,30 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             custom_message=custom_message,
             cc_emails=cc_emails,
             template_base_override="equipment_collect",
+            override_recipients=[warehouse_email],
+        )
+    elif quote_category == "fast_track":
+        # Fast Track: Notificar a Almacén con plantilla Orden de Entrega de Equipos
+        client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
+        client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+        quote["client_name"] = client_name
+        quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
+
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        raw_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+        sede_emails = config.get("emails_by_sede", {}).get(norm_sede, {}) if config else {}
+        warehouse_email = sede_emails.get("warehouse")
+        if not warehouse_email:
+            warehouse_email = "almacen@simulado.local"
+
+        email_results = await send_workflow_notification(
+            action="collect",
+            quote=quote,
+            current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+            template_base_override="equipment_delivery",
             override_recipients=[warehouse_email],
         )
     elif quote_category == "repair":
@@ -1510,6 +1566,59 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         "quote_status": "Entregada",
         "delivered_at": datetime.now(timezone.utc).isoformat()
     }})
+
+    # Fast Track: Notificar a Ventas con "Equipos listos para ser entregados" + Nota de Entrega PDF
+    if quote_category == "fast_track":
+        try:
+            config_ft = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+            raw_sede_ft = quote.get("sede", "PYME")
+            norm_sede_ft = "PYME" if raw_sede_ft in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede_ft in ("CORP", "Corp", "Corporativo") else raw_sede_ft
+            sede_emails_ft = (config_ft.get("emails_by_sede", {}) if config_ft else {}).get(norm_sede_ft, {})
+            sales_email_ft = sede_emails_ft.get("sales")
+            if not sales_email_ft:
+                sales_email_ft = "ventas@sede.local"
+
+            creator_name_ft, creator_email_ft = "", ""
+            creator_uid = quote.get("created_by_user_id")
+            if creator_uid:
+                creator_doc = await db.users.find_one({"user_id": creator_uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+                if creator_doc:
+                    creator_name_ft = f"{creator_doc.get('first_name', '')} {creator_doc.get('last_name', '')}".strip()
+                    creator_email_ft = creator_doc.get("email", "")
+
+            deliver_subject = f"Entrega de Equipos - {quote.get('quote_number', '')} - {client_name}"
+            deliver_html = f'''<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:700px;margin:0 auto;">
+<div style="background:#003366;color:#fff;padding:18px 28px;border-radius:6px 6px 0 0;">
+<h2 style="margin:0;font-size:18px;">Equipos Asignados Listos para ser Entregados</h2></div>
+<div style="padding:24px 28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;">
+<p>Se informa que los equipos de la cotización <strong>{quote.get("quote_number", "")}</strong> (POS Stand Alone - Fast Track) han sido marcados para entrega.</p>
+<table style="border-collapse:collapse;width:100%;max-width:500px;margin:16px 0;">
+<tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;width:40%;">Cotización</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{quote.get("quote_number", "")}</td></tr>
+<tr><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Cliente</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{client_name}</td></tr>
+</table>
+<p style="font-size:14px;color:#64748b;"><strong>Ejecutivo:</strong> {creator_name_ft} ({creator_email_ft})</p>
+<p style="font-size:14px;color:#64748b;">Por favor coordine con el cliente la logística de entrega final.</p>
+</div></div>'''
+
+            # Adjuntar PDF de Nota de Entrega si se generó
+            deliver_attachments = None
+            if hoja_ruta_url:
+                ne_path = UPLOADS_DIR / hoja_ruta_url.replace("/uploads/", "")
+                if ne_path.exists():
+                    with open(ne_path, "rb") as f:
+                        deliver_attachments = [{
+                            "filename": ne_path.name,
+                            "content": base64.b64encode(f.read()).decode("utf-8"),
+                        }]
+
+            r = await send_email(
+                to=[sales_email_ft], subject=deliver_subject, html=deliver_html,
+                action="deliver_ft_sales", quote_id=quote_id, quote_number=quote.get("quote_number"),
+                attachments=deliver_attachments,
+            )
+            logger.info(f"[FastTrack Deliver] Notificación enviada a Ventas: {sales_email_ft} | {r.get('status')}")
+        except Exception as e:
+            logger.error(f"[FastTrack Deliver] Error enviando notificación a Ventas: {e}")
 
     return {
         "message": "Cotización marcada como Entregada",

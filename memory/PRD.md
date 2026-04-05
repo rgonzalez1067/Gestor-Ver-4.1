@@ -83,6 +83,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Layout maestro 900px con header #003366, secciones de Datos de Cotización y Detalles de Hardware
   - Variables: {Cotizacion_Nro}, {Nombre_Cliente}, {Rif_Cliente}, {Monto_Total}, {Modelo_Equipo}, {Cantidad}
   - Registrada en EmailTemplatesEditor con ícono violeta y variables editables
+- **Abr 2026**: Matriz de Notificaciones exclusiva POS Stand Alone (Fast Track):
+  - 5 acciones reconfiguradas en `quote_actions.py`:
+    - Aprobación → Admin + Operaciones + plantilla `fast_track_approved_PYME`
+    - Factura → Ventas PYME + plantilla `equipment_invoice_PYME`
+    - Configurada → Almacén PYME + mensaje "Equipos configurados por Operaciones"
+    - Cobranza → Almacén PYME + plantilla `equipment_delivery_PYME` (Orden de Entrega)
+    - Marcada para Entregar → Ventas PYME + mensaje "Equipos listos" + Nota de Entrega PDF
+  - Enviar Cotización y Enviar a Implementación ya funcionaban correctamente (sin cambios)
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`
