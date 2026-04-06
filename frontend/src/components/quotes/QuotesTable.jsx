@@ -1,4 +1,4 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -40,7 +40,7 @@ export const QuotesTable = ({
   actionLoading, canEdit,
   onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
-  onOpenBitacoraFlujo, onOpenFtConfig,
+  onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
   clearFilters,
 }) => {
   const filteredQuotes = quotes.filter(quote => {
@@ -224,6 +224,13 @@ export const QuotesTable = ({
                             {quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración'}
                             {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
                             {!quote.configured_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
+                          </DropdownMenuItem>
+                        )}
+                        {canEdit && isFastTrack && (
+                          <DropdownMenuItem onSelect={() => onPreassignSerials(quote)} className="cursor-pointer"
+                            data-testid={`preassign-btn-${quote.quote_id}`}>
+                            <Package size={16} className="mr-2 text-cyan-600" /> Prerregistro de Seriales
+                            {quote.preassigned_serials?.length > 0 && <span className="ml-auto text-xs text-cyan-500">&#10003;</span>}
                           </DropdownMenuItem>
                         )}
                         {canEdit && <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">

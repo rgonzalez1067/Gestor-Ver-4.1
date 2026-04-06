@@ -22,6 +22,7 @@ import { QuotesTable } from '../components/quotes/QuotesTable';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
 import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
 import { RepairDeliveryDialog } from '../components/quotes/RepairDeliveryDialog';
+import { PreassignSerialsModal } from '../components/quotes/PreassignSerialsModal';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -271,6 +272,7 @@ export const Quotes = () => {
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   // Estado para RepairDeliveryDialog
   const [repairDeliveryDialogOpen, setRepairDeliveryDialogOpen] = useState(false);
+  const [preassignModal, setPreassignModal] = useState({ open: false, quote: null });
   const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
   const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
 
@@ -3335,6 +3337,7 @@ export const Quotes = () => {
               setPendingAction({ quoteId: id, action: 'configure', proceedFn: handleConfigure, exceptionHeaders: null });
             }}
             onOpenFtConfig={(quote) => handleEditQuote(quote)}
+            onPreassignSerials={(quote) => setPreassignModal({ open: true, quote })}
             onOpenBitacoraFlujo={openBitacoraFlujo}
             onDelete={openDeleteConfirm}
             clearFilters={() => {
@@ -5412,6 +5415,15 @@ export const Quotes = () => {
             quoteId={deliveryQuoteId}
             exceptionInfo={deliveryExceptionInfo}
             onDelivered={() => fetchData()}
+          />
+
+          {/* Prerregistro de Seriales (Fast Track) */}
+          <PreassignSerialsModal
+            open={preassignModal.open}
+            onClose={() => setPreassignModal({ open: false, quote: null })}
+            quote={preassignModal.quote}
+            token={localStorage.getItem('session_token')}
+            onSuccess={() => fetchData()}
           />
 
           {/* Diálogo Multitienda + Tipo de Proyecto + Equipos */}

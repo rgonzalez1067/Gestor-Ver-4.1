@@ -176,8 +176,23 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
                             stock[iid]["serials"].remove(s)
                         serial_dates_map[iid].pop(s, None)
 
+    # Excluir seriales preasignados/asignados del stock disponible
+    blocked_assignments = await db.serial_assignments.find(
+        {"status": {"$in": ["preasignado", "asignado"]}},
+        {"_id": 0, "serial": 1}
+    ).to_list(10000)
+    blocked_serials = {b["serial"] for b in blocked_assignments}
+
     result = []
     for item in stock.values():
+        # Filtrar seriales bloqueados
+        if item["serials"]:
+            original_count = len(item["serials"])
+            item["serials"] = [s for s in item["serials"] if s not in blocked_serials]
+            blocked_count = original_count - len(item["serials"])
+            item["preassigned_count"] = blocked_count
+        else:
+            item["preassigned_count"] = 0
         qty = item["quantity"]
         item["weighted_cost"] = round(item["cost_total"] / qty, 2) if qty > 0 else 0
         # FIFO: ordenar seriales por fecha de adquisición más antigua

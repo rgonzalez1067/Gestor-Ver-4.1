@@ -97,6 +97,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Cálculo de Costo Promedio Ponderado: CP = (V_exist × CP_prev + V_entry × C_entry) / V_total
   - Lógica FIFO para salidas: seriales ordenados por fecha de adquisición más antigua
   - Archivos modificados: `inventory.py`, `models.py`, `Inventory.jsx`
+- **Abr 2026**: Prerregistro de Seriales (Fast Track):
+  - Nueva acción "Prerregistro de Seriales" en menú Fast Track (posición: después de Configuración)
+  - Modal con buscador de seriales filtrado por modelo de equipo y almacén
+  - Validación: cantidad exacta de seriales = demanda de la cotización
+  - Estado "preasignado" en colección `serial_assignments` (bloquea serial para otras cotizaciones)
+  - Al "Marcar como Entregada": transición preasignado → asignado + movimiento de salida en inventario
+  - Notificación automática a Operaciones sede PYME con plantilla `serial_preassignment_PYME`
+  - Archivos: `quote_actions.py`, `inventory.py`, `PreassignSerialsModal.jsx`, `QuotesTable.jsx`, `Quotes.jsx`
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:
     1. Enviar Cotización → Todos los emails del cliente → `equipment_sent_PYME`

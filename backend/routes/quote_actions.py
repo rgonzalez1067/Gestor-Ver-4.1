@@ -1567,6 +1567,52 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         "delivered_at": datetime.now(timezone.utc).isoformat()
     }})
 
+    # Fast Track: Transicionar seriales preasignados → asignados + crear movimiento de salida
+    if quote_category == "fast_track":
+        try:
+            preassigned = await db.serial_assignments.find(
+                {"quote_id": quote_id, "status": "preasignado"}, {"_id": 0}
+            ).to_list(500)
+            if preassigned:
+                now_deliver = datetime.now(timezone.utc).isoformat()
+                client_doc = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+                deliver_rif = client_doc.get("rif", "N/A") if client_doc else "N/A"
+
+                # Transicionar a "asignado"
+                serial_list = [p["serial"] for p in preassigned]
+                await db.serial_assignments.update_many(
+                    {"quote_id": quote_id, "status": "preasignado"},
+                    {"$set": {
+                        "status": "asignado",
+                        "assigned_at": now_deliver,
+                        "client_rif": deliver_rif,
+                    }}
+                )
+
+                # Crear movimiento de salida en inventario
+                wh_id = preassigned[0].get("warehouse_id", "")
+                it_id = preassigned[0].get("item_id", "")
+                it_name = preassigned[0].get("item_name", "")
+                exit_movement = InventoryMovement(
+                    movement_id=f"mov_{uuid.uuid4().hex[:12]}",
+                    warehouse_id=wh_id,
+                    item_id=it_id,
+                    item_name=it_name,
+                    item_type="pos",
+                    movement_type="salida",
+                    quantity=len(serial_list),
+                    unit_cost=0,
+                    serials=serial_list,
+                    notes=f"Entrega Fast Track - {quote.get('quote_number', '')} - {client_name}",
+                    created_by=current_user.get("user_id", ""),
+                )
+                exit_doc = exit_movement.model_dump()
+                exit_doc["created_at"] = exit_doc["created_at"].isoformat()
+                await db.inventory_movements.insert_one(exit_doc)
+                logger.info(f"[Deliver FT] {len(serial_list)} seriales transicionados a 'asignado' y descargados de inventario")
+        except Exception as e:
+            logger.error(f"[Deliver FT] Error transicionando seriales: {e}")
+
     # Fast Track: Notificar a Ventas con "Equipos listos para ser entregados" + Nota de Entrega PDF
     if quote_category == "fast_track":
         try:
@@ -2660,3 +2706,209 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
             await send_email(to=[impl_manager_email], subject=notif_subject, html=notif_html, action="new_project_notification", quote_id=quote_id)
     except Exception as e:
         logger.warning(f"Error notificando gerente de implementación: {e}")
+
+
+# =========================================================================
+# PRERREGISTRO DE SERIALES (Fast Track)
+# =========================================================================
+
+@router.get("/inventory/{warehouse_id}/available-serials/{item_id}")
+async def get_available_serials(warehouse_id: str, item_id: str, authorization: Optional[str] = Header(None)):
+    """Retorna seriales disponibles para un ítem, excluyendo preasignados/asignados."""
+    await get_current_user(authorization)
+
+    # Obtener seriales en stock
+    movements = await db.inventory_movements.find(
+        {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(10000)
+
+    serials_in_stock = []
+    serial_dates = {}
+    for m in movements:
+        if m.get("certification_status") == "precarga":
+            continue
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        acq_date = m.get("acquisition_date") or m.get("created_at", "")
+        if m.get("serials"):
+            if sign > 0:
+                serials_in_stock.extend(m["serials"])
+                for s in m["serials"]:
+                    serial_dates[s] = acq_date
+            else:
+                for s in m["serials"]:
+                    if s in serials_in_stock:
+                        serials_in_stock.remove(s)
+                    serial_dates.pop(s, None)
+
+    # Excluir seriales ya preasignados o asignados
+    blocked = await db.serial_assignments.find(
+        {"status": {"$in": ["preasignado", "asignado"]}},
+        {"_id": 0, "serial": 1}
+    ).to_list(10000)
+    blocked_set = {b["serial"] for b in blocked}
+
+    available = [s for s in serials_in_stock if s not in blocked_set]
+    # Ordenar FIFO
+    available.sort(key=lambda s: serial_dates.get(s, "9999"))
+
+    return {
+        "available": [{"serial": s, "acquisition_date": serial_dates.get(s, "")} for s in available],
+        "total_available": len(available),
+    }
+
+
+@router.get("/quotes/{quote_id}/preassigned-serials")
+async def get_preassigned_serials(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Retorna seriales preasignados para una cotización."""
+    await get_current_user(authorization)
+    assignments = await db.serial_assignments.find(
+        {"quote_id": quote_id}, {"_id": 0}
+    ).to_list(500)
+    return {"assignments": assignments}
+
+
+@router.post("/quotes/{quote_id}/preassign-serials")
+async def preassign_serials(quote_id: str, request: dict, authorization: Optional[str] = Header(None)):
+    """Prerregistro de seriales: reserva equipos para una cotización Fast Track."""
+    current_user = await get_current_user(authorization)
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    user_email = current_user.get("email", "")
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    if quote.get("quote_category") != "fast_track":
+        raise HTTPException(status_code=400, detail="Solo cotizaciones Fast Track soportan prerregistro de seriales")
+
+    selected_serials = request.get("serials", [])
+    warehouse_id = request.get("warehouse_id", "")
+    item_id = request.get("item_id", "")
+    item_name = request.get("item_name", "")
+
+    if not selected_serials or not warehouse_id or not item_id:
+        raise HTTPException(status_code=400, detail="Faltan datos: serials, warehouse_id, item_id")
+
+    # Validar que cantidad coincide con demanda de la cotización
+    ft_items = quote.get("ft_equipment_items", [])
+    required_qty = 0
+    model_name = ""
+    for fi in ft_items:
+        if fi.get("hardware_id") == item_id or fi.get("name") == item_name:
+            required_qty = fi.get("quantity", 0)
+            model_name = fi.get("name", item_name)
+            break
+
+    if required_qty == 0:
+        # Fallback: sumar todas las cantidades de equipos
+        required_qty = sum(fi.get("quantity", 0) for fi in ft_items)
+        model_name = ft_items[0].get("name", item_name) if ft_items else item_name
+
+    if len(selected_serials) != required_qty:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Debe seleccionar exactamente {required_qty} seriales. Seleccionados: {len(selected_serials)}"
+        )
+
+    # Validar que los seriales no están ya preasignados/asignados
+    existing = await db.serial_assignments.find(
+        {"serial": {"$in": selected_serials}, "status": {"$in": ["preasignado", "asignado"]}},
+        {"_id": 0, "serial": 1, "quote_id": 1}
+    ).to_list(500)
+    if existing:
+        conflicting = [e["serial"] for e in existing]
+        raise HTTPException(status_code=409, detail=f"Seriales ya reservados: {', '.join(conflicting)}")
+
+    # Limpiar preasignaciones anteriores de esta cotización (permite re-prerregistrar)
+    await db.serial_assignments.delete_many({"quote_id": quote_id, "status": "preasignado"})
+
+    # Obtener datos del cliente
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    client_name = (client.get("fantasy_name") or client.get("legal_name")) if client else "Cliente"
+    client_rif = client.get("rif", "N/A") if client else "N/A"
+
+    # Crear asignaciones
+    now = datetime.now(timezone.utc).isoformat()
+    assignments = []
+    for serial in selected_serials:
+        doc = {
+            "assignment_id": f"sa_{uuid.uuid4().hex[:12]}",
+            "serial": serial,
+            "item_id": item_id,
+            "item_name": model_name,
+            "warehouse_id": warehouse_id,
+            "quote_id": quote_id,
+            "quote_number": quote.get("quote_number", ""),
+            "client_id": quote.get("client_id", ""),
+            "client_name": client_name,
+            "client_rif": client_rif,
+            "status": "preasignado",
+            "preassigned_at": now,
+            "preassigned_by": current_user.get("user_id", ""),
+            "preassigned_by_name": user_name,
+            "assigned_at": None,
+        }
+        assignments.append(doc)
+
+    if assignments:
+        await db.serial_assignments.insert_many(assignments)
+
+    # Guardar referencia en la cotización
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
+        "preassigned_serials": selected_serials,
+        "preassigned_at": now,
+        "preassigned_warehouse_id": warehouse_id,
+    }})
+
+    # === NOTIFICACIÓN: Enviar a Operaciones sede PYME ===
+    email_results = []
+    try:
+        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+        raw_sede = quote.get("sede", "PYME")
+        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP"
+        sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
+        ops_email = sede_emails.get("operations") or sede_emails.get("admin")
+        if not ops_email:
+            ops_email = "operaciones@sede.local"
+
+        # Buscar plantilla
+        template = await db.email_templates.find_one(
+            {"template_id": f"serial_preassignment_{norm_sede}"}, {"_id": 0}
+        )
+        if not template:
+            template = await db.email_templates.find_one(
+                {"template_id": "serial_preassignment_PYME"}, {"_id": 0}
+            )
+
+        serials_html = "<br>".join([f"&bull; {s}" for s in selected_serials])
+        template_vars = {
+            "Cotizacion_Nro": quote.get("quote_number", ""),
+            "Nombre_Cliente": client_name,
+            "Modelo_Equipo": model_name,
+            "Lista_Seriales": serials_html,
+            "Nombre_Ejecutivo": user_name,
+            "Email_Ejecutivo": user_email,
+        }
+
+        if template:
+            subject = render_email_template(template["subject"], template_vars)
+            html = render_email_template(template["body_html"], template_vars)
+        else:
+            subject = f"PREASIGNACIÓN DE SERIALES: {quote.get('quote_number', '')} - {client_name}"
+            html = f"<h2>Preasignación de Seriales</h2><p>Cotización: {quote.get('quote_number')}</p><p>Cliente: {client_name}</p><p>Modelo: {model_name}</p><p>Seriales: {', '.join(selected_serials)}</p>"
+
+        r = await send_email(
+            to=[ops_email], subject=subject, html=html,
+            action="preassign_serials", quote_id=quote_id,
+            quote_number=quote.get("quote_number"),
+        )
+        email_results.append(r)
+        logger.info(f"[Preassign] Notificación enviada a Operaciones: {ops_email}")
+    except Exception as e:
+        logger.error(f"[Preassign] Error enviando notificación: {e}")
+
+    return {
+        "message": f"Prerregistro exitoso: {len(selected_serials)} seriales reservados",
+        "serials": selected_serials,
+        "status": "preasignado",
+        "emails": email_results,
+    }
