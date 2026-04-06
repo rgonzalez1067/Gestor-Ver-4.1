@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Eye, EyeOff, User, Mail, Lock, CreditCard, Loader2, Building2 } from 'lucide-react';
+import { Eye, EyeOff, User, Mail, Lock, CreditCard, Loader2, Building2, ArrowLeft } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -15,9 +15,11 @@ const SEDES = [
 
 export const Auth = () => {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('login'); // 'login' o 'register'
+  const [mode, setMode] = useState('login'); // 'login', 'register', 'forgot'
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -137,6 +139,26 @@ export const Auth = () => {
   const switchMode = (newMode) => {
     setMode(newMode);
     setErrors({});
+    setForgotSent(false);
+    setForgotEmail('');
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)) {
+      toast.error('Ingrese un correo electrónico válido');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post('/auth/forgot-password', { email: forgotEmail });
+      setForgotSent(true);
+      toast.success('Si el correo existe, recibirás un enlace de recuperación.');
+    } catch {
+      toast.error('Error al procesar la solicitud. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   };
   
   return (
@@ -161,35 +183,109 @@ export const Auth = () => {
             <p className="text-slate-600 mt-1">Work Flow de Procesos Integrales</p>
           </div>
           
-          {/* Mode Selector */}
-          <div className="flex mb-8 bg-slate-100 rounded-lg p-1">
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                mode === 'login'
-                  ? 'bg-white shadow-sm text-slate-900'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              data-testid="login-tab"
-            >
-              Iniciar Sesión
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('register')}
-              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-                mode === 'register'
-                  ? 'bg-white shadow-sm text-slate-900'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              data-testid="register-tab"
-            >
-              Registrarse
-            </button>
-          </div>
+          {/* Mode Selector - solo login/register */}
+          {mode !== 'forgot' && (
+            <div className="flex mb-8 bg-slate-100 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+                  mode === 'login'
+                    ? 'bg-white shadow-sm text-slate-900'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                data-testid="login-tab"
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('register')}
+                className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+                  mode === 'register'
+                    ? 'bg-white shadow-sm text-slate-900'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                data-testid="register-tab"
+              >
+                Registrarse
+              </button>
+            </div>
+          )}
+
+          {/* Forgot Password Form */}
+          {mode === 'forgot' && (
+            <div className="space-y-4" data-testid="forgot-password-form">
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 mb-2"
+                data-testid="forgot-back-btn"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Volver al inicio de sesión
+              </button>
+
+              <h2 className="text-lg font-semibold text-slate-800">Recuperar Contraseña</h2>
+              <p className="text-sm text-slate-600">
+                Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+              </p>
+
+              {forgotSent ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center" data-testid="forgot-sent-msg">
+                  <p className="text-green-800 font-medium">Enlace enviado</p>
+                  <p className="text-green-700 text-sm mt-1">
+                    Si el correo <strong>{forgotEmail}</strong> está registrado, recibirás un enlace de recuperación.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className="text-sm text-blue-600 hover:underline mt-3 inline-block"
+                  >
+                    Volver al inicio de sesión
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="forgotEmail" className="text-sm font-medium text-slate-700">
+                      Correo Electrónico
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        id="forgotEmail"
+                        type="email"
+                        placeholder="correo@ejemplo.com"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        className="pl-10"
+                        data-testid="forgot-email-input"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5"
+                    disabled={loading}
+                    data-testid="forgot-submit-btn"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      'Enviar Enlace de Recuperación'
+                    )}
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
           
-          {/* Form */}
+          {/* Login / Register Form */}
+          {mode !== 'forgot' && (
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
               <>
@@ -347,7 +443,7 @@ export const Auth = () => {
               <div className="text-right">
                 <button
                   type="button"
-                  onClick={() => toast.info('Próximamente: Recuperación de contraseña')}
+                  onClick={() => switchMode('forgot')}
                   className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                   data-testid="forgot-password-link"
                 >
@@ -373,6 +469,7 @@ export const Auth = () => {
               )}
             </Button>
           </form>
+          )}
           
           {/* Info text */}
           <p className="text-center text-xs text-slate-500 mt-6">

@@ -173,6 +173,48 @@ async def register_user(user_data: UserRegister):
     }
     await db.user_sessions.insert_one(session_doc)
     
+    # Enviar email de verificación
+    try:
+        verify_token = secrets.token_urlsafe(32)
+        verify_expires = datetime.now(timezone.utc) + timedelta(hours=24)
+        await db.email_verification_tokens.delete_many({"user_id": user_id})
+        await db.email_verification_tokens.insert_one({
+            "user_id": user_id,
+            "token": verify_token,
+            "expires_at": verify_expires.isoformat(),
+            "used": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:3000")
+        verify_link = f"{frontend_url}/verify-email?token={verify_token}"
+        verify_html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:#003366;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+            <h1 style="color:white;margin:0;font-size:22px;">Gestor MegaNexus</h1>
+          </div>
+          <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+            <h2 style="color:#1e293b;margin-top:0;">Bienvenido a Gestor</h2>
+            <p style="color:#475569;">Hola <strong>{user_data.first_name}</strong>,</p>
+            <p style="color:#475569;">Tu cuenta ha sido creada. Verifica tu correo electrónico:</p>
+            <div style="text-align:center;margin:25px 0;">
+              <a href="{verify_link}" style="background:#16a34a;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+                Verificar Correo
+              </a>
+            </div>
+            <p style="color:#94a3b8;font-size:13px;">Este enlace expira en 24 horas.</p>
+          </div>
+        </div>
+        """
+        from services.email_service import send_email
+        await send_email(
+            to=[user_data.email],
+            subject="Verifica tu Correo - Gestor MegaNexus",
+            html=verify_html,
+            action="email_verification"
+        )
+    except Exception as e:
+        logging.error(f"[AUTH] Error enviando verificacion en registro: {e}")
+    
     # Retornar usuario sin password
     user_response = {
         "user_id": user_id,
@@ -301,6 +343,199 @@ async def get_implementadores(authorization: Optional[str] = Header(None)):
     for u in users:
         u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
     return users
+
+
+# ==================== FORGOT / RESET PASSWORD (PUBLIC) ====================
+
+@router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    """Solicitar restablecimiento de contraseña. Envía email con enlace."""
+    user = await db.users.find_one({"email": data.email.lower()}, {"_id": 0})
+    # Siempre retornar éxito para no revelar si el email existe
+    if not user:
+        return {"message": "Si el correo existe, recibirás un enlace de recuperación."}
+
+    user_id = user["user_id"]
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    await db.password_reset_tokens.delete_many({"user_id": user_id})
+    await db.password_reset_tokens.insert_one({
+        "user_id": user_id,
+        "token": reset_token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    # Construir enlace de reset
+    frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:3000")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+      <div style="background:#003366;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+        <h1 style="color:white;margin:0;font-size:22px;">Gestor MegaNexus</h1>
+      </div>
+      <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+        <h2 style="color:#1e293b;margin-top:0;">Recuperación de Contraseña</h2>
+        <p style="color:#475569;">Hola <strong>{user.get('first_name', user.get('name', ''))}</strong>,</p>
+        <p style="color:#475569;">Recibimos una solicitud para restablecer tu contraseña. Haz clic en el botón:</p>
+        <div style="text-align:center;margin:25px 0;">
+          <a href="{reset_link}" style="background:#003366;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+            Restablecer Contraseña
+          </a>
+        </div>
+        <p style="color:#94a3b8;font-size:13px;">Este enlace expira en 1 hora. Si no solicitaste este cambio, ignora este correo.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+        <p style="color:#94a3b8;font-size:12px;text-align:center;">Gestor — Work Flow de Procesos Integrales</p>
+      </div>
+    </div>
+    """
+
+    try:
+        from services.email_service import send_email
+        await send_email(
+            to=[data.email],
+            subject="Recuperación de Contraseña — Gestor MegaNexus",
+            html=html,
+            action="password_reset"
+        )
+        logging.info(f"[AUTH] Email de reset enviado a {data.email}")
+    except Exception as e:
+        logging.error(f"[AUTH] Error enviando email de reset: {e}")
+        # Log link for debugging when email fails
+        logging.info(f"[AUTH] Reset link (email falló): {reset_link}")
+
+    return {"message": "Si el correo existe, recibirás un enlace de recuperación."}
+
+
+@router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    """Restablecer contraseña usando token válido."""
+    token_doc = await db.password_reset_tokens.find_one(
+        {"token": data.token, "used": {"$ne": True}}, {"_id": 0}
+    )
+    if not token_doc:
+        raise HTTPException(status_code=400, detail="Token inválido o ya utilizado")
+
+    # Verificar expiración
+    expires_at = datetime.fromisoformat(token_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="El token ha expirado. Solicita uno nuevo.")
+
+    user_id = token_doc["user_id"]
+    new_hash = hash_password(data.new_password)
+
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"password_hash": new_hash}}
+    )
+
+    # Marcar token como usado
+    await db.password_reset_tokens.update_one(
+        {"token": data.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    # Invalidar sesiones previas
+    await db.user_sessions.delete_many({"user_id": user_id})
+
+    logging.info(f"[AUTH] Contraseña restablecida para user_id={user_id}")
+    return {"message": "Contraseña restablecida exitosamente. Ya puedes iniciar sesión."}
+
+
+# ==================== EMAIL VERIFICATION ====================
+
+@router.post("/auth/verify-email")
+async def verify_email(data: VerifyEmailRequest):
+    """Verificar email usando token."""
+    token_doc = await db.email_verification_tokens.find_one(
+        {"token": data.token, "used": {"$ne": True}}, {"_id": 0}
+    )
+    if not token_doc:
+        raise HTTPException(status_code=400, detail="Token de verificación inválido o ya utilizado")
+
+    expires_at = datetime.fromisoformat(token_doc["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="El token ha expirado. Solicita uno nuevo.")
+
+    user_id = token_doc["user_id"]
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"is_verified": True}}
+    )
+
+    await db.email_verification_tokens.update_one(
+        {"token": data.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    logging.info(f"[AUTH] Email verificado para user_id={user_id}")
+    return {"message": "Correo electrónico verificado exitosamente."}
+
+
+@router.post("/auth/resend-verification")
+async def resend_verification(authorization: Optional[str] = Header(None)):
+    """Reenviar email de verificación al usuario autenticado."""
+    current_user = await get_current_user(authorization)
+
+    if current_user.get("is_verified"):
+        return {"message": "Tu correo ya está verificado."}
+
+    user_id = current_user["user_id"]
+    email = current_user["email"]
+    name = current_user.get("first_name", current_user.get("name", ""))
+
+    verify_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+    await db.email_verification_tokens.delete_many({"user_id": user_id})
+    await db.email_verification_tokens.insert_one({
+        "user_id": user_id,
+        "token": verify_token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+
+    frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:3000")
+    verify_link = f"{frontend_url}/verify-email?token={verify_token}"
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+      <div style="background:#003366;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+        <h1 style="color:white;margin:0;font-size:22px;">Gestor MegaNexus</h1>
+      </div>
+      <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+        <h2 style="color:#1e293b;margin-top:0;">Verificación de Correo</h2>
+        <p style="color:#475569;">Hola <strong>{name}</strong>,</p>
+        <p style="color:#475569;">Confirma tu correo electrónico haciendo clic en el botón:</p>
+        <div style="text-align:center;margin:25px 0;">
+          <a href="{verify_link}" style="background:#16a34a;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+            Verificar Correo
+          </a>
+        </div>
+        <p style="color:#94a3b8;font-size:13px;">Este enlace expira en 24 horas.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+        <p style="color:#94a3b8;font-size:12px;text-align:center;">Gestor — Work Flow de Procesos Integrales</p>
+      </div>
+    </div>
+    """
+
+    try:
+        from services.email_service import send_email
+        await send_email(
+            to=[email],
+            subject="Verifica tu Correo — Gestor MegaNexus",
+            html=html,
+            action="email_verification"
+        )
+    except Exception as e:
+        logging.error(f"[AUTH] Error enviando verificación: {e}")
+        logging.info(f"[AUTH] Verify link (email falló): {verify_link}")
+
+    return {"message": "Email de verificación enviado."}
 
 
 # ==================== ADMIN ENDPOINTS ====================
@@ -605,12 +840,43 @@ async def reset_user_password(user_id: str, authorization: Optional[str] = Heade
     
     # TODO: Enviar email con el token cuando Resend esté configurado
     # Por ahora, devolver el token para pruebas
+    frontend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:3000")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+
+    try:
+        from services.email_service import send_email
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:#003366;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+            <h1 style="color:white;margin:0;font-size:22px;">Gestor MegaNexus</h1>
+          </div>
+          <div style="background:#f8fafc;padding:30px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+            <h2 style="color:#1e293b;margin-top:0;">Restablecimiento de Contraseña</h2>
+            <p style="color:#475569;">Hola <strong>{user.get('first_name', user.get('name', ''))}</strong>,</p>
+            <p style="color:#475569;">Un administrador ha solicitado restablecer tu contraseña:</p>
+            <div style="text-align:center;margin:25px 0;">
+              <a href="{reset_link}" style="background:#003366;color:white;padding:12px 30px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">
+                Restablecer Contraseña
+              </a>
+            </div>
+            <p style="color:#94a3b8;font-size:13px;">Este enlace expira en 24 horas.</p>
+          </div>
+        </div>
+        """
+        await send_email(
+            to=[user.get("email")],
+            subject="Restablecimiento de Contraseña - Gestor MegaNexus",
+            html=html,
+            action="admin_password_reset"
+        )
+    except Exception as e:
+        logging.error(f"[AUTH] Error enviando email de reset admin: {e}")
+
     return {
-        "message": "Token de restablecimiento generado",
+        "message": "Token de restablecimiento generado y enviado por correo",
         "email": user.get("email"),
-        "reset_token": reset_token,  # En producción, esto NO se devuelve
-        "expires_at": expires_at.isoformat(),
-        "note": "El token debe ser enviado por correo electrónico al usuario"
+        "reset_link": reset_link,
+        "expires_at": expires_at.isoformat()
     }
 
 @router.post("/admin/users/create")

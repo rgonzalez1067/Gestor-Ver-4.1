@@ -2,6 +2,8 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from 'sonner';
 import Auth from './pages/Auth';
+import ResetPassword from './pages/ResetPassword';
+import VerifyEmail from './pages/VerifyEmail';
 import Login from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Clients } from './pages/Clients';
@@ -34,6 +36,8 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/login-google" element={<Login />} />
       <Route path="/dashboard" element={
         <ProtectedRoute>

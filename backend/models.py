@@ -785,6 +785,20 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+
+class ForgotPasswordRequest(BaseModel):
+    """Solicitud de recuperación de contraseña"""
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    """Restablecimiento de contraseña con token"""
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+class VerifyEmailRequest(BaseModel):
+    """Verificación de email con token"""
+    token: str
+
 class UserResponse(BaseModel):
     """Modelo de respuesta de usuario (sin password)"""
     user_id: str
