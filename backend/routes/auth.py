@@ -280,10 +280,10 @@ async def get_users_list(authorization: Optional[str] = Header(None)):
 async def get_ejecutivos(authorization: Optional[str] = Header(None)):
     """Obtener lista de usuarios con cargo de Ejecutivo para asignación de clientes."""
     await get_current_user(authorization)
-    ejecutivo_cargos = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
+    ventas_deptos = ["Ventas Pyme", "Ventas Corporativas"]
     users = await db.users.find(
-        {"is_active": True, "cargo": {"$in": ejecutivo_cargos}},
-        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1}
+        {"is_active": True, "departamento": {"$in": ventas_deptos}},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1, "departamento": 1}
     ).to_list(1000)
     for u in users:
         u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()

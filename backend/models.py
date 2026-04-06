@@ -755,23 +755,28 @@ class UserRegister(BaseModel):
     sede: str = Field(default="PYME", description="Sede del usuario: PYME o CORP")
 
 # Departamentos disponibles
-DEPARTAMENTOS = ["Implementación", "Infraestructura", "Ventas Pyme", "Ventas Corporativas", "Administración", "Dirección"]
+DEPARTAMENTOS = [
+    "Desarrollo",
+    "Aseguramiento de Calidad",
+    "Implementación",
+    "Infraestructura",
+    "Operaciones",
+    "Dirección",
+    "Ventas Pyme",
+    "Ventas Corporativas",
+    "Administración",
+]
 
 # Cargos disponibles
 CARGOS = [
-    "Gerente de Ventas Pyme",
-    "Gerente de Ventas Corporativas",
-    "Ejecutivo de Ventas Pyme",
-    "Ejecutivo de Ventas Corporativas",
-    "Gerente de Administración",
-    "Coordinador de Administración",
-    "Asistente Administrativo (Almacén)",
-    "Técnico de Infraestructura",
-    "Gerente de Implementación",
-    "Coordinador de Implementación",
-    "Implementador",
     "Director",
-    "Gerente de Infraestructura",
+    "Gerente",
+    "Coordinador",
+    "Analista",
+    "Asistente",
+    "Tecnico",
+    "Desarrollador",
+    "Implementador",
 ]
 
 class UserLogin(BaseModel):
