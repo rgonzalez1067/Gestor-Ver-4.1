@@ -98,12 +98,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
   - Lógica FIFO para salidas: seriales ordenados por fecha de adquisición más antigua
   - Archivos modificados: `inventory.py`, `models.py`, `Inventory.jsx`
 - **Abr 2026**: Prerregistro de Seriales (Fast Track):
-  - Nueva acción "Prerregistro de Seriales" en menú Fast Track (posición: después de Configuración)
+  - Nueva acción "Prerregistro de Seriales" en menú Fast Track (posición: después de Aprobación, fase Logística)
   - Modal con buscador de seriales filtrado por modelo de equipo y almacén
   - Validación: cantidad exacta de seriales = demanda de la cotización
   - Estado "preasignado" en colección `serial_assignments` (bloquea serial para otras cotizaciones)
   - Al "Marcar como Entregada": transición preasignado → asignado + movimiento de salida en inventario
   - Notificación automática a Operaciones sede PYME con plantilla `serial_preassignment_PYME`
+  - Dependencia: Configuración bloqueada hasta completar Preasignación (badge "Requiere seriales")
+  - Menú de acciones reorganizado por fases: Comercial → Logística → Técnica → Financiera → Entrega
   - Archivos: `quote_actions.py`, `inventory.py`, `PreassignSerialsModal.jsx`, `QuotesTable.jsx`, `Quotes.jsx`
 - **Abr 2026**: Workflow Exclusivo de Notificaciones para Equipos PYME:
   - 4 acciones cableadas con plantillas y buzones correctos:

@@ -196,11 +196,16 @@ export const QuotesTable = ({
                         {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer">
                           <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar (Nueva Versión)
                         </DropdownMenuItem>}
+
+                        {/* ── FASE COMERCIAL ── */}
                         {canEdit && <DropdownMenuSeparator />}
+                        {canEdit && (
+                          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Comercial</p>
+                        )}
                         {canEdit && <DropdownMenuItem onSelect={() => onSendToClient(quote.quote_id)} className="cursor-pointer"
                           disabled={quote.quote_status !== 'Borrador'}>
                           <Mail size={16} className="mr-2 text-blue-500" /> Enviar al Cliente
-                          {quote.sent_to_client_at && <span className="ml-auto text-xs text-slate-400">&#10003;</span>}
+                          {quote.sent_to_client_at && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
                         </DropdownMenuItem>}
                         {canEdit && <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
                           <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobación
@@ -215,23 +220,52 @@ export const QuotesTable = ({
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
+
+                        {/* ── FASE LOGÍSTICA (Fast Track) ── */}
+                        {canEdit && isFastTrack && <DropdownMenuSeparator />}
                         {canEdit && isFastTrack && (
-                          <DropdownMenuItem
-                            onSelect={() => quote.quote_status === 'Aprobada' ? onConfigure(quote.quote_id) : onOpenFtConfig(quote)}
-                            className="cursor-pointer"
-                            data-testid={`configure-btn-${quote.quote_id}`}>
-                            <Settings size={16} className="mr-2 text-indigo-600" />
-                            {quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración'}
-                            {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
-                            {!quote.configured_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
-                          </DropdownMenuItem>
+                          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Logística</p>
                         )}
                         {canEdit && isFastTrack && (
                           <DropdownMenuItem onSelect={() => onPreassignSerials(quote)} className="cursor-pointer"
                             data-testid={`preassign-btn-${quote.quote_id}`}>
-                            <Package size={16} className="mr-2 text-cyan-600" /> Prerregistro de Seriales
-                            {quote.preassigned_serials?.length > 0 && <span className="ml-auto text-xs text-cyan-500">&#10003;</span>}
+                            <Package size={16} className="mr-2 text-blue-600" /> Preasignación de Seriales
+                            {quote.preassigned_serials?.length > 0 && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
+                            {!quote.preassigned_serials?.length && quote.approved_at && <span className="ml-auto text-xs text-blue-500">&#x25CF;</span>}
                           </DropdownMenuItem>
+                        )}
+
+                        {/* ── FASE TÉCNICA (Fast Track) ── */}
+                        {canEdit && isFastTrack && <DropdownMenuSeparator />}
+                        {canEdit && isFastTrack && (
+                          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Técnica</p>
+                        )}
+                        {canEdit && isFastTrack && (() => {
+                          const hasPreassigned = quote.preassigned_serials?.length > 0;
+                          const isDisabled = !hasPreassigned;
+                          return (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                if (isDisabled) return;
+                                quote.quote_status === 'Aprobada' ? onConfigure(quote.quote_id) : onOpenFtConfig(quote);
+                              }}
+                              className={`cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={isDisabled}
+                              title={isDisabled ? 'Debe preasignar los seriales de los equipos antes de proceder con la configuración técnica' : ''}
+                              data-testid={`configure-btn-${quote.quote_id}`}>
+                              <Settings size={16} className={`mr-2 ${isDisabled ? 'text-slate-400' : 'text-indigo-600'}`} />
+                              {quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración'}
+                              {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
+                              {!quote.configured_at && !isDisabled && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
+                              {isDisabled && <span className="ml-auto text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Requiere seriales</span>}
+                            </DropdownMenuItem>
+                          );
+                        })()}
+
+                        {/* ── FASE FINANCIERA ── */}
+                        {canEdit && <DropdownMenuSeparator />}
+                        {canEdit && (
+                          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Financiera</p>
                         )}
                         {canEdit && <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
                           <Receipt size={16} className="mr-2 text-purple-500" /> Factura / Proforma
@@ -245,7 +279,12 @@ export const QuotesTable = ({
                           {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>}
+
+                        {/* ── ENTREGA / IMPLEMENTACIÓN ── */}
                         {canEdit && <DropdownMenuSeparator />}
+                        {canEdit && (isEquipment || isRepair || isFastTrack) && (
+                          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Entrega</p>
+                        )}
                         {canEdit && (isEquipment || isRepair || isFastTrack) && (
                           <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
