@@ -179,24 +179,38 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
     # Excluir seriales preasignados/asignados del stock disponible
     blocked_assignments = await db.serial_assignments.find(
         {"status": {"$in": ["preasignado", "asignado"]}},
-        {"_id": 0, "serial": 1}
+        {"_id": 0, "serial": 1, "status": 1, "quote_number": 1, "client_name": 1, "item_id": 1}
     ).to_list(10000)
     blocked_serials = {b["serial"] for b in blocked_assignments}
+    blocked_details = {b["serial"]: b for b in blocked_assignments}
 
     result = []
     for item in stock.values():
-        # Filtrar seriales bloqueados
+        iid = item["item_id"]
+        # Separar seriales disponibles vs preasignados
         if item["serials"]:
-            original_count = len(item["serials"])
-            item["serials"] = [s for s in item["serials"] if s not in blocked_serials]
-            blocked_count = original_count - len(item["serials"])
-            item["preassigned_count"] = blocked_count
+            available = []
+            preassigned_list = []
+            for s in item["serials"]:
+                if s in blocked_serials:
+                    detail = blocked_details.get(s, {})
+                    preassigned_list.append({
+                        "serial": s,
+                        "status": detail.get("status", "preasignado"),
+                        "quote_number": detail.get("quote_number", ""),
+                        "client_name": detail.get("client_name", ""),
+                    })
+                else:
+                    available.append(s)
+            item["serials"] = available
+            item["preassigned_count"] = len(preassigned_list)
+            item["preassigned_serials"] = preassigned_list
         else:
             item["preassigned_count"] = 0
+            item["preassigned_serials"] = []
         qty = item["quantity"]
         item["weighted_cost"] = round(item["cost_total"] / qty, 2) if qty > 0 else 0
         # FIFO: ordenar seriales por fecha de adquisición más antigua
-        iid = item["item_id"]
         dates = serial_dates_map.get(iid, {})
         item["serials"].sort(key=lambda s: dates.get(s, "9999"))
         result.append(item)

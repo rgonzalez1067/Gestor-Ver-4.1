@@ -642,7 +642,14 @@ export default function Inventory() {
                           <td className="px-4 py-3 text-center text-slate-600">${item.weighted_cost?.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
                             {item.requires_serial ? (
-                              <span className="text-xs text-purple-600">{item.serials?.length || 0} registrados</span>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="text-xs text-purple-600">{item.serials?.length || 0} disponibles</span>
+                                {item.preassigned_count > 0 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
+                                    {item.preassigned_count} preasignado{item.preassigned_count > 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
                             ) : <span className="text-xs text-slate-400">N/A</span>}
                           </td>
                           <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
