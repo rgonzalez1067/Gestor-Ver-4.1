@@ -29,7 +29,7 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
     const load = async () => {
       try {
         const [whRes, assignRes] = await Promise.all([
-          fetch(`${API}/api/warehouses`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API}/api/inventory/warehouses`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API}/api/quotes/${quote.quote_id}/preassigned-serials`, { headers: { Authorization: `Bearer ${token}` } }),
         ]);
         const whData = await whRes.json();
