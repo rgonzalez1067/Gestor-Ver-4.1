@@ -12,14 +12,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 
 ### Proyectos (Implementación)
 - Matriz de implementación por banco/producto
-- **Vinculación Logística en "Enviar a Implementación"**
-- **Flujo Transaccional Seguro (Fix P0 — Feb 2026)**
-- **Flujo Extendido PYME (Feb 2026)**
-- **Motor de Reemplazo de Variables ROBUSTO** (19 variables dinámicas)
-- **Editor de Envío Final**: Editable con soporte de imágenes (Object Storage)
-- **VTIDs por Sucursal**
-- **Notificaciones Secuenciales**
-- **Asignación Simplificada** + Candado de Seguridad
+- Vinculación Logística en "Enviar a Implementación"
+- Flujo Transaccional Seguro (Fix P0 — Feb 2026)
+- Flujo Extendido PYME (Feb 2026)
+- Motor de Reemplazo de Variables ROBUSTO (19 variables dinámicas)
+- Editor de Envío Final con soporte de imágenes (Object Storage)
+- VTIDs por Sucursal, Notificaciones Secuenciales
+- Asignación Simplificada + Candado de Seguridad
 
 ### Cotizaciones
 - RBAC con `special_permissions`
@@ -40,33 +39,42 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ### Gestión de Usuarios
 - Cargos simplificados: Director, Gerente, Coordinador, Analista, Asistente, Tecnico, Desarrollador, Implementador, Ejecutivo
 - Departamentos: Desarrollo, Aseguramiento de Calidad, Implementación, Infraestructura, Operaciones, Dirección, Ventas Pyme, Ventas Corporativas, Administración
-- Endpoint ejecutivos filtrado por departamento (Ventas Pyme/Corporativas)
+- Endpoint ejecutivos filtrado por departamento
+
+### Autenticación (P1 — Abr 2026)
+- **Recuperación de Contraseña**:
+  - `POST /api/auth/forgot-password` — genera token (1h expiración), envía email con enlace
+  - `POST /api/auth/reset-password` — valida token, actualiza hash, invalida sesiones previas
+  - Mensaje genérico (no revela si email existe)
+  - Tokens de un solo uso almacenados en `password_reset_tokens`
+- **Verificación de Email**:
+  - Token enviado automáticamente al registrarse
+  - `POST /api/auth/verify-email` — marca `is_verified=true`
+  - `POST /api/auth/resend-verification` — reenvía email (requiere auth)
+  - Tokens almacenados en `email_verification_tokens`
+- **Frontend**:
+  - Modo "Recuperar Contraseña" en Auth.jsx con formulario de email
+  - `/reset-password?token=xxx` — formulario nueva contraseña + confirmación
+  - `/verify-email?token=xxx` — verificación automática por token
+- **Admin**:
+  - `POST /admin/users/{id}/reset-password` — genera y envía enlace de reset
 
 ## Archivos Clave
+- `/app/backend/routes/auth.py` — Auth completo (login, register, forgot, reset, verify)
 - `/app/backend/routes/projects.py`
 - `/app/backend/routes/quote_actions.py`
-- `/app/backend/routes/auth.py`
-- `/app/backend/services/project_template_vars.py`
-- `/app/backend/services/object_storage.py`
-- `/app/backend/services/implementation_pdf.py`
 - `/app/backend/models.py`
-- `/app/frontend/src/pages/ProjectDetail.jsx`
+- `/app/frontend/src/pages/Auth.jsx`
+- `/app/frontend/src/pages/ResetPassword.jsx`
+- `/app/frontend/src/pages/VerifyEmail.jsx`
 - `/app/frontend/src/pages/Quotes.jsx`
 - `/app/frontend/src/pages/UserManagement.jsx`
 - `/app/frontend/src/pages/Inventory.jsx`
-
-## Historial Reciente
-- **Abr 2026**: Actualización de Cargos y Departamentos:
-  - Cargos simplificados de 13 a 9 opciones genéricas
-  - 3 departamentos nuevos: Desarrollo, Aseguramiento de Calidad, Operaciones
-  - 12 usuarios activos con cargos reasignados
-  - Endpoint `/api/auth/ejecutivos` migrado a filtro por departamento
-  - 9 usuarios eliminados (TEST, duplicados, obsoletos)
+- `/app/frontend/src/App.js` — Rutas /reset-password y /verify-email
 
 ## Backlog
 
 ### P1 (Próximos)
-- Verificación de Email y Recuperación de Contraseña
 - Refactorización de `Quotes.jsx` (5800+ líneas)
 
 ### P2 (Futuro)
