@@ -777,6 +777,7 @@ CARGOS = [
     "Tecnico",
     "Desarrollador",
     "Implementador",
+    "Ejecutivo",
 ]
 
 class UserLogin(BaseModel):

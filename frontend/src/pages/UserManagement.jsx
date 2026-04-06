@@ -47,6 +47,7 @@ const CARGOS = [
   'Tecnico',
   'Desarrollador',
   'Implementador',
+  'Ejecutivo',
 ];
 
 export const UserManagement = () => {
