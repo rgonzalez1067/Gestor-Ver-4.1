@@ -348,8 +348,13 @@ export const MediosPago = () => {
 
   // Filtrar servicios recurrentes para no incluir el mismo servicio que se está editando
   const getAvailableRecurringServices = () => {
-    if (!editingMedioPago) return recurringServices;
-    return recurringServices.filter(s => s.service_id !== editingMedioPago.service_id);
+    // Filtrar Medios de Pago: Categoría = Servicio, Tipo = Recurrente (recurring o both)
+    const filtered = mediosPago.filter(s => 
+      s.service_type === 'Servicio' && 
+      (s.application_type === 'recurring' || s.application_type === 'both')
+    );
+    if (!editingMedioPago) return filtered;
+    return filtered.filter(s => s.service_id !== editingMedioPago.service_id);
   };
 
   if (loading) {
