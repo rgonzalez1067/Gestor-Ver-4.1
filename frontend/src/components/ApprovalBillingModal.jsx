@@ -399,10 +399,10 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                         <td className="px-3 py-2 text-center text-slate-600 text-xs">{item.quantity}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">${item.total_usd.toFixed(2)}</td>
                         <td className="px-3 py-2 text-center text-xs text-slate-400 font-mono">{rateNum > 0 ? rateNum.toFixed(2) : '—'}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">
+                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 whitespace-nowrap">
                           {costoUnitBs > 0 ? `Bs. ${costoUnitBs.toFixed(2)}` : '—'}
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800">
+                        <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 whitespace-nowrap">
                           {rateNum > 0 ? `Bs. ${bsCalc.toFixed(2)}` : '—'}
                         </td>
                       </tr>
@@ -417,21 +417,21 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
                     <td className="px-3 py-2"></td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">Bs. {grandTotalBs.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold whitespace-nowrap">Bs. {grandTotalBs.toFixed(2)}</td>
                   </tr>
                   <tr className="bg-slate-50">
                     <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>IVA (16%)</td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">${ivaUsd.toFixed(2)}</td>
                     <td className="px-3 py-1.5"></td>
                     <td className="px-3 py-1.5"></td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">Bs. {ivaBs.toFixed(2)}</td>
+                    <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600 whitespace-nowrap">Bs. {ivaBs.toFixed(2)}</td>
                   </tr>
                   <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
                     <td className="px-3 py-2.5 text-xs text-slate-900" colSpan={2}>TOTAL GENERAL</td>
                     <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">${grandTotalConIvaUsd.toFixed(2)}</td>
                     <td className="px-3 py-2.5"></td>
                     <td className="px-3 py-2.5"></td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900">Bs. {grandTotalConIvaBs.toFixed(2)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-900 whitespace-nowrap">Bs. {grandTotalConIvaBs.toFixed(2)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -451,6 +451,12 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
             {uploading ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CheckCircle size={16} className="mr-2" />}
             {uploading ? 'Procesando...' : 'Confirmar Aprobación'}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+ton>
         </div>
       </DialogContent>
     </Dialog>
