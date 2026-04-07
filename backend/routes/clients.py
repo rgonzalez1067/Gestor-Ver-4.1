@@ -328,7 +328,7 @@ async def search_clients(q: str = "", authorization: Optional[str] = Header(None
             {"rif": {"$regex": q, "$options": "i"}}
         ]
     }
-    clients = await db.clients.find(query, {"_id": 0}).to_list(100)
+    clients = await db.clients.find(query, {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "rif": 1, "contact_name": 1, "address": 1, "commercial_name": 1}).to_list(50)
     return clients
 
 

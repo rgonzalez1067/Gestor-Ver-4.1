@@ -791,6 +791,10 @@ export const Quotes = () => {
     setEditingQuoteId(null);
     setIsLoadingEdit(false);
     
+    // Limpiar búsqueda de clientes
+    setClientSearchQuery('');
+    setClientSearchResults([]);
+    
     setWizardOpen(true);
     setQuoteData({
       quote_type: '',
@@ -3039,6 +3043,9 @@ export const Quotes = () => {
     });
     setIsEditing(false);
     setEditingQuoteId(null);
+    // Limpiar búsqueda de clientes
+    setClientSearchQuery('');
+    setClientSearchResults([]);
     // Reset PG state
     setPgSetupItems([]);
     setPgTransactionRange(null);
@@ -3484,7 +3491,7 @@ export const Quotes = () => {
                             data-testid="client-search-input"
                           />
                         </div>
-                        {(clientSearchQuery.length >= 2 ? clientSearchResults : clients).map((client) => (
+                        {(clientSearchQuery.length >= 2 ? clientSearchResults : clients.slice(0, 50)).map((client) => (
                           <SelectItem key={client.client_id} value={client.client_id} data-testid={`client-option-${client.client_id}`}>
                             {client.fantasy_name || client.legal_name} — {client.rif}
                           </SelectItem>
