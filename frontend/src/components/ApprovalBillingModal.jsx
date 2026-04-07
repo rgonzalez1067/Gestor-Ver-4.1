@@ -456,9 +456,3 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     </Dialog>
   );
 }
-ton>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
