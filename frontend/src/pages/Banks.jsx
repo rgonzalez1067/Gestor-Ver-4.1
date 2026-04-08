@@ -516,18 +516,24 @@ export const Banks = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap gap-1.5 mb-1.5">
                       {chips.length > 0 ? (
-                        chips.slice(0, 5).map((p, i) => (
-                          <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
-                            {p.product_name}
-                          </span>
-                        ))
+                        chips.map((p, i) => {
+                          const isVposMpos = p.vpos_available || p.mpos_available;
+                          const isPgLink = p.gateway_available || p.link_available;
+                          const colorClass = isVposMpos && !isPgLink
+                            ? 'bg-blue-100 text-blue-800 border-blue-300'
+                            : !isVposMpos && isPgLink
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : isVposMpos && isPgLink
+                            ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                            : 'bg-slate-100 text-slate-700 border-slate-300';
+                          return (
+                            <span key={i} className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${colorClass}`}>
+                              {p.product_name}
+                            </span>
+                          );
+                        })
                       ) : (
                         <span className="text-xs text-slate-400 italic">Sin medios de pago</span>
-                      )}
-                      {chips.length > 5 && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                          +{chips.length - 5} más
-                        </span>
                       )}
                     </div>
                     <div className="flex gap-3 text-xs">
