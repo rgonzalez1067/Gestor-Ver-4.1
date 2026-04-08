@@ -10,7 +10,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -95,6 +95,7 @@ export const Clients = () => {
     fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
     integrador_id: '', integrador_name: '', aplicativo: '',
     modelo_impresora_fiscal: '',
+    additional_info: '',
     contacts: [emptyContact()]
   });
 
@@ -203,7 +204,7 @@ export const Clients = () => {
     if (payload.cantidad_cajas === '' || payload.cantidad_cajas === null) payload.cantidad_cajas = null;
     else payload.cantidad_cajas = parseInt(payload.cantidad_cajas, 10) || null;
     // Convertir strings vacíos a null para campos opcionales
-    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal']) {
+    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal', 'additional_info']) {
       if (payload[key] === '') payload[key] = null;
     }
     // Ensure legacy fields for backwards compat
@@ -320,6 +321,7 @@ export const Clients = () => {
       integrador_name: client.integrador_name || '',
       aplicativo: client.aplicativo || '',
       modelo_impresora_fiscal: client.modelo_impresora_fiscal || '',
+      additional_info: client.additional_info || '',
       contacts
     });
     setDialogOpen(true);
@@ -335,10 +337,53 @@ export const Clients = () => {
       fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
       integrador_id: '', integrador_name: '', aplicativo: '',
       modelo_impresora_fiscal: '',
+      additional_info: '',
       contacts: [emptyContact()]
     });
     setEditingClient(null);
     setBitacoraInicioText('');
+  };
+
+  // Duplicar cliente: pre-carga todos los datos excepto identificadores únicos
+  const duplicateClient = (client) => {
+    let contacts = Array.isArray(client.contacts) ? client.contacts.map(c => ({
+      ...c,
+      full_name: c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || ''
+    })) : [emptyContact()];
+    if (contacts.length === 0) contacts = [emptyContact()];
+
+    setEditingClient(null); // Es un nuevo registro
+    setFormData({
+      rif: client.rif || '', // Se mantiene pre-cargado (mismo RIF, distinta sucursal)
+      legal_name: client.legal_name || '',
+      fantasy_name: '', // Limpiar para que el usuario lo modifique
+      segment: client.segment || 'Pymes',
+      condicion: client.condicion || 'Prospecto',
+      referidor: client.referidor || '',
+      referidor_tipo: client.referidor_tipo || '',
+      referidor_id: client.referidor_id || '',
+      referidor_nombre: client.referidor_nombre || '',
+      address: client.address || '',
+      branch_address: '',  // Limpiar dirección de sucursal
+      categoria_comercial: client.categoria_comercial || '',
+      sucursal: '', // Limpiar para nueva sucursal
+      grupo_economico: client.grupo_economico || '',
+      ejecutivo_propietario: client.ejecutivo_propietario || '',
+      ejecutivo_user_id: client.ejecutivo_user_id || '',
+      cantidad_tiendas: client.cantidad_tiendas ?? '',
+      cantidad_cajas: client.cantidad_cajas ?? '',
+      fecha_primer_contacto: '', // Limpiar fecha
+      tipo_contacto: client.tipo_contacto || '',
+      tipo_servicio: client.tipo_servicio || [],
+      integrador_id: client.integrador_id || '',
+      integrador_name: client.integrador_name || '',
+      aplicativo: client.aplicativo || '',
+      modelo_impresora_fiscal: client.modelo_impresora_fiscal || '',
+      additional_info: client.additional_info || '',
+      contacts
+    });
+    setDialogOpen(true);
+    toast.info(`Creando nuevo cliente a partir de "${client.fantasy_name || client.legal_name}". Modifique los datos necesarios.`);
   };
 
   // Manejar cambio de ejecutivo
@@ -1128,6 +1173,23 @@ export const Clients = () => {
                       </div>
                     </div>
 
+                    {/* === INFORMACIÓN ADICIONAL === */}
+                    <div className="border-t pt-4">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2 block">Información Adicional</Label>
+                      <DebouncedInput
+                        as="textarea"
+                        data-testid="client-additional-info"
+                        value={formData.additional_info}
+                        onCommit={(v) => setFormData(prev => ({ ...prev, additional_info: v }))}
+                        debounceMs={300}
+                        rows={3}
+                        maxLength={2000}
+                        placeholder="Notas, observaciones, instrucciones especiales, convenios previos..."
+                        className="w-full"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1 text-right">{(formData.additional_info || '').length}/2000</p>
+                    </div>
+
                     {/* === CONTACTOS === */}
                     <div className="border-t pt-4">
                       <div className="flex items-center justify-between mb-3">
@@ -1270,6 +1332,9 @@ export const Clients = () => {
                               <DropdownMenuSeparator />
                               {canEdit && <DropdownMenuItem onSelect={() => openEditDialog(client)} className="cursor-pointer">
                                 <Pencil size={14} className="mr-2 text-slate-500" /> Editar
+                              </DropdownMenuItem>}
+                              {canEdit && <DropdownMenuItem onSelect={() => duplicateClient(client)} className="cursor-pointer">
+                                <Copy size={14} className="mr-2 text-blue-500" /> Duplicar Cliente
                               </DropdownMenuItem>}
                               {canEdit && <><DropdownMenuSeparator />
                               <DropdownMenuItem onSelect={() => handleDelete(client.client_id)}
