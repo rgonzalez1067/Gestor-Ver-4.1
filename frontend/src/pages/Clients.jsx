@@ -1067,12 +1067,13 @@ export const Clients = () => {
                               onCommit={(v) => setFormData(prev => ({ ...prev, sucursal: v }))}
                               className="h-9" placeholder="Sede Principal" required />
                           </div>
-                          <div>
-                            <Label className="text-xs">Dirección de Sucursal</Label>
-                            <DebouncedInput data-testid="client-branch-address-input" value={formData.branch_address}
-                              onCommit={(v) => setFormData(prev => ({ ...prev, branch_address: v }))}
-                              className="h-9" placeholder="Ubicación física" />
-                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Dirección de Sucursal</Label>
+                          <DebouncedInput as="textarea" data-testid="client-branch-address-input" value={formData.branch_address}
+                            onCommit={(v) => setFormData(prev => ({ ...prev, branch_address: v }))}
+                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[56px] resize-none"
+                            placeholder="Ubicación física de la sucursal..." />
                         </div>
                       </div>
 
