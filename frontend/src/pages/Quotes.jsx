@@ -5198,6 +5198,7 @@ export const Quotes = () => {
             clients={clients}
             hardware={allHardware}
             forcedMode={equipmentWizardMode}
+            userSede={currentUser?.sede || 'PYME'}
           />
 
           {/* Modal de confirmación para Eliminar */}

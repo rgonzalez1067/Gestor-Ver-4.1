@@ -26,7 +26,8 @@ const ACCESSORY_TYPES = ['Accesorio', 'Base'];
 // Tipos para selección de modelo en reparaciones (POS y Pinpad)
 const REPAIR_MODEL_TYPES = ['POS', 'Pinpad'];
 
-export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware, forcedMode = '' }) => {
+export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, hardware, forcedMode = '', userSede = 'PYME' }) => {
+  const userSegment = (userSede === 'CORP' || userSede === 'Corp' || userSede === 'Corporativo') ? 'Corp' : 'Pyme';
   const [step, setStep] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
   const [equipmentCategory, setEquipmentCategory] = useState(''); // "Verifone", "Morefun", "Accesorio" o "Reparacion"
@@ -418,6 +419,13 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Package className="text-brand-blue-600" />
               {forcedMode === 'repair' ? 'Nueva Cotización: Reparaciones' : forcedMode === 'equipment' ? 'Nueva Cotización: Equipos y Accesorios' : 'Nueva Cotización: Equipos, Accesorios y Reparaciones'}
+              <span className={`ml-2 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                userSegment === 'Corp' 
+                  ? 'bg-purple-100 text-purple-700 border border-purple-300' 
+                  : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+              }`} data-testid="equipment-segment-badge">
+                Segmento: {userSegment}
+              </span>
             </DialogTitle>
           </DialogHeader>
 

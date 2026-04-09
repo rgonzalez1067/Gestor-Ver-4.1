@@ -1578,11 +1578,15 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
     equipment_items_list = [item.model_dump() for item in data.items]
 
+    # Determinar segmento basado en la sede del usuario
+    client_segment = "CORP" if user_sede in ("CORP", "Corp", "Corporativo") else "PYME"
+
     quote_doc = {
         "quote_id": quote_id,
         "quote_number": quote_number,
         "client_id": data.client_id,
         "client_name": client_display_name,
+        "client_segment": client_segment,
         "quote_category": quote_category,
         "quote_type": data.equipment_type,
         "equipment_type": data.equipment_type,
