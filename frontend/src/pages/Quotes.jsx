@@ -3174,6 +3174,7 @@ export const Quotes = () => {
   
   // Detectar si es cotización Payment Gateway o MPOS
   const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
+  const isVPOS = quoteData.quote_type === 'VPOS';
   const isMPOS = quoteData.quote_type === 'MPOS' || quoteData.quote_type === 'FAST_TRACK';
   const isFastTrackType = quoteData.quote_type === 'FAST_TRACK';
   const isMegaSoftSponsor = selectedSponsorBank?.name?.toLowerCase().includes('mega soft') || selectedSponsorBank?.name?.toLowerCase().includes('megasoft');
@@ -3409,6 +3410,22 @@ export const Quotes = () => {
                         // Buscar banco "Mega Soft" para default de Fast Track
                         const megaSoftBank = isFastTrack ? banks.find(b => b.name?.toLowerCase().includes('mega soft') || b.name?.toLowerCase().includes('megasoft')) : null;
                         
+                        // Limpiar integrador si no es compatible con la nueva modalidad
+                        const currentIntegrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+                        let newIntegratorId = '';
+                        if (isFastTrack) {
+                          newIntegratorId = (currentIntegrator?.integration_modality === 'MPOS') ? quoteData.integrator_id : 'sin_integrador';
+                        } else if (value === 'GATEWAY') {
+                          newIntegratorId = (currentIntegrator?.integration_modality === 'PG Universal' || currentIntegrator?.integration_modality === 'PG No universal') ? quoteData.integrator_id : '';
+                        } else if (value === 'VPOS') {
+                          newIntegratorId = (currentIntegrator?.integration_modality === 'REST') ? quoteData.integrator_id : '';
+                        } else if (isMposSelected) {
+                          newIntegratorId = quoteData.integrator_id || '';
+                        }
+                        if (quoteData.integrator_id && quoteData.integrator_id !== 'sin_integrador' && newIntegratorId !== quoteData.integrator_id) {
+                          toast.info('Integrador anterior no compatible con esta modalidad. Seleccione uno nuevo.');
+                        }
+                        
                         setQuoteData({ 
                           ...quoteData, 
                           quote_type: value, 
@@ -3416,8 +3433,7 @@ export const Quotes = () => {
                           pricing_model: value === 'GATEWAY' ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
                           requires_vpn: isFastTrack ? false : true,
                           requires_pinpad_config: true,
-                          // Defaults para Fast Track
-                          integrator_id: isFastTrack ? (quoteData.integrator_id || 'sin_integrador') : (isMposSelected ? quoteData.integrator_id : ''),
+                          integrator_id: newIntegratorId,
                           sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,
                         });
                         setSelectedBankId('');
@@ -3747,8 +3763,8 @@ export const Quotes = () => {
                         {(isMPOS || isPaymentGateway) && (
                           <SelectItem value="sin_integrador">Sin integrador</SelectItem>
                         )}
-                        {integrators
-                          .filter(i => {
+                        {(() => {
+                          const filtered = integrators.filter(i => {
                             if (i.integrator_status !== 'Certificado') return false;
                             if (isPaymentGateway) {
                               return i.integration_modality === 'PG Universal' || i.integration_modality === 'PG No universal';
@@ -3756,13 +3772,21 @@ export const Quotes = () => {
                             if (isFastTrackType) {
                               return i.integration_modality === 'MPOS';
                             }
+                            if (isVPOS) {
+                              return i.integration_modality === 'REST';
+                            }
                             return true;
-                          })
-                          .map((integrator) => (
-                          <SelectItem key={integrator.integrator_id} value={integrator.integrator_id}>
-                            {integrator.name}
-                          </SelectItem>
-                        ))}
+                          });
+                          return filtered.length > 0 ? filtered.map((integrator) => (
+                            <SelectItem key={integrator.integrator_id} value={integrator.integrator_id}>
+                              {integrator.name}
+                            </SelectItem>
+                          )) : (
+                            <SelectItem value="_no_integrators_" disabled>
+                              No hay integradores para esta modalidad
+                            </SelectItem>
+                          );
+                        })()}
                       </SelectContent>
                     </Select>
                   </div>
