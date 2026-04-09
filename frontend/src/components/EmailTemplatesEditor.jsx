@@ -76,8 +76,8 @@ const BASE_TEMPLATE_TYPES = [
     color: 'text-violet-600',
     bgColor: 'bg-violet-50',
     borderColor: 'border-violet-200',
-    title: 'Aprobación de Cotización Fast Track',
-    description: 'Se envía al aprobar cotización POS Stand Alone (Fast Track)'
+    title: 'Aprobación de Cotización MPOS (Imple + POS)',
+    description: 'Se envía al aprobar cotización MPOS (Imple + POS)'
   },
   {
     baseId: 'serial_preassignment',

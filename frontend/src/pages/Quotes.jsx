@@ -30,7 +30,7 @@ import { usePermission } from '../hooks/usePermission';
 const QUOTE_TYPES = [
   { id: 'VPOS', name: 'VPOS (Cajas)', icon: Monitor, description: 'Puntos de venta físicos' },
   { id: 'MPOS', name: 'MPOS (Tablet/Móvil)', icon: Smartphone, description: 'Terminales móviles POS' },
-  { id: 'FAST_TRACK', name: 'POS Stand Alone (Fast Track)', icon: Smartphone, description: 'Equipos autogestionados Pyme' },
+  { id: 'FAST_TRACK', name: 'MPOS (Imple + POS)', icon: Smartphone, description: 'Equipos autogestionados Pyme' },
   { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },
   { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro', disabled: true }
 ];
@@ -102,7 +102,7 @@ const QUOTE_CATEGORY_LABELS = {
   'implementation': 'Implementación',
   'equipment': 'Equipos',
   'repair': 'Reparaciones',
-  'fast_track': 'Fast Track'
+  'fast_track': 'MPOS (Imple + POS)'
 };
 
 
@@ -2106,7 +2106,7 @@ export const Quotes = () => {
   const getQuoteTypeName = (typeId) => {
     if (typeId === 'VPOS') return 'VPOS (Cajas)';
     if (typeId === 'MPOS') return 'MPOS (Tablet/Móvil)';
-    if (typeId === 'FAST_TRACK') return 'POS Stand Alone (Fast Track)';
+    if (typeId === 'FAST_TRACK') return 'MPOS (Imple + POS)';
     if (typeId === 'VPOS_MPOS') return 'VPOS/MPOS';
     const type = QUOTE_TYPES.find(t => t.id === typeId);
     return type ? type.name : typeId;
@@ -3752,6 +3752,9 @@ export const Quotes = () => {
                             if (i.integrator_status !== 'Certificado') return false;
                             if (isPaymentGateway) {
                               return i.integration_modality === 'PG Universal' || i.integration_modality === 'PG No universal';
+                            }
+                            if (isFastTrackType) {
+                              return i.integration_modality === 'MPOS';
                             }
                             return true;
                           })
@@ -5451,7 +5454,7 @@ export const Quotes = () => {
                     <button onClick={() => handleProjectTypeSelect('pos_fast_track')}
                       className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all"
                       data-testid="project-type-pos">
-                      <p className="text-sm font-bold text-slate-800">POS Stand Alone / Fast Track</p>
+                      <p className="text-sm font-bold text-slate-800">MPOS (Imple + POS)</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">Equipos de la Gestión de Entrega vinculada a esta cotización</p>
                     </button>
                     <button onClick={() => handleProjectTypeSelect('vpos_mpos')}
@@ -5623,7 +5626,7 @@ export const Quotes = () => {
                       {projectTypeImpl === 'pos_fast_track' ? 'Equipos de la Cotización' : 'Equipos Entregados al Cliente'}
                     </p>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                      {projectTypeImpl === 'pos_fast_track' ? 'POS / Fast Track' : 'VPOS / MPOS'}
+                      {projectTypeImpl === 'pos_fast_track' ? 'MPOS (Imple + POS)' : 'VPOS / MPOS'}
                     </span>
                   </div>
 

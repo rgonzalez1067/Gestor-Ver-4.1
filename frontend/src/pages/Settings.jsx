@@ -581,7 +581,7 @@ export const Settings = () => {
                           </Label>
                         </div>
                         <p className="text-xs text-cyan-700 mb-2">
-                          Recibe notificaciones de <strong>Fast Track</strong> (configuración de equipos) y flujos operativos de la sede Pyme.
+                          Recibe notificaciones de <strong>MPOS (Imple + POS)</strong> (configuración de equipos) y flujos operativos de la sede Pyme.
                         </p>
                         <Input
                           type="email"

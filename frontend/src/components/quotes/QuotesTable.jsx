@@ -87,7 +87,7 @@ export const QuotesTable = ({
             const isEquipment = quote.quote_category === 'equipment';
             const isRepair = quote.quote_category === 'repair';
             const isFastTrack = quote.quote_category === 'fast_track';
-            const displayType = isRepair ? 'Reparación' : isFastTrack ? 'Fast Track' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
+            const displayType = isRepair ? 'Reparación' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
             const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isFastTrack ? 'bg-violet-100 text-violet-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
             const typeColor = isEquipment
               ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
@@ -98,7 +98,7 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap">{quote.quote_number}</td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
-                    {isRepair ? 'Reparaciones' : isFastTrack ? 'Fast Track' : isEquipment ? 'Equipos' : 'Implementación'}
+                    {isRepair ? 'Reparaciones' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? 'Equipos' : 'Implementación'}
                   </span>
                 </td>
                 <td className="px-3 py-4 text-sm">

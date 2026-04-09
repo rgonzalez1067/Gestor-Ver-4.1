@@ -407,7 +407,7 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
 
     if quote.get("quote_category") != "fast_track":
-        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones Fast Track")
+        raise HTTPException(status_code=400, detail="Esta acción solo aplica a cotizaciones MPOS (Imple + POS)")
 
     current_status = quote.get("quote_status", "Borrador")
     if current_status != "Aprobada":
@@ -458,7 +458,7 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 <table style="border-collapse:collapse;width:100%;max-width:500px;margin:16px 0;">
 <tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;width:40%;">Cotización</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{quote.get("quote_number", "")}</td></tr>
 <tr><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Cliente</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">{client_name}</td></tr>
-<tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Tipo</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">POS Stand Alone (Fast Track)</td></tr>
+<tr style="background:#f8fafc;"><td style="padding:10px 16px;border:1px solid #e2e8f0;font-weight:bold;color:#475569;">Tipo</td><td style="padding:10px 16px;border:1px solid #e2e8f0;">MPOS (Imple + POS)</td></tr>
 </table>
 <p style="font-size:14px;color:#64748b;"><strong>Ejecutivo:</strong> {creator_name} ({creator_email})</p>
 <p style="margin-top:12px;padding:10px 14px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:14px;color:#92400e;">

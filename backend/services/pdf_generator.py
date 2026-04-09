@@ -701,7 +701,7 @@ class DynamicQuotePDFGenerator:
                 spaceAfter=6
             )))
             elements.append(Paragraph(
-                "POS Stand Alone (Fast Track) — Equipos incluidos en esta propuesta",
+                "MPOS (Imple + POS) — Equipos incluidos en esta propuesta",
                 ParagraphStyle('EquiposSubtitulo', parent=self.styles['TextoNormal'], alignment=1, fontSize=10, textColor=colors.HexColor("#64748B"), spaceAfter=16)
             ))
             
@@ -1173,7 +1173,7 @@ class DynamicQuotePDFGenerator:
                 spaceAfter=6
             )))
             elements.append(Paragraph(
-                "POS Stand Alone (Fast Track) — Equipos incluidos en esta propuesta",
+                "MPOS (Imple + POS) — Equipos incluidos en esta propuesta",
                 ParagraphStyle('CorpEquiposSubtitulo', parent=self.styles['TextoNormal'], alignment=1, fontSize=10, textColor=colors.HexColor("#64748B"), spaceAfter=16)
             ))
             
