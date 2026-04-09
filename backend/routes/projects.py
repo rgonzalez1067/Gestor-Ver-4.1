@@ -1179,7 +1179,7 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
 
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$set": {"ticket_number": ticket, "updated_at": now}, "$push": {"notes": note}}
+        {"$set": {"ticket_number": ticket, "unblocked_at": now, "updated_at": now}, "$push": {"notes": note}}
     )
 
     return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
@@ -222,7 +222,6 @@ const Projects = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Proyecto / Ticket</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Cliente</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Avance</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Prioridad</th>
@@ -234,8 +233,48 @@ const Projects = () => {
                     const stCfg = STATUS_CONFIG[project.status] || STATUS_CONFIG['Pendiente por Asignar'];
                     const StIcon = stCfg.icon;
                     const hasAssignee = !!project.assigned_to_name;
+                    
+                    // === SLA SEMÁFORO ===
+                    const now = new Date();
+                    const isSuspended = project.status?.includes('Detenido') || project.status?.includes('Suspendido');
+                    const isFinished = project.status === 'Finalizado' || project.status === 'Cancelado';
+                    const pct = project.rollup_progress?.global_progress || 0;
+                    
+                    let slaDays = 0;
+                    let slaLabel = '';
+                    let slaColor = 'bg-emerald-500';
+                    
+                    if (isSuspended) {
+                      slaColor = 'bg-slate-400';
+                      slaLabel = 'Detenido';
+                    } else if (isFinished) {
+                      slaColor = 'bg-blue-500';
+                      slaLabel = project.status;
+                    } else if (!project.assigned_to_name) {
+                      // Etapa A: Sin asignar
+                      const createdDate = project.created_at ? new Date(project.created_at) : now;
+                      slaDays = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+                      slaLabel = `Sin asignar · ${slaDays}d`;
+                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                    } else if (!project.ticket_number) {
+                      // Etapa B: Asignado sin desbloquear
+                      const assignedDate = project.assigned_at ? new Date(project.assigned_at) : now;
+                      slaDays = Math.floor((now - assignedDate) / (1000 * 60 * 60 * 24));
+                      slaLabel = `Pendiente desbloqueo · ${slaDays}d`;
+                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                    } else {
+                      // Etapa C: Desbloqueado — días desde última bitácora
+                      const bitacora = project.bitacora || [];
+                      const lastEntry = bitacora.length > 0 ? bitacora[bitacora.length - 1] : null;
+                      const refDate = lastEntry?.created_at ? new Date(lastEntry.created_at) : (project.unblocked_at ? new Date(project.unblocked_at) : (project.assigned_at ? new Date(project.assigned_at) : now));
+                      slaDays = Math.floor((now - refDate) / (1000 * 60 * 60 * 24));
+                      slaLabel = `Última actividad · ${slaDays}d`;
+                      slaColor = slaDays <= 2 ? 'bg-emerald-500' : slaDays <= 4 ? 'bg-amber-500' : 'bg-red-500';
+                    }
+                    
                     return (
-                      <tr key={project.project_id} className="hover:bg-slate-50 transition-colors"
+                      <React.Fragment key={project.project_id}>
+                      <tr className="hover:bg-slate-50 transition-colors"
                         data-testid={`project-row-${project.project_id}`}>
                         <td className="px-4 py-3">
                           {project.ticket_number ? (
@@ -269,21 +308,6 @@ const Projects = () => {
                           <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
-                        <td className="px-4 py-3">
-                          {(() => {
-                            const pct = project.rollup_progress?.global_progress || 0;
-                            return (
-                              <div className="flex items-center gap-2" data-testid={`progress-${project.project_id}`}>
-                                <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden min-w-[60px]">
-                                  <div className={`h-full rounded-full transition-all ${
-                                    pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'
-                                  }`} style={{ width: `${Math.min(pct, 100)}%` }} />
-                                </div>
-                                <span className={`text-xs font-semibold min-w-[32px] text-right ${pct >= 100 ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
-                              </div>
-                            );
-                          })()}
-                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border ${stCfg.color}`}>
                             <StIcon size={12} />{project.status}
@@ -341,6 +365,27 @@ const Projects = () => {
                           </div>
                         </td>
                       </tr>
+                      {/* Fila SLA Semáforo */}
+                      <tr className="border-b border-slate-200" data-testid={`sla-row-${project.project_id}`}>
+                        <td colSpan={7} className="px-4 py-1.5">
+                          <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
+                            <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />
+                            </div>
+                            <span className={`text-xs font-bold min-w-[36px] text-right ${pct >= 100 ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
+                              isSuspended ? 'bg-slate-100 text-slate-500' :
+                              isFinished ? 'bg-blue-50 text-blue-600' :
+                              slaColor === 'bg-emerald-500' ? 'bg-emerald-50 text-emerald-700' :
+                              slaColor === 'bg-amber-500' ? 'bg-amber-50 text-amber-700' :
+                              'bg-red-50 text-red-700'
+                            }`} data-testid={`sla-badge-${project.project_id}`}>
+                              {slaLabel}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
