@@ -578,7 +578,7 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
     # Construir lista de modelos/seriales desde taller_equipos
     equipos_taller = await db.taller_equipos.find(
         {"quote_id": quote_id, "estatus": "En reparación"}, {"_id": 0, "modelo": 1, "serial": 1}
-    ).to_list(5000)
+    ).to_list(1000)
     modelos_map = {}
     for eq in equipos_taller:
         modelo = eq.get("modelo", "Sin modelo")
@@ -1128,7 +1128,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
         # Construir lista de equipos/seriales desde taller_equipos
         equipos_taller = await db.taller_equipos.find(
             {"quote_id": quote_id, "estatus": "En reparación"}, {"_id": 0, "modelo": 1, "serial": 1}
-        ).to_list(5000)
+        ).to_list(1000)
         modelos_map = {}
         for eq in equipos_taller:
             modelo = eq.get("modelo", "Sin modelo")
@@ -1262,7 +1262,7 @@ async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None
     if warehouse_id:
         movements = await db.inventory_movements.find(
             {"warehouse_id": warehouse_id}, {"_id": 0}
-        ).to_list(10000)
+        ).to_list(2000)
         stock = {}
         for m in movements:
             iid = m["item_id"]
@@ -1389,7 +1389,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             # Calculate current stock
             movements = await db.inventory_movements.find(
                 {"warehouse_id": warehouse_id, "item_id": hw_id}, {"_id": 0}
-            ).to_list(10000)
+            ).to_list(2000)
             stock_qty = 0
             stock_serials = []
             cost_total = 0
@@ -1695,7 +1695,7 @@ async def repair_delivery_prep(quote_id: str, authorization: Optional[str] = Hea
         {"quote_id": quote_id, "estatus": "En reparación"},
         {"_id": 0}
     )
-    equipos = await equipos_cursor.to_list(5000)
+    equipos = await equipos_cursor.to_list(1000)
 
     # Contar ya entregados de esta cotización (para info de saldo)
     total_entregados = await db.taller_equipos.count_documents(
@@ -1787,7 +1787,7 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
     equipos_to_deliver = await db.taller_equipos.find(
         {"taller_equipo_id": {"$in": selected_serials}, "estatus": "En reparación"},
         {"_id": 0}
-    ).to_list(5000)
+    ).to_list(1000)
 
     if not equipos_to_deliver:
         raise HTTPException(status_code=400, detail="No se encontraron equipos válidos para entregar")
@@ -2023,7 +2023,7 @@ async def get_taller_equipos(
             date_filter["$lte"] = fecha_hasta + "T23:59:59"
         query["fecha_ingreso"] = date_filter
 
-    equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(10000)
+    equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(2000)
 
     # Calcular dias_en_taller en el servidor
     now = datetime.now(timezone.utc)
@@ -2125,7 +2125,7 @@ async def export_taller_equipos_excel(
             date_filter["$lte"] = fecha_hasta + "T23:59:59"
         query["fecha_ingreso"] = date_filter
 
-    equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(10000)
+    equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(2000)
 
     now = datetime.now(timezone.utc)
     import openpyxl
@@ -2720,7 +2720,7 @@ async def get_available_serials(warehouse_id: str, item_id: str, authorization: 
     # Obtener seriales en stock
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(10000)
+    ).sort("created_at", 1).to_list(2000)
 
     serials_in_stock = []
     serial_dates = {}
@@ -2744,7 +2744,7 @@ async def get_available_serials(warehouse_id: str, item_id: str, authorization: 
     blocked = await db.serial_assignments.find(
         {"status": {"$in": ["preasignado", "asignado"]}},
         {"_id": 0, "serial": 1}
-    ).to_list(10000)
+    ).to_list(2000)
     blocked_set = {b["serial"] for b in blocked}
 
     available = [s for s in serials_in_stock if s not in blocked_set]

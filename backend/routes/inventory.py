@@ -124,7 +124,7 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
     await get_current_user(authorization)
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(10000)
+    ).sort("created_at", 1).to_list(2000)
 
     stock = {}  # item_id -> { name, type, qty, cost_total, serials[], precarga_qty, precarga_serials[] }
     serial_dates_map = {}  # item_id -> { serial -> acquisition_date }
@@ -180,7 +180,7 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
     blocked_assignments = await db.serial_assignments.find(
         {"status": {"$in": ["preasignado", "asignado"]}},
         {"_id": 0, "serial": 1, "status": 1, "quote_number": 1, "client_name": 1, "item_id": 1}
-    ).to_list(10000)
+    ).to_list(2000)
     blocked_serials = {b["serial"] for b in blocked_assignments}
     blocked_details = {b["serial"]: b for b in blocked_assignments}
 
@@ -735,7 +735,7 @@ async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[st
 
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(10000)
+    ).sort("created_at", 1).to_list(2000)
 
     # Calcular saldo acumulado
     saldo = 0
@@ -943,7 +943,7 @@ async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
     """Calcula stock actual de un ítem en un almacén. Excluye precargas. Seriales ordenados FIFO."""
     movements = await db.inventory_movements.find(
         {"warehouse_id": warehouse_id, "item_id": item_id}, {"_id": 0}
-    ).sort("created_at", 1).to_list(10000)
+    ).sort("created_at", 1).to_list(2000)
 
     qty = 0
     cost_total = 0

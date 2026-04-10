@@ -43,7 +43,7 @@ async def get_integrators(
             "integrator_id": {"$in": integrator_ids},
             "commitment_completed": False,
             "commitment_deadline": {"$lt": today, "$ne": None, "$ne": ""}
-        }, {"_id": 0, "integrator_id": 1}).to_list(5000)
+        }, {"_id": 0, "integrator_id": 1}).to_list(1000)
         for e in overdue_entries:
             overdue_map[e['integrator_id']] = True
     
@@ -77,7 +77,7 @@ async def create_integrator(integrator: IntegratorCreate, authorization: Optiona
 @router.get("/integrators/summary")
 async def get_integrations_summary(group_by: str = "phase", authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    integrators = await db.integrators.find({}, {"_id": 0}).to_list(5000)
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
     services = await db.services.find({}, {"_id": 0}).to_list(500)
     service_map = {s['service_id']: s['name'] for s in services}
     groups = {}
@@ -110,7 +110,7 @@ async def get_integrations_summary(group_by: str = "phase", authorization: Optio
 async def get_integrators_dropdown(authorization: Optional[str] = Header(None)):
     """Retorna lista ligera de integradores para dropdowns con sus aplicativos."""
     await get_current_user(authorization)
-    integrators = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1, "app_name": 1}).to_list(5000)
+    integrators = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1, "app_name": 1}).to_list(1000)
     return [{"integrator_id": i["integrator_id"], "name": i["name"], "app_name": i.get("app_name", "")} for i in integrators]
 
 
@@ -506,7 +506,7 @@ async def delete_evolution_entry(integrator_id: str, entry_id: str, authorizatio
 async def export_integrators_excel(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     
-    integrators = await db.integrators.find({}, {"_id": 0}).to_list(5000)
+    integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
     
     if not integrators:
         raise HTTPException(status_code=404, detail="No integrators to export")

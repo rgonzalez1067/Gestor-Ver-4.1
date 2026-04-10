@@ -436,7 +436,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             ejecutivo_lookup[full.lower()] = {"name": full, "user_id": ej["user_id"]}
             ejecutivo_lookup[ej.get("email", "").lower()] = {"name": full, "user_id": ej["user_id"]}
         
-        integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(5000)
+        integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(1000)
         integrador_lookup = {}
         for intg in integradores_db:
             integrador_lookup[intg["name"].strip().lower()] = {"name": intg["name"], "id": intg["integrator_id"]}

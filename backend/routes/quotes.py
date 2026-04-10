@@ -1692,7 +1692,7 @@ async def validate_repair_serials(
     all_movements = await db.inventory_movements.find(
         {"serials": {"$in": unique_serials}},
         {"_id": 0, "item_name": 1, "item_type": 1, "warehouse_id": 1, "serials": 1}
-    ).to_list(10000)
+    ).to_list(2000)
 
     # Construir mapa serial -> info
     serial_info = {}

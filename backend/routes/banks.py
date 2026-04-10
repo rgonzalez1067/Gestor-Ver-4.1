@@ -66,7 +66,7 @@ async def get_integrations_report(group_by: Optional[str] = None, authorization:
     banks = await db.banks.find(
         {"integrations": {"$exists": True, "$ne": []}},
         {"_id": 0, "bank_id": 1, "name": 1, "bank_logo_url": 1, "integrations": 1}
-    ).to_list(None)
+    ).to_list(500)
     
     report = []
     for bank in banks:
