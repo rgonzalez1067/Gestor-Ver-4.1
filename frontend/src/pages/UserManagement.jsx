@@ -7,8 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { 
   Users, Search, Plus, Edit, Key, UserCheck, UserX, 
   Building2, Phone, Mail, CreditCard, Briefcase, MapPin,
-  Shield, ShieldCheck, Filter, RefreshCw
+  Shield, ShieldCheck, Filter, RefreshCw, Trash2
 } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '../components/ui/alert-dialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -79,6 +83,11 @@ export const UserManagement = () => {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetUser, setResetUser] = useState(null);
   const [resetResult, setResetResult] = useState(null);
+
+  // Modal de eliminar usuario
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -221,6 +230,23 @@ export const UserManagement = () => {
     } catch (error) {
       console.error('Error resetting password:', error);
       toast.error(error.response?.data?.detail || 'Error al restablecer contraseña');
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/users/${deletingUser.user_id}`);
+      toast.success(`Usuario ${deletingUser.first_name} ${deletingUser.last_name} eliminado permanentemente`);
+      setDeleteDialogOpen(false);
+      setDeletingUser(null);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error(error.response?.data?.detail || 'Error al eliminar usuario');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -483,6 +509,15 @@ export const UserManagement = () => {
                               data-testid={`reset-password-${user.user_id}`}
                             >
                               <Key size={14} />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setDeletingUser(user); setDeleteDialogOpen(true); }}
+                              className="text-red-600 border-red-300 hover:bg-red-50"
+                              data-testid={`delete-user-${user.user_id}`}
+                            >
+                              <Trash2 size={14} />
                             </Button>
                           </div>
                         </td>
@@ -756,6 +791,38 @@ export const UserManagement = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* AlertDialog de Confirmación para Eliminar Usuario */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+                <Trash2 size={20} />
+                Eliminar Usuario Permanentemente
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-600">
+                Esta acción es <span className="font-semibold text-red-600">irreversible</span>. Se eliminarán todos los datos, sesiones y tokens asociados al usuario:
+                {deletingUser && (
+                  <span className="block mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <span className="font-semibold text-slate-800 block">{deletingUser.first_name} {deletingUser.last_name}</span>
+                    <span className="text-sm text-slate-500">{deletingUser.email}</span>
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="cancel-delete-user">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteUser}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                data-testid="confirm-delete-user"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar Permanentemente'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

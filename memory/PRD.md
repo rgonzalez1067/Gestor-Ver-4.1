@@ -40,6 +40,7 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - Cargos simplificados: Director, Gerente, Coordinador, Analista, Asistente, Tecnico, Desarrollador, Implementador, Ejecutivo
 - Departamentos: Desarrollo, Aseguramiento de Calidad, Implementación, Infraestructura, Operaciones, Dirección, Ventas Pyme, Ventas Corporativas, Administración
 - Endpoint ejecutivos filtrado por departamento
+- **Super Poder Admin**: Eliminación permanente de usuarios (`DELETE /api/admin/users/{user_id}`) con AlertDialog de confirmación, protección contra auto-eliminación (Abr 2026)
 
 ### Autenticación (P1 — Abr 2026)
 - **Recuperación de Contraseña**:
