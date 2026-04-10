@@ -311,7 +311,7 @@ async def get_users_list(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     users = await db.users.find(
         {"is_active": True},
-        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1}
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1, "departamento": 1, "is_active": 1}
     ).to_list(1000)
     for u in users:
         u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()

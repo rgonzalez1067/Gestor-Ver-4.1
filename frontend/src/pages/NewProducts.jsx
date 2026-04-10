@@ -601,9 +601,8 @@ export const NewProducts = () => {
                 <div className="max-h-[200px] overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
                   {allUsers
                     .filter(u => {
-                      if (!u.is_active) return false;
                       if (assignContext.role === 'Líder de Proyecto') return u.cargo === 'Desarrollador';
-                      if (assignContext.role === 'Analista SQA') return u.cargo === 'Analista';
+                      if (assignContext.role === 'Analista SQA') return u.cargo === 'Analista' && u.departamento === 'Aseguramiento de Calidad';
                       return true;
                     })
                     .map(u => {
