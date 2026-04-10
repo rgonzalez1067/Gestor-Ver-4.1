@@ -78,7 +78,7 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ## Backlog
 
 ### P1 (Próximos)
-- Refactorización de `Quotes.jsx` (5800+ líneas)
+- ~~Refactorización de `Quotes.jsx` (5800+ líneas)~~ COMPLETADO (Abr 2026) — Dividido en `QuoteWizardDialog.jsx`, `QuoteModals.jsx` y `constants.js`
 
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas
