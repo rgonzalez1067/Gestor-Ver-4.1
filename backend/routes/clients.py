@@ -176,7 +176,7 @@ async def parse_rif_document(file: UploadFile = File(...), authorization: Option
     # Verificar duplicados
     rif_digits = re.sub(r'[^0-9]', '', data["rif"])
     existing_clients = []
-    cursor = db.clients.find({"rif": {"$regex": rif_digits[-8:], "$options": "i"}}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1, "sucursal": 1})
+    cursor = db.clients.find({"rif": {"$regex": rif_digits[-8:], "$options": "i"}}, {"_id": 0, "client_id": 1, "rif": 1, "legal_name": 1, "fantasy_name": 1, "sucursal": 1}).limit(100)
     async for doc in cursor:
         existing_clients.append(doc)
 
@@ -311,7 +311,7 @@ async def create_client(client_data: ClientCreate, authorization: Optional[str] 
 @router.get("/clients")
 async def get_clients(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    clients = await db.clients.find({}, {"_id": 0}).to_list(5000)
+    clients = await db.clients.find({}, {"_id": 0}).to_list(2000)
     return clients
 
 @router.get("/clients/search")
@@ -339,7 +339,7 @@ async def get_referidor_options(authorization: Optional[str] = Header(None)):
     banks = await db.banks.find({}, {"_id": 0, "bank_id": 1, "name": 1}).sort("name", 1).to_list(100)
     clients = await db.clients.find(
         {}, {"_id": 0, "client_id": 1, "fantasy_name": 1, "legal_name": 1, "rif": 1}
-    ).sort("fantasy_name", 1).to_list(5000)
+    ).sort("fantasy_name", 1).to_list(2000)
     return {
         "banks": [{"id": b["bank_id"], "name": b["name"]} for b in banks],
         "clients": [{"id": c["client_id"], "name": c.get("fantasy_name") or c.get("legal_name", ""), "rif": c.get("rif", "")} for c in clients]
