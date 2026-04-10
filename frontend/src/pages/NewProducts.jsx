@@ -77,7 +77,7 @@ export const NewProducts = () => {
   // Gobernanza: asignación de responsable
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignContext, setAssignContext] = useState({ productId: '', newStatus: '', role: '', currentProduct: null });
-  const [assignUserId, setAssignUserId] = useState('');
+  const [assignUserIds, setAssignUserIds] = useState([]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -130,27 +130,33 @@ export const NewProducts = () => {
     // Negociación → DESA: Requiere asignar Líder de Proyecto
     if (product.status === 'Negociación' && newStatus === 'DESA') {
       setAssignContext({ productId, newStatus, role: 'Líder de Proyecto', currentProduct: product });
-      setAssignUserId('');
+      setAssignUserIds([]);
       setAssignOpen(true);
       return;
     }
 
     // SQA → IMPLE: Solo Analista SQA puede mover
     if (product.status === 'SQA' && newStatus === 'IMPLE') {
-      if (!product.usuario_responsable_fase) {
-        toast.error('Debe asignar un Analista SQA antes de pasar a IMPLE');
-        return;
+      if (!product.equipo_fase || product.equipo_fase.length === 0) {
+        if (!product.usuario_responsable_fase) {
+          toast.error('Debe asignar un Analista SQA antes de pasar a IMPLE');
+          return;
+        }
       }
-      if (currentUser?.user_id !== product.usuario_responsable_fase) {
-        toast.error(`Solo ${product.responsable_nombre} (Analista SQA) puede autorizar el paso a IMPLE`);
+      const equipoIds = (product.equipo_fase || []).map(e => e.user_id);
+      if (product.usuario_responsable_fase) equipoIds.push(product.usuario_responsable_fase);
+      if (!equipoIds.includes(currentUser?.user_id)) {
+        toast.error(`Solo el equipo de SQA asignado puede autorizar el paso a IMPLE`);
         return;
       }
     }
 
-    // DESA → SQA: Solo el Líder de Proyecto puede mover
+    // DESA → SQA: Solo el equipo DESA puede mover
     if (product.status === 'DESA' && newStatus === 'SQA') {
-      if (product.usuario_responsable_fase && currentUser?.user_id !== product.usuario_responsable_fase) {
-        toast.error(`Solo ${product.responsable_nombre} (Líder de Proyecto) puede mover de DESA a SQA`);
+      const equipoIds = (product.equipo_fase || []).map(e => e.user_id);
+      if (product.usuario_responsable_fase) equipoIds.push(product.usuario_responsable_fase);
+      if (equipoIds.length > 0 && !equipoIds.includes(currentUser?.user_id)) {
+        toast.error(`Solo el equipo de DESA asignado puede mover a SQA`);
         return;
       }
     }
@@ -172,35 +178,37 @@ export const NewProducts = () => {
     }
   };
 
-  // Confirmar asignación de Líder de Proyecto y mover a DESA
+  // Confirmar asignación de equipo y mover a DESA
   const handleConfirmAssign = async () => {
-    if (!assignUserId) { toast.error('Seleccione un usuario'); return; }
+    if (assignUserIds.length === 0) { toast.error('Seleccione al menos un usuario'); return; }
     await executeStatusChange(assignContext.productId, assignContext.newStatus, {
-      responsable_user_id: assignUserId,
+      responsable_user_id: assignUserIds[0],
+      equipo_user_ids: assignUserIds,
     });
     setAssignOpen(false);
-    setAssignUserId('');
+    setAssignUserIds([]);
   };
 
-  // Asignar Analista SQA (cuando el producto está en SQA sin responsable)
+  // Asignar equipo SQA (cuando el producto está en SQA sin responsable)
   const handleAssignAnalyst = async (productId) => {
     const product = products.find(p => p.product_id === productId);
     if (!product) return;
     setAssignContext({ productId, newStatus: null, role: 'Analista SQA', currentProduct: product });
-    setAssignUserId('');
+    setAssignUserIds([]);
     setAssignOpen(true);
   };
 
   const handleConfirmAnalystAssign = async () => {
-    if (!assignUserId) { toast.error('Seleccione un usuario'); return; }
+    if (assignUserIds.length === 0) { toast.error('Seleccione al menos un usuario'); return; }
     try {
       await api.post(`/new-products/${assignContext.productId}/assign-responsable`, {
-        user_id: assignUserId,
+        user_id: assignUserIds[0],
         role: 'Analista SQA',
+        equipo_user_ids: assignUserIds,
       });
-      toast.success('Analista SQA asignado exitosamente');
+      toast.success('Equipo SQA asignado exitosamente');
       setAssignOpen(false);
-      setAssignUserId('');
+      setAssignUserIds([]);
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al asignar');
@@ -236,11 +244,16 @@ export const NewProducts = () => {
     finally { setEvoLoading(false); }
   };
 
-  // Gobernanza: ¿El usuario actual es el responsable activo?
-  const isResponsable = evoProduct?.usuario_responsable_fase === currentUser?.user_id;
-  const hasResponsable = !!evoProduct?.usuario_responsable_fase;
+  // Gobernanza: ¿El usuario actual es parte del equipo asignado o supervisor?
+  const equipoFase = evoProduct?.equipo_fase || [];
+  const equipoIds = equipoFase.map(e => e.user_id);
+  if (evoProduct?.usuario_responsable_fase) equipoIds.push(evoProduct.usuario_responsable_fase);
+  const isResponsable = equipoIds.includes(currentUser?.user_id);
+  const hasResponsable = equipoIds.length > 0;
   const isAdmin = currentUser?.role === 'admin';
-  const canWriteBitacora = !hasResponsable || isResponsable || isAdmin;
+  // Supervisores: usuarios con cargo Gerente o Director
+  const isSupervisor = currentUser?.cargo === 'Gerente' || currentUser?.cargo === 'Director';
+  const canWriteBitacora = !hasResponsable || isResponsable || isAdmin || isSupervisor;
 
   const saveEvoEntry = async () => {
     if (!evoForm.comment.trim()) { toast.error('Escriba un comentario'); return; }
@@ -581,26 +594,57 @@ export const NewProducts = () => {
               </div>
 
               <div>
-                <Label className="text-sm font-semibold">Seleccionar {assignContext.role}</Label>
-                <Select value={assignUserId} onValueChange={setAssignUserId}>
-                  <SelectTrigger data-testid="assign-user-select" className="mt-1">
-                    <SelectValue placeholder="Seleccione un usuario..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map(u => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.first_name} {u.last_name} {u.cargo ? `(${u.cargo})` : ''} — {u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm font-semibold">Seleccionar Equipo — {assignContext.role}</Label>
+                <p className="text-[10px] text-slate-400 mb-2">
+                  {assignContext.role === 'Líder de Proyecto' ? 'Solo se muestran Desarrolladores' : 'Solo se muestran Analistas'}. Puede seleccionar varios.
+                </p>
+                <div className="max-h-[200px] overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                  {allUsers
+                    .filter(u => {
+                      if (!u.is_active) return false;
+                      if (assignContext.role === 'Líder de Proyecto') return u.cargo === 'Desarrollador';
+                      if (assignContext.role === 'Analista SQA') return u.cargo === 'Analista';
+                      return true;
+                    })
+                    .map(u => {
+                      const selected = assignUserIds.includes(u.user_id);
+                      return (
+                        <label key={u.user_id} className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors text-sm ${selected ? 'bg-indigo-50' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => {
+                              setAssignUserIds(prev => selected ? prev.filter(id => id !== u.user_id) : [...prev, u.user_id]);
+                            }}
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                          />
+                          <span className="truncate flex-1">{u.first_name} {u.last_name}</span>
+                          <span className="text-[10px] text-slate-400 shrink-0">{u.cargo || ''}</span>
+                        </label>
+                      );
+                    })
+                  }
+                </div>
+                {assignUserIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {assignUserIds.map(uid => {
+                      const u = allUsers.find(x => x.user_id === uid);
+                      return u ? (
+                        <span key={uid} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 border border-indigo-200">
+                          {u.first_name} {u.last_name}
+                          <button type="button" onClick={() => setAssignUserIds(prev => prev.filter(id => id !== uid))} className="hover:text-red-500">&times;</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancelar</Button>
                 <Button
                   onClick={assignContext.role === 'Líder de Proyecto' ? handleConfirmAssign : handleConfirmAnalystAssign}
-                  disabled={!assignUserId}
+                  disabled={assignUserIds.length === 0}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   data-testid="assign-confirm-btn">
                   <UserCheck size={16} className="mr-1.5" />
@@ -622,15 +666,20 @@ export const NewProducts = () => {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Gobernanza: Info de responsable y modo */}
+            {/* Gobernanza: Info de equipo asignado y modo */}
             {hasResponsable && (
-              <div className={`rounded-lg border p-3 flex items-start gap-2 ${isResponsable ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                {isResponsable ? (
+              <div className={`rounded-lg border p-3 flex items-start gap-2 ${(isResponsable || isSupervisor) ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                {(isResponsable || isSupervisor) ? (
                   <>
                     <UserCheck size={16} className="text-emerald-600 mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs font-semibold text-emerald-800">Modo Editor — Usted es el {evoProduct?.responsable_role}</p>
-                      <p className="text-xs text-emerald-700">Tiene permiso de escritura en la bitácora de esta fase.</p>
+                      <p className="text-xs font-semibold text-emerald-800">Modo Editor{isSupervisor && !isResponsable ? ' (Supervisor)' : ''}</p>
+                      <p className="text-xs text-emerald-700">Tiene permiso de escritura en la bitácora.</p>
+                      {equipoFase.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {equipoFase.map((e, i) => <span key={i} className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] border border-indigo-200">{e.name}</span>)}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -639,9 +688,13 @@ export const NewProducts = () => {
                     <div>
                       <p className="text-xs font-semibold text-amber-800">Modo Solo Lectura</p>
                       <p className="text-xs text-amber-700">
-                        El responsable activo es <strong>{evoProduct?.responsable_nombre}</strong> ({evoProduct?.responsable_role}).
-                        Solo esta persona puede escribir en la bitácora durante la fase {evoProduct?.status}.
+                        Solo el equipo asignado y supervisores pueden escribir en la bitácora.
                       </p>
+                      {equipoFase.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {equipoFase.map((e, i) => <span key={i} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] border border-slate-200">{e.name}</span>)}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -654,7 +707,7 @@ export const NewProducts = () => {
                 <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{evoEditing ? 'Editar Entrada' : 'Nuevo Hito'}</p>
                 <Textarea value={evoForm.comment} onChange={(e) => setEvoForm(p => ({ ...p, comment: e.target.value }))}
                   placeholder="Describa el avance técnico, observación o hito alcanzado..." className="text-sm min-h-[70px]" data-testid="np-evo-comment" />
-                <div className="grid grid-cols-2 gap-2">
+                <div>
                   <div>
                     <Label className="text-[10px] text-slate-500">Fase</Label>
                     <Select value={evoForm.phase} onValueChange={(v) => setEvoForm(p => ({ ...p, phase: v }))}>
@@ -663,10 +716,6 @@ export const NewProducts = () => {
                         {PIPELINE_STATUSES.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-slate-500">Fecha</Label>
-                    <Input type="date" value={evoForm.date} onChange={(e) => setEvoForm(p => ({ ...p, date: e.target.value }))} className="h-8 text-xs" data-testid="np-evo-date" />
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
@@ -685,7 +734,7 @@ export const NewProducts = () => {
               <div className="bg-slate-100 rounded-lg border border-slate-200 p-4 text-center">
                 <Lock size={20} className="mx-auto text-slate-400 mb-1" />
                 <p className="text-sm text-slate-500 font-medium">Bitácora en modo Solo Lectura</p>
-                <p className="text-xs text-slate-400">Solo {evoProduct?.responsable_nombre} ({evoProduct?.responsable_role}) puede agregar entradas.</p>
+                <p className="text-xs text-slate-400">Solo el equipo asignado y supervisores pueden agregar entradas.</p>
               </div>
             )}
 

@@ -154,13 +154,24 @@ async def assign_responsable(product_id: str, body: dict, authorization: Optiona
 
     assigned_name = f"{target_user.get('first_name', '')} {target_user.get('last_name', '')}".strip() or target_user.get("email", "")
 
-    # Actualizar el producto con el nuevo responsable
+    # Construir equipo completo
+    equipo_user_ids = body.get("equipo_user_ids", [])
+    equipo_fase = []
+    all_ids = list(set(equipo_user_ids)) if equipo_user_ids else [assigned_user_id]
+    for uid in all_ids:
+        u = await db.users.find_one({"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+        if u:
+            name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", "")
+            equipo_fase.append({"user_id": uid, "name": name, "cargo": u.get("cargo", ""), "email": u.get("email", "")})
+
+    # Actualizar el producto con el nuevo equipo
     await db.new_products.update_one(
         {"product_id": product_id},
         {"$set": {
             "usuario_responsable_fase": assigned_user_id,
             "responsable_nombre": assigned_name,
             "responsable_role": role,
+            "equipo_fase": equipo_fase,
         }}
     )
 
@@ -226,56 +237,69 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
 
     # === GOBERNANZA: Restricciones de transición ===
 
-    # 1. Negociación → DESA: Requiere asignar Líder de Proyecto
+    # 1. Negociación → DESA: Requiere asignar equipo de Desarrolladores
     if old_status == "Negociación" and new_status == "DESA":
         resp_user_id = body.get("responsable_user_id")
+        equipo_user_ids = body.get("equipo_user_ids", [])
         if not resp_user_id:
-            raise HTTPException(status_code=400, detail="GOBERNANZA: Para mover a DESA debe asignar un Líder de Proyecto")
+            raise HTTPException(status_code=400, detail="GOBERNANZA: Para mover a DESA debe asignar al menos un Desarrollador")
 
-        # Buscar y asignar el Líder de Proyecto
-        target = await db.users.find_one({"user_id": resp_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
-        if not target:
-            raise HTTPException(status_code=404, detail="Usuario a asignar no encontrado")
+        # Construir equipo completo
+        equipo_fase = []
+        all_ids = list(set(equipo_user_ids)) if equipo_user_ids else [resp_user_id]
+        for uid in all_ids:
+            target = await db.users.find_one({"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+            if target:
+                name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
+                equipo_fase.append({"user_id": uid, "name": name, "cargo": target.get("cargo", ""), "email": target.get("email", "")})
 
-        assigned_name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
+        assigned_name = ", ".join([e["name"] for e in equipo_fase])
         await db.new_products.update_one(
             {"product_id": product_id},
             {"$set": {
                 "usuario_responsable_fase": resp_user_id,
-                "responsable_nombre": assigned_name,
+                "responsable_nombre": equipo_fase[0]["name"] if equipo_fase else assigned_name,
                 "responsable_role": "Líder de Proyecto",
+                "equipo_fase": equipo_fase,
             }}
         )
-        await _log_assignment(product_id, resp_user_id, assigned_name, "Líder de Proyecto", "DESA", user)
+        await _log_assignment(product_id, resp_user_id, assigned_name, "Equipo DESA", "DESA", user)
 
-    # 2. DESA → SQA: Solo el Líder de Proyecto puede mover
+    # 2. DESA → SQA: Solo el equipo DESA puede mover
     elif old_status == "DESA" and new_status == "SQA":
-        if responsable_id and current_user_id != responsable_id:
+        equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
+        if responsable_id:
+            equipo_ids.append(responsable_id)
+        if equipo_ids and current_user_id not in equipo_ids and user.get("role") != "admin":
             raise HTTPException(
                 status_code=403,
-                detail=f"GOBERNANZA: Solo el Líder de Proyecto asignado ({product.get('responsable_nombre', 'N/A')}) puede mover de DESA a SQA"
+                detail="GOBERNANZA: Solo el equipo DESA asignado puede mover de DESA a SQA"
             )
-        # Limpiar responsable al entrar a SQA (el Gerente de SQA asignará al Analista)
+        # Limpiar equipo al entrar a SQA
         await db.new_products.update_one(
             {"product_id": product_id},
             {"$set": {
                 "usuario_responsable_fase": None,
                 "responsable_nombre": None,
                 "responsable_role": None,
+                "equipo_fase": [],
             }}
         )
 
-    # 3. SQA → IMPLE: Solo el Analista SQA asignado puede mover
+    # 3. SQA → IMPLE: Solo el equipo SQA asignado puede mover
     elif old_status == "SQA" and new_status == "IMPLE":
-        if not responsable_id:
+        equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
+        if responsable_id:
+            equipo_ids.append(responsable_id)
+        if not equipo_ids:
             raise HTTPException(
                 status_code=403,
-                detail="GOBERNANZA: No hay Analista SQA asignado. El Gerente de SQA debe asignar un analista antes de pasar a IMPLE."
+                detail="GOBERNANZA: No hay equipo SQA asignado. Debe asignar analistas antes de pasar a IMPLE."
             )
-        if current_user_id != responsable_id:
+        if current_user_id not in equipo_ids and user.get("role") != "admin":
             raise HTTPException(
                 status_code=403,
-                detail=f"GOBERNANZA: Solo el Analista SQA asignado ({product.get('responsable_nombre', 'N/A')}) puede autorizar el paso a IMPLE"
+                detail="GOBERNANZA: Solo el equipo SQA asignado puede autorizar el paso a IMPLE"
             )
 
     # Registrar transición con lead time
@@ -284,32 +308,70 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     days_text = f" (Tiempo transcurrido en fase {old_status}: {days_in_phase} días)" if days_in_phase is not None else ""
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
 
-    # -- Notificación simulada enriquecida --
+    # -- Notificación por email a Gerencia de Ventas y Gerente de Implementación --
     try:
-        sales_roles = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
-        sales_users = await db.users.find(
-            {"cargo": {"$in": sales_roles}},
+        # Destinatarios: Gerentes de Ventas + Gerente de Implementación + Coordinadores
+        notify_cargos = ["Gerente", "Coordinador", "Director"]
+        notify_deptos = ["Ventas Pyme", "Ventas Corporativas", "Implementación"]
+        notify_users = await db.users.find(
+            {"is_active": True, "$or": [
+                {"cargo": {"$in": notify_cargos}, "departamento": {"$in": notify_deptos}},
+                {"cargo": "Director"},
+            ]},
             {"_id": 0, "email": 1, "first_name": 1}
         ).to_list(100)
-        recipients = [u["email"] for u in sales_users if u.get("email")]
+        recipients = list(set([u["email"] for u in notify_users if u.get("email")]))
 
-        if new_status == "IMPLE":
-            logging.info(
-                f"[EMAIL SIMULADO - CRITICO] El proceso de Integración del Medio de Pago "
-                f"'{product['service_name']}', del Banco '{product['bank_name']}', "
-                f"ha avanzado a la fase de IMPLE el día {now_str}.{days_text} "
-                f"El producto ya está disponible en la ficha del Banco. "
-                f"Destinatarios={recipients or 'Sin ejecutivos registrados'}"
-            )
+        # Equipo asignado
+        equipo = product.get("equipo_fase", [])
+        equipo_html = ""
+        if equipo:
+            equipo_html = "<ul style='margin:10px 0;padding-left:20px;'>"
+            for e in equipo:
+                equipo_html += f"<li style='margin:4px 0;'><strong>{e.get('name','')}</strong> — {e.get('cargo','')}</li>"
+            equipo_html += "</ul>"
+        elif product.get("responsable_nombre"):
+            equipo_html = f"<p style='margin:10px 0;'><strong>{product.get('responsable_nombre')}</strong></p>"
         else:
-            logging.info(
-                f"[EMAIL SIMULADO] El proceso de Integración del Medio de Pago "
-                f"'{product['service_name']}', del Banco '{product['bank_name']}', "
-                f"ha avanzado a la fase de {new_status} el día {now_str}.{days_text} "
-                f"Destinatarios={recipients or 'Sin ejecutivos registrados'}"
+            equipo_html = "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>"
+
+        service_name = product.get("service_name", "N/A")
+        bank_name = product.get("bank_name", "N/A")
+
+        email_html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:650px;margin:0 auto;padding:20px;">
+          <div style="background:#003366;padding:20px;text-align:center;border-radius:8px 8px 0 0;">
+            <h1 style="color:white;margin:0;font-size:20px;">Actualización de Nuevos Proyectos</h1>
+            <p style="color:#93c5fd;margin:4px 0 0;font-size:14px;">Producto: {service_name} — Banco: {bank_name}</p>
+          </div>
+          <div style="background:#f8fafc;padding:25px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+            <p style="color:#334155;font-size:14px;">Reciban un cordial saludo.</p>
+            <p style="color:#475569;font-size:14px;">
+              El día de hoy, el proyecto de Integración del Medio de Pago <strong>{service_name}</strong>,
+              para el Banco/Entidad: <strong>{bank_name}</strong>,
+              ha pasado al Estatus: <span style="color:#003366;font-weight:bold;font-size:15px;">{new_status}</span>.{days_text}
+            </p>
+            <p style="color:#475569;font-size:14px;">Será atendido por el siguiente equipo de trabajo:</p>
+            {equipo_html}
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+            <p style="color:#94a3b8;font-size:12px;text-align:center;">Sistema de Gestión de Proyectos — Mega Soft</p>
+          </div>
+        </div>
+        """
+
+        if recipients:
+            from services.email_service import send_email
+            await send_email(
+                to=recipients,
+                subject=f"Actualización de Nuevos Proyectos - Producto: {service_name} - Banco: {bank_name}",
+                html=email_html,
+                action="new_product_status_change"
             )
+            logging.info(f"[NP] Email de actualización enviado a {len(recipients)} destinatarios para {service_name}/{bank_name} → {new_status}")
+        else:
+            logging.info(f"[NP] Sin destinatarios para notificación de {service_name}/{bank_name} → {new_status}")
     except Exception as e:
-        logging.error(f"Error al preparar notificación de nuevo producto: {e}")
+        logging.error(f"Error al enviar notificación de nuevo producto: {e}")
 
     # -- Hand-off automático a integraciones del banco cuando llega a IMPLE --
     promoted = False
@@ -385,24 +447,30 @@ async def add_evolution(product_id: str, body: dict, authorization: Optional[str
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    # === GOBERNANZA: Solo el responsable de fase puede escribir ===
+    # === GOBERNANZA: Solo equipo asignado, supervisores o admin pueden escribir ===
     responsable_id = product.get("usuario_responsable_fase")
+    equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
+    if responsable_id:
+        equipo_ids.append(responsable_id)
     current_user_id = user.get("user_id", "")
     user_role = user.get("role", "")
+    user_cargo = user.get("cargo", "")
+    is_supervisor = user_cargo in ("Gerente", "Director")
 
-    if responsable_id and current_user_id != responsable_id and user_role != "admin":
-        responsable_name = product.get("responsable_nombre", "N/A")
-        responsable_role = product.get("responsable_role", "N/A")
+    if equipo_ids and current_user_id not in equipo_ids and user_role != "admin" and not is_supervisor:
         raise HTTPException(
             status_code=403,
-            detail=f"GOBERNANZA: Solo {responsable_name} ({responsable_role}) puede escribir en la bitácora durante la fase {product['status']}. Su acceso es de Solo Lectura."
+            detail=f"GOBERNANZA: Solo el equipo asignado y supervisores pueden escribir en la bitácora durante la fase {product['status']}."
         )
+
+    # Fecha del sistema (no manipulable)
+    system_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     entry = NewProductEvolutionEntry(
         product_id=product_id,
         comment=body.get("comment", ""),
         phase=body.get("phase", product.get("status", "Negociación")),
-        date=body.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d")),
+        date=system_date,  # Siempre fecha del sistema
     )
     doc = entry.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
