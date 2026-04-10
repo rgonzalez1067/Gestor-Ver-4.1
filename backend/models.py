@@ -584,6 +584,8 @@ class Quote(BaseModel):
     # Segmento de cliente (seleccionado en el wizard)
     client_segment: str = "PYME"  # "PYME" o "CORP" — tagging de segmento
     created_by_user_id: Optional[str] = None  # ID del usuario que creó la cotización
+    creator_name: Optional[str] = None  # Nombre completo del creador (inyectado en listing)
+    creator_initials: Optional[str] = None  # Iniciales del creador (inyectado en listing)
     # Campos de seguimiento - timestamps
     sent_to_client_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None

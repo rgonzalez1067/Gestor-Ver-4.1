@@ -5,6 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import QuoteStatusStepper from './QuoteStatusStepper';
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+
 const STATUS_COLORS = {
   'Borrador': 'bg-slate-100 text-slate-600',
   'Enviada': 'bg-blue-100 text-blue-600',
@@ -68,7 +70,7 @@ export const QuotesTable = ({
       <table className="w-full min-w-[1200px]" data-testid="quotes-unified-table">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
-            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Número</th>
+            <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase sticky left-0 bg-slate-50 z-20 border-r-2 border-slate-200" style={{minWidth: '140px'}}>Número</th>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Categoría</th>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Segmento</th>
             <th className="px-3 py-4 text-left text-xs font-medium text-slate-700 uppercase">Tipo</th>
@@ -95,24 +97,43 @@ export const QuotesTable = ({
 
             return (
               <tr key={quote.quote_id} className="hover:bg-slate-50 group" data-testid={`quote-row-${quote.quote_id}`}>
-                <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap">{quote.quote_number}</td>
+                <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r-2 border-slate-200">{quote.quote_number}</td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
                     {isRepair ? 'Reparaciones' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? 'Equipos' : 'Implementación'}
                   </span>
                 </td>
                 <td className="px-3 py-4 text-sm">
-                  {quote.client_segment ? (
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                      quote.client_segment === 'CORP'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                    }`} data-testid={`segment-tag-${quote.quote_id}`}>
-                      {quote.client_segment === 'CORP' ? 'Corp' : 'Pyme'}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-slate-400">—</span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {quote.client_segment ? (
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        quote.client_segment === 'CORP'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`} data-testid={`segment-tag-${quote.quote_id}`}>
+                        {quote.client_segment === 'CORP' ? 'Corp' : 'Pyme'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                    {quote.creator_initials && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-[11px] font-bold shrink-0 cursor-default"
+                              data-testid={`creator-badge-${quote.quote_id}`}
+                            >
+                              {quote.creator_initials}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">{quote.creator_name || 'Usuario'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>{displayType}</span>

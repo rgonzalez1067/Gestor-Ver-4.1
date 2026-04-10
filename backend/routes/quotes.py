@@ -467,6 +467,22 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             if not quote.get('client_name') and quote.get('client_id'):
                 quote['client_name'] = client_docs.get(quote['client_id'], 'N/A')
     
+    # Resolver nombres de creadores
+    creator_ids = set(q.get('created_by_user_id') for q in quotes if q.get('created_by_user_id'))
+    if creator_ids:
+        creator_map = {}
+        async for u in db.users.find({"user_id": {"$in": list(creator_ids)}}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1}):
+            fn = u.get("first_name", "")
+            ln = u.get("last_name", "")
+            full = f"{fn} {ln}".strip()
+            initials = (fn[:1] + ln[:1]).upper() if fn and ln else (fn[:2] or ln[:2] or "??").upper()
+            creator_map[u["user_id"]] = {"name": full, "initials": initials}
+        for quote in quotes:
+            uid = quote.get("created_by_user_id")
+            info = creator_map.get(uid, {})
+            quote["creator_name"] = info.get("name", "")
+            quote["creator_initials"] = info.get("initials", "")
+    
     return quotes
 
 @router.get("/quotes/{quote_id}", response_model=Quote)

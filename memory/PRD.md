@@ -24,6 +24,8 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - RBAC con `special_permissions`
 - Flujo de excepción para pasos saltados
 - Fast Track completo con Prerregistro de Seriales
+- **Badge de Iniciales del Creador**: Muestra iniciales del usuario que generó la cotización junto al segmento, con tooltip del nombre completo (Abr 2026)
+- **Columna Sticky**: Código de cotización fijo al hacer scroll horizontal (Abr 2026)
 
 ### Facturación
 - Tasas de Cambio BCV automatizadas
