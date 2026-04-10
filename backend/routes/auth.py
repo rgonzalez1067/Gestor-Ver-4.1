@@ -726,6 +726,31 @@ async def update_user_status(user_id: str, is_active: bool, authorization: Optio
     
     return {"message": f"Usuario {'activado' if is_active else 'desactivado'}"}
 
+
+@router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar permanentemente un usuario (solo admin — super poder)"""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar usuarios")
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1, "name": 1, "user_id": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    if user_id == current_user.get("user_id"):
+        raise HTTPException(status_code=400, detail="No puede eliminarse a sí mismo")
+    
+    # Eliminar sesiones, tokens y el usuario
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.password_reset_tokens.delete_many({"user_id": user_id})
+    await db.email_verification_tokens.delete_many({"user_id": user_id})
+    await db.users.delete_one({"user_id": user_id})
+    
+    logging.info(f"[ADMIN] Usuario eliminado permanentemente: {user.get('email')} ({user_id}) por {current_user.get('email')}")
+    return {"message": f"Usuario {user.get('name', user.get('email'))} eliminado permanentemente"}
+
+
 @router.put("/admin/users/{user_id}")
 async def update_user(user_id: str, user_data: UserUpdate, authorization: Optional[str] = Header(None)):
     """Actualizar datos de un usuario (solo admin)"""
