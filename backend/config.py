@@ -154,6 +154,77 @@ async def generate_quote_number(sede: str) -> str:
     return f"COT-{year}-{month}-{seq:03d}-{sede_code}"
 
 
+def stamp_header_footer_on_all_pages(pdf_buffer, quote_number="", logo_path=None):
+    """Aplica encabezado y pie de página como overlay en TODAS las páginas del PDF final.
+    Esto asegura que las páginas inyectadas (anexos, condiciones) también tengan el branding."""
+    if not PYPDF2_AVAILABLE:
+        return pdf_buffer
+    
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas as rl_canvas
+    
+    pdf_buffer.seek(0) if isinstance(pdf_buffer, io.BytesIO) else None
+    reader = PdfReader(pdf_buffer if isinstance(pdf_buffer, io.BytesIO) else io.BytesIO(pdf_buffer))
+    total_pages = len(reader.pages)
+    if total_pages == 0:
+        return pdf_buffer
+    
+    page_width, page_height = letter
+    margin = 50
+    writer = PdfWriter()
+    
+    for page_num, page in enumerate(reader.pages, start=1):
+        # Crear overlay para esta página
+        overlay_buf = io.BytesIO()
+        c = rl_canvas.Canvas(overlay_buf, pagesize=letter)
+        
+        # Encabezado - Logo
+        if logo_path and os.path.exists(logo_path):
+            try:
+                c.drawImage(logo_path, margin, page_height - 70, width=120, height=50, preserveAspectRatio=True)
+            except:
+                pass
+        
+        # Línea de encabezado
+        c.setStrokeColor(colors.HexColor("#00447C"))
+        c.setLineWidth(2)
+        c.line(margin, page_height - 80, page_width - margin, page_height - 80)
+        
+        # Número de cotización + fecha
+        if quote_number:
+            c.setFont('Helvetica-Bold', 10)
+            c.setFillColor(colors.HexColor("#00447C"))
+            c.drawRightString(page_width - margin, page_height - 55, f"Cotizacion: {quote_number}")
+            c.setFont('Helvetica', 8)
+            c.setFillColor(colors.HexColor("#666666"))
+            c.drawRightString(page_width - margin, page_height - 68, 
+                             f"Fecha: {datetime.now(timezone.utc).strftime('%d/%m/%Y')}")
+        
+        # Pie de página
+        c.setStrokeColor(colors.HexColor("#EEEEEE"))
+        c.setLineWidth(1)
+        c.line(margin, 40, page_width - margin, 40)
+        c.setFont('Helvetica', 8)
+        c.setFillColor(colors.HexColor("#666666"))
+        c.drawString(margin, 25, "Documento Confidencial - Propiedad de Mega Soft Computacion C.A.")
+        c.drawRightString(page_width - margin, 25, f"Pagina {page_num} de {total_pages}")
+        
+        c.save()
+        overlay_buf.seek(0)
+        overlay_reader = PdfReader(overlay_buf)
+        overlay_page = overlay_reader.pages[0]
+        
+        # Merge: overlay encima de la página original
+        page.merge_page(overlay_page)
+        writer.add_page(page)
+    
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output
+
+
 def append_vpos_static_pages(pdf_buffer: io.BytesIO) -> io.BytesIO:
     if not PYPDF2_AVAILABLE:
         return pdf_buffer

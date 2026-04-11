@@ -8,7 +8,7 @@ import logging
 import io
 import os
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, render_email_template
+from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 from reportlab.lib.pagesizes import letter
@@ -206,11 +206,14 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 else:
                     pdf_buffer = append_vpos_static_pages(pdf_buffer)
                 
+                # Estampar header/footer en TODAS las páginas (incluyendo anexos inyectados)
+                pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
+                
                 # Guardar PDF en el servidor
                 pdf_filename = f"{quote_number}_Cotizacion.pdf"
                 pdf_path = UPLOADS_DIR / pdf_filename
                 with open(pdf_path, 'wb') as f:
-                    f.write(pdf_buffer.getvalue())
+                    f.write(pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read())
                 
                 quote_pdf_url = f"/uploads/{pdf_filename}"
                 logging.info(f"PDF generado y almacenado: {quote_pdf_url}")
@@ -272,10 +275,13 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                     pdf_buffer = generator.generate()
                     pdf_buffer = append_pg_static_pages(pdf_buffer)
                     
+                    # Estampar header/footer en TODAS las páginas
+                    pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
+                    
                     pdf_filename = f"{quote_number}_Cotizacion.pdf"
                     pdf_path = UPLOADS_DIR / pdf_filename
                     with open(pdf_path, 'wb') as f:
-                        f.write(pdf_buffer.getvalue())
+                        f.write(pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read())
                     quote_pdf_url = f"/uploads/{pdf_filename}"
                     logging.info(f"PDF PG generado con DynamicGenerator: {quote_pdf_url}")
             except Exception as e:
@@ -1262,11 +1268,14 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
+        # Estampar header/footer en TODAS las páginas
+        pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, data.quote_number or '', logo_path)
+        
         # Nombre del archivo
         filename = f"cotizacion_{data.cliente_nombre.replace(' ', '_').replace('.', '')}_{data.quote_number or datetime.now().strftime('%Y%m%d')}.pdf"
         
         return Response(
-            content=pdf_buffer.getvalue(),
+            content=pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read(),
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
@@ -1311,8 +1320,11 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
+        # Estampar header/footer en TODAS las páginas
+        pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, data.quote_number or '', logo_path)
+        
         return Response(
-            content=pdf_buffer.getvalue(),
+            content=pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read(),
             media_type="application/pdf",
             headers={"Content-Disposition": "inline"}  # Inline para preview
         )

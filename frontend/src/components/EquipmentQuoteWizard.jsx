@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -8,6 +8,7 @@ import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '../utils/api';
 
 // Categorías principales - 4 categorías planas
 const EQUIPMENT_CATEGORIES = [
@@ -41,6 +42,37 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [repairDescription, setRepairDescription] = useState('');
   const [equipmentSerialNumber, setEquipmentSerialNumber] = useState('');
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
+
+  // Búsqueda dinámica de clientes
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [clientSearchResults, setClientSearchResults] = useState([]);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const clientSearchTimer = useRef(null);
+
+  useEffect(() => {
+    if (!clientSearchQuery || clientSearchQuery.length < 2) {
+      setClientSearchResults([]);
+      return;
+    }
+    setIsSearchingClients(true);
+    if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current);
+    clientSearchTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/clients/search?q=${encodeURIComponent(clientSearchQuery)}`);
+        setClientSearchResults(res.data);
+      } catch {
+        const q = clientSearchQuery.toLowerCase().replace(/[.\-\s]/g, '');
+        setClientSearchResults(clients.filter(c =>
+          (c.fantasy_name || '').toLowerCase().includes(q) ||
+          (c.legal_name || '').toLowerCase().includes(q) ||
+          (c.rif || '').replace(/[.\-\s]/g, '').toLowerCase().includes(q)
+        ));
+      } finally {
+        setIsSearchingClients(false);
+      }
+    }, 300);
+    return () => { if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current); };
+  }, [clientSearchQuery, clients]);
 
   // Si hay forcedMode, pre-seleccionar la categoría al abrir
   useEffect(() => {
@@ -184,6 +216,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setCurrentModelSerials([]);
     setSerialInput('');
     setModelSearchQuery('');
+    setClientSearchQuery('');
+    setClientSearchResults([]);
   };
 
   // ==================== FLUJO CÍCLICO MULTI-MODELO ====================
@@ -456,19 +490,36 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                 <Select 
                   value={selectedClient?.client_id || ''} 
                   onValueChange={(value) => {
-                    const client = clients.find(c => c.client_id === value);
+                    const client = clients.find(c => c.client_id === value) || clientSearchResults.find(c => c.client_id === value);
                     setSelectedClient(client);
                   }}
                 >
                   <SelectTrigger data-testid="equipment-select-client">
                     <SelectValue placeholder="Buscar por RIF o Nombre..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
+                  <SelectContent className="max-h-[280px]">
+                    <div className="px-2 pb-2 sticky top-0 bg-white z-10">
+                      <input
+                        type="text"
+                        placeholder="Escriba RIF o nombre del cliente..."
+                        className="w-full h-8 px-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-blue-400"
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        data-testid="equipment-client-search-input"
+                      />
+                    </div>
+                    {isSearchingClients && (
+                      <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>
+                    )}
+                    {(clientSearchQuery.length >= 2 ? clientSearchResults : clients.slice(0, 50)).map((client) => (
                       <SelectItem key={client.client_id} value={client.client_id}>
                         {client.rif} - {client.fantasy_name || client.legal_name}
                       </SelectItem>
                     ))}
+                    {clientSearchQuery.length >= 2 && clientSearchResults.length === 0 && !isSearchingClients && (
+                      <div className="px-3 py-2 text-xs text-slate-400">No se encontraron resultados</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

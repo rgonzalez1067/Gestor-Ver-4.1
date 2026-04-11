@@ -1,0 +1,60 @@
+{
+  "summary": "Tested PDF header/footer stamping and Equipment Wizard client search. Found CRITICAL BUG: PDF pages 1-5 have DOUBLED header/footer text due to both _header_footer() callback and stamp_header_footer_on_all_pages() adding overlays. Pages 6-9 (annexes) are correct. Equipment Wizard client search is working correctly with dynamic filtering.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/quotes/preview-pdf-with-template, /api/quotes/generate-pdf-with-template",
+        "issue": "PDF pages 1-5 have DOUBLED header/footer text. Both _header_footer() callback in doc.build() AND stamp_header_footer_on_all_pages() are adding overlays, causing text like 'CCoottiizzaacciioonn' instead of 'Cotizacion'. Pages 6-9 (annexes) are correct because they only get stamp_header_footer_on_all_pages() overlay.",
+        "priority": "CRITICAL",
+        "root_cause": "In pdf_generator.py lines 899, 1304, 1650: doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer) adds header/footer to generated pages. Then stamp_header_footer_on_all_pages() in routes/quotes.py adds ANOTHER overlay on ALL pages.",
+        "fix": "Remove _header_footer callback from doc.build() calls. Change to: doc.build(elements) and let stamp_header_footer_on_all_pages() handle ALL header/footer stamping."
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "QuotesTable",
+        "issues": ["React hydration warning: <tr> cannot be child of <span>, <span> cannot be child of <tbody>. This is a minor issue but should be fixed for clean console."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pdf_header_footer.py",
+    "/app/test_reports/pytest/pytest_results_iteration163.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix PDF double header/footer by removing _header_footer callback from doc.build() in pdf_generator.py lines 899, 1304, 1650. Change to: doc.build(elements) without onFirstPage/onLaterPages callbacks.",
+    "OPTIONAL: Fix React hydration warnings in QuotesTable component"
+  ],
+  "critical_code_review_comments": [
+    "pdf_generator.py: _header_footer() method should be removed or disabled since stamp_header_footer_on_all_pages() now handles all header/footer stamping",
+    "The stamp_header_footer_on_all_pages() function in config.py is correctly implemented - it properly applies overlay to ALL pages including annexes"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pdf_header_footer.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% (Equipment Wizard, Implementaciones Wizard, Quotes Table all working)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "PDF header/footer stamping has a critical bug where pages 1-5 have doubled text. The fix is to remove _header_footer callback from doc.build() calls. Equipment Wizard client search is working correctly with data-testid='equipment-client-search-input' and server-side search via /api/clients/search.",
+  "rca_of_the_issue": {
+    "bug": "PDF pages 1-5 have doubled header/footer text",
+    "reproduction_steps": [
+      "1. Call POST /api/quotes/preview-pdf-with-template with valid quote data",
+      "2. Open the generated PDF",
+      "3. Observe pages 1-5 have doubled text (e.g., 'CCoottiizzaacciioonn' instead of 'Cotizacion')",
+      "4. Pages 6-9 (annexes) have correct single text"
+    ],
+    "root_cause": "Two overlapping header/footer mechanisms: (1) _header_footer() callback in doc.build() adds header/footer during PDF generation for pages 1-5, (2) stamp_header_footer_on_all_pages() adds another overlay on ALL pages. This causes double text on pages 1-5.",
+    "mitigation": "Remove onFirstPage=self._header_footer and onLaterPages=self._header_footer from doc.build() calls in pdf_generator.py (lines 899, 1304, 1650). Let stamp_header_footer_on_all_pages() handle ALL header/footer stamping uniformly."
+  }
+}
