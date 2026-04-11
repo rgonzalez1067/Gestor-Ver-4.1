@@ -55,6 +55,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
     handleIntegratorChange, removeAdditionalItem, removeSetupItem,
     removeRecurringBasicItem, removeRecurringOtherItem, removePgSetupItem,
     getQuoteTypeName, initPgSetup,
+    pgFullRecurringTable, updateSetupItem, updateRecurringBasicItem,
+    updateRecurringOtherItem, updateAdditionalItem, updatePgSetupItem,
     // Misc
     isLoadingEdit, editingQuoteId, currentUser,
   } = ctx;

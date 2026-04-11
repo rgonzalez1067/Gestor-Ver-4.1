@@ -3310,6 +3310,8 @@ export const Quotes = () => {
             handleIntegratorChange, removeAdditionalItem, removeSetupItem,
             removeRecurringBasicItem, removeRecurringOtherItem, removePgSetupItem,
             getQuoteTypeName, initPgSetup,
+            pgFullRecurringTable, updateSetupItem, updateRecurringBasicItem,
+            updateRecurringOtherItem, updateAdditionalItem, updatePgSetupItem,
             isLoadingEdit, editingQuoteId, currentUser,
           }} />
 
