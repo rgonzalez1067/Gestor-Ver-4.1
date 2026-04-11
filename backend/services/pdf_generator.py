@@ -8,12 +8,17 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Frame, PageTemplate, BaseDocTemplate, PageBreak
 from reportlab.lib.units import inch, cm, mm
-from reportlab.pdfgen import canvas
+from reportlab.pdfgen import canvas as canvas_module
 import io
 import os
 from datetime import datetime, timedelta
 
 from models import QuotePDFItem
+
+
+class NumberedCanvas(canvas_module.Canvas):
+    """Canvas estándar — solo para compatibilidad de import."""
+    pass
 
 class TemplateQuotePDFRequest(BaseModel):
     """Modelo para generar PDF usando plantilla configurada"""
@@ -151,7 +156,7 @@ class DynamicQuotePDFGenerator:
         """Añadir encabezado y pie de página a cada página"""
         canvas.saveState()
         
-        # Encabezado - Logo y título
+        # Encabezado - Logo
         if self.logo_path and os.path.exists(self.logo_path):
             try:
                 canvas.drawImage(self.logo_path, self.margin, self.page_height - 70, 
@@ -165,23 +170,29 @@ class DynamicQuotePDFGenerator:
         canvas.line(self.margin, self.page_height - 80, 
                    self.page_width - self.margin, self.page_height - 80)
         
-        # Número de cotización en encabezado (derecha)
+        # Número de cotización y fecha en encabezado (derecha)
         if self.data.quote_number:
             canvas.setFont('Helvetica-Bold', 10)
             canvas.setFillColor(self.COLOR_AZUL)
-            canvas.drawRightString(self.page_width - self.margin, self.page_height - 65, 
-                                  f"Cotización: {self.data.quote_number}")
+            canvas.drawRightString(self.page_width - self.margin, self.page_height - 55, 
+                                  f"Cotizacion: {self.data.quote_number}")
+            canvas.setFont('Helvetica', 8)
+            canvas.setFillColor(colors.HexColor("#666666"))
+            canvas.drawRightString(self.page_width - self.margin, self.page_height - 68, 
+                                  f"Fecha: {datetime.now().strftime('%d/%m/%Y')}")
         
-        # Pie de página
+        # Pie de página - línea separadora
         canvas.setStrokeColor(self.COLOR_GRIS)
         canvas.setLineWidth(1)
         canvas.line(self.margin, 40, self.page_width - self.margin, 40)
         
+        # Pie: Nota legal (izquierda) + Número de página (derecha)
         canvas.setFont('Helvetica', 8)
-        canvas.setFillColor(colors.gray)
-        canvas.drawCentredString(self.page_width / 2, 25, 
-                                f"Cotizador Merchant Server - {datetime.now().strftime('%d/%m/%Y')}")
-        canvas.drawRightString(self.page_width - self.margin, 25, f"Página {doc.page}")
+        canvas.setFillColor(colors.HexColor("#666666"))
+        canvas.drawString(self.margin, 25, 
+                         "Documento Confidencial - Propiedad de Mega Soft Computacion C.A.")
+        canvas.drawRightString(self.page_width - self.margin, 25, 
+                              f"Pagina {doc.page}")
         
         canvas.restoreState()
     

@@ -508,9 +508,45 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
         raise HTTPException(status_code=404, detail="Client not found")
     
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=90, bottomMargin=60)
     elements = []
     styles = getSampleStyleSheet()
+    
+    # Header/Footer callback
+    page_width, page_height = letter
+    margin = 50
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "logo.png")
+    
+    def header_footer(canvas_obj, doc_obj):
+        canvas_obj.saveState()
+        # Logo
+        if os.path.exists(logo_path):
+            try:
+                canvas_obj.drawImage(logo_path, margin, page_height - 70, width=120, height=50, preserveAspectRatio=True)
+            except:
+                pass
+        # Header line
+        canvas_obj.setStrokeColor(colors.HexColor("#00447C"))
+        canvas_obj.setLineWidth(2)
+        canvas_obj.line(margin, page_height - 80, page_width - margin, page_height - 80)
+        # Quote number + date
+        canvas_obj.setFont('Helvetica-Bold', 10)
+        canvas_obj.setFillColor(colors.HexColor("#00447C"))
+        canvas_obj.drawRightString(page_width - margin, page_height - 55, f"Cotizacion: {quote['quote_number']}")
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.setFillColor(colors.HexColor("#666666"))
+        canvas_obj.drawRightString(page_width - margin, page_height - 68, f"Fecha: {datetime.now().strftime('%d/%m/%Y')}")
+        # Footer line
+        canvas_obj.setStrokeColor(colors.HexColor("#F5F5F5"))
+        canvas_obj.setLineWidth(1)
+        canvas_obj.line(margin, 40, page_width - margin, 40)
+        # Footer: Confidential note (left) + Page number (right)
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.setFillColor(colors.HexColor("#666666"))
+        canvas_obj.drawString(margin, 25, "Documento Confidencial - Propiedad de Mega Soft Computacion C.A.")
+        canvas_obj.drawRightString(page_width - margin, 25, f"Pagina {doc_obj.page}")
+        canvas_obj.restoreState()
+    
     
     elements.append(Paragraph("<b>COTIZACIÓN</b>", styles['Title']))
     elements.append(Spacer(1, 0.2*inch))
@@ -606,7 +642,7 @@ async def generate_quote_pdf(quote_id: str, authorization: Optional[str] = Heade
         elements.append(Paragraph("<b>Notas:</b>", styles['Heading3']))
         elements.append(Paragraph(quote["notes"], styles['Normal']))
     
-    doc.build(elements)
+    doc.build(elements, onFirstPage=header_footer, onLaterPages=header_footer)
     buffer.seek(0)
     
     return Response(
