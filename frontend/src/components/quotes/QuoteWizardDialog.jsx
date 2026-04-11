@@ -43,6 +43,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
     subtotalRecurrente, subtotalProduction, montoDescuentoSetup, montoDescuentoRecurrente,
     totalNetoSetup, totalNetoRecurrente, ftHardwareSubtotal, grandTotal,
     pgSetupTotal,
+    pgMediosPagoCount,
     // Functions
     initializeSetupConcepts, initializeRecurringBasicConcepts, initializeRecurringOtherConcepts,
     findServicePrice, findServicePriceWithModel, handleBankSelect,

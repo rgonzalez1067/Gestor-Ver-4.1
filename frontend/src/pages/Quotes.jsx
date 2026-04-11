@@ -3299,6 +3299,7 @@ export const Quotes = () => {
             subtotalRecurrente, subtotalProduction, montoDescuentoSetup, montoDescuentoRecurrente,
             totalNetoSetup, totalNetoRecurrente, ftHardwareSubtotal, grandTotal,
             pgSetupTotal,
+            pgMediosPagoCount,
             initializeSetupConcepts, initializeRecurringBasicConcepts, initializeRecurringOtherConcepts,
             findServicePrice, findServicePriceWithModel, handleBankSelect,
             addMedioPagoItem, addMultipleMediosPago, duplicateSetupItem, handleSubmitQuote,
