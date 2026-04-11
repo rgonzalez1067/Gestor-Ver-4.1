@@ -896,7 +896,7 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph(terminos, self.styles['TextoNormal']))
         
         # Construir documento con encabezado y pie de página
-        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        doc.build(elements)
         
         self.buffer.seek(0)
         return self.buffer
@@ -1301,7 +1301,7 @@ class DynamicQuotePDFGenerator:
         # NO añadir términos - el Anexo Corporativa los reemplaza
         # El anexo se fusiona externamente en config.py
         
-        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        doc.build(elements)
         
         self.buffer.seek(0)
         return self.buffer
@@ -1647,7 +1647,7 @@ class DynamicQuotePDFGenerator:
         """
         elements.append(Paragraph(terminos, self.styles['TextoNormal']))
         
-        doc.build(elements, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+        doc.build(elements)
         
         self.buffer.seek(0)
         return self.buffer
