@@ -1094,8 +1094,8 @@ async def notify_new_integration_project(
         raise HTTPException(status_code=404, detail="Integrador no encontrado")
     
     # Obtener email del Gerente de Implementación desde configuración
-    email_config = await db.email_config.find_one({}, {"_id": 0})
-    impl_manager_email = email_config.get("implementation_manager_email") if email_config else None
+    config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+    impl_manager_email = config.get("implementation_manager_email") if config else None
     if not impl_manager_email:
         raise HTTPException(status_code=400, detail="No hay correo de Gerente de Implementación configurado en Configuración > Correos de Notificación")
     
