@@ -440,7 +440,7 @@ export const Clients = () => {
         action: 'Primer Contacto',
         contact_date: new Date().toISOString().split('T')[0]
       });
-      toast.success('Bitácora de inicio registrada');
+      toast.success('Registro en Bitacora guardado');
       setBitacoraInicioOpen(false);
       setBitacoraInicioText('');
     } catch (err) {
@@ -846,7 +846,7 @@ export const Clients = () => {
                       <Button type="button" size="sm" variant="outline"
                         onClick={() => editingClient ? setBitacoraInicioOpen(true) : toast.info('Guarde el cliente primero para registrar la bitácora')}
                         data-testid="bitacora-inicio-btn" className="text-blue-600 border-blue-200 hover:bg-blue-50">
-                        <BookOpen size={14} className="mr-1.5" />Bitácora de Inicio
+                        <BookOpen size={14} className="mr-1.5" />Registro en Bitacora
                       </Button>
                     </div>
                   </DialogHeader>
@@ -1785,21 +1785,21 @@ export const Clients = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Modal Bitácora de Inicio */}
+        {/* Modal Registro en Bitácora */}
         <Dialog open={bitacoraInicioOpen} onOpenChange={setBitacoraInicioOpen}>
           <DialogContent className="max-w-md" data-testid="bitacora-inicio-modal">
             <DialogHeader>
-              <DialogTitle>Bitácora de Inicio</DialogTitle>
+              <DialogTitle>Registro en Bitacora</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <p className="text-sm text-slate-500">Registre el resultado del primer contacto con este cliente.</p>
+              <p className="text-sm text-slate-500">Registre el resultado del contacto con este cliente.</p>
               <textarea value={bitacoraInicioText} onChange={(e) => setBitacoraInicioText(e.target.value)}
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[100px] resize-none"
                 placeholder="Describa el resultado del contacto..." data-testid="bitacora-inicio-text" />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => setBitacoraInicioOpen(false)}>Cancelar</Button>
                 <Button type="button" size="sm" onClick={handleBitacoraInicio} data-testid="bitacora-inicio-save"
-                  className="bg-blue-600 hover:bg-blue-700 text-white">Guardar</Button>
+                  className="bg-blue-600 hover:bg-blue-700 text-white">Registrar en Bitacora</Button>
               </div>
             </div>
           </DialogContent>

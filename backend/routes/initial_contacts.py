@@ -303,6 +303,18 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
     
     # Create client record with status "Prospecto"
     client_id = f"cli_{uuid.uuid4().hex[:12]}"
+    
+    # Migrar bitácora completa del contacto inicial + entrada de conversión
+    conversion_entry = {
+        "entry_id": f"be_{uuid.uuid4().hex[:8]}",
+        "action": "converted",
+        "description": f"Convertido a Prospecto por {converter_name}. Cliente ID: {client_id}",
+        "user_id": current_user["user_id"],
+        "user_name": converter_name,
+        "timestamp": now
+    }
+    migrated_bitacora = list(contact.get("bitacora", [])) + [conversion_entry]
+    
     new_client = {
         "client_id": client_id,
         "rif": "",
@@ -315,11 +327,14 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
         "address": "",
         "sucursal": "",
         "branch_address": "",
-        "additional_info": f"Convertido desde Contacto Inicial por {converter_name}",
+        "additional_info": contact.get("interest_notes", "") or f"Convertido desde Contacto Inicial por {converter_name}",
         "client_status": "Prospecto",
         "account_executive_id": current_user["user_id"],
         "account_executive_name": converter_name,
+        "owner_id": current_user["user_id"],
+        "owner_name": converter_name,
         "sede": contact.get("sede", "PYME"),
+        "bitacora": migrated_bitacora,
         "created_at": now,
         "updated_at": now
     }
@@ -327,15 +342,6 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
     await db.clients.insert_one(new_client)
     
     # Mark contact as converted
-    entry = {
-        "entry_id": f"be_{uuid.uuid4().hex[:8]}",
-        "action": "converted",
-        "description": f"Convertido a Prospecto por {converter_name}. Cliente ID: {client_id}",
-        "user_id": current_user["user_id"],
-        "user_name": converter_name,
-        "timestamp": now
-    }
-    
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
         {
@@ -344,7 +350,7 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
                 "converted_client_id": client_id,
                 "updated_at": now
             },
-            "$push": {"bitacora": entry}
+            "$push": {"bitacora": conversion_entry}
         }
     )
     
