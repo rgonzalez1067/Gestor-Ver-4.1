@@ -7,6 +7,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import Login from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Clients } from './pages/Clients';
+import { InitialContacts } from './pages/InitialContacts';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
@@ -47,6 +48,11 @@ function AppRouter() {
       <Route path="/clients" element={
         <ProtectedRoute>
           <Clients />
+        </ProtectedRoute>
+      } />
+      <Route path="/initial-contacts" element={
+        <ProtectedRoute>
+          <InitialContacts />
         </ProtectedRoute>
       } />
       <Route path="/banks" element={

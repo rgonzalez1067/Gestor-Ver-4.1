@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -19,17 +19,19 @@ export const Dashboard = () => {
   const [missingPdfs, setMissingPdfs] = useState([]);
   const [regenerating, setRegenerating] = useState({});
   const [loading, setLoading] = useState(true);
+  const [commitments, setCommitments] = useState([]);
 
   useEffect(() => { fetchDashboardData(); }, []);
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, quotesRes, alertsRes, missingRes, projStatsRes] = await Promise.allSettled([
+      const [statsRes, quotesRes, alertsRes, missingRes, projStatsRes, commitmentsRes] = await Promise.allSettled([
         api.get('/dashboard/stats'),
         api.get('/quotes'),
         api.get('/dashboard/alerts'),
         api.get('/dashboard/missing-pdfs'),
-        api.get('/projects/stats')
+        api.get('/projects/stats'),
+        api.get('/initial-contacts/my-commitments/list')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -46,6 +48,9 @@ export const Dashboard = () => {
       }
       if (projStatsRes.status === 'fulfilled') {
         setProjectStats(projStatsRes.value.data);
+      }
+      if (commitmentsRes.status === 'fulfilled') {
+        setCommitments(commitmentsRes.value.data || []);
       }
     } catch {
       toast.error('Error al cargar datos del dashboard');
@@ -182,6 +187,44 @@ export const Dashboard = () => {
           </div>
 
           {/* Alerts Widget */}
+          {/* Mis Compromisos - Contacto Inicial */}
+          {commitments.length > 0 && (
+            <div className="mb-8 bg-white rounded-lg border border-blue-200 overflow-hidden" data-testid="commitments-widget">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100 bg-blue-50">
+                <div className="flex items-center gap-2">
+                  <Phone size={18} className="text-blue-700" />
+                  <h2 className="text-base font-semibold text-blue-900">Mis Compromisos — Contacto Inicial</h2>
+                  <span className="text-xs bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 ml-1">{commitments.length}</span>
+                </div>
+                <Button variant="outline" size="sm" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => navigate('/initial-contacts')} data-testid="go-to-contacts">
+                  Ver todos
+                </Button>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                {commitments.slice(0, 10).map(c => {
+                  const age = Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60));
+                  const ageText = age < 24 ? `${age}h` : `${Math.floor(age / 24)}d`;
+                  const isOld = age > 48;
+                  return (
+                    <div key={c.contact_id} className={`flex items-center gap-4 px-6 py-3 hover:bg-slate-50 ${isOld ? 'bg-red-50/30' : ''}`} data-testid={`commitment-${c.contact_id}`}>
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isOld ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {(c.contact_name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{c.legal_name}</p>
+                        <p className="text-xs text-slate-500 truncate">{c.contact_name} - {c.phone}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={`text-xs font-medium ${isOld ? 'text-red-600' : 'text-slate-500'}`}>{ageText}</span>
+                        <p className="text-[10px] text-slate-400">Asignado: {c.assigned_to_name}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {alerts.total > 0 && (
             <div className="mb-8 bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="alerts-widget">
               <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50">

@@ -21,7 +21,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
-  PinOff
+  PinOff,
+  Briefcase,
+  Phone,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
@@ -29,7 +33,13 @@ import { ROUTE_MODULE_MAP } from '../hooks/usePermission';
 
 const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/clients', icon: Users, label: 'Clientes' },
+  { 
+    icon: Briefcase, label: 'Gestion Comercial', isGroup: true,
+    children: [
+      { path: '/initial-contacts', icon: Phone, label: 'Contacto Inicial' },
+      { path: '/clients', icon: Users, label: 'Clientes' },
+    ]
+  },
   { path: '/banks', icon: Building2, label: 'Bancos' },
   { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
   { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
@@ -54,6 +64,16 @@ export const Sidebar = () => {
   const [userName, setUserName] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [pinned, setPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    // Auto-expand if current path is inside a group
+    const groups = {};
+    menuItems.forEach(item => {
+      if (item.isGroup && item.children?.some(c => location.pathname === c.path)) {
+        groups[item.label] = true;
+      }
+    });
+    return groups;
+  });
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -115,13 +135,24 @@ export const Sidebar = () => {
     const permissions = user?.permissions || {};
     const role = user?.role;
 
-    let items = menuItems.filter(item => {
+    let items = menuItems.map(item => {
+      if (item.isGroup) {
+        // Filter children by permissions
+        const filteredChildren = item.children.filter(child => {
+          const module = ROUTE_MODULE_MAP[child.path];
+          if (!module) return true;
+          if (role === 'admin') return true;
+          return (permissions[module] || 'none') !== 'none';
+        });
+        if (filteredChildren.length === 0) return null;
+        return { ...item, children: filteredChildren };
+      }
       const module = ROUTE_MODULE_MAP[item.path];
-      if (!module) return true; // Dashboard, exchange-rate sin módulo → siempre visible
-      if (role === 'admin') return true;
+      if (!module) return item;
+      if (role === 'admin') return item;
       const level = permissions[module] || 'none';
-      return level !== 'none'; // Solo mostrar si tiene "read" o "edit"
-    });
+      return level !== 'none' ? item : null;
+    }).filter(Boolean);
 
     if (isAdmin) items = [...items, ...adminItems];
     return items;
@@ -213,9 +244,43 @@ export const Sidebar = () => {
 
         {/* Navigation */}
         <nav className={`flex-1 overflow-y-auto ${collapsed ? 'px-1.5 py-2' : 'px-3 py-2'}`}>
-          {allMenuItems.map((item) => (
-            <NavItem key={item.path} item={item} isActive={location.pathname === item.path} />
-          ))}
+          {allMenuItems.map((item) => {
+            if (item.isGroup) {
+              const isGroupActive = item.children?.some(c => location.pathname === c.path);
+              const isExpanded = expandedGroups[item.label] || isGroupActive;
+              const GroupIcon = item.icon;
+              return (
+                <div key={item.label}>
+                  <button
+                    onClick={() => setExpandedGroups(prev => ({ ...prev, [item.label]: !isExpanded }))}
+                    data-testid={`nav-group-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    className={`w-full sidebar-nav-item flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-200 ${
+                      collapsed ? 'px-0 py-2.5 justify-center' : 'px-4 py-2.5'
+                    } ${isGroupActive ? 'text-brand-blue-700 bg-brand-blue-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                  >
+                    <GroupIcon size={20} className="flex-shrink-0" />
+                    {!collapsed && (
+                      <>
+                        <span className="font-medium text-sm whitespace-nowrap overflow-hidden flex-1 text-left">{item.label}</span>
+                        {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                      </>
+                    )}
+                  </button>
+                  {isExpanded && !collapsed && (
+                    <div className="ml-4 border-l-2 border-slate-200 pl-2 mb-1">
+                      {item.children.map(child => (
+                        <NavItem key={child.path} item={child} isActive={location.pathname === child.path} />
+                      ))}
+                    </div>
+                  )}
+                  {collapsed && isExpanded && item.children.map(child => (
+                    <NavItem key={child.path} item={child} isActive={location.pathname === child.path} />
+                  ))}
+                </div>
+              );
+            }
+            return <NavItem key={item.path} item={item} isActive={location.pathname === item.path} />;
+          })}
         </nav>
 
         {/* Footer */}
