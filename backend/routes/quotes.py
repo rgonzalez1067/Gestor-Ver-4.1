@@ -452,8 +452,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             else:
                 query["created_by_user_id"] = user_id
         else:
-            # Ejecutivo u otro cargo: solo ve sus propias cotizaciones de su segmento
-            query["created_by_user_id"] = user_id
+            # Ejecutivo u otro cargo: ve TODAS las cotizaciones de su segmento
             query["client_segment"] = user_sede
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
