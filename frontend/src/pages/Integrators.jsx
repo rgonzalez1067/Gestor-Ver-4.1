@@ -94,6 +94,14 @@ export const Integrators = () => {
   const [summaryGroupBy, setSummaryGroupBy] = useState('phase');
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  // Email notification modal
+  const [emailNotifyOpen, setEmailNotifyOpen] = useState(false);
+  const [emailNotifyIntegrator, setEmailNotifyIntegrator] = useState(null);
+  const [emailCustomMessage, setEmailCustomMessage] = useState('');
+  const [emailNewRecipient, setEmailNewRecipient] = useState('');
+  const [emailRecipientsList, setEmailRecipientsList] = useState([]);
+  const [emailSending, setEmailSending] = useState(false);
+
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
   const fetchData = async () => {
@@ -140,11 +148,19 @@ export const Integrators = () => {
       if (editingIntegrator) {
         await api.put(`/integrators/${editingIntegrator.integrator_id}`, payload);
         toast.success('Integrador actualizado');
+        setDialogOpen(false); resetForm(); fetchData();
       } else {
-        await api.post('/integrators', payload);
+        const res = await api.post('/integrators', payload);
         toast.success('Integrador creado');
+        setDialogOpen(false); resetForm(); fetchData();
+        // Abrir modal de notificación al Gerente de Implementación
+        const newIntegrator = res.data;
+        setEmailNotifyIntegrator({ ...payload, integrator_id: newIntegrator?.integrator_id || '' });
+        setEmailCustomMessage('');
+        setEmailNewRecipient('');
+        setEmailRecipientsList([]);
+        setEmailNotifyOpen(true);
       }
-      setDialogOpen(false); resetForm(); fetchData();
     } catch { toast.error('Error al guardar integrador'); }
   };
 
@@ -162,6 +178,39 @@ export const Integrators = () => {
       toast.success('Integrador eliminado'); fetchData();
     } catch (error) { toast.error(error.response?.data?.detail || 'Error al eliminar'); }
     finally { setDeleteIntegratorData({ id: null, name: null }); }
+  };
+
+  const addEmailRecipient = () => {
+    const email = emailNewRecipient.trim();
+    if (email && email.includes('@') && !emailRecipientsList.includes(email)) {
+      setEmailRecipientsList([...emailRecipientsList, email]);
+      setEmailNewRecipient('');
+    }
+  };
+
+  const removeEmailRecipient = (email) => {
+    setEmailRecipientsList(emailRecipientsList.filter(e => e !== email));
+  };
+
+  const sendNewProjectNotification = async () => {
+    if (!emailNotifyIntegrator?.integrator_id) {
+      toast.error('No se pudo identificar el integrador');
+      setEmailNotifyOpen(false);
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const headers = {};
+      if (emailCustomMessage.trim()) headers['x-custom-message'] = emailCustomMessage.trim();
+      if (emailRecipientsList.length > 0) headers['x-additional-recipients'] = emailRecipientsList.join(',');
+      const res = await api.post(`/integrators/${emailNotifyIntegrator.integrator_id}/notify-new-project`, {}, { headers });
+      toast.success(res.data.message || 'Notificacion enviada');
+      setEmailNotifyOpen(false);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al enviar notificacion');
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   const openEditDialog = (intg) => {
@@ -1413,6 +1462,85 @@ export const Integrators = () => {
               )}
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Notificación — Nuevo Proyecto de Integración */}
+      <Dialog open={emailNotifyOpen} onOpenChange={setEmailNotifyOpen}>
+        <DialogContent className="max-w-lg" data-testid="email-notify-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Mail size={20} className="text-blue-600" />
+              Notificar Nuevo Proyecto
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <p className="text-sm text-blue-800">
+                Se enviara la notificacion al <strong>Gerente de Implementacion</strong> configurado en Correos de Notificacion.
+              </p>
+              {emailNotifyIntegrator && (
+                <div className="mt-2 text-xs text-blue-700 space-y-0.5">
+                  <p><strong>Integrador:</strong> {emailNotifyIntegrator.name}</p>
+                  <p><strong>Aplicativo:</strong> {emailNotifyIntegrator.app_name}</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Comentarios adicionales (opcional)</Label>
+              <Textarea
+                placeholder="Agregue informacion adicional para el Gerente de Implementacion..."
+                value={emailCustomMessage}
+                onChange={(e) => setEmailCustomMessage(e.target.value)}
+                rows={3}
+                className="mt-1"
+                data-testid="email-custom-message"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Enviar copia a (CC)</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  type="email"
+                  placeholder="correo@empresa.com"
+                  value={emailNewRecipient}
+                  onChange={(e) => setEmailNewRecipient(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEmailRecipient(); } }}
+                  className="flex-1"
+                  data-testid="email-add-recipient-input"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addEmailRecipient} data-testid="email-add-recipient-btn">
+                  <Plus size={14} />
+                </Button>
+              </div>
+              {emailRecipientsList.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {emailRecipientsList.map((email) => (
+                    <span key={email} className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs">
+                      {email}
+                      <button onClick={() => removeEmailRecipient(email)} className="hover:text-red-500">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEmailNotifyOpen(false)} data-testid="email-skip-btn">
+                Omitir
+              </Button>
+              <Button
+                onClick={sendNewProjectNotification}
+                disabled={emailSending}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                data-testid="email-send-btn"
+              >
+                <Mail size={14} className="mr-1" />
+                {emailSending ? 'Enviando...' : 'Enviar Notificacion'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

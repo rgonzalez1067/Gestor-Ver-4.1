@@ -1077,3 +1077,87 @@ async def import_integrators(
             message='Error crítico: No se pudo procesar el archivo'
         )
 
+
+
+@router.post("/integrators/{integrator_id}/notify-new-project")
+async def notify_new_integration_project(
+    integrator_id: str,
+    authorization: Optional[str] = Header(None),
+    x_custom_message: Optional[str] = Header(None),
+    x_additional_recipients: Optional[str] = Header(None)
+):
+    """Envía notificación de nuevo proyecto de integración al Gerente de Implementación"""
+    current_user = await get_current_user(authorization)
+    
+    integrator = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
+    if not integrator:
+        raise HTTPException(status_code=404, detail="Integrador no encontrado")
+    
+    # Obtener email del Gerente de Implementación desde configuración
+    email_config = await db.email_config.find_one({}, {"_id": 0})
+    impl_manager_email = email_config.get("implementation_manager_email") if email_config else None
+    if not impl_manager_email:
+        raise HTTPException(status_code=400, detail="No hay correo de Gerente de Implementación configurado en Configuración > Correos de Notificación")
+    
+    # Obtener primer contacto técnico como responsable
+    contacts = integrator.get("contacts", [])
+    first_contact = contacts[0] if contacts else {}
+    
+    INTEGRATION_TYPE_MAP = {
+        'CR': 'CR — Caja Registradora', 'LP': 'LP — Link de Pago',
+        'PG': 'PG — Payment Gateway', 'MP': 'MP — Android (Mobile POS)', 'TK': 'TK — Tokenizador'
+    }
+    
+    # Construir comentarios personalizados HTML
+    comentarios_html = ""
+    if x_custom_message:
+        comentarios_html = f'<div style="background:#f0f9ff;border-left:4px solid #3b82f6;padding:12px 16px;margin:16px 0;"><h4 style="color:#1e40af;margin:0 0 8px 0;">Informacion Adicional</h4><p style="color:#334155;margin:0;">{x_custom_message}</p></div>'
+    
+    # Variables de la plantilla
+    variables = {
+        "nombre_integrador": integrator.get("name", ""),
+        "tipo_integracion": INTEGRATION_TYPE_MAP.get(integrator.get("integration_type", ""), integrator.get("integration_type", "")),
+        "nombre_aplicativo": integrator.get("app_name", ""),
+        "nombre_responsable": first_contact.get("name", "No asignado"),
+        "email_responsable": first_contact.get("email", "No asignado"),
+        "telefono_responsable": first_contact.get("phone", "No asignado"),
+        "comentarios_personalizados": comentarios_html,
+        "usuario_creador": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+    }
+    
+    # Obtener plantilla (puede estar personalizada en DB o usar la default)
+    template = await db.email_templates.find_one({"template_id": "new_integration_project"}, {"_id": 0})
+    if not template:
+        from routes.seed_and_templates import PROJECT_EMAIL_TEMPLATES
+        template = PROJECT_EMAIL_TEMPLATES.get("new_integration_project")
+    
+    if not template:
+        raise HTTPException(status_code=500, detail="Plantilla 'new_integration_project' no encontrada")
+    
+    # Renderizar
+    subject = template["subject"]
+    body = template["body_html"]
+    for key, value in variables.items():
+        subject = subject.replace(f"{{{key}}}", str(value))
+        body = body.replace(f"{{{key}}}", str(value))
+    
+    # Destinatarios
+    recipients = [impl_manager_email]
+    cc_list = []
+    if x_additional_recipients:
+        cc_list = [e.strip() for e in x_additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+    
+    try:
+        from services.email_service import send_email
+        all_recipients = recipients + cc_list
+        await send_email(
+            to=all_recipients,
+            subject=subject,
+            html=body,
+            action="new_integration_project",
+            quote_id=integrator_id
+        )
+        return {"message": f"Notificacion enviada a {impl_manager_email}" + (f" y {len(cc_list)} destinatario(s) adicional(es)" if cc_list else ""), "sent_to": all_recipients}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al enviar correo: {str(e)}")

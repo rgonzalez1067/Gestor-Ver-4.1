@@ -554,6 +554,34 @@ BASE_EMAIL_TEMPLATES = {
 
 # Plantillas globales de Proyecto (no se dividen por sede)
 PROJECT_EMAIL_TEMPLATES = {
+    "new_integration_project": {
+        "template_id": "new_integration_project",
+        "name": "Nuevo Proyecto de Integracion",
+        "description": "Se envia al Gerente de Implementacion al crear un nuevo proyecto de integracion",
+        "subject": "Nuevo Proyecto de Integracion — {nombre_integrador} ({tipo_integracion})",
+        "body_html": """<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;">
+<h2 style="color:#2c3e50;">Nuevo Proyecto de Integracion</h2>
+<p>Se ha registrado un nuevo proyecto en la plataforma. A continuacion, los detalles tecnicos para su gestion:</p>
+
+<h3 style="color:#34495e;margin-top:20px;">Datos del Proyecto</h3>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;width:100%;">
+<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;width:220px;">Integrador:</td><td style="padding:8px 12px;font-weight:600;border:1px solid #eee;">{nombre_integrador}</td></tr>
+<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Tipo de Integracion:</td><td style="padding:8px 12px;border:1px solid #eee;">{tipo_integracion}</td></tr>
+<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Nombre Aplicativo:</td><td style="padding:8px 12px;border:1px solid #eee;">{nombre_aplicativo}</td></tr>
+<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Nombre Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{nombre_responsable}</td></tr>
+<tr style="background:#f8f9fa;"><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Email Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{email_responsable}</td></tr>
+<tr><td style="padding:8px 12px;color:#666;border:1px solid #eee;">Telefono Responsable Tecnico:</td><td style="padding:8px 12px;border:1px solid #eee;">{telefono_responsable}</td></tr>
+</table>
+
+{comentarios_personalizados}
+
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#666;font-size:12px;">Generado por: <strong>{usuario_creador}</strong></p>
+<p style="color:#666;font-size:12px;">Fecha de Creacion: {fecha_sistema}</p>
+<p style="color:#999;font-size:11px;">Correo automatico de MegaNexus Gestor.</p></div>""",
+        "is_active": True,
+        "is_project_template": True,
+    },
     "project_notify_client": {
         "template_id": "project_notify_client",
         "name": "Notificación de Proyecto — Cliente",

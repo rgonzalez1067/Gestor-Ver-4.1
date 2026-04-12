@@ -142,13 +142,22 @@ const EQUIPMENT_TEMPLATE_TYPES = [
 // Plantillas globales de Proyecto (no se dividen por sede)
 const PROJECT_TEMPLATE_TYPES = [
   {
+    templateId: 'new_integration_project',
+    icon: Mail,
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    title: 'Nuevo Proyecto de Integracion',
+    description: 'Se envia al Gerente de Implementacion al crear un nuevo proyecto de integracion'
+  },
+  {
     templateId: 'project_notify_client',
     icon: Mail,
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
     borderColor: 'border-orange-200',
-    title: 'Notificación de Proyecto — Cliente',
-    description: 'Comunicaciones secuenciales al cliente durante implementación'
+    title: 'Notificacion de Proyecto — Cliente',
+    description: 'Comunicaciones secuenciales al cliente durante implementacion'
   },
   {
     templateId: 'project_notify_bank',
@@ -156,8 +165,8 @@ const PROJECT_TEMPLATE_TYPES = [
     color: 'text-teal-600',
     bgColor: 'bg-teal-50',
     borderColor: 'border-teal-200',
-    title: 'Notificación de Proyecto — Banco',
-    description: 'Comunicaciones secuenciales a bancos durante implementación'
+    title: 'Notificacion de Proyecto — Banco',
+    description: 'Comunicaciones secuenciales a bancos durante implementacion'
   }
 ];
 
