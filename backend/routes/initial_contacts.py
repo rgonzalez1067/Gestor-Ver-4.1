@@ -15,6 +15,9 @@ class InitialContactCreate(BaseModel):
     phone: str
     email: str
     legal_name: str
+    interest_notes: Optional[str] = ""
+    assigned_to_user_id: Optional[str] = None
+    due_date: Optional[str] = None
 
 class InitialContactAssign(BaseModel):
     assigned_to_user_id: str
@@ -74,14 +77,25 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
     now = datetime.now(timezone.utc).isoformat()
     creator_name = user_display(current_user)
     
+    # Resolver usuario asignado (si se proporcionó)
+    assigned_user_id = data.assigned_to_user_id or current_user["user_id"]
+    assigned_name = creator_name
+    if data.assigned_to_user_id and data.assigned_to_user_id != current_user["user_id"]:
+        target = await get_user_by_id(data.assigned_to_user_id)
+        if target:
+            assigned_name = user_display(target)
+            assigned_user_id = target["user_id"]
+    
     contact = {
         "contact_id": contact_id,
         "contact_name": data.contact_name.strip(),
         "phone": data.phone.strip(),
         "email": data.email.strip(),
         "legal_name": data.legal_name.strip(),
-        "assigned_to_user_id": current_user["user_id"],
-        "assigned_to_name": creator_name,
+        "interest_notes": (data.interest_notes or "").strip()[:300],
+        "assigned_to_user_id": assigned_user_id,
+        "assigned_to_name": assigned_name,
+        "due_date": data.due_date or None,
         "created_by_user_id": current_user["user_id"],
         "created_by_name": creator_name,
         "sede": current_user.get("sede", "PYME"),
@@ -93,7 +107,7 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
             {
                 "entry_id": f"be_{uuid.uuid4().hex[:8]}",
                 "action": "created",
-                "description": f"Contacto creado por {creator_name}",
+                "description": f"Contacto creado por {creator_name}" + (f". Asignado a {assigned_name}" if assigned_name != creator_name else "") + (f". Fecha limite: {data.due_date}" if data.due_date else ""),
                 "user_id": current_user["user_id"],
                 "user_name": creator_name,
                 "timestamp": now
@@ -103,6 +117,21 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
     
     await db.initial_contacts.insert_one(contact)
     contact.pop("_id", None)
+    
+    # Notificar al asignado si es diferente al creador
+    if assigned_user_id != current_user["user_id"]:
+        notification = {
+            "notification_id": f"notif_{uuid.uuid4().hex[:10]}",
+            "user_id": assigned_user_id,
+            "type": "initial_contact_assigned",
+            "title": "Nuevo Contacto Asignado",
+            "message": f"{contact['legal_name']} - Asignado por {creator_name}",
+            "reference_id": contact_id,
+            "is_read": False,
+            "created_at": now
+        }
+        await db.notifications.insert_one(notification)
+    
     return contact
 
 

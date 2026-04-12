@@ -21,7 +21,7 @@ export const InitialContacts = () => {
 
   // Create modal
   const [createOpen, setCreateOpen] = useState(false);
-  const [formData, setFormData] = useState({ contact_name: '', phone: '', email: '', legal_name: '' });
+  const [formData, setFormData] = useState({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', assigned_to_user_id: '', due_date: '' });
 
   // Action modals
   const [documentOpen, setDocumentOpen] = useState(false);
@@ -73,7 +73,7 @@ export const InitialContacts = () => {
       await api.post('/initial-contacts', formData);
       toast.success('Contacto inicial creado');
       setCreateOpen(false);
-      setFormData({ contact_name: '', phone: '', email: '', legal_name: '' });
+      setFormData({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', assigned_to_user_id: '', due_date: '' });
       fetchData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al crear contacto'); }
   };
@@ -150,6 +150,17 @@ export const InitialContacts = () => {
     return matchSearch && matchSede;
   });
 
+  const getSLAStatus = (dueDate) => {
+    if (!dueDate) return { color: 'bg-slate-100 text-slate-500', label: 'Sin fecha', dot: 'bg-slate-300' };
+    const now = new Date();
+    const due = new Date(dueDate + 'T23:59:59');
+    const diffMs = due.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays >= 1) return { color: 'bg-green-100 text-green-700', label: 'En Tiempo', dot: 'bg-green-500' };
+    if (diffDays >= 0) return { color: 'bg-yellow-100 text-yellow-700', label: 'Alerta', dot: 'bg-yellow-500' };
+    return { color: 'bg-red-100 text-red-700', label: 'Vencido', dot: 'bg-red-500' };
+  };
+
   const formatDate = (iso) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -204,7 +215,8 @@ export const InitialContacts = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Telefono / Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Asignado a</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Fecha</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Fecha Limite</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Creado</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                 </tr>
               </thead>
@@ -233,6 +245,17 @@ export const InitialContacts = () => {
                       <span className={`px-2 py-0.5 text-xs font-medium rounded ${c.sede === 'CORP' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
                         {c.sede}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const sla = getSLAStatus(c.due_date);
+                        return c.due_date ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2.5 h-2.5 rounded-full ${sla.dot}`} />
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${sla.color}`}>{new Date(c.due_date + 'T12:00:00').toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' })}</span>
+                          </div>
+                        ) : <span className="text-xs text-slate-400">—</span>;
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDate(c.created_at)}</td>
                     <td className="px-4 py-3">
@@ -279,17 +302,53 @@ export const InitialContacts = () => {
                 <Label>Nombre del Contacto *</Label>
                 <Input value={formData.contact_name} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} placeholder="Persona que atiende" required data-testid="input-contact-name" />
               </div>
-              <div>
-                <Label>Telefono *</Label>
-                <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+58 412 1234567" required data-testid="input-phone" />
-              </div>
-              <div>
-                <Label>Email *</Label>
-                <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="correo@empresa.com" required data-testid="input-email" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Telefono *</Label>
+                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+58 412 1234567" required data-testid="input-phone" />
+                </div>
+                <div>
+                  <Label>Email *</Label>
+                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="correo@empresa.com" required data-testid="input-email" />
+                </div>
               </div>
               <div>
                 <Label>Nombre Juridico (Razon Social) *</Label>
                 <Input value={formData.legal_name} onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })} placeholder="Razon social tentativa" required data-testid="input-legal-name" />
+              </div>
+              <div>
+                <Label>Aspectos de Interes para el Contacto</Label>
+                <Textarea
+                  value={formData.interest_notes}
+                  onChange={(e) => setFormData({ ...formData, interest_notes: e.target.value.slice(0, 300) })}
+                  placeholder="Escriba los aspectos relevantes del contacto, productos de interes, notas importantes..."
+                  rows={4}
+                  className="resize-y"
+                  data-testid="input-interest-notes"
+                />
+                <p className="text-xs text-slate-400 mt-1 text-right">{(formData.interest_notes || '').length}/300</p>
+              </div>
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">Asignacion y Compromiso</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Asignar a</Label>
+                    <Select value={formData.assigned_to_user_id} onValueChange={(v) => setFormData({ ...formData, assigned_to_user_id: v })}>
+                      <SelectTrigger data-testid="create-assign-select"><SelectValue placeholder="Yo mismo (por defecto)" /></SelectTrigger>
+                      <SelectContent>
+                        {assignableUsers.map(u => (
+                          <SelectItem key={u.user_id} value={u.user_id}>
+                            {u.first_name} {u.last_name} ({u.cargo})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Fecha Maxima de Atencion</Label>
+                    <Input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} data-testid="input-due-date" />
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>

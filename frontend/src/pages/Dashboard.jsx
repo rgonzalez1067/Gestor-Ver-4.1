@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -20,18 +26,32 @@ export const Dashboard = () => {
   const [regenerating, setRegenerating] = useState({});
   const [loading, setLoading] = useState(true);
   const [commitments, setCommitments] = useState([]);
+  const [dashUsers, setDashUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  // Dashboard action modals
+  const [dashDocOpen, setDashDocOpen] = useState(false);
+  const [dashDocContact, setDashDocContact] = useState(null);
+  const [dashDocComment, setDashDocComment] = useState('');
+  const [dashConvertOpen, setDashConvertOpen] = useState(false);
+  const [dashConvertContact, setDashConvertContact] = useState(null);
+  const [dashAssignOpen, setDashAssignOpen] = useState(false);
+  const [dashAssignContact, setDashAssignContact] = useState(null);
+  const [dashAssignUserId, setDashAssignUserId] = useState('');
+  const [dashAssignComment, setDashAssignComment] = useState('');
 
   useEffect(() => { fetchDashboardData(); }, []);
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, quotesRes, alertsRes, missingRes, projStatsRes, commitmentsRes] = await Promise.allSettled([
+      const [statsRes, quotesRes, alertsRes, missingRes, projStatsRes, commitmentsRes, usersRes, meRes] = await Promise.allSettled([
         api.get('/dashboard/stats'),
         api.get('/quotes'),
         api.get('/dashboard/alerts'),
         api.get('/dashboard/missing-pdfs'),
         api.get('/projects/stats'),
-        api.get('/initial-contacts/my-commitments/list')
+        api.get('/initial-contacts/my-commitments/list'),
+        api.get('/auth/users'),
+        api.get('/auth/me')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -51,6 +71,12 @@ export const Dashboard = () => {
       }
       if (commitmentsRes.status === 'fulfilled') {
         setCommitments(commitmentsRes.value.data || []);
+      }
+      if (usersRes.status === 'fulfilled') {
+        setDashUsers(usersRes.value.data || []);
+      }
+      if (meRes.status === 'fulfilled') {
+        setCurrentUser(meRes.value.data);
       }
     } catch {
       toast.error('Error al cargar datos del dashboard');
@@ -98,6 +124,58 @@ export const Dashboard = () => {
     { title: 'Bienes y Servicios', value: stats.totalHardware, icon: Package, color: 'bg-orange-100 text-orange-700' },
     { title: 'Tasa BCV', value: stats.exchangeRate ? `${stats.exchangeRate.toFixed(2)} Bs/$` : '-', icon: TrendingUp, color: 'bg-amber-100 text-amber-700' }
   ];
+
+  // SLA Semáforo
+  const getSLAStatus = (dueDate) => {
+    if (!dueDate) return { color: 'bg-slate-50', dot: 'bg-slate-300', label: 'Sin fecha', border: 'border-slate-200' };
+    const now = new Date();
+    const due = new Date(dueDate + 'T23:59:59');
+    const diffMs = due.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays >= 1) return { color: 'bg-green-50', dot: 'bg-green-500', label: 'En Tiempo', border: 'border-green-200' };
+    if (diffDays >= 0) return { color: 'bg-yellow-50', dot: 'bg-yellow-500', label: 'Alerta', border: 'border-yellow-300' };
+    return { color: 'bg-red-50', dot: 'bg-red-500', label: 'Vencido', border: 'border-red-300' };
+  };
+
+  const canDashAssign = currentUser?.role === 'admin' || ['Director', 'Gerente', 'Coordinador'].includes(currentUser?.cargo);
+  const canDashTransfer = currentUser?.role === 'admin' || ['Director', 'Gerente'].includes(currentUser?.cargo);
+  const dashAssignableUsers = dashUsers.filter(u => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return u.user_id !== currentUser.user_id;
+    const allowed = { Director: ['Gerente'], Gerente: ['Coordinador', 'Ejecutivo'], Coordinador: ['Ejecutivo'] };
+    return (allowed[currentUser.cargo] || []).includes(u.cargo) && u.is_active !== false;
+  });
+
+  const handleDashDocument = async () => {
+    if (!dashDocComment.trim()) { toast.error('Escriba un comentario'); return; }
+    try {
+      await api.post(`/initial-contacts/${dashDocContact.contact_id}/document`, { comment: dashDocComment });
+      toast.success('Gestion documentada');
+      setDashDocOpen(false); setDashDocComment('');
+      fetchDashboardData();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+  };
+
+  const handleDashConvert = async () => {
+    try {
+      const res = await api.post(`/initial-contacts/${dashConvertContact.contact_id}/convert`);
+      toast.success(res.data.message);
+      setDashConvertOpen(false);
+      fetchDashboardData();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+  };
+
+  const handleDashAssign = async () => {
+    if (!dashAssignUserId) { toast.error('Seleccione un usuario'); return; }
+    try {
+      await api.post(`/initial-contacts/${dashAssignContact.contact_id}/assign`, {
+        assigned_to_user_id: dashAssignUserId, comment: dashAssignComment || undefined
+      });
+      toast.success('Contacto asignado');
+      setDashAssignOpen(false); setDashAssignUserId(''); setDashAssignComment('');
+      fetchDashboardData();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+  };
 
   const chartData = [
     { name: 'Ene', cotizaciones: 12 }, { name: 'Feb', cotizaciones: 19 },
@@ -187,40 +265,81 @@ export const Dashboard = () => {
           </div>
 
           {/* Alerts Widget */}
-          {/* Mis Compromisos - Contacto Inicial */}
+          {/* Mis Compromisos - Central de Acciones */}
           {commitments.length > 0 && (
             <div className="mb-8 bg-white rounded-lg border border-blue-200 overflow-hidden" data-testid="commitments-widget">
               <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100 bg-blue-50">
                 <div className="flex items-center gap-2">
                   <Phone size={18} className="text-blue-700" />
-                  <h2 className="text-base font-semibold text-blue-900">Mis Compromisos — Contacto Inicial</h2>
+                  <h2 className="text-base font-semibold text-blue-900">Contacto Inicial — Central de Acciones</h2>
                   <span className="text-xs bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 ml-1">{commitments.length}</span>
                 </div>
                 <Button variant="outline" size="sm" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => navigate('/initial-contacts')} data-testid="go-to-contacts">
                   Ver todos
                 </Button>
               </div>
-              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-                {commitments.slice(0, 10).map(c => {
-                  const age = Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60));
-                  const ageText = age < 24 ? `${age}h` : `${Math.floor(age / 24)}d`;
-                  const isOld = age > 48;
-                  return (
-                    <div key={c.contact_id} className={`flex items-center gap-4 px-6 py-3 hover:bg-slate-50 ${isOld ? 'bg-red-50/30' : ''}`} data-testid={`commitment-${c.contact_id}`}>
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isOld ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {(c.contact_name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{c.legal_name}</p>
-                        <p className="text-xs text-slate-500 truncate">{c.contact_name} - {c.phone}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className={`text-xs font-medium ${isOld ? 'text-red-600' : 'text-slate-500'}`}>{ageText}</span>
-                        <p className="text-[10px] text-slate-400">Asignado: {c.assigned_to_name}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Contacto</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Razon Social</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-slate-600">Asignado</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-slate-600">Fecha Limite</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-slate-600">SLA</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-slate-600">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {commitments.map(c => {
+                      const sla = getSLAStatus(c.due_date);
+                      return (
+                        <tr key={c.contact_id} className={`${sla.color} hover:brightness-95 transition-colors`} data-testid={`commitment-${c.contact_id}`}>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 border ${sla.border} ${sla.dot === 'bg-red-500' ? 'bg-red-100 text-red-700' : sla.dot === 'bg-yellow-500' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {(c.contact_name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-slate-800 text-xs">{c.contact_name}</p>
+                                <p className="text-[10px] text-slate-500">{c.phone}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-slate-700 font-medium">{c.legal_name}</td>
+                          <td className="px-4 py-2.5 text-xs text-slate-600">{c.assigned_to_name}</td>
+                          <td className="px-4 py-2.5 text-center text-xs">
+                            {c.due_date ? new Date(c.due_date + 'T12:00:00').toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${sla.dot === 'bg-green-500' ? 'bg-green-200 text-green-800' : sla.dot === 'bg-yellow-500' ? 'bg-yellow-200 text-yellow-800' : sla.dot === 'bg-red-500' ? 'bg-red-200 text-red-800' : 'bg-slate-200 text-slate-600'}`}>
+                              <span className={`w-2 h-2 rounded-full ${sla.dot}`} />
+                              {sla.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center justify-center gap-0.5">
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600" title="Documentar"
+                                onClick={() => { setDashDocContact(c); setDashDocComment(''); setDashDocOpen(true); }}>
+                                <MessageSquare size={13} />
+                              </Button>
+                              {canDashAssign && (
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-amber-600" title="Reasignar"
+                                  onClick={() => { setDashAssignContact(c); setDashAssignUserId(''); setDashAssignComment(''); setDashAssignOpen(true); }}>
+                                  <UserPlus size={13} />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-green-600" title="Convertir a Prospecto"
+                                onClick={() => { setDashConvertContact(c); setDashConvertOpen(true); }}>
+                                <Rocket size={13} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -364,6 +483,66 @@ export const Dashboard = () => {
           </div>
         </div>
       </main>
+
+      {/* Dashboard Action Modals */}
+      <Dialog open={dashDocOpen} onOpenChange={setDashDocOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><MessageSquare size={20} className="text-blue-600" /> Documentar Gestion</DialogTitle></DialogHeader>
+          {dashDocContact && <p className="text-sm text-slate-500">Contacto: <strong>{dashDocContact.legal_name}</strong></p>}
+          <Textarea placeholder="Describa la gestion realizada..." value={dashDocComment} onChange={(e) => setDashDocComment(e.target.value)} rows={4} data-testid="dash-doc-comment" />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDashDocOpen(false)}>Cancelar</Button>
+            <Button onClick={handleDashDocument} className="bg-blue-600 hover:bg-blue-700" data-testid="dash-doc-submit">Guardar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dashAssignOpen} onOpenChange={setDashAssignOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><UserPlus size={20} className="text-amber-600" /> Reasignar Contacto</DialogTitle></DialogHeader>
+          {dashAssignContact && <p className="text-sm text-slate-500">Contacto: <strong>{dashAssignContact.legal_name}</strong></p>}
+          <div>
+            <Label>Asignar a</Label>
+            <Select value={dashAssignUserId} onValueChange={setDashAssignUserId}>
+              <SelectTrigger data-testid="dash-assign-select"><SelectValue placeholder="Seleccione usuario..." /></SelectTrigger>
+              <SelectContent>
+                {dashAssignableUsers.map(u => (
+                  <SelectItem key={u.user_id} value={u.user_id}>{u.first_name} {u.last_name} ({u.cargo} - {u.sede})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Comentario (opcional)</Label>
+            <Input value={dashAssignComment} onChange={(e) => setDashAssignComment(e.target.value)} placeholder="Nota..." data-testid="dash-assign-comment" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDashAssignOpen(false)}>Cancelar</Button>
+            <Button onClick={handleDashAssign} className="bg-amber-500 hover:bg-amber-600" data-testid="dash-assign-submit">Asignar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={dashConvertOpen} onOpenChange={setDashConvertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><Rocket size={20} className="text-green-600" /> Convertir a Prospecto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se creara un registro en Clientes con estatus Prospecto.
+              {dashConvertContact && (
+                <span className="block mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <span className="font-semibold block">{dashConvertContact.legal_name}</span>
+                  <span className="text-xs text-slate-500">{dashConvertContact.contact_name}</span>
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDashConvert} className="bg-green-600 hover:bg-green-700" data-testid="dash-convert-confirm">Convertir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
