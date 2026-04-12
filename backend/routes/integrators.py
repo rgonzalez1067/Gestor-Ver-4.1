@@ -1113,16 +1113,21 @@ async def notify_new_integration_project(
     if x_custom_message:
         comentarios_html = f'<div style="background:#f0f9ff;border-left:4px solid #3b82f6;padding:12px 16px;margin:16px 0;"><h4 style="color:#1e40af;margin:0 0 8px 0;">Informacion Adicional</h4><p style="color:#334155;margin:0;">{x_custom_message}</p></div>'
     
-    # Variables de la plantilla
+    # Variables de la plantilla (incluye aliases para compatibilidad con plantillas editadas)
     variables = {
         "nombre_integrador": integrator.get("name", ""),
+        "Integrador": integrator.get("name", ""),
         "tipo_integracion": INTEGRATION_TYPE_MAP.get(integrator.get("integration_type", ""), integrator.get("integration_type", "")),
+        "Tipo_Integración": INTEGRATION_TYPE_MAP.get(integrator.get("integration_type", ""), integrator.get("integration_type", "")),
+        "Tipo_integrador": INTEGRATION_TYPE_MAP.get(integrator.get("integration_type", ""), integrator.get("integration_type", "")),
         "nombre_aplicativo": integrator.get("app_name", ""),
+        "Aplicativo_Integracion": integrator.get("app_name", ""),
         "nombre_responsable": first_contact.get("name", "No asignado"),
         "email_responsable": first_contact.get("email", "No asignado"),
         "telefono_responsable": first_contact.get("phone", "No asignado"),
         "comentarios_personalizados": comentarios_html,
         "usuario_creador": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
     }
     
@@ -1135,12 +1140,15 @@ async def notify_new_integration_project(
     if not template:
         raise HTTPException(status_code=500, detail="Plantilla 'new_integration_project' no encontrada")
     
-    # Renderizar
+    # Renderizar - soportar tanto {var} como {{var}}
     subject = template["subject"]
     body = template["body_html"]
     for key, value in variables.items():
-        subject = subject.replace(f"{{{key}}}", str(value))
-        body = body.replace(f"{{{key}}}", str(value))
+        val = str(value)
+        body = body.replace(f"{{{{{key}}}}}", val)  # {{var}} primero
+        body = body.replace(f"{{{key}}}", val)       # {var} después
+        subject = subject.replace(f"{{{{{key}}}}}", val)
+        subject = subject.replace(f"{{{key}}}", val)
     
     # Destinatarios
     recipients = [impl_manager_email]
