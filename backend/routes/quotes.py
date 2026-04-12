@@ -413,17 +413,19 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
     
     # Construir filtro jerárquico basado en cargo del usuario
     query = {}
+    user_sede = current_user.get("sede", "PYME")
+    
     if current_user.get("role") != "admin":
         cargo = (current_user.get("cargo") or "").lower()
         user_id = current_user.get("user_id")
         user_depto = current_user.get("departamento", "")
         
         if "director" in cargo:
-            # Director: ve todo (sin filtro adicional)
+            # Director: ve todo (sin filtro de segmento ni usuario)
             pass
         elif "gerente" in cargo:
-            # Gerente de Ventas: ve todo su departamento
-            # Buscar todos los user_ids del mismo departamento
+            # Gerente de Ventas: ve todo su departamento + filtro por segmento
+            query["client_segment"] = user_sede
             if user_depto:
                 dept_users = await db.users.find(
                     {"departamento": user_depto, "is_active": {"$ne": False}},
@@ -434,7 +436,8 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             else:
                 query["created_by_user_id"] = user_id
         elif "coordinador" in cargo:
-            # Coordinador: ve sus cotizaciones + las de Ejecutivos de su departamento
+            # Coordinador: ve sus cotizaciones + Ejecutivos de su departamento, filtrado por segmento
+            query["client_segment"] = user_sede
             if user_depto:
                 team_users = await db.users.find(
                     {"departamento": user_depto, "is_active": {"$ne": False},
@@ -449,8 +452,9 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             else:
                 query["created_by_user_id"] = user_id
         else:
-            # Ejecutivo u otro cargo: solo ve sus propias cotizaciones
+            # Ejecutivo u otro cargo: solo ve sus propias cotizaciones de su segmento
             query["created_by_user_id"] = user_id
+            query["client_segment"] = user_sede
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
