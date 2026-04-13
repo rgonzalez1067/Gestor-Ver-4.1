@@ -99,8 +99,9 @@ export const InventoryAccountingReport = () => {
                           <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">Cantidad</th>
                           <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">Costo Unit.</th>
                           <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">Subtotal Mov.</th>
+                          <th className="px-4 py-2 text-left text-[10px] uppercase tracking-wider">Proveedor</th>
+                          <th className="px-4 py-2 text-left text-[10px] uppercase tracking-wider">Referencia</th>
                           <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">Saldo Qty</th>
-                          <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">Saldo Valor</th>
                           <th className="px-4 py-2 text-right text-[10px] uppercase tracking-wider">CPP</th>
                         </tr>
                       </thead>
@@ -116,8 +117,9 @@ export const InventoryAccountingReport = () => {
                             <td className="px-4 py-2.5 text-right font-medium">{row.quantity}</td>
                             <td className="px-4 py-2.5 text-right">{formatCurrency(row.cost_used)}</td>
                             <td className="px-4 py-2.5 text-right font-medium">{formatCurrency(row.subtotal)}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{row.supplier || '—'}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-500">{row.invoice_ref || row.reference || '—'}</td>
                             <td className="px-4 py-2.5 text-right text-slate-500">{row.balance_qty}</td>
-                            <td className="px-4 py-2.5 text-right text-slate-500">{formatCurrency(row.balance_value)}</td>
                             <td className="px-4 py-2.5 text-right font-bold text-blue-700">{formatCurrency(row.cpp)}</td>
                           </tr>
                         ))}

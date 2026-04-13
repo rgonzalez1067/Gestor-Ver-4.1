@@ -298,6 +298,8 @@ async def create_entry(warehouse_id: str, body: dict, authorization: Optional[st
     doc["created_at"] = doc["created_at"].isoformat()
     doc["certification_status"] = cert_status
     doc["acquisition_date"] = acquisition_date
+    doc["supplier"] = (body.get("supplier", "") or "")[:30]
+    doc["invoice_ref"] = (body.get("invoice_ref", "") or "")[:20]
     await db.inventory_movements.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -1010,6 +1012,8 @@ async def get_accounting_report(authorization: Optional[str] = Header(None)):
             "warehouse_name": m.get("warehouse_name", ""),
             "warehouse_id": m.get("warehouse_id", ""),
             "reference": m.get("reference", ""),
+            "supplier": m.get("supplier", ""),
+            "invoice_ref": m.get("invoice_ref", ""),
             "notes": m.get("notes", ""),
             "created_by": m.get("created_by", ""),
             "created_at": m.get("created_at", ""),

@@ -47,7 +47,7 @@ export default function Inventory() {
   const [deleteWh, setDeleteWh] = useState({ open: false, id: null, name: '' });
 
   // Entry form
-  const [entryForm, setEntryForm] = useState({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' });
+  const [entryForm, setEntryForm] = useState({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '', supplier: '', invoice_ref: '' });
   const [serialInput, setSerialInput] = useState('');
 
   // Exit form
@@ -194,7 +194,7 @@ export default function Inventory() {
       });
       toast.success(isPrecarga ? 'Precarga registrada (pendiente certificación)' : 'Entrada registrada');
       setEntryDialog(false);
-      setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' });
+      setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '', supplier: '', invoice_ref: '' });
       setIsPrecarga(false);
       fetchStock();
     } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
@@ -575,7 +575,12 @@ export default function Inventory() {
             <>
               {/* Action buttons */}
               <div className="flex gap-2 mb-4">
-                {canEditWarehouse && <Button size="sm" onClick={() => { setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '' }); setEntryDialog(true); }}
+                {canEditWarehouse && <Button size="sm" onClick={() => {
+                  const currentWh = warehouses.find(w => w.warehouse_id === selectedWh);
+                  const isAux = currentWh && !currentWh.name?.toLowerCase().includes('chaguaramos') && !currentWh.name?.toLowerCase().includes('principal');
+                  setEntryForm({ item_id: '', quantity: 1, unit_cost: 0, notes: '', serials: [], acquisition_date: '', supplier: isAux ? 'Almacen Principal (LCH)' : '', invoice_ref: '' });
+                  setEntryDialog(true);
+                }}
                   data-testid="btn-entry" className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <PackagePlus size={14} className="mr-1.5" />Entrada
                 </Button>}
@@ -701,8 +706,9 @@ export default function Inventory() {
                       <tr>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Fecha</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Tipo</th>
-                        <th className="px-4 py-3 text-left font-medium text-slate-600">Ítem</th>
+                        <th className="px-4 py-3 text-left font-medium text-slate-600">Item</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Cant.</th>
+                        <th className="px-4 py-3 text-left font-medium text-slate-600">Proveedor</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Referencia</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Por</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">PDF</th>
@@ -710,7 +716,7 @@ export default function Inventory() {
                     </thead>
                     <tbody>
                       {movements.length === 0 ? (
-                        <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
                       ) : movements.map(m => {
                         const ml = MOV_LABELS[m.movement_type] || { label: m.movement_type, color: 'bg-slate-100 text-slate-600', icon: '?' };
                         const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
@@ -725,7 +731,8 @@ export default function Inventory() {
                             </td>
                             <td className="px-4 py-2.5 text-slate-900">{m.item_name}</td>
                             <td className="px-4 py-2.5 text-center font-medium">{m.quantity}</td>
-                            <td className="px-4 py-2.5 text-xs text-slate-500">{m.reference || m.client_name || m.notes || '—'}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600">{m.supplier || '—'}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-500">{m.invoice_ref || m.reference || m.client_name || '—'}</td>
                             <td className="px-4 py-2.5 text-xs text-slate-400">{m.created_by}</td>
                             <td className="px-4 py-2.5 text-center">
                               {m.transfer_note_url ? (
@@ -814,6 +821,34 @@ export default function Inventory() {
                 <Input type="date" value={entryForm.acquisition_date} onChange={e => setEntryForm(p => ({ ...p, acquisition_date: e.target.value }))} data-testid="entry-acquisition-date" className="w-full" />
               </div>
               <div><Label>Notas</Label><DebouncedInput value={entryForm.notes} onCommit={v => setEntryForm(p => ({ ...p, notes: v }))} /></div>
+
+              {/* Proveedor y Referencia */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Proveedor</Label>
+                  <Input
+                    value={entryForm.supplier}
+                    onChange={e => setEntryForm(p => ({ ...p, supplier: e.target.value.slice(0, 30) }))}
+                    placeholder="Nombre del proveedor"
+                    maxLength={30}
+                    disabled={entryForm.supplier === 'Almacen Principal (LCH)'}
+                    className={entryForm.supplier === 'Almacen Principal (LCH)' ? 'bg-slate-100' : ''}
+                    data-testid="entry-supplier"
+                  />
+                  <p className="text-[10px] text-slate-400 text-right mt-0.5">{(entryForm.supplier || '').length}/30</p>
+                </div>
+                <div>
+                  <Label>Referencia (Factura/NE)</Label>
+                  <Input
+                    value={entryForm.invoice_ref}
+                    onChange={e => setEntryForm(p => ({ ...p, invoice_ref: e.target.value.slice(0, 20) }))}
+                    placeholder="Nro. Factura/Nota"
+                    maxLength={20}
+                    data-testid="entry-invoice-ref"
+                  />
+                  <p className="text-[10px] text-slate-400 text-right mt-0.5">{(entryForm.invoice_ref || '').length}/20</p>
+                </div>
+              </div>
 
               {/* Toggle Precarga */}
               {entryNeedsSerial && (
