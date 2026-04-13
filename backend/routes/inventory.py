@@ -978,3 +978,105 @@ async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
         "serials": serials,
         "serial_dates": serial_dates,
     }
+
+
+@router.get("/inventory/accounting-report")
+async def get_accounting_report(authorization: Optional[str] = Header(None)):
+    """Reporte Contable de Inventarios — Costo Promedio Ponderado (CPP).
+    Calcula el Kardex histórico por ítem con CPP dinámico."""
+    await get_current_user(authorization)
+    
+    # Obtener todos los movimientos ordenados cronológicamente
+    movements = await db.inventory_movements.find(
+        {}, {"_id": 0}
+    ).sort("created_at", 1).to_list(2000)
+    
+    # Agrupar movimientos por item_id
+    items_map = {}  # item_id -> { name, type, movements[] }
+    for m in movements:
+        iid = m.get("item_id", "unknown")
+        if iid not in items_map:
+            items_map[iid] = {
+                "item_id": iid,
+                "item_name": m.get("item_name", "Sin nombre"),
+                "item_type": m.get("item_type", ""),
+                "movements": []
+            }
+        items_map[iid]["movements"].append({
+            "date": m.get("acquisition_date") or (m.get("created_at", "")[:10] if isinstance(m.get("created_at"), str) else ""),
+            "movement_type": m.get("movement_type", "entrada"),
+            "quantity": m.get("quantity", 0),
+            "unit_cost": m.get("unit_cost", 0),
+            "warehouse_name": m.get("warehouse_name", ""),
+            "warehouse_id": m.get("warehouse_id", ""),
+            "reference": m.get("reference", ""),
+            "notes": m.get("notes", ""),
+            "created_by": m.get("created_by", ""),
+            "created_at": m.get("created_at", ""),
+        })
+    
+    # Calcular CPP para cada item
+    report_items = []
+    grand_total = 0
+    
+    for iid, item_data in items_map.items():
+        current_qty = 0
+        current_value = 0
+        current_cpp = 0
+        kardex_rows = []
+        
+        for mov in item_data["movements"]:
+            qty = mov["quantity"]
+            is_entrada = mov["movement_type"] in ("entrada", "transferencia_entrada")
+            
+            if is_entrada:
+                batch_value = qty * mov["unit_cost"]
+                current_value += batch_value
+                current_qty += qty
+                current_cpp = round(current_value / current_qty, 2) if current_qty > 0 else 0
+                kardex_rows.append({
+                    **mov,
+                    "type_label": "ENTRADA",
+                    "cost_used": mov["unit_cost"],
+                    "subtotal": round(batch_value, 2),
+                    "balance_qty": current_qty,
+                    "balance_value": round(current_value, 2),
+                    "cpp": current_cpp,
+                })
+            else:
+                exit_cost = current_cpp
+                exit_value = round(qty * exit_cost, 2)
+                current_qty -= qty
+                current_value -= exit_value
+                if current_qty < 0:
+                    current_qty = 0
+                    current_value = 0
+                kardex_rows.append({
+                    **mov,
+                    "type_label": "SALIDA",
+                    "cost_used": round(exit_cost, 2),
+                    "subtotal": round(exit_value, 2),
+                    "balance_qty": current_qty,
+                    "balance_value": round(current_value, 2),
+                    "cpp": current_cpp,
+                })
+        
+        total_value = round(current_qty * current_cpp, 2) if current_qty > 0 else 0
+        grand_total += total_value
+        
+        report_items.append({
+            "item_id": iid,
+            "item_name": item_data["item_name"],
+            "item_type": item_data["item_type"],
+            "kardex": kardex_rows,
+            "current_qty": current_qty,
+            "current_cpp": current_cpp,
+            "total_value": total_value,
+        })
+    
+    return {
+        "report_date": datetime.now(timezone.utc).isoformat(),
+        "items": report_items,
+        "grand_total": round(grand_total, 2),
+        "total_items": len(report_items),
+    }

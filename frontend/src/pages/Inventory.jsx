@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2, FileText } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -514,6 +514,10 @@ export default function Inventory() {
               <p className="text-sm text-slate-500 mt-1">Control multialmacén con trazabilidad por serial</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate('/inventory/accounting-report')}
+                data-testid="btn-accounting-report" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                <FileText size={14} className="mr-1.5" />Reporte Contable
+              </Button>
               <Button variant="outline" size="sm" onClick={() => { setShowClientSearch(true); setClientSearchResults([]); setClientSearch(''); }}
                 data-testid="btn-client-search">
                 <Search size={14} className="mr-1.5" />Buscar por Cliente
