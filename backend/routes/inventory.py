@@ -116,6 +116,19 @@ async def delete_warehouse(warehouse_id: str, authorization: Optional[str] = Hea
     return {"message": "Almacén eliminado"}
 
 
+@router.delete("/inventory/movements/{movement_id}")
+async def delete_movement(movement_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar un movimiento de inventario. Solo administradores."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar movimientos")
+    result = await db.inventory_movements.delete_one({"movement_id": movement_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    return {"message": "Movimiento eliminado"}
+
+
+
 # ==================== STOCK VIEW ====================
 
 @router.get("/inventory/warehouses/{warehouse_id}/stock")

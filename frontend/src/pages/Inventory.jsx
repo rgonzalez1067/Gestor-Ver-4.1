@@ -712,11 +712,12 @@ export default function Inventory() {
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Referencia</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-600">Por</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">PDF</th>
+                        {currentUser?.role === 'admin' && <th className="px-4 py-3 text-center font-medium text-slate-600"></th>}
                       </tr>
                     </thead>
                     <tbody>
                       {movements.length === 0 ? (
-                        <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
+                        <tr><td colSpan={currentUser?.role === 'admin' ? 9 : 8} className="px-4 py-8 text-center text-slate-400">Sin movimientos</td></tr>
                       ) : movements.map(m => {
                         const ml = MOV_LABELS[m.movement_type] || { label: m.movement_type, color: 'bg-slate-100 text-slate-600', icon: '?' };
                         const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
@@ -744,6 +745,22 @@ export default function Inventory() {
                                 </a>
                               ) : <span className="text-slate-300">—</span>}
                             </td>
+                            {currentUser?.role === 'admin' && (
+                              <td className="px-4 py-2.5 text-center">
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" title="Eliminar movimiento"
+                                  data-testid={`delete-mov-${m.movement_id}`}
+                                  onClick={async () => {
+                                    if (!window.confirm(`Eliminar este movimiento de ${m.item_name}?`)) return;
+                                    try {
+                                      await api.delete(`/inventory/movements/${m.movement_id}`);
+                                      toast.success('Movimiento eliminado');
+                                      fetchMovements(selectedWh);
+                                    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+                                  }}>
+                                  <Trash2 size={13} />
+                                </Button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
