@@ -20,7 +20,7 @@ class ContactCRM(BaseModel):
     last_name: Optional[str] = None   # Legacy
     phone: str = ""
     email: str = ""
-    role: Literal["Administrativo", "Financiero", "Técnico", "Cuentas por Pagar", "Operativo"] = "Administrativo"
+    role: Optional[str] = "Administrativo"
 
 # Categorías Comerciales disponibles
 CATEGORIAS_COMERCIALES = [
