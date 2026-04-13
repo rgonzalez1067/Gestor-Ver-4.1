@@ -1793,6 +1793,35 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       />
                     )}
 
+                    {/* Toggle: Incluir Costos Recurrentes en PDF (no aplica para PG) */}
+                    {!isPaymentGateway && (
+                      <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700">Incluir Costos Recurrentes en el PDF</p>
+                            <p className="text-xs text-slate-500">Si selecciona "No", se omitira la seccion de costos recurrentes del documento</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setQuoteData({ ...quoteData, include_recurring: true })}
+                              className={`px-3 py-1 rounded text-xs font-semibold transition ${quoteData.include_recurring !== false ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-500'}`}
+                              data-testid="include-recurring-yes"
+                            >Si</button>
+                            <button
+                              type="button"
+                              onClick={() => setQuoteData({ ...quoteData, include_recurring: false })}
+                              className={`px-3 py-1 rounded text-xs font-semibold transition ${quoteData.include_recurring === false ? 'bg-red-600 text-white' : 'bg-slate-200 text-slate-500'}`}
+                              data-testid="include-recurring-no"
+                            >No</button>
+                          </div>
+                        </div>
+                        {quoteData.include_recurring === false && (
+                          <p className="mt-2 text-xs text-blue-600 italic">El PDF no incluira la seccion de Costos Recurrentes Mensuales ni su total en el Resumen de Inversion.</p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-4 flex justify-end gap-3">
                       <Button
                         onClick={previewCurrentQuotePDF}

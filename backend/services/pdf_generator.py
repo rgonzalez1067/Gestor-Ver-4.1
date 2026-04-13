@@ -44,6 +44,7 @@ class TemplateQuotePDFRequest(BaseModel):
     production_items: List[QuotePDFItem] = []  # Items de cliente en producción
     pg_setup_items: List[dict] = []  # Items de setup PG: {concepto, costo, banco, observacion}
     pg_recurring_cost: Optional[dict] = None  # {rangos: [{rango_label, costo_base_total, precio_tope}], num_products: int}
+    include_recurring: bool = True  # Si False, omite la sección de costos recurrentes del PDF
     descuento: float = 0
     descuento_setup: float = 0
     descuento_recurrente: float = 0
@@ -598,15 +599,17 @@ class DynamicQuotePDFGenerator:
         )
         elements.extend(setup_elements)
         
-        # Costos Recurrentes con desglose fiscal
-        all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
-        recurring_elements, subtotal_recurrente = self._create_items_table(
-            all_recurring, 
-            "COSTOS RECURRENTES MENSUALES", 
-            self.COLOR_VERDE,
-            show_tax=True
-        )
-        elements.extend(recurring_elements)
+        # Costos Recurrentes con desglose fiscal (solo si include_recurring es True)
+        subtotal_recurrente = 0
+        if self.data.include_recurring:
+            all_recurring = self.data.recurring_basic_items + self.data.recurring_other_items + self.data.production_items
+            recurring_elements, subtotal_recurrente = self._create_items_table(
+                all_recurring, 
+                "COSTOS RECURRENTES MENSUALES", 
+                self.COLOR_VERDE,
+                show_tax=True
+            )
+            elements.extend(recurring_elements)
         
         # Notas (si existen) - van en esta página
         if self.data.notes:
@@ -653,23 +656,25 @@ class DynamicQuotePDFGenerator:
             resumen_data.append(['IVA Setup (16%)', f"${iva_setup_con_descuento:.2f}"])
         else:
             resumen_data.append(['IVA Setup (16%)', f"${iva_setup:.2f}"])
-        resumen_data.append(['TOTAL SETUP (Pago Único)', f"${total_setup_final:.2f}"])
+        resumen_data.append(['TOTAL SETUP (Pago Unico)', f"${total_setup_final:.2f}"])
         
-        # Recurrentes
-        resumen_data.append(['', ''])  # Fila vacía separadora
-        resumen_data.append(['Subtotal Recurrente', f"${subtotal_recurrente:.2f}"])
-        if monto_desc_recurrente > 0:
-            resumen_data.append([f'Descuento Recurrente ({desc_recurrente_val}%)', f"-${monto_desc_recurrente:.2f}"])
-            resumen_data.append(['Subtotal con Descuento', f"${subtotal_recurrente_con_descuento:.2f}"])
-            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente_con_descuento:.2f}"])
-        else:
-            resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
-        resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
+        # Recurrentes (solo si include_recurring es True)
+        if self.data.include_recurring:
+            resumen_data.append(['', ''])  # Fila vacía separadora
+            resumen_data.append(['Subtotal Recurrente', f"${subtotal_recurrente:.2f}"])
+            if monto_desc_recurrente > 0:
+                resumen_data.append([f'Descuento Recurrente ({desc_recurrente_val}%)', f"-${monto_desc_recurrente:.2f}"])
+                resumen_data.append(['Subtotal con Descuento', f"${subtotal_recurrente_con_descuento:.2f}"])
+                resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente_con_descuento:.2f}"])
+            else:
+                resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
+            resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
         
         # Gran total
         resumen_data.append(['', ''])
-        resumen_data.append(['INVERSIÓN INICIAL (Setup)', f"${total_setup_final:.2f}"])
-        resumen_data.append(['COSTO MENSUAL RECURRENTE', f"${total_recurrente_final:.2f}"])
+        resumen_data.append(['INVERSION INICIAL (Setup)', f"${total_setup_final:.2f}"])
+        if self.data.include_recurring:
+            resumen_data.append(['COSTO MENSUAL RECURRENTE', f"${total_recurrente_final:.2f}"])
         
         resumen_table = Table(resumen_data, colWidths=[360, 120])
         

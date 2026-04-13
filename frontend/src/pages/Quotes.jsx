@@ -120,7 +120,8 @@ export const Quotes = () => {
     descuento: 0,
     descuento_setup: 0,
     descuento_recurrente: 0,
-    notes: ''
+    notes: '',
+    include_recurring: true
   });
   
   // Estado para agregar nuevo medio de pago
@@ -740,7 +741,8 @@ export const Quotes = () => {
       recurring_other_items: [],
       additional_items: [],
       descuento: 0,
-      notes: ''
+      notes: '',
+      include_recurring: true
     });
     setSelectedBankId('');
     setSelectedMedioPagoId('');
@@ -1504,7 +1506,8 @@ export const Quotes = () => {
           if (isMegaSoftSponsor) return ftEquipmentItems.map(item => ({ name: item.name, hardware_type: item.hardware_type, quantity: item.quantity, unit_price_usd: item.unit_price_usd }));
           return [];
         })(),
-        branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0)
+        branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
+        include_recurring: quoteData.include_recurring !== false
       };
 
       const payload = {
@@ -1825,7 +1828,8 @@ export const Quotes = () => {
           if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
         }
         return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
-      })()
+      })(),
+      include_recurring: quoteData.include_recurring !== false
     };
 
     try {
@@ -1999,7 +2003,8 @@ export const Quotes = () => {
             if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
           }
           return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
-        })()
+        })(),
+        include_recurring: quoteData.include_recurring !== false
       };
       
       const token = localStorage.getItem('session_token');
