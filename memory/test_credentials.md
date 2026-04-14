@@ -2,6 +2,6 @@
 
 ## Admin User
 - Email: rgonzalez@megasoft.com.ve
-- Password: admin123
+- Password: Avila*0426
 - Role: admin
 - Name: Rafael González

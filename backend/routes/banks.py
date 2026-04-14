@@ -209,8 +209,11 @@ async def get_banks(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     banks = await db.banks.find({}, {"_id": 0}).to_list(1000)
     for bank in banks:
-        if isinstance(bank['created_at'], str):
-            bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+        ca = bank.get('created_at')
+        if ca is None:
+            bank['created_at'] = datetime.now(timezone.utc)
+        elif isinstance(ca, str):
+            bank['created_at'] = datetime.fromisoformat(ca)
         # Migrate old integration statuses to new 3-state model
         if bank.get("integrations"):
             bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
@@ -226,8 +229,11 @@ async def update_bank(bank_id: str, bank_data: BankCreate, authorization: Option
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Bank not found")
     bank = await db.banks.find_one({"bank_id": bank_id}, {"_id": 0})
-    if isinstance(bank['created_at'], str):
-        bank['created_at'] = datetime.fromisoformat(bank['created_at'])
+    ca = bank.get('created_at')
+    if ca is None:
+        bank['created_at'] = datetime.now(timezone.utc)
+    elif isinstance(ca, str):
+        bank['created_at'] = datetime.fromisoformat(ca)
     # Migrate old integration statuses to new 3-state model
     if bank.get("integrations"):
         bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]

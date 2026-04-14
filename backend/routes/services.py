@@ -55,8 +55,11 @@ async def get_services(
     
     services = await db.services.find(query, {"_id": 0}).to_list(1000)
     for srv in services:
-        if isinstance(srv['created_at'], str):
-            srv['created_at'] = datetime.fromisoformat(srv['created_at'])
+        ca = srv.get('created_at')
+        if ca is None:
+            srv['created_at'] = datetime.now(timezone.utc)
+        elif isinstance(ca, str):
+            srv['created_at'] = datetime.fromisoformat(ca)
     return services
 
 @router.put("/services/{service_id}", response_model=Service)
@@ -69,8 +72,11 @@ async def update_service(service_id: str, service_data: ServiceCreate, authoriza
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Service not found")
     service = await db.services.find_one({"service_id": service_id}, {"_id": 0})
-    if isinstance(service['created_at'], str):
-        service['created_at'] = datetime.fromisoformat(service['created_at'])
+    ca = service.get('created_at')
+    if ca is None:
+        service['created_at'] = datetime.now(timezone.utc)
+    elif isinstance(ca, str):
+        service['created_at'] = datetime.fromisoformat(ca)
     return service
 
 @router.delete("/services/{service_id}")

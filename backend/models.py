@@ -179,10 +179,10 @@ class Hardware(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ServiceCreate(BaseModel):
-    category: str
+    category: str = "General"
     name: str
     service_type: Literal["Producto", "Servicio"] = "Servicio"
-    tipo_corp: Literal["Derecho de Uso", "Apoyo Técnico", "Soporte y Monitoreo"]
+    tipo_corp: str = ""
     application_type: Literal["setup", "recurring", "both"] = "both"
     vpos_enabled: bool = True
     gateway_enabled: bool = True
@@ -197,7 +197,7 @@ class ServiceCreate(BaseModel):
 
 class Service(BaseModel):
     service_id: str = Field(default_factory=lambda: f"srv_{uuid.uuid4().hex[:12]}")
-    category: str
+    category: str = "General"
     name: str
     service_type: str = "Servicio"
     tipo_corp: str = ""
@@ -212,6 +212,8 @@ class Service(BaseModel):
     monthly_cost_outsourcing: float = 0
     description: Optional[str] = None
     linked_recurring_service_id: Optional[str] = None  # ID del servicio recurrente vinculado
+    order: Optional[int] = None
+    is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # ==================== INTEGRATOR MODELS ====================
