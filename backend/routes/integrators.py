@@ -790,7 +790,7 @@ async def import_integrators(
             'modalidad_de_integración': 'integration_modality', 'modalidad_de_integracion': 'integration_modality',
             'Estatus': 'integrator_status', 'estatus': 'integrator_status', 'estado': 'integrator_status',
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
-            'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria',
+            'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria', 'Categoria': 'categoria',
             'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
             'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date',
             'Correo': 'email', 'correo': 'email', 'email_contacto': 'email',
@@ -881,12 +881,27 @@ async def import_integrators(
                 
                 row_errors = []
                 
-                # Parse last_contact_date
+                # Parse last_contact_date - handle datetime objects from Excel AND strings
                 last_contact_date = None
-                if last_contact_raw:
-                    from datetime import date as date_type
+                raw_val_contact = row.get('last_contact_date', None)
+                if isinstance(raw_val_contact, pd.Series):
+                    raw_val_contact = raw_val_contact.iloc[0]
+                
+                from datetime import date as date_type
+                
+                if isinstance(raw_val_contact, datetime):
+                    # pandas read Excel dates as datetime objects
+                    parsed_date = raw_val_contact.date()
+                    if parsed_date > date_type.today():
+                        row_errors.append(ImportError(row=row_num, column='Último Contacto (Col I)',
+                            value=str(parsed_date), error_type='invalid',
+                            message=f'Fila {row_num}, Columna I (Último Contacto): La fecha es posterior a hoy. No se permiten fechas futuras.',
+                            suggested_action=f'Corrija la celda I{row_num}. Ingrese una fecha igual o anterior a hoy'))
+                    else:
+                        last_contact_date = parsed_date.isoformat()
+                elif last_contact_raw and last_contact_raw.lower() not in ('n/a', 'na', '', 'nan', 'none'):
                     parsed_date = None
-                    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+                    for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%Y-%m-%d %H:%M:%S'):
                         try:
                             parsed_date = datetime.strptime(last_contact_raw, fmt).date()
                             break
