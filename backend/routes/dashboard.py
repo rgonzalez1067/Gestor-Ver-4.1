@@ -364,8 +364,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'Integrador': 'integrador_name', 'integrador': 'integrador_name',
             'Aplicativo': 'aplicativo', 'aplicativo': 'aplicativo',
             # Contacts
+            'Contacto Nombre Completo': 'contact_name', 'contacto_nombre_completo': 'contact_name',
             'Contacto Nombre': 'contact_name', 'contacto_nombre': 'contact_name',
-            'Contacto Apellido': 'contact_lastname', 'contacto_apellido': 'contact_lastname',
             'Contacto Teléfono': 'contact_phone', 'contacto_teléfono': 'contact_phone',
             'contacto_telefono': 'contact_phone',
             'Contacto Email': 'contact_email', 'contacto_email': 'contact_email',
@@ -471,8 +471,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'ejecutivo_propietario': 'N', 'cantidad_tiendas': 'O', 'cantidad_cajas': 'P',
             'fecha_primer_contacto': 'Q', 'tipo_contacto': 'R', 'tipo_servicio': 'S',
             'integrador_name': 'T', 'aplicativo': 'U',
-            'contact_name': 'V', 'contact_lastname': 'W', 'contact_phone': 'X',
-            'contact_email': 'Y', 'contact_role': 'Z',
+            'contact_name': 'V', 'contact_phone': 'W',
+            'contact_email': 'X', 'contact_role': 'Y',
         }
         col_friendly = {
             'rif': 'RIF', 'sucursal': 'Sucursal', 'legal_name': 'Nombre Jurídico',
@@ -485,8 +485,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'cantidad_tiendas': 'Cantidad Tiendas', 'cantidad_cajas': 'Cantidad Cajas',
             'fecha_primer_contacto': 'Fecha Primer Contacto', 'tipo_contacto': 'Tipo Contacto',
             'tipo_servicio': 'Tipo Servicio', 'integrador_name': 'Integrador',
-            'aplicativo': 'Aplicativo', 'contact_name': 'Contacto Nombre',
-            'contact_lastname': 'Contacto Apellido', 'contact_phone': 'Contacto Teléfono',
+            'aplicativo': 'Aplicativo', 'contact_name': 'Contacto Nombre Completo',
+            'contact_phone': 'Contacto Teléfono',
             'contact_email': 'Contacto Email', 'contact_role': 'Contacto Rol',
         }
         
@@ -712,7 +712,6 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                 
                 # === Contact Role validation ===
                 contact_name = _safe(row, 'contact_name')
-                contact_lastname = _safe(row, 'contact_lastname')
                 contact_phone = _safe(row, 'contact_phone')
                 contact_email = _safe(row, 'contact_email')
                 contact_role = _safe(row, 'contact_role', 'Administrativo')
@@ -752,8 +751,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     contacts_crm.append({
                         "contact_id": f"cnt_{uuid.uuid4().hex[:8]}",
                         "first_name": contact_name,
-                        "last_name": contact_lastname,
-                        "full_name": f"{contact_name} {contact_lastname}".strip(),
+                        "last_name": "",
+                        "full_name": contact_name,
                         "phone": contact_phone,
                         "email": contact_email,
                         "role": contact_role
@@ -785,7 +784,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     integrador_name=integrador_name or None,
                     aplicativo=aplicativo or None,
                     contacts=contacts_crm,
-                    contact1=Contact(name=f'{contact_name} {contact_lastname}'.strip() or 'N/A', phone=contact_phone or 'N/A', email=contact_email or 'sin@email.com'),
+                    contact1=Contact(name=contact_name or 'N/A', phone=contact_phone or 'N/A', email=contact_email or 'sin@email.com'),
                     contact2=Contact(name='N/A', phone='N/A', email='sin@email.com')
                 )
                 

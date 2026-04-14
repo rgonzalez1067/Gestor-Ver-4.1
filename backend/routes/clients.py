@@ -389,8 +389,7 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         'Tipo Servicio': ['VPOS, MPOS', 'Payment Gateway', 'Link de Pago'],
         'Integrador': [integrador_names[0] if integrador_names else '', '', ''],
         'Aplicativo': ['PaymentHub v3', '', ''],
-        'Contacto Nombre': ['Carlos', 'Ana', 'Pedro'],
-        'Contacto Apellido': ['Pérez', 'Ruiz', 'Gómez'],
+        'Contacto Nombre Completo': ['Carlos Perez', 'Ana Ruiz', 'Pedro Gomez'],
         'Contacto Teléfono': ['0412-1234567', '0416-9876543', '0414-1112233'],
         'Contacto Email': ['carlos@demo.com', 'ana@demo.com', 'pedro@otra.com'],
         'Contacto Rol': ['Administrativo', 'Técnico', 'Financiero'],
@@ -425,11 +424,10 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
             {'Campo': 'Tipo Servicio', 'Columna': 'S', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
             {'Campo': 'Integrador', 'Columna': 'T', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
             {'Campo': 'Aplicativo', 'Columna': 'U', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
-            {'Campo': 'Contacto Nombre', 'Columna': 'V', 'Descripción': 'Nombre del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos'},
-            {'Campo': 'Contacto Apellido', 'Columna': 'W', 'Descripción': 'Apellido del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'Pérez'},
-            {'Campo': 'Contacto Teléfono', 'Columna': 'X', 'Descripción': 'Teléfono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
-            {'Campo': 'Contacto Email', 'Columna': 'Y', 'Descripción': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
-            {'Campo': 'Contacto Rol', 'Columna': 'Z', 'Descripción': 'Rol del contacto: Administrativo, Financiero, Técnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
+            {'Campo': 'Contacto Nombre Completo', 'Columna': 'V', 'Descripcion': 'Nombre completo del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos Perez'},
+            {'Campo': 'Contacto Telefono', 'Columna': 'W', 'Descripcion': 'Telefono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
+            {'Campo': 'Contacto Email', 'Columna': 'X', 'Descripcion': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
+            {'Campo': 'Contacto Rol', 'Columna': 'Y', 'Descripcion': 'Rol del contacto: Administrativo, Financiero, Tecnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
         ]
         pd.DataFrame(fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
