@@ -363,6 +363,7 @@ class Integrator(BaseModel):
     implementador_user_id: Optional[str] = None
     certifications: Optional[dict] = None
     last_contact_date: Optional[str] = None
+    email: Optional[str] = None
     contacts: Optional[List[TechnicalContact]] = None
     integration_phase: Optional[str] = "Negociación"
     has_overdue_commitments: Optional[bool] = None

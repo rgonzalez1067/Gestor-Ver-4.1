@@ -59,7 +59,7 @@ export const Integrators = () => {
   const [filterGestor, setFilterGestor] = useState('');
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
-    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '',
+    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', email: '',
     contacts: []
   });
   // Confirmación de asignación de implementador
@@ -222,13 +222,14 @@ export const Integrators = () => {
       gestor: intg.gestor || '', categoria: intg.categoria || '',
       certifications: intg.certifications || {},
       last_contact_date: intg.last_contact_date || '',
+      email: intg.email || '',
       contacts: intg.contacts || []
     });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', email: '', contacts: [] });
     setEditingIntegrator(null);
   };
 
@@ -645,6 +646,17 @@ export const Integrators = () => {
                         </div>
                       </div>
                     )}
+                    {/* Correo del integrador */}
+                    <div>
+                      <Label>Correo de Contacto</Label>
+                      <Input
+                        value={formData.email || ''}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="correo@empresa.com"
+                        type="email"
+                        data-testid="integrator-email-input"
+                      />
+                    </div>
                     {/* Contactos Técnicos */}
                     <div className="border-t border-slate-200 pt-3 mt-1">
                       <div className="flex items-center justify-between mb-2">
@@ -896,7 +908,7 @@ export const Integrators = () => {
                           <td colSpan={11} className="p-0">
                             <div className="bg-slate-50 border-t border-slate-200 p-4" data-testid={`cert-matrix-${intg.integrator_id}`}>
                               <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                                <Award size={14} className="text-purple-600" />Matriz de Certificación — {intg.name}
+                                <Award size={14} className="text-purple-600" />Matriz de Servicios y Productos — {intg.name}
                               </h4>
                               {certProducts.length > 0 ? (
                                 <>

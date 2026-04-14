@@ -611,7 +611,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     cert_products = await db.services.find(
         {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
         {"_id": 0, "service_id": 1, "name": 1}
-    ).sort("name", 1).to_list(1000)
+    ).sort("order", 1).to_list(1000)
     
     # Base data with 3 example rows
     data = {
@@ -620,15 +620,18 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Aplicativo': ['PaymentHub v3', 'MiTienda App', 'GW-Connect'],
         'Modalidad': ['PG Universal', 'MPOS', 'REST'],
         'Estatus': ['En proceso', 'Certificado', 'En proceso'],
-        'Tipo Integración': ['PG', 'MP', 'CR'],
+        'Tipo Integracion': ['PG', 'MP', 'CR'],
         'Gestor': ['', '', ''],
-        'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
-        'Último Contacto': ['15/01/2026', '28/02/2026', '']
+        'Categoria': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
+        'Ultimo Contacto': ['15/01/2026', '28/02/2026', ''],
+        'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve']
     }
     
-    # Add dynamic product columns with sample cert values
+    # Add dynamic product columns (excluding 'Correo' which is already a base field)
     sample_vals = ['C', 'P', 'N/A']
     for i, prod in enumerate(cert_products):
+        if prod['name'] == 'Correo':
+            continue
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
     
     df = pd.DataFrame(data)
@@ -644,11 +647,12 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Aplicativo *', 'Descripción': 'Nombre del aplicativo (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PaymentHub v3'},
             {'Campo': 'Modalidad *', 'Descripción': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Universal'},
             {'Campo': 'Estatus', 'Descripción': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
-            {'Campo': 'Tipo Integración', 'Descripción': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
-            {'Campo': 'Gestor', 'Descripción': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Pérez'},
-            {'Campo': 'Categoría', 'Descripción': 'Categoría del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
-            {'Campo': 'Último Contacto', 'Descripción': 'Fecha del último contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
-            {'Campo': '--- COLUMNAS DE PRODUCTOS ---', 'Descripción': 'Las siguientes columnas corresponden a la Matriz de Certificación', 'Obligatorio': '---', 'Ejemplo': '---'},
+            {'Campo': 'Tipo Integracion', 'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
+            {'Campo': 'Gestor', 'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
+            {'Campo': 'Categoria', 'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
+            {'Campo': 'Ultimo Contacto', 'Descripcion': 'Fecha del ultimo contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
+            {'Campo': 'Correo', 'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
+            {'Campo': '--- MATRIZ DE SERVICIOS Y PRODUCTOS ---', 'Descripcion': 'Las siguientes columnas corresponden a la Matriz de Certificacion', 'Obligatorio': '---', 'Ejemplo': '---'},
         ]
         for prod in cert_products:
             base_fields.append({
@@ -788,7 +792,9 @@ async def import_integrators(
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
             'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria',
             'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
-            'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date'
+            'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date',
+            'Correo': 'email', 'correo': 'email', 'email_contacto': 'email',
+            'Tipo Integracion': 'integration_type', 'tipo integracion': 'integration_type',
         }
         
         # Pre-load users and products
@@ -871,6 +877,7 @@ async def import_integrators(
                 gestor = _safe_val(row, 'gestor')
                 categoria = _safe_val(row, 'categoria')
                 last_contact_raw = _safe_val(row, 'last_contact_date')
+                email = _safe_val(row, 'email')
                 
                 row_errors = []
                 
@@ -990,6 +997,8 @@ async def import_integrators(
                         update_data["categoria"] = categoria
                     if last_contact_date:
                         update_data["last_contact_date"] = last_contact_date
+                    if email:
+                        update_data["email"] = email
                     
                     # Merge certs: existing certs as base, overlay with file data
                     if product_columns:
@@ -1015,6 +1024,7 @@ async def import_integrators(
                         gestor=gestor or None,
                         categoria=categoria or None,
                         last_contact_date=last_contact_date,
+                        email=email or None,
                         certifications=full_certs
                     )
                     doc = new_integrator.model_dump()
