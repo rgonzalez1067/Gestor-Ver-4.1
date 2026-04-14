@@ -1,134 +1,155 @@
-<analysis><handoff summary>
-**original_problem_statement:**
-The session started with a critical P0 bug where the Enviar a Implementación (Quote to Project conversion) process crashed due to missing serials, causing ghost emails and failed DB updates. Subsequently, the user requested an extensive list of UI/UX improvements, logic adjustments, PDF styling, and architecture changes, including: a PYME-specific extended equipment selection flow, a Dictionary of Variables for the Email Templates editor, contextual segregation of Email Templates (Cotizaciones vs Implementación), and duplicating specific templates.
+<analysis>**original_problem_statement:**
+El usuario solicitó continuar con las tareas de evolución, limpieza de la plataforma y refactorización, abordando los siguientes frentes:
+1. Finalizar la UI para eliminar usuarios (Super poder de Admin).
+2. **P1:** Refactorizar  (~6000 líneas).
+3. Mejoras UI/UX en Cotizaciones: Iniciales del creador en la tabla con tooltip, columna de código fija (sticky).
+4. Solucionar errores de deployment (Health checks, query limits).
+5. Mejoras en PDF de cotizaciones: Encabezado/Pie de página persistente en TODAS las páginas (incluyendo páginas estáticas inyectadas) con estampador (stamping) de ReportLab. Reemplazo de anexos estáticos para VPOS y Payment Gateway (Pymes).
+6. Buscador dinámico de clientes en la cotización de Equipos y Accesorios.
+7. Nueva plantilla de correo Nuevo Proyecto de Integración y flujo de notificación al crear un integrador.
+8. Creación del módulo Contacto Inicial (Lead Management / Prospección Temprana) con formulario de creación, y Central de Acciones en el Dashboard (Mis Compromisos) con semáforo SLA. Conversión a Prospecto heredando propietario y migrando bitácora.
+9. Filtrado de datos por segmento (Data Isolation) en Cotizaciones.
+10. Nuevo Reporte Contable de Inventarios con cálculo dinámico de Costo Promedio Ponderado (CPP).
+11. Nuevos campos Proveedor y Referencia en carga de inventarios, con lógica por almacén. Opción para admin de eliminar movimientos de almacén.
+12. Limpieza de base de datos (truncates manuales solicitados por el usuario) y actualización de plantilla de importación de Clientes.
+13. Reestructuración profunda de esquema de Integradores (29 columnas, matriz de servicios actualizada).
+14. Opción de ocultar costos recurrentes en cotizaciones.
+15. Cambio de contraseña de administrador.
 
-PRODUCT REQUIREMENTS:
-- Fix Quote-to-Project crash and transactional sequence.
-- Implement extended PYME flow gathering Server Info and Pinpad serials (from the last 15 days of inventory movements).
-- Include Server and Hardware in the Implementation PDF with improved visual contrast (white on blue headers) and reordered sections.
-- Enhance UI density in  (grid view for serials, repositioned actions).
-- Add an interactive, auto-completing Variables Dictionary in the template editor and fix its CRUD persistence bugs.
-- Segregate Email Templates contextually (Sales vs. Operations) and add specific Comprobante de Pago templates for Corp and Pyme.
+**PRODUCT REQUIREMENTS:**
+- El sistema de PDF debe aplicar stamping (Overlay) sobre páginas unidas para asegurar confidencialidad continua.
+- Data Isolation estricto: Ejecutivos Pyme solo ven y editan data Pyme. Directores/Admins ven todo.
+- Los módulos deben mantener consistencia en la Bitácora (registro inmutable de fecha de servidor y usuario).
 
 **User's preferred language**: Spanish
-**INSTRUCT NEXT AGENT:** You MUST respond and communicate in Spanish only.
+INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-A React/FastAPI/MongoDB platform. It features an advanced Quotes and Projects module, complete with a dynamic email notification engine and PDF Ficha Técnica generation. The platform now segregates email templates by  (COTIZACIONES vs IMPLEMENTACION) and includes a specialized extended PYME conversion flow that dynamically fetches hardware serials and server data.
+Plataforma Full-stack (React/FastAPI/MongoDB) para gestión comercial y operativa. Cuenta con módulos de Clientes, Cotizaciones (VPOS, MPOS, Gateway, Equipos, Reparaciones), Inventario multialmacén con kardex contable (CPP), Proyectos/Nuevos Productos con flujos SLA, Gestión de Integradores (con matriz de 20 servicios), y un módulo de Prospección Temprana (Contacto Inicial) con central de compromisos en el Dashboard. Usa generador de PDF propio basado en ReportLab con overlay de membretes.
 
 **Last working item**: 
-- **Last item agent was working**: Duplicating the Envío de Comprobante de Pago email template into specific Corp and Pyme versions within the COTIZACIONES context and deleting the generic one.
-- **Status**: USER VERIFICATION PENDING
-- **Agent Testing Done**: Y (Executed via backend python script, verified DB output).
-- **Which testing method agent to use?**: NA (Database seeded correctly).
-- **User Testing Done**: N
+    - Last item agent was working: Cambio manual de la contraseña del usuario administrador () saltando las reglas de bcrypt, ajustando al algoritmo SHA256 con salt de la plataforma.
+    - Status: COMPLETED
+    - Agent Testing Done: Y
+    - Which testing method agent to use?: manual testing by python -c (validación de hash y auth).
+    - User Testing Done: N/A
 
 **All Pending/In progress Issue list**: 
-There are no pending immediate bugs from the user's explicit requests in this session, as all reported issues were successfully closed. Refer to Upcoming/Future Tasks for refactoring debt.
+  Ningún issue en progreso. Todos los bugs encontrados en la sesión (error de validación , límite de queries, errores de ctx en React) fueron resueltos.
 
 **In progress Task List**: 
-None.
+  Ninguna tarea en progreso.
 
-**Upcoming and Future Tasks**:
-- **P1**: Verificación de Email y Recuperación de Contraseña.
-- **P1**: Refactorización de  (Critical: File is over 5800+ lines long, causing context/AST overhead).
-- **P2**: Módulo de Reportes de Ventas.
-- **P2**: Lógica Completado en Roadmap Bancos.
-- **P2**: Refactorización de  (1800+ líneas).
+**Upcoming and Future Tasks**
+  - **P1**: Sistema de notificaciones push (campana en header con contador) y alertas en tiempo real vía WebSockets/Pusher para Contactos Iniciales.
+  - **P2**: Módulo de Reportes de Ventas.
+  - **P2**: Lógica Completado en Roadmap Bancos.
+  - **P2**: Refactorización de componentes monolíticos restantes ( ~1800 líneas y  ~2600 líneas).
 
-**Completed work in this session**:
-- Bug P0 Enviar a Implementación Crash (DONE)
-- PYME Extended Project Creation Flow (Server + Pinpads) (DONE)
-- Pinpads Equipment Catalog Filter Fix (excluding ) (DONE)
-- PDF TableHeaderText Style Bug Fix (DONE)
-- UI/UX Density Optimization in  (DONE)
-- Email Template Variables Dictionary + Autocomplete (DONE)
-- Email Template Persistence & CRUD Bugs Fix (DONE)
-- Quotes Table Total  visual formatting (DONE)
-- PDF Design Optimization (Contrast and hierarchy) (DONE)
-- Email Templates Context Segregation (Cotizaciones vs Implementación) (DONE)
-- Seed & Duplication of Comprobante de Pago template (DONE)
+**Completed work in this session**
+- UI para eliminar usuarios terminada en  (DONE)
+- Refactorización MASIVA de  (de 5947 a 3359 líneas), extrayendo  y  (DONE)
+- Iniciales del creador en Cotizaciones y columnas sticky (DONE)
+- Fix de deployment: Endpoint  y optimización masiva de límites  en MongoDB (DONE)
+- PDFs: Overlay stamping (ReportLab) de encabezados y pie de página (Documento Confidencial) en TODAS las páginas unidas (DONE)
+- Nuevos anexos estáticos inyectados para VPOS y Payment Gateway Pymes (DONE)
+- Módulo Contacto Inicial: Flujo de Leads con asignación, SLA dinámico, Dashboard de Mis Compromisos y conversión a Prospectos con migración de bitácora y owner_id (DONE)
+- Data Isolation: Filtro a nivel de MongoDB para que Ejecutivos PYME solo interactúen con Cotizaciones PYME (DONE)
+- Módulo de Inventario: Reporte Contable de Costo Promedio Ponderado (CPP), campos Proveedor y Referencia, y borrado de movimientos para Admin (DONE)
+- Reestructuración total de BD de Integradores a 29 columnas (Nuevos 20 productos) y actualización de importador (DONE)
+- Plantilla de Clientes: Columnas de Nombre y Apellido de contacto unificadas (DONE)
+- Toggle para incluir/excluir costos recurrentes en UI y PDF (DONE)
+- Fix del modelo Pydantic  ( Optional) (DONE)
+- Purgas manuales solicitadas de BD: Clientes, Inventarios, Cotizaciones, Proyectos, Equipos Reparación e Integradores (DONE)
 
-**Earlier issues found/mentioned but not fixed**:
-None explicitly pending.
+**Earlier issues found/mentioned but not fixed**
+- Ninguno.
 
-**Known issue recurrence from previous fork**:
-- **Issue recurrence in previous fork**: Monolithic frontend component complexity ( and  continue to grow significantly).
-- **Recurrence count**: Persistent across multiple forks.
-- **Status**: IN PROGRESS (Needs dedicated refactoring phase).
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: Tamaños monolíticos de archivos.
+  - Recurrence count: 6+ iteraciones.
+  - Status: IN PROGRESS (Se mitigó grandemente dividiendo , pero queda  y ).
 
-**Code Architecture**:
+**Code Architecture**
+- : , , , , .
+- :  (Lógica central de ReportLab y PDF building).
+- : Funciones de overlay y merge de PDF ().
+- : , ,  (Archivos nuevos post-refactor).
+- : , , .
 
+**Key Technical Concepts**
+- **PDF Stamping**: Se usa un canvas de ReportLab para crear un archivo transparente con headers/footers y se superpone a las páginas existentes usando PyPDF2 ().
+- **Data Isolation**: Se impone la variable  a las queries de Mongo basándose en .
+- **Context Passing Proxy**: En la refactorización de , se usaron objetos  masivos para pasar dependencias de estado a los sub-componentes.
+- **Costo Promedio Ponderado (CPP)**: Calculado iterativamente en memoria recorriendo el kardex (Entradas actualizan costo, Salidas congelan el costo vigente).
 
-**Key Technical Concepts**:
-- **Frontend**: React, Tailwind, contentEditable (Rich Text Email Editor with token highlighting & autocomplete).
-- **Backend**: FastAPI, MongoDB, ReportLab (PDFs).
-- **Scope Filtering**: Email templates strictly segmented using  field to prevent cross-departmental pollution.
+**key DB schema**
+  - : {contact_id, name, phone, email, legal_name, interest_notes, assigned_to, assigned_name, due_date, converted, created_by, created_at}
+  - : {integrator_id, name, integration_type, ..., email, certifications: {dict de 20 servicios booleanos}}
+  - : Agregado {supplier, invoice_ref}
 
-**key DB schema**:
-- : {template_id, name, subject, body_html, context (COTIZACIONES | IMPLEMENTACION | ADMINISTRACION)}
-- : {project_type_impl, server_name, pinpad_serials, ...}
--  & : Used for resolving available physical POS/Pinpads models and tracking recent serials.
+**changes in tech stack**
+  - Ninguno.
 
-**changes in tech stack**:
-- None.
-
-**All files of reference**: 
--  (Updated with PYME flow, model fetching, serial fetching)
--  (Updated structure, headers styling)
--  (PYME conditional flow, Sales template UI added)
--  (Re-layout, variable dictionary, implementation template UI)
--  (Added  filter,  endpoint, payload mapping)
--  (Updated)
+**All files of reference**
+  -  (Nuevo, ~1800 líneas)
+  -  (Nuevo, ~830 líneas)
+  -  (Modificado para remover header_footer delegates y usar stamp global)
+  -  (Contiene )
+  -  (Nuevo módulo de API)
+  -  (Nueva página frontend)
+  -  (Nuevo reporte)
 
 **Areas that need refactoring**: 
--  (Crucial to break down into smaller components like , , ).
+  -  (~2600 líneas)
+  -  (~1800 líneas)
 
-**key api endpoints**:
--  (Fetches non-service hardware)
--  (Fetches recent serial deliveries by RIF)
--  (Fetches scoped templates)
--  (New CRUD action)
+**key api endpoints**
+  - 
+  -  y asociados
+  -  (Actualizado para el nuevo layout)
 
-**Critical Info for New Agent**:
-- **Transactions**: App-level rollback logic is in place for  because native MongoDB replica set transactions aren't guaranteed on the instance.
-- **Email Templates**: Do not mix contexts.  uses ,  uses .
-- **Hardware Fetching**: Filtering uses  rather than strictly  due to historical DB inconsistencies.
+**Critical Info for New Agent** 
+- **Hash de Contraseñas**: El sistema NO usa bcrypt estándar. Usa SHA256 concatenado con salt (formato ). Si necesitas actualizar o validar una clave desde backend, usa  y  importados desde .
+- **Patrón de Componentes Extraídos**: Si necesitas modificar el flujo de cotizaciones, revisa primero si la variable/función existe en  y asegúrate de incluirla en los objetos  o  antes de usarla dentro de  o .
+- **Limpieza de BD**: El usuario solicitó el borrado de miles de registros (Clientes, Inventario, Proyectos, Cotizaciones, Integradores, etc.). El ambiente de preview actual está casi en blanco en cuanto a datos operacionales.
 
-**documents and test reports created in this job**:
-- 
--  (P0 Bug)
--  (PYME Extended flow testing)
-- 
+**documents and test reports created in this job** 
+  -  (Auth/Delete)
+  -  (Regression Quotes.jsx)
+  -  (Regression PDF overlay - Bugs fixed)
+  -  (Initial Contacts E2E)
 
-**Last 10 User Messages and any pending HUMAN messages**: 
-1. **User**: Requests duplicating the generic Envio de Comprobante de Pago template to Pyme and Corp versions within their context. (COMPLETED)
-2. **User**: Requested segregating Email Templates by context (COTIZACIONES vs IMPLEMENTACION) so sales and operations don't mix templates. (COMPLETED)
-3. **User**: Requested PDF Design optimization (white text on blue headers, reorder sequence of information). (COMPLETED)
-4. **User**: 🚩 Bug Report: Missing  format in Total column for  items in Quotes table. (COMPLETED)
-5. **User**: 🚩 Bug Report: UI/UX & Persistence issues in Templates (CSS overlap making tokens unreadable, missing Delete button, Update 405 error). (COMPLETED)
-6. **User**: Requested UI feature: Master Variables Panel/Dictionary inside the email template editor with click-to-copy/autocomplete. (COMPLETED)
-7. **User**: Requested UI density fix in  (Server info into Implementation card, Action buttons to top right, Serial matrix grid). (COMPLETED)
-8. **User**: 🚩 Bug Report: TableHeaderText style not found causing PDF crash. (COMPLETED)
-9. **User**: 🚩 Bug Report: Pinpad equipment catalog dropdown incomplete (showing only 3 items, filtering issue). (COMPLETED)
-10. **User**: Confirmed DB details for the PYME Extended Flow (using  and ). (COMPLETED)
+**Last 10 User Messages and any pending HUMAN messages** 
+ 1. (User): Pide corregir error de validación :role al editar contactos en Clientes. (COMPLETED)
+ 2. (User): Pide agregar pregunta ¿Incluir Costos Recurrentes? en Cotizaciones (excepto Gateway) para ocultar del PDF. (COMPLETED)
+ 3. (User): Pide borrar todas las cotizaciones, proyectos y entradas de inventario. (COMPLETED)
+ 4. (User): Pide función para super-usuario para eliminar movimientos de Almacenes. (COMPLETED)
+ 5. (User): No ve el botón de eliminar. (COMPLETED - Aclarado que la tabla estaba vacía tras el borrado masivo).
+ 6. (User): Pide borrar la BD de Clientes completa y unificar nombres en la plantilla de importación. (COMPLETED)
+ 7. (User): Pide borrar entradas de inventario. (COMPLETED)
+ 8. (User): Pide borrar BD de equipos en reparación. (COMPLETED)
+ 9. (User): Pide reestructuración profunda de Base de Integradores (truncar y añadir nueva matriz de 20 servicios). (COMPLETED)
+ 10. (User): Cambiar la clave del admin  a . (COMPLETED)
+  - *No pending human messages.*
 
-**Project Health Check**:
-- Broken: None
-- Mocked: None
+**Project Health Check:**
+  - Broken: Ninguno reportado. Tests exitosos.
+  - Mocked: Ninguno.
 
-**3rd Party Integrations**: 
-- Emergent Object Storage — uses Emergent LLM Key ( must remain in backend ).
-- SMTP / Resend — requires User API Key.
+**3rd Party Integrations** 
+	• Emergent Object Storage — uses Emergent LLM Key
+	• Servicio de Correo SMTP (Resend) — requires User API Key
 
-**Testing status**:
-- Testing agent used after significant changes: YES (Iter 151, 152).
-- Troubleshoot agent used after agent stuck in loop: NO
-- Known regressions: None
+**Testing status**
+  - Testing agent used after significant changes: YES (iterations 161, 162, 163, 164)
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None (tests are managed by subagent)
+  - Known regressions: None.
 
-**Credentials to test flow**:
-Check 
+**Credentials to test flow:**
+Consultar .
+**ACTUALIZADO**:  /  (Admin).
 
-**What agent forgot to execute**:
-The agent fully completed the final script execution for duplicating the templates but did not finish with a formal UI screenshot to physically verify the exact text renders on the frontend—though the Python DB script successfully verified the DB transformation. 
-</handoff summary></analysis>
+**What agent forgot to execute**
+N/A. Todas las peticiones fueron implementadas y verificadas.</analysis>
