@@ -2234,6 +2234,7 @@ async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(N
         "invoice_pdf_url": None,
         "quote_pdf_url": None,
         "invoice_number": None,
+        "attachments": [],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     

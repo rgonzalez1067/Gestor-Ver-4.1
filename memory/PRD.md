@@ -10,70 +10,46 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 
 ## Módulos Implementados
 
-### Proyectos (Implementación)
-- Matriz de implementación por banco/producto
-- Vinculación Logística en "Enviar a Implementación"
-- Flujo Transaccional Seguro (Fix P0 — Feb 2026)
-- Flujo Extendido PYME (Feb 2026)
-- Motor de Reemplazo de Variables ROBUSTO (19 variables dinámicas)
-- Editor de Envío Final con soporte de imágenes (Object Storage)
-- VTIDs por Sucursal, Notificaciones Secuenciales
-- Asignación Simplificada + Candado de Seguridad
-
 ### Cotizaciones
 - RBAC con `special_permissions`
 - Flujo de excepción para pasos saltados
 - Fast Track completo con Prerregistro de Seriales
-- **Badge de Iniciales del Creador**: Muestra iniciales del usuario que generó la cotización junto al segmento, con tooltip del nombre completo (Abr 2026)
-- **PDF con Header/Footer Persistente**: Encabezado con logo, número de cotización y fecha; pie con "Documento Confidencial - Propiedad de Mega Soft Computación C.A." y "Página X" (Abr 2026)
-- **Buscador Dinámico de Clientes**: Búsqueda server-side por RIF y razón social (Abr 2026)
-- **Total USD = Solo Inversión Inicial**: Columna muestra Setup + Equipos, excluyendo recurrentes (Abr 2026)
-- **PDF Versionado al Modificar**: Al duplicar/editar cotización, el pdf_url se limpia para evitar referencia al PDF original (Abr 2026)
-
-### Facturación
-- Tasas de Cambio BCV automatizadas
-
-### Pipeline Nuevos Productos
-- Governance: "Responsable Activo" write-locks
-
-### Inventario
-- FIFO basado en Fecha de Adquisición
-- Costo Ponderado
-- Estados de Hardware: Disponible → Preasignado → Asignado
-
-### Gestión de Usuarios
-- Cargos simplificados: Director, Gerente, Coordinador, Analista, Asistente, Tecnico, Desarrollador, Implementador, Ejecutivo
-- Departamentos: Desarrollo, Aseguramiento de Calidad, Implementación, Infraestructura, Operaciones, Dirección, Ventas Pyme, Ventas Corporativas, Administración
-- **Super Poder Admin**: Eliminación permanente de usuarios (Abr 2026)
-
-### Autenticación (P1 — Abr 2026)
-- Recuperación y Reset de Contraseña
-- Verificación de Email
-- Hash SHA256 con salt (NO bcrypt)
+- Badge de Iniciales del Creador
+- PDF con Header/Footer Persistente (ReportLab overlay)
+- Buscador Dinámico de Clientes (server-side)
+- **Total USD = Solo Inversión Inicial**: Columna y almacenamiento muestra Setup + Equipos, excluyendo recurrentes. Etiqueta "Excl. Recurrentes" (Abr 2026)
+- **PDF Versionado al Modificar**: Al duplicar, `attachments` y `quote_pdf_url` se limpian. Nuevo PDF se genera automáticamente vía `POST /quotes/{id}/regenerate-pdf` y se registra en Anexos (Abr 2026)
+- **Backend: total_usd solo Setup+Equipment**: `create-with-pdf` calcula total_usd excluyendo recurring items (Abr 2026)
 
 ### Clientes
-- Bitácora de gestiones por cliente (Abr 2026 — Fix endpoint `/logs`)
+- Bitácora de gestiones por cliente (Fix endpoint `/logs` — Abr 2026)
 - Importación desde Excel/CSV
 
 ### Integradores
 - Importación masiva con matriz de 20 productos de certificación
-- Campos Categoria y Ultimo Contacto (Fix parseo datetime de Excel — Abr 2026)
-- Mapping case-insensitive para columnas sin acentos (Abr 2026)
+- Fix parseo datetime de Excel y mapping `Categoria` sin tilde (Abr 2026)
 
 ### Medios de Pago (Servicios)
-- Modelo `Service` con campos opcionales: category, tipo_corp, order, is_active (Fix Abr 2026)
-- Acceso defensivo para `created_at` en todos los endpoints (Fix Abr 2026)
+- Modelo `Service` con campos opcionales: category, tipo_corp, order, is_active
+- Acceso defensivo para `created_at` en todos los endpoints
+
+### Autenticación
+- SHA256 con salt (NO bcrypt)
+- Recuperación y Reset de Contraseña
+- Verificación de Email
+
+### Gestión de Usuarios, Bancos, Inventario, Proyectos, Pipeline
+- (Ver PRD anterior para detalles completos)
 
 ## Archivos Clave
-- `/app/backend/routes/auth.py` — Auth completo
-- `/app/backend/routes/quote_actions.py` — Lógica de cotizaciones
-- `/app/backend/routes/clients.py` — Clientes y bitácora
+- `/app/backend/routes/quotes.py` — Creación, update, regenerate-pdf, PDF generation
+- `/app/backend/routes/quote_actions.py` — Duplicate, status flow, email
+- `/app/frontend/src/pages/Quotes.jsx` — Cotizaciones (handleSaveEditedQuote con PDF auto)
+- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Display Total USD (setup-only)
+- `/app/frontend/src/pages/Clients.jsx` — Clientes y bitácora
 - `/app/backend/routes/integrators.py` — Integradores con importación
 - `/app/backend/routes/services.py` — Medios de Pago
 - `/app/backend/routes/banks.py` — Bancos
-- `/app/frontend/src/pages/Quotes.jsx` — Cotizaciones
-- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Tabla de cotizaciones
-- `/app/frontend/src/pages/Clients.jsx` — Clientes
 
 ## Backlog
 

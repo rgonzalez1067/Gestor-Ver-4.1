@@ -152,7 +152,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         else:
             exchange_rate = exchange_rate_doc["rate"]
         
-        # Calcular totales
+        # Calcular totales — total_usd = solo Setup + Additional + Equipment (excluye recurrentes)
         if data.quote_category == "equipment":
             subtotal_usd = sum(item.total_usd for item in data.equipment_items)
             total_usd = subtotal_usd
@@ -160,8 +160,10 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             subtotal_usd = sum(item.get("costo", 0) for item in data.pg_setup_items)
             total_usd = subtotal_usd
         else:
-            subtotal_usd = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
-            total_usd = subtotal_usd
+            all_services_total = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
+            setup_only_total = sum(item.total_usd for item in data.services if item.item_type in ('setup', 'additional')) + sum(item.total_usd for item in data.hardware)
+            subtotal_usd = all_services_total
+            total_usd = setup_only_total
         
         # Sumar hardware Fast Track sincronizado desde Integración
         ft_hw_subtotal = 0
@@ -645,6 +647,7 @@ class QuoteUpdate(BaseModel):
     sponsor_bank_name: Optional[str] = None
     subtotal_usd: Optional[float] = None
     total_usd: Optional[float] = None
+    recurring_total_usd: Optional[float] = None
     descuento: Optional[float] = None
     descuento_setup: Optional[float] = None
     descuento_recurrente: Optional[float] = None
@@ -702,6 +705,87 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
     # Retornar cotización actualizada
     updated_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     return updated_quote
+
+
+@router.post("/quotes/{quote_id}/regenerate-pdf")
+async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Optional[str] = Header(None)):
+    """Regenera el PDF de una cotización, lo guarda en disco y lo registra en los anexos."""
+    current_user = await get_current_user(authorization)
+    
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    pdf_data = data.get("pdf_data")
+    if not pdf_data:
+        raise HTTPException(status_code=400, detail="Se requiere pdf_data para regenerar el PDF")
+    
+    try:
+        pdf_request = TemplateQuotePDFRequest(**pdf_data)
+        pdf_request.quote_number = quote["quote_number"]
+        
+        await _enrich_tipo_corp_from_db(pdf_request)
+        
+        logo_path = None
+        logo_file = UPLOADS_DIR / "logo.png"
+        if logo_file.exists():
+            logo_path = str(logo_file)
+        
+        generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
+        pdf_buffer = generator.generate()
+        
+        quote_type = quote.get("quote_type", "VPOS")
+        client_segment = quote.get("client_segment", "PYME")
+        if quote_type == 'GATEWAY':
+            pdf_buffer = append_pg_static_pages(pdf_buffer)
+        elif client_segment == 'CORP':
+            pdf_buffer = append_corporate_static_pages(pdf_buffer)
+        else:
+            pdf_buffer = append_vpos_static_pages(pdf_buffer)
+        
+        pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote["quote_number"], logo_path)
+        
+        # Guardar PDF en disco
+        pdf_filename = f"{quote['quote_number']}_Cotizacion.pdf"
+        pdf_path = UPLOADS_DIR / pdf_filename
+        pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read()
+        with open(pdf_path, 'wb') as f:
+            f.write(pdf_bytes)
+        
+        quote_pdf_url = f"/uploads/{pdf_filename}"
+        
+        # Crear registro de anexo
+        new_attachment = {
+            "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+            "category": "Cotización",
+            "filename": pdf_filename,
+            "url": quote_pdf_url,
+            "uploaded_by": current_user.get("email", "system"),
+            "uploaded_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "file_size": len(pdf_bytes),
+            "content_type": "application/pdf"
+        }
+        
+        # Actualizar la cotización: guardar url del PDF y agregar a anexos
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {
+                "$set": {"quote_pdf_url": quote_pdf_url},
+                "$push": {"attachments": new_attachment}
+            }
+        )
+        
+        logging.info(f"PDF regenerado para {quote['quote_number']}: {quote_pdf_url}")
+        return {"pdf_url": quote_pdf_url, "attachment": new_attachment}
+        
+    except Exception as e:
+        logging.error(f"Error regenerando PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error al regenerar PDF: {str(e)}")
+
+
 
 @router.delete("/quotes/{quote_id}")
 async def delete_quote(quote_id: str, authorization: Optional[str] = Header(None)):
