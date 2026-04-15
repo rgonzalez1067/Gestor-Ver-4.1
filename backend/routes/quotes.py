@@ -135,6 +135,8 @@ class QuoteCreateWithPDF(BaseModel):
     client_segment: str = "PYME"
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
     branch_details: List[dict] = []  # [{store_name: str, quantity: int}]
+    # Override del total calculado por el wizard del frontend
+    override_total_usd: Optional[float] = None
 
 @router.post("/quotes/create-with-pdf")
 async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optional[str] = Header(None)):
@@ -172,6 +174,10 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         if data.ft_equipment_items:
             ft_hw_subtotal = sum((it.get("quantity", 1) * it.get("unit_price_usd", 0)) for it in data.ft_equipment_items)
             total_usd += ft_hw_subtotal
+        
+        # Usar override del frontend si viene (Total Setup Neto + Equipment del wizard)
+        if data.override_total_usd is not None:
+            total_usd = data.override_total_usd
         
         total_bs = total_usd * exchange_rate
         

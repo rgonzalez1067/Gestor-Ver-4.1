@@ -1551,6 +1551,10 @@ export const Quotes = () => {
         })),
         // Detalle de sucursales (opcional)
         branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
+        // Total USD = Total Setup Neto + Equipment (calculado por el wizard)
+        override_total_usd: totalNetoSetup + ftHardwareSubtotal,
+        descuento_setup: quoteData.descuento_setup || 0,
+        descuento_recurrente: quoteData.descuento_recurrente || 0,
         // Incluir datos del PDF
         pdf_data: pdfData
       };
@@ -2864,16 +2868,8 @@ export const Quotes = () => {
         }))
       ];
       
-      // Calcular totales — total_usd = Total Setup Neto + Equipment
-      const setupTotal = allServices
-        .filter(item => item.item_type === 'setup' || item.item_type === 'additional')
-        .reduce((sum, item) => sum + (item.total_usd || 0), 0);
-      const recurringTotal = allServices
-        .filter(item => item.item_type === 'recurring_basic' || item.item_type === 'recurring_other' || item.item_type === 'production_recurring')
-        .reduce((sum, item) => sum + (item.total_usd || 0), 0);
+      // Usar totalNetoSetup del wizard (ya calculado correctamente en el componente)
       const subtotal = allServices.reduce((sum, item) => sum + (item.total_usd || 0), 0);
-      const montoDescSetup = setupTotal * ((quoteData.descuento_setup || 0) / 100);
-      const totalNetoSetup = setupTotal - montoDescSetup;
       const total = subtotal - (quoteData.descuento || 0);
       
       // Calcular costo de hardware Fast Track
@@ -2911,7 +2907,7 @@ export const Quotes = () => {
         sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (sponsorBank?.name || '') : '',
         subtotal_usd: subtotal,
         total_usd: totalNetoSetup + ftHwSubtotal,
-        recurring_total_usd: recurringTotal - ((recurringTotal) * ((quoteData.descuento_recurrente || 0) / 100)),
+        recurring_total_usd: totalNetoRecurrente,
         ft_hardware_subtotal: ftHwSubtotal,
         ft_equipment_items: syncedFtItems,
         descuento: quoteData.descuento || 0,

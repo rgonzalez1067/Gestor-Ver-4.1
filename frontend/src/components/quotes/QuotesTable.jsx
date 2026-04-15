@@ -141,18 +141,9 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
                 <td className="px-3 py-4 text-right whitespace-nowrap">
                   <span className="text-sm font-mono text-brand-green-600 font-semibold">
-                    ${(() => {
-                      const services = quote.services || [];
-                      const setupTotal = services
-                        .filter(s => s.item_type === 'setup' || s.item_type === 'additional')
-                        .reduce((sum, s) => sum + (s.total_usd || 0), 0);
-                      const equipTotal = (quote.ft_hardware_subtotal || 0);
-                      const descPct = quote.descuento_setup || 0;
-                      const montoDesc = setupTotal * (descPct / 100);
-                      return (setupTotal - montoDesc + equipTotal).toFixed(2);
-                    })()}
+                    ${(quote.total_usd || 0).toFixed(2)}
                   </span>
-                  <div className="text-[9px] text-slate-400 leading-tight">Excl. Recurrentes</div>
+                  <div className="text-[9px] text-slate-400 leading-tight">Inversión Inicial</div>
                 </td>
                 <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
