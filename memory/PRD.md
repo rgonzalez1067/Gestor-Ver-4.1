@@ -26,7 +26,9 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 - Fast Track completo con Prerregistro de Seriales
 - **Badge de Iniciales del Creador**: Muestra iniciales del usuario que generó la cotización junto al segmento, con tooltip del nombre completo (Abr 2026)
 - **PDF con Header/Footer Persistente**: Encabezado con logo, número de cotización y fecha; pie con "Documento Confidencial - Propiedad de Mega Soft Computación C.A." y "Página X" (Abr 2026)
-- **Buscador Dinámico de Clientes**: Búsqueda server-side por RIF y razón social, ignorando caracteres especiales (puntos/guiones). Campo siempre vacío al crear nueva cotización (Abr 2026)
+- **Buscador Dinámico de Clientes**: Búsqueda server-side por RIF y razón social (Abr 2026)
+- **Total USD = Solo Inversión Inicial**: Columna muestra Setup + Equipos, excluyendo recurrentes (Abr 2026)
+- **PDF Versionado al Modificar**: Al duplicar/editar cotización, el pdf_url se limpia para evitar referencia al PDF original (Abr 2026)
 
 ### Facturación
 - Tasas de Cambio BCV automatizadas
@@ -42,44 +44,41 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ### Gestión de Usuarios
 - Cargos simplificados: Director, Gerente, Coordinador, Analista, Asistente, Tecnico, Desarrollador, Implementador, Ejecutivo
 - Departamentos: Desarrollo, Aseguramiento de Calidad, Implementación, Infraestructura, Operaciones, Dirección, Ventas Pyme, Ventas Corporativas, Administración
-- Endpoint ejecutivos filtrado por departamento
-- **Super Poder Admin**: Eliminación permanente de usuarios (`DELETE /api/admin/users/{user_id}`) con AlertDialog de confirmación, protección contra auto-eliminación (Abr 2026)
+- **Super Poder Admin**: Eliminación permanente de usuarios (Abr 2026)
 
 ### Autenticación (P1 — Abr 2026)
-- **Recuperación de Contraseña**:
-  - `POST /api/auth/forgot-password` — genera token (1h expiración), envía email con enlace
-  - `POST /api/auth/reset-password` — valida token, actualiza hash, invalida sesiones previas
-  - Mensaje genérico (no revela si email existe)
-  - Tokens de un solo uso almacenados en `password_reset_tokens`
-- **Verificación de Email**:
-  - Token enviado automáticamente al registrarse
-  - `POST /api/auth/verify-email` — marca `is_verified=true`
-  - `POST /api/auth/resend-verification` — reenvía email (requiere auth)
-  - Tokens almacenados en `email_verification_tokens`
-- **Frontend**:
-  - Modo "Recuperar Contraseña" en Auth.jsx con formulario de email
-  - `/reset-password?token=xxx` — formulario nueva contraseña + confirmación
-  - `/verify-email?token=xxx` — verificación automática por token
-- **Admin**:
-  - `POST /admin/users/{id}/reset-password` — genera y envía enlace de reset
+- Recuperación y Reset de Contraseña
+- Verificación de Email
+- Hash SHA256 con salt (NO bcrypt)
+
+### Clientes
+- Bitácora de gestiones por cliente (Abr 2026 — Fix endpoint `/logs`)
+- Importación desde Excel/CSV
+
+### Integradores
+- Importación masiva con matriz de 20 productos de certificación
+- Campos Categoria y Ultimo Contacto (Fix parseo datetime de Excel — Abr 2026)
+- Mapping case-insensitive para columnas sin acentos (Abr 2026)
+
+### Medios de Pago (Servicios)
+- Modelo `Service` con campos opcionales: category, tipo_corp, order, is_active (Fix Abr 2026)
+- Acceso defensivo para `created_at` en todos los endpoints (Fix Abr 2026)
 
 ## Archivos Clave
-- `/app/backend/routes/auth.py` — Auth completo (login, register, forgot, reset, verify)
-- `/app/backend/routes/projects.py`
-- `/app/backend/routes/quote_actions.py`
-- `/app/backend/models.py`
-- `/app/frontend/src/pages/Auth.jsx`
-- `/app/frontend/src/pages/ResetPassword.jsx`
-- `/app/frontend/src/pages/VerifyEmail.jsx`
-- `/app/frontend/src/pages/Quotes.jsx`
-- `/app/frontend/src/pages/UserManagement.jsx`
-- `/app/frontend/src/pages/Inventory.jsx`
-- `/app/frontend/src/App.js` — Rutas /reset-password y /verify-email
+- `/app/backend/routes/auth.py` — Auth completo
+- `/app/backend/routes/quote_actions.py` — Lógica de cotizaciones
+- `/app/backend/routes/clients.py` — Clientes y bitácora
+- `/app/backend/routes/integrators.py` — Integradores con importación
+- `/app/backend/routes/services.py` — Medios de Pago
+- `/app/backend/routes/banks.py` — Bancos
+- `/app/frontend/src/pages/Quotes.jsx` — Cotizaciones
+- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Tabla de cotizaciones
+- `/app/frontend/src/pages/Clients.jsx` — Clientes
 
 ## Backlog
 
 ### P1 (Próximos)
-- ~~Refactorización de `Quotes.jsx` (5800+ líneas)~~ COMPLETADO (Abr 2026) — Dividido en `QuoteWizardDialog.jsx`, `QuoteModals.jsx` y `constants.js`
+- Sistema de Notificaciones Push (campana con contador) + alertas en tiempo real
 
 ### P2 (Futuro)
 - Módulo de Reportes de Ventas

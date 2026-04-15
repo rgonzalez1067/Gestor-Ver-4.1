@@ -139,7 +139,20 @@ export const QuotesTable = ({
                   <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>{displayType}</span>
                 </td>
                 <td className="px-3 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
-                <td className="px-3 py-4 text-sm font-mono text-right text-brand-green-600 font-semibold whitespace-nowrap">${quote.total_usd?.toFixed(2) || '0.00'}</td>
+                <td className="px-3 py-4 text-right whitespace-nowrap">
+                  <span className="text-sm font-mono text-brand-green-600 font-semibold">
+                    ${(() => {
+                      const services = quote.services || [];
+                      const setupTotal = services
+                        .filter(s => s.item_type === 'setup' || s.item_type === 'additional')
+                        .reduce((sum, s) => sum + (s.total_usd || 0), 0);
+                      const equipTotal = (quote.ft_hardware_subtotal || 0);
+                      const descuento = quote.descuento_setup || quote.descuento || 0;
+                      return (setupTotal + equipTotal - descuento).toFixed(2);
+                    })()}
+                  </span>
+                  <div className="text-[9px] text-slate-400 leading-tight">Excl. Recurrentes</div>
+                </td>
                 <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
                     <QuoteStatusStepper quote={quote} onOpenBitacoraFlujo={onOpenBitacoraFlujo} />

@@ -434,7 +434,7 @@ export const Clients = () => {
     const clientId = editingClient?.client_id;
     if (!clientId) { toast.error('Guarde el cliente primero'); return; }
     try {
-      await api.post(`/clients/${clientId}/log`, {
+      await api.post(`/clients/${clientId}/logs`, {
         client_id: clientId,
         detail: bitacoraInicioText,
         action: 'Primer Contacto',
