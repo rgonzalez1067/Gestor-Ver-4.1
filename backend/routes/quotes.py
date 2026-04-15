@@ -673,6 +673,10 @@ class QuoteUpdate(BaseModel):
     ft_hardware_subtotal: Optional[float] = None
     requires_pinpad_config: Optional[bool] = None
     requires_vpn: Optional[bool] = None
+    # Equipment/Repair items
+    equipment_items: Optional[List[dict]] = None
+    repair_description: Optional[str] = None
+    equipment_serial_number: Optional[str] = None
 
 @router.put("/quotes/{quote_id}")
 async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: Optional[str] = Header(None)):
