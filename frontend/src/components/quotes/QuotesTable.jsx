@@ -147,8 +147,9 @@ export const QuotesTable = ({
                         .filter(s => s.item_type === 'setup' || s.item_type === 'additional')
                         .reduce((sum, s) => sum + (s.total_usd || 0), 0);
                       const equipTotal = (quote.ft_hardware_subtotal || 0);
-                      const descuento = quote.descuento_setup || quote.descuento || 0;
-                      return (setupTotal + equipTotal - descuento).toFixed(2);
+                      const descPct = quote.descuento_setup || 0;
+                      const montoDesc = setupTotal * (descPct / 100);
+                      return (setupTotal - montoDesc + equipTotal).toFixed(2);
                     })()}
                   </span>
                   <div className="text-[9px] text-slate-400 leading-tight">Excl. Recurrentes</div>

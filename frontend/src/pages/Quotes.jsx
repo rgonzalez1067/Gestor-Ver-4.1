@@ -2864,7 +2864,7 @@ export const Quotes = () => {
         }))
       ];
       
-      // Calcular totales — total_usd = solo Setup + Additional + Equipment (excluye recurrentes)
+      // Calcular totales — total_usd = Total Setup Neto + Equipment
       const setupTotal = allServices
         .filter(item => item.item_type === 'setup' || item.item_type === 'additional')
         .reduce((sum, item) => sum + (item.total_usd || 0), 0);
@@ -2872,6 +2872,8 @@ export const Quotes = () => {
         .filter(item => item.item_type === 'recurring_basic' || item.item_type === 'recurring_other' || item.item_type === 'production_recurring')
         .reduce((sum, item) => sum + (item.total_usd || 0), 0);
       const subtotal = allServices.reduce((sum, item) => sum + (item.total_usd || 0), 0);
+      const montoDescSetup = setupTotal * ((quoteData.descuento_setup || 0) / 100);
+      const totalNetoSetup = setupTotal - montoDescSetup;
       const total = subtotal - (quoteData.descuento || 0);
       
       // Calcular costo de hardware Fast Track
@@ -2908,8 +2910,8 @@ export const Quotes = () => {
         sponsor_bank_id: quoteData.sponsor_bank_id === 'none' ? '' : quoteData.sponsor_bank_id,
         sponsor_bank_name: quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none' ? (sponsorBank?.name || '') : '',
         subtotal_usd: subtotal,
-        total_usd: setupTotal + ftHwSubtotal - (quoteData.descuento_setup || quoteData.descuento || 0),
-        recurring_total_usd: recurringTotal - (quoteData.descuento_recurrente || 0),
+        total_usd: totalNetoSetup + ftHwSubtotal,
+        recurring_total_usd: recurringTotal - ((recurringTotal) * ((quoteData.descuento_recurrente || 0) / 100)),
         ft_hardware_subtotal: ftHwSubtotal,
         ft_equipment_items: syncedFtItems,
         descuento: quoteData.descuento || 0,

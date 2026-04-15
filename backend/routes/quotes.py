@@ -152,7 +152,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         else:
             exchange_rate = exchange_rate_doc["rate"]
         
-        # Calcular totales — total_usd = solo Setup + Additional + Equipment (excluye recurrentes)
+        # Calcular totales — total_usd = Total Setup Neto + Equipment (excluye recurrentes)
         if data.quote_category == "equipment":
             subtotal_usd = sum(item.total_usd for item in data.equipment_items)
             total_usd = subtotal_usd
@@ -162,8 +162,10 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         else:
             all_services_total = sum(item.total_usd for item in data.services) + sum(item.total_usd for item in data.hardware)
             setup_only_total = sum(item.total_usd for item in data.services if item.item_type in ('setup', 'additional')) + sum(item.total_usd for item in data.hardware)
+            desc_setup_pct = data.descuento_setup or 0
+            monto_desc_setup = setup_only_total * (desc_setup_pct / 100)
             subtotal_usd = all_services_total
-            total_usd = setup_only_total
+            total_usd = setup_only_total - monto_desc_setup
         
         # Sumar hardware Fast Track sincronizado desde Integración
         ft_hw_subtotal = 0
@@ -751,9 +753,18 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             elif item_type == "recurring_other":
                 recurring_other_items.append(pdf_item)
             elif item_type == "additional":
-                # Additional items: use tarifa_setup for setup section
+                # Additional items go to BOTH setup_items (for cost table) AND additional_items (for bank/product matrix)
                 setup_items.append({
                     "concepto": f"{svc.get('item_name', '')} - {svc.get('bank_name', '')}".strip(' -'),
+                    "cantidad_cajas": svc.get("cantidad_cajas", 1),
+                    "cantidad_bancos": svc.get("cantidad_bancos", 1),
+                    "tarifa": svc.get("tarifa_setup") or svc.get("unit_price_usd", 0),
+                    "bank_name": svc.get("bank_name") or None,
+                    "tipo_corp": svc.get("tipo_corp", "")
+                })
+                # Also add to additional_items for the Resumen Ejecutivo bank/product table
+                additional_items.append({
+                    "concepto": svc.get("item_name", ""),
                     "cantidad_cajas": svc.get("cantidad_cajas", 1),
                     "cantidad_bancos": svc.get("cantidad_bancos", 1),
                     "tarifa": svc.get("tarifa_setup") or svc.get("unit_price_usd", 0),
@@ -786,7 +797,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             setup_items=setup_items,
             recurring_basic_items=recurring_basic_items,
             recurring_other_items=recurring_other_items,
-            additional_items=[],
+            additional_items=additional_items,
             production_items=production_items,
             descuento=quote.get("descuento", 0),
             descuento_setup=quote.get("descuento_setup", 0),
