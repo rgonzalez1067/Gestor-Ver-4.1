@@ -1192,6 +1192,38 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             total_to_deduct -= deduct_from_lot
     
     # Construir reporte: solo lotes con saldo > 0
+    # Calcular stock actual por almacén para cada item
+    all_movements = await db.inventory_movements.find({}, {"_id": 0, "item_id": 1, "warehouse_id": 1, "movement_type": 1, "quantity": 1}).to_list(10000)
+    
+    # Mapear warehouses por ID
+    wh_map = {w["warehouse_id"]: w.get("name", "") for w in warehouses}
+    
+    # Identificar LCH y TBP
+    tbp_id = None
+    for wh in warehouses:
+        name_lower = (wh.get("name", "") or "").lower()
+        if "banco" in name_lower or "plaza" in name_lower or "tbp" in name_lower or "pyme" in name_lower:
+            tbp_id = wh["warehouse_id"]
+            break
+    
+    # Calcular stock por almacén por item
+    stock_by_wh = {}  # item_id -> {warehouse_id -> qty}
+    for m in all_movements:
+        iid = m.get("item_id", "")
+        wid = m.get("warehouse_id", "")
+        mtype = m.get("movement_type", "")
+        qty = m.get("quantity", 0)
+        
+        if iid not in stock_by_wh:
+            stock_by_wh[iid] = {}
+        if wid not in stock_by_wh[iid]:
+            stock_by_wh[iid][wid] = 0
+        
+        if mtype in ("entrada", "transferencia_entrada"):
+            stock_by_wh[iid][wid] += qty
+        elif mtype in ("salida", "transferencia_salida"):
+            stock_by_wh[iid][wid] -= qty
+    
     report_items = []
     grand_total = 0
     
@@ -1219,6 +1251,12 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             })
         
         grand_total += item_total
+        
+        # Desglose por almacén
+        item_stock = stock_by_wh.get(iid, {})
+        units_lch = max(item_stock.get(lch_id, 0), 0) if lch_id else 0
+        units_tbp = max(item_stock.get(tbp_id, 0), 0) if tbp_id else 0
+        
         report_items.append({
             "item_id": iid,
             "item_name": item_data["item_name"],
@@ -1226,6 +1264,8 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             "lots": lot_details,
             "item_total": round(item_total, 2),
             "total_units": sum(l["remaining"] for l in active_lots),
+            "units_lch": units_lch,
+            "units_tbp": units_tbp,
         })
     
     # Ordenar por nombre

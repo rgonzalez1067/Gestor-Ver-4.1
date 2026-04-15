@@ -133,7 +133,7 @@ export const AssetLedgerReport = () => {
                     <>
                       {/* Item Header */}
                       <tr key={`h-${item.item_id}`} style={{backgroundColor: '#334155', color: '#fff'}}>
-                        <td colSpan={5} className="px-3 py-1.5" style={{border: '1px solid #475569'}}>
+                        <td colSpan={3} className="px-3 py-1.5" style={{border: '1px solid #475569'}}>
                           <span className="font-bold text-sm">{item.item_name}</span>
                           {item.item_type && (
                             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-medium" style={{backgroundColor: '#64748b', color: '#e2e8f0'}}>{item.item_type}</span>
@@ -142,6 +142,11 @@ export const AssetLedgerReport = () => {
                         <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}>
                           Uds: <span className="font-bold">{item.total_units}</span>
                         </td>
+                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}>
+                          <span style={{color: '#94a3b8'}}>LCH: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_lch || 0}</span>
+                          <span style={{color: '#94a3b8', marginLeft: '10px'}}>TBP: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_tbp || 0}</span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}></td>
                         <td className="px-3 py-1.5 text-right font-bold" style={{border: '1px solid #475569', color: '#86efac'}}>
                           {formatBs(item.item_total)}
                         </td>
