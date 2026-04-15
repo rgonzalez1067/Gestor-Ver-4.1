@@ -599,7 +599,7 @@ export default function Inventory() {
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Tipo</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Saldo</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Stock Mín.</th>
-                        <th className="px-4 py-3 text-center font-medium text-slate-600">Costo Ponderado</th>
+                        <th className="px-4 py-3 text-center font-medium text-slate-600">Costo Pond. (Bs)</th>
                         <th className="px-4 py-3 text-center font-medium text-slate-600">Seriales</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-600">Acciones</th>
                       </tr>
@@ -648,7 +648,7 @@ export default function Inventory() {
                               data-testid={`min-stock-${item.item_id}`}
                             />
                           </td>
-                          <td className="px-4 py-3 text-center text-slate-600">${item.weighted_cost?.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center text-slate-600">Bs {item.weighted_cost?.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
                             {item.requires_serial ? (
                               <div className="flex flex-col items-center gap-0.5">
@@ -831,7 +831,7 @@ export default function Inventory() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={entryForm.quantity} onCommit={v => setEntryForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="entry-qty" /></div>
-                <div><Label>Costo Unitario ($)</Label><DebouncedInput type="number" step="0.01" value={entryForm.unit_cost} onCommit={v => setEntryForm(p => ({ ...p, unit_cost: parseFloat(v) || 0 }))} data-testid="entry-cost" /></div>
+                <div><Label>Costo Unitario (Bs)</Label><DebouncedInput type="number" step="0.01" value={entryForm.unit_cost} onCommit={v => setEntryForm(p => ({ ...p, unit_cost: parseFloat(v) || 0 }))} data-testid="entry-cost" /></div>
               </div>
               <div>
                 <Label>Fecha de Adquisición *</Label>
