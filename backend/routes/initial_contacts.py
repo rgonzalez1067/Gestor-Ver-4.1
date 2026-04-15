@@ -16,6 +16,7 @@ class InitialContactCreate(BaseModel):
     email: str
     legal_name: str
     interest_notes: Optional[str] = ""
+    referred_by: Optional[str] = ""
     assigned_to_user_id: Optional[str] = None
     due_date: Optional[str] = None
 
@@ -93,6 +94,7 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
         "email": data.email.strip(),
         "legal_name": data.legal_name.strip(),
         "interest_notes": (data.interest_notes or "").strip()[:300],
+        "referred_by": (data.referred_by or "").strip(),
         "assigned_to_user_id": assigned_user_id,
         "assigned_to_name": assigned_name,
         "due_date": data.due_date or None,

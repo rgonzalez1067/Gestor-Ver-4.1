@@ -21,7 +21,7 @@ export const InitialContacts = () => {
 
   // Create modal
   const [createOpen, setCreateOpen] = useState(false);
-  const [formData, setFormData] = useState({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', assigned_to_user_id: '', due_date: '' });
+  const [formData, setFormData] = useState({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', referred_by: '', assigned_to_user_id: '', due_date: '' });
 
   // Action modals
   const [documentOpen, setDocumentOpen] = useState(false);
@@ -73,7 +73,7 @@ export const InitialContacts = () => {
       await api.post('/initial-contacts', formData);
       toast.success('Contacto inicial creado');
       setCreateOpen(false);
-      setFormData({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', assigned_to_user_id: '', due_date: '' });
+      setFormData({ contact_name: '', phone: '', email: '', legal_name: '', interest_notes: '', referred_by: '', assigned_to_user_id: '', due_date: '' });
       fetchData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al crear contacto'); }
   };
@@ -145,7 +145,7 @@ export const InitialContacts = () => {
 
   const filtered = contacts.filter(c => {
     const q = searchTerm.toLowerCase();
-    const matchSearch = !q || c.contact_name?.toLowerCase().includes(q) || c.legal_name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.includes(q);
+    const matchSearch = !q || c.contact_name?.toLowerCase().includes(q) || c.legal_name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.includes(q) || c.referred_by?.toLowerCase().includes(q);
     const matchSede = filterSede === 'all' || c.sede === filterSede;
     return matchSearch && matchSede;
   });
@@ -212,6 +212,7 @@ export const InitialContacts = () => {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Contacto</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Razon Social</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Referido Por</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Telefono / Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Asignado a</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
@@ -222,9 +223,9 @@ export const InitialContacts = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">Cargando...</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">Cargando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">No hay contactos iniciales</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">No hay contactos iniciales</td></tr>
                 ) : filtered.map((c) => (
                   <tr key={c.contact_id} className="hover:bg-slate-50 group" data-testid={`contact-row-${c.contact_id}`}>
                     <td className="px-4 py-3">
@@ -236,6 +237,13 @@ export const InitialContacts = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{c.legal_name}</td>
+                    <td className="px-4 py-3">
+                      {c.referred_by ? (
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold uppercase">{c.referred_by}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">Directo</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="text-xs text-slate-600">{c.phone}</div>
                       <div className="text-xs text-slate-400">{c.email}</div>
@@ -315,6 +323,10 @@ export const InitialContacts = () => {
               <div>
                 <Label>Nombre Juridico (Razon Social) *</Label>
                 <Input value={formData.legal_name} onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })} placeholder="Razon social tentativa" required data-testid="input-legal-name" />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-blue-600">Referido Por</Label>
+                <Input value={formData.referred_by} onChange={(e) => setFormData({ ...formData, referred_by: e.target.value })} placeholder="Ej: Aliado X, LinkedIn, API Web..." className="border-blue-200 bg-blue-50/50 focus:bg-white" data-testid="input-referred-by" />
               </div>
               <div>
                 <Label>Aspectos de Interes para el Contacto</Label>
