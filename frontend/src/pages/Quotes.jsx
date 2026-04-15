@@ -17,6 +17,8 @@ import { AnexosModal } from '../components/AnexosModal';
 import { WorkflowUploadModal } from '../components/WorkflowUploadModal';
 import { ApprovalBillingModal } from '../components/ApprovalBillingModal';
 import { MultiProductSelector } from '../components/MultiProductSelector';
+import { EditEquipRepairDialog } from '../components/EditEquipRepairDialog';
+import { JustificationModal } from '../components/JustificationModal';
 import { QuoteFilters } from '../components/quotes/QuoteFilters';
 import { QuotesTable } from '../components/quotes/QuotesTable';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
@@ -90,6 +92,14 @@ export const Quotes = () => {
   const [editingQuoteId, setEditingQuoteId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  // Estado para edición de Equipos/Reparaciones
+  const [editEquipRepairOpen, setEditEquipRepairOpen] = useState(false);
+  const [editEquipRepairQuote, setEditEquipRepairQuote] = useState(null);
+  // Estado para modal de justificación en Implementaciones
+  const [implJustifyOpen, setImplJustifyOpen] = useState(false);
+  const [implJustifyCallback, setImplJustifyCallback] = useState(null);
+  const [implJustifyQuoteNum, setImplJustifyQuoteNum] = useState('');
+  const [implJustifyVersion, setImplJustifyVersion] = useState(1);
   // Refs para evitar propagación automática al cargar edición
   const prevCajasRef = useRef(null);
   const prevBancosRef = useRef(null);
@@ -2536,11 +2546,28 @@ export const Quotes = () => {
 
   // Modificar cotización (abrir wizard con datos precargados)
   const handleEditQuote = async (quote) => {
-    // Solo permitir editar cotizaciones de implementación por ahora
-    if (quote.quote_category === 'equipment') {
-      toast.info('La edición de cotizaciones de equipos estará disponible próximamente');
+    // Equipos y Reparaciones: usar diálogo propio
+    if (quote.quote_category === 'equipment' || quote.quote_category === 'repair') {
+      setEditEquipRepairQuote(quote);
+      setEditEquipRepairOpen(true);
       return;
     }
+    
+    // Implementaciones: mostrar modal de justificación primero
+    setImplJustifyQuoteNum(quote.quote_number);
+    setImplJustifyVersion(quote.version || 1);
+    setImplJustifyCallback(() => async (justification) => {
+      // Guardar justificación para uso al guardar
+      window.__implEditJustification = justification;
+      // Cargar datos y abrir wizard
+      await loadImplementationForEdit(quote);
+    });
+    setImplJustifyOpen(true);
+  };
+
+  // Función separada para cargar datos de implementación en el wizard
+  const loadImplementationForEdit = async (quote) => {
+    setImplJustifyOpen(false);
     
     // Función auxiliar para detectar si un concepto debe tener lockBancos
     // SOLO estos 5 conceptos muestran N/A:
@@ -2929,6 +2956,19 @@ export const Quotes = () => {
       });
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
+      
+      // Registrar justificación en bitácora del cliente
+      const implJustification = window.__implEditJustification;
+      if (implJustification && quoteData.client_id) {
+        try {
+          await api.post(`/clients/${quoteData.client_id}/logs`, {
+            client_id: quoteData.client_id,
+            detail: `Modificación Implementación — ${duplicateResponse.data.new_quote_number} (v${duplicateResponse.data.version}): ${implJustification}`,
+            action: 'Modificación de Cotización'
+          });
+        } catch (logErr) { console.error('Error bitácora:', logErr); }
+        window.__implEditJustification = null;
+      }
       
       // Regenerar PDF para la nueva versión (backend reconstruye desde datos almacenados)
       try {
@@ -3371,6 +3411,27 @@ export const Quotes = () => {
             projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
             equipmentSelected, setEquipmentSelected,
           }} />
+
+          {/* Diálogo de edición de Equipos/Reparaciones */}
+          <EditEquipRepairDialog
+            open={editEquipRepairOpen}
+            onClose={() => { setEditEquipRepairOpen(false); setEditEquipRepairQuote(null); }}
+            quote={editEquipRepairQuote}
+            onSaved={fetchData}
+          />
+
+          {/* Modal de justificación para Implementaciones */}
+          <JustificationModal
+            open={implJustifyOpen}
+            onClose={() => { setImplJustifyOpen(false); setImplJustifyCallback(null); }}
+            onConfirm={async (justification) => {
+              if (implJustifyCallback) {
+                await implJustifyCallback(justification);
+              }
+            }}
+            quoteNumber={implJustifyQuoteNum}
+            version={implJustifyVersion}
+          />
         </div>
 
       </main>

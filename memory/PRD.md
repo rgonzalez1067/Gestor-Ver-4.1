@@ -10,38 +10,26 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 
 ## Módulos Implementados
 
-### Cotizaciones
-- Total USD = Total Setup Neto + Equipment (usa `totalNetoSetup` del wizard como fuente de verdad)
-- PDF versionado al modificar: `regenerate-pdf` reconstruye desde datos almacenados
-- Bitácora de Clientes fix (`/logs`)
+### Cotizaciones — Modificación Universal
+- **Implementaciones**: Wizard completo con justificación obligatoria (min 20 chars), nueva versión vía `duplicate`, PDF regenerado automáticamente, bitácora en cliente
+- **Equipos y Accesorios** (NUEVO Abr 2026): Diálogo dedicado `EditEquipRepairDialog` con items editables (add/remove/edit qty/price), justificación obligatoria, nueva versión + PDF + bitácora
+- **Reparaciones** (FIX Abr 2026): Eliminada llamada incorrecta a función de Implementaciones. Ahora usa `EditEquipRepairDialog` con campos específicos (serial, descripción de falla, modelos)
+- **JustificationModal**: Componente reutilizable para los 3 tipos de cotización
+- Total USD = Total Setup Neto + Equipment (fuente de verdad: wizard)
 
-### Reportes Contables (Nuevo — Abr 2026)
-- **Kardex de Activos**: Reporte CPP existente (`/inventory/accounting-report`)
-- **Mayor de Activos**: Nuevo reporte PEPS/FIFO (`/inventory/asset-ledger`)
-  - Solo costos de entradas al Almacén Principal (LCH)
-  - Transferencias NO son salidas reales
-  - Salidas (ventas) se descuentan del lote más antiguo (FIFO)
-  - Solo muestra lotes con saldo > 0
-  - Columnas: Fecha Compra, Proveedor, Referencia, Cant. Comprada, Saldo Disponible, Costo Unitario, Valor del Lote
-  - Totales por item y Gran Total Contable
-- **Sidebar**: Menú agrupado "Reportes Contables" con ambos reportes
+### Reportes Contables
+- **Kardex de Activos**: Reporte CPP existente
+- **Mayor de Activos**: Reporte PEPS/FIFO — costos centralizados LCH, solo lotes con saldo > 0
 
-### Medios de Pago (Servicios)
-- Modelo `Service` con campos opcionales
-- Restauración desde CSV del usuario (30 productos + 14 servicios recurrentes)
+### Medios de Pago, Integradores, Clientes, Inventario, Bancos, Proyectos
+- (Ver sesiones anteriores para detalles)
 
-### Integradores
-- Fix importación: Categoria sin tilde, datetime de Excel
-- Reimportación completa desde archivo del usuario
-
-## Archivos Clave
-- `/app/backend/routes/inventory.py` — Inventario + endpoint PEPS (`asset-ledger`)
-- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Mayor de Activos (NUEVO)
-- `/app/frontend/src/pages/InventoryAccountingReport.jsx` — Kardex de Activos
-- `/app/frontend/src/components/Sidebar.jsx` — Menú con Reportes Contables
-- `/app/backend/routes/quotes.py` — Creación, regenerate-pdf, total_usd override
-- `/app/frontend/src/pages/Quotes.jsx` — handleSaveEditedQuote con totalNetoSetup
-- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Display total_usd directo
+## Archivos Clave (Abr 2026)
+- `/app/frontend/src/components/EditEquipRepairDialog.jsx` — Edición Equipos/Reparaciones (NUEVO)
+- `/app/frontend/src/components/JustificationModal.jsx` — Modal justificación (NUEVO)
+- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Mayor de Activos PEPS (NUEVO)
+- `/app/backend/routes/quotes.py` — regenerate-pdf, regenerate-equipment-pdf, override_total_usd
+- `/app/frontend/src/pages/Quotes.jsx` — handleEditQuote tripartito, handleSaveEditedQuote con bitácora
 
 ## Backlog
 

@@ -1852,6 +1852,170 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 
 
 
+@router.post("/quotes/{quote_id}/regenerate-equipment-pdf")
+async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization: Optional[str] = Header(None)):
+    """Regenera PDF de cotización de equipos/reparaciones desde datos almacenados."""
+    current_user = await get_current_user(authorization)
+    import weasyprint
+    import base64 as b64mod
+
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    # Obtener datos del cliente
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+    cliente_nombre = quote.get("client_name", "")
+    cliente_rif = ""
+    cliente_address = ""
+    if client:
+        cliente_nombre = client.get("legal_name") or client.get("fantasy_name", cliente_nombre)
+        cliente_rif = client.get("rif", "")
+        cliente_address = client.get("address", "")
+
+    quote_number = quote["quote_number"]
+    equipment_type = quote.get("equipment_type", "Equipo")
+    items = quote.get("equipment_items", [])
+    notes = quote.get("notes", "")
+    repair_description = quote.get("repair_description", "")
+    equipment_serial_number = quote.get("equipment_serial_number", "")
+    repair_models = quote.get("repair_models", [])
+
+    now = datetime.now(timezone.utc)
+    fecha = now.strftime("%d/%m/%Y")
+    from datetime import timedelta
+    vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
+
+    logo_html = '<div style="font-size:22px;font-weight:bold;color:#1e293b">Gestor - Work Flow</div>'
+    logo_file = UPLOADS_DIR / "logo.png"
+    if logo_file.exists():
+        logo_b64 = b64mod.b64encode(logo_file.read_bytes()).decode()
+        logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height:60px;max-width:200px;object-fit:contain" />'
+
+    type_labels = {"Verifone": "Equipos Verifone", "Morefun": "Equipos Morefun", "Accesorio": "Accesorios", "Reparación": "Reparaciones"}
+    type_title = type_labels.get(equipment_type, equipment_type)
+
+    subtotal = sum((i.get("quantity", 1) * i.get("unit_price_usd", 0)) for i in items)
+    iva = round(subtotal * 0.16, 2)
+    total = round(subtotal + iva, 2)
+
+    items_html = ""
+    for item in items:
+        line_total = (item.get("quantity", 1)) * (item.get("unit_price_usd", 0))
+        items_html += f"""<tr>
+            <td><span style="font-weight:600;color:#1e293b;display:block">{item.get('name', '')}</span>
+            <span style="font-size:11px;color:#94a3b8">{item.get('hardware_type', '')}</span></td>
+            <td style="text-align:center">{item.get('quantity', 1)}</td>
+            <td style="text-align:right">${item.get('unit_price_usd', 0):,.2f}</td>
+            <td style="text-align:right">${line_total:,.2f}</td>
+        </tr>"""
+
+    repair_section = ""
+    if equipment_type == "Reparación" and repair_description:
+        models_summary = ""
+        if repair_models:
+            total_units = sum(m.get("quantity", 0) for m in repair_models)
+            models_rows = "".join(
+                f'<tr><td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px">{m.get("model_name", "")}</td>'
+                f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{m.get("quantity", 0)}</td>'
+                f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{len(m.get("serials", []))}</td></tr>'
+                for m in repair_models
+            )
+            models_summary = f"""<br><table style="width:100%;border-collapse:collapse;margin-top:8px;border:1px solid #fed7aa;border-radius:4px">
+                <thead><tr style="background:#fef3c7">
+                    <th style="padding:6px 10px;text-align:left;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Modelo</th>
+                    <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Cantidad</th>
+                    <th style="padding:6px 10px;text-align:center;font-size:11px;color:#92400e;border-bottom:1px solid #fed7aa">Seriales</th>
+                </tr></thead><tbody>{models_rows}</tbody></table>"""
+        elif equipment_serial_number:
+            models_summary = f'<br><span style="font-size:12px;color:#64748b">Serial: {equipment_serial_number}</span>'
+
+        repair_section = f"""<div style="margin:20px 0;padding:15px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px">
+            <strong style="color:#9a3412">Detalle de Reparación</strong><br>
+            <span style="font-size:13px;color:#475569">{repair_description}</span>
+            {models_summary}
+        </div>"""
+
+    notes_section = ""
+    if notes:
+        notes_section = f'<br><strong>Observaciones:</strong><br><span style="font-size:12px">{notes}</span>'
+
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <style>
+        @page {{ size: letter; margin: 40px; }}
+        body {{ font-family: Helvetica, Arial, sans-serif; color: #475569; margin: 0; padding: 0; font-size: 13px; }}
+        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+        th {{ background: #f8fafc; text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }}
+        td {{ padding: 14px 12px; border-bottom: 1px solid #f1f5f9; }}
+    </style></head><body>
+    <div style="display:flex;justify-content:space-between;border-bottom:2px solid #f8fafc;padding-bottom:20px;margin-bottom:30px">
+        <div>{logo_html}</div>
+        <div style="text-align:right">
+            <div style="font-size:18px;color:#3b82f6;font-weight:800">COTIZACIÓN #{quote_number}</div>
+            <div style="font-size:12px;color:#64748b">Fecha: {fecha}</div>
+            <div style="font-size:12px;color:#64748b">Vence: {vence}</div>
+            <div style="font-size:12px;color:#64748b;background:#f1f5f9;padding:3px 10px;border-radius:4px;display:inline-block;margin-top:6px">{type_title}</div>
+        </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:40px;margin:30px 0">
+        <div style="flex:1"><h3 style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin:0 0 6px 0">Preparado para:</h3>
+        <strong style="color:#1e293b;font-size:14px">{cliente_nombre}</strong><br>
+        <span style="font-size:12px;color:#64748b">RIF: {cliente_rif or 'N/A'}</span><br>
+        <span style="font-size:12px;color:#64748b">{cliente_address or ''}</span></div>
+        <div style="flex:1;text-align:right"><h3 style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin:0 0 6px 0">Emitido por:</h3>
+        <strong style="color:#1e293b;font-size:14px">Mega Soft, C.A.</strong></div>
+    </div>
+    {repair_section}
+    <table><thead><tr>
+        <th>Descripción del Equipo/Servicio</th>
+        <th style="text-align:center">Cant.</th>
+        <th style="text-align:right">P. Unitario</th>
+        <th style="text-align:right">Total</th>
+    </tr></thead><tbody>{items_html}</tbody></table>
+    <div style="margin-top:40px;display:flex;justify-content:space-between;gap:40px">
+        <div style="font-size:10px;line-height:1.6;color:#94a3b8;flex:1">
+            <strong>Términos y Condiciones:</strong><br>
+            Los precios están sujetos a cambio sin previo aviso según mercado.
+            La garantía cubre defectos de fábrica por 12 meses.
+            {notes_section}
+        </div>
+        <div style="background:#1e293b;color:white;padding:20px;border-radius:8px;min-width:250px">
+            <div style="display:flex;justify-content:space-between;margin:6px 0;font-size:13px"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
+            <div style="display:flex;justify-content:space-between;margin:6px 0;font-size:13px"><span>IVA (16%):</span><span>${iva:,.2f}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:bold;border-top:1px solid #334155;padding-top:10px;margin-top:10px"><span>TOTAL:</span><span>${total:,.2f}</span></div>
+        </div>
+    </div></body></html>"""
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+
+    # Guardar PDF
+    pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"
+    pdf_path = UPLOADS_DIR / pdf_filename
+    with open(pdf_path, 'wb') as f:
+        f.write(pdf_bytes)
+    quote_pdf_url = f"/uploads/{pdf_filename}"
+
+    # Reemplazar attachment de Cotización
+    new_attachment = {
+        "attachment_id": f"att_{uuid.uuid4().hex[:12]}",
+        "category": "Cotización",
+        "filename": pdf_filename,
+        "url": quote_pdf_url,
+        "uploaded_by": current_user.get("email", "system"),
+        "uploaded_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "uploaded_at": now.isoformat(),
+        "file_size": len(pdf_bytes),
+        "content_type": "application/pdf"
+    }
+
+    await db.quotes.update_one({"quote_id": quote_id}, {"$pull": {"attachments": {"category": "Cotización"}}})
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {"quote_pdf_url": quote_pdf_url}, "$push": {"attachments": new_attachment}})
+
+    logging.info(f"PDF equipo regenerado para {quote_number}: {quote_pdf_url}")
+    return {"pdf_url": quote_pdf_url, "quote_number": quote_number}
+
+
+
 # ==================== CARGA MASIVA DE SERIALES PARA REPARACIONES ====================
 
 @router.post("/quotes/validate-repair-serials")
