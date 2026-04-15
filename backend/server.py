@@ -33,6 +33,7 @@ from routes.projects import router as projects_router
 from routes.new_products import router as new_products_router
 from routes.inventory import router as inventory_router
 from routes.initial_contacts import router as initial_contacts_router
+from routes.external_api import router as external_api_router
 
 app = FastAPI(title="Cotizador Merchant Server API")
 
@@ -73,6 +74,7 @@ RBAC_EXEMPT_PREFIXES = [
     "/api/uploads",
     "/api/seed",
     "/api/attachments",
+    "/api/external",
 ]
 
 # Métodos HTTP que requieren nivel "edit"
@@ -180,6 +182,7 @@ api_router.include_router(seed_templates_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)
 api_router.include_router(initial_contacts_router)
+api_router.include_router(external_api_router)
 
 app.include_router(api_router)
 
