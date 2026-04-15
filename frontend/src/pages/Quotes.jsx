@@ -2932,90 +2932,9 @@ export const Quotes = () => {
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
       
-      // Regenerar PDF para la nueva versión
+      // Regenerar PDF para la nueva versión (backend reconstruye desde datos almacenados)
       try {
-        const client = clients.find(c => c.client_id === quoteData.client_id);
-        const pdfData = {
-          cliente_nombre: client?.legal_name || client?.commercial_name || 'Cliente',
-          cliente_rif: client?.rif || '',
-          cliente_contacto: client?.contact_name || '',
-          cliente_address: client?.address || '',
-          quote_type: quoteData.quote_type,
-          pricing_model: quoteData.pricing_model,
-          cantidad_cajas: quoteData.cantidad_cajas || 1,
-          quote_number: duplicateResponse.data.new_quote_number,
-          integrator_name: integrator?.name || '',
-          integrator_app_name: quoteData.integrator_app_name || '',
-          pinpad_model: pinpad?.name || '',
-          sponsor_bank_name: sponsorBank?.name || '',
-          template_type: quoteData.quote_type === 'GATEWAY' ? 'payment_gateway' : 'vpos_pyme',
-          client_segment: quoteData.client_segment || 'PYME',
-          setup_items: [
-            ...quoteData.setup_items.map(item => ({
-              concepto: item.medio_pago_name || item.name || item.item_name || '',
-              cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-              cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-              tarifa: parseFloat(item.tarifa) || 0,
-              bank_name: item.bank_name || null
-            })),
-            ...quoteData.additional_items.map(item => ({
-              concepto: `${item.medio_pago_name || item.name || item.item_name || ''} - ${item.bank_name || ''}`,
-              cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-              cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-              tarifa: parseFloat(item.tarifa_setup) || 0,
-              bank_name: item.bank_name || null
-            }))
-          ],
-          recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
-            concepto: item.medio_pago_name || item.name || item.item_name || '',
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-            tarifa: parseFloat(item.tarifa) || 0,
-            bank_name: item.bank_name || null
-          })),
-          recurring_other_items: quoteData.recurring_other_items.map(item => ({
-            concepto: item.medio_pago_name || item.name || item.item_name || '',
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-            tarifa: parseFloat(item.tarifa) || 0,
-            bank_name: item.bank_name || null
-          })),
-          additional_items: quoteData.additional_items
-            .filter(item => item.bank_name)
-            .map(item => ({
-              concepto: item.medio_pago_name || item.name || item.item_name || '',
-              cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-              cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-              tarifa: parseFloat(item.tarifa_setup) || 0,
-              bank_name: item.bank_name
-            })),
-          descuento: quoteData.descuento || 0,
-          descuento_setup: quoteData.descuento_setup || 0,
-          descuento_recurrente: quoteData.descuento_recurrente || 0,
-          requires_pinpad_config: quoteData.requires_pinpad_config !== false,
-          requires_vpn: quoteData.requires_vpn !== false,
-          notes: quoteData.notes || '',
-          is_production_client: isProductionClient,
-          pg_setup_items: pgSetupItems.map(item => ({
-            concepto: item.concepto,
-            costo: item.costo || 0,
-            banco: item.banco || '',
-            observacion: item.observacion || ''
-          })),
-          production_items: productionItems.map(item => ({
-            concepto: item.medio_pago_name || item.name || '',
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-            tarifa: parseFloat(item.tarifa) || 0
-          })),
-          ft_equipment_items: syncedFtItems.map(item => ({
-            name: item.name, hardware_type: item.hardware_type || 'POS',
-            quantity: item.quantity || 1, unit_price_usd: item.unit_price_usd || 0
-          })),
-          include_recurring: quoteData.include_recurring !== false
-        };
-
-        await api.post(`/quotes/${newQuoteId}/regenerate-pdf`, { pdf_data: pdfData });
+        await api.post(`/quotes/${newQuoteId}/regenerate-pdf`, {});
         toast.success('PDF generado y registrado en anexos');
       } catch (pdfError) {
         console.error('Error regenerando PDF:', pdfError);

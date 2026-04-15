@@ -709,21 +709,104 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
 
 @router.post("/quotes/{quote_id}/regenerate-pdf")
 async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Optional[str] = Header(None)):
-    """Regenera el PDF de una cotización, lo guarda en disco y lo registra en los anexos."""
+    """Regenera el PDF de una cotización desde sus datos almacenados, lo guarda en disco y lo registra en los anexos."""
     current_user = await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    pdf_data = data.get("pdf_data")
-    if not pdf_data:
-        raise HTTPException(status_code=400, detail="Se requiere pdf_data para regenerar el PDF")
-    
     try:
-        pdf_request = TemplateQuotePDFRequest(**pdf_data)
-        pdf_request.quote_number = quote["quote_number"]
+        # Obtener datos del cliente
+        client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
+        if not client:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
         
+        quote_number = quote["quote_number"]
+        quote_type = quote.get("quote_type", "VPOS")
+        client_segment = quote.get("client_segment", "PYME")
+        services = quote.get("services", [])
+        
+        # Reconstruir items por tipo desde los servicios almacenados
+        setup_items = []
+        recurring_basic_items = []
+        recurring_other_items = []
+        additional_items = []
+        production_items = []
+        
+        for svc in services:
+            item_type = svc.get("item_type", "setup")
+            pdf_item = {
+                "concepto": svc.get("item_name", ""),
+                "cantidad_cajas": svc.get("cantidad_cajas", 1),
+                "cantidad_bancos": svc.get("cantidad_bancos", 1),
+                "tarifa": svc.get("unit_price_usd", 0),
+                "bank_name": svc.get("bank_name") or None,
+                "tipo_corp": svc.get("tipo_corp", "")
+            }
+            if item_type == "setup":
+                setup_items.append(pdf_item)
+            elif item_type == "recurring_basic":
+                recurring_basic_items.append(pdf_item)
+            elif item_type == "recurring_other":
+                recurring_other_items.append(pdf_item)
+            elif item_type == "additional":
+                # Additional items: use tarifa_setup for setup section
+                setup_items.append({
+                    "concepto": f"{svc.get('item_name', '')} - {svc.get('bank_name', '')}".strip(' -'),
+                    "cantidad_cajas": svc.get("cantidad_cajas", 1),
+                    "cantidad_bancos": svc.get("cantidad_bancos", 1),
+                    "tarifa": svc.get("tarifa_setup") or svc.get("unit_price_usd", 0),
+                    "bank_name": svc.get("bank_name") or None,
+                    "tipo_corp": svc.get("tipo_corp", "")
+                })
+            elif item_type == "production_recurring":
+                production_items.append(pdf_item)
+        
+        # Obtener contacto del cliente
+        contacts = client.get("contacts", [])
+        contact_name = contacts[0].get("name", "") if contacts else ""
+        
+        # Construir TemplateQuotePDFRequest desde datos almacenados
+        pdf_request = TemplateQuotePDFRequest(
+            cliente_nombre=client.get("legal_name") or client.get("fantasy_name", ""),
+            cliente_rif=client.get("rif", ""),
+            cliente_contacto=contact_name,
+            cliente_address=client.get("address", ""),
+            quote_type=quote_type,
+            pricing_model=quote.get("pricing_model", "conventional"),
+            cantidad_cajas=quote.get("cantidad_cajas", 1),
+            quote_number=quote_number,
+            integrator_name=quote.get("integrator_name", ""),
+            integrator_app_name=quote.get("integrator_app_name", ""),
+            pinpad_model=quote.get("pinpad_model", ""),
+            sponsor_bank_name=quote.get("sponsor_bank_name", ""),
+            template_type="payment_gateway" if quote_type == "GATEWAY" else "vpos_pyme",
+            client_segment=client_segment,
+            setup_items=setup_items,
+            recurring_basic_items=recurring_basic_items,
+            recurring_other_items=recurring_other_items,
+            additional_items=[],
+            production_items=production_items,
+            descuento=quote.get("descuento", 0),
+            descuento_setup=quote.get("descuento_setup", 0),
+            descuento_recurrente=quote.get("descuento_recurrente", 0),
+            requires_pinpad_config=quote.get("requires_pinpad_config", True),
+            requires_vpn=quote.get("requires_vpn", True),
+            notes=quote.get("notes", ""),
+            is_production_client=quote.get("is_production_client", False),
+            pg_setup_items=quote.get("pg_setup_items") or [],
+            pg_recurring_cost=quote.get("pg_recurring_cost"),
+            ft_equipment_items=[
+                {"name": it.get("name", ""), "hardware_type": it.get("hardware_type", "POS"),
+                 "quantity": it.get("quantity", 1), "unit_price_usd": it.get("unit_price_usd", 0)}
+                for it in (quote.get("ft_equipment_items") or [])
+            ],
+            branch_details=quote.get("branch_details") or [],
+            include_recurring=quote.get("include_recurring", True)
+        )
+        
+        # Enriquecer tipo_corp
         await _enrich_tipo_corp_from_db(pdf_request)
         
         logo_path = None
@@ -734,8 +817,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
         pdf_buffer = generator.generate()
         
-        quote_type = quote.get("quote_type", "VPOS")
-        client_segment = quote.get("client_segment", "PYME")
+        # Agregar páginas estáticas según tipo
         if quote_type == 'GATEWAY':
             pdf_buffer = append_pg_static_pages(pdf_buffer)
         elif client_segment == 'CORP':
@@ -743,10 +825,11 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         else:
             pdf_buffer = append_vpos_static_pages(pdf_buffer)
         
-        pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote["quote_number"], logo_path)
+        # Estampar header/footer
+        pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
         
         # Guardar PDF en disco
-        pdf_filename = f"{quote['quote_number']}_Cotizacion.pdf"
+        pdf_filename = f"{quote_number}_Cotizacion.pdf"
         pdf_path = UPLOADS_DIR / pdf_filename
         pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read()
         with open(pdf_path, 'wb') as f:
@@ -767,7 +850,11 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             "content_type": "application/pdf"
         }
         
-        # Actualizar la cotización: guardar url del PDF y agregar a anexos
+        # Actualizar cotización: remover attachment de Cotización viejo, agregar nuevo
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$pull": {"attachments": {"category": "Cotización"}}}
+        )
         await db.quotes.update_one(
             {"quote_id": quote_id},
             {
@@ -776,12 +863,11 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             }
         )
         
-        logging.info(f"PDF regenerado para {quote['quote_number']}: {quote_pdf_url}")
+        logging.info(f"PDF regenerado para {quote_number}: {quote_pdf_url}")
         return {"pdf_url": quote_pdf_url, "attachment": new_attachment}
         
     except Exception as e:
         logging.error(f"Error regenerando PDF: {str(e)}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error al regenerar PDF: {str(e)}")
 
