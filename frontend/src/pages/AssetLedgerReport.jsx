@@ -6,6 +6,20 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
+const printStyles = `
+@media print {
+  body { margin: 0; padding: 0; }
+  nav, aside, [data-sidebar], .print\\:hidden { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
+  .flex.min-h-screen { display: block !important; }
+  table { font-size: 10px !important; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  @page { size: letter landscape; margin: 12mm 10mm; }
+}
+`;
+
 const formatBs = (num) => 'Bs ' + new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num || 0);
 
 const formatDate = (iso) => {
@@ -32,6 +46,15 @@ export const AssetLedgerReport = () => {
   }, []);
 
   const handlePrint = () => window.print();
+
+  // Inject print styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'asset-ledger-print-styles';
+    style.textContent = printStyles;
+    document.head.appendChild(style);
+    return () => { const el = document.getElementById('asset-ledger-print-styles'); if (el) el.remove(); };
+  }, []);
 
   if (loading) {
     return (
@@ -68,13 +91,14 @@ export const AssetLedgerReport = () => {
         </div>
 
         {/* Report Content */}
-        <div ref={printRef} className="bg-white rounded-lg border border-slate-200 p-6 print:border-0 print:shadow-none print:p-0">
+        <div ref={printRef} className="bg-white rounded-lg border border-slate-200 p-6 print:border-0 print:shadow-none print:p-0 print:rounded-none">
           {/* Print Header */}
-          <div className="hidden print:block mb-4 text-center border-b pb-3">
-            <h2 className="text-xl font-bold">MAYOR DE ACTIVOS — VALORACIÓN PEPS</h2>
-            <p className="text-sm text-slate-500">
+          <div className="hidden print:block mb-6 text-center">
+            <h2 className="text-lg font-bold tracking-wide">MAYOR DE ACTIVOS — VALORACIÓN PEPS</h2>
+            <p className="text-xs text-slate-500 mt-1">
               Fecha de emisión: {formatDate(reportData?.report_date)} | Moneda: Bolívares (Bs)
             </p>
+            <div className="border-b-2 border-slate-300 mt-3"></div>
           </div>
 
           {items.length === 0 ? (
