@@ -11,45 +11,37 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela. Módulos de C
 ## Módulos Implementados
 
 ### Cotizaciones
-- RBAC con `special_permissions`
-- Flujo de excepción para pasos saltados
-- Fast Track completo con Prerregistro de Seriales
-- Badge de Iniciales del Creador
-- PDF con Header/Footer Persistente (ReportLab overlay)
-- Buscador Dinámico de Clientes (server-side)
-- **Total USD = Solo Inversión Inicial**: Columna y almacenamiento muestra Setup + Equipos, excluyendo recurrentes. Etiqueta "Excl. Recurrentes" (Abr 2026)
-- **PDF Versionado al Modificar**: Al duplicar, `attachments` y `quote_pdf_url` se limpian. Nuevo PDF se genera automáticamente vía `POST /quotes/{id}/regenerate-pdf` y se registra en Anexos (Abr 2026)
-- **Backend: total_usd solo Setup+Equipment**: `create-with-pdf` calcula total_usd excluyendo recurring items (Abr 2026)
+- Total USD = Total Setup Neto + Equipment (usa `totalNetoSetup` del wizard como fuente de verdad)
+- PDF versionado al modificar: `regenerate-pdf` reconstruye desde datos almacenados
+- Bitácora de Clientes fix (`/logs`)
 
-### Clientes
-- Bitácora de gestiones por cliente (Fix endpoint `/logs` — Abr 2026)
-- Importación desde Excel/CSV
-
-### Integradores
-- Importación masiva con matriz de 20 productos de certificación
-- Fix parseo datetime de Excel y mapping `Categoria` sin tilde (Abr 2026)
+### Reportes Contables (Nuevo — Abr 2026)
+- **Kardex de Activos**: Reporte CPP existente (`/inventory/accounting-report`)
+- **Mayor de Activos**: Nuevo reporte PEPS/FIFO (`/inventory/asset-ledger`)
+  - Solo costos de entradas al Almacén Principal (LCH)
+  - Transferencias NO son salidas reales
+  - Salidas (ventas) se descuentan del lote más antiguo (FIFO)
+  - Solo muestra lotes con saldo > 0
+  - Columnas: Fecha Compra, Proveedor, Referencia, Cant. Comprada, Saldo Disponible, Costo Unitario, Valor del Lote
+  - Totales por item y Gran Total Contable
+- **Sidebar**: Menú agrupado "Reportes Contables" con ambos reportes
 
 ### Medios de Pago (Servicios)
-- Modelo `Service` con campos opcionales: category, tipo_corp, order, is_active
-- Acceso defensivo para `created_at` en todos los endpoints
+- Modelo `Service` con campos opcionales
+- Restauración desde CSV del usuario (30 productos + 14 servicios recurrentes)
 
-### Autenticación
-- SHA256 con salt (NO bcrypt)
-- Recuperación y Reset de Contraseña
-- Verificación de Email
-
-### Gestión de Usuarios, Bancos, Inventario, Proyectos, Pipeline
-- (Ver PRD anterior para detalles completos)
+### Integradores
+- Fix importación: Categoria sin tilde, datetime de Excel
+- Reimportación completa desde archivo del usuario
 
 ## Archivos Clave
-- `/app/backend/routes/quotes.py` — Creación, update, regenerate-pdf, PDF generation
-- `/app/backend/routes/quote_actions.py` — Duplicate, status flow, email
-- `/app/frontend/src/pages/Quotes.jsx` — Cotizaciones (handleSaveEditedQuote con PDF auto)
-- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Display Total USD (setup-only)
-- `/app/frontend/src/pages/Clients.jsx` — Clientes y bitácora
-- `/app/backend/routes/integrators.py` — Integradores con importación
-- `/app/backend/routes/services.py` — Medios de Pago
-- `/app/backend/routes/banks.py` — Bancos
+- `/app/backend/routes/inventory.py` — Inventario + endpoint PEPS (`asset-ledger`)
+- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Mayor de Activos (NUEVO)
+- `/app/frontend/src/pages/InventoryAccountingReport.jsx` — Kardex de Activos
+- `/app/frontend/src/components/Sidebar.jsx` — Menú con Reportes Contables
+- `/app/backend/routes/quotes.py` — Creación, regenerate-pdf, total_usd override
+- `/app/frontend/src/pages/Quotes.jsx` — handleSaveEditedQuote con totalNetoSetup
+- `/app/frontend/src/components/quotes/QuotesTable.jsx` — Display total_usd directo
 
 ## Backlog
 

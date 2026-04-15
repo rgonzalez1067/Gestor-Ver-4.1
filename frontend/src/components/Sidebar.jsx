@@ -48,6 +48,13 @@ const menuItems = [
   { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
   { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
+  {
+    icon: FileText, label: 'Reportes Contables', isGroup: true,
+    children: [
+      { path: '/inventory/accounting-report', icon: FileText, label: 'Kardex de Activos' },
+      { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Activos' },
+    ]
+  },
   { path: '/taller-equipos', icon: Wrench, label: 'Equipos en Reparacion' },
   { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
 ];

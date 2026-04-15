@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Clients } from './pages/Clients';
 import { InitialContacts } from './pages/InitialContacts';
 import { InventoryAccountingReport } from './pages/InventoryAccountingReport';
+import { AssetLedgerReport } from './pages/AssetLedgerReport';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
@@ -114,6 +115,11 @@ function AppRouter() {
       <Route path="/inventory/accounting-report" element={
         <ProtectedRoute>
           <InventoryAccountingReport />
+        </ProtectedRoute>
+      } />
+      <Route path="/inventory/asset-ledger" element={
+        <ProtectedRoute>
+          <AssetLedgerReport />
         </ProtectedRoute>
       } />
       <Route path="/taller-equipos" element={

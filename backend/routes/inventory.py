@@ -1097,3 +1097,141 @@ async def get_accounting_report(authorization: Optional[str] = Header(None)):
         "grand_total": round(grand_total, 2),
         "total_items": len(report_items),
     }
+
+
+
+# ==================== REPORTE MAYOR DE ACTIVOS (PEPS / FIFO) ====================
+
+@router.get("/inventory/asset-ledger")
+async def get_asset_ledger(authorization: Optional[str] = Header(None)):
+    """Reporte Mayor de Activos — Valoración PEPS (FIFO).
+    
+    Reglas:
+    - Solo costos de entradas al Almacén Principal (Los Chaguaramos - LCH).
+    - Transferencias NO son salidas reales, solo movimientos físicos.
+    - Salidas reales (ventas) se descuentan del lote más antiguo.
+    - Solo muestra lotes con saldo > 0.
+    """
+    await get_current_user(authorization)
+    
+    # Identificar almacén principal (LCH)
+    warehouses = await db.warehouses.find({}, {"_id": 0}).to_list(50)
+    lch_id = None
+    for wh in warehouses:
+        name_lower = (wh.get("name", "") or "").lower()
+        if "chaguaramos" in name_lower or "lch" in name_lower or "principal" in name_lower:
+            lch_id = wh["warehouse_id"]
+            break
+    
+    if not lch_id and warehouses:
+        lch_id = warehouses[0]["warehouse_id"]
+    
+    # Obtener TODAS las entradas al almacén principal (cada una = un lote)
+    entries_query = {
+        "movement_type": "entrada",
+    }
+    if lch_id:
+        entries_query["warehouse_id"] = lch_id
+    
+    all_entries = await db.inventory_movements.find(
+        entries_query, {"_id": 0}
+    ).sort("created_at", 1).to_list(5000)
+    
+    # Obtener TODAS las salidas reales (NO transferencias)
+    all_exits = await db.inventory_movements.find(
+        {"movement_type": "salida"}, {"_id": 0}
+    ).sort("created_at", 1).to_list(5000)
+    
+    # Agrupar por item_id
+    items_entries = {}  # item_id -> [list of entry lots ordered chronologically]
+    for entry in all_entries:
+        iid = entry.get("item_id", "unknown")
+        if iid not in items_entries:
+            items_entries[iid] = {
+                "item_name": entry.get("item_name", "Sin nombre"),
+                "item_type": entry.get("item_type", ""),
+                "lots": []
+            }
+        items_entries[iid]["lots"].append({
+            "movement_id": entry.get("movement_id", ""),
+            "purchase_date": entry.get("acquisition_date") or (entry.get("created_at", "")[:10] if isinstance(entry.get("created_at"), str) else ""),
+            "supplier": entry.get("supplier", ""),
+            "invoice_ref": entry.get("invoice_ref", ""),
+            "quantity_purchased": entry.get("quantity", 0),
+            "unit_cost": entry.get("unit_cost", 0),
+            "remaining": entry.get("quantity", 0),  # starts as full, will be decremented
+            "created_at": entry.get("created_at", ""),
+        })
+    
+    # Agrupar salidas por item_id
+    items_exits = {}  # item_id -> total_sold
+    exits_by_item = {}
+    for ex in all_exits:
+        iid = ex.get("item_id", "unknown")
+        if iid not in exits_by_item:
+            exits_by_item[iid] = []
+        exits_by_item[iid].append(ex.get("quantity", 0))
+    
+    # Aplicar PEPS: descontar salidas del lote más antiguo
+    for iid, exit_list in exits_by_item.items():
+        if iid not in items_entries:
+            continue
+        
+        total_to_deduct = sum(exit_list)
+        
+        for lot in items_entries[iid]["lots"]:
+            if total_to_deduct <= 0:
+                break
+            
+            deduct_from_lot = min(lot["remaining"], total_to_deduct)
+            lot["remaining"] -= deduct_from_lot
+            total_to_deduct -= deduct_from_lot
+    
+    # Construir reporte: solo lotes con saldo > 0
+    report_items = []
+    grand_total = 0
+    
+    for iid, item_data in items_entries.items():
+        active_lots = [
+            lot for lot in item_data["lots"] if lot["remaining"] > 0
+        ]
+        
+        if not active_lots:
+            continue
+        
+        item_total = 0
+        lot_details = []
+        for lot in active_lots:
+            lot_value = round(lot["remaining"] * lot["unit_cost"], 2)
+            item_total += lot_value
+            lot_details.append({
+                "purchase_date": lot["purchase_date"],
+                "supplier": lot["supplier"],
+                "invoice_ref": lot["invoice_ref"],
+                "quantity_purchased": lot["quantity_purchased"],
+                "remaining": lot["remaining"],
+                "unit_cost": lot["unit_cost"],
+                "lot_value": lot_value,
+            })
+        
+        grand_total += item_total
+        report_items.append({
+            "item_id": iid,
+            "item_name": item_data["item_name"],
+            "item_type": item_data["item_type"],
+            "lots": lot_details,
+            "item_total": round(item_total, 2),
+            "total_units": sum(l["remaining"] for l in active_lots),
+        })
+    
+    # Ordenar por nombre
+    report_items.sort(key=lambda x: x["item_name"])
+    
+    return {
+        "report_date": datetime.now(timezone.utc).isoformat(),
+        "method": "PEPS (FIFO)",
+        "source_warehouse": lch_id,
+        "items": report_items,
+        "grand_total": round(grand_total, 2),
+        "total_items": len(report_items),
+    }
