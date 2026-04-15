@@ -8,15 +8,14 @@ import { useNavigate } from 'react-router-dom';
 
 const printStyles = `
 @media print {
-  body { margin: 0; padding: 0; }
+  body { margin: 0; padding: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
   nav, aside, [data-sidebar], .print\\:hidden { display: none !important; }
   main { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
   .flex.min-h-screen { display: block !important; }
-  table { font-size: 10px !important; page-break-inside: auto; }
+  table { font-size: 9.5px !important; page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   thead { display: table-header-group; }
-  tfoot { display: table-footer-group; }
-  @page { size: letter landscape; margin: 12mm 10mm; }
+  @page { size: letter landscape; margin: 10mm 8mm; }
 }
 `;
 
@@ -47,7 +46,6 @@ export const AssetLedgerReport = () => {
 
   const handlePrint = () => window.print();
 
-  // Inject print styles
   useEffect(() => {
     const style = document.createElement('style');
     style.id = 'asset-ledger-print-styles';
@@ -74,7 +72,7 @@ export const AssetLedgerReport = () => {
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <main className="flex-1 p-6 overflow-auto">
-        {/* Header */}
+        {/* Screen Header */}
         <div className="flex items-center justify-between mb-6 print:hidden">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate('/inventory')} data-testid="back-btn">
@@ -90,15 +88,15 @@ export const AssetLedgerReport = () => {
           </Button>
         </div>
 
-        {/* Report Content */}
+        {/* Report Body */}
         <div ref={printRef} className="bg-white rounded-lg border border-slate-200 p-6 print:border-0 print:shadow-none print:p-0 print:rounded-none">
-          {/* Print Header */}
-          <div className="hidden print:block mb-6 text-center">
-            <h2 className="text-lg font-bold tracking-wide">MAYOR DE ACTIVOS — VALORACIÓN PEPS</h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Fecha de emisión: {formatDate(reportData?.report_date)} | Moneda: Bolívares (Bs)
+          {/* Print-only Header */}
+          <div className="hidden print:block mb-5 text-center">
+            <h2 className="text-base font-bold tracking-wide" style={{color: '#1e293b'}}>MAYOR DE ACTIVOS — VALORACIÓN PEPS</h2>
+            <p className="text-[10px] mt-1" style={{color: '#64748b'}}>
+              Fecha de emisión: {formatDate(reportData?.report_date)} | Moneda: Bolívares (Bs) | Mega Soft Computación, C.A.
             </p>
-            <div className="border-b-2 border-slate-300 mt-3"></div>
+            <div style={{borderBottom: '2px solid #334155', marginTop: '8px'}}></div>
           </div>
 
           {items.length === 0 ? (
@@ -108,97 +106,96 @@ export const AssetLedgerReport = () => {
               <p className="text-sm mt-1">Registre entradas en el Almacén Principal para generar el reporte</p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Tabla única con todas las secciones */}
-              <table className="w-full border-collapse text-xs" data-testid="asset-ledger-table">
+            <div>
+              <table className="w-full border-collapse text-xs" data-testid="asset-ledger-table" style={{borderSpacing: 0}}>
                 <colgroup>
-                  <col style={{width: '12%'}} />
-                  <col style={{width: '18%'}} />
-                  <col style={{width: '12%'}} />
-                  <col style={{width: '12%'}} />
-                  <col style={{width: '12%'}} />
-                  <col style={{width: '15%'}} />
+                  <col style={{width: '11%'}} />
                   <col style={{width: '19%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '11%'}} />
+                  <col style={{width: '15%'}} />
+                  <col style={{width: '22%'}} />
                 </colgroup>
                 <thead>
-                  <tr className="bg-slate-700 text-white">
-                    <th className="px-3 py-2.5 text-left font-semibold border border-slate-600">Fecha Compra</th>
-                    <th className="px-3 py-2.5 text-left font-semibold border border-slate-600">Proveedor</th>
-                    <th className="px-3 py-2.5 text-left font-semibold border border-slate-600">Referencia</th>
-                    <th className="px-3 py-2.5 text-right font-semibold border border-slate-600">Cant. Comprada</th>
-                    <th className="px-3 py-2.5 text-right font-semibold border border-slate-600">Saldo Disponible</th>
-                    <th className="px-3 py-2.5 text-right font-semibold border border-slate-600">Costo Unit. (Bs)</th>
-                    <th className="px-3 py-2.5 text-right font-semibold border border-slate-600">Valor del Lote (Bs)</th>
+                  <tr style={{backgroundColor: '#1e293b', color: '#fff'}}>
+                    <th className="px-3 py-2 text-left font-semibold" style={{border: '1px solid #334155'}}>Fecha Compra</th>
+                    <th className="px-3 py-2 text-left font-semibold" style={{border: '1px solid #334155'}}>Proveedor</th>
+                    <th className="px-3 py-2 text-left font-semibold" style={{border: '1px solid #334155'}}>Referencia</th>
+                    <th className="px-3 py-2 text-right font-semibold" style={{border: '1px solid #334155'}}>Cant. Comprada</th>
+                    <th className="px-3 py-2 text-right font-semibold" style={{border: '1px solid #334155'}}>Saldo Disponible</th>
+                    <th className="px-3 py-2 text-right font-semibold" style={{border: '1px solid #334155'}}>Costo Unit. (Bs)</th>
+                    <th className="px-3 py-2 text-right font-semibold" style={{border: '1px solid #334155'}}>Valor del Lote (Bs)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, itemIdx) => (
                     <>
-                      {/* Item Header Row */}
-                      <tr key={`header-${item.item_id}`} className="bg-slate-100">
-                        <td colSpan={5} className="px-3 py-2 border border-slate-200">
-                          <span className="font-bold text-slate-800 text-sm">{item.item_name}</span>
+                      {/* Item Header */}
+                      <tr key={`h-${item.item_id}`} style={{backgroundColor: '#334155', color: '#fff'}}>
+                        <td colSpan={5} className="px-3 py-1.5" style={{border: '1px solid #475569'}}>
+                          <span className="font-bold text-sm">{item.item_name}</span>
                           {item.item_type && (
-                            <span className="ml-2 text-[10px] bg-slate-300 text-slate-700 px-1.5 py-0.5 rounded font-medium">{item.item_type}</span>
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-medium" style={{backgroundColor: '#64748b', color: '#e2e8f0'}}>{item.item_type}</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right border border-slate-200 text-xs text-slate-500">
-                          Uds: <span className="font-bold text-slate-700">{item.total_units}</span>
+                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}>
+                          Uds: <span className="font-bold">{item.total_units}</span>
                         </td>
-                        <td className="px-3 py-2 text-right border border-slate-200 font-bold text-emerald-700">
+                        <td className="px-3 py-1.5 text-right font-bold" style={{border: '1px solid #475569', color: '#86efac'}}>
                           {formatBs(item.item_total)}
                         </td>
                       </tr>
                       {/* Lot Rows */}
                       {item.lots.map((lot, lotIdx) => (
-                        <tr key={`lot-${item.item_id}-${lotIdx}`} className={lotIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                          <td className="px-3 py-1.5 border border-slate-200">{formatDate(lot.purchase_date)}</td>
-                          <td className="px-3 py-1.5 border border-slate-200">{lot.supplier || '—'}</td>
-                          <td className="px-3 py-1.5 border border-slate-200">{lot.invoice_ref || '—'}</td>
-                          <td className="px-3 py-1.5 text-right border border-slate-200 text-slate-500">{lot.quantity_purchased}</td>
-                          <td className="px-3 py-1.5 text-right border border-slate-200 font-semibold">
-                            <span className={lot.remaining < lot.quantity_purchased ? 'text-amber-600' : 'text-slate-700'}>
-                              {lot.remaining}
-                            </span>
+                        <tr key={`l-${item.item_id}-${lotIdx}`} style={{backgroundColor: lotIdx % 2 === 0 ? '#ffffff' : '#f8fafc'}}>
+                          <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{formatDate(lot.purchase_date)}</td>
+                          <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{lot.supplier || '—'}</td>
+                          <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{lot.invoice_ref || '—'}</td>
+                          <td className="px-3 py-1.5 text-right" style={{border: '1px solid #e2e8f0', color: '#64748b'}}>{lot.quantity_purchased}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold" style={{border: '1px solid #e2e8f0', color: lot.remaining < lot.quantity_purchased ? '#d97706' : '#1e293b'}}>
+                            {lot.remaining}
                           </td>
-                          <td className="px-3 py-1.5 text-right border border-slate-200 font-mono">{formatBs(lot.unit_cost)}</td>
-                          <td className="px-3 py-1.5 text-right border border-slate-200 font-mono font-semibold text-emerald-700">{formatBs(lot.lot_value)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono" style={{border: '1px solid #e2e8f0'}}>{formatBs(lot.unit_cost)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono font-semibold" style={{border: '1px solid #e2e8f0', color: '#047857'}}>{formatBs(lot.lot_value)}</td>
                         </tr>
                       ))}
-                      {/* Item Subtotal Row */}
-                      <tr key={`subtotal-${item.item_id}`} className="bg-slate-100">
-                        <td colSpan={4} className="px-3 py-2 text-right border border-slate-200 font-semibold text-slate-600 text-xs">
+                      {/* Item Subtotal */}
+                      <tr key={`s-${item.item_id}`} style={{backgroundColor: '#e2e8f0'}}>
+                        <td colSpan={4} className="px-3 py-1.5 text-right font-semibold" style={{border: '1px solid #cbd5e1', color: '#475569', fontSize: '11px'}}>
                           Total {item.item_name}:
                         </td>
-                        <td className="px-3 py-2 text-right border border-slate-200 font-bold text-slate-700">{item.total_units}</td>
-                        <td className="px-3 py-2 border border-slate-200"></td>
-                        <td className="px-3 py-2 text-right border border-slate-200 font-mono font-bold text-emerald-700">{formatBs(item.item_total)}</td>
+                        <td className="px-3 py-1.5 text-right font-bold" style={{border: '1px solid #cbd5e1', color: '#1e293b'}}>{item.total_units}</td>
+                        <td className="px-3 py-1.5" style={{border: '1px solid #cbd5e1'}}></td>
+                        <td className="px-3 py-1.5 text-right font-mono font-bold" style={{border: '1px solid #cbd5e1', color: '#047857'}}>{formatBs(item.item_total)}</td>
                       </tr>
-                      {/* Separator */}
+                      {/* Spacer */}
                       {itemIdx < items.length - 1 && (
-                        <tr key={`sep-${item.item_id}`}>
-                          <td colSpan={7} className="h-2 border-0 bg-slate-50"></td>
-                        </tr>
+                        <tr key={`sp-${item.item_id}`}><td colSpan={7} style={{height: '6px', border: 'none', backgroundColor: '#fff'}}></td></tr>
                       )}
                     </>
                   ))}
                 </tbody>
-                {/* Grand Total Footer */}
-                <tfoot>
-                  <tr className="bg-slate-800 text-white">
-                    <td colSpan={4} className="px-3 py-3 text-right font-bold border border-slate-700">
-                      GRAN TOTAL CONTABLE:
-                    </td>
-                    <td className="px-3 py-3 text-right font-bold border border-slate-700">
-                      {items.reduce((s, i) => s + i.total_units, 0)}
-                    </td>
-                    <td className="px-3 py-3 border border-slate-700"></td>
-                    <td className="px-3 py-3 text-right font-bold text-emerald-300 text-sm border border-slate-700">
-                      {formatBs(grandTotal)}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
+
+              {/* Grand Total — only at the end, not in tfoot (avoids repeating on every page) */}
+              <div className="mt-4 flex justify-end" data-testid="grand-total">
+                <table className="border-collapse" style={{minWidth: '450px'}}>
+                  <tbody>
+                    <tr style={{backgroundColor: '#1e293b', color: '#fff'}}>
+                      <td className="px-4 py-3 text-right font-bold" style={{border: '1px solid #334155', fontSize: '12px'}}>
+                        GRAN TOTAL CONTABLE:
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold" style={{border: '1px solid #334155', width: '100px'}}>
+                        {items.reduce((s, i) => s + i.total_units, 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold" style={{border: '1px solid #334155', color: '#86efac', fontSize: '14px', width: '180px'}}>
+                        {formatBs(grandTotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
