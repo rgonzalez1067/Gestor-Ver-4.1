@@ -1135,7 +1135,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     
     all_entries = await db.inventory_movements.find(
         entries_query, {"_id": 0}
-    ).sort("created_at", 1).to_list(5000)
+    ).sort("acquisition_date", 1).to_list(5000)
     
     # Obtener TODAS las salidas reales (NO transferencias)
     all_exits = await db.inventory_movements.find(
@@ -1166,6 +1166,10 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     # Agrupar salidas por item_id
     items_exits = {}  # item_id -> total_sold
     exits_by_item = {}
+    
+    # Ordenar lotes dentro de cada item por fecha de compra (más antigua primero = PEPS)
+    for iid in items_entries:
+        items_entries[iid]["lots"].sort(key=lambda l: l.get("purchase_date") or l.get("created_at") or "")
     for ex in all_exits:
         iid = ex.get("item_id", "unknown")
         if iid not in exits_by_item:
