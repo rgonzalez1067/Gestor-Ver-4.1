@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -32,7 +32,8 @@ const PRIORITY_OPTIONS = ['Alta', 'Media', 'Normal'];
 const PRIORITY_COLORS = { 'Alta': 'text-red-600 font-semibold', 'Media': 'text-orange-600', 'Normal': 'text-blue-600' };
 
 const Projects = () => {
-  const { canEdit } = usePermission('proyectos');
+  const { canEdit, user: currentUser } = usePermission('proyectos');
+  const isAdmin = currentUser?.role === 'admin';
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState({});
@@ -126,6 +127,17 @@ const Projects = () => {
       toast.success(`Prioridad: ${priority}`);
       fetchProjects();
     } catch (err) { toast.error('Error al cambiar prioridad'); }
+  };
+
+  const handleDeleteProject = async (project) => {
+    if (!confirm(`¿Eliminar proyecto ${project.project_number} (${project.client_name})? Esta acción no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/projects/${project.project_id}`);
+      toast.success('Proyecto eliminado');
+      fetchProjects();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
+    }
   };
 
   const filtered = projects.filter(p => {
@@ -362,6 +374,13 @@ const Projects = () => {
                               className="h-8 px-2 text-emerald-600" data-testid={`detail-btn-${project.project_id}`}>
                               <Eye size={14} />
                             </Button>
+                            {isAdmin && (
+                              <Button size="sm" variant="outline" title="Eliminar Proyecto"
+                                onClick={() => handleDeleteProject(project)}
+                                className="h-8 px-2 text-slate-300 hover:text-rose-600 hover:border-rose-300" data-testid={`delete-btn-${project.project_id}`}>
+                                <Trash2 size={14} />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

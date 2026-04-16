@@ -2914,3 +2914,19 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
         "status": "preasignado",
         "emails": email_results,
     }
+
+
+@router.delete("/taller-equipos/{taller_equipo_id}")
+async def delete_taller_equipo(taller_equipo_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar un equipo del taller de reparaciones. Solo administradores."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar registros del taller")
+    
+    equipo = await db.taller_equipos.find_one({"taller_equipo_id": taller_equipo_id}, {"_id": 0})
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado en taller")
+    
+    await db.taller_equipos.delete_one({"taller_equipo_id": taller_equipo_id})
+    logging.info(f"Equipo taller {taller_equipo_id} eliminado por {current_user.get('email')}")
+    return {"message": "Registro de taller eliminado exitosamente"}

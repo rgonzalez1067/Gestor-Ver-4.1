@@ -1481,3 +1481,19 @@ async def _replace_base64_images(html: str, user_id: str) -> str:
             logger.warning(f"Failed to upload base64 image: {e}")
 
     return html
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(project_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar un proyecto. Solo administradores."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar proyectos")
+    
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "project_id": 1})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    
+    await db.projects.delete_one({"project_id": project_id})
+    logging.info(f"Proyecto {project_id} eliminado por {current_user.get('email')}")
+    return {"message": "Proyecto eliminado exitosamente"}

@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Wrench, Search, Download, AlertTriangle, Clock,
   Package, CheckCircle, ExternalLink, X, Calendar,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Trash2
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { usePermission } from '../hooks/usePermission';
 
 const PAGE_SIZE = 25;
 
@@ -23,6 +24,8 @@ const ESTATUS_OPTIONS = [
 
 export default function TallerEquipos() {
   const navigate = useNavigate();
+  const { user: currentUser } = usePermission('taller');
+  const isAdmin = currentUser?.role === 'admin';
   const [equipos, setEquipos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, total_en_reparacion: 0, total_entregados: 0, total_alerta: 0 });
@@ -78,6 +81,17 @@ export default function TallerEquipos() {
   const paginatedEquipos = equipos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openHistorial = async (tallerEquipoId) => {
+
+  const handleDeleteEquipo = async (equipo) => {
+    if (!confirm(`¿Eliminar registro de ${equipo.serial} (${equipo.modelo})? Esta acción no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/taller-equipos/${equipo.taller_equipo_id}`);
+      toast.success('Registro eliminado');
+      fetchEquipos();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
+    }
+  };
     setHistorialOpen(true);
     setHistorialLoading(true);
     setHistorialData(null);
@@ -278,6 +292,7 @@ export default function TallerEquipos() {
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase">Estatus</th>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase">Fecha Ingreso</th>
                         <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase">Dias en Taller</th>
+                        {isAdmin && <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase"></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -332,6 +347,13 @@ export default function TallerEquipos() {
                                 {eq.dias_en_taller}d
                               </span>
                             </td>
+                            {isAdmin && (
+                              <td className="px-3 py-2.5 text-center">
+                                <Button variant="ghost" size="sm" onClick={() => handleDeleteEquipo(eq)} className="text-slate-300 hover:text-rose-600 hover:bg-rose-50" data-testid={`delete-taller-${eq.serial}`}>
+                                  <Trash2 size={15} />
+                                </Button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
