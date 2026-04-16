@@ -158,3 +158,56 @@ async def create_external_contact(
 async def external_health():
     """Health check para verificar disponibilidad de la API externa."""
     return {"status": "ok", "service": "MegaNexus External API", "version": "1.0"}
+
+
+@router.post("/external/import-data")
+async def import_data_endpoint(x_api_key: Optional[str] = Header(None)):
+    """Endpoint para importar datos desde archivos de exportación.
+    Protegido por API Key. Ejecutar UNA VEZ después del deploy."""
+    if not x_api_key or x_api_key != EXTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="API Key inválida")
+
+    import json as json_mod
+    from pathlib import Path
+
+    export_dir = Path("/app/db_export")
+    manifest_path = export_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise HTTPException(status_code=404, detail="No se encontró manifest.json")
+
+    with open(manifest_path) as f:
+        manifest = json_mod.load(f)
+
+    results = {}
+    total = 0
+
+    for coll_name, expected_count in manifest["collections"].items():
+        filepath = export_dir / f"{coll_name}.json"
+        if not filepath.exists():
+            results[coll_name] = "archivo no encontrado"
+            continue
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            docs = json_mod.load(f)
+
+        if not docs:
+            results[coll_name] = "vacío"
+            continue
+
+        existing = await db[coll_name].count_documents({})
+        if existing > 0:
+            await db[coll_name].delete_many({})
+
+        batch_size = 500
+        for i in range(0, len(docs), batch_size):
+            batch = docs[i:i+batch_size]
+            await db[coll_name].insert_many(batch)
+
+        total += len(docs)
+        results[coll_name] = f"{len(docs)} importados"
+
+    return {
+        "status": "completed",
+        "total_documents": total,
+        "collections": results
+    }
