@@ -935,10 +935,15 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     # Buscar plantilla por sede primero, luego genérica
     is_equipment_quote = quote.get("quote_category") == "equipment"
     is_fast_track_quote = quote.get("quote_category") == "fast_track"
+    is_repair_quote = quote.get("quote_category") == "repair"
     if is_equipment_quote or is_fast_track_quote:
         template = await db.email_templates.find_one({"template_id": f"equipment_invoice_{norm_sede}"}, {"_id": 0})
         if not template:
             template = await db.email_templates.find_one({"template_id": "equipment_invoice"}, {"_id": 0})
+    elif is_repair_quote:
+        template = await db.email_templates.find_one({"template_id": f"repair_invoice_{norm_sede}"}, {"_id": 0})
+        if not template:
+            template = await db.email_templates.find_one({"template_id": "repair_invoice"}, {"_id": 0})
     else:
         template = await db.email_templates.find_one({"template_id": f"invoice_{norm_sede}"}, {"_id": 0})
         if not template:
@@ -998,11 +1003,18 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         invoice_attachments = [{"filename": descriptive_name, "content": factura_b64}]
 
     email_results = []
-    # Para equipos y fast_track: enviar SOLO a Ventas sede. Para implementación: a Admin + Ventas
+    # Para equipos y fast_track: enviar SOLO a Ventas sede. Para reparaciones: a Operaciones sede. Para implementación: a Admin + Ventas
     if is_equipment_quote or is_fast_track_quote:
         recipients = [(sales_email, "invoice_sales")]
         if not sales_email:
             recipients = [("ventas@sede.local", "invoice_no_config")]
+    elif is_repair_quote:
+        operations_email = sede_emails.get("operations") if sede_emails else None
+        recipients = [(operations_email, "invoice_repair_operations")]
+        if not operations_email:
+            recipients = [(admin_email, "invoice_repair_admin")]
+        if not operations_email and not admin_email:
+            recipients = [("operaciones@sede.local", "invoice_no_config")]
     else:
         recipients = [(admin_email, "invoice_admin"), (sales_email, "invoice_sales")]
         if not admin_email and not sales_email:
@@ -1770,6 +1782,8 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
     courier_name = body.get("courier_name", "")
     courier_office = body.get("courier_office", "")
     delivery_notes = body.get("notes", "")
+    repair_invoice_number = body.get("invoice_number", "")
+    consumed_supplies = body.get("consumed_supplies", [])  # [{item_id, quantity}]
 
     if not selected_serials:
         raise HTTPException(status_code=400, detail="Debe seleccionar al menos un equipo para entregar")
@@ -1922,6 +1936,53 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
     tipo_entrega = "FINAL" if is_final_delivery else "PARCIAL"
 
+    # --- Registrar salida de insumos consumidos en Almacén TBP ---
+    supply_exit_results = []
+    if consumed_supplies and len(consumed_supplies) > 0:
+        # Buscar almacén TBP (Torre Banco Plaza / Pymes)
+        tbp_wh = await db.warehouses.find_one(
+            {"$or": [{"name": {"$regex": "Torre Banco", "$options": "i"}}, {"name": {"$regex": "TBP", "$options": "i"}}, {"name": {"$regex": "Pymes", "$options": "i"}}]},
+            {"_id": 0}
+        )
+        tbp_warehouse_id = tbp_wh["warehouse_id"] if tbp_wh else None
+
+        if tbp_warehouse_id:
+            for supply in consumed_supplies:
+                s_item_id = supply.get("item_id")
+                s_quantity = supply.get("quantity", 0)
+                if not s_item_id or s_quantity <= 0:
+                    continue
+                item = await db.hardware.find_one({"hardware_id": s_item_id}, {"_id": 0})
+                if not item:
+                    continue
+                try:
+                    movement = {
+                        "movement_id": f"mov_{uuid.uuid4().hex[:12]}",
+                        "warehouse_id": tbp_warehouse_id,
+                        "item_id": s_item_id,
+                        "item_name": item.get("name", ""),
+                        "item_type": item.get("type", "General"),
+                        "movement_type": "salida",
+                        "quantity": s_quantity,
+                        "unit_cost": item.get("price_usd", 0),
+                        "serials": [],
+                        "reference": f"Reparación {quote.get('quote_number', '')}",
+                        "client_name": client_name,
+                        "notes": f"Insumo consumido en reparación. Factura: {repair_invoice_number or 'N/A'}",
+                        "created_by": user_name,
+                        "created_at": now_iso,
+                    }
+                    await db.inventory_movements.insert_one(movement)
+                    movement.pop("_id", None)
+                    supply_exit_results.append({"item": item.get("name"), "quantity": s_quantity, "status": "ok"})
+                except Exception as e:
+                    logger.error(f"Error registrando salida de insumo {s_item_id}: {e}")
+                    supply_exit_results.append({"item": s_item_id, "quantity": s_quantity, "status": "error", "detail": str(e)})
+
+    # Guardar factura en la cotización si fue proporcionada
+    if repair_invoice_number:
+        await db.quotes.update_one({"quote_id": quote_id}, {"$set": {"repair_delivery_invoice": repair_invoice_number}})
+
     # --- Notificación al CLIENTE: Entrega de Equipos Reparados ---
     try:
         contacts_crm = client.get('contacts', []) if client else []
@@ -1988,7 +2049,21 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         "hoja_ruta_url": hoja_ruta_url,
         "is_final_delivery": is_final_delivery,
         "tipo_entrega": tipo_entrega,
+        "supply_exits": supply_exit_results,
+        "invoice_number": repair_invoice_number,
     }
+
+
+
+@router.get("/repair-supplies")
+async def get_repair_supplies(authorization: Optional[str] = Header(None)):
+    """Lista bienes tipo Accesorio y Componente para carga de insumos en reparaciones."""
+    await get_current_user(authorization)
+    items = await db.hardware.find(
+        {"type": {"$in": ["Accesorio", "Componente", "Pieza"]}},
+        {"_id": 0, "hardware_id": 1, "name": 1, "type": 1, "category": 1, "price_usd": 1}
+    ).sort("name", 1).to_list(500)
+    return items
 
 
 @router.get("/taller-equipos")

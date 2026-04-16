@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { Wrench, User, Building, Package, Check, Search } from 'lucide-react';
+import { Wrench, User, Building, Package, Check, Search, Plus, Trash2, FileText, ShoppingCart } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
 
@@ -27,6 +27,12 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
   const [receiverPhone, setReceiverPhone] = useState('');
   const [courierName, setCourierName] = useState('');
   const [courierOffice, setCourierOffice] = useState('');
+
+  // Invoice & Supplies
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [availableSupplies, setAvailableSupplies] = useState([]);
+  const [consumedSupplies, setConsumedSupplies] = useState([]);  // [{item_id, item_name, quantity}]
+  const [selectedSupplyId, setSelectedSupplyId] = useState('');
 
   const fetchPrep = useCallback(async () => {
     if (!quoteId) return;
@@ -62,8 +68,13 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
       setReceiverPhone('');
       setCourierName('');
       setCourierOffice('');
+      setInvoiceNumber('');
+      setConsumedSupplies([]);
+      setSelectedSupplyId('');
       setPrepData(null);
       fetchPrep();
+      // Cargar insumos disponibles (Accesorios/Componentes)
+      api.get('/repair-supplies').then(r => setAvailableSupplies(r.data || [])).catch(() => setAvailableSupplies([]));
     }
   }, [open, quoteId, fetchPrep]);
 
@@ -99,7 +110,28 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
   const isValid = deliveryMethod &&
     receiverName.trim() &&
     selectedIds.size > 0 &&
+    invoiceNumber.trim() &&
     (deliveryMethod !== 'courier' || (courierName && courierOffice));
+
+  const addSupply = () => {
+    if (!selectedSupplyId) return;
+    if (consumedSupplies.some(s => s.item_id === selectedSupplyId)) {
+      toast.error('Este insumo ya fue agregado');
+      return;
+    }
+    const item = availableSupplies.find(s => s.hardware_id === selectedSupplyId);
+    if (!item) return;
+    setConsumedSupplies(prev => [...prev, { item_id: item.hardware_id, item_name: item.name, quantity: 1 }]);
+    setSelectedSupplyId('');
+  };
+
+  const updateSupplyQty = (idx, qty) => {
+    setConsumedSupplies(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(1, parseInt(qty) || 1) } : s));
+  };
+
+  const removeSupply = (idx) => {
+    setConsumedSupplies(prev => prev.filter((_, i) => i !== idx));
+  };
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -119,6 +151,8 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
         courier_name: deliveryMethod === 'courier' ? courierName : '',
         courier_office: deliveryMethod === 'courier' ? courierOffice : '',
         notes,
+        invoice_number: invoiceNumber,
+        consumed_supplies: consumedSupplies.map(s => ({ item_id: s.item_id, quantity: s.quantity })),
       };
       const res = await api.post(`/quotes/${quoteId}/repair-deliver`, payload, { headers });
       toast.success(res.data.message || 'Entrega registrada exitosamente');
@@ -320,6 +354,66 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
                         placeholder="Nombre de oficina..." data-testid="repair-delivery-courier-office" className="h-8 text-sm" />
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Factura de Reparación */}
+            <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 space-y-2">
+              <Label className="text-xs font-semibold text-amber-800 uppercase flex items-center gap-1">
+                <FileText size={14} /> Nro. de Factura de Reparación *
+              </Label>
+              <Input
+                value={invoiceNumber}
+                onChange={e => setInvoiceNumber(e.target.value)}
+                placeholder="Ej: FAC-REP-2026-001"
+                className="h-8 text-sm"
+                data-testid="repair-delivery-invoice"
+              />
+            </div>
+
+            {/* Insumos Consumidos */}
+            <div className="bg-slate-50 rounded-lg border p-3 space-y-3">
+              <Label className="text-xs font-semibold text-slate-700 uppercase flex items-center gap-1">
+                <ShoppingCart size={14} /> Insumos Consumidos en la Reparación
+              </Label>
+              <div className="flex gap-2">
+                <Select value={selectedSupplyId} onValueChange={setSelectedSupplyId}>
+                  <SelectTrigger className="h-8 text-sm flex-1" data-testid="repair-supply-select">
+                    <SelectValue placeholder="Seleccione insumo (Accesorios / Componentes)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSupplies.map(s => (
+                      <SelectItem key={s.hardware_id} value={s.hardware_id}>
+                        {s.name} ({s.type})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" size="sm" variant="outline" onClick={addSupply} disabled={!selectedSupplyId}
+                  className="h-8" data-testid="repair-supply-add">
+                  <Plus size={14} />
+                </Button>
+              </div>
+              {consumedSupplies.length > 0 && (
+                <div className="space-y-1.5">
+                  {consumedSupplies.map((s, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white border rounded-md px-3 py-1.5"
+                      data-testid={`repair-supply-row-${idx}`}>
+                      <span className="text-xs text-slate-700 flex-1 truncate">{s.item_name}</span>
+                      <Label className="text-[10px] text-slate-500">Cant:</Label>
+                      <Input type="number" min="1" value={s.quantity}
+                        onChange={e => updateSupplyQty(idx, e.target.value)}
+                        className="w-16 h-7 text-xs text-center" data-testid={`repair-supply-qty-${idx}`} />
+                      <Button variant="ghost" size="sm" onClick={() => removeSupply(idx)}
+                        className="h-7 w-7 p-0 text-slate-400 hover:text-rose-500">
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-slate-400">
+                    Estos insumos se descontarán del inventario del Almacén TBP al confirmar la entrega.
+                  </p>
                 </div>
               )}
             </div>
