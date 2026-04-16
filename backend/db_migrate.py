@@ -3,6 +3,9 @@ Script de Exportación/Importación de datos MongoDB para MegaNexus.
 Uso:
   Exportar:  python3 db_migrate.py export
   Importar:  python3 db_migrate.py import
+
+Después del deploy limpio, ejecutar:
+  cd /app/backend && python3 db_migrate.py import
 """
 import asyncio
 import json
@@ -12,11 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Colecciones a migrar (orden importa para dependencias)
+# Colecciones a migrar — TODAS las operativas
 COLLECTIONS = [
+    # Usuarios y config
     "users",
     "config",
     "counters",
+    # Maestros
     "warehouses",
     "banks",
     "services",
@@ -24,25 +29,38 @@ COLLECTIONS = [
     "fiscal_printer_models",
     "email_templates",
     "min_stock_config",
+    # Datos operativos
     "clients",
     "client_logs",
     "integrators",
     "inventory_movements",
     "serial_assignments",
+    "projects",
+    "taller_equipos",
+    "new_products",
+    "quotes",
+    "initial_contacts",
+    # Tasas y contadores
     "exchange_rates",
     "historico_tasas_cambio",
     "nota_entrega_counter",
     "transfer_note_counter",
+    # Pipeline nuevos productos
     "new_product_evolution",
     "np_responsable_assignments",
     "np_status_transitions",
+    # Bancos
     "bank_evolution_log",
+    # Media
     "uploaded_images",
+    # Auditoría
     "audit_logs",
     "audit_exceptions",
+    "email_logs",
 ]
 
 EXPORT_DIR = Path("/app/db_export")
+
 
 def serialize(doc):
     """Convierte ObjectId y otros tipos no serializables."""
@@ -66,24 +84,27 @@ async def export_data():
     db = client[db_name]
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     manifest = {"exported_at": datetime.utcnow().isoformat(), "db": db_name, "collections": {}}
     total = 0
 
     for coll_name in COLLECTIONS:
         docs = []
-        cursor = db[coll_name].find({})
-        async for doc in cursor:
-            docs.append(serialize(doc))
-        
+        try:
+            cursor = db[coll_name].find({})
+            async for doc in cursor:
+                docs.append(serialize(doc))
+        except Exception:
+            pass
+
         if not docs:
-            print(f"  SKIP {coll_name}: vacía")
+            print(f"  SKIP {coll_name}: vacia")
             continue
 
         filepath = EXPORT_DIR / f"{coll_name}.json"
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(docs, f, ensure_ascii=False, default=str)
-        
+
         manifest["collections"][coll_name] = len(docs)
         total += len(docs)
         print(f"  OK   {coll_name}: {len(docs)} documentos")
@@ -91,7 +112,7 @@ async def export_data():
     with open(EXPORT_DIR / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"\nExportación completada: {total} documentos en {len(manifest['collections'])} colecciones")
+    print(f"\nExportacion completada: {total} documentos en {len(manifest['collections'])} colecciones")
     print(f"Archivos en: {EXPORT_DIR}")
 
 
@@ -103,7 +124,7 @@ async def import_data():
 
     manifest_path = EXPORT_DIR / "manifest.json"
     if not manifest_path.exists():
-        print("ERROR: No se encontró manifest.json. Ejecute 'export' primero.")
+        print("ERROR: No se encontro manifest.json. Ejecute 'export' primero.")
         return
 
     with open(manifest_path) as f:
@@ -124,13 +145,11 @@ async def import_data():
         if not docs:
             continue
 
-        # Verificar si la colección ya tiene datos
         existing = await db[coll_name].count_documents({})
         if existing > 0:
             print(f"  WARN {coll_name}: ya tiene {existing} docs. Limpiando...")
             await db[coll_name].delete_many({})
 
-        # Insertar en lotes de 500
         batch_size = 500
         for i in range(0, len(docs), batch_size):
             batch = docs[i:i+batch_size]
@@ -139,7 +158,8 @@ async def import_data():
         total += len(docs)
         print(f"  OK   {coll_name}: {len(docs)} documentos importados")
 
-    print(f"\nImportación completada: {total} documentos en {len(manifest['collections'])} colecciones")
+    print(f"\nImportacion completada: {total} documentos en {len(manifest['collections'])} colecciones")
+    print("Reinicie el backend: sudo supervisorctl restart backend")
 
 
 if __name__ == "__main__":
@@ -147,8 +167,7 @@ if __name__ == "__main__":
         print("Uso: python3 db_migrate.py [export|import]")
         sys.exit(1)
 
-    action = sys.argv[1]
-    if action == "export":
+    if sys.argv[1] == "export":
         asyncio.run(export_data())
     else:
         asyncio.run(import_data())
