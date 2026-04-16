@@ -200,12 +200,31 @@ async def send_client_email(
                     "content_type": doc.get("content_type", "application/octet-stream"),
                 })
 
-    # Enviar email
+    # Preparar adjuntos para el motor de email (formato: {filename, content} en bytes)
+    email_attachments = []
+    for f_info in saved_files:
+        fpath = f"/app/backend{f_info['url']}"
+        if os.path.exists(fpath):
+            with open(fpath, "rb") as fh:
+                email_attachments.append({
+                    "filename": f_info["filename"],
+                    "content": fh.read(),
+                })
+    for att in internal_attachments:
+        if os.path.exists(att["path"]):
+            with open(att["path"], "rb") as fh:
+                email_attachments.append({
+                    "filename": att["filename"],
+                    "content": fh.read(),
+                })
+
+    # Enviar email CON adjuntos
     email_result = await send_email(
         to=to_list,
         subject=subject,
         html=html,
         action="client_communication",
+        attachments=email_attachments if email_attachments else None,
     )
 
     # Registrar en bitácora del cliente

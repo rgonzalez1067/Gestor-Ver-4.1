@@ -55,9 +55,36 @@ export const ClientEmailDialog = ({ open, onClose, client, onSent }) => {
   const removeRecipient = (idx) => setRecipients(prev => prev.filter((_, i) => i !== idx));
   const updateRecipient = (idx, val) => setRecipients(prev => { const r = [...prev]; r[idx] = val; return r; });
 
+  // Resolución inmediata de variables del cliente al seleccionar plantilla
+  const resolveClientVars = (text) => {
+    if (!text || !client) return text;
+    const contacts = client.contacts || [];
+    const contactName = contacts[0]?.name || '';
+    const contactEmail = contacts[0]?.email || client.email || '';
+    const contactPhone = contacts[0]?.phone || '';
+    const vars = {
+      nombre: client.legal_name || client.fantasy_name || '',
+      razon_social: client.legal_name || '',
+      rif: client.rif || '',
+      email: contactEmail,
+      contacto: contactName,
+      direccion: client.address || '',
+      telefono: contactPhone,
+      nombre_comercial: client.fantasy_name || '',
+    };
+    let result = text;
+    Object.entries(vars).forEach(([key, val]) => {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+      result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), val);
+    });
+    return result;
+  };
+
   const handleTemplateSelect = (tpl) => {
-    setSubject(tpl.subject || '');
-    setMessage(tpl.body_html || tpl.body || '');
+    const rawSubject = tpl.subject || '';
+    const rawBody = tpl.body_html || tpl.body || '';
+    setSubject(resolveClientVars(rawSubject));
+    setMessage(resolveClientVars(rawBody));
     setPreviewMode(false);
   };
 

@@ -1679,8 +1679,13 @@ export const Clients = () => {
                           {log.contacted_person && (
                             <p className="text-xs text-purple-600 mt-0.5 font-medium">Contacto: {log.contacted_person}</p>
                           )}
-                          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
-                            <span>Contacto: {log.contact_date}</span>
+                          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400 flex-wrap">
+                            <span>Fecha: {log.contact_date}</span>
+                            {log.created_at && (
+                              <span className="text-blue-500 font-medium">
+                                {new Date(log.created_at).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                              </span>
+                            )}
                             {log.follow_up_date && (
                               <span className={`px-1.5 py-0.5 rounded ${isOverdue && !log.is_completed ? 'bg-red-100 text-red-600 font-medium' : 'bg-slate-100'}`}>
                                 Seguimiento: {log.follow_up_date}
