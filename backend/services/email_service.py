@@ -61,7 +61,9 @@ def _send_smtp(
                     content = content.encode("utf-8")
             part.set_payload(content)
             encoders.encode_base64(part)
-            part.add_header("Content-Disposition", f'attachment; filename="{att.get("filename", "adjunto")}"')
+            # Usar keyword arg para filename (maneja caracteres especiales/unicode correctamente)
+            fname = att.get("filename", "adjunto")
+            part.add_header("Content-Disposition", "attachment", filename=fname)
             msg.attach(part)
 
     # All recipients for sendmail (TO + CC)

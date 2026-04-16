@@ -99,8 +99,12 @@ async def delete_client_document(document_id: str, authorization: Optional[str] 
 def _render_client_vars(text: str, client: dict) -> str:
     """Reemplaza variables dinámicas del cliente en el texto."""
     contacts = client.get("contacts", [])
-    contact_name = contacts[0].get("name", "") if contacts else ""
+    contact_name = ""
+    if contacts:
+        c = contacts[0]
+        contact_name = c.get("full_name") or c.get("name") or c.get("first_name", "")
     contact_email = contacts[0].get("email", "") if contacts else client.get("email", "")
+    contact_phone = contacts[0].get("phone", "") if contacts else ""
 
     replacements = {
         "nombre": client.get("legal_name") or client.get("fantasy_name", ""),

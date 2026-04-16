@@ -59,7 +59,7 @@ export const ClientEmailDialog = ({ open, onClose, client, onSent }) => {
   const resolveClientVars = (text) => {
     if (!text || !client) return text;
     const contacts = client.contacts || [];
-    const contactName = contacts[0]?.name || '';
+    const contactName = contacts[0]?.full_name || contacts[0]?.name || contacts[0]?.first_name || '';
     const contactEmail = contacts[0]?.email || client.email || '';
     const contactPhone = contacts[0]?.phone || '';
     const vars = {
