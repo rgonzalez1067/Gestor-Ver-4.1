@@ -1,0 +1,32 @@
+{
+  "exported_at": "2026-04-16T00:21:04.116396",
+  "db": "test_database",
+  "collections": {
+    "users": 18,
+    "config": 2,
+    "counters": 7,
+    "warehouses": 2,
+    "banks": 30,
+    "services": 54,
+    "hardware": 53,
+    "fiscal_printer_models": 4,
+    "email_templates": 22,
+    "min_stock_config": 3,
+    "clients": 320,
+    "client_logs": 12,
+    "integrators": 264,
+    "inventory_movements": 41,
+    "serial_assignments": 2,
+    "exchange_rates": 13,
+    "historico_tasas_cambio": 4,
+    "nota_entrega_counter": 1,
+    "transfer_note_counter": 1,
+    "new_product_evolution": 2,
+    "np_responsable_assignments": 1,
+    "np_status_transitions": 18,
+    "bank_evolution_log": 6,
+    "uploaded_images": 12,
+    "audit_logs": 65,
+    "audit_exceptions": 211
+  }
+}
