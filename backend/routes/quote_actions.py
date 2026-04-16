@@ -15,9 +15,28 @@ from models import *
 from services.email_service import send_email
 from services.workflow_notifications import send_workflow_notification
 from services.hoja_ruta_pdf import generate_nota_entrega_pdf
+from routes.seed_and_templates import generate_email_templates_by_sede
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Cache de plantillas por defecto (generadas desde código)
+_DEFAULT_TEMPLATES_CACHE = None
+
+async def get_email_template(template_id: str) -> dict:
+    """Busca plantilla primero en la BD, luego en los defaults generados por código."""
+    global _DEFAULT_TEMPLATES_CACHE
+    # 1. Buscar en MongoDB
+    tpl = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
+    if tpl:
+        return tpl
+    # 2. Buscar en defaults generados por código
+    if _DEFAULT_TEMPLATES_CACHE is None:
+        _DEFAULT_TEMPLATES_CACHE = generate_email_templates_by_sede()
+    default_tpl = _DEFAULT_TEMPLATES_CACHE.get(template_id)
+    if default_tpl:
+        return default_tpl
+    return None
 
 
 class QuoteStatusUpdate(BaseModel):
@@ -308,9 +327,9 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
 
         quote_sede = quote.get("sede", "PYME")
         norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
-        ra_template = await db.email_templates.find_one({"template_id": f"repair_approved_{norm_sede}"}, {"_id": 0})
+        ra_template = await get_email_template(f"repair_approved_{norm_sede}")
         if not ra_template:
-            ra_template = await db.email_templates.find_one({"template_id": "repair_approved"}, {"_id": 0})
+            ra_template = await get_email_template("repair_approved")
         if not ra_template:
             ra_template = {
                 "subject": "Confirmación de Aprobación - Cotización Nro. {nro_cotizacion}",
@@ -563,9 +582,9 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
             lista_modelos_seriales_html += f"<p style='margin:4px 0'><strong>{rm.get('model_name', 'N/A')}</strong>: {', '.join(rm.get('serials', []))}</p>"
 
     # --- Cargar plantilla: Notificación de Reparación Finalizada (Sede) ---
-    rc_template = await db.email_templates.find_one({"template_id": f"repair_complete_client_{norm_sede}"}, {"_id": 0})
+    rc_template = await get_email_template(f"repair_complete_client_{norm_sede}")
     if not rc_template:
-        rc_template = await db.email_templates.find_one({"template_id": "repair_complete_client"}, {"_id": 0})
+        rc_template = await get_email_template("repair_complete_client")
     if not rc_template:
         rc_template = {
             "subject": "Sus equipos ya han sido reparados - {nro_cotizacion}",
@@ -658,18 +677,18 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
 
     if is_repair_quote:
         # Plantilla específica de reparaciones
-        template = await db.email_templates.find_one({"template_id": f"repair_quote_sent_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"repair_quote_sent_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "repair_quote_sent"}, {"_id": 0})
+            template = await get_email_template("repair_quote_sent")
     elif is_equipment_quote:
         # Plantilla específica de equipos
-        template = await db.email_templates.find_one({"template_id": f"equipment_sent_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"equipment_sent_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "equipment_sent"}, {"_id": 0})
+            template = await get_email_template("equipment_sent")
     else:
-        template = await db.email_templates.find_one({"template_id": f"quote_sent_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"quote_sent_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "quote_sent"}, {"_id": 0})
+            template = await get_email_template("quote_sent")
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} - {{company_name}}",
@@ -931,17 +950,17 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     is_fast_track_quote = quote.get("quote_category") == "fast_track"
     is_repair_quote = quote.get("quote_category") == "repair"
     if is_equipment_quote or is_fast_track_quote:
-        template = await db.email_templates.find_one({"template_id": f"equipment_invoice_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"equipment_invoice_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "equipment_invoice"}, {"_id": 0})
+            template = await get_email_template("equipment_invoice")
     elif is_repair_quote:
-        template = await db.email_templates.find_one({"template_id": f"repair_invoice_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"repair_invoice_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "repair_invoice"}, {"_id": 0})
+            template = await get_email_template("repair_invoice")
     else:
-        template = await db.email_templates.find_one({"template_id": f"invoice_{norm_sede}"}, {"_id": 0})
+        template = await get_email_template(f"invoice_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one({"template_id": "invoice"}, {"_id": 0})
+            template = await get_email_template("invoice")
     if not template:
         template = {
             "subject": "Cotización {{quote_number}} Facturada",
@@ -1153,9 +1172,9 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             lista_equipos_html = "<p>Ver detalle en la cotización del sistema.</p>"
 
         # Cargar plantilla
-        rw_template = await db.email_templates.find_one({"template_id": f"repair_collect_warehouse_{norm_sede}"}, {"_id": 0})
+        rw_template = await get_email_template(f"repair_collect_warehouse_{norm_sede}")
         if not rw_template:
-            rw_template = await db.email_templates.find_one({"template_id": "repair_collect_warehouse"}, {"_id": 0})
+            rw_template = await get_email_template("repair_collect_warehouse")
         if not rw_template:
             rw_template = {
                 "subject": "ORDEN DE DESPACHO: Pago Confirmado - Cotización #{nro_cotizacion} - {nombre_cliente}",
@@ -1995,9 +2014,9 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
         quote_sede = quote.get("sede", "PYME")
         norm_sede_d = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
-        rd_template = await db.email_templates.find_one({"template_id": f"repair_delivery_{norm_sede_d}"}, {"_id": 0})
+        rd_template = await get_email_template(f"repair_delivery_{norm_sede_d}")
         if not rd_template:
-            rd_template = await db.email_templates.find_one({"template_id": "repair_delivery"}, {"_id": 0})
+            rd_template = await get_email_template("repair_delivery")
         if not rd_template:
             rd_template = {
                 "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
@@ -2942,13 +2961,9 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
             ops_email = "operaciones@sede.local"
 
         # Buscar plantilla
-        template = await db.email_templates.find_one(
-            {"template_id": f"serial_preassignment_{norm_sede}"}, {"_id": 0}
-        )
+        template = await get_email_template(f"serial_preassignment_{norm_sede}")
         if not template:
-            template = await db.email_templates.find_one(
-                {"template_id": "serial_preassignment_PYME"}, {"_id": 0}
-            )
+            template = await get_email_template("serial_preassignment_PYME")
 
         serials_html = "<br>".join([f"&bull; {s}" for s in selected_serials])
         template_vars = {
