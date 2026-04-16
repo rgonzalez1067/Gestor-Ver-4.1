@@ -1,140 +1,127 @@
 <analysis>**original_problem_statement:**
-El usuario solicitó continuar con las tareas de evolución, limpieza de la plataforma y refactorización, abordando los siguientes frentes:
-1. Finalizar la UI para eliminar usuarios (Super poder de Admin).
-2. **P1:** Refactorizar  (~6000 líneas).
-3. Mejoras UI/UX en Cotizaciones: Iniciales del creador en la tabla con tooltip, columna de código fija (sticky).
-4. Solucionar errores de deployment (Health checks, query limits).
-5. Mejoras en PDF de cotizaciones: Encabezado/Pie de página persistente en TODAS las páginas (incluyendo páginas estáticas inyectadas) con estampador (stamping) de ReportLab. Reemplazo de anexos estáticos para VPOS y Payment Gateway (Pymes).
-6. Buscador dinámico de clientes en la cotización de Equipos y Accesorios.
-7. Nueva plantilla de correo Nuevo Proyecto de Integración y flujo de notificación al crear un integrador.
-8. Creación del módulo Contacto Inicial (Lead Management / Prospección Temprana) con formulario de creación, y Central de Acciones en el Dashboard (Mis Compromisos) con semáforo SLA. Conversión a Prospecto heredando propietario y migrando bitácora.
-9. Filtrado de datos por segmento (Data Isolation) en Cotizaciones.
-10. Nuevo Reporte Contable de Inventarios con cálculo dinámico de Costo Promedio Ponderado (CPP).
-11. Nuevos campos Proveedor y Referencia en carga de inventarios, con lógica por almacén. Opción para admin de eliminar movimientos de almacén.
-12. Limpieza de base de datos (truncates manuales solicitados por el usuario) y actualización de plantilla de importación de Clientes.
-13. Reestructuración profunda de esquema de Integradores (29 columnas, matriz de servicios actualizada).
-14. Opción de ocultar costos recurrentes en cotizaciones.
-15. Cambio de contraseña de administrador.
+El usuario solicitó continuar con el desarrollo y corrección de la plataforma, enfocándose en:
+1. Corrección de la edición de cotizaciones: Ajustar el cálculo del Total USD para excluir los costos recurrentes (solo debe reflejar Inversión Inicial: Setup + Equipos) y regenerar correctamente el PDF de la nueva versión sin heredar el PDF original.
+2. Corrección del endpoint de la Bitácora de Clientes que fallaba al guardar.
+3. Creación del reporte Mayor de Activos (Inventario): Valoración bajo método PEPS (FIFO), basado en compras del almacén principal (LCH), mostrando saldos desglosados (LCH/TBP), y ordenados cronológicamente por fecha de adquisición. Todo el inventario debe reflejarse en Bolívares (Bs.).
+4. Refactorización del flujo de modificación de cotizaciones de Equipos y Reparaciones, con modal de justificación obligatoria.
+5. Inclusión de campo Referido Por en Contacto Inicial y habilitar una API externa protegida por API Key para recibir leads desde el widget de la página web u otros sistemas.
+6. Preparar script de migración () para importar la data del entorno de Preview al entorno de Producción tras el Deploy.
+7. Añadir botón de eliminación para Proyectos y Equipos en Reparación (solo para Administradores).
+8. Clonar el sistema de Plantillas de Correo y Notificaciones del módulo de Proyectos hacia el módulo de Clientes para llevar la trazabilidad.
 
 **PRODUCT REQUIREMENTS:**
-- El sistema de PDF debe aplicar stamping (Overlay) sobre páginas unidas para asegurar confidencialidad continua.
-- Data Isolation estricto: Ejecutivos Pyme solo ven y editan data Pyme. Directores/Admins ven todo.
-- Los módulos deben mantener consistencia en la Bitácora (registro inmutable de fecha de servidor y usuario).
+- El sistema de PDF debe regenerarse dinámicamente al guardar modificaciones en cotizaciones, extrayendo los items correctamente clasificados para el Resumen Ejecutivo.
+- El Mayor de Activos no debe mostrar movimientos de salida, solo saldos disponibles de lotes PEPS con la sumatoria LCH+TBP = Unidades Totales.
+- El módulo de Comunicaciones de Clientes debe estar separado del de Proyectos, tener su propia gestión de documentos, plantillas con variables (, ) y dejar registro en la bitácora del cliente al enviar correos.
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-Plataforma Full-stack (React/FastAPI/MongoDB) para gestión comercial y operativa. Cuenta con módulos de Clientes, Cotizaciones (VPOS, MPOS, Gateway, Equipos, Reparaciones), Inventario multialmacén con kardex contable (CPP), Proyectos/Nuevos Productos con flujos SLA, Gestión de Integradores (con matriz de 20 servicios), y un módulo de Prospección Temprana (Contacto Inicial) con central de compromisos en el Dashboard. Usa generador de PDF propio basado en ReportLab con overlay de membretes.
+Plataforma Full-stack (React/FastAPI/MongoDB) para la gestión operativa y comercial de MegaNexus. Cuenta con módulos maduros de Clientes, Cotizaciones (con generador dinámico de PDF y control de versiones), Proyectos, Inventarios (Kardex y Mayor de Activos PEPS en Bs.), Contactos Iniciales (con API Externa), y ahora un módulo integral de Comunicaciones y Plantillas asociado directamente a la ficha de los Clientes.
 
 **Last working item**: 
-    - Last item agent was working: Cambio manual de la contraseña del usuario administrador () saltando las reglas de bcrypt, ajustando al algoritmo SHA256 con salt de la plataforma.
-    - Status: COMPLETED
+    - Last item agent was working: Clonación e implementación del sistema de Plantillas y Notificaciones en el módulo de Clientes. Se crearon los componentes  y , se integraron en  y se creó el backend  con el contexto CLIENTES para los templates.
+    - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use?: manual testing by python -c (validación de hash y auth).
-    - User Testing Done: N/A
+    - Which testing method agent to use?: Frontend testing agent o manual by screenshot/curl.
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Ningún issue en progreso. Todos los bugs encontrados en la sesión (error de validación , límite de queries, errores de ctx en React) fueron resueltos.
+Ningún issue reportado pendiente por corregir. Todos los bugs (Cotizaciones PDF/Totales, PEPS, Errores 500) fueron resueltos y verificados por el usuario.
 
 **In progress Task List**: 
-  Ninguna tarea en progreso.
+Ninguna tarea en progreso.
 
 **Upcoming and Future Tasks**
-  - **P1**: Sistema de notificaciones push (campana en header con contador) y alertas en tiempo real vía WebSockets/Pusher para Contactos Iniciales.
+  - **P1**: Sistema de Notificaciones Push (campana en header con contador) y alertas en tiempo real vía WebSockets/Pusher para Contactos Iniciales.
   - **P2**: Módulo de Reportes de Ventas.
   - **P2**: Lógica Completado en Roadmap Bancos.
-  - **P2**: Refactorización de componentes monolíticos restantes ( ~1800 líneas y  ~2600 líneas).
+  - **P2**: Refactorización de componentes monolíticos restantes ( ~1800 líneas y  ~2900 líneas).
 
 **Completed work in this session**
-- UI para eliminar usuarios terminada en  (DONE)
-- Refactorización MASIVA de  (de 5947 a 3359 líneas), extrayendo  y  (DONE)
-- Iniciales del creador en Cotizaciones y columnas sticky (DONE)
-- Fix de deployment: Endpoint  y optimización masiva de límites  en MongoDB (DONE)
-- PDFs: Overlay stamping (ReportLab) de encabezados y pie de página (Documento Confidencial) en TODAS las páginas unidas (DONE)
-- Nuevos anexos estáticos inyectados para VPOS y Payment Gateway Pymes (DONE)
-- Módulo Contacto Inicial: Flujo de Leads con asignación, SLA dinámico, Dashboard de Mis Compromisos y conversión a Prospectos con migración de bitácora y owner_id (DONE)
-- Data Isolation: Filtro a nivel de MongoDB para que Ejecutivos PYME solo interactúen con Cotizaciones PYME (DONE)
-- Módulo de Inventario: Reporte Contable de Costo Promedio Ponderado (CPP), campos Proveedor y Referencia, y borrado de movimientos para Admin (DONE)
-- Reestructuración total de BD de Integradores a 29 columnas (Nuevos 20 productos) y actualización de importador (DONE)
-- Plantilla de Clientes: Columnas de Nombre y Apellido de contacto unificadas (DONE)
-- Toggle para incluir/excluir costos recurrentes en UI y PDF (DONE)
-- Fix del modelo Pydantic  ( Optional) (DONE)
-- Purgas manuales solicitadas de BD: Clientes, Inventarios, Cotizaciones, Proyectos, Equipos Reparación e Integradores (DONE)
+- Solucionado Error 500 en rutas ,  y  (modelo Pydantic actualizado). (DONE)
+- Corregido el parser de importación CSV/Excel para Integradores y Servicios. (DONE)
+- Endpoint corregido de  a  para guardar bitácora de clientes. (DONE)
+- Modificación de Cotizaciones: El Total USD ahora solo suma Inversión Inicial (Setup + Equipos). El PDF se regenera de forma limpia y automática a través de  y el catálogo de items fue arreglado para cargar dinámicamente Bienes o Mantenimiento. (DONE)
+- Reporte Mayor de Activos (AssetLedgerReport.jsx): Muestra lotes valorados por PEPS, ordenados por , presentados en Bolívares (Bs.), y desglosados con detalle físico LCH/TBP. Formato de impresión profesional configurado. (DONE)
+- Formulario de Inventarios y Kardex adaptados a moneda local (Bs.). (DONE)
+- Añadido campo Referido Por en Contactos Iniciales. (DONE)
+- Construida API Pública Externa () con API Key para captación de leads externos. (DONE)
+- Creado script  y endpoint  para facilitar la migración de datos al entorno de Producción (Deploy). (DONE)
+- Agregados botones (sólo Admin) para eliminar registros en Proyectos y Taller Equipos. (DONE)
+- Sistema de Plantillas, Gestión de Documentos y envío de correos clonado e implementado en el módulo de Clientes. (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- Ninguno.
+Ninguno.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Tamaños monolíticos de archivos.
-  - Recurrence count: 6+ iteraciones.
-  - Status: IN PROGRESS (Se mitigó grandemente dividiendo , pero queda  y ).
+  - Recurrence count: 7 iteraciones.
+  - Status: IN PROGRESS (Se mitigó un poco extrayendo componentes, pero  y  siguen creciendo).
 
 **Code Architecture**
-- : , , , , .
-- :  (Lógica central de ReportLab y PDF building).
-- : Funciones de overlay y merge de PDF ().
-- : , ,  (Archivos nuevos post-refactor).
-- : , , .
+- : Módulos FastAPI (quotes, projects, inventory, initial_contacts, external_api, client_communications).
+- : Páginas React (Quotes, Inventory, AssetLedgerReport, Clients, ClientTemplatesConfig).
+- : Componentes modulares (QuoteModals, EditEquipRepairDialog, ClientEmailDialog).
+- Base de datos manejada enteramente con Motor (MongoDB asíncrono).
 
 **Key Technical Concepts**
-- **PDF Stamping**: Se usa un canvas de ReportLab para crear un archivo transparente con headers/footers y se superpone a las páginas existentes usando PyPDF2 ().
-- **Data Isolation**: Se impone la variable  a las queries de Mongo basándose en .
-- **Context Passing Proxy**: En la refactorización de , se usaron objetos  masivos para pasar dependencias de estado a los sub-componentes.
-- **Costo Promedio Ponderado (CPP)**: Calculado iterativamente en memoria recorriendo el kardex (Entradas actualizan costo, Salidas congelan el costo vigente).
+- **PDF Stamping & Generation**: Reconstrucción en backend con ReportLab a partir de la data almacenada (no enviada por frontend).
+- **Algoritmo PEPS (FIFO)**: Aplicado en . Resta salidas cronológicamente sobre las entradas en LCH. 
+- **Despliegue y Migración de Datos**: Al hacer deploy en Emergent, no se lleva la data de Preview. Se utiliza un endpoint de importación protegido por API Key.
 
 **key DB schema**
-  - : {contact_id, name, phone, email, legal_name, interest_notes, assigned_to, assigned_name, due_date, converted, created_by, created_at}
-  - : {integrator_id, name, integration_type, ..., email, certifications: {dict de 20 servicios booleanos}}
-  - : Agregado {supplier, invoice_ref}
+  - : {item_id, warehouse_id, movement_type, quantity, unit_cost, acquisition_date}
+  - : {subtotal_usd, total_usd, equipment_items, setup_items, additional_items, attachments}
+  - : {template_id, context (CLIENTES o PROYECTOS), subject, body_html}
 
 **changes in tech stack**
   - Ninguno.
 
 **All files of reference**
-  -  (Nuevo, ~1800 líneas)
-  -  (Nuevo, ~830 líneas)
-  -  (Modificado para remover header_footer delegates y usar stamp global)
-  -  (Contiene )
-  -  (Nuevo módulo de API)
-  -  (Nueva página frontend)
-  -  (Nuevo reporte)
+  -  (Nuevo reporte PEPS)
+  -  (Nueva API Pública)
+  -  (Nuevo script utilitario)
+  -  (Nueva vista de configuración)
+  -  (Nuevo componente de correos)
+  -  (Nuevo backend de correos)
+  -  y  (Actualizados fuertemente para edición y PDF)
+  -  (Nuevo modal de edición equipos/reparación)
 
 **Areas that need refactoring**: 
-  -  (~2600 líneas)
-  -  (~1800 líneas)
+  -  (> 2900 líneas)
+  -  (> 1800 líneas)
+  -  (> 3000 líneas)
 
 **key api endpoints**
+  -  (Importa BD a producción)
+  -  (API de Leads Externos)
   - 
-  -  y asociados
-  -  (Actualizado para el nuevo layout)
+  - 
 
 **Critical Info for New Agent** 
-- **Hash de Contraseñas**: El sistema NO usa bcrypt estándar. Usa SHA256 concatenado con salt (formato ). Si necesitas actualizar o validar una clave desde backend, usa  y  importados desde .
-- **Patrón de Componentes Extraídos**: Si necesitas modificar el flujo de cotizaciones, revisa primero si la variable/función existe en  y asegúrate de incluirla en los objetos  o  antes de usarla dentro de  o .
-- **Limpieza de BD**: El usuario solicitó el borrado de miles de registros (Clientes, Inventario, Proyectos, Cotizaciones, Integradores, etc.). El ambiente de preview actual está casi en blanco en cuanto a datos operacionales.
+- **Importación a Deploy**: Si el usuario pregunta por despliegues a producción (Deploy), los datos NO viajan con el código. El sistema usa un endpoint protegido por  para inyectar un JSON en crudo desde el navegador (Console -> Fetch) con la data exportada del preview.
+- **Cotizaciones Total USD**: Para MegaNexus,  significa estrictamente Inversión Inicial (Setup + Equipos). JAMÁS incluye recurrentes. Las tarifas de mantenimiento de POS/Pinpads () en reparaciones, se consideran bienes/servicios y están estructuradas de forma particular.
+- **Reporte PEPS en Bs.**: Todo inventario es en Bs. y se evalúa por la fecha de adquisición ().
+- **Comunicaciones**: Las plantillas de Clientes están bajo el context , mientras que las de proyectos usan . Se debe mantener separación estricta por roles.
 
 **documents and test reports created in this job** 
-  -  (Auth/Delete)
-  -  (Regression Quotes.jsx)
-  -  (Regression PDF overlay - Bugs fixed)
-  -  (Initial Contacts E2E)
+  -  (Constantemente actualizado)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. (User): Pide corregir error de validación :role al editar contactos en Clientes. (COMPLETED)
- 2. (User): Pide agregar pregunta ¿Incluir Costos Recurrentes? en Cotizaciones (excepto Gateway) para ocultar del PDF. (COMPLETED)
- 3. (User): Pide borrar todas las cotizaciones, proyectos y entradas de inventario. (COMPLETED)
- 4. (User): Pide función para super-usuario para eliminar movimientos de Almacenes. (COMPLETED)
- 5. (User): No ve el botón de eliminar. (COMPLETED - Aclarado que la tabla estaba vacía tras el borrado masivo).
- 6. (User): Pide borrar la BD de Clientes completa y unificar nombres en la plantilla de importación. (COMPLETED)
- 7. (User): Pide borrar entradas de inventario. (COMPLETED)
- 8. (User): Pide borrar BD de equipos en reparación. (COMPLETED)
- 9. (User): Pide reestructuración profunda de Base de Integradores (truncar y añadir nueva matriz de 20 servicios). (COMPLETED)
- 10. (User): Cambiar la clave del admin  a . (COMPLETED)
-  - *No pending human messages.*
+ 1. (User): Pide corregir error del ancho de la columna LCH/TBP en el Mayor de Activos. (COMPLETED)
+ 2. (User): Pregunta cómo hacer Deploy y configurar el widget web para transferir la data. (COMPLETED)
+ 3. (User): Pide preparar Script antes del deploy. (COMPLETED)
+ 4. (User): Intenta importar la base de datos y pide revisión (faltaban algunas BD purgadas intencionalmente). (COMPLETED)
+ 5. (User): Falla la importación en Producción por falta de endpoint público, el agente crea . (COMPLETED)
+ 6. (User): Ejecuta el script por DevTools (Fetch) hacia la URL de producción. Pide ayuda con la consola. (COMPLETED)
+ 7. (User): Solicita botones exclusivos de Admin para eliminar Proyectos y Taller de Equipos en reparación. (COMPLETED)
+ 8. (User): Pide clonar el sistema de Plantillas y Notificaciones (Correos, Anexos, Bitácora) desde el módulo de Proyectos para integrarlo en Clientes, pero manteniendo los repositorios totalmente independientes. (COMPLETED)
+  - *No pending human messages. El clonado fue implementado, validado por compilación y está pendiente de prueba visual / uso final del usuario.*
 
 **Project Health Check:**
-  - Broken: Ninguno reportado. Tests exitosos.
+  - Broken: Ninguno reportado.
   - Mocked: Ninguno.
 
 **3rd Party Integrations** 
@@ -142,14 +129,13 @@ Plataforma Full-stack (React/FastAPI/MongoDB) para gestión comercial y operativ
 	• Servicio de Correo SMTP (Resend) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iterations 161, 162, 163, 164)
+  - Testing agent used after significant changes: NO (Agent relied heavily on custom curl testing and frontend screenshots in DevTools).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None (tests are managed by subagent)
-  - Known regressions: None.
+  - Test files created: None
+  - Known regressions: None
 
 **Credentials to test flow:**
-Consultar .
-**ACTUALIZADO**:  /  (Admin).
+Revisar . (Habitualmente el usuario Admin es ).
 
 **What agent forgot to execute**
-N/A. Todas las peticiones fueron implementadas y verificadas.</analysis>
+N/A. Todas las tareas solicitadas fueron codificadas y puestas en funcionamiento.</analysis>

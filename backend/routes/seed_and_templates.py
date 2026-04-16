@@ -110,7 +110,7 @@ class EmailTemplate(BaseModel):
     body_html: str
     description: Optional[str] = None
     is_active: bool = True
-    context: Optional[str] = None  # "COTIZACIONES" | "IMPLEMENTACION" | "ADMINISTRACION"
+    context: Optional[str] = None  # "COTIZACIONES" | "IMPLEMENTACION" | "ADMINISTRACION" | "CLIENTES"
 
 # Plantillas predeterminadas
 DEFAULT_EMAIL_TEMPLATES = {

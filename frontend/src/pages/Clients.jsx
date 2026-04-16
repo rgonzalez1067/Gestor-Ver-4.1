@@ -10,10 +10,12 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { useNavigate } from 'react-router-dom';
+import { ClientEmailDialog } from '../components/ClientEmailDialog';
 
 const SEGMENT_OPTIONS = ['Pymes', 'Corporativo', 'Emprendedor', 'Mixto'];
 const CONDICION_OPTIONS = ['Prospecto', 'Cliente'];
@@ -45,6 +47,7 @@ const emptyContact = () => ({
 
 export const Clients = () => {
   const { canEdit } = usePermission('clientes');
+  const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,6 +55,9 @@ export const Clients = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
   const [searchTerm, setSearchTerm] = useState('');
+  // Email communication
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailClient, setEmailClient] = useState(null);
 
   // Bitácora
   const [logModalOpen, setLogModalOpen] = useState(false);
@@ -833,6 +839,9 @@ export const Clients = () => {
               <Button variant="outline" onClick={exportToPDF} className="border-brand-blue-600 text-brand-blue-600">
                 <FileText size={18} className="mr-2" />PDF
               </Button>
+              <Button variant="outline" onClick={() => navigate('/clients/communications')} className="border-blue-500 text-blue-600" data-testid="client-templates-btn">
+                <Layout size={18} className="mr-2" />Plantillas
+              </Button>
               {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
                   <Button data-testid="add-client-button" className="bg-brand-green-600 hover:bg-brand-green-700 text-white">
@@ -1334,6 +1343,9 @@ export const Clients = () => {
                               {canEdit && <DropdownMenuItem onSelect={() => openEditDialog(client)} className="cursor-pointer">
                                 <Pencil size={14} className="mr-2 text-slate-500" /> Editar
                               </DropdownMenuItem>}
+                              <DropdownMenuItem onSelect={() => { setEmailClient(client); setEmailDialogOpen(true); }} className="cursor-pointer">
+                                <Mail size={14} className="mr-2 text-blue-500" /> Enviar Comunicación
+                              </DropdownMenuItem>
                               {canEdit && <DropdownMenuItem onSelect={() => duplicateClient(client)} className="cursor-pointer">
                                 <Copy size={14} className="mr-2 text-blue-500" /> Duplicar Cliente
                               </DropdownMenuItem>}
@@ -1804,6 +1816,17 @@ export const Clients = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Email Communication Dialog */}
+        <ClientEmailDialog
+          open={emailDialogOpen}
+          onClose={() => { setEmailDialogOpen(false); setEmailClient(null); }}
+          client={emailClient}
+          onSent={() => {
+            // Refresh bitacora if viewing a client
+            if (emailClient) fetchClients();
+          }}
+        />
 
       </main>
     </div>
