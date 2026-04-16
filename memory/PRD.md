@@ -35,6 +35,13 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 - Campo "Referido Por"
 - API externa protegida por API Key (/api/external/contacts)
 
+### Plantillas de Correo (Sistema)
+- Organizadas por Sede (PYME / CORP)
+- Incluyen: Envío, Aprobación, Facturación, Despacho, Implementación
+- **Facturación de Reparaciones** (repair_invoice) — Duplicada de invoice, adaptada para reparaciones
+- Plantillas de Equipos: Envío, Aprobación, Facturación, Comprobante, Entrega
+- Plantillas de Reparación: Envío, Aprobación, Finalizada, Entrega, Despacho
+
 ### Otros
 - Taller de Equipos en Reparación (con eliminación Admin)
 - Gestión de Bancos, Integradores, Servicios
@@ -42,14 +49,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 - Script de migración (db_migrate.py)
 
 ## Archivos Clave
+- `/app/frontend/src/components/EmailTemplatesEditor.jsx` — Editor de plantillas con config por sede
+- `/app/backend/routes/seed_and_templates.py` — Definiciones de plantillas (BASE_EMAIL_TEMPLATES)
 - `/app/frontend/src/pages/ClientTemplatesConfig.jsx` — Config plantillas/docs clientes
-- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes (resolveClientVars)
-- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes (adjuntos como bytes)
-- `/app/backend/routes/seed_and_templates.py` — CRUD plantillas email (model: template_id + body_html)
-- `/app/frontend/src/pages/Clients.jsx` — Bitácora con hora precisa HH:MM:SS
-- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Reporte PEPS
-- `/app/backend/routes/external_api.py` — API pública externa
-- `/app/backend/db_migrate.py` — Script migración
+- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes
+- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes
 
 ## Backlog
 - **P1**: Sistema de Notificaciones Push (campana en header, alertas tiempo real)

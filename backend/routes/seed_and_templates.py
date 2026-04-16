@@ -376,6 +376,88 @@ BASE_EMAIL_TEMPLATES = {
 </html>
 """
     },
+    "repair_invoice": {
+        "name": "Facturación de Reparaciones",
+        "description": "Se envía a Ventas cuando Administración genera y carga la factura de una cotización de reparación",
+        "subject": "[FACTURADA] Reparación - Cotización #{quote_number} - {client_name} - Sede {sede_name}",
+        "body_html": """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facturación de Reparación</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f7f9; color: #333333;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7f9;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+
+                <table border="0" cellpadding="0" cellspacing="0" width="95%" style="max-width: 900px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+
+                    <tr>
+                        <td align="left" style="padding: 25px 40px; background-color: #003366;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 1px; text-transform: uppercase; font-weight: bold;">
+                                Factura de Reparación Generada y Cargada
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="font-size: 16px; margin-bottom: 25px;">Estimado <strong>Equipo de Ventas</strong>,</p>
+
+                            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+                                Les informamos que la factura asociada a la reparación de equipos aprobada recientemente ya ha sido <strong>generada y cargada exitosamente</strong> en el sistema.
+                            </p>
+
+                            <div style="background-color: #f8fafc; border: 1px solid #cbd5e0; border-radius: 6px; padding: 20px; margin-bottom: 30px;">
+                                <h3 style="color: #003366; margin-top: 0; font-size: 16px; border-bottom: 1px solid #cbd5e0; padding-bottom: 10px;">Referencia de la Operación:</h3>
+                                <ul style="list-style: none; padding: 0; margin: 15px 0 0 0; font-size: 16px;">
+                                    <li style="margin-bottom: 10px;"><strong>Cotización Nro:</strong> <span style="color: #2b6cb0;">{quote_number}</span></li>
+                                    <li><strong>Cliente:</strong> {client_name}</li>
+                                </ul>
+                            </div>
+
+                            <p style="font-size: 16px; font-weight: bold; color: #2d3748; margin-bottom: 30px;">
+                                A partir de este momento, pueden proceder con la <strong>Gestión de Cobranza</strong> correspondiente para la reparación.
+                            </p>
+
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fffaf0; border: 1px solid #feebc8; border-left: 5px solid #ed8936; border-radius: 4px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <h4 style="margin: 0 0 10px 0; color: #9c4221; font-size: 16px;">Acción Requerida:</h4>
+                                        <p style="margin: 0; font-size: 15px; line-height: 1.5; color: #7b341e;">
+                                            Una vez obtenido el o los comprobantes de pago, favor cargarlos en el <strong>Gestor de Cotizaciones</strong>. Este paso es fundamental para autorizar la <strong>entrega de los equipos reparados</strong> al cliente.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 0 40px 40px 40px;">
+                            <p style="font-size: 15px; margin-bottom: 5px; color: #718096;">Atentamente,</p>
+                            <p style="font-size: 16px; font-weight: bold; color: #003366; margin: 0;">Equipo de Administración</p>
+                            <p style="font-size: 14px; color: #a0aec0; margin-top: 5px;">Aplicación Gestor | MegaNexus</p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td align="center" style="padding: 15px; background-color: #edf2f7; font-size: 12px; color: #a0aec0;">
+                            Este es un mensaje automático generado por el sistema de gestión.
+                        </td>
+                    </tr>
+                </table>
+
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    },
     "repair_quote_sent": {
         "name": "Envío Cotización de Reparación",
         "description": "Se envía al cliente cuando se genera una cotización de reparación de equipos",

@@ -62,6 +62,15 @@ const BASE_TEMPLATE_TYPES = [
     description: 'Se envía a Implementación con detalles técnicos'
   },
   {
+    baseId: 'repair_invoice',
+    icon: FileText,
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    title: 'Facturación de Reparaciones',
+    description: 'Se envía a Ventas cuando se factura una reparación de equipos'
+  },
+  {
     baseId: 'payment_receipt',
     icon: CheckCircle,
     color: 'text-green-600',
@@ -223,6 +232,16 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
   ],
   invoice: [
+    { key: 'quote_number', label: 'Número de Cotización' },
+    { key: 'client_name', label: 'Nombre del Cliente' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'invoice_number', label: 'Número de Factura' },
+    { key: 'total_usd', label: 'Total USD' },
+    { key: 'sede_name', label: 'Nombre de la Sede' },
+    { key: 'Nombre_Ejecutivo', label: 'Nombre del Ejecutivo' },
+    { key: 'Email_Ejecutivo', label: 'Email del Ejecutivo' }
+  ],
+  repair_invoice: [
     { key: 'quote_number', label: 'Número de Cotización' },
     { key: 'client_name', label: 'Nombre del Cliente' },
     { key: 'client_rif', label: 'RIF del Cliente' },
