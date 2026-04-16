@@ -28,6 +28,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
   const quote = useMemo(() => quotes?.find(q => q.quote_id === quoteId), [quotes, quoteId]);
   const isEquipmentQuote = quote?.quote_category === 'equipment';
+  const isRepairQuote = quote?.quote_category === 'repair';
 
   // Set default billing date to today
   useEffect(() => {
@@ -155,26 +156,28 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   };
 
   const handleSubmit = async () => {
-    if (!rateNum || rateNum <= 0) { toast.error('La tasa de cambio es requerida'); return; }
-    if (!billingDate) { toast.error('La fecha de facturación es requerida'); return; }
+    if (!isRepairQuote && (!rateNum || rateNum <= 0)) { toast.error('La tasa de cambio es requerida'); return; }
+    if (!isRepairQuote && !billingDate) { toast.error('La fecha de facturación es requerida'); return; }
 
     setUploading(true);
     try {
-      // Step 1: Upload payment proof files
-      for (const file of paymentFiles) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'Soporte de Aprobación');
-        await api.post(`/quotes/${quoteId}/attachments`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+      // Step 1: Upload payment proof files (no aplica para reparaciones)
+      if (!isRepairQuote) {
+        for (const file of paymentFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('category', 'Soporte de Aprobación');
+          await api.post(`/quotes/${quoteId}/attachments`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+        }
       }
 
       // Step 2: Upload approval proof files
       for (const file of approvalFiles) {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('category', 'Orden de Compra');
+        formData.append('category', isRepairQuote ? 'Soporte de Aprobación' : 'Orden de Compra');
         await api.post(`/quotes/${quoteId}/attachments`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -188,7 +191,9 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       }
       if (config?.emailHeaders) Object.assign(exHeaders, config.emailHeaders);
 
-      const billingData = {
+      const billingData = isRepairQuote ? {
+        has_approval_proof: approvalFiles.length > 0,
+      } : {
         consolidated_items: consolidated.map((c) => ({
           name: c.name,
           quantity: c.quantity,
@@ -272,6 +277,28 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
         <div className="space-y-4 py-2">
 
+          {/* === VISTA SIMPLIFICADA PARA REPARACIONES === */}
+          {isRepairQuote ? (
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  Cargue el documento que respalda la <strong>aprobación de la reparación</strong> por parte del cliente.
+                  Este comprobante se adjuntará al registro de la cotización.
+                </p>
+              </div>
+              <FileUploadZone
+                label="Comprobante de Aprobación de Reparación"
+                description="Orden de servicio firmada, correo de aprobación o captura del cliente autorizando la reparación."
+                files={approvalFiles}
+                setFiles={setApprovalFiles}
+                inputRef={approvalFileRef}
+                icon={ShieldCheck}
+                color="text-indigo-600"
+                testIdPrefix="approval-proof"
+              />
+            </>
+          ) : (
+            <>
           {/* 1. Upload: Comprobante de Pago Anticipado */}
           <FileUploadZone
             label="Comprobante de Pago Anticipado"
@@ -437,6 +464,8 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
               </table>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Actions */}
@@ -444,7 +473,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           <Button variant="outline" onClick={handleClose} disabled={uploading}>Cancelar</Button>
           <Button
             onClick={handleSubmit}
-            disabled={uploading || rateNum <= 0 || !billingDate}
+            disabled={uploading || (!isRepairQuote && (rateNum <= 0 || !billingDate))}
             className="bg-green-600 hover:bg-green-700"
             data-testid="approval-submit-btn"
           >

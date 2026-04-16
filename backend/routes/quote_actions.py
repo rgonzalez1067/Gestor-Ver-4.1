@@ -485,9 +485,11 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
 
 @router.post("/quotes/{quote_id}/repair-complete")
-async def repair_complete(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def repair_complete(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
     """Marcar reparación como completada y notificar a Administración para facturar."""
     current_user = await get_current_user(authorization)
+    if body is None:
+        body = {}
 
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
@@ -500,14 +502,20 @@ async def repair_complete(quote_id: str, authorization: Optional[str] = Header(N
     if current_status != "Aprobada":
         raise HTTPException(status_code=400, detail=f"Solo se puede marcar como reparada desde estado 'Aprobada'. Estado actual: '{current_status}'")
 
+    # Guardar billing_data si viene del modal con calculadora
+    billing_data = body.get("billing_data")
+    update_fields = {
+        "quote_status": "Reparada",
+        "repaired_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    if billing_data:
+        update_fields["repair_billing_data"] = billing_data
+
     # Cambiar estado a "Reparada"
     await db.quotes.update_one(
         {"quote_id": quote_id},
-        {"$set": {
-            "quote_status": "Reparada",
-            "repaired_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }}
+        {"$set": update_fields}
     )
 
     # Notificar a Administración (misma lógica que approve para no-reparaciones)

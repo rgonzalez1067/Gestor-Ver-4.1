@@ -24,6 +24,7 @@ import { QuotesTable } from '../components/quotes/QuotesTable';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
 import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
 import { RepairDeliveryDialog } from '../components/quotes/RepairDeliveryDialog';
+import { RepairCompleteModal } from '../components/quotes/RepairCompleteModal';
 import { PreassignSerialsModal } from '../components/quotes/PreassignSerialsModal';
 import { QuoteWizardDialog } from '../components/quotes/QuoteWizardDialog';
 import { QuoteModals } from '../components/quotes/QuoteModals';
@@ -209,6 +210,10 @@ export const Quotes = () => {
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   // Estado para RepairDeliveryDialog
   const [repairDeliveryDialogOpen, setRepairDeliveryDialogOpen] = useState(false);
+  // Estado para RepairCompleteModal
+  const [repairCompleteModalOpen, setRepairCompleteModalOpen] = useState(false);
+  const [repairCompleteQuoteId, setRepairCompleteQuoteId] = useState(null);
+  const [repairCompleteConfig, setRepairCompleteConfig] = useState(null);
   const [preassignModal, setPreassignModal] = useState({ open: false, quote: null });
   const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
   const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
@@ -3037,24 +3042,14 @@ export const Quotes = () => {
     setBranchDetails([]);
   };
 
-  // Marcar reparación como completada
+  // Marcar reparación como completada — ahora abre modal con calculadora
   const handleRepairComplete = async (quoteId) => {
-    setActionLoading(quoteId);
-    try {
-      const headers = getEmailHeaders();
-      const response = await api.post(`/quotes/${quoteId}/repair-complete`, {}, { headers });
-      if (response.data.status === 'simulated') {
-        toast.warning(response.data.message);
-      } else {
-        toast.success(response.data.message);
-      }
-      fetchData();
-    } catch (error) {
-      console.error('Error marking repair complete:', error);
-      toast.error(error.response?.data?.detail || 'Error al marcar reparación como completada');
-    } finally {
-      setActionLoading(null);
-    }
+    setRepairCompleteQuoteId(quoteId);
+    setRepairCompleteConfig({
+      exceptionHeaders: pendingAction?.exceptionHeaders || null,
+      emailHeaders: getEmailHeaders(),
+    });
+    setRepairCompleteModalOpen(true);
   };
 
   // Marcar Fast Track como Configurada
@@ -3411,6 +3406,16 @@ export const Quotes = () => {
             projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
             equipmentSelected, setEquipmentSelected,
           }} />
+
+          {/* Modal Reparacion Completada con Calculadora */}
+          <RepairCompleteModal
+            open={repairCompleteModalOpen}
+            onClose={() => { setRepairCompleteModalOpen(false); setRepairCompleteQuoteId(null); }}
+            onSuccess={fetchData}
+            quoteId={repairCompleteQuoteId}
+            quotes={quotes}
+            config={repairCompleteConfig}
+          />
 
           {/* Diálogo de edición de Equipos/Reparaciones */}
           <EditEquipRepairDialog
