@@ -530,45 +530,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     client = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
     client_name = client.get("fantasy_name") or client.get("legal_name") if client else "Cliente"
 
-    # --- Notificación INTERNA a Administración (plantilla repair_complete) ---
-    template = await db.email_templates.find_one({"template_id": "repair_complete"}, {"_id": 0})
-    if not template:
-        template = {
-            "subject": "Reparación Completada: {{quote_number}} - Lista para Facturar",
-            "body_html": "<h2>Reparación Completada</h2><p>La cotización de reparación <strong>{{quote_number}}</strong> ha sido completada por el taller y está lista para facturar.</p><p><strong>Cliente:</strong> {{client_name}}</p><p><strong>Total USD:</strong> ${{total_usd}}</p>"
-        }
-
-    template_vars = {
-        "quote_number": quote.get("quote_number", ""),
-        "client_name": client_name,
-        "total_usd": f"{quote.get('total_usd', 0):.2f}",
-        "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
-        "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
-    }
-    subject = render_email_template(template["subject"], template_vars)
-    html_content = render_email_template(template["body_html"], template_vars)
-
-    if custom_message and custom_message.strip():
-        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
-
-    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-
-    email_results = []
-    if admin_email:
-        r = await send_email(to=[admin_email], subject=subject, html=html_content, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    if sales_email:
-        r = await send_email(to=[sales_email], subject=f"[VENTAS] {subject}", html=html_content, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    if not admin_email and not sales_email:
-        r = await send_email(to=["admin@sede.local"], subject=subject, html=html_content, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-    for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="repair_complete_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
-        email_results.append(r)
-
-    # --- Notificación al CLIENTE: Reparación Finalizada ---
+    # Obtener datos del contacto del cliente
     contacts = client.get('contacts', []) if client else []
     client_email = None
     if contacts:
@@ -581,7 +543,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
 
     contacto_cliente = client_name
     if contacts:
-        contacto_cliente = contacts[0].get('full_name') or contacts[0].get('name') or client_name
+        contacto_cliente = contacts[0].get('full_name') or contacts[0].get('name') or contacts[0].get('first_name') or client_name
 
     # Construir lista de modelos/seriales desde taller_equipos
     equipos_taller = await db.taller_equipos.find(
@@ -597,10 +559,10 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     for modelo, serials in modelos_map.items():
         lista_modelos_seriales_html += f"<p style='margin:4px 0'><strong>{modelo}</strong>: {', '.join(serials)}</p>"
     if not lista_modelos_seriales_html:
-        # Fallback from repair_models in quote
         for rm in quote.get("repair_models", []):
             lista_modelos_seriales_html += f"<p style='margin:4px 0'><strong>{rm.get('model_name', 'N/A')}</strong>: {', '.join(rm.get('serials', []))}</p>"
 
+    # --- Cargar plantilla: Notificación de Reparación Finalizada (Sede) ---
     rc_template = await db.email_templates.find_one({"template_id": f"repair_complete_client_{norm_sede}"}, {"_id": 0})
     if not rc_template:
         rc_template = await db.email_templates.find_one({"template_id": "repair_complete_client"}, {"_id": 0})
@@ -616,17 +578,41 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
         "client_name": client_name,
         "contacto_cliente": contacto_cliente,
         "lista_modelos_seriales": lista_modelos_seriales_html,
+        "total_usd": f"{quote.get('total_usd', 0):.2f}",
         "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "",
         "Email_Ejecutivo": current_user.get("email", "") if current_user else "",
     }
     rc_subject = render_email_template(rc_template["subject"], rc_vars)
     rc_html = render_email_template(rc_template["body_html"], rc_vars)
 
+    if custom_message and custom_message.strip():
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        rc_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
+    # Enviar con plantilla Reparación Finalizada a Admin + Cliente
+    email_results = []
+    if admin_email:
+        r = await send_email(to=[admin_email], subject=rc_subject, html=rc_html, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+    if sales_email:
+        r = await send_email(to=[sales_email], subject=f"[VENTAS] {rc_subject}", html=rc_html, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+    if not admin_email and not sales_email:
+        r = await send_email(to=["admin@sede.local"], subject=rc_subject, html=rc_html, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+
+    # Enviar al cliente
     r = await send_email(to=[client_email], subject=rc_subject, html=rc_html, action="repair_complete_client", quote_id=quote_id, quote_number=quote.get("quote_number"))
     email_results.append(r)
 
+    for cc in cc_emails:
+        r = await send_email(to=[cc], subject=f"[CC] {rc_subject}", html=rc_html, action="repair_complete_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        email_results.append(r)
+
     return {
-        "message": "Reparación marcada como completada. Notificación enviada a Administración.",
+        "message": "Reparación marcada como completada. Notificación enviada a Administración y Cliente.",
         "quote_id": quote_id,
         "new_status": "Reparada",
         "emails": email_results
@@ -1974,7 +1960,7 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
                         "quantity": s_quantity,
                         "unit_cost": item.get("price_usd", 0),
                         "serials": [],
-                        "reference": f"Reparación {quote.get('quote_number', '')}",
+                        "reference": f"Factura: {repair_invoice_number or 'S/N'} | Cotización: {quote.get('quote_number', '')}",
                         "client_name": client_name,
                         "notes": f"Insumo consumido en reparación. Factura: {repair_invoice_number or 'N/A'}",
                         "created_by": user_name,
