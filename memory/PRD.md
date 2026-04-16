@@ -5,58 +5,40 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Cotizaciones — Flujo de Reparaciones PYME (Actualizado Abr 2026)
+- **Enviar al cliente**: Plantilla `repair_quote_sent_PYME` → correo del cliente
+- **Aprobación**: Plantilla `repair_approved_PYME` → correo del cliente
+- **Reparada**: Plantilla `repair_complete_client_PYME` → cliente + Admin PYME
+- **Factura/Proforma**: Plantilla `repair_invoice_PYME` → Operaciones PYME
+- **Cobranza**: Plantilla `repair_collect_warehouse_PYME` → Almacén PYME
+- **Marcar como entregada**: Plantilla `repair_delivery_PYME` → cliente
+  - **Modal de Cierre de Orden**: Nro. factura obligatorio + selector de insumos consumidos (Accesorios/Componentes)
+  - Los insumos se descargan como salidas en inventario TBP automáticamente
+
 ### Clientes
-- CRUD completo de clientes con bitácora, contactos, sucursales
-- **Comunicaciones a Clientes** (/clients/communications):
-  - Plantillas de Correo (CRUD con context=CLIENTES, independiente de Proyectos)
-  - Documentos de Comunicación (subida/eliminación)
-  - Envío de emails con variables dinámicas, adjuntos internos+externos
-  - Vista previa de correos con resolución de variables
-  - Variables se resuelven inmediatamente al seleccionar plantilla (client-side)
-  - Adjuntos se envían como bytes al motor de email
-- **Bitácora de Clientes**: Registro con fecha + hora precisa (HH:MM:SS AM/PM)
-
-### Cotizaciones
-- Creación, edición con control de versiones
-- PDF dinámico regenerado automáticamente
-- Total USD = Inversión Inicial (Setup + Equipos), sin recurrentes
-- Justificación obligatoria para modificaciones
-
-### Proyectos
-- Gestión de proyectos de integración
-- Plantillas y notificaciones propias (context=PROJECTS)
-- Notas de entrega, roadmap por banco
+- CRUD completo con bitácora (fecha+hora precisa HH:MM:SS)
+- Comunicaciones: Plantillas, Documentos, Email con adjuntos y variables dinámicas
 
 ### Inventarios
-- Kardex con movimientos en Bolívares (Bs.)
+- Kardex en Bolívares (Bs.)
 - Mayor de Activos (PEPS/FIFO) desglosado LCH/TBP
+- Salidas automáticas por reparación (insumos consumidos vinculados a factura)
 
-### Contactos Iniciales
-- Campo "Referido Por"
-- API externa protegida por API Key (/api/external/contacts)
-
-### Plantillas de Correo (Sistema)
+### Plantillas de Correo
 - Organizadas por Sede (PYME / CORP)
-- Incluyen: Envío, Aprobación, Facturación, Despacho, Implementación
-- **Facturación de Reparaciones** (repair_invoice) — Duplicada de invoice, adaptada para reparaciones
-- Plantillas de Equipos: Envío, Aprobación, Facturación, Comprobante, Entrega
-- Plantillas de Reparación: Envío, Aprobación, Finalizada, Entrega, Despacho
+- `repair_invoice` — Facturación de Reparaciones (nueva, duplicada de invoice)
+- Todas las plantillas de reparación: Envío, Aprobación, Reparada, Facturación, Despacho, Entrega
 
-### Otros
-- Taller de Equipos en Reparación (con eliminación Admin)
-- Gestión de Bancos, Integradores, Servicios
-- Tasa de Cambio, Nuevos Productos
-- Script de migración (db_migrate.py)
+### Otros módulos
+- Proyectos, Contactos Iniciales, Taller de Equipos, Bancos, Integradores, etc.
 
 ## Archivos Clave
-- `/app/frontend/src/components/EmailTemplatesEditor.jsx` — Editor de plantillas con config por sede
-- `/app/backend/routes/seed_and_templates.py` — Definiciones de plantillas (BASE_EMAIL_TEMPLATES)
-- `/app/frontend/src/pages/ClientTemplatesConfig.jsx` — Config plantillas/docs clientes
-- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes
-- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes
+- `/app/backend/routes/quote_actions.py` — Flujo reparaciones (invoice repair→operations, deliver→insumos TBP)
+- `/app/frontend/src/components/quotes/RepairDeliveryDialog.jsx` — Modal entrega con factura+insumos
+- `/app/backend/routes/seed_and_templates.py` — Plantilla repair_invoice
+- `/app/frontend/src/components/EmailTemplatesEditor.jsx` — Config visual plantillas
 
 ## Backlog
-- **P1**: Sistema de Notificaciones Push (campana en header, alertas tiempo real)
-- **P2**: Reportes de Ventas
-- **P2**: Lógica "Completado" en Roadmap Bancos
-- **P2**: Refactorización monolitos (ProjectDetail.jsx ~1800 líneas, quote_actions.py ~2900 líneas, Quotes.jsx ~3000 líneas)
+- **P1**: Sistema de Notificaciones Push
+- **P2**: Reportes de Ventas, Roadmap Bancos
+- **P2**: Refactorización monolitos
