@@ -5,40 +5,34 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Cotizaciones — Flujo de Reparaciones PYME (Actualizado Abr 2026)
+### Sistema de Plantillas de Correo (CRÍTICO)
+- **Helper `get_email_template()`**: Busca plantillas primero en MongoDB, luego en defaults del código (`generate_email_templates_by_sede()`)
+- Esto resuelve el problema de que solo 25 plantillas estaban en la BD, mientras los defaults del código tienen ~50+
+- Todas las plantillas de reparación tienen HTML profesional (1400-4695 chars con estilos)
 
-#### Modales reorganizados:
-- **Aprobación (repair)**: Modal simplificado — solo solicita Comprobante de Aprobación de la reparación. Sin calculadora, sin comprobante de pago.
-- **Reparada**: Nuevo modal `RepairCompleteModal` con:
-  - Calculadora fiscal con conceptos de la cotización (equipment_items)
-  - Fecha de facturación + tasa BCV automática
-  - Tabla Subtotal/IVA 16%/Total en USD y Bs.
-  - Carga opcional de comprobante de pago/anticipo
-  - Notifica a Administración con billing_data adjunto
-
-#### Notificaciones automáticas:
-- **Enviar al cliente** → `repair_quote_sent_PYME` → cliente
-- **Aprobación** → `repair_approved_PYME` → cliente
-- **Reparada** → `repair_complete_client_PYME` → cliente + Admin PYME
-- **Factura/Proforma** → `repair_invoice_PYME` → Operaciones PYME
-- **Cobranza** → `repair_collect_warehouse_PYME` → Almacén PYME
-- **Marcar como entregada** → `repair_delivery_PYME` → cliente + modal de insumos/factura
-
-#### Modal de Cierre de Orden (Marcar como entregada):
-- Nro. factura obligatorio + selector de insumos consumidos
-- Salidas automáticas en inventario TBP
+### Cotizaciones — Flujo de Reparaciones PYME
+| Acción | Plantilla | Destinatario |
+|---|---|---|
+| Enviar al cliente | `repair_quote_sent_PYME` | Cliente |
+| Aprobación | `repair_approved_PYME` | Cliente (+ guarda Soporte de Aprobación) |
+| Reparada | `repair_complete_client_PYME` | Cliente + Admin PYME |
+| Factura/Proforma | `repair_invoice_PYME` | Operaciones PYME |
+| Cobranza | `repair_collect_warehouse_PYME` | Almacén PYME |
+| Marcar entregada | `repair_delivery_PYME` | Cliente (+ insumos TBP) |
 
 ### Clientes
-- Comunicaciones, Plantillas, Bitácora con hora precisa
+- Comunicaciones, Plantillas (context=CLIENTES), Bitácora con hora precisa
+- Variables: {{nombre}}, {{contacto}}, {{rif}}, etc. resueltas al seleccionar plantilla
 
 ### Inventarios
-- Kardex en Bs., Mayor de Activos PEPS, salidas por reparación
+- Kardex en Bs., Mayor de Activos PEPS
+- Salidas por reparación: Referencia = "Factura: XXX | Cotización: COT-XXXX"
 
 ## Archivos Clave
-- `/app/frontend/src/components/ApprovalBillingModal.jsx` — Simplificado para repair
-- `/app/frontend/src/components/quotes/RepairCompleteModal.jsx` — NUEVO: calculadora+pago
-- `/app/frontend/src/components/quotes/RepairDeliveryDialog.jsx` — Modal entrega con insumos
-- `/app/backend/routes/quote_actions.py` — Flujo completo
+- `/app/backend/routes/quote_actions.py` — Helper get_email_template + flujo completo
+- `/app/backend/routes/seed_and_templates.py` — Defaults de plantillas
+- `/app/frontend/src/components/quotes/RepairCompleteModal.jsx` — Calculadora fiscal
+- `/app/frontend/src/components/quotes/RepairDeliveryDialog.jsx` — Modal entrega + insumos
 
 ## Backlog
 - **P1**: Sistema de Notificaciones Push
