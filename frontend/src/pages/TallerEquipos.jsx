@@ -81,17 +81,6 @@ export default function TallerEquipos() {
   const paginatedEquipos = equipos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openHistorial = async (tallerEquipoId) => {
-
-  const handleDeleteEquipo = async (equipo) => {
-    if (!confirm(`¿Eliminar registro de ${equipo.serial} (${equipo.modelo})? Esta acción no se puede deshacer.`)) return;
-    try {
-      await api.delete(`/taller-equipos/${equipo.taller_equipo_id}`);
-      toast.success('Registro eliminado');
-      fetchEquipos();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al eliminar');
-    }
-  };
     setHistorialOpen(true);
     setHistorialLoading(true);
     setHistorialData(null);
@@ -103,6 +92,17 @@ export default function TallerEquipos() {
       setHistorialOpen(false);
     } finally {
       setHistorialLoading(false);
+    }
+  };
+
+  const handleDeleteEquipo = async (equipo) => {
+    if (!confirm(`¿Eliminar registro de ${equipo.serial} (${equipo.modelo})? Esta acción no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/taller-equipos/${equipo.taller_equipo_id}`);
+      toast.success('Registro eliminado');
+      fetchEquipos();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
     }
   };
 
