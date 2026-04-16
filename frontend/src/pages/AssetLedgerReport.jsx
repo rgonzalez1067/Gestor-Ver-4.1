@@ -109,13 +109,13 @@ export const AssetLedgerReport = () => {
             <div>
               <table className="w-full border-collapse text-xs" data-testid="asset-ledger-table" style={{borderSpacing: 0}}>
                 <colgroup>
-                  <col style={{width: '11%'}} />
-                  <col style={{width: '19%'}} />
-                  <col style={{width: '11%'}} />
-                  <col style={{width: '11%'}} />
-                  <col style={{width: '11%'}} />
+                  <col style={{width: '10%'}} />
+                  <col style={{width: '17%'}} />
+                  <col style={{width: '10%'}} />
+                  <col style={{width: '9%'}} />
+                  <col style={{width: '9%'}} />
+                  <col style={{width: '12%'}} />
                   <col style={{width: '15%'}} />
-                  <col style={{width: '22%'}} />
                 </colgroup>
                 <thead>
                   <tr style={{backgroundColor: '#1e293b', color: '#fff'}}>
@@ -139,14 +139,12 @@ export const AssetLedgerReport = () => {
                             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded font-medium" style={{backgroundColor: '#64748b', color: '#e2e8f0'}}>{item.item_type}</span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}>
-                          Uds: <span className="font-bold">{item.total_units}</span>
+                        <td colSpan={2} className="px-3 py-1.5 text-right" style={{border: '1px solid #475569', whiteSpace: 'nowrap'}}>
+                          <span className="text-xs" style={{color: '#94a3b8'}}>Uds: </span><span className="font-bold text-sm">{item.total_units}</span>
+                          <span style={{color: '#94a3b8', marginLeft: '12px'}} className="text-xs">LCH: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_lch || 0}</span>
+                          <span style={{color: '#94a3b8', marginLeft: '12px'}} className="text-xs">TBP: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_tbp || 0}</span>
                         </td>
-                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}>
-                          <span style={{color: '#94a3b8'}}>LCH: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_lch || 0}</span>
-                          <span style={{color: '#94a3b8', marginLeft: '10px'}}>TBP: </span><span className="font-bold" style={{color: '#93c5fd'}}>{item.units_tbp || 0}</span>
-                        </td>
-                        <td className="px-3 py-1.5 text-right text-xs" style={{border: '1px solid #475569'}}></td>
+                        <td className="px-3 py-1.5" style={{border: '1px solid #475569'}}></td>
                         <td className="px-3 py-1.5 text-right font-bold" style={{border: '1px solid #475569', color: '#86efac'}}>
                           {formatBs(item.item_total)}
                         </td>
