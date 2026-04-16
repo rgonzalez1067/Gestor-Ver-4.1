@@ -10,8 +10,11 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 - **Comunicaciones a Clientes** (/clients/communications):
   - Plantillas de Correo (CRUD con context=CLIENTES, independiente de Proyectos)
   - Documentos de Comunicación (subida/eliminación)
-  - Envío de emails con variables dinámicas y adjuntos
+  - Envío de emails con variables dinámicas, adjuntos internos+externos
   - Vista previa de correos con resolución de variables
+  - Variables se resuelven inmediatamente al seleccionar plantilla (client-side)
+  - Adjuntos se envían como bytes al motor de email
+- **Bitácora de Clientes**: Registro con fecha + hora precisa (HH:MM:SS AM/PM)
 
 ### Cotizaciones
 - Creación, edición con control de versiones
@@ -40,9 +43,10 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Archivos Clave
 - `/app/frontend/src/pages/ClientTemplatesConfig.jsx` — Config plantillas/docs clientes
-- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes
-- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes
+- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes (resolveClientVars)
+- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes (adjuntos como bytes)
 - `/app/backend/routes/seed_and_templates.py` — CRUD plantillas email (model: template_id + body_html)
+- `/app/frontend/src/pages/Clients.jsx` — Bitácora con hora precisa HH:MM:SS
 - `/app/frontend/src/pages/AssetLedgerReport.jsx` — Reporte PEPS
 - `/app/backend/routes/external_api.py` — API pública externa
 - `/app/backend/db_migrate.py` — Script migración
