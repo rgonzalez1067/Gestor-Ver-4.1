@@ -542,7 +542,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     quote_sede = quote.get("sede", "PYME")
     norm_sede = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
     emails_by_sede = config.get("emails_by_sede", {}) if config else {}
-    sede_emails = emails_by_sede.get(quote_sede, {})
+    sede_emails = emails_by_sede.get(norm_sede, {}) or emails_by_sede.get(quote_sede, {})
     admin_email = sede_emails.get("admin") or (config.get("admin_email") if config else None)
     sales_email = sede_emails.get("sales") if sede_emails else None
 

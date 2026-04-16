@@ -214,6 +214,22 @@ async def create_indexes():
     except Exception as e:
         logging.warning(f"Object storage init failed (images will not work): {e}")
 
+    # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
+    try:
+        from routes.seed_and_templates import generate_email_templates_by_sede
+        defaults = generate_email_templates_by_sede()
+        synced = 0
+        for tpl_id, tpl_data in defaults.items():
+            exists = await db.email_templates.find_one({"template_id": tpl_id})
+            if not exists:
+                doc = {"template_id": tpl_id, **tpl_data, "is_active": True}
+                await db.email_templates.insert_one(doc)
+                synced += 1
+        if synced > 0:
+            logging.info(f"Synced {synced} default email templates to MongoDB")
+    except Exception as e:
+        logging.warning(f"Template sync failed: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

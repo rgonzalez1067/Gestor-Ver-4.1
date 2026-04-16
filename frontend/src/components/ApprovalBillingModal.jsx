@@ -177,7 +177,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
       for (const file of approvalFiles) {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('category', isRepairQuote ? 'Soporte de Aprobación' : 'Orden de Compra');
+        formData.append('category', 'Orden de Compra');
         await api.post(`/quotes/${quoteId}/attachments`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
