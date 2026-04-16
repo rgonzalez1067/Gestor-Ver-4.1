@@ -23,7 +23,7 @@ export const ClientTemplatesConfig = () => {
   const [templates, setTemplates] = useState([]);
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
   const [editingTpl, setEditingTpl] = useState(null);
-  const [tplForm, setTplForm] = useState({ name: '', subject: '', body: '' });
+  const [tplForm, setTplForm] = useState({ name: '', subject: '', body_html: '' });
   // Documents
   const [documents, setDocuments] = useState([]);
   const [docDialogOpen, setDocDialogOpen] = useState(false);
@@ -39,22 +39,33 @@ export const ClientTemplatesConfig = () => {
   // ===== TEMPLATES =====
   const openNewTemplate = () => {
     setEditingTpl(null);
-    setTplForm({ name: '', subject: '', body: '' });
+    setTplForm({ name: '', subject: '', body_html: '' });
     setTplDialogOpen(true);
   };
   const openEditTemplate = (tpl) => {
     setEditingTpl(tpl);
-    setTplForm({ name: tpl.name, subject: tpl.subject || '', body: tpl.body || '' });
+    setTplForm({ name: tpl.name, subject: tpl.subject || '', body_html: tpl.body_html || tpl.body || '' });
     setTplDialogOpen(true);
   };
   const saveTemplate = async () => {
     if (!tplForm.name.trim()) { toast.error('El nombre es obligatorio'); return; }
     try {
       if (editingTpl) {
-        await api.put(`/email-templates/${editingTpl.template_id}`, { ...tplForm, context: 'CLIENTES' });
+        await api.put(`/email-templates/${editingTpl.template_id}`, {
+          template_id: editingTpl.template_id,
+          ...tplForm,
+          context: 'CLIENTES',
+          is_active: true,
+        });
         toast.success('Plantilla actualizada');
       } else {
-        await api.post('/email-templates', { ...tplForm, context: 'CLIENTES' });
+        const newId = `cli_tpl_${Date.now().toString(36)}`;
+        await api.post('/email-templates', {
+          template_id: newId,
+          ...tplForm,
+          context: 'CLIENTES',
+          is_active: true,
+        });
         toast.success('Plantilla creada');
       }
       setTplDialogOpen(false);
@@ -147,7 +158,7 @@ export const ClientTemplatesConfig = () => {
                     </div>
                   </div>
                   <p className="text-xs text-blue-600 font-medium mb-1">Asunto: {tpl.subject || '—'}</p>
-                  <p className="text-xs text-slate-500 line-clamp-3">{tpl.body || '—'}</p>
+                  <p className="text-xs text-slate-500 line-clamp-3">{tpl.body_html || tpl.body || '—'}</p>
                 </div>
               ))}
               {templates.length === 0 && (
@@ -170,7 +181,7 @@ export const ClientTemplatesConfig = () => {
                   <div><Label className="text-xs">Asunto</Label><Input value={tplForm.subject} onChange={e => setTplForm({...tplForm, subject: e.target.value})} placeholder="Ej: Bienvenido {{nombre}}" /></div>
                   <div>
                     <Label className="text-xs">Cuerpo del Mensaje</Label>
-                    <Textarea value={tplForm.body} onChange={e => setTplForm({...tplForm, body: e.target.value})} rows={8} placeholder="Estimado {{contacto}},&#10;&#10;Es un placer..." />
+                    <Textarea value={tplForm.body_html} onChange={e => setTplForm({...tplForm, body_html: e.target.value})} rows={8} placeholder="Estimado {{contacto}},&#10;&#10;Es un placer..." />
                     <p className="text-[10px] text-slate-400 mt-1">Variables: {VARIABLES_HINT}</p>
                   </div>
                 </div>

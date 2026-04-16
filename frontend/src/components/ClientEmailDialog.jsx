@@ -57,7 +57,7 @@ export const ClientEmailDialog = ({ open, onClose, client, onSent }) => {
 
   const handleTemplateSelect = (tpl) => {
     setSubject(tpl.subject || '');
-    setMessage(tpl.body || '');
+    setMessage(tpl.body_html || tpl.body || '');
     setPreviewMode(false);
   };
 
