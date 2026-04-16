@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { Truck, Warehouse, Package, Check, AlertTriangle, Upload, User, Building } from 'lucide-react';
+import { Truck, Warehouse, Package, Check, AlertTriangle, Upload, User, Building, FileText } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
 
@@ -26,6 +26,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   const [receiverPhone, setReceiverPhone] = useState('');
   const [courierName, setCourierName] = useState('');
   const [courierOffice, setCourierOffice] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
 
   // Excel upload audit per item
   const [excelAudit, setExcelAudit] = useState({});
@@ -70,6 +71,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
       setReceiverPhone('');
       setCourierName('');
       setCourierOffice('');
+      setInvoiceNumber('');
       setPrepData(null);
       fetchPrep(null);
     }
@@ -147,6 +149,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
   const isValid = warehouseId &&
     deliveryMethod &&
     receiverName.trim() &&
+    invoiceNumber.trim() &&
     deliveryItems.some(it => it.quantity > 0) &&
     deliveryItems.every(it =>
       it.quantity === 0 || !it.requires_serial || it.serials.length === it.quantity
@@ -178,6 +181,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
         receiver_phone: receiverPhone,
         courier_name: deliveryMethod === 'courier' ? courierName : '',
         courier_office: deliveryMethod === 'courier' ? courierOffice : '',
+        invoice_number: invoiceNumber,
       };
       const res = await api.post(`/quotes/${quoteId}/deliver`, payload, { headers });
       toast.success('Entrega registrada exitosamente');
@@ -431,6 +435,21 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Nro. de Factura */}
+            <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 space-y-2">
+              <Label className="text-xs font-semibold text-amber-800 uppercase flex items-center gap-1">
+                <FileText size={14} /> Nro. de Factura *
+              </Label>
+              <Input
+                value={invoiceNumber}
+                onChange={e => setInvoiceNumber(e.target.value)}
+                placeholder="Ej: F-12345"
+                className="h-8 text-sm"
+                data-testid="delivery-invoice-number"
+              />
+              <p className="text-[10px] text-amber-600">El nro. de factura se registra como referencia de salida en el inventario.</p>
             </div>
 
             {/* Notes */}

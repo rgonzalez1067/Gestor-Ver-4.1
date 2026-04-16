@@ -10,6 +10,7 @@ import { Clients } from './pages/Clients';
 import { InitialContacts } from './pages/InitialContacts';
 import { InventoryAccountingReport } from './pages/InventoryAccountingReport';
 import { AssetLedgerReport } from './pages/AssetLedgerReport';
+import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
@@ -121,6 +122,11 @@ function AppRouter() {
       <Route path="/inventory/asset-ledger" element={
         <ProtectedRoute>
           <AssetLedgerReport />
+        </ProtectedRoute>
+      } />
+      <Route path="/inventory/invoiced-exits" element={
+        <ProtectedRoute>
+          <InvoicedExitsReport />
         </ProtectedRoute>
       } />
       <Route path="/clients/communications" element={

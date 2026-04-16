@@ -1360,6 +1360,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
     receiver_phone = body.get("receiver_phone", "")
     courier_name = body.get("courier_name", "")
     courier_office = body.get("courier_office", "")
+    delivery_invoice_number = body.get("invoice_number", "")
     # Legacy compatibility
     transportista = courier_name if delivery_method == "courier" else receiver_name
     guia_placa = courier_office if delivery_method == "courier" else ""
@@ -1451,7 +1452,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 quantity=qty,
                 unit_cost=avg_cost,
                 serials=serials if requires_serial else [],
-                reference=f"Entrega COT {quote.get('quote_number', '')}",
+                reference=f"Factura: {delivery_invoice_number or 'S/N'} | Cotización: {quote.get('quote_number', '')}",
                 client_name=client_name,
                 client_id=quote.get("client_id", ""),
                 quote_id=quote_id,
@@ -1587,10 +1588,13 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             traceback.print_exc()
 
     # Update quote status
-    await db.quotes.update_one({"quote_id": quote_id}, {"$set": {
+    update_set = {
         "quote_status": "Entregada",
         "delivered_at": datetime.now(timezone.utc).isoformat()
-    }})
+    }
+    if delivery_invoice_number:
+        update_set["delivery_invoice_number"] = delivery_invoice_number
+    await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
 
     # Fast Track: Transicionar seriales preasignados → asignados + crear movimiento de salida
     if quote_category == "fast_track":
@@ -1628,7 +1632,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                     quantity=len(serial_list),
                     unit_cost=0,
                     serials=serial_list,
-                    notes=f"Entrega Fast Track - {quote.get('quote_number', '')} - {client_name}",
+                    notes=f"Factura: {delivery_invoice_number or 'S/N'} | Entrega Fast Track - {quote.get('quote_number', '')} - {client_name}",
                     created_by=current_user.get("user_id", ""),
                 )
                 exit_doc = exit_movement.model_dump()

@@ -53,6 +53,7 @@ const menuItems = [
     children: [
       { path: '/inventory/accounting-report', icon: FileText, label: 'Kardex de Activos' },
       { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Activos' },
+      { path: '/inventory/invoiced-exits', icon: FileText, label: 'Salidas Facturadas' },
     ]
   },
   { path: '/taller-equipos', icon: Wrench, label: 'Equipos en Reparacion' },

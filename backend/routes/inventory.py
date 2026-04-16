@@ -1279,3 +1279,69 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
         "grand_total": round(grand_total, 2),
         "total_items": len(report_items),
     }
+
+
+@router.get("/inventory/invoiced-exits-report")
+async def get_invoiced_exits_report(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
+    """Reporte de Relación de Salidas Facturadas — agrupado por almacén."""
+    await get_current_user(authorization)
+
+    query = {"movement_type": "salida"}
+    if desde or hasta:
+        date_filter = {}
+        if desde:
+            date_filter["$gte"] = desde
+        if hasta:
+            date_filter["$lte"] = hasta + "T23:59:59"
+        query["created_at"] = date_filter
+
+    movements = await db.inventory_movements.find(
+        query, {"_id": 0}
+    ).sort("created_at", 1).to_list(5000)
+
+    warehouses = await db.warehouses.find({}, {"_id": 0}).to_list(50)
+    wh_map = {w["warehouse_id"]: w.get("name", w["warehouse_id"]) for w in warehouses}
+
+    grouped = {}
+    for mov in movements:
+        wh_id = mov.get("warehouse_id", "unknown")
+        wh_name = wh_map.get(wh_id, wh_id)
+        if wh_name not in grouped:
+            grouped[wh_name] = {"warehouse_name": wh_name, "warehouse_id": wh_id, "exits": [], "total_units": 0}
+
+        ref = mov.get("reference", "")
+        invoice = ""
+        if "Factura:" in ref:
+            invoice = ref.split("Factura:")[1].split("|")[0].strip()
+        elif mov.get("notes") and "Factura:" in mov.get("notes", ""):
+            invoice = mov["notes"].split("Factura:")[1].split("|")[0].strip()
+
+        fecha = mov.get("created_at", "")[:10] if mov.get("created_at") else ""
+        qty = mov.get("quantity", 0)
+
+        grouped[wh_name]["exits"].append({
+            "movement_id": mov.get("movement_id", ""),
+            "fecha": fecha,
+            "item_name": mov.get("item_name", ""),
+            "item_type": mov.get("item_type", ""),
+            "quantity": qty,
+            "unit_cost": mov.get("unit_cost", 0),
+            "invoice_number": invoice,
+            "reference": ref,
+            "client_name": mov.get("client_name", ""),
+            "quote_number": mov.get("quote_number", ""),
+            "notes": mov.get("notes", ""),
+            "created_by": mov.get("created_by", ""),
+        })
+        grouped[wh_name]["total_units"] += qty
+
+    return {
+        "report_date": datetime.now(timezone.utc).isoformat(),
+        "date_range": {"desde": desde, "hasta": hasta},
+        "warehouses": list(grouped.values()),
+        "total_exits": sum(g["total_units"] for g in grouped.values()),
+    }

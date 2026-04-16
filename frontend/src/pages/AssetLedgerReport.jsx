@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
-import { Printer, ArrowLeft, Package } from 'lucide-react';
+import { Printer, ArrowLeft, Package, Download } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +46,26 @@ export const AssetLedgerReport = () => {
 
   const handlePrint = () => window.print();
 
+  const exportToExcel = () => {
+    if (!data?.items?.length) return;
+    let csv = '\uFEFF';
+    csv += 'MAYOR DE ACTIVOS - METODO PEPS (FIFO)\n\n';
+    csv += 'Item,Tipo,Fecha Adquisicion,Lote,Costo Unit.(Bs),Cantidad,LCH,TBP,Total Bs.\n';
+    for (const item of data.items) {
+      for (const lot of (item.lots || [])) {
+        csv += `"${item.item_name}",${item.item_type},${lot.acquisition_date},${lot.lot_index},${lot.unit_cost_bs},${lot.remaining_qty},${lot.qty_lch},${lot.qty_tbp},${lot.total_cost_bs}\n`;
+      }
+    }
+    csv += `\nTOTAL GENERAL:,,,,,,,,${data.grand_total}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Mayor_de_Activos_PEPS.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     const style = document.createElement('style');
     style.id = 'asset-ledger-print-styles';
@@ -85,6 +105,9 @@ export const AssetLedgerReport = () => {
           </div>
           <Button onClick={handlePrint} variant="outline" size="sm" data-testid="print-btn">
             <Printer className="w-4 h-4 mr-1" /> Imprimir
+          </Button>
+          <Button onClick={exportToExcel} variant="outline" size="sm" data-testid="export-excel-btn">
+            <Download className="w-4 h-4 mr-1" /> Excel
           </Button>
         </div>
 
