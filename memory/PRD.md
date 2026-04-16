@@ -3,24 +3,52 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
-## Módulos — Últimas Actualizaciones (Abr 2026)
+## Módulos Implementados
 
-### Cotizaciones — Modificación de Equipos y Reparaciones
-- **Dropdown con catálogo dinámico**: Al agregar item, muestra dropdown filtrado por categoría:
-  - Equipos y Accesorios: POS, Pinpad, Base (Bienes)
-  - Reparaciones: Mantenimiento
-- **Precio auto-completado** al seleccionar del catálogo
-- **IVA consistente**: Desglose Subtotal + IVA 16% + Total en edición (mismo que creación)
-- **Nuevos valores se persisten**: Items editados se guardan correctamente en la nueva versión
-- **Justificación obligatoria** (min 20 chars) para los 3 tipos
-- **PDF regenerado** desde datos almacenados, registrado en Anexos
-- **Bitácora** registrada en el cliente
+### Clientes
+- CRUD completo de clientes con bitácora, contactos, sucursales
+- **Comunicaciones a Clientes** (/clients/communications):
+  - Plantillas de Correo (CRUD con context=CLIENTES, independiente de Proyectos)
+  - Documentos de Comunicación (subida/eliminación)
+  - Envío de emails con variables dinámicas y adjuntos
+  - Vista previa de correos con resolución de variables
 
-### Archivos Clave
-- `/app/frontend/src/components/EditEquipRepairDialog.jsx` — Edición Equipos/Reparaciones con dropdown catálogo
-- `/app/frontend/src/components/JustificationModal.jsx` — Modal justificación
-- `/app/backend/routes/quotes.py` — regenerate-equipment-pdf, regenerate-pdf, override_total_usd
+### Cotizaciones
+- Creación, edición con control de versiones
+- PDF dinámico regenerado automáticamente
+- Total USD = Inversión Inicial (Setup + Equipos), sin recurrentes
+- Justificación obligatoria para modificaciones
+
+### Proyectos
+- Gestión de proyectos de integración
+- Plantillas y notificaciones propias (context=PROJECTS)
+- Notas de entrega, roadmap por banco
+
+### Inventarios
+- Kardex con movimientos en Bolívares (Bs.)
+- Mayor de Activos (PEPS/FIFO) desglosado LCH/TBP
+
+### Contactos Iniciales
+- Campo "Referido Por"
+- API externa protegida por API Key (/api/external/contacts)
+
+### Otros
+- Taller de Equipos en Reparación (con eliminación Admin)
+- Gestión de Bancos, Integradores, Servicios
+- Tasa de Cambio, Nuevos Productos
+- Script de migración (db_migrate.py)
+
+## Archivos Clave
+- `/app/frontend/src/pages/ClientTemplatesConfig.jsx` — Config plantillas/docs clientes
+- `/app/frontend/src/components/ClientEmailDialog.jsx` — Diálogo email clientes
+- `/app/backend/routes/client_communications.py` — Backend comunicaciones clientes
+- `/app/backend/routes/seed_and_templates.py` — CRUD plantillas email (model: template_id + body_html)
+- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Reporte PEPS
+- `/app/backend/routes/external_api.py` — API pública externa
+- `/app/backend/db_migrate.py` — Script migración
 
 ## Backlog
-- P1: Sistema de Notificaciones Push
-- P2: Reportes de Ventas, Roadmap Bancos, Refactorización monolitos
+- **P1**: Sistema de Notificaciones Push (campana en header, alertas tiempo real)
+- **P2**: Reportes de Ventas
+- **P2**: Lógica "Completado" en Roadmap Bancos
+- **P2**: Refactorización monolitos (ProjectDetail.jsx ~1800 líneas, quote_actions.py ~2900 líneas, Quotes.jsx ~3000 líneas)
