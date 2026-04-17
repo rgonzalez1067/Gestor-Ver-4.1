@@ -534,7 +534,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           ) : (
                             [...posDevices, ...pinpads].map((device) => (
                               <SelectItem key={device.hardware_id} value={device.hardware_id}>
-                                {device.name} — {device.type} {device.price_usd > 0 && `($${device.price_usd})`}
+                                {device.name} — {device.type} {(device.price_bs_usd || device.price_usd) > 0 && `($${device.price_bs_usd || device.price_usd})`}
                               </SelectItem>
                             ))
                           )
@@ -545,7 +545,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           ) : (
                             (isMPOS ? posDevices : pinpads).map((device) => (
                               <SelectItem key={device.hardware_id} value={device.hardware_id}>
-                                {device.name} {device.price_usd > 0 && `($${device.price_usd})`}
+                                {device.name} {(device.price_bs_usd || device.price_usd) > 0 && `($${device.price_bs_usd || device.price_usd})`}
                               </SelectItem>
                             ))
                           )
@@ -641,9 +641,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               <td className="border p-2 text-sm font-semibold text-slate-800">{selectedPinpad?.name || '—'}</td>
                               <td className="border p-2 text-sm text-slate-600">{selectedPinpad?.type || 'POS'}</td>
                               <td className="border p-2 text-center text-sm font-medium">{parseInt(quoteData.cantidad_cajas) || 1}</td>
-                              <td className="border p-2 text-right text-sm font-medium">${(selectedPinpad?.price_usd || 0).toFixed(2)}</td>
+                              <td className="border p-2 text-right text-sm font-medium">${(selectedPinpad?.price_bs_usd || selectedPinpad?.price_usd || 0).toFixed(2)}</td>
                               <td className="border p-2 text-right text-sm font-bold text-slate-900">
-                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_usd || 0)).toFixed(2)}
+                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_bs_usd || selectedPinpad?.price_usd || 0)).toFixed(2)}
                               </td>
                             </tr>
                           </tbody>
@@ -652,7 +652,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               <td colSpan={3} className="border p-2 text-right text-sm font-bold">Total Equipos (USD):</td>
                               <td className="border p-2"></td>
                               <td className="border p-2 text-right text-sm font-bold">
-                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_usd || 0)).toFixed(2)}
+                                ${((parseInt(quoteData.cantidad_cajas) || 1) * (selectedPinpad?.price_bs_usd || selectedPinpad?.price_usd || 0)).toFixed(2)}
                               </td>
                             </tr>
                           </tfoot>
@@ -687,7 +687,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               name: hw.name,
                               hardware_type: hw.type || hw.hardware_type || 'POS',
                               quantity: parseInt(quoteData.cantidad_cajas) || 1,
-                              unit_price_usd: hw.price_usd || 0
+                              unit_price_usd: hw.price_bs_usd || hw.price_usd || 0
                             }]);
                           }
                         }}>
@@ -697,7 +697,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           <SelectContent>
                             {allHardware.filter(hw => hw.type === 'POS' && hw.asset_type !== 'Servicio').map(hw => (
                               <SelectItem key={hw.hardware_id} value={hw.hardware_id}>
-                                {hw.name} — {hw.type || 'Equipo'} {hw.price_usd > 0 && `($${hw.price_usd})`}
+                                {hw.name} — {hw.type || 'Equipo'} {(hw.price_bs_usd || hw.price_usd) > 0 && `($${hw.price_bs_usd || hw.price_usd})`}
                               </SelectItem>
                             ))}
                           </SelectContent>
