@@ -131,7 +131,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     let matchesCategory = false;
 
     if (equipmentCategory === 'Verifone' || equipmentCategory === 'Morefun') {
-      matchesCategory = DEVICE_TYPES.includes(item.type) && (item.asset_type || 'Bien') === 'Bien';
+      matchesCategory = DEVICE_TYPES.includes(item.type);
     } else if (equipmentCategory === 'Accesorio') {
       matchesCategory = ACCESSORY_TYPES.includes(item.type);
     } else if (equipmentCategory === 'Reparacion') {
@@ -163,8 +163,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         name: item.name,
         hardware_type: item.type,
         quantity: 1,
-        unit_price_usd: item.price_usd || 0,
-        total_usd: item.price_usd || 0
+        unit_price_usd: item.price_bs_usd || item.price_usd || 0,
+        total_usd: item.price_bs_usd || item.price_usd || 0
       }]);
     }
     toast.success(`${item.name} agregado`);
@@ -668,7 +668,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                               >
                                 <div>
                                   <p className="text-sm font-medium text-slate-800">{item.name}</p>
-                                  <p className="text-xs text-slate-400">{item.type} • ${item.price_usd?.toFixed(2) || '0.00'}</p>
+                                  <p className="text-xs text-slate-400">{item.type} • ${(item.price_bs_usd || item.price_usd)?.toFixed(2) || '0.00'}</p>
                                 </div>
                                 <ChevronRight size={16} className="text-slate-300" />
                               </button>
@@ -875,7 +875,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     >
                       <div>
                         <p className="font-medium text-slate-900">{item.name}</p>
-                        <p className="text-sm text-slate-500">{item.type} • ${item.price_usd?.toFixed(2) || '0.00'}</p>
+                        <p className="text-sm text-slate-500">{item.type} • ${(item.price_bs_usd || item.price_usd)?.toFixed(2) || '0.00'}</p>
                       </div>
                       <Button 
                         size="sm" 

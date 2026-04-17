@@ -189,7 +189,7 @@ export default function Inventory() {
     try {
       await api.post(`/inventory/warehouses/${selectedWh}/entry`, {
         ...entryForm,
-        unit_cost: entryForm.unit_cost || selectedEntryItem?.price_usd || 0,
+        unit_cost: entryForm.unit_cost || selectedEntryItem?.price_bs_usd || selectedEntryItem?.price_usd || 0,
         is_precarga: isPrecarga,
       });
       toast.success(isPrecarga ? 'Precarga registrada (pendiente certificación)' : 'Entrada registrada');
@@ -813,7 +813,7 @@ export default function Inventory() {
                 <Label>Bien / Servicio *</Label>
                 <Select value={entryForm.item_id} onValueChange={v => {
                   const hw = hardware.find(h => h.hardware_id === v);
-                  setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_usd || 0, serials: [], acquisition_date: entryForm.acquisition_date });
+                  setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_bs_usd || hw?.price_usd || 0, serials: [], acquisition_date: entryForm.acquisition_date });
                 }}>
                   <SelectTrigger data-testid="entry-item" className="truncate"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                   <SelectContent>
