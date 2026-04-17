@@ -1123,7 +1123,7 @@ export const Quotes = () => {
     if (quoteData.quote_type !== 'FAST_TRACK') return 0;
     if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
       const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-      if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_usd || 0);
+      if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_bs_usd || hw.price_usd || 0);
     }
     return ftEquipmentItems.reduce((acc, it) => acc + (it.quantity * it.unit_price_usd), 0);
   })();
@@ -1516,7 +1516,7 @@ export const Quotes = () => {
           if (quoteData.quote_type !== 'FAST_TRACK') return [];
           if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
             const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
           }
           if (isMegaSoftSponsor) return ftEquipmentItems.map(item => ({ name: item.name, hardware_type: item.hardware_type, quantity: item.quantity, unit_price_usd: item.unit_price_usd }));
           return [];
@@ -1538,7 +1538,7 @@ export const Quotes = () => {
           // Si hay modelo sincronizado desde Integración, usarlo como único item
           if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
             const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-            if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+            if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
           }
           // Fallback: items manuales (Mega Soft)
           if (isMegaSoftSponsor) return ftEquipmentItems;
@@ -1844,7 +1844,7 @@ export const Quotes = () => {
         if (quoteData.quote_type !== 'FAST_TRACK') return [];
         if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
           const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-          if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+          if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
         }
         return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
       })(),
@@ -2019,7 +2019,7 @@ export const Quotes = () => {
           if (quoteData.quote_type !== 'FAST_TRACK') return [];
           if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
             const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
           }
           return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
         })(),
@@ -2909,7 +2909,7 @@ export const Quotes = () => {
         if (quoteData.quote_type !== 'FAST_TRACK') return 0;
         if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
           const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-          if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_usd || 0);
+          if (hw) return (parseInt(quoteData.cantidad_cajas) || 1) * (hw.price_bs_usd || hw.price_usd || 0);
         }
         return ftEquipmentItems.reduce((acc, it) => acc + (it.quantity * it.unit_price_usd), 0);
       })();
@@ -2919,7 +2919,7 @@ export const Quotes = () => {
         if (quoteData.quote_type !== 'FAST_TRACK') return [];
         if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
           const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-          if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_usd || 0 }];
+          if (hw) return [{ hardware_id: hw.hardware_id, name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
         }
         return ftEquipmentItems;
       })();

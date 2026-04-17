@@ -88,8 +88,8 @@ export const EditEquipRepairDialog = ({ open, onClose, quote, onSaved }) => {
       hardware_id: catalogItem.hardware_id,
       name: catalogItem.name,
       hardware_type: catalogItem.type,
-      unit_price_usd: catalogItem.price_usd || 0,
-      total_usd: (updated[index].quantity || 1) * (catalogItem.price_usd || 0)
+      unit_price_usd: catalogItem.price_bs_usd || catalogItem.price_usd || 0,
+      total_usd: (updated[index].quantity || 1) * (catalogItem.price_bs_usd || catalogItem.price_usd || 0)
     };
     setItems(updated);
     setActiveDropdown(null);
@@ -308,7 +308,7 @@ export const EditEquipRepairDialog = ({ open, onClose, quote, onSaved }) => {
                                     <span className="font-medium text-slate-800">{catItem.name}</span>
                                     <span className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{catItem.type}</span>
                                   </div>
-                                  <span className="text-xs font-mono text-emerald-600">{formatCurrency(catItem.price_usd)}</span>
+                                  <span className="text-xs font-mono text-emerald-600">{formatCurrency(catItem.price_bs_usd || catItem.price_usd)}</span>
                                 </div>
                               ))
                             )}
