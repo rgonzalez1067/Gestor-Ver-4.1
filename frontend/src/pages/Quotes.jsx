@@ -451,7 +451,7 @@ export const Quotes = () => {
       setAllHardware(hardwareRes.data || []);
       // Filtrar solo dispositivos tipo "Pinpad" y clasificación "Bien" para cotizaciones de implementación
       const pinpadDevices = (hardwareRes.data || []).filter(hw => 
-        hw.type?.toLowerCase() === 'pinpad' && (hw.asset_type || 'Bien') === 'Bien'
+        hw.type?.toLowerCase() === 'pinpad'
       );
       setPinpads(pinpadDevices);
       const posHardware = (hardwareRes.data || []).filter(hw => 
