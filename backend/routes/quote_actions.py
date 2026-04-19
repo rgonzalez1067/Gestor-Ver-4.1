@@ -2688,6 +2688,7 @@ async def _create_project_from_quote(quote: dict, quote_id: str, multistore_data
         "client_notified_by": None,
         "bank_notifications": {},
         "rollup_progress": None,
+        "box_count": int(quote.get("cantidad_cajas", 0) or 0),
     }
 
     # Soporte Multitienda (heredado de branch_details de la cotización o enviado manualmente)
