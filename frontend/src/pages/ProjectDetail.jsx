@@ -199,6 +199,7 @@ const ProjectDetail = () => {
   const [integratorName, setIntegratorName] = useState('');
   const [applicationName, setApplicationName] = useState('');
   const [integratorsList, setIntegratorsList] = useState([]);
+  const [boxCount, setBoxCount] = useState(0);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -214,7 +215,8 @@ const ProjectDetail = () => {
   useEffect(() => {
     if (project) {
       setIntegratorName(project.integrator_name || '');
-      setApplicationName(project.application_name || '');
+      setApplicationName(project.integrator_app_name || project.application_name || '');
+      setBoxCount(project.box_count || project.cantidad_cajas || 0);
     }
   }, [project]);
 
@@ -288,7 +290,8 @@ const ProjectDetail = () => {
     try {
       await api.put(`/projects/${projectId}/implementation-fields`, {
         integrator_name: integratorName,
-        application_name: applicationName,
+        integrator_app_name: applicationName,
+        box_count: boxCount,
       });
       toast.success('Campos actualizados');
       setEditingIntegrator(false);
@@ -880,11 +883,15 @@ const ProjectDetail = () => {
                       <div>
                         <p className="text-xs text-slate-500 mb-1">Integrador</p>
                         <Select value={integratorName} onValueChange={(v) => {
-                          setIntegratorName(v);
-                          if (v === 'Stand Alone') { setApplicationName(''); }
-                          else {
-                            const integ = integratorsList.find(i => i.name === v);
-                            if (integ?.app_name) setApplicationName(integ.app_name);
+                          if (v === 'Stand Alone') {
+                            setIntegratorName('Stand Alone');
+                            setApplicationName('');
+                          } else {
+                            const integ = integratorsList.find(i => i.integrator_id === v);
+                            if (integ) {
+                              setIntegratorName(integ.name);
+                              setApplicationName(integ.app_name || '');
+                            }
                           }
                         }}>
                           <SelectTrigger className="h-7 text-xs" data-testid="integrator-select">
@@ -893,7 +900,9 @@ const ProjectDetail = () => {
                           <SelectContent>
                             <SelectItem value="Stand Alone">Stand Alone</SelectItem>
                             {integratorsList.map(integ => (
-                              <SelectItem key={integ.integrator_id || integ.name} value={integ.name}>{integ.name}</SelectItem>
+                              <SelectItem key={integ.integrator_id} value={integ.integrator_id}>
+                                {integ.name}{integ.app_name ? ` — ${integ.app_name}` : ''}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -902,6 +911,11 @@ const ProjectDetail = () => {
                         <p className="text-xs text-slate-500 mb-1">Aplicativo</p>
                         <Input value={applicationName} onChange={e => setApplicationName(e.target.value)}
                           placeholder="Se autocompleta del integrador" className="h-7 text-xs" data-testid="application-input" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Cantidad de Cajas/Terminales</p>
+                        <Input type="number" min={0} value={boxCount} onChange={e => setBoxCount(parseInt(e.target.value) || 0)}
+                          placeholder="Ej: 5" className="h-7 text-xs w-24" data-testid="box-count-input" />
                       </div>
                       <div className="flex gap-1">
                         <Button size="sm" className="h-6 text-[10px]" onClick={saveIntegratorFields}>Guardar</Button>
@@ -923,7 +937,7 @@ const ProjectDetail = () => {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Aplicativo</p>
-                        <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.application_name || '—'}</p>
+                        <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.integrator_app_name || project.application_name || '—'}</p>
                       </div>
                     </>
                   )}

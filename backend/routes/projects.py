@@ -982,7 +982,11 @@ async def update_implementation_fields(project_id: str, body: dict, authorizatio
     if "integrator_name" in body:
         update_set["integrator_name"] = body["integrator_name"]
     if "application_name" in body:
-        update_set["application_name"] = body["application_name"]
+        update_set["integrator_app_name"] = body["application_name"]
+    if "integrator_app_name" in body:
+        update_set["integrator_app_name"] = body["integrator_app_name"]
+    if "box_count" in body:
+        update_set["box_count"] = body["box_count"]
     if update_set:
         update_set["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.projects.update_one({"project_id": project_id}, {"$set": update_set})
