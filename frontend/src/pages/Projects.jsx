@@ -18,13 +18,15 @@ import {
 const STATUS_CONFIG = {
   'Pendiente por Asignar': { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
   'Asignado / En Proceso': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
-  'Detenido por Cliente/Banco': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
+  'Suspendido por Cliente': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
+  'Suspendido por Banco': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Pause },
   'Finalizado / Producción': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
 };
 
 const STATUS_TRANSITIONS = [
   { id: 'Asignado / En Proceso', label: 'Asignado / En Proceso', icon: UserCheck, iconColor: 'text-blue-600' },
-  { id: 'Detenido por Cliente/Banco', label: 'Detenido por Cliente/Banco', icon: Pause, iconColor: 'text-red-600' },
+  { id: 'Suspendido por Cliente', label: 'Suspendido por Cliente', icon: Pause, iconColor: 'text-red-600' },
+  { id: 'Suspendido por Banco', label: 'Suspendido por Banco', icon: Pause, iconColor: 'text-orange-600' },
   { id: 'Finalizado / Producción', label: 'Finalizado / Producción', icon: CheckCircle2, iconColor: 'text-emerald-600' },
 ];
 
@@ -151,7 +153,9 @@ const Projects = () => {
       ? true
       : statusFilter === 'irregular'
         ? p.is_irregular === true
-        : p.status === statusFilter;
+        : statusFilter === 'suspended'
+          ? (p.status === 'Suspendido por Cliente' || p.status === 'Suspendido por Banco')
+          : p.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
@@ -182,7 +186,7 @@ const Projects = () => {
               { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
               { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Pendiente por Asignar' },
               { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'Asignado / En Proceso' },
-              { label: 'Detenidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'Detenido por Cliente/Banco' },
+              { label: 'Suspendidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
               { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Finalizado / Producción' },
               { label: 'P. Irregular', value: stats.irregular || 0, cls: 'bg-orange-50 border-orange-300 text-orange-700', filter: 'irregular' },
             ].map(s => (

@@ -1349,6 +1349,16 @@ export const Quotes = () => {
       return;
     }
 
+    // Validar consistencia de sucursales: si hay branches definidas, la suma debe ser exacta
+    if (branchDetails.length > 0) {
+      const totalBranchBoxes = branchDetails.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0);
+      const totalEquipment = parseInt(quoteData.cantidad_cajas) || 0;
+      if (totalBranchBoxes !== totalEquipment) {
+        toast.error(`La suma de cajas en sucursales (${totalBranchBoxes}) no coincide con el total de equipos (${totalEquipment}). Ajuste las cantidades antes de guardar.`);
+        return;
+      }
+    }
+
     const toastId = toast.loading('Guardando cotización y generando PDF...');
 
     try {
