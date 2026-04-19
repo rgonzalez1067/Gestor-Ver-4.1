@@ -256,24 +256,19 @@ const ProjectDetail = () => {
   const handleSerialFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSerialUploading(true);
     try {
-      const text = await file.text();
-      const lines = text.split(/[\n\r]+/).map(l => {
-        // Tomar solo la primera columna (CSV/TSV)
-        const cell = l.split(/[,;\t]/)[0].trim();
-        // Validar: debe ser alfanumérico, sin caracteres de control, longitud razonable
-        return cell;
-      }).filter(s => s && s.length >= 3 && s.length <= 50 && /^[A-Za-z0-9\-_.]+$/.test(s));
-      // Skip header si parece un encabezado
-      const serials = lines[0]?.toLowerCase().includes('serial') || lines[0]?.toLowerCase().includes('numero') ? lines.slice(1) : lines;
-      if (serials.length === 0) {
-        toast.error('No se encontraron seriales válidos en el archivo. Asegúrese de que los seriales estén en la primera columna, sean alfanuméricos y tengan entre 3 y 50 caracteres.');
-        return;
-      }
-      toast.info(`Se encontraron ${serials.length} seriales válidos en el archivo`);
-      addSerials(serials);
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.post(`/projects/${projectId}/implementation-serials/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success(res.data.message);
+      fetchProject();
     } catch (err) {
-      toast.error('Error al leer el archivo. Use formato CSV o TXT con un serial por línea.');
+      toast.error(err.response?.data?.detail || 'Error al cargar archivo de seriales');
+    } finally {
+      setSerialUploading(false);
     }
     if (serialFileRef.current) serialFileRef.current.value = '';
   };

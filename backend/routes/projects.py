@@ -1031,6 +1031,70 @@ async def add_implementation_serials(project_id: str, body: dict, authorization:
     return {"message": f"{len(new_serials)} serial(es) agregados", "total_serials": len(all_serials), "serials": all_serials}
 
 
+@router.post("/projects/{project_id}/implementation-serials/upload")
+async def upload_serials_file(project_id: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
+    """Cargar seriales desde archivo Excel (.xlsx/.csv/.txt)."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    content = await file.read()
+    serials = []
+    fname = (file.filename or "").lower()
+
+    if fname.endswith('.xlsx') or fname.endswith('.xls'):
+        import openpyxl
+        import io
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        for row in ws.iter_rows(values_only=True):
+            for cell in row:
+                if cell is not None:
+                    val = str(cell).strip()
+                    if val and len(val) >= 3 and len(val) <= 60:
+                        serials.append(val)
+                    break  # Solo primera columna
+        wb.close()
+    else:
+        text = content.decode('utf-8', errors='replace')
+        for line in text.split('\n'):
+            val = line.split(',')[0].split(';')[0].split('\t')[0].strip()
+            if val and len(val) >= 3 and len(val) <= 60:
+                serials.append(val)
+
+    # Filtrar headers
+    if serials and serials[0].lower() in ('serial', 'seriales', 'numero', 'terminal', 'nro'):
+        serials = serials[1:]
+
+    if not serials:
+        raise HTTPException(status_code=400, detail="No se encontraron seriales válidos en el archivo")
+
+    existing = project.get("implementation_serials", [])
+    new_serials = [s for s in serials if s not in existing]
+    all_serials = existing + new_serials
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"implementation_serials": all_serials, "updated_at": now}}
+    )
+
+    if new_serials:
+        bitacora_entry = {
+            "entry_id": f"log_{uuid.uuid4().hex[:8]}",
+            "text": f"[Seriales Excel] Se cargaron {len(new_serials)} serial(es): {', '.join(new_serials[:5])}{'...' if len(new_serials) > 5 else ''}. Por {user_name}.",
+            "execution_date": now[:10],
+            "created_at": now,
+            "created_by": user_name,
+            "auto_generated": True,
+        }
+        await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
+
+    return {"message": f"{len(new_serials)} serial(es) cargados desde archivo", "total_serials": len(all_serials), "serials": all_serials}
+
+
 @router.delete("/projects/{project_id}/implementation-serials/{serial}")
 async def remove_implementation_serial(project_id: str, serial: str, authorization: Optional[str] = Header(None)):
     """Eliminar un serial de implementación."""
