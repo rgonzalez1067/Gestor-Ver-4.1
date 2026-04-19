@@ -13,7 +13,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2
 } from 'lucide-react';
 
 const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -189,6 +189,16 @@ const ProjectDetail = () => {
   const [vtidGenerating, setVtidGenerating] = useState(false);
   const [vtidDeleting, setVtidDeleting] = useState(false);
 
+  // Seriales de Implementación
+  const [serialInput, setSerialInput] = useState('');
+  const [serialUploading, setSerialUploading] = useState(false);
+  const serialFileRef = useRef(null);
+
+  // Integrador / Aplicativo editable inline
+  const [editingIntegrator, setEditingIntegrator] = useState(false);
+  const [integratorName, setIntegratorName] = useState('');
+  const [applicationName, setApplicationName] = useState('');
+
   const fetchProject = useCallback(async () => {
     try {
       const res = await api.get(`/projects/${projectId}`);
@@ -198,6 +208,87 @@ const ProjectDetail = () => {
   }, [projectId]);
 
   useEffect(() => { fetchProject(); }, [fetchProject]);
+
+  // Sync integrator/application from project
+  useEffect(() => {
+    if (project) {
+      setIntegratorName(project.integrator_name || '');
+      setApplicationName(project.application_name || '');
+    }
+  }, [project]);
+
+  // Permisos: determinar si el usuario actual puede editar
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const canEditMatrix = currentUser.role === 'admin' ||
+    currentUser.user_id === project?.assigned_to ||
+    (project?.assigned_to && currentUser.user_id === (() => {
+      // Check if current user is supervisor of the implementer (simplified client-side check)
+      return project?.implementer_supervisor_id;
+    })());
+
+  // Seriales de implementación
+  const addSerials = async (serialsList) => {
+    if (!serialsList.length) return;
+    setSerialUploading(true);
+    try {
+      await api.post(`/projects/${projectId}/implementation-serials`, { serials: serialsList });
+      toast.success(`${serialsList.length} serial(es) agregados`);
+      fetchProject();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al agregar seriales'); }
+    finally { setSerialUploading(false); }
+  };
+
+  const handleSerialManualAdd = () => {
+    if (!serialInput.trim()) return;
+    const serials = serialInput.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    addSerials(serials);
+    setSerialInput('');
+  };
+
+  const handleSerialFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const lines = text.split(/[\n\r]+/).map(l => l.split(/[,;\t]/)[0].trim()).filter(Boolean);
+    // Skip header if it looks like one
+    const serials = lines[0]?.toLowerCase().includes('serial') ? lines.slice(1) : lines;
+    if (serials.length) addSerials(serials);
+    if (serialFileRef.current) serialFileRef.current.value = '';
+  };
+
+  const removeSerial = async (serial) => {
+    try {
+      await api.delete(`/projects/${projectId}/implementation-serials/${encodeURIComponent(serial)}`);
+      fetchProject();
+    } catch { toast.error('Error al eliminar serial'); }
+  };
+
+  // Guardar integrador/aplicativo
+  const saveIntegratorFields = async () => {
+    try {
+      await api.put(`/projects/${projectId}/implementation-fields`, {
+        integrator_name: integratorName,
+        application_name: applicationName,
+      });
+      toast.success('Campos actualizados');
+      setEditingIntegrator(false);
+      fetchProject();
+    } catch { toast.error('Error al guardar'); }
+  };
+
+  // Matrix update con cantidades
+  const updateMatrixQuantity = async (bankName, productName, phase, expected, processed) => {
+    try {
+      await api.put(`/projects/${projectId}/matrix/phase`, {
+        bank_name: bankName, product_name: productName, phase,
+        completed: processed >= expected && expected > 0,
+        expected, processed
+      });
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al actualizar fase');
+    }
+  };
 
   const fetchTemplates = async () => {
     try {
@@ -747,6 +838,45 @@ const ProjectDetail = () => {
                   <p className="text-sm font-semibold text-slate-700">{project.client_name}</p>
                   <p className="text-xs text-slate-400">{project.client_rif} — {project.client_sede}</p>
                 </div>
+                {/* Integrador y Aplicativo */}
+                <div className="pt-2 mt-2 border-t border-slate-100 space-y-2">
+                  {editingIntegrator ? (
+                    <>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Integrador</p>
+                        <Input value={integratorName} onChange={e => setIntegratorName(e.target.value)}
+                          placeholder="Stand Alone" className="h-7 text-xs" data-testid="integrator-input" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Aplicativo</p>
+                        <Input value={applicationName} onChange={e => setApplicationName(e.target.value)}
+                          placeholder="Nombre del aplicativo" className="h-7 text-xs" data-testid="application-input" />
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" className="h-6 text-[10px]" onClick={saveIntegratorFields}>Guardar</Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingIntegrator(false)}>Cancelar</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-slate-500">Integrador</p>
+                          <p className="text-sm font-semibold text-slate-700" data-testid="integrator-name">{project.integrator_name || 'Stand Alone'}</p>
+                        </div>
+                        {canEditMatrix && (
+                          <button onClick={() => setEditingIntegrator(true)} className="text-slate-400 hover:text-blue-500" data-testid="edit-integrator-btn">
+                            <Edit2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Aplicativo</p>
+                        <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.application_name || '—'}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Bloque 2: Implementación (incluye servidor) */}
@@ -818,6 +948,35 @@ const ProjectDetail = () => {
                   </div>
                 </div>
               )}
+
+              {/* Bloque: Seriales de Implementación (esquina superior derecha) */}
+              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="impl-serials-section">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Seriales (Implementacion)</p>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{(project.implementation_serials || []).length}</span>
+                </div>
+                {(project.implementation_serials || []).length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-28 overflow-y-auto">
+                    {(project.implementation_serials || []).map((s, idx) => (
+                      <div key={idx} className="bg-slate-50 border rounded px-2 py-1 flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-mono font-bold text-slate-700 truncate">{s}</span>
+                        {canEditMatrix && <button onClick={() => removeSerial(s)} className="text-slate-300 hover:text-red-500 shrink-0"><X size={10} /></button>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {canEditMatrix && (
+                  <div className="flex gap-1 mt-1">
+                    <Input value={serialInput} onChange={e => setSerialInput(e.target.value)}
+                      placeholder="Serial(es) separados por coma" className="h-7 text-[10px] flex-1"
+                      onKeyDown={e => e.key === 'Enter' && handleSerialManualAdd()} data-testid="serial-input" />
+                    <Button size="sm" className="h-7 text-[10px] px-2" onClick={handleSerialManualAdd} disabled={serialUploading} data-testid="serial-add-btn">+</Button>
+                    <input ref={serialFileRef} type="file" accept=".csv,.xlsx,.xls,.txt" className="hidden" onChange={handleSerialFileUpload} />
+                    <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => serialFileRef.current?.click()} disabled={serialUploading} data-testid="serial-excel-btn">Excel</Button>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 
@@ -921,8 +1080,9 @@ const ProjectDetail = () => {
                               bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)} />
                           ) : (
                             <SingleBankSection key={bankName} bankName={bankName} products={products}
-                              matrixData={matrix[bankName]} onTogglePhase={togglePhase}
-                              bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)} />
+                              matrixData={matrix[bankName]} onUpdateQuantity={updateMatrixQuantity}
+                              bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)}
+                              readOnly={!canEditMatrix} expectedQty={project.box_count || project.cantidad_cajas || 0} />
                           );
                         })}
                       </tbody>
@@ -1740,7 +1900,28 @@ const ProjectDetail = () => {
 
 
 // ==================== SINGLE: Bank Section ====================
-const SingleBankSection = ({ bankName, products, matrixData, onTogglePhase, bankExecutedLevels, onOpenNotif }) => {
+// ==================== Mini Pie Chart SVG ====================
+const MiniPie = ({ percent, size = 28 }) => {
+  const r = (size - 4) / 2;
+  const c = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (percent / 100) * circumference;
+  const color = percent >= 100 ? '#10b981' : percent >= 50 ? '#3b82f6' : percent > 0 ? '#f59e0b' : '#e2e8f0';
+  return (
+    <svg width={size} height={size} className="shrink-0">
+      <circle cx={c} cy={c} r={r} fill="none" stroke="#e2e8f0" strokeWidth={3} />
+      <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth={3}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round" transform={`rotate(-90 ${c} ${c})`} />
+      <text x={c} y={c} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight="bold" fill={color}>
+        {percent}%
+      </text>
+    </svg>
+  );
+};
+
+// ==================== SINGLE BANK: Quantity-based Matrix ====================
+const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, bankExecutedLevels, onOpenNotif, readOnly, expectedQty }) => {
   const lastLevel = bankExecutedLevels.length > 0 ? bankExecutedLevels[bankExecutedLevels.length - 1] : null;
   return (
     <>
@@ -1761,18 +1942,44 @@ const SingleBankSection = ({ bankName, products, matrixData, onTogglePhase, bank
           <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
             <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
             {PHASES.map(phase => {
-              const pd = phases[phase]; const done = pd?.completed || false;
+              const pd = phases[phase] || {};
+              const expected = pd.expected || expectedQty || 0;
+              const processed = pd.processed || 0;
+              const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
               return (
-                <td key={phase} className="px-3 py-2.5 text-center border-l border-slate-100">
-                  <button onClick={() => onTogglePhase(bankName, productName, phase, done)}
-                    className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-all ${done ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                    title={done ? `${phase}: ${pd?.updated_by || ''}` : `Marcar ${phase}`}
-                    data-testid={`phase-${bankName}-${productName}-${phase}`}>
-                    {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                  </button>
+                <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
+                  <div className="flex flex-col items-center gap-1">
+                    <MiniPie percent={pct} size={28} />
+                    <div className="flex items-center gap-0.5">
+                      {readOnly ? (
+                        <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>
+                      ) : (
+                        <>
+                          <input type="number" min={0} value={processed}
+                            onChange={e => onUpdateQuantity(bankName, productName, phase, expected, parseInt(e.target.value) || 0)}
+                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
+                            title="Procesados" data-testid={`qty-proc-${bankName}-${productName}-${phase}`} />
+                          <span className="text-[10px] text-slate-400">/</span>
+                          <input type="number" min={0} value={expected}
+                            onChange={e => onUpdateQuantity(bankName, productName, phase, parseInt(e.target.value) || 0, processed)}
+                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
+                            title="Esperados" data-testid={`qty-exp-${bankName}-${productName}-${phase}`} />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </td>);
             })}
-            <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400">{Object.values(phases).filter(p => p?.completed).length}/{PHASES.length}</td>
+            <td className="px-3 py-2.5 text-center border-l border-slate-100">
+              {(() => {
+                const totalPhases = PHASES.length;
+                const completedPhases = PHASES.filter(p => {
+                  const pd = phases[p] || {};
+                  return (pd.processed || 0) >= (pd.expected || 0) && (pd.expected || 0) > 0;
+                }).length;
+                return <span className="text-xs font-bold text-slate-500">{completedPhases}/{totalPhases}</span>;
+              })()}
+            </td>
           </tr>);
       })}
     </>

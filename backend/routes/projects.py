@@ -53,6 +53,8 @@ class PhaseUpdate(BaseModel):
     product_name: str
     phase: str
     completed: bool
+    expected: Optional[int] = None
+    processed: Optional[int] = None
 
 
 class BitacoraEntry(BaseModel):
@@ -789,11 +791,27 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
+    # Permisos: Solo implementador asignado, su supervisor, o admin
+    user_role = current_user.get("role", "")
+    user_id = current_user.get("user_id", "")
+    assigned_to = project.get("assigned_to", "")
+    if user_role != "admin":
+        user_supervisor_id = current_user.get("supervisor_id", "")
+        # Check if user is the assigned implementer
+        is_implementer = user_id == assigned_to
+        # Check if user is the supervisor of the assigned implementer
+        is_supervisor = False
+        if assigned_to:
+            assigned_user = await db.users.find_one({"user_id": assigned_to}, {"_id": 0, "supervisor_id": 1})
+            if assigned_user and assigned_user.get("supervisor_id") == user_id:
+                is_supervisor = True
+        if not is_implementer and not is_supervisor:
+            raise HTTPException(status_code=403, detail="Solo el implementador asignado o su supervisor pueden editar la matriz")
+
     # Bloquear edición manual en multitienda
     if project.get("project_type") == "multistore":
-        raise HTTPException(status_code=400, detail="La matriz principal de un proyecto multitienda es de solo lectura. Actualice las matrices de las tiendas.")
+        raise HTTPException(status_code=400, detail="La matriz principal de un proyecto multitienda es de solo lectura.")
 
-    # Hard stop: verificar que el cliente fue notificado
     if not project.get("client_notified"):
         raise HTTPException(status_code=400, detail="Debe notificar al cliente primero antes de actualizar la matriz")
 
@@ -807,8 +825,19 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
+    # Obtener estado anterior para bitácora
+    old_data = matrix[bank_key][phase_update.product_name].get(phase_update.phase, {})
+    old_processed = old_data.get("processed", 0)
+
+    # Determinar cantidades
+    expected = phase_update.expected if phase_update.expected is not None else old_data.get("expected", 0)
+    processed = phase_update.processed if phase_update.processed is not None else old_data.get("processed", 0)
+    is_completed = processed >= expected and expected > 0
+
     matrix[bank_key][phase_update.product_name][phase_update.phase] = {
-        "completed": phase_update.completed,
+        "completed": is_completed,
+        "expected": expected,
+        "processed": processed,
         "updated_at": now,
         "updated_by": user_name
     }
@@ -818,7 +847,24 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
         {"$set": {"implementation_matrix": matrix, "updated_at": now}}
     )
 
-    # Recalcular progreso para proyecto single
+    # Bitácora automática si cambió la cantidad procesada
+    if processed != old_processed:
+        pct = round((processed / expected * 100)) if expected > 0 else 0
+        bitacora_text = f"[Matriz] {phase_update.phase} — {bank_key}/{phase_update.product_name}: {processed}/{expected} ({pct}%). Actualizado por {user_name}."
+        bitacora_entry = {
+            "entry_id": f"log_{uuid.uuid4().hex[:8]}",
+            "text": bitacora_text,
+            "execution_date": now[:10],
+            "created_at": now,
+            "created_by": user_name,
+            "auto_generated": True,
+        }
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$push": {"bitacora": bitacora_entry}}
+        )
+
+    # Recalcular progreso
     updated_project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if updated_project:
         progress = _calculate_single_progress(updated_project)
@@ -827,7 +873,15 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
             {"$set": {"rollup_progress": progress}}
         )
 
-    return {"message": "Fase actualizada", "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
+    return {
+        "message": "Fase actualizada",
+        "bank": bank_key,
+        "product": phase_update.product_name,
+        "phase": phase_update.phase,
+        "expected": expected,
+        "processed": processed,
+        "completed": is_completed
+    }
 
 
 @router.put("/projects/{project_id}/stores/{store_id}/matrix/phase")
@@ -889,6 +943,76 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
         )
 
     return {"message": "Fase de tienda actualizada", "store_id": store_id, "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
+
+
+@router.put("/projects/{project_id}/implementation-fields")
+async def update_implementation_fields(project_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualizar campos de Integrador y Aplicativo en el proyecto."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    update_set = {}
+    if "integrator_name" in body:
+        update_set["integrator_name"] = body["integrator_name"]
+    if "application_name" in body:
+        update_set["application_name"] = body["application_name"]
+    if update_set:
+        update_set["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.projects.update_one({"project_id": project_id}, {"$set": update_set})
+    return {"message": "Campos actualizados", **update_set}
+
+
+@router.post("/projects/{project_id}/implementation-serials")
+async def add_implementation_serials(project_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Agregar seriales de hardware en la vista de implementación."""
+    current_user = await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    serials = body.get("serials", [])
+    if not serials:
+        raise HTTPException(status_code=400, detail="Debe proporcionar al menos un serial")
+
+    existing = project.get("implementation_serials", [])
+    new_serials = [s.strip() for s in serials if s.strip() and s.strip() not in existing]
+    all_serials = existing + new_serials
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": {"implementation_serials": all_serials, "updated_at": now}}
+    )
+
+    # Bitácora automática
+    if new_serials:
+        bitacora_entry = {
+            "entry_id": f"log_{uuid.uuid4().hex[:8]}",
+            "text": f"[Seriales] Se cargaron {len(new_serials)} serial(es) en implementación: {', '.join(new_serials[:5])}{'...' if len(new_serials) > 5 else ''}. Por {user_name}.",
+            "execution_date": now[:10],
+            "created_at": now,
+            "created_by": user_name,
+            "auto_generated": True,
+        }
+        await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
+
+    return {"message": f"{len(new_serials)} serial(es) agregados", "total_serials": len(all_serials), "serials": all_serials}
+
+
+@router.delete("/projects/{project_id}/implementation-serials/{serial}")
+async def remove_implementation_serial(project_id: str, serial: str, authorization: Optional[str] = Header(None)):
+    """Eliminar un serial de implementación."""
+    current_user = await get_current_user(authorization)
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$pull": {"implementation_serials": serial}}
+    )
+    return {"message": f"Serial {serial} eliminado"}
+
+
 
 
 # ==================== BITÁCORA ====================
