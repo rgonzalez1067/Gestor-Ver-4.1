@@ -649,7 +649,7 @@ class ExchangeRate(BaseModel):
 
 # ==================== PROJECT MODELS ====================
 
-PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "Detenido por Cliente/Banco", "Finalizado / Producción"]
+PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "Suspendido por Cliente", "Suspendido por Banco", "Finalizado / Producción"]
 
 class ProjectNote(BaseModel):
     note_id: str = Field(default_factory=lambda: f"pn_{uuid.uuid4().hex[:8]}")

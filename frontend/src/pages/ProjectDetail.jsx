@@ -198,6 +198,7 @@ const ProjectDetail = () => {
   const [editingIntegrator, setEditingIntegrator] = useState(false);
   const [integratorName, setIntegratorName] = useState('');
   const [applicationName, setApplicationName] = useState('');
+  const [integratorsList, setIntegratorsList] = useState([]);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -216,6 +217,11 @@ const ProjectDetail = () => {
       setApplicationName(project.application_name || '');
     }
   }, [project]);
+
+  // Cargar lista de integradores para el selector
+  useEffect(() => {
+    api.get('/integrators').then(r => setIntegratorsList(r.data || [])).catch(() => {});
+  }, []);
 
   // Permisos: determinar si el usuario actual puede editar
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -248,11 +254,25 @@ const ProjectDetail = () => {
   const handleSerialFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const lines = text.split(/[\n\r]+/).map(l => l.split(/[,;\t]/)[0].trim()).filter(Boolean);
-    // Skip header if it looks like one
-    const serials = lines[0]?.toLowerCase().includes('serial') ? lines.slice(1) : lines;
-    if (serials.length) addSerials(serials);
+    try {
+      const text = await file.text();
+      const lines = text.split(/[\n\r]+/).map(l => {
+        // Tomar solo la primera columna (CSV/TSV)
+        const cell = l.split(/[,;\t]/)[0].trim();
+        // Validar: debe ser alfanumérico, sin caracteres de control, longitud razonable
+        return cell;
+      }).filter(s => s && s.length >= 3 && s.length <= 50 && /^[A-Za-z0-9\-_.]+$/.test(s));
+      // Skip header si parece un encabezado
+      const serials = lines[0]?.toLowerCase().includes('serial') || lines[0]?.toLowerCase().includes('numero') ? lines.slice(1) : lines;
+      if (serials.length === 0) {
+        toast.error('No se encontraron seriales válidos en el archivo. Asegúrese de que los seriales estén en la primera columna, sean alfanuméricos y tengan entre 3 y 50 caracteres.');
+        return;
+      }
+      toast.info(`Se encontraron ${serials.length} seriales válidos en el archivo`);
+      addSerials(serials);
+    } catch (err) {
+      toast.error('Error al leer el archivo. Use formato CSV o TXT con un serial por línea.');
+    }
     if (serialFileRef.current) serialFileRef.current.value = '';
   };
 
@@ -287,6 +307,20 @@ const ProjectDetail = () => {
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar fase');
+    }
+  };
+
+  // Matrix update para stores (multitienda)
+  const updateStoreMatrixQuantity = async (storeId, bankName, productName, phase, expected, processed) => {
+    try {
+      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+        bank_name: bankName, product_name: productName, phase,
+        completed: processed >= expected && expected > 0,
+        expected, processed
+      });
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al actualizar fase de tienda');
     }
   };
 
@@ -779,7 +813,8 @@ const ProjectDetail = () => {
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
                   project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
                   project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                  project.status === 'Detenido por Cliente/Banco' ? 'bg-red-100 text-red-800 border-red-200' :
+                  project.status === 'Suspendido por Cliente' ? 'bg-red-100 text-red-800 border-red-200' :
+                  project.status === 'Suspendido por Banco' ? 'bg-orange-100 text-orange-800 border-orange-200' :
                   'bg-emerald-100 text-emerald-800 border-emerald-200'
                 }`} data-testid="project-status">{project.status}</span>
                 {isMultistore && (
@@ -844,13 +879,29 @@ const ProjectDetail = () => {
                     <>
                       <div>
                         <p className="text-xs text-slate-500 mb-1">Integrador</p>
-                        <Input value={integratorName} onChange={e => setIntegratorName(e.target.value)}
-                          placeholder="Stand Alone" className="h-7 text-xs" data-testid="integrator-input" />
+                        <Select value={integratorName} onValueChange={(v) => {
+                          setIntegratorName(v);
+                          if (v === 'Stand Alone') { setApplicationName(''); }
+                          else {
+                            const integ = integratorsList.find(i => i.name === v);
+                            if (integ?.app_name) setApplicationName(integ.app_name);
+                          }
+                        }}>
+                          <SelectTrigger className="h-7 text-xs" data-testid="integrator-select">
+                            <SelectValue placeholder="Seleccione integrador..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Stand Alone">Stand Alone</SelectItem>
+                            {integratorsList.map(integ => (
+                              <SelectItem key={integ.integrator_id || integ.name} value={integ.name}>{integ.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 mb-1">Aplicativo</p>
                         <Input value={applicationName} onChange={e => setApplicationName(e.target.value)}
-                          placeholder="Nombre del aplicativo" className="h-7 text-xs" data-testid="application-input" />
+                          placeholder="Se autocompleta del integrador" className="h-7 text-xs" data-testid="application-input" />
                       </div>
                       <div className="flex gap-1">
                         <Button size="sm" className="h-6 text-[10px]" onClick={saveIntegratorFields}>Guardar</Button>
@@ -1137,7 +1188,9 @@ const ProjectDetail = () => {
                           <tbody>
                             {storeBankNames.map(bk => (
                               <StoreBankSection key={bk} bankName={bk} products={Object.keys(storeMatrix[bk])}
-                                matrixData={storeMatrix[bk]} storeId={store.store_id} onTogglePhase={toggleStorePhase} phases={STORE_PHASES} />
+                                matrixData={storeMatrix[bk]} storeId={store.store_id}
+                                onUpdateStoreQuantity={updateStoreMatrixQuantity}
+                                phases={STORE_PHASES} readOnly={!canEditMatrix} expectedQty={store.box_count || 0} />
                             ))}
                           </tbody>
                         </table>
@@ -2028,7 +2081,7 @@ const MultistoreBankSection = ({ bankName, products, rollupBankData, bankExecute
 
 
 // ==================== STORE: Bank Section ====================
-const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePhase, phases }) => {
+const StoreBankSection = ({ bankName, products, matrixData, storeId, onUpdateStoreQuantity, phases, readOnly, expectedQty }) => {
   return (
     <>
       <tr className="bg-blue-50 border-t-2 border-blue-200">
@@ -2040,18 +2093,43 @@ const StoreBankSection = ({ bankName, products, matrixData, storeId, onTogglePha
           <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
             <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
             {phases.map(phase => {
-              const d = pd[phase]; const done = d?.completed || false;
+              const d = pd[phase] || {};
+              const expected = d.expected || expectedQty || 0;
+              const processed = d.processed || 0;
+              const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
               return (
-                <td key={phase} className="px-3 py-2.5 text-center border-l border-slate-100">
-                  <button onClick={() => onTogglePhase(storeId, bankName, productName, phase, done)}
-                    className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-all ${done ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                    title={done ? `${phase}: ${d?.updated_by || ''}` : `Marcar ${phase}`}
-                    data-testid={`store-phase-${storeId}-${bankName}-${productName}-${phase}`}>
-                    {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-                  </button>
+                <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
+                  <div className="flex flex-col items-center gap-1">
+                    <MiniPie percent={pct} size={26} />
+                    <div className="flex items-center gap-0.5">
+                      {readOnly ? (
+                        <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>
+                      ) : (
+                        <>
+                          <input type="number" min={0} value={processed}
+                            onChange={e => onUpdateStoreQuantity(storeId, bankName, productName, phase, expected, parseInt(e.target.value) || 0)}
+                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
+                            data-testid={`store-qty-proc-${storeId}-${bankName}-${productName}-${phase}`} />
+                          <span className="text-[10px] text-slate-400">/</span>
+                          <input type="number" min={0} value={expected}
+                            onChange={e => onUpdateStoreQuantity(storeId, bankName, productName, phase, parseInt(e.target.value) || 0, processed)}
+                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
+                            data-testid={`store-qty-exp-${storeId}-${bankName}-${productName}-${phase}`} />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </td>);
             })}
-            <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400">{Object.values(pd).filter(p => p?.completed).length}/{phases.length}</td>
+            <td className="px-3 py-2.5 text-center border-l border-slate-100">
+              {(() => {
+                const completedPhases = phases.filter(p => {
+                  const d = pd[p] || {};
+                  return (d.processed || 0) >= (d.expected || 0) && (d.expected || 0) > 0;
+                }).length;
+                return <span className="text-xs font-bold text-slate-500">{completedPhases}/{phases.length}</span>;
+              })()}
+            </td>
           </tr>);
       })}
     </>

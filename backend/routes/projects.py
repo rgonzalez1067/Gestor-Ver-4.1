@@ -110,7 +110,7 @@ async def get_project_stats(authorization: Optional[str] = Header(None)):
     total = await db.projects.count_documents({})
     pending = await db.projects.count_documents({"status": "Pendiente por Asignar"})
     in_progress = await db.projects.count_documents({"status": "Asignado / En Proceso"})
-    blocked = await db.projects.count_documents({"status": "Detenido por Cliente/Banco"})
+    blocked = await db.projects.count_documents({"status": {"$in": ["Suspendido por Cliente", "Suspendido por Banco"]}})
     completed = await db.projects.count_documents({"status": "Finalizado / Producción"})
     irregular = await db.projects.count_documents({"is_irregular": True})
     return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed, "irregular": irregular}
@@ -917,8 +917,18 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
 
+    # Obtener estado anterior
+    old_data = matrix[bank_key][phase_update.product_name].get(phase_update.phase, {})
+    old_processed = old_data.get("processed", 0)
+
+    expected = phase_update.expected if phase_update.expected is not None else old_data.get("expected", store.get("box_count", 0))
+    processed = phase_update.processed if phase_update.processed is not None else old_data.get("processed", 0)
+    is_completed = processed >= expected and expected > 0
+
     matrix[bank_key][phase_update.product_name][phase_update.phase] = {
-        "completed": phase_update.completed,
+        "completed": is_completed,
+        "expected": expected,
+        "processed": processed,
         "updated_at": now,
         "updated_by": user_name
     }
@@ -931,6 +941,21 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
             "updated_at": now
         }}
     )
+
+    # Bitácora automática si cambió la cantidad procesada
+    if processed != old_processed:
+        pct = round((processed / expected * 100)) if expected > 0 else 0
+        store_name = store.get("name", store_id)
+        bitacora_text = f"[Matriz Tienda {store_name}] {phase_update.phase} — {bank_key}/{phase_update.product_name}: {processed}/{expected} ({pct}%). Por {user_name}."
+        bitacora_entry = {
+            "entry_id": f"log_{uuid.uuid4().hex[:8]}",
+            "text": bitacora_text,
+            "execution_date": now[:10],
+            "created_at": now,
+            "created_by": user_name,
+            "auto_generated": True,
+        }
+        await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
     # Recalcular roll-up de la matriz principal
     # Re-leer el proyecto con la tienda actualizada
