@@ -5,29 +5,34 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Reportes Contables (Actualizado Abr 2026)
-- **Kardex de Activos** — Costo Promedio Ponderado + exportar Excel
-- **Mayor de Activos** — PEPS/FIFO en Bs. + exportar Excel (NUEVO)
-- **Relación de Salidas Facturadas** — NUEVO: Salidas de inventario agrupadas por almacén, filtradas por rango de fechas, con Nro. de Factura, Cliente, Cotización, Operador + exportar Excel
+### Proyectos — Optimizaciones de Gestión (Abr 2026)
 
-### Cotizaciones — Entrega de Equipos
-- **Nro. de Factura obligatorio** en DeliveryDialog para Equipos/MPOS/Fast Track
-- La referencia del movimiento de inventario incluye: `Factura: XXX | Cotización: COT-XXXX`
-- El nro. de factura se almacena en `delivery_invoice_number` de la cotización
+#### Permisos de Edición:
+- Solo el implementador asignado y su supervisor directo pueden editar la matriz
+- Admin siempre tiene acceso completo
+- Resto del personal: solo lectura
 
-### Flujo de Reparaciones PYME
-- Plantillas correctas por acción (repair_quote_sent, repair_approved, etc.)
-- Helper `get_email_template()` busca BD → defaults del código
-- Sincronización automática de plantillas a MongoDB al iniciar
+#### Header "Detalle para Implementación":
+- **Integrador**: Campo editable, default "Stand Alone" si vacío
+- **Aplicativo**: Campo editable
+- **Seriales (Implementación)**: Carga manual y por Excel (.csv/.xlsx), display en header
+
+#### Matriz de Implementación con Cantidades:
+- Reemplaza checkmarks binarios por campos numéricos: Esperado/Procesado
+- **Gráfico de Pie** (MiniPie SVG) por cada fase mostrando % de avance
+- Colores: verde (100%), azul (>=50%), amarillo (>0%), gris (0%)
+
+#### Bitácora Automática:
+- Registro automático al cambiar cantidades en la matriz (fase, valor, fecha/hora)
+- Registro automático al cargar seriales
+
+### Cotizaciones
+- Precio Bs/USD en vez de Precio Efectivo (17 ocurrencias corregidas)
+- Filtro PinPad sin restricción por clasificación
+- Flujo Reparaciones con plantillas correctas
 
 ### Clientes
 - Comunicaciones, Plantillas, Bitácora con hora precisa
-
-## Archivos Clave
-- `/app/frontend/src/pages/InvoicedExitsReport.jsx` — NUEVO reporte Salidas Facturadas
-- `/app/backend/routes/inventory.py` — Endpoint invoiced-exits-report
-- `/app/frontend/src/components/quotes/DeliveryDialog.jsx` — Campo invoiceNumber obligatorio
-- `/app/frontend/src/pages/AssetLedgerReport.jsx` — Agregado export Excel
 
 ## Backlog
 - **P1**: Sistema de Notificaciones Push
