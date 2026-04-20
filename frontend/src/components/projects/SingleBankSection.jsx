@@ -5,7 +5,7 @@ import { MiniPie } from './MiniPie';
 const PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 
 // ==================== SINGLE BANK: Quantity-based Matrix ====================
-export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, onUpdateCascade, onFillAll, bankExecutedLevels, onOpenNotif, readOnly, expectedQty, hideBankNotif }) => {
+export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, onUpdateCascade, onFillPhase, bankExecutedLevels, onOpenNotif, readOnly, expectedQty, hideBankNotif }) => {
   return (
     <>
       <tr className="bg-blue-50 border-t-2 border-blue-200">
@@ -26,14 +26,7 @@ export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuan
         return (
           <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
             <td className="px-4 py-2.5 text-sm text-slate-700">
-              <div className="flex items-center gap-1.5">
-                {!readOnly && (
-                  <button onClick={() => onFillAll(bankName, productName)}
-                    className="w-5 h-5 rounded bg-slate-100 text-slate-500 hover:bg-emerald-500 hover:text-white text-[9px] font-black flex items-center justify-center shrink-0 transition-colors"
-                    title="Completar todas las fases (T)" data-testid={`fill-all-${bankName}-${productName}`}>T</button>
-                )}
-                <span className="truncate">{productName}</span>
-              </div>
+              <span className="truncate">{productName}</span>
             </td>
             {PHASES.map((phase, phaseIdx) => {
               const pd = phases[phase] || {};
@@ -41,10 +34,19 @@ export const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuan
               const processed = pd.processed || 0;
               const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
               const isRecibido = phaseIdx === 0;
+              const isComplete = processed >= expected && expected > 0;
               return (
                 <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
                   <div className="flex flex-col items-center gap-1">
-                    <MiniPie percent={pct} size={28} />
+                    <div className="flex items-center gap-1">
+                      <MiniPie percent={pct} size={28} />
+                      {!readOnly && !isComplete && expected > 0 && (
+                        <button onClick={() => onFillPhase(bankName, productName, phase, expected)}
+                          className="w-5 h-5 rounded bg-slate-100 text-slate-500 hover:bg-emerald-500 hover:text-white text-[9px] font-black flex items-center justify-center shrink-0 transition-colors"
+                          title={`Completar "${phase}" (procesado = esperado)`}
+                          data-testid={`fill-phase-${bankName}-${productName}-${phase}`}>T</button>
+                      )}
+                    </div>
                     <div className="flex items-center gap-0.5">
                       {readOnly ? (
                         <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>

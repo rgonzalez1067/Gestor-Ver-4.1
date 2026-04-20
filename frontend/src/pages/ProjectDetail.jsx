@@ -345,24 +345,20 @@ const ProjectDetail = () => {
     }
   };
 
-  // Fill-all (T): iguala processed=expected en todas las fases del producto (Single)
-  const fillAllPhases = async (bankName, productName) => {
+  // Fill-single-phase (T): iguala processed=expected en UNA fase específica del producto (Single)
+  const fillPhaseToExpected = async (bankName, productName, phase, expected) => {
     try {
-      const matrixData = (project?.implementation_matrix?.[bankName]?.[productName]) || {};
-      const baseExpected = project?.box_count || project?.cantidad_cajas || 0;
-      await Promise.all(PHASES.map(phase => {
-        const pd = matrixData[phase] || {};
-        const expected = pd.expected || baseExpected;
-        return api.put(`/projects/${projectId}/matrix/phase`, {
-          bank_name: bankName, product_name: productName, phase,
-          completed: expected > 0,
-          expected, processed: expected,
-        });
-      }));
+      if (!expected || expected <= 0) {
+        toast.error('Defina primero la cantidad Esperada');
+        return;
+      }
+      await api.put(`/projects/${projectId}/matrix/phase`, {
+        bank_name: bankName, product_name: productName, phase,
+        completed: true, expected, processed: expected,
+      });
       fetchProject();
-      toast.success(`${productName}: completado (${bankName})`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al completar fases');
+      toast.error(err.response?.data?.detail || 'Error al completar fase');
     }
   };
 
@@ -386,24 +382,19 @@ const ProjectDetail = () => {
     }
   };
 
-  const fillAllStorePhases = async (storeId, bankName, productName) => {
+  const fillStorePhaseToExpected = async (storeId, bankName, productName, phase, expected) => {
     try {
-      const store = project?.stores?.find(s => s.store_id === storeId);
-      const matrixData = (store?.implementation_matrix?.[bankName]?.[productName]) || {};
-      const baseExpected = store?.box_count || 0;
-      await Promise.all(STORE_PHASES.map(phase => {
-        const pd = matrixData[phase] || {};
-        const expected = pd.expected || baseExpected;
-        return api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
-          bank_name: bankName, product_name: productName, phase,
-          completed: expected > 0,
-          expected, processed: expected,
-        });
-      }));
+      if (!expected || expected <= 0) {
+        toast.error('Defina primero la cantidad Esperada');
+        return;
+      }
+      await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+        bank_name: bankName, product_name: productName, phase,
+        completed: true, expected, processed: expected,
+      });
       fetchProject();
-      toast.success(`${productName}: completado (${bankName})`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al completar fases');
+      toast.error(err.response?.data?.detail || 'Error al completar fase');
     }
   };
 
@@ -1178,10 +1169,13 @@ const ProjectDetail = () => {
                     Notificación Única (Cliente y Banco)
                   </Button>
                 )}
-                <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
-                  {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
-                  Notificaciones
-                </Button>
+                {/* Botón Notificaciones general — se oculta en Single con 1 banco (usa Notificación Única) */}
+                {!(!isMultistore && bankNames.length === 1) && (
+                  <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
+                    {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
+                    Notificaciones
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1241,7 +1235,7 @@ const ProjectDetail = () => {
                           ) : (
                             <SingleBankSection key={bankName} bankName={bankName} products={products}
                               matrixData={matrix[bankName]} onUpdateQuantity={updateMatrixQuantity}
-                              onUpdateCascade={updateMatrixCascade} onFillAll={fillAllPhases}
+                              onUpdateCascade={updateMatrixCascade} onFillPhase={fillPhaseToExpected}
                               bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)}
                               readOnly={!canEditMatrix} expectedQty={project.box_count || project.cantidad_cajas || 0}
                               hideBankNotif={bankNames.length === 1} />
@@ -1302,7 +1296,7 @@ const ProjectDetail = () => {
                                 matrixData={storeMatrix[bk]} storeId={store.store_id}
                                 onUpdateStoreQuantity={updateStoreMatrixQuantity}
                                 onUpdateStoreCascade={updateStoreMatrixCascade}
-                                onFillAllStore={fillAllStorePhases}
+                                onFillStorePhase={fillStorePhaseToExpected}
                                 phases={STORE_PHASES} readOnly={!canEditMatrix} expectedQty={store.box_count || 0} />
                             ))}
                           </tbody>
