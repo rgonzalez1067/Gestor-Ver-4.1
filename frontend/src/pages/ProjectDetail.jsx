@@ -16,7 +16,11 @@ import {
   Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2
 } from 'lucide-react';
 
-const PHASES = ['Notificado', 'Recibido', 'Configurado', 'Testeado', 'En Producción'];
+import { SingleBankSection } from '../components/projects/SingleBankSection';
+import { MultistoreBankSection } from '../components/projects/MultistoreBankSection';
+import { StoreBankSection } from '../components/projects/StoreBankSection';
+
+const PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 const STORE_PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 const PHASE_COLORS = {
   'Notificado': 'bg-lime-100 text-lime-800',
@@ -322,6 +326,87 @@ const ProjectDetail = () => {
     }
   };
 
+  // Cascade: actualiza expected en todas las fases, preservando el processed actual por fase (Single)
+  const updateMatrixCascade = async (bankName, productName, newExpected, currentRecibidoProcessed) => {
+    try {
+      const matrixData = (project?.implementation_matrix?.[bankName]?.[productName]) || {};
+      await Promise.all(PHASES.map(phase => {
+        const pd = matrixData[phase] || {};
+        const processed = phase === 'Recibido' ? currentRecibidoProcessed : (pd.processed || 0);
+        return api.put(`/projects/${projectId}/matrix/phase`, {
+          bank_name: bankName, product_name: productName, phase,
+          completed: processed >= newExpected && newExpected > 0,
+          expected: newExpected, processed,
+        });
+      }));
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al actualizar matriz en cascada');
+    }
+  };
+
+  // Fill-all (T): iguala processed=expected en todas las fases del producto (Single)
+  const fillAllPhases = async (bankName, productName) => {
+    try {
+      const matrixData = (project?.implementation_matrix?.[bankName]?.[productName]) || {};
+      const baseExpected = project?.box_count || project?.cantidad_cajas || 0;
+      await Promise.all(PHASES.map(phase => {
+        const pd = matrixData[phase] || {};
+        const expected = pd.expected || baseExpected;
+        return api.put(`/projects/${projectId}/matrix/phase`, {
+          bank_name: bankName, product_name: productName, phase,
+          completed: expected > 0,
+          expected, processed: expected,
+        });
+      }));
+      fetchProject();
+      toast.success(`${productName}: completado (${bankName})`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al completar fases');
+    }
+  };
+
+  // Store: cascade + fill-all (Multitienda)
+  const updateStoreMatrixCascade = async (storeId, bankName, productName, newExpected, currentRecibidoProcessed) => {
+    try {
+      const store = project?.stores?.find(s => s.store_id === storeId);
+      const matrixData = (store?.implementation_matrix?.[bankName]?.[productName]) || {};
+      await Promise.all(STORE_PHASES.map(phase => {
+        const pd = matrixData[phase] || {};
+        const processed = phase === 'Recibido' ? currentRecibidoProcessed : (pd.processed || 0);
+        return api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+          bank_name: bankName, product_name: productName, phase,
+          completed: processed >= newExpected && newExpected > 0,
+          expected: newExpected, processed,
+        });
+      }));
+      fetchProject();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al actualizar matriz en cascada');
+    }
+  };
+
+  const fillAllStorePhases = async (storeId, bankName, productName) => {
+    try {
+      const store = project?.stores?.find(s => s.store_id === storeId);
+      const matrixData = (store?.implementation_matrix?.[bankName]?.[productName]) || {};
+      const baseExpected = store?.box_count || 0;
+      await Promise.all(STORE_PHASES.map(phase => {
+        const pd = matrixData[phase] || {};
+        const expected = pd.expected || baseExpected;
+        return api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+          bank_name: bankName, product_name: productName, phase,
+          completed: expected > 0,
+          expected, processed: expected,
+        });
+      }));
+      fetchProject();
+      toast.success(`${productName}: completado (${bankName})`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al completar fases');
+    }
+  };
+
   const fetchTemplates = async () => {
     try {
       const res = await api.get('/email-templates?context=IMPLEMENTACION');
@@ -381,6 +466,7 @@ const ProjectDetail = () => {
     if (!project) return [];
     const nh = project.notification_history || {};
     const key = target.type === 'client' ? 'client' : `bank_${target.bankName}`;
+    // Para bank_client usamos el historial del banco (donde se registran los envíos combinados)
     return nh[key] || [];
   };
 
@@ -1079,10 +1165,24 @@ const ProjectDetail = () => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-slate-900">Matriz de Implementación</h2>
-              <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
-                {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
-                Notificaciones
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Notificación Única para proyectos Single con un solo banco */}
+                {!isMultistore && bankNames.length === 1 && (
+                  <Button
+                    onClick={() => openNotifDialog('bank_client', bankNames[0])}
+                    disabled={isLocked}
+                    className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'} text-white`}
+                    data-testid="notif-bank-client-btn"
+                  >
+                    <BellRing size={16} />
+                    Notificación Única (Cliente y Banco)
+                  </Button>
+                )}
+                <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
+                  {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
+                  Notificaciones
+                </Button>
+              </div>
             </div>
 
             {/* Hard Stop */}
@@ -1141,8 +1241,10 @@ const ProjectDetail = () => {
                           ) : (
                             <SingleBankSection key={bankName} bankName={bankName} products={products}
                               matrixData={matrix[bankName]} onUpdateQuantity={updateMatrixQuantity}
+                              onUpdateCascade={updateMatrixCascade} onFillAll={fillAllPhases}
                               bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)}
-                              readOnly={!canEditMatrix} expectedQty={project.box_count || project.cantidad_cajas || 0} />
+                              readOnly={!canEditMatrix} expectedQty={project.box_count || project.cantidad_cajas || 0}
+                              hideBankNotif={bankNames.length === 1} />
                           );
                         })}
                       </tbody>
@@ -1199,6 +1301,8 @@ const ProjectDetail = () => {
                               <StoreBankSection key={bk} bankName={bk} products={Object.keys(storeMatrix[bk])}
                                 matrixData={storeMatrix[bk]} storeId={store.store_id}
                                 onUpdateStoreQuantity={updateStoreMatrixQuantity}
+                                onUpdateStoreCascade={updateStoreMatrixCascade}
+                                onFillAllStore={fillAllStorePhases}
                                 phases={STORE_PHASES} readOnly={!canEditMatrix} expectedQty={store.box_count || 0} />
                             ))}
                           </tbody>
@@ -1386,7 +1490,7 @@ const ProjectDetail = () => {
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
           <DialogContent className="max-w-lg" data-testid="notif-dialog">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.bankName}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.type === 'bank_client' ? `Cliente + ${notifTarget?.bankName}` : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               {/* Mostrar TODOS los destinatarios del proyecto agrupados */}
@@ -1473,7 +1577,7 @@ const ProjectDetail = () => {
                           <div>
                             <p className="text-sm font-semibold text-slate-800">Próximo envío: [{nextPrefix}]</p>
                             <p className="text-xs text-slate-500">
-                              Plantilla: <span className="font-medium">{notifTarget?.type === 'client' ? 'Notificación de Proyecto — Cliente' : 'Notificación de Proyecto — Banco'}</span>
+                              Plantilla: <span className="font-medium">{notifTarget?.type === 'client' ? 'Notificación de Proyecto — Cliente' : notifTarget?.type === 'bank_client' ? 'Notificación de Proyecto Banco y Cliente' : 'Notificación de Proyecto — Banco'}</span>
                             </p>
                           </div>
                         </div>
@@ -1960,189 +2064,5 @@ const ProjectDetail = () => {
   );
 };
 
-
-// ==================== SINGLE: Bank Section ====================
-// ==================== Mini Pie Chart SVG ====================
-const MiniPie = ({ percent, size = 28 }) => {
-  const r = (size - 4) / 2;
-  const c = size / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (percent / 100) * circumference;
-  const color = percent >= 100 ? '#10b981' : percent >= 50 ? '#3b82f6' : percent > 0 ? '#f59e0b' : '#e2e8f0';
-  return (
-    <svg width={size} height={size} className="shrink-0">
-      <circle cx={c} cy={c} r={r} fill="none" stroke="#e2e8f0" strokeWidth={3} />
-      <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth={3}
-        strokeDasharray={circumference} strokeDashoffset={offset}
-        strokeLinecap="round" transform={`rotate(-90 ${c} ${c})`} />
-      <text x={c} y={c} textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight="bold" fill={color}>
-        {percent}%
-      </text>
-    </svg>
-  );
-};
-
-// ==================== SINGLE BANK: Quantity-based Matrix ====================
-const SingleBankSection = ({ bankName, products, matrixData, onUpdateQuantity, bankExecutedLevels, onOpenNotif, readOnly, expectedQty }) => {
-  const lastLevel = bankExecutedLevels.length > 0 ? bankExecutedLevels[bankExecutedLevels.length - 1] : null;
-  return (
-    <>
-      <tr className="bg-blue-50 border-t-2 border-blue-200">
-        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={PHASES.length + 1}><Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}</td>
-        <td className="px-3 py-2 text-center">
-          <Button size="sm" variant="outline" onClick={onOpenNotif}
-            className={`h-7 text-xs ${bankExecutedLevels.length >= 4 ? 'border-emerald-300 text-emerald-700' : bankExecutedLevels.length > 0 ? 'border-blue-300 text-blue-700' : 'border-amber-300 text-amber-700'}`}
-            data-testid={`notif-bank-btn-${bankName}`}>
-            {bankExecutedLevels.length >= 4 ? <CheckCircle2 size={12} className="mr-1" /> : <Bell size={12} className="mr-1" />}
-            {bankExecutedLevels.length > 0 ? `${bankExecutedLevels.length}/4` : 'Notificaciones'}
-          </Button>
-        </td>
-      </tr>
-      {products.map(productName => {
-        const phases = matrixData[productName] || {};
-        return (
-          <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
-            <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
-            {PHASES.map(phase => {
-              const pd = phases[phase] || {};
-              const expected = pd.expected || expectedQty || 0;
-              const processed = pd.processed || 0;
-              const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
-              return (
-                <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
-                  <div className="flex flex-col items-center gap-1">
-                    <MiniPie percent={pct} size={28} />
-                    <div className="flex items-center gap-0.5">
-                      {readOnly ? (
-                        <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>
-                      ) : (
-                        <>
-                          <input type="number" min={0} value={processed}
-                            onChange={e => onUpdateQuantity(bankName, productName, phase, expected, parseInt(e.target.value) || 0)}
-                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
-                            title="Procesados" data-testid={`qty-proc-${bankName}-${productName}-${phase}`} />
-                          <span className="text-[10px] text-slate-400">/</span>
-                          <input type="number" min={0} value={expected}
-                            onChange={e => onUpdateQuantity(bankName, productName, phase, parseInt(e.target.value) || 0, processed)}
-                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
-                            title="Esperados" data-testid={`qty-exp-${bankName}-${productName}-${phase}`} />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </td>);
-            })}
-            <td className="px-3 py-2.5 text-center border-l border-slate-100">
-              {(() => {
-                const totalPhases = PHASES.length;
-                const completedPhases = PHASES.filter(p => {
-                  const pd = phases[p] || {};
-                  return (pd.processed || 0) >= (pd.expected || 0) && (pd.expected || 0) > 0;
-                }).length;
-                return <span className="text-xs font-bold text-slate-500">{completedPhases}/{totalPhases}</span>;
-              })()}
-            </td>
-          </tr>);
-      })}
-    </>
-  );
-};
-
-
-// ==================== MULTISTORE: Bank Section (Read-Only) ====================
-const MultistoreBankSection = ({ bankName, products, rollupBankData, bankExecutedLevels, onOpenNotif }) => {
-  return (
-    <>
-      <tr className="bg-blue-50 border-t-2 border-blue-200">
-        <td className="px-4 py-2 text-sm font-bold text-blue-900"><Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}</td>
-        <td className="px-4 py-2 text-center text-xs text-blue-600 font-medium">
-          {(() => { const pcts = products.map(p => rollupBankData[p] || 0); return `Promedio: ${pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0}%`; })()}
-        </td>
-        <td className="px-3 py-2 text-center">
-          <Button size="sm" variant="outline" onClick={onOpenNotif}
-            className={`h-7 text-xs ${bankExecutedLevels.length >= 4 ? 'border-emerald-300 text-emerald-700' : bankExecutedLevels.length > 0 ? 'border-blue-300 text-blue-700' : 'border-amber-300 text-amber-700'}`}
-            data-testid={`notif-bank-btn-${bankName}`}>
-            {bankExecutedLevels.length >= 4 ? <CheckCircle2 size={12} className="mr-1" /> : <Bell size={12} className="mr-1" />}
-            {bankExecutedLevels.length > 0 ? `${bankExecutedLevels.length}/4` : 'Notificaciones'}
-          </Button>
-        </td>
-      </tr>
-      {products.map(productName => {
-        const pct = rollupBankData[productName] || 0;
-        return (
-          <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
-            <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
-            <td className="px-4 py-2.5 border-l border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-blue-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'}`}
-                    style={{ width: `${Math.min(pct, 100)}%` }} data-testid={`rollup-bar-${bankName}-${productName}`} />
-                </div>
-                <span className={`text-sm font-bold min-w-[45px] text-right ${pct >= 100 ? 'text-emerald-600' : 'text-slate-600'}`}>{pct}%</span>
-              </div>
-            </td>
-            <td className="px-3 py-2.5 text-center border-l border-slate-100 text-xs text-slate-400"><Lock size={12} className="inline text-slate-300" /></td>
-          </tr>);
-      })}
-    </>
-  );
-};
-
-
-// ==================== STORE: Bank Section ====================
-const StoreBankSection = ({ bankName, products, matrixData, storeId, onUpdateStoreQuantity, phases, readOnly, expectedQty }) => {
-  return (
-    <>
-      <tr className="bg-blue-50 border-t-2 border-blue-200">
-        <td className="px-4 py-2 text-sm font-bold text-blue-900" colSpan={phases.length + 2}><Building2 size={14} className="inline mr-2 text-blue-600" />{bankName}</td>
-      </tr>
-      {products.map(productName => {
-        const pd = matrixData[productName] || {};
-        return (
-          <tr key={productName} className="border-t border-slate-100 hover:bg-slate-50">
-            <td className="px-6 py-2.5 text-sm text-slate-700">{productName}</td>
-            {phases.map(phase => {
-              const d = pd[phase] || {};
-              const expected = d.expected || expectedQty || 0;
-              const processed = d.processed || 0;
-              const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
-              return (
-                <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
-                  <div className="flex flex-col items-center gap-1">
-                    <MiniPie percent={pct} size={26} />
-                    <div className="flex items-center gap-0.5">
-                      {readOnly ? (
-                        <span className="text-[10px] font-mono text-slate-600">{processed}/{expected}</span>
-                      ) : (
-                        <>
-                          <input type="number" min={0} value={processed}
-                            onChange={e => onUpdateStoreQuantity(storeId, bankName, productName, phase, expected, parseInt(e.target.value) || 0)}
-                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
-                            data-testid={`store-qty-proc-${storeId}-${bankName}-${productName}-${phase}`} />
-                          <span className="text-[10px] text-slate-400">/</span>
-                          <input type="number" min={0} value={expected}
-                            onChange={e => onUpdateStoreQuantity(storeId, bankName, productName, phase, parseInt(e.target.value) || 0, processed)}
-                            className="w-8 h-5 text-[10px] text-center border border-slate-200 rounded font-mono"
-                            data-testid={`store-qty-exp-${storeId}-${bankName}-${productName}-${phase}`} />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </td>);
-            })}
-            <td className="px-3 py-2.5 text-center border-l border-slate-100">
-              {(() => {
-                const completedPhases = phases.filter(p => {
-                  const d = pd[p] || {};
-                  return (d.processed || 0) >= (d.expected || 0) && (d.expected || 0) > 0;
-                }).length;
-                return <span className="text-xs font-bold text-slate-500">{completedPhases}/{phases.length}</span>;
-              })()}
-            </td>
-          </tr>);
-      })}
-    </>
-  );
-};
 
 export default ProjectDetail;

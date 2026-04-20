@@ -20,7 +20,7 @@ from services.object_storage import init_storage, put_object, get_object
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-IMPLEMENTATION_PHASES = ["Notificado", "Recibido", "Configurado", "Testeado", "En Producción"]
+IMPLEMENTATION_PHASES = ["Recibido", "Configurado", "Testeado", "En Producción"]
 STORE_PHASES = ["Recibido", "Configurado", "Testeado", "En Producción"]  # Sin "Notificado" para tiendas
 PROJECT_PRIORITIES = ["Alta", "Media", "Normal"]
 
@@ -309,7 +309,7 @@ async def notify_bank(project_id: str, body: BankNotifyRequest, authorization: O
 
 
 class SequentialNotifyRequest(BaseModel):
-    target: str  # "client" or "bank"
+    target: str  # "client", "bank", or "bank_client"
     bank_name: Optional[str] = None
     additional_recipients: Optional[List[str]] = None  # CC emails
     custom_html: Optional[str] = None  # Editable preview override
@@ -444,6 +444,71 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
 {template_vars.get('Matriz_Bancos_Productos', '')}
 <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
 <p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
+    elif target == "bank_client":
+        # === Notificación Única (Cliente + Banco) para proyectos Single de un solo banco ===
+        client = None
+        client_id = project.get("client_id")
+        if client_id:
+            client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
+        client_name = project.get("client_name", "Cliente")
+
+        to_list = []
+        # Emails del cliente
+        if client:
+            contacts = client.get("contacts", [])
+            if contacts:
+                primary_email = contacts[0].get("email", "")
+                if primary_email and "@" in primary_email:
+                    to_list.append(primary_email)
+            for c in contacts[1:]:
+                c_email = c.get("email", "")
+                if c_email and "@" in c_email and c_email not in to_list:
+                    to_list.append(c_email)
+            if not to_list:
+                top_email = client.get("email", "")
+                if top_email and "@" in top_email:
+                    to_list.append(top_email)
+
+        # Emails del banco
+        bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
+        if not bank:
+            bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
+        if bank:
+            main_email = bank.get("contact_email", "")
+            if main_email and "@" in main_email and main_email not in to_list:
+                to_list.append(main_email)
+            for c in bank.get("contacts", []):
+                c_email = c.get("email", "")
+                if c_email and "@" in c_email and c_email not in to_list:
+                    to_list.append(c_email)
+
+        entity_label = f"Cliente + Banco ({client_name} / {bank_name})"
+
+        # Bank-specific products + client RIF para la plantilla combinada
+        bank_products = list(project.get("implementation_matrix", {}).get(bank_name, {}).keys())
+        template_vars["bank_name"] = bank_name
+        template_vars["bank_products"] = ", ".join(bank_products)
+        if client:
+            template_vars["client_rif"] = client.get("rif", client.get("tax_id", ""))
+
+        template = await db.email_templates.find_one({"template_id": "project_notify_bank_client"}, {"_id": 0})
+        if template and template.get("body_html"):
+            raw_subject = _render_vars(template.get("subject", "{bank_name} — {Nombre_Cliente} — {project_number}"), template_vars)
+            subject = f"[{prefix_label}] {raw_subject}"
+            html = _render_vars(template.get("body_html", ""), template_vars)
+        else:
+            # Fallback: combina datos del cliente y banco
+            products_html = "".join(f"<li>{p}</li>" for p in bank_products)
+            subject = f"[{prefix_label}] {bank_name} — {client_name} — {project.get('project_number', '')}"
+            html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
+<h2 style="color:#2c3e50;">[{prefix_label}] Implementación {bank_name} — {client_name}</h2>
+{f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
+<p>Proyecto <strong>{project.get('project_number','')}</strong></p>
+<h3 style="color:#2c3e50;">Productos del Banco</h3>
+<ul>{products_html}</ul>
+{template_vars.get('Matriz_Bancos_Productos', '')}
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+<p style="color:#999;font-size:12px;">Correo automático de MegaNexus Gestor.</p></div>"""
     else:
         # === DATA BINDING CORRECTO: extraer emails del banco ===
         bank = await db.banks.find_one({"name": bank_name}, {"_id": 0})
@@ -520,7 +585,13 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     notification_history = project.get("notification_history", {})
 
     # Determinar clave de historial
-    history_key = "client" if target == "client" else f"bank_{bank_name}"
+    if target == "client":
+        history_key = "client"
+    elif target == "bank_client":
+        # Para notificación única, el conteo se basa en el historial del banco
+        history_key = f"bank_{bank_name}"
+    else:
+        history_key = f"bank_{bank_name}"
 
     # Obtener historial para esta entidad
     entity_history = notification_history.get(history_key, [])
@@ -531,6 +602,12 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         client_history = notification_history.get("client", [])
         if not client_history:
             raise HTTPException(status_code=400, detail="Debe notificar al cliente primero")
+        matrix = project.get("implementation_matrix", {})
+        if bank_name not in matrix:
+            raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
+
+    # Para bank_client: validar que el banco exista en la matriz
+    if target == "bank_client":
         matrix = project.get("implementation_matrix", {})
         if bank_name not in matrix:
             raise HTTPException(status_code=404, detail=f"Banco '{bank_name}' no encontrado en la matriz")
@@ -582,6 +659,13 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     entity_history.append(entry)
     notification_history[history_key] = entity_history
 
+    # Para bank_client: registrar el envío también en el historial del cliente
+    if target == "bank_client":
+        client_history_copy = notification_history.get("client", [])
+        client_entry = {**entry, "combined_with_bank": bank_name}
+        client_history_copy.append(client_entry)
+        notification_history["client"] = client_history_copy
+
     update_set = {"notification_history": notification_history, "updated_at": now}
 
     # Primer envío al cliente desbloquea la matriz
@@ -589,6 +673,18 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         update_set["client_notified"] = True
         update_set["client_notified_at"] = now
         update_set["client_notified_by"] = user_name
+
+    # Notificación Única (Cliente + Banco) también desbloquea la matriz
+    if target == "bank_client":
+        if not project.get("client_notified"):
+            update_set["client_notified"] = True
+            update_set["client_notified_at"] = now
+            update_set["client_notified_by"] = user_name
+        # Registrar en bank_notifications (compat)
+        if send_count == 0:
+            bank_notifications = project.get("bank_notifications", {})
+            bank_notifications[bank_name] = {"notified_at": now, "notified_by": user_name, "products": list(project.get("implementation_matrix", {}).get(bank_name, {}).keys()), "email_status": email_result.get("status")}
+            update_set["bank_notifications"] = bank_notifications
 
     # Primer envío al banco registra en bank_notifications (compat)
     if target == "bank" and send_count == 0:

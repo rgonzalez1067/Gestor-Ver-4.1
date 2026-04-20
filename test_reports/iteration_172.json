@@ -1,0 +1,53 @@
+{
+  "summary": "Backend (6/6 pytest PASSED) y Frontend (5/5 UI checks PASSED) para homologación de matriz: eliminación de fase 'Notificado', target 'bank_client' (cliente+banco), botón Notificación Única, botón (T) autocomplete y lógica de cascada expected en Single. Verificación de refactor a /components/projects/ (sin errores de compilación). Multistore StoreBankSection wiring verificado a nivel código (data-testid 'store-fill-all-*', 'store-qty-exp-*' y propagación via onFillAllStore/onUpdateStoreCascade).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ProjectDetail (matriz)",
+        "issues": [
+          "Persisten warnings React de hydration por anidado HTML inválido: '<span> dentro de <tbody>', '<tr> dentro de <span>', '<th> span', '<td> span'. Son cosméticos pero ya fueron reportados en iteration_171 y siguen presentes. Probable causa: algún componente envuelve <tr> en un <span> o usa un Fragment mal tipado al renderizar filas condicionales."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration172_matrix_homolog.py",
+    "/app/test_reports/pytest/pytest_results_iteration172.xml"
+  ],
+  "action_items": [
+    "Opcional: resolver warnings de hydration en la tabla de matriz de implementación (anidado <span>/<tr>/<tbody>). No bloquea funcionalidad."
+  ],
+  "critical_code_review_comments": [
+    "VERIFIED backend: IMPLEMENTATION_PHASES = ['Recibido','Configurado','Testeado','En Producción'] (línea 23 projects.py). PUT /matrix/phase rechaza 'Notificado' con 400 y el mensaje ya no incluye 'Notificado' (línea 883-884).",
+    "VERIFIED backend: PhaseUpdate acepta expected/processed Optional[int] y persiste correctamente (GET confirma).",
+    "VERIFIED backend: /send-notification target='bank_client' combina destinatarios cliente+banco, registra entry en 'client' (con combined_with_bank) y 'bank_{bank}', setea client_notified=True, y agrega bitácora (verificado por el test: ambos historiales se incrementan en +1 y last client tiene combined_with_bank).",
+    "VERIFIED backend: /preview-notification target='bank_client' retorna recipients combinados, entity_label 'Cliente + Banco (...)', y aplica plantilla project_notify_bank_client (resuelto vía _resolve_notification_email).",
+    "VERIFIED backend: /rollup no contiene referencia alguna a 'Notificado'.",
+    "VERIFIED frontend: botón data-testid='notif-bank-client-btn' presente cuando !isMultistore && bankNames.length===1 (ProjectDetail.jsx ~1170-1180).",
+    "VERIFIED frontend: hideBankNotif={bankNames.length===1} oculta botón individual del banco (confirmado que 'notif-bank-btn-Banco Mercantil' NO existe en DOM).",
+    "VERIFIED frontend: botón (T) data-testid='fill-all-{bank}-{product}' dispara fillAllPhases → processed=expected en las 4 fases (test: 0→6 en las 4 fases tras click).",
+    "VERIFIED frontend: cambiar qty-exp-{bank}-{product}-Recibido propaga expected a Configurado/Testeado/EnProducción (test: 6→9 en las 4 después de recarga).",
+    "VERIFIED frontend: importaciones de MiniPie, SingleBankSection, MultistoreBankSection, StoreBankSection desde /components/projects/ compilan sin errores (la página renderiza correctamente).",
+    "VERIFIED (code review) Multistore StoreBankSection: usa data-testid='store-fill-all-{storeId}-{bank}-{product}', 'store-qty-exp-*', 'store-qty-proc-*', wireado con onFillAllStore=fillAllStorePhases y onUpdateStoreCascade=updateStoreMatrixCascade (ProjectDetail línea 1301-1305). No se ejecutó test E2E sobre una tienda por falta de proyecto multistore con stores ya seteadas — pero wiring es idéntico al Single validado.",
+    "NOTE: STORE_PHASES sólo contiene 4 fases (sin 'Notificado'); PUT /stores/{store_id}/matrix/phase también acepta expected/processed en PhaseUpdate."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration172_matrix_homolog.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 passed)",
+    "frontend": "100% (5/5 UI checks passed + code review OK)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / Avila*0426",
+  "seed_data_creation": "Para test de send-notification bank_client se envió una notificación real al proyecto prj_88560c2456db (Banco Mercantil), añadiendo una entrada a notification_history.client (con combined_with_bank) y notification_history.bank_Banco Mercantil — se recomienda limpiar en pruebas futuras si se desea estado virgen. El test modificó expected Recibido temporalmente (6→9→5) en el producto 'Verificación P2C' (restaurado).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Proyecto single con 1 banco disponible: prj_88560c2456db (Banco Mercantil) con client_notified=True. Proyectos multistore disponibles: prj_7016ef388023 (3 bancos, 3 tiendas). Todos los data-testid usados: notif-bank-client-btn, notif-bank-btn-{bank}, fill-all-{bank}-{product}, qty-exp/proc-{bank}-{product}-{phase}, store-fill-all-{storeId}-{bank}-{product}, store-qty-exp/proc-{storeId}-{bank}-{product}-{phase}. El warning de hydration HTML es pre-existente (reportado en iteration_171).",
+  "rca of the issue": "N/A — toda la funcionalidad implementada pasa tests. El único ítem abierto son los warnings de hydration pre-existentes en la tabla de matriz."
+}
