@@ -5,7 +5,37 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Proyectos — Optimizaciones de Gestión (Abr 2026)
+### Proyectos — Homologación de Matriz (Feb 2026)
+
+#### Eliminación de fase "Notificado"
+- Backend `IMPLEMENTATION_PHASES` reducido a 4 fases: `Recibido, Configurado, Testeado, En Producción`.
+- Frontend `PHASES` homologado.
+- PUT `/api/projects/{id}/matrix/phase` rechaza `Notificado` (400).
+
+#### Notificación Única (Cliente + Banco)
+- Nuevo target `bank_client` en `/api/projects/{id}/send-notification` y `/preview-notification`.
+- Usa plantilla `project_notify_bank_client` (seed).
+- Botón `data-testid="notif-bank-client-btn"` visible solo en proyectos Single con UN banco.
+- Registra la notificación en historiales `client` y `bank_{bank}` (cliente lleva flag `combined_with_bank`).
+- Desbloquea `client_notified=True` automáticamente.
+
+#### Botón "(T)" de llenado rápido
+- En Single: `data-testid="fill-all-{bank}-{product}"` → iguala `processed=expected` en las 4 fases.
+- En Multitienda: `data-testid="store-fill-all-{storeId}-{bank}-{product}"`.
+
+#### Lógica de cascada en "Expected"
+- Al modificar `expected` de la fase `Recibido`, se propaga a Configurado/Testeado/En Producción (preservando `processed` de cada fase).
+- Replicado en Single (`updateMatrixCascade`) y Multitienda (`updateStoreMatrixCascade`).
+
+#### Refactor (previene errores Webpack/Babel)
+- Extraídos a `/app/frontend/src/components/projects/`:
+  - `MiniPie.jsx`
+  - `SingleBankSection.jsx`
+  - `MultistoreBankSection.jsx`
+  - `StoreBankSection.jsx`
+- `ProjectDetail.jsx` redujo de 2284 → 2068 líneas.
+
+### Proyectos — Optimizaciones previas (Abr 2026)
 
 #### Permisos de Edición:
 - Solo el implementador asignado y su supervisor directo pueden editar la matriz
@@ -34,7 +64,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 ### Clientes
 - Comunicaciones, Plantillas, Bitácora con hora precisa
 
+## Estado de Pruebas (iteration_172)
+- Backend: 6/6 pytest PASSED (`/app/backend/tests/test_iteration172_matrix_homolog.py`)
+- Frontend: 5/5 UI checks PASSED
+- Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
+
 ## Backlog
-- **P1**: Sistema de Notificaciones Push
-- **P2**: Reportes de Ventas, Roadmap Bancos
-- **P2**: Refactorización monolitos
+- **P1**: Sistema de Notificaciones Push (campana + WebSockets)
+- **P2**: Módulo de Reportes de Ventas
+- **P2**: Lógica "Completado" en Roadmap Bancos
+- **P2**: Refactor monolitos restantes (`Quotes.jsx` >3400 líneas, `quote_actions.py` >3000 líneas)
+- **P3**: Resolver warnings React hydration (`<span>/<tr>/<tbody>` mal anidados) en matriz de implementación
