@@ -718,6 +718,51 @@ PROJECT_EMAIL_TEMPLATES = {
         "is_active": True,
         "is_project_template": True,
     },
+    "project_notify_bank_client": {
+        "template_id": "project_notify_bank_client",
+        "name": "Notificación de Proyecto Banco y Cliente",
+        "description": "Notifica simultáneamente al Banco y al Cliente cuando el proyecto tiene un solo banco",
+        "subject": "Implementación {bank_name} — {Nombre_Cliente} — Proyecto {project_number}",
+        "body_html": """<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;">
+<h2 style="color:#2c3e50;">{notification_subject}</h2>
+<p style="font-size:14px;color:#555;">Proyecto <strong>{project_number}</strong> | Ticket: <strong>{ticket_number}</strong></p>
+<hr style="border:none;border-top:2px solid #3498db;margin:16px 0;">
+
+<h3 style="color:#2c3e50;margin-top:20px;">Datos del Cliente</h3>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;width:100%;">
+<tr><td style="padding:6px 12px 6px 0;color:#666;width:180px;">Razón Social:</td><td style="padding:6px 0;font-weight:bold;">{Nombre_Cliente}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">RIF:</td><td style="padding:6px 0;">{client_rif}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Contacto Principal:</td><td style="padding:6px 0;">{Contacto_Principal}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Sucursal(es):</td><td style="padding:6px 0;">{Nombre_Sucursal}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Cantidad de Cajas:</td><td style="padding:6px 0;font-weight:bold;">{Cantidad_Cajas}</td></tr>
+</table>
+
+<h3 style="color:#2c3e50;margin-top:20px;">Datos del Banco</h3>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;width:100%;">
+<tr><td style="padding:6px 12px 6px 0;color:#666;width:180px;">Banco:</td><td style="padding:6px 0;font-weight:bold;">{bank_name}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Productos:</td><td style="padding:6px 0;">{bank_products}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Tipo de Cotización:</td><td style="padding:6px 0;">{quote_type}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Modelo Pinpad:</td><td style="padding:6px 0;">{pinpad_model}</td></tr>
+</table>
+
+<h3 style="color:#2c3e50;margin-top:20px;">Datos de Implementación</h3>
+<table style="border-collapse:collapse;margin:12px 0;font-size:13px;font-family:Arial,sans-serif;width:100%;">
+<tr><td style="padding:6px 12px 6px 0;color:#666;width:180px;">Integrador:</td><td style="padding:6px 0;font-weight:bold;">{Integrador}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Aplicativo:</td><td style="padding:6px 0;">{Aplicativo_Integracion}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Implementador:</td><td style="padding:6px 0;">{Nombre_Implementador}</td></tr>
+<tr><td style="padding:6px 12px 6px 0;color:#666;">Contacto Implementador:</td><td style="padding:6px 0;">{Correo_Implementador} | {Telefono_Implementador}</td></tr>
+</table>
+
+<div style="margin-top:20px;">
+<h3 style="color:#2c3e50;">Matriz de Implementación</h3>
+{Matriz_Bancos_Productos}
+</div>
+
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+<p style="color:#999;font-size:11px;">Correo automático generado por MegaNexus Gestor. Nivel: {notification_level}</p></div>""",
+        "is_active": True,
+        "is_project_template": True,
+    },
 }
 
 # Generar todas las plantillas por sede

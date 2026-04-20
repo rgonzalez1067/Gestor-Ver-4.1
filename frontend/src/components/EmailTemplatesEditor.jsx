@@ -176,6 +176,15 @@ const PROJECT_TEMPLATE_TYPES = [
     borderColor: 'border-teal-200',
     title: 'Notificacion de Proyecto — Banco',
     description: 'Comunicaciones secuenciales a bancos durante implementacion'
+  },
+  {
+    templateId: 'project_notify_bank_client',
+    icon: Mail,
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-50',
+    borderColor: 'border-indigo-200',
+    title: 'Notificacion de Proyecto Banco y Cliente',
+    description: 'Notifica simultaneamente al Banco y al Cliente cuando el proyecto tiene un solo banco'
   }
 ];
 
@@ -425,6 +434,30 @@ const BASE_TEMPLATE_VARIABLES = {
     { key: 'pinpad_model', label: 'Modelo de Pinpad' },
     { key: 'notification_level', label: 'Nivel de Notificación' },
     { key: 'notification_subject', label: 'Asunto de Notificación' },
+  ],
+  project_notify_bank_client: [
+    { key: 'Nombre_Cliente', label: 'Nombre del Cliente (Razón Social)' },
+    { key: 'Contacto_Principal', label: 'Contacto Principal del Cliente' },
+    { key: 'Nombre_Sucursal', label: 'Nombre de Sucursal(es)' },
+    { key: 'Cantidad_Cajas', label: 'Cantidad de Cajas (PDVs)' },
+    { key: 'Integrador', label: 'Integrador Asignado' },
+    { key: 'Aplicativo_Integracion', label: 'Aplicativo de Integración' },
+    { key: 'Nombre_Implementador', label: 'Nombre del Implementador' },
+    { key: 'Correo_Implementador', label: 'Correo del Implementador' },
+    { key: 'Telefono_Implementador', label: 'Teléfono del Implementador' },
+    { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
+    { key: 'bank_name', label: 'Nombre del Banco' },
+    { key: 'bank_products', label: 'Productos del Banco' },
+    { key: 'project_number', label: 'Nro. de Proyecto' },
+    { key: 'quote_number', label: 'Nro. de Cotización' },
+    { key: 'ticket_number', label: 'Nro. de Ticket' },
+    { key: 'client_rif', label: 'RIF del Cliente' },
+    { key: 'quote_type', label: 'Tipo de Cotización' },
+    { key: 'integrator_app_name', label: 'Aplicativo del Integrador' },
+    { key: 'pinpad_model', label: 'Modelo de Pinpad' },
+    { key: 'notification_level', label: 'Nivel de Notificación' },
+    { key: 'notification_subject', label: 'Asunto de Notificación' },
+    { key: 'assigned_to', label: 'Asignado a' },
   ],
 };
 
