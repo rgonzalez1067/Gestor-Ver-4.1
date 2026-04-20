@@ -7,10 +7,22 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft, Shield, UserCheck, Lock, AlertTriangle } from 'lucide-react';
+import { FlaskConical, Plus, Trash2, FileText, Pencil, Building2, ChevronRight, ArrowRight, CheckCircle2, Clock, ArrowRightLeft, Shield, UserCheck, Lock, AlertTriangle, Mail, Layout } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { useNavigate } from 'react-router-dom';
+import { EntityEmailDialog } from '../components/EntityEmailDialog';
+
+const NP_EMAIL_VARS = [
+  { key: '{{producto}}', desc: 'Nombre del producto' },
+  { key: '{{categoria}}', desc: 'Categoría / componente' },
+  { key: '{{estado}}', desc: 'Estado actual' },
+  { key: '{{desarrollador}}', desc: 'Desarrollador/Líder' },
+  { key: '{{sqa}}', desc: 'Analista SQA' },
+  { key: '{{fecha_entrega}}', desc: 'Fecha de entrega' },
+  { key: '{{banco}}', desc: 'Banco patrocinador' },
+];
 
 const PIPELINE_STATUSES = [
   { id: 'Negociación', label: 'Negociación', color: 'bg-slate-100 text-slate-700 border-slate-300', dot: 'bg-slate-400' },
@@ -56,6 +68,7 @@ const PipelineDots = ({ currentStatus }) => {
 
 export const NewProducts = () => {
   const { canEdit, user: currentUser } = usePermission('nuevos_productos');
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [banks, setBanks] = useState([]);
   const [services, setServices] = useState([]);
@@ -64,6 +77,15 @@ export const NewProducts = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
   const [form, setForm] = useState({ service_id: '', component_type: '', bank_id: '', notes: '' });
+
+  // Notification dialog
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyProduct, setNotifyProduct] = useState(null);
+
+  const openNotifyDialog = (product) => {
+    setNotifyProduct(product);
+    setNotifyOpen(true);
+  };
 
   // Evolution log state
   const [evoOpen, setEvoOpen] = useState(false);
@@ -359,10 +381,15 @@ export const NewProducts = () => {
               </h1>
               <p className="text-sm text-slate-500 mt-1">Pipeline de I+D — Medios de pago en desarrollo antes de despliegue oficial</p>
             </div>
-            {canEdit && <Button onClick={() => setAddOpen(true)} data-testid="add-new-product-btn"
-              className="bg-purple-600 hover:bg-purple-700 text-white">
-              <Plus size={16} className="mr-1.5" />Nuevo Producto
-            </Button>}
+            {canEdit && <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate('/new-products/communications')} data-testid="np-templates-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                <Layout size={16} className="mr-1.5" />Plantillas
+              </Button>
+              <Button onClick={() => setAddOpen(true)} data-testid="add-new-product-btn"
+                className="bg-purple-600 hover:bg-purple-700 text-white">
+                <Plus size={16} className="mr-1.5" />Nuevo Producto
+              </Button>
+            </div>}
           </div>
 
           {/* Stats */}
@@ -427,6 +454,12 @@ export const NewProducts = () => {
                       className="h-7 w-7 p-0 text-purple-500 hover:text-purple-700 shrink-0"
                       data-testid={`np-evo-btn-${p.product_id}`}>
                       <FileText size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" title="Enviar notificación"
+                      onClick={() => openNotifyDialog(p)}
+                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 shrink-0"
+                      data-testid={`np-notify-btn-${p.product_id}`}>
+                      <Mail size={14} />
                     </Button>
                     {canEdit && <Button size="sm" variant="ghost"
                       onClick={() => setDeleteConfirm({ open: true, id: p.product_id, name: p.service_name })}
@@ -819,6 +852,22 @@ export const NewProducts = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Notification Dialog Genérico */}
+        {notifyProduct && (
+          <EntityEmailDialog
+            open={notifyOpen}
+            onClose={() => { setNotifyOpen(false); setNotifyProduct(null); }}
+            onSent={() => {}}
+            context="NUEVOS_PRODUCTOS"
+            title="Comunicación de Nuevo Producto"
+            subtitle={`${notifyProduct.service_name} — ${notifyProduct.bank_name || ''} · ${notifyProduct.status}`}
+            sendEndpoint={`/new-products/${notifyProduct.product_id}/send-email`}
+            previewEndpoint={`/new-products/${notifyProduct.product_id}/preview-email`}
+            variables={NP_EMAIL_VARS}
+            initialRecipients={[]}
+          />
+        )}
       </main>
     </div>
   );

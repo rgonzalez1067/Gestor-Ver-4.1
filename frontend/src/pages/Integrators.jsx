@@ -11,10 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout } from 'lucide-react';
+import { EntityEmailDialog } from '../components/EntityEmailDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { useNavigate } from 'react-router-dom';
+
+const INTEGRATOR_EMAIL_VARS = [
+  { key: '{{nombre_integrador}}', desc: 'Nombre del Integrador' },
+  { key: '{{razon_social}}', desc: 'Razón Social' },
+  { key: '{{rif}}', desc: 'RIF' },
+  { key: '{{email}}', desc: 'Email contacto' },
+  { key: '{{telefono}}', desc: 'Teléfono' },
+  { key: '{{contacto}}', desc: 'Nombre contacto' },
+  { key: '{{estado}}', desc: 'Estado actual' },
+  { key: '{{aplicativo}}', desc: 'Aplicativo' },
+  { key: '{{fase}}', desc: 'Fase de integración' },
+];
 
 const INTEGRATOR_TYPES = ['Integrador', 'Comercio'];
 const INTEGRATION_TYPE_OPTIONS = [
@@ -41,6 +55,7 @@ const CERT_CYCLE = ['P', 'C', 'N/A'];
 
 export const Integrators = () => {
   const { canEdit, canCreate } = usePermission('integradores');
+  const navigate = useNavigate();
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
   const [implementadores, setImplementadores] = useState([]);
@@ -101,6 +116,15 @@ export const Integrators = () => {
   const [emailNewRecipient, setEmailNewRecipient] = useState('');
   const [emailRecipientsList, setEmailRecipientsList] = useState([]);
   const [emailSending, setEmailSending] = useState(false);
+
+  // Notification dialog (genérico)
+  const [notifyDialogOpen, setNotifyDialogOpen] = useState(false);
+  const [notifyIntegrator, setNotifyIntegrator] = useState(null);
+
+  const openNotifyDialog = (intg) => {
+    setNotifyIntegrator(intg);
+    setNotifyDialogOpen(true);
+  };
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -571,6 +595,7 @@ export const Integrators = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
+              <Button variant="outline" onClick={() => navigate('/integrators/communications')} data-testid="integrator-templates-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50"><Layout size={16} className="mr-1" />Plantillas</Button>
               {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>}
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
@@ -884,6 +909,11 @@ export const Integrators = () => {
                               className={`h-7 w-7 p-0 ${intg.has_overdue_commitments ? 'text-amber-500 hover:bg-amber-50 animate-pulse' : 'text-slate-500 hover:bg-slate-100'}`}
                               data-testid={`bitacora-${intg.integrator_id}`} title="Bitácora de gestión">
                               <BookOpen size={13} />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openNotifyDialog(intg)}
+                              className="h-7 w-7 p-0 text-blue-500 hover:bg-blue-50"
+                              data-testid={`notify-${intg.integrator_id}`} title="Enviar notificación">
+                              <Mail size={13} />
                             </Button>
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => openEditDialog(intg)} className="text-brand-blue-600 hover:bg-blue-50 h-7 w-7 p-0" data-testid={`edit-${intg.integrator_id}`}><Pencil size={13} /></Button>}
                             {canEdit && <Button size="sm" variant="ghost" onClick={() => handleDelete(intg.integrator_id)} className="text-red-500 hover:bg-red-50 h-7 w-7 p-0" data-testid={`delete-${intg.integrator_id}`}><Trash2 size={13} /></Button>}
@@ -1555,6 +1585,24 @@ export const Integrators = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Notification Dialog Genérico */}
+      {notifyIntegrator && (
+        <EntityEmailDialog
+          open={notifyDialogOpen}
+          onClose={() => { setNotifyDialogOpen(false); setNotifyIntegrator(null); }}
+          onSent={() => {}}
+          context="INTEGRADORES"
+          title="Comunicación a Integrador"
+          subtitle={`${notifyIntegrator.name}${notifyIntegrator.app_name ? ' — ' + notifyIntegrator.app_name : ''}`}
+          sendEndpoint={`/integrators/${notifyIntegrator.integrator_id}/send-email`}
+          previewEndpoint={`/integrators/${notifyIntegrator.integrator_id}/preview-email`}
+          variables={INTEGRATOR_EMAIL_VARS}
+          initialRecipients={[
+            (notifyIntegrator.contacts && notifyIntegrator.contacts[0]?.email) || notifyIntegrator.email || ''
+          ].filter(Boolean)}
+        />
+      )}
     </div>
   );
 };

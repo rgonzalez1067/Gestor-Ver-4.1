@@ -12,6 +12,7 @@ import { InventoryAccountingReport } from './pages/InventoryAccountingReport';
 import { AssetLedgerReport } from './pages/AssetLedgerReport';
 import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
+import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
@@ -132,6 +133,16 @@ function AppRouter() {
       <Route path="/clients/communications" element={
         <ProtectedRoute>
           <ClientTemplatesConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/integrators/communications" element={
+        <ProtectedRoute>
+          <IntegratorTemplatesConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/new-products/communications" element={
+        <ProtectedRoute>
+          <NewProductTemplatesConfig />
         </ProtectedRoute>
       } />
       <Route path="/taller-equipos" element={
