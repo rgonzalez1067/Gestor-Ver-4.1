@@ -54,7 +54,8 @@ const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 borde
 const CERT_CYCLE = ['P', 'C', 'N/A'];
 
 export const Integrators = () => {
-  const { canEdit, canCreate } = usePermission('integradores');
+  const { canEdit, canCreate, user: currentUser } = usePermission('integradores');
+  const isAdmin = currentUser?.role === 'admin';
   const navigate = useNavigate();
   const [integrators, setIntegrators] = useState([]);
   const [users, setUsers] = useState([]);
@@ -124,6 +125,30 @@ export const Integrators = () => {
   const openNotifyDialog = (intg) => {
     setNotifyIntegrator(intg);
     setNotifyDialogOpen(true);
+  };
+
+  // Purge (admin only)
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+  const [purgeConfirmText, setPurgeConfirmText] = useState('');
+  const [purging, setPurging] = useState(false);
+
+  const handlePurgeAll = async () => {
+    if (purgeConfirmText !== 'BORRAR TODO') {
+      toast.error('Debe escribir exactamente: BORRAR TODO');
+      return;
+    }
+    setPurging(true);
+    try {
+      const res = await api.delete('/integrators/bulk/all');
+      toast.success(res.data.message || 'Integradores eliminados');
+      setPurgeDialogOpen(false);
+      setPurgeConfirmText('');
+      fetchIntegrators();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al vaciar la BD');
+    } finally {
+      setPurging(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
@@ -596,6 +621,10 @@ export const Integrators = () => {
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openSummary()} data-testid="summary-btn" className="border-purple-200 text-purple-700 hover:bg-purple-50"><Filter size={16} className="mr-1" />Resumen</Button>
               <Button variant="outline" onClick={() => navigate('/integrators/communications')} data-testid="integrator-templates-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50"><Layout size={16} className="mr-1" />Plantillas</Button>
+              {isAdmin && (
+                <Button variant="outline" onClick={() => setPurgeDialogOpen(true)} data-testid="purge-integrators-btn"
+                  className="border-rose-200 text-rose-700 hover:bg-rose-50"><Trash2 size={16} className="mr-1" />Vaciar BD</Button>
+              )}
               {canEdit && <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="import-integrators-btn"><Upload size={16} className="mr-1" />Importar</Button>}
               <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn"><FileSpreadsheet size={16} className="mr-1" />Excel</Button>
               <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn"><FileText size={16} className="mr-1" />PDF</Button>
@@ -1582,6 +1611,44 @@ export const Integrators = () => {
                 {emailSending ? 'Enviando...' : 'Enviar Notificacion'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purge Dialog — solo admin */}
+      <Dialog open={purgeDialogOpen} onOpenChange={(o) => { setPurgeDialogOpen(o); if (!o) setPurgeConfirmText(''); }}>
+        <DialogContent className="max-w-md" data-testid="purge-integrators-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600">
+              <AlertCircle size={22} /> Vaciar Base de Datos
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-800">
+              <p className="font-semibold mb-1">⚠ Acción irreversible</p>
+              <p className="text-xs">Esto eliminará <b>TODOS</b> los integradores de la base de datos. La operación se bloqueará si hay cotizaciones asociadas.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-700">Para confirmar, escriba exactamente: <span className="text-rose-600 font-mono">BORRAR TODO</span></label>
+              <Input
+                value={purgeConfirmText}
+                onChange={(e) => setPurgeConfirmText(e.target.value)}
+                placeholder="BORRAR TODO"
+                className="mt-1 font-mono"
+                data-testid="purge-confirm-input"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={handlePurgeAll}
+              disabled={purging || purgeConfirmText !== 'BORRAR TODO'}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              data-testid="purge-confirm-btn"
+            >
+              {purging ? 'Eliminando...' : <><Trash2 size={14} className="mr-1" />Eliminar todos</>}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

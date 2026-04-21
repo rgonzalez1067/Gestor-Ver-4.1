@@ -160,6 +160,32 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
         raise HTTPException(status_code=404, detail="Integrator not found")
     return {"message": "Integrador eliminado exitosamente"}
 
+
+@router.delete("/integrators/bulk/all")
+async def delete_all_integrators(authorization: Optional[str] = Header(None)):
+    """Elimina TODOS los integradores. Solo admin. Rechaza si hay cotizaciones asociadas."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar esta acción")
+
+    # Integridad referencial: bloquear si existe al menos una cotización con integrator_id
+    cots = await db.quotes.count_documents({"integrator_id": {"$exists": True, "$ne": None}})
+    if cots > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede vaciar la BD: hay {cots} cotización(es) asociadas a integradores. Elimine primero esas cotizaciones."
+        )
+
+    result = await db.integrators.delete_many({})
+    # Bitácora de auditoría opcional
+    await db.integrators_bulk_deletions.insert_one({
+        "deleted_count": result.deleted_count,
+        "deleted_by": current_user.get("email"),
+        "deleted_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+        "deleted_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"message": f"Se eliminaron {result.deleted_count} integrador(es)", "deleted_count": result.deleted_count}
+
 @router.put("/integrators/{integrator_id}/assign")
 async def assign_integrator_manager(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Asignar un gestor/implementador a un proyecto de integración y notificar por email."""
