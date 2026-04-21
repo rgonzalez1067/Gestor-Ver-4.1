@@ -1066,6 +1066,123 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
     return {"message": "Fase de tienda actualizada", "store_id": store_id, "bank": bank_key, "product": phase_update.product_name, "phase": phase_update.phase, "completed": phase_update.completed}
 
 
+class BatchMatrixUpdate(BaseModel):
+    phase: str
+    bank_name: str
+    product_name: str
+    store_ids: list
+    reason: Optional[str] = ""
+
+
+@router.post("/projects/{project_id}/matrix/batch-update")
+async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdate, authorization: Optional[str] = Header(None)):
+    """Actualización masiva: para cada tienda seleccionada marca processed=expected en (fase+banco+producto).
+    Solo proyectos multitienda. Registra UNA entrada en bitácora con todo el detalle."""
+    current_user = await get_current_user(authorization)
+    if body.phase not in STORE_PHASES:
+        raise HTTPException(status_code=400, detail=f"Fase inválida. Válidas: {STORE_PHASES}")
+    if not body.store_ids:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos una tienda")
+
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if project.get("project_type") != "multistore":
+        raise HTTPException(status_code=400, detail="Solo proyectos multitienda")
+    if not project.get("client_notified"):
+        raise HTTPException(status_code=400, detail="Debe notificar al cliente primero antes de actualizar la matriz")
+
+    # Permisología: admin, implementador asignado o supervisor
+    user_id = current_user.get("user_id", "")
+    user_role = current_user.get("role", "")
+    cargo = current_user.get("cargo", "")
+    is_admin = user_role == "admin"
+    is_assigned = user_id == project.get("implementer_user_id") or user_id == project.get("implementer_id")
+    is_supervisor = cargo in ("Gerente", "Director", "Supervisor")
+    if not (is_admin or is_assigned or is_supervisor):
+        raise HTTPException(status_code=403, detail="Solo el implementador asignado o su supervisor puede ejecutar actualización masiva")
+
+    stores = project.get("stores", [])
+    stores_by_id = {s.get("store_id"): s for s in stores}
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+
+    processed_stores = []
+    for sid in body.store_ids:
+        store = stores_by_id.get(sid)
+        if not store:
+            continue
+        matrix = store.get("implementation_matrix", {})
+        if body.bank_name not in matrix:
+            matrix[body.bank_name] = {}
+        if body.product_name not in matrix[body.bank_name]:
+            matrix[body.bank_name][body.product_name] = {}
+
+        old_data = matrix[body.bank_name][body.product_name].get(body.phase, {})
+        expected = old_data.get("expected", store.get("box_count", 0)) or store.get("box_count", 0)
+        matrix[body.bank_name][body.product_name][body.phase] = {
+            "completed": expected > 0,
+            "expected": expected,
+            "processed": expected,
+            "updated_at": now,
+            "updated_by": user_name,
+            "batch_updated": True,
+        }
+        await db.projects.update_one(
+            {"project_id": project_id, "stores.store_id": sid},
+            {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now}}
+        )
+        processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": expected})
+
+    if not processed_stores:
+        raise HTTPException(status_code=404, detail="Ninguna de las tiendas seleccionadas existe en el proyecto")
+
+    # Recalcular rollup
+    updated_project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if updated_project:
+        rollup = _calculate_rollup_progress(updated_project)
+        await db.projects.update_one({"project_id": project_id}, {"$set": {"rollup_progress": rollup, "updated_at": now}})
+
+    # Bitácora única con detalle completo
+    reason = (body.reason or "Recepción de información masiva por parte del Banco/Cliente").strip()
+    store_names = [s["name"] for s in processed_stores]
+    total_procesado = sum(s["expected"] for s in processed_stores)
+    bitacora_text = (
+        f"[ACTUALIZACIÓN MASIVA DE ESTATUS]\n"
+        f"Fase actualizada: {body.phase}\n"
+        f"Producto: {body.product_name}\n"
+        f"Ente bancario: {body.bank_name}\n"
+        f"Tiendas procesadas ({len(processed_stores)}): {', '.join(store_names)}\n"
+        f"Total de unidades completadas: {total_procesado}\n"
+        f"Motivo: {reason}\n"
+        f"Usuario responsable: {user_name}"
+    )
+    bitacora_entry = {
+        "entry_id": f"batch_{uuid.uuid4().hex[:10]}",
+        "text": bitacora_text,
+        "execution_date": now[:10],
+        "created_at": now,
+        "created_by": user_name,
+        "auto_generated": True,
+        "entry_type": "batch_matrix_update",
+        "batch_meta": {
+            "phase": body.phase,
+            "bank_name": body.bank_name,
+            "product_name": body.product_name,
+            "reason": reason,
+            "stores": processed_stores,
+            "total_stores": len(processed_stores),
+        },
+    }
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
+
+    return {
+        "message": f"Actualización masiva aplicada a {len(processed_stores)} tienda(s)",
+        "stores_processed": processed_stores,
+        "bitacora_entry_id": bitacora_entry["entry_id"],
+    }
+
+
 @router.put("/projects/{project_id}/implementation-fields")
 async def update_implementation_fields(project_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Actualizar campos de Integrador y Aplicativo en el proyecto."""
