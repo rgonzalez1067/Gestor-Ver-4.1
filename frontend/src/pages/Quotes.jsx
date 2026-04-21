@@ -310,112 +310,77 @@ export const Quotes = () => {
     }
   }, [quoteData.additional_items.length]);
 
-  // Sincronizar valores de Cajas y Bancos de la cabecera con los conceptos base
-  // REGLA DE ORO: Solo propaga cuando el USUARIO cambia manualmente el header
+  // Sincronizar valores de Cajas de la cabecera con los conceptos base
+  // REGLA DE ORO: Solo propaga cajas cuando el USUARIO cambia manualmente el header
+  // BANCOS: Ya NO se propaga — cada fila tiene su valor estático e independiente.
   // NO durante carga de edición (los datos guardados tienen prioridad absoluta)
   useEffect(() => {
     const cajas = quoteData.cantidad_cajas;
     const bancos = quoteData.cantidad_bancos;
-    
+
     // Durante carga de edición: solo actualizar refs, no propagar
     if (isLoadingEdit) {
       prevCajasRef.current = cajas;
       prevBancosRef.current = bancos;
       return;
     }
-    
-    // Si los valores no cambiaron respecto al ref anterior, no propagar
-    // Esto evita la propagación cuando isLoadingEdit pasa de true a false
-    if (prevCajasRef.current === cajas && prevBancosRef.current === bancos) {
+
+    // Si las CAJAS no cambiaron, no propagar (bancos nunca se propaga)
+    if (prevCajasRef.current === cajas) {
+      // Actualizar ref de bancos para mantenerlo en sincronía con el header
+      prevBancosRef.current = bancos;
       return;
     }
-    
+
     // Actualizar refs con los nuevos valores del usuario
     prevCajasRef.current = cajas;
     prevBancosRef.current = bancos;
-    
+
     const { setup_items, recurring_basic_items, recurring_other_items, additional_items } = quoteData;
-    
+
     if (setup_items.length === 0 && recurring_basic_items.length === 0 && recurring_other_items.length === 0 && (additional_items || []).length === 0) {
       return; // No hay items para actualizar
     }
-    
+
     let needsUpdate = false;
     const newCajas = cajas || 1;
-    const newBancos = bancos || 1;
-    
-    // Actualizar Setup items
-    // CAJAS: Se propaga a TODOS
-    // BANCOS: Solo si NO tiene lockBancos ni autoBancos
+
+    // Actualizar Setup items — SOLO CAJAS
     const updatedSetupItems = setup_items.map(item => {
-      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
-      const shouldUpdateBancos = !item.lockBancos && !item.autoBancos && item.cantidad_bancos !== newBancos;
-      
-      if (shouldUpdateCajas || shouldUpdateBancos) {
+      if (item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
-        return { 
-          ...item, 
-          cantidad_cajas: newCajas,
-          cantidad_bancos: (item.lockBancos || item.autoBancos) ? item.cantidad_bancos : newBancos
-        };
+        return { ...item, cantidad_cajas: newCajas };
       }
       return item;
     });
-    
-    // Actualizar Recurrentes Básicos
-    // CAJAS: Se propaga a TODOS (incluyendo isAutoLinked)
-    // BANCOS: Solo si NO tiene lockBancos y NO es isAutoLinked
+
+    // Actualizar Recurrentes Básicos — SOLO CAJAS
     const updatedRecurringBasic = recurring_basic_items.map(item => {
-      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
-      const shouldUpdateBancos = !item.lockBancos && !item.isAutoLinked && item.cantidad_bancos !== newBancos;
-      
-      if (shouldUpdateCajas || shouldUpdateBancos) {
+      if (item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
-        return { 
-          ...item, 
-          cantidad_cajas: newCajas,
-          cantidad_bancos: (item.lockBancos || item.isAutoLinked) ? item.cantidad_bancos : newBancos
-        };
+        return { ...item, cantidad_cajas: newCajas };
       }
       return item;
     });
-    
-    // Actualizar Otros Recurrentes
-    // CAJAS: Se propaga a TODOS
-    // BANCOS: Solo si NO tiene lockBancos
+
+    // Actualizar Otros Recurrentes — SOLO CAJAS
     const updatedRecurringOther = recurring_other_items.map(item => {
-      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
-      const shouldUpdateBancos = !item.lockBancos && item.cantidad_bancos !== newBancos;
-      
-      if (shouldUpdateCajas || shouldUpdateBancos) {
+      if (item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
-        return { 
-          ...item, 
-          cantidad_cajas: newCajas,
-          cantidad_bancos: item.lockBancos ? item.cantidad_bancos : newBancos
-        };
+        return { ...item, cantidad_cajas: newCajas };
       }
       return item;
     });
-    
-    // Actualizar Items Adicionales (medios de pago)
-    // CAJAS: Se propaga a TODOS (incluyendo isFromDB)
-    // BANCOS: Solo si NO tiene isFromDB
+
+    // Actualizar Items Adicionales — SOLO CAJAS
     const updatedAdditionalItems = (additional_items || []).map(item => {
-      const shouldUpdateCajas = item.cantidad_cajas !== newCajas;
-      const shouldUpdateBancos = !item.isFromDB && item.cantidad_bancos !== newBancos;
-      
-      if (shouldUpdateCajas || shouldUpdateBancos) {
+      if (item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
-        return { 
-          ...item, 
-          cantidad_cajas: newCajas,
-          cantidad_bancos: item.isFromDB ? item.cantidad_bancos : newBancos
-        };
+        return { ...item, cantidad_cajas: newCajas };
       }
       return item;
     });
-    
+
     if (needsUpdate) {
       setQuoteData(prev => ({
         ...prev,
@@ -583,12 +548,12 @@ export const Quotes = () => {
       : SETUP_CONCEPTS.filter(c => c.name !== 'Configuración dispositivo (Pinpad o POS)');
     return concepts.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
-      const bancosValue = concept.lockBancos ? 1 : cantidadBancos;
+      // Por defecto cantidad_bancos=1 e independiente del selector global
       return {
         id: `setup_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: bancosValue,
+        cantidad_bancos: 1,
         tarifa: prices.setup_cost,
         isDefault: true,
         type: 'setup',
@@ -606,7 +571,7 @@ export const Quotes = () => {
         id: `recurring_basic_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos, // lockBancos usa 1 fijo
+        cantidad_bancos: 1, // Default 1 - independiente del selector global
         tarifa: prices.monthly_cost,
         isDefault: true,
         type: 'recurring_basic',
@@ -643,7 +608,7 @@ export const Quotes = () => {
         id: `recurring_other_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: concept.lockBancos ? 1 : cantidadBancos,
+        cantidad_bancos: 1, // Default 1 - independiente del selector global
         tarifa,
         isDefault: true,
         type: 'recurring_other',

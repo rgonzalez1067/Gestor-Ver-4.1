@@ -1117,12 +1117,12 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
                               {item.autoBancos ? (
-                                <div className="flex items-center justify-end gap-1">
+                                <div className="flex items-center justify-end gap-0">
                                   {item.totalOverride !== undefined && item.totalOverride !== null && (
-                                    <Unlock size={12} className="text-amber-500" title="Monto editado manualmente" />
+                                    <Unlock size={11} className="text-amber-500 mr-1" title="Monto editado manualmente" />
                                   )}
                                   <span className="text-sm">$</span>
-                                  <Input
+                                  <input
                                     type="number"
                                     min="0"
                                     step="0.01"
@@ -1136,7 +1136,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                         updateSetupItem(index, 'totalOverride', val || 0);
                                       }
                                     }}
-                                    className={`w-24 h-7 text-right text-sm font-mono ${item.totalOverride !== undefined && item.totalOverride !== null ? 'border-amber-400 bg-amber-50' : ''}`}
+                                    className={`w-20 bg-transparent border-0 p-0 text-right text-sm font-mono font-semibold text-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-amber-300 focus:rounded ${item.totalOverride !== undefined && item.totalOverride !== null ? 'text-amber-600' : ''}`}
                                     data-testid={`setup-total-${index}`}
                                   />
                                 </div>
