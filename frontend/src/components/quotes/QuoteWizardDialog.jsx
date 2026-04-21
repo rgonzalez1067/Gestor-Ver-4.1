@@ -1117,29 +1117,24 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-blue-50 font-mono font-semibold text-brand-blue-600">
                               {item.autoBancos ? (
-                                <div className="flex items-center justify-end gap-0">
-                                  {item.totalOverride !== undefined && item.totalOverride !== null && (
-                                    <Unlock size={11} className="text-amber-500 mr-1" title="Monto editado manualmente" />
-                                  )}
-                                  <span className="text-sm">$</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={item.totalOverride !== undefined && item.totalOverride !== null ? item.totalOverride : calcularTotalEstandar(item)}
-                                    onChange={(e) => {
-                                      const val = parseFloat(e.target.value);
-                                      const stdTotal = calcularTotalEstandar(item);
-                                      if (val === stdTotal || e.target.value === '') {
-                                        updateSetupItem(index, 'totalOverride', undefined);
-                                      } else {
-                                        updateSetupItem(index, 'totalOverride', val || 0);
-                                      }
-                                    }}
-                                    className={`w-20 bg-transparent border-0 p-0 text-right text-sm font-mono font-semibold text-brand-blue-600 focus:outline-none focus:ring-1 focus:ring-amber-300 focus:rounded ${item.totalOverride !== undefined && item.totalOverride !== null ? 'text-amber-600' : ''}`}
-                                    data-testid={`setup-total-${index}`}
-                                  />
-                                </div>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={`$${(item.totalOverride !== undefined && item.totalOverride !== null ? item.totalOverride : calcularTotalEstandar(item)).toFixed(2)}`}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/[^0-9.]/g, '');
+                                    const val = parseFloat(raw);
+                                    const stdTotal = calcularTotalEstandar(item);
+                                    if (isNaN(val) || val === stdTotal) {
+                                      updateSetupItem(index, 'totalOverride', undefined);
+                                    } else {
+                                      updateSetupItem(index, 'totalOverride', val);
+                                    }
+                                  }}
+                                  className={`w-full bg-transparent border-0 p-0 m-0 text-right font-mono font-semibold text-brand-blue-600 focus:outline-none focus:ring-0 ${item.totalOverride !== undefined && item.totalOverride !== null ? 'text-amber-600' : ''}`}
+                                  title={item.totalOverride !== undefined && item.totalOverride !== null ? 'Monto editado manualmente' : 'Calculado automáticamente'}
+                                  data-testid={`setup-total-${index}`}
+                                />
                               ) : (
                                 <span>${calcularTotal(item).toFixed(2)}</span>
                               )}
