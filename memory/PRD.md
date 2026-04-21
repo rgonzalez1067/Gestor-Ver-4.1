@@ -5,6 +5,30 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Histórico de Cotizaciones + Autocomplete Universal (Feb 2026)
+
+**Histórico de Cotizaciones** (`/app/backend/routes/quote_history.py`):
+- Colección `quote_history` con snapshot inmutable al llegar a estado final.
+- Triggers automáticos en `quote_actions.py`:
+  - `implementation` → `"Enviada a Imple"` (crea proyecto + archiva)
+  - `equipment`, `fast_track`, `repair` → `"Entregada"` (última acción)
+- Cotización original obtiene `archived=True` y desaparece del listado `/api/quotes`.
+- Endpoints: `GET /quote-history` (filtros: search, quote_category, invoice_number, from/to), `GET /{id}`, `GET /{id}/pdf` (dispatch por categoría: equipment/repair→regenerate_equipment_pdf + FileResponse; implementation/fast_track→generate_quote_pdf binary), `POST /migrate-legacy` (solo admin).
+- **Permisología**: `role='admin'` OR `cargo='Director'`.
+- Frontend: página `/historical-quotes` con filtros, tabla, detalle modal y descarga de PDF. Entrada en sidebar solo visible para admin/Director.
+- Migración inicial: 5 cotizaciones legacy archivadas automáticamente.
+
+**InternalEmailInput** (`/app/frontend/src/components/InternalEmailInput.jsx`):
+- Componente reusable de autocomplete con usuarios internos MegaNexus.
+- Integrado en:
+  - `ProjectDetail.jsx` — ad-hoc email dialog + datalist CC en notificaciones secuenciales.
+  - `QuoteModals.jsx` — campo CC en modal de personalización de comunicaciones.
+  - `EntityEmailDialog.jsx` — ya incluido desde iteration 173.
+
+**UI Cleanup**: Botón "Anexos" + modal eliminados de `Projects.jsx` (obsoletos tras Bitácora + Notificaciones).
+
+**Tests** (iteration_174 + 175): Backend **10/12** (corregido con iteration_175 PDF dispatch → **7/7 + 1 skip**), Frontend 95% flujos verificados. Cotizaciones archivadas de equipment/repair/fast_track descargan PDF binario correctamente.
+
 ### Sistema Genérico de Comunicaciones (Feb 2026)
 Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arquitectura DRY.
 

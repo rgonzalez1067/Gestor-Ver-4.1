@@ -193,7 +193,8 @@ async def get_quote_history(history_id: str, authorization: Optional[str] = Head
 
 @router.get("/quote-history/{history_id}/pdf")
 async def download_quote_history_pdf(history_id: str, authorization: Optional[str] = Header(None)):
-    """Descarga el PDF original. Reusa el endpoint existente /quotes/{id}/pdf (funciona aunque archived=True)."""
+    """Descarga el PDF original. Usa el generador correcto según la categoría de la cotización."""
+    from fastapi.responses import Response, FileResponse
     current_user = await get_current_user(authorization)
     if not _can_access_history(current_user):
         raise HTTPException(status_code=403, detail="Acceso restringido a Director o Administrador del Sistema")
@@ -203,9 +204,31 @@ async def download_quote_history_pdf(history_id: str, authorization: Optional[st
     if not doc:
         raise HTTPException(status_code=404, detail="Registro no encontrado")
 
-    # Delega al endpoint existente pasando el quote_id original
+    category = doc.get("quote_category", "implementation")
+    quote_id = doc["quote_id"]
+    quote_number = doc.get("quote_number", quote_id)
+
+    # Dispatch: equipos/reparaciones → regenerar + leer del disco (endpoint devuelve JSON con pdf_url)
+    if category in ("equipment", "repair"):
+        from routes.quotes import regenerate_equipment_pdf as _gen_eq_pdf
+        result = await _gen_eq_pdf(quote_id, data={}, authorization=authorization)
+        # result es dict con pdf_url relativa
+        rel_url = (result or {}).get("pdf_url") if isinstance(result, dict) else None
+        if not rel_url:
+            raise HTTPException(status_code=500, detail="No se pudo generar el PDF")
+        file_path = f"/app/backend{rel_url}" if rel_url.startswith("/") else f"/app/backend/{rel_url}"
+        import os
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"Archivo PDF no encontrado: {rel_url}")
+        return FileResponse(
+            path=file_path,
+            media_type="application/pdf",
+            filename=f"historico_{quote_number}.pdf"
+        )
+
+    # implementation / fast_track → endpoint devuelve binary Response
     from routes.quotes import generate_quote_pdf as _gen_pdf
-    return await _gen_pdf(doc["quote_id"], authorization=authorization)
+    return await _gen_pdf(quote_id, authorization=authorization)
 
 
 @router.post("/quote-history/migrate-legacy")
