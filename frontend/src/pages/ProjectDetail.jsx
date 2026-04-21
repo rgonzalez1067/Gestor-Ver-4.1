@@ -19,6 +19,7 @@ import {
 import { SingleBankSection } from '../components/projects/SingleBankSection';
 import { MultistoreBankSection } from '../components/projects/MultistoreBankSection';
 import { StoreBankSection } from '../components/projects/StoreBankSection';
+import { InternalEmailInput } from '../components/InternalEmailInput';
 
 const PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
 const STORE_PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
@@ -157,6 +158,11 @@ const ProjectDetail = () => {
   // Otras Notificaciones (ad-hoc avanzado)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({ recipients: [''], subject: '', message: '', templateId: '' });
+  const [internalUsers, setInternalUsers] = useState([]);
+
+  useEffect(() => {
+    api.get('/users/internal-emails').then(r => setInternalUsers(r.data || [])).catch(() => {});
+  }, []);
   const [emailFiles, setEmailFiles] = useState([]);
   const [emailSending, setEmailSending] = useState(false);
   const [suggestedContacts, setSuggestedContacts] = useState([]);
@@ -1606,9 +1612,13 @@ const ProjectDetail = () => {
                             placeholder="gerente@empresa.com, compras@empresa.com"
                             className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                             data-testid="additional-recipients-input"
+                            list="internal-emails-datalist"
                           />
+                          <datalist id="internal-emails-datalist">
+                            {internalUsers.map(u => <option key={u.email} value={u.email}>{u.full_name} — {u.cargo}</option>)}
+                          </datalist>
                           <p className="text-[10px] text-slate-400 mt-1">
-                            Estos correos recibirán copia (CC) de la notificación
+                            Estos correos recibirán copia (CC). Escriba para autocompletar usuarios internos.
                           </p>
                         </div>
                       </div>
@@ -1679,11 +1689,14 @@ const ProjectDetail = () => {
                 <Label className="text-sm font-medium">Destinatarios <span className="text-red-500">*</span></Label>
                 <div className="space-y-2 mt-1.5">
                   {emailForm.recipients.map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input type="email" placeholder="correo@ejemplo.com" value={r} onChange={e => updateRecipient(idx, e.target.value)}
-                        className="flex-1 h-9 text-sm" data-testid={`email-recipient-${idx}`} />
-                      {emailForm.recipients.length > 1 && <button onClick={() => removeRecipient(idx)} className="text-red-400 hover:text-red-600"><X size={16} /></button>}
-                    </div>
+                    <InternalEmailInput
+                      key={idx}
+                      value={r}
+                      onChange={(v) => updateRecipient(idx, v)}
+                      onRemove={emailForm.recipients.length > 1 ? () => removeRecipient(idx) : null}
+                      placeholder="correo@ejemplo.com"
+                      testId={`email-recipient-${idx}`}
+                    />
                   ))}
                   <Button variant="ghost" size="sm" onClick={addRecipient} className="text-xs text-indigo-600" data-testid="add-recipient-btn"><Plus size={14} className="mr-1" />Agregar</Button>
                 </div>

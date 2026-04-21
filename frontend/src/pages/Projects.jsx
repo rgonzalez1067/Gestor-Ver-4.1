@@ -56,10 +56,6 @@ const Projects = () => {
   const [statusForm, setStatusForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
   const [statusLoading, setStatusLoading] = useState(false);
 
-  // Anexos dialog
-  const [anexosDialogOpen, setAnexosDialogOpen] = useState(false);
-  const [anexosProject, setAnexosProject] = useState(null);
-
   const fetchProjects = useCallback(async () => {
     try {
       const [projRes, statsRes] = await Promise.all([api.get('/projects'), api.get('/projects/stats')]);
@@ -366,12 +362,6 @@ const Projects = () => {
                               {hasAssignee ? <UserPlus size={14} /> : <UserCheck size={14} />}
                               <span className="hidden xl:inline">{hasAssignee ? 'Reasignar' : 'Asignar'}</span>
                             </Button>}
-                            {/* Anexos */}
-                            <Button size="sm" variant="outline" title="Anexos"
-                              onClick={() => { setAnexosProject(project); setAnexosDialogOpen(true); }}
-                              className="h-8 px-2 text-amber-600" data-testid={`anexos-btn-${project.project_id}`}>
-                              <Paperclip size={14} />
-                            </Button>
                             {/* Ver Detalle */}
                             <Button size="sm" variant="outline" title="Detalle del Proyecto"
                               onClick={() => navigate(`/projects/${project.project_id}`)}
@@ -568,48 +558,6 @@ const Projects = () => {
                     {assignLoading ? 'Procesando...' : assignProject.assigned_to_name ? 'Reasignar Proyecto' : 'Asignar Proyecto'}
                   </Button>
                 </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Anexos Dialog */}
-        <Dialog open={anexosDialogOpen} onOpenChange={setAnexosDialogOpen}>
-          <DialogContent className="max-w-lg" data-testid="anexos-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Paperclip className="text-amber-500" size={20} />Anexos del Proyecto</DialogTitle>
-            </DialogHeader>
-            {anexosProject && (
-              <div className="space-y-3">
-                <p className="text-sm text-slate-500">{anexosProject.project_number} — {anexosProject.client_name}</p>
-                {(anexosProject.attachments || []).length === 0 ? (
-                  <div className="text-center py-8 bg-slate-50 rounded-lg">
-                    <Paperclip size={32} className="mx-auto text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-400">No hay anexos en este proyecto</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {(anexosProject.attachments || []).map((att, i) => (
-                      <div key={att.attachment_id || i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
-                        <div className="flex items-center gap-3">
-                          <FileText size={18} className="text-blue-500 shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium">{att.filename}</p>
-                            <p className="text-xs text-slate-400">
-                              {att.category} · {att.uploaded_by_name || att.uploaded_by}
-                              {att.inherited_from && <span className="ml-1 text-amber-600">(heredado de cotización)</span>}
-                            </p>
-                          </div>
-                        </div>
-                        {att.url && (
-                          <a href={att.url.startsWith('http') ? att.url : `${process.env.REACT_APP_BACKEND_URL}${att.url}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-sm shrink-0">Descargar</a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </DialogContent>

@@ -191,7 +191,15 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
             await _create_project_from_quote(quote, quote_id)
         except Exception as e:
             logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
-    
+
+    # === TRIGGER: Archivar en Histórico al llegar a estado final ===
+    try:
+        from routes.quote_history import check_and_archive_on_status_change
+        current_user = await get_current_user(authorization)
+        await check_and_archive_on_status_change(quote_id, status_update.new_status, current_user)
+    except Exception as e:
+        logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
+
     return {"message": f"Estado actualizado a '{status_update.new_status}'", "previous_status": current_status, "new_status": status_update.new_status}
 
 
@@ -1596,6 +1604,13 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         update_set["delivery_invoice_number"] = delivery_invoice_number
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
 
+    # === TRIGGER: Archivar en histórico (estado final) ===
+    try:
+        from routes.quote_history import archive_quote_to_history
+        await archive_quote_to_history(quote_id, "status_entregada", current_user if 'current_user' in dir() else None)
+    except Exception as e:
+        logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
+
     # Fast Track: Transicionar seriales preasignados → asignados + crear movimiento de salida
     if quote_category == "fast_track":
         try:
@@ -1945,6 +1960,12 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
             "delivered_at": now_iso,
             "entrega_completa": True,
         }})
+        # === TRIGGER: Archivar en histórico (estado final) ===
+        try:
+            from routes.quote_history import archive_quote_to_history
+            await archive_quote_to_history(quote_id, "status_entregada", current_user if 'current_user' in dir() else None)
+        except Exception as e:
+            logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
     else:
         # Entrega parcial: mantener estado actual, registrar entrega parcial
         await db.quotes.update_one({"quote_id": quote_id}, {"$set": {

@@ -1,0 +1,41 @@
+{
+  "summary": "Tested Iteration 174 — Histórico de Cotizaciones + InternalEmailInput + eliminación de Anexos en Proyectos. Backend: 10/12 pass, 1 skip, 1 FAIL (PDF 500 for equipment/repair). Frontend: sidebar entry, /historical-quotes page (5 rows, view/PDF buttons, detail modal with Cliente/Total USD/Total Bs/Nº Factura/Responsable/Archivada por/Anexos), /projects sin Anexos — todos OK. InternalEmailInput component correctly implemented (verified code + /api/users/internal-emails returns 18 users).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/quote-history/{id}/pdf", "issue": "Returns 500 (KeyError: 'services') for archived quotes of category='equipment' or 'repair'. Only fast_track/implementation succeed. Root cause: /app/backend/routes/quote_history.py L207-208 delegates to routes.quotes.generate_quote_pdf which at /app/backend/routes/quotes.py L555 does `if quote[\"services\"]:` (raw key access) — equipment/repair quotes don't carry 'services' key. 2 of 5 existing archived quotes failed PDF download in testing (qhist_quo_b4dbe09d20ff repair, qhist_quo_7bba617263c6 equipment).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Multiple pages (Projects, Quotes, HistoricalQuotes)", "issues": ["Pre-existing React hydration warning: visual-editor wrapper <span data-ve-dynamic> inserted around <tr>/<th>/<tbody> causes console 'span cannot be child of tbody' / '<tr> cannot be child of <span>' errors. Cosmetic only — tables render correctly. Reported in previous iterations."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration174_quote_history.py",
+    "/app/test_reports/pytest/pytest_results_iteration174.xml"
+  ],
+  "action_items": [
+    "Fix PDF download for equipment/repair archived quotes. Option A: in quote_history.download_quote_history_pdf, branch by quote_category and call the correct generator (e.g., regenerate-equipment-pdf for equipment; appropriate handler for repair). Option B (simpler): in routes/quotes.py:555 use quote.get('services') instead of quote['services'] and add category-based sections — but this likely needs full refactor of generate_quote_pdf to handle non-services categories.",
+    "(Optional) Director user (Antonio Castro, acastro@megasoft.com.ve, cargo='Director') exists but password unknown — could not positively verify cargo='Director' non-admin access. Bogus-token test confirms 401/403 for unauthenticated requests."
+  ],
+  "critical_code_review_comments": [
+    "quote_history.py blindly delegates PDF generation to implementation-style generator — must branch by quote_category.",
+    "archive_quote_to_history is idempotent (existing check) but migrate-legacy endpoint returns 'skipped=0' on re-run because archive_quote_to_history returns the existing doc as truthy, thus counted as 'migrated'. Consider returning a sentinel when already archived to populate 'skipped' correctly.",
+    "Access control helper _can_access_history correctly grants access to role='admin' OR cargo='Director' (matches spec B).",
+    "GET /api/quotes correctly excludes archived (quotes.py L425 query = {'archived': {'$ne': True}}).",
+    "InternalEmailInput component is clean, uses /api/users/internal-emails endpoint, properly applies data-testid for both input and suggestions list, hidden until focused + has results."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration174_quote_history.py"
+  ],
+  "success_rate": {"backend": "83% (10/12)", "frontend": "95% (all critical flows verified)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / Avila*0426 (admin)",
+  "seed_data_creation": "None (used existing 5 migrated archived quotes)",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_iteration174_quote_history.py. Login uses 'session_token' key (not access_token). BASE_URL loaded from /app/frontend/.env via python-dotenv. Known issue: PDF download endpoint returns 500 for equipment/repair archived quotes due to KeyError 'services' in legacy generate_quote_pdf. To reproduce: GET /api/quote-history/qhist_quo_b4dbe09d20ff/pdf with admin token. Frontend /historical-quotes fully verified: qh-row-*, qh-view-*, qh-pdf-*, qh-search-input all present, detail modal shows all required fields + anexos list. /projects confirmed 0 anexos-btn-* buttons. InternalEmailInput integration: component verified in code at L66 of InternalEmailInput.jsx (testid={testId}-suggestions), used in ProjectDetail.jsx L1692 (email-recipient-{idx}) and QuoteModals.jsx L233 (email-cc-input). /api/users/internal-emails returns 18 users including an existing Director (acastro@megasoft.com.ve).",
+  "rca of the issue": "PDF 500 for equipment/repair archived quotes: /app/backend/routes/quote_history.py L206-208 imports routes.quotes.generate_quote_pdf and calls it for ALL categories. That generator (quotes.py L517) is hardcoded for services-based implementation quotes (L555: `if quote[\"services\"]:` raises KeyError when 'services' key absent). Equipment/repair quotes use separate PDF generators (regenerate-equipment-pdf at L1859, etc.). Fix: dispatch in download_quote_history_pdf based on doc['quote_category'] to the proper generator, or make generate_quote_pdf tolerant (use .get('services',[])) and add conditional sections for equipment/hardware/repair_models."
+}

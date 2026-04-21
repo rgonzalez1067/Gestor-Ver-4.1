@@ -422,7 +422,7 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
     
     # Construir filtro jerárquico basado en cargo del usuario
-    query = {}
+    query = {"archived": {"$ne": True}}  # Excluir cotizaciones archivadas en Histórico
     user_sede = current_user.get("sede", "PYME")
     
     if current_user.get("role") != "admin":

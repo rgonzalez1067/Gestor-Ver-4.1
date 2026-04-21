@@ -18,6 +18,7 @@ import { PdfPreviewModal } from './PdfPreviewModal';
 import { DeliveryDialog } from './DeliveryDialog';
 import { RepairDeliveryDialog } from './RepairDeliveryDialog';
 import { PreassignSerialsModal } from './PreassignSerialsModal';
+import { InternalEmailInput } from '../InternalEmailInput';
 import { ACTION_LABELS } from './constants';
 
 export const QuoteModals = ({ ctx }) => {
@@ -227,18 +228,18 @@ export const QuoteModals = ({ ctx }) => {
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      type="email"
-                      value={emailNewRecipient}
-                      onChange={e => setEmailNewRecipient(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEmailRecipient(); } }}
-                      placeholder="correo@ejemplo.com"
-                      className="flex-1 text-sm"
-                      data-testid="email-cc-input" />
+                  <div className="flex gap-2 mt-1 items-start">
+                    <div className="flex-1">
+                      <InternalEmailInput
+                        value={emailNewRecipient}
+                        onChange={(v) => setEmailNewRecipient(v)}
+                        placeholder="correo@ejemplo.com — o escriba para buscar usuario interno"
+                        testId="email-cc-input"
+                      />
+                    </div>
                     <Button type="button" variant="outline" size="sm" onClick={addEmailRecipient}
                       disabled={!emailNewRecipient.trim() || !emailNewRecipient.includes('@')}
-                      data-testid="email-add-cc-btn">
+                      data-testid="email-add-cc-btn" className="mt-0">
                       <Plus size={14} />
                     </Button>
                   </div>

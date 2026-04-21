@@ -18,6 +18,7 @@ import {
   Warehouse,
   Wrench,
   FolderKanban,
+  Archive,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
@@ -61,6 +62,7 @@ const menuItems = [
 ];
 
 const adminItems = [
+  { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones' },
   { path: '/users', icon: UsersRound, label: 'Gestión de Usuarios Pro' },
   { path: '/admin/users', icon: Shield, label: 'Permisos de Usuarios' }
 ];
@@ -69,6 +71,7 @@ export const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canSeeHistory, setCanSeeHistory] = useState(false);
   const [userName, setUserName] = useState('');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [pinned, setPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
@@ -89,6 +92,7 @@ export const Sidebar = () => {
       try {
         const user = JSON.parse(userStr);
         setIsAdmin(user.role === 'admin');
+        setCanSeeHistory(user.role === 'admin' || (user.cargo || '').trim() === 'Director');
         setUserName(user.first_name || user.name?.split(' ')[0] || user.email?.split('@')[0] || '');
       } catch (e) {
         console.error('Error parsing user data:', e);
@@ -162,9 +166,14 @@ export const Sidebar = () => {
       return level !== 'none' ? item : null;
     }).filter(Boolean);
 
-    if (isAdmin) items = [...items, ...adminItems];
+    if (isAdmin) {
+      items = [...items, ...adminItems];
+    } else if (canSeeHistory) {
+      // Director (no admin): solo agregar Histórico
+      items = [...items, { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones' }];
+    }
     return items;
-  }, [isAdmin]);
+  }, [isAdmin, canSeeHistory]);
 
   const w = collapsed ? 'w-[60px]' : 'w-64';
 
