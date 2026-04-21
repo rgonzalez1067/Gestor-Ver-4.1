@@ -163,28 +163,43 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
 
 @router.delete("/integrators/bulk/all")
 async def delete_all_integrators(authorization: Optional[str] = Header(None)):
-    """Elimina TODOS los integradores. Solo admin. Rechaza si hay cotizaciones asociadas."""
+    """Elimina integradores SIN cotizaciones o proyectos asociados.
+    Los que tengan cotizaciones o proyectos abiertos se conservan (integridad referencial).
+    Solo admin."""
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar esta acción")
 
-    # Integridad referencial: bloquear si existe al menos una cotización con integrator_id
-    cots = await db.quotes.count_documents({"integrator_id": {"$exists": True, "$ne": None}})
-    if cots > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede vaciar la BD: hay {cots} cotización(es) asociadas a integradores. Elimine primero esas cotizaciones."
-        )
+    # Construir set de integrator_ids referenciados
+    protected_ids = set()
+    q_refs = await db.quotes.distinct("integrator_id")
+    protected_ids.update([r for r in q_refs if r])
+    p_refs = await db.projects.distinct("integrator_id")
+    protected_ids.update([r for r in p_refs if r])
 
-    result = await db.integrators.delete_many({})
-    # Bitácora de auditoría opcional
+    # Borrar sólo los no protegidos
+    result = await db.integrators.delete_many({"integrator_id": {"$nin": list(protected_ids)}})
+    skipped = await db.integrators.count_documents({})
+
+    # Bitácora de auditoría
+    now = datetime.now(timezone.utc).isoformat()
     await db.integrators_bulk_deletions.insert_one({
         "deleted_count": result.deleted_count,
+        "skipped_count": skipped,
+        "protected_ids": list(protected_ids),
         "deleted_by": current_user.get("email"),
         "deleted_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
-        "deleted_at": datetime.now(timezone.utc).isoformat(),
+        "deleted_at": now,
     })
-    return {"message": f"Se eliminaron {result.deleted_count} integrador(es)", "deleted_count": result.deleted_count}
+    msg_parts = [f"Se eliminaron {result.deleted_count} integrador(es)"]
+    if skipped > 0:
+        msg_parts.append(f"{skipped} conservado(s) por tener cotizaciones o proyectos asociados")
+    return {
+        "message": ". ".join(msg_parts),
+        "deleted_count": result.deleted_count,
+        "skipped_count": skipped,
+        "protected_ids": list(protected_ids),
+    }
 
 @router.put("/integrators/{integrator_id}/assign")
 async def assign_integrator_manager(integrator_id: str, body: dict, authorization: Optional[str] = Header(None)):
