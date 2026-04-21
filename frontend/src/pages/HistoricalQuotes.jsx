@@ -213,12 +213,40 @@ export const HistoricalQuotes = () => {
                   <div>
                     <Label className="text-[10px] uppercase text-slate-400">Anexos ({detailRecord.attachments.length})</Label>
                     <div className="mt-1 space-y-1">
-                      {detailRecord.attachments.map((a, i) => (
-                        <div key={i} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded text-xs">
-                          <FileText className="w-3 h-3 text-blue-500" />
-                          <span>{a.filename || a.name || `Anexo ${i+1}`}</span>
-                        </div>
-                      ))}
+                      {detailRecord.attachments.map((a, i) => {
+                        const rawUrl = a.url || a.file_url || a.path || '';
+                        // Las URLs están guardadas como /uploads/... pero el mount es /api/uploads/...
+                        const normalizedUrl = rawUrl.startsWith('/uploads') ? `/api${rawUrl}` : rawUrl;
+                        const href = normalizedUrl
+                          ? (normalizedUrl.startsWith('http') ? normalizedUrl : `${process.env.REACT_APP_BACKEND_URL}${normalizedUrl.startsWith('/') ? '' : '/'}${normalizedUrl}`)
+                          : null;
+                        const name = a.filename || a.name || `Anexo ${i+1}`;
+                        return (
+                          <div key={i} className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded text-xs border border-slate-100 hover:border-blue-200 transition">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="truncate font-medium text-slate-700">{name}</div>
+                                {a.category && <div className="text-[10px] text-slate-400">{a.category}{a.uploaded_by_name ? ` · ${a.uploaded_by_name}` : ''}</div>}
+                              </div>
+                            </div>
+                            {href ? (
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={name}
+                                className="text-blue-600 hover:text-blue-800 text-[11px] font-semibold shrink-0 flex items-center gap-1"
+                                data-testid={`qh-attachment-download-${i}`}
+                              >
+                                <Download className="w-3 h-3" /> Descargar
+                              </a>
+                            ) : (
+                              <span className="text-slate-300 text-[10px] shrink-0">Sin URL</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
