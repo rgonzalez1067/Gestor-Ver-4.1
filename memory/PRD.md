@@ -114,6 +114,25 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## Footer Global de Correos (Feb-2026, iter 177)
+
+**Backend** (`/app/backend/routes/settings.py` + `/app/backend/services/email_service.py`):
+- Colección `db.config` con `type: "email_footer"` (body_html, updated_at, updated_by).
+- Endpoints:
+  - `GET /api/config/email-footer` — devuelve footer actual (cualquier usuario autenticado).
+  - `PUT /api/config/email-footer` — admin-only, persiste y **invalida caché** en el servicio de correo.
+  - `POST /api/config/email-footer/preview` — resuelve variables y retorna HTML listo.
+- Inyección automática en `send_email()`: caché en memoria 60s, variables soportadas `{{año_actual}}` / `{{razon_social}}`, wrapper con borde superior anexado antes de `</body>`. Se aplica a **todos** los envíos del ecosistema (cotizaciones, proyectos, integradores, nuevos productos, soporte).
+
+**Frontend** (`/app/frontend/src/pages/EmailFooterConfig.jsx`, ruta `/settings/email-footer`):
+- Editor contentEditable con toolbar (B/I/U, alineación izq/centro/der, insertar enlace).
+- Botones de variables: `{{año_actual}}` y `{{razon_social}}`.
+- Vista previa en tiempo real con marco institucional.
+- Botones Limpiar/Guardar con confirmación. Non-admin solo lectura.
+- Entrada en `Settings.jsx` → card "Gestión de Footer Global".
+
+**Tests**: iteration_177 → Backend 7/7 PASS · Frontend 100% interacciones validadas. Sin bugs.
+
 ## Backlog
 - **P1**: Sistema de Notificaciones Push (campana + WebSockets)
 - **P2**: Módulo de Reportes de Ventas
