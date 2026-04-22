@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://project-cascade-flow.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://history-vault-16.preview.emergentagent.com')
 SESSION_TOKEN = "test_session_pdf_12345"
 
 @pytest.fixture
