@@ -185,6 +185,15 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
         {"$set": update_fields}
     )
 
+    # === TRIGGER: Archivar en Histórico ANTES de crear proyecto (que borra la cotización) ===
+    if status_update.new_status == "Enviada a Imple":
+        try:
+            from routes.quote_history import archive_quote_to_history
+            current_user = await get_current_user(authorization)
+            await archive_quote_to_history(quote_id, "status_enviada_imple", current_user)
+        except Exception as e:
+            logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
+
     # === TRIGGER: Crear Proyecto al enviar a Implementación ===
     if status_update.new_status == "Enviada a Imple":
         try:
@@ -192,13 +201,14 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
         except Exception as e:
             logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
-    # === TRIGGER: Archivar en Histórico al llegar a estado final ===
-    try:
-        from routes.quote_history import check_and_archive_on_status_change
-        current_user = await get_current_user(authorization)
-        await check_and_archive_on_status_change(quote_id, status_update.new_status, current_user)
-    except Exception as e:
-        logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
+    # === TRIGGER: Archivar otros estados finales (Entregada etc.) ===
+    if status_update.new_status != "Enviada a Imple":
+        try:
+            from routes.quote_history import check_and_archive_on_status_change
+            current_user = await get_current_user(authorization)
+            await check_and_archive_on_status_change(quote_id, status_update.new_status, current_user)
+        except Exception as e:
+            logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
 
     return {"message": f"Estado actualizado a '{status_update.new_status}'", "previous_status": current_status, "new_status": status_update.new_status}
 
@@ -868,6 +878,14 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
         if not quote_for_project:
             raise HTTPException(status_code=404, detail="Cotización no encontrada al crear proyecto")
+
+        # === ARCHIVAR EN HISTÓRICO antes de crear el proyecto (que borra la cotización) ===
+        try:
+            from routes.quote_history import archive_quote_to_history
+            await archive_quote_to_history(quote_id, "status_enviada_imple", current_user)
+        except Exception as arch_err:
+            logger.error(f"Error archivando {quote_id} al histórico: {arch_err}")
+
         multistore_data = None
         if body and body.is_multistore and body.stores:
             multistore_data = {"is_multistore": True, "stores": body.stores}

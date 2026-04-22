@@ -256,6 +256,7 @@ const ProjectDetail = () => {
   const [vtidStartNumber, setVtidStartNumber] = useState(1);
   const [vtidGenerating, setVtidGenerating] = useState(false);
   const [vtidDeleting, setVtidDeleting] = useState(false);
+  const [vtidCollapsed, setVtidCollapsed] = useState(true); // colapsado por defecto
 
   // Seriales de Implementación
   const [serialInput, setSerialInput] = useState('');
@@ -1384,13 +1385,31 @@ const ProjectDetail = () => {
             </div>
           )}
 
-          {/* ============ VTID GENERATOR ============ */}
+          {/* ============ VTID GENERATOR (COLAPSABLE) ============ */}
           {project.ticket_number && (
             <div className="mb-6" data-testid="vtid-section">
-              <h2 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                <Hash size={20} className="text-indigo-600" />Terminales Virtuales (VTID)
-              </h2>
+              <button
+                type="button"
+                onClick={() => setVtidCollapsed(prev => !prev)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mb-3"
+                data-testid="vtid-toggle-btn"
+              >
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Hash size={20} className="text-indigo-600" />
+                  Terminales Virtuales (VTID)
+                  <span className="text-xs font-normal text-slate-400 ml-2">
+                    ({isMultistore
+                      ? `${(project.stores || []).filter(s => (s.vtids || []).length > 0).length}/${(project.stores || []).length} con VTIDs`
+                      : `${(project.vtids || []).length} VTID(s)`})
+                  </span>
+                </h2>
+                <ChevronDown
+                  size={18}
+                  className={`text-slate-400 transition-transform ${vtidCollapsed ? '' : 'rotate-180'}`}
+                />
+              </button>
 
+              {!vtidCollapsed && (<>
               {isMultistore ? (
                 /* MULTITIENDA: VTIDs por sucursal */
                 <div className="space-y-4">
@@ -1501,6 +1520,7 @@ const ProjectDetail = () => {
                   </div>
                 )
               )}
+              </>)}
             </div>
           )}
 
