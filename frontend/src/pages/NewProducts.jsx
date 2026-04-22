@@ -76,7 +76,19 @@ export const NewProducts = () => {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
-  const [form, setForm] = useState({ service_id: '', component_type: '', bank_id: '', notes: '' });
+  const [form, setForm] = useState({ service_id: '', component_types: [], bank_id: '', notes: '' });
+
+  const COMPONENT_OPTIONS = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
+
+  const toggleComponent = (comp) => {
+    setForm((prev) => {
+      const exists = prev.component_types.includes(comp);
+      const next = exists
+        ? prev.component_types.filter((c) => c !== comp)
+        : [...prev.component_types, comp];
+      return { ...prev, component_types: next };
+    });
+  };
 
   // Notification dialog
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -121,23 +133,26 @@ export const NewProducts = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleServiceSelect = (serviceId) => {
-    const svc = services.find(s => s.service_id === serviceId);
-    if (svc) {
-      const comp = (svc.vpos_enabled || svc.mpos_enabled) ? 'VPOS/MPOS' : 'PG/Link';
-      setForm({ ...form, service_id: serviceId, component_type: comp });
-    }
+    // Ya no autosetea componentes: el usuario debe elegir explícitamente
+    setForm((prev) => ({ ...prev, service_id: serviceId }));
   };
 
   const handleCreate = async () => {
-    if (!form.service_id || !form.component_type || !form.bank_id) {
-      toast.error('Complete los campos obligatorios');
+    if (!form.service_id || form.component_types.length === 0 || !form.bank_id) {
+      toast.error('Complete los campos obligatorios (incluye al menos un componente)');
       return;
     }
     try {
-      await api.post('/new-products', form);
+      const payload = {
+        service_id: form.service_id,
+        component_type: form.component_types.join(', '),
+        bank_id: form.bank_id,
+        notes: form.notes,
+      };
+      await api.post('/new-products', payload);
       toast.success('Producto creado en Negociación');
       setAddOpen(false);
-      setForm({ service_id: '', component_type: '', bank_id: '', notes: '' });
+      setForm({ service_id: '', component_types: [], bank_id: '', notes: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al crear producto');
@@ -540,14 +555,37 @@ export const NewProducts = () => {
                 <p className="text-[10px] text-slate-400 mt-1">Si no aparece, créelo primero en Medios de Pago</p>
               </div>
               <div>
-                <Label>Componente</Label>
-                <Select value={form.component_type} onValueChange={(v) => setForm({ ...form, component_type: v })}>
-                  <SelectTrigger data-testid="np-select-component"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VPOS/MPOS">VPOS / MPOS</SelectItem>
-                    <SelectItem value="PG/Link">Payment Gateway / Link de Pago</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Componente(s)</Label>
+                <p className="text-[10px] text-slate-400 mb-2">Seleccione uno o más componentes (sin duplicados)</p>
+                <div className="grid grid-cols-2 gap-2" data-testid="np-components-multiselect">
+                  {COMPONENT_OPTIONS.map((comp) => {
+                    const checked = form.component_types.includes(comp);
+                    return (
+                      <label
+                        key={comp}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                        data-testid={`np-component-opt-${comp.replace(/\s+/g, '-').toLowerCase()}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleComponent(comp)}
+                          className="h-4 w-4 accent-indigo-600"
+                        />
+                        <span className="text-sm font-medium">{comp}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {form.component_types.length > 0 && (
+                  <p className="text-xs text-slate-500 mt-2" data-testid="np-components-selected">
+                    Seleccionados: <span className="font-medium text-slate-700">{form.component_types.join(', ')}</span>
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Banco Patrocinador / Socio</Label>
@@ -573,7 +611,7 @@ export const NewProducts = () => {
                 <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
                 <Button onClick={handleCreate} data-testid="np-save-btn"
                   className="bg-purple-600 hover:bg-purple-700 text-white"
-                  disabled={!form.service_id || !form.component_type || !form.bank_id}>
+                  disabled={!form.service_id || form.component_types.length === 0 || !form.bank_id}>
                   Crear Producto
                 </Button>
               </div>

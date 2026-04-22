@@ -114,6 +114,12 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## Nuevos Productos — Multi-select de Componentes (Feb-2026, iter 178)
+- Campo `Componente` en el modal "Nuevo Producto" cambió de Select de 2 duplas (`VPOS/MPOS`, `PG/Link`) a **multi-select con 4 componentes individuales**: `VPOS`, `MPOS`, `Payment Gateway`, `Link de Pago`.
+- Imposible duplicar gracias al toggle de checkbox; se exige al menos uno.
+- El frontend envía al backend `component_type` como string CSV (`"VPOS, MPOS"`), manteniendo 100% compatibilidad con el modelo existente.
+- Display en tabla y detalle no cambia (solo muestra el string persistido).
+
 ## Footer Global de Correos (Feb-2026, iter 177)
 
 **Backend** (`/app/backend/routes/settings.py` + `/app/backend/services/email_service.py`):
