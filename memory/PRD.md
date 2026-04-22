@@ -114,6 +114,19 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## Reorganización de Sidebar v3 (Feb-2026, iter 179)
+Nueva jerarquía de navegación según propuesta del usuario:
+- **Gestión Comercial** (grupo): Contacto Inicial · Clientes · Cotizaciones · Histórico de Cotizaciones (gate admin/Director).
+- **Catálogos** (grupo): Bancos · Medios de Pago · Bienes y Servicios · Tasa de Cambio.
+- **Gestión de Implementación** (grupo): Proyectos · Integradores.
+- **Nuevos Productos** (standalone).
+- **Gestión Administrativa** (grupo): Inventarios · **Reportes Contables** (sub-grupo anidado: Kardex · Mayor · Salidas Facturadas).
+- **Gestión de Taller** (renombrado desde "Equipos en Reparación").
+- **Gestión de Seguridad** (grupo admin-only): Creación de Usuarios · Permisos de Usuarios.
+- **Configuración** se mantiene en el footer.
+
+Arquitectura: `Sidebar.jsx` ahora soporta **sub-grupos anidados** vía renderer recursivo y flags `isGroup` / `isSubGroup`. El filtro RBAC recorre la jerarquía respetando `requiresHistoryAccess` (admin/Director) y `adminOnly` (solo admin).
+
 ## Nuevos Productos — Multi-select de Componentes (Feb-2026, iter 178)
 - Campo `Componente` en el modal "Nuevo Producto" cambió de Select de 2 duplas (`VPOS/MPOS`, `PG/Link`) a **multi-select con 4 componentes individuales**: `VPOS`, `MPOS`, `Payment Gateway`, `Link de Pago`.
 - Imposible duplicar gracias al toggle de checkbox; se exige al menos uno.

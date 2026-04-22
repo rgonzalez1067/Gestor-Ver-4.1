@@ -34,37 +34,57 @@ import { ROUTE_MODULE_MAP } from '../hooks/usePermission';
 
 const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { 
+  {
     icon: Briefcase, label: 'Gestion Comercial', isGroup: true,
     children: [
       { path: '/initial-contacts', icon: Phone, label: 'Contacto Inicial' },
       { path: '/clients', icon: Users, label: 'Clientes' },
+      { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
+      { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones', requiresHistoryAccess: true },
     ]
   },
-  { path: '/banks', icon: Building2, label: 'Bancos' },
-  { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
-  { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
-  { path: '/integrators', icon: UserCheck, label: 'Integradores' },
-  { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
-  { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
-  { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
-  { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
   {
-    icon: FileText, label: 'Reportes Contables', isGroup: true,
+    icon: Package, label: 'Catálogos', isGroup: true,
     children: [
-      { path: '/inventory/accounting-report', icon: FileText, label: 'Kardex de Activos' },
-      { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Activos' },
-      { path: '/inventory/invoiced-exits', icon: FileText, label: 'Salidas Facturadas' },
+      { path: '/banks', icon: Building2, label: 'Bancos' },
+      { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
+      { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
+      { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
     ]
   },
-  { path: '/taller-equipos', icon: Wrench, label: 'Equipos en Reparacion' },
-  { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' }
+  {
+    icon: FolderKanban, label: 'Gestión de Implementación', isGroup: true,
+    children: [
+      { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
+      { path: '/integrators', icon: UserCheck, label: 'Integradores' },
+    ]
+  },
+  { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
+  {
+    icon: Warehouse, label: 'Gestión Administrativa', isGroup: true,
+    children: [
+      { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
+      {
+        icon: FileText, label: 'Reportes Contables', isSubGroup: true,
+        children: [
+          { path: '/inventory/accounting-report', icon: FileText, label: 'Kardex de Activos' },
+          { path: '/inventory/asset-ledger', icon: Package, label: 'Mayor de Activos' },
+          { path: '/inventory/invoiced-exits', icon: FileText, label: 'Salidas Facturadas' },
+        ]
+      },
+    ]
+  },
+  { path: '/taller-equipos', icon: Wrench, label: 'Gestión de Taller' },
 ];
 
-const adminItems = [
-  { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones' },
-  { path: '/users', icon: UsersRound, label: 'Gestión de Usuarios Pro' },
-  { path: '/admin/users', icon: Shield, label: 'Permisos de Usuarios' }
+const securityItems = [
+  {
+    icon: Shield, label: 'Gestión de Seguridad', isGroup: true, adminOnly: true,
+    children: [
+      { path: '/users', icon: UsersRound, label: 'Creación de Usuarios' },
+      { path: '/admin/users', icon: Shield, label: 'Permisos de Usuarios' },
+    ]
+  },
 ];
 
 export const Sidebar = () => {
@@ -76,13 +96,19 @@ export const Sidebar = () => {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
   const [pinned, setPinned] = useState(() => localStorage.getItem('sidebar_pinned') === 'true');
   const [expandedGroups, setExpandedGroups] = useState(() => {
-    // Auto-expand if current path is inside a group
+    // Auto-expand if current path is inside a group or nested sub-group
     const groups = {};
-    menuItems.forEach(item => {
-      if (item.isGroup && item.children?.some(c => location.pathname === c.path)) {
-        groups[item.label] = true;
-      }
-    });
+    const scan = (arr) => {
+      arr.forEach(item => {
+        if (item.isGroup || item.isSubGroup) {
+          if (item.children?.some(c => location.pathname === c.path)) {
+            groups[item.label] = true;
+          }
+          if (item.children) scan(item.children);
+        }
+      });
+    };
+    scan(menuItems);
     return groups;
   });
 
@@ -147,15 +173,24 @@ export const Sidebar = () => {
     const permissions = user?.permissions || {};
     const role = user?.role;
 
+    const filterChild = (child) => {
+      // Visibilidad especial: Histórico de Cotizaciones (admin o Director)
+      if (child.requiresHistoryAccess && !(role === 'admin' || canSeeHistory)) return null;
+      // Sub-grupo anidado (Reportes Contables)
+      if (child.isSubGroup) {
+        const kept = (child.children || []).map(filterChild).filter(Boolean);
+        if (kept.length === 0) return null;
+        return { ...child, children: kept };
+      }
+      const module = ROUTE_MODULE_MAP[child.path];
+      if (!module) return child;
+      if (role === 'admin') return child;
+      return (permissions[module] || 'none') !== 'none' ? child : null;
+    };
+
     let items = menuItems.map(item => {
       if (item.isGroup) {
-        // Filter children by permissions
-        const filteredChildren = item.children.filter(child => {
-          const module = ROUTE_MODULE_MAP[child.path];
-          if (!module) return true;
-          if (role === 'admin') return true;
-          return (permissions[module] || 'none') !== 'none';
-        });
+        const filteredChildren = (item.children || []).map(filterChild).filter(Boolean);
         if (filteredChildren.length === 0) return null;
         return { ...item, children: filteredChildren };
       }
@@ -166,11 +201,9 @@ export const Sidebar = () => {
       return level !== 'none' ? item : null;
     }).filter(Boolean);
 
+    // Añadir Gestión de Seguridad solo para admins
     if (isAdmin) {
-      items = [...items, ...adminItems];
-    } else if (canSeeHistory) {
-      // Director (no admin): solo agregar Histórico
-      items = [...items, { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones' }];
+      items = [...items, ...securityItems];
     }
     return items;
   }, [isAdmin, canSeeHistory]);
@@ -207,6 +240,41 @@ export const Sidebar = () => {
       );
     }
     return inner;
+  };
+
+  // Recursive renderer for groups (level 0) and sub-groups (level 1+)
+  const renderMenuItem = (item, depth) => {
+    if (item.isGroup || item.isSubGroup) {
+      const isGroupActive = item.children?.some(c => location.pathname === c.path);
+      const isExpanded = expandedGroups[item.label] || isGroupActive;
+      const GroupIcon = item.icon;
+      return (
+        <div key={item.label}>
+          <button
+            onClick={() => setExpandedGroups(prev => ({ ...prev, [item.label]: !isExpanded }))}
+            data-testid={`nav-group-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+            className={`w-full sidebar-nav-item flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-200 ${
+              collapsed ? 'px-0 py-2.5 justify-center' : depth > 0 ? 'px-3 py-2' : 'px-4 py-2.5'
+            } ${isGroupActive ? 'text-brand-blue-700 bg-brand-blue-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+          >
+            <GroupIcon size={depth > 0 ? 16 : 20} className="flex-shrink-0" />
+            {!collapsed && (
+              <>
+                <span className={`font-medium whitespace-nowrap overflow-hidden flex-1 text-left ${depth > 0 ? 'text-xs' : 'text-sm'}`}>{item.label}</span>
+                {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+              </>
+            )}
+          </button>
+          {isExpanded && !collapsed && (
+            <div className={`ml-${depth > 0 ? '3' : '4'} border-l-2 border-slate-200 pl-2 mb-1`}>
+              {item.children.map(child => renderMenuItem(child, depth + 1))}
+            </div>
+          )}
+          {collapsed && isExpanded && item.children.map(child => renderMenuItem(child, depth + 1))}
+        </div>
+      );
+    }
+    return <NavItem key={item.path} item={item} isActive={location.pathname === item.path} />;
   };
 
   return (
@@ -261,43 +329,7 @@ export const Sidebar = () => {
 
         {/* Navigation */}
         <nav className={`flex-1 overflow-y-auto ${collapsed ? 'px-1.5 py-2' : 'px-3 py-2'}`}>
-          {allMenuItems.map((item) => {
-            if (item.isGroup) {
-              const isGroupActive = item.children?.some(c => location.pathname === c.path);
-              const isExpanded = expandedGroups[item.label] || isGroupActive;
-              const GroupIcon = item.icon;
-              return (
-                <div key={item.label}>
-                  <button
-                    onClick={() => setExpandedGroups(prev => ({ ...prev, [item.label]: !isExpanded }))}
-                    data-testid={`nav-group-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    className={`w-full sidebar-nav-item flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-200 ${
-                      collapsed ? 'px-0 py-2.5 justify-center' : 'px-4 py-2.5'
-                    } ${isGroupActive ? 'text-brand-blue-700 bg-brand-blue-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
-                  >
-                    <GroupIcon size={20} className="flex-shrink-0" />
-                    {!collapsed && (
-                      <>
-                        <span className="font-medium text-sm whitespace-nowrap overflow-hidden flex-1 text-left">{item.label}</span>
-                        {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
-                      </>
-                    )}
-                  </button>
-                  {isExpanded && !collapsed && (
-                    <div className="ml-4 border-l-2 border-slate-200 pl-2 mb-1">
-                      {item.children.map(child => (
-                        <NavItem key={child.path} item={child} isActive={location.pathname === child.path} />
-                      ))}
-                    </div>
-                  )}
-                  {collapsed && isExpanded && item.children.map(child => (
-                    <NavItem key={child.path} item={child} isActive={location.pathname === child.path} />
-                  ))}
-                </div>
-              );
-            }
-            return <NavItem key={item.path} item={item} isActive={location.pathname === item.path} />;
-          })}
+          {allMenuItems.map((item) => renderMenuItem(item, 0))}
         </nav>
 
         {/* Footer */}
