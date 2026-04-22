@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Header
 from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
+import re
 import uuid
 import logging
 
@@ -13,6 +14,11 @@ from config import db, get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _name_regex(name: str) -> dict:
+    """Regex case-insensitive con escape de metacaracteres para evitar ReDoS / falsos matches."""
+    return {"$regex": f"^{re.escape(name)}$", "$options": "i"}
 
 
 class CommercialCategoryCreate(BaseModel):
@@ -57,7 +63,7 @@ async def create_commercial_category(
 
     # Unicidad case-insensitive
     existing = await db.commercial_categories.find_one(
-        {"name": {"$regex": f"^{name}$", "$options": "i"}},
+        {"name": _name_regex(name)},
         {"_id": 0, "category_id": 1},
     )
     if existing:
@@ -103,7 +109,7 @@ async def update_commercial_category(
             raise HTTPException(status_code=400, detail="El nombre no puede quedar vacío")
         if new_name.lower() != old_name.lower():
             dup = await db.commercial_categories.find_one(
-                {"name": {"$regex": f"^{new_name}$", "$options": "i"}, "category_id": {"$ne": category_id}},
+                {"name": _name_regex(new_name), "category_id": {"$ne": category_id}},
                 {"_id": 0, "category_id": 1},
             )
             if dup:
@@ -152,7 +158,8 @@ async def delete_commercial_category(
     if not cat:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
 
-    in_use = await db.clients.count_documents({"categoria_comercial": cat["name"]})
+    # Conteo robusto: match case-insensitive y trim defensivo
+    in_use = await db.clients.count_documents({"categoria_comercial": _name_regex(cat["name"])})
     if in_use > 0:
         raise HTTPException(
             status_code=409,
@@ -182,7 +189,7 @@ async def seed_from_existing(authorization: Optional[str] = Header(None)):
         if not name:
             continue
         existing = await db.commercial_categories.find_one(
-            {"name": {"$regex": f"^{name}$", "$options": "i"}},
+            {"name": _name_regex(name)},
             {"_id": 0, "category_id": 1},
         )
         if existing:

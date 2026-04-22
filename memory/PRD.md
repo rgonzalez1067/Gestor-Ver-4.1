@@ -114,6 +114,23 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## Categorías Comerciales Dinámicas + Fix Timestamp Reparada (Feb-2026, iter 178)
+
+### Nuevo catálogo: Categoría Comercial
+- Backend `/app/backend/routes/commercial_categories.py` con CRUD completo (admin-only escritura): `GET` (opcional `only_active=true`), `POST`, `PUT` (propaga rename a `db.clients.categoria_comercial`), `DELETE` (bloquea 409 si en uso), `POST /seed-from-existing-clients` (migración one-shot).
+- Regex con `re.escape()` para evitar ReDoS / falsos matches en nombres con metacaracteres.
+- Seed inicial: 32 categorías (Retail, Farmacia, Restaurante, etc.) + 1 migrada desde datos existentes.
+- Frontend `/app/frontend/src/pages/CommercialCategories.jsx`: tabla con search, badge activa/inactiva toggeable, modal crear/editar, delete confirmable.
+- Entry "Categoría Comercial" agregado al sidebar grupo Catálogos (icono Tag).
+- **Clientes** (`Clients.jsx`): eliminada la lista hardcoded de 32 items; ahora carga categorías activas desde `/api/commercial-categories?only_active=true`. Fallback defensivo: si el cliente tiene un valor legacy/inactivo, se muestra en el Select con sufijo "(inactiva / legado)" para no perder el dato.
+
+### Bug fix: Timestamp "Reparada"
+- **RCA**: el modelo Pydantic `Quote` no incluía `repaired_at` ni `configured_at`; FastAPI usaba `response_model=List[Quote]` en `GET /api/quotes` y hacía *strip* de esos campos aunque estuvieran persistidos en MongoDB.
+- **Fix** (`/app/backend/models.py` L599-L600): agregados `repaired_at: Optional[datetime]` y `configured_at: Optional[datetime]`.
+- El `QuoteStatusStepper.jsx` ya estaba preparado para renderizar el tooltip; solo faltaba que el dato llegara al frontend.
+
+**Testing**: iter_178 → 11/11 backend PASS + 100% frontend PASS. Tooltip "Reparada — 22 abr. 2026, 03:31 p. m." confirmado visualmente en COT-2026-04-030-PYME.
+
 ## Reorganización de Sidebar v3 (Feb-2026, iter 179)
 Nueva jerarquía de navegación según propuesta del usuario:
 - **Gestión Comercial** (grupo): Contacto Inicial · Clientes · Cotizaciones · Histórico de Cotizaciones (gate admin/Director).
