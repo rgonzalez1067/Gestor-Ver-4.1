@@ -118,5 +118,15 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - **P1**: Sistema de Notificaciones Push (campana + WebSockets)
 - **P2**: Módulo de Reportes de Ventas
 - **P2**: Lógica "Completado" en Roadmap Bancos
-- **P2**: Refactor monolitos restantes (`Quotes.jsx` >3400 líneas, `quote_actions.py` >3000 líneas)
+- **P2**: Refactor monolitos frontend restantes (`Quotes.jsx` >3400 líneas, `ProjectDetail.jsx` >2200 líneas) — **backend ya refactorizado** (ver sección P2 Refactor Backend)
 - **P3**: Resolver warnings React hydration (`<span>/<tr>/<tbody>` mal anidados) en matriz de implementación
+
+## P2 Refactor Backend — `quote_actions.py` (Feb-2026, iter 176)
+Desglose del monolito `/app/backend/routes/quote_actions.py` (3060 → 2089 líneas, -31%).
+Nuevos módulos:
+- `routes/quote_helpers.py` (128 líneas): caché de plantillas, `get_email_template`, modelos `QuoteStatusUpdate`/`EmailSendRequest`, constantes `REGULAR_FLOW`/`STATUS_ORDER`, helpers `get_status_index`, `is_regularization`, `check_irregular_flow`, `log_audit_exception`, `mark_quote_irregular`.
+- `routes/quote_transitions.py` (263 líneas): `_create_project_from_quote` — creación de proyecto + notificación a gerente de implementación al enviar a imple.
+- `routes/quote_taller.py` (262 líneas, router independiente): `/repair-supplies`, `/taller-equipos` (GET/filtros), `/taller-equipos/{id}/historial`, `/taller-equipos/export-excel`, `DELETE /taller-equipos/{id}`.
+- `routes/quote_serials.py` (429 líneas, router independiente): `/quotes/{id}/pinpad-models`, `/quotes/{id}/inventory-serials`, `/quotes/{id}/equipment-for-implementation`, `/inventory/{warehouse_id}/available-serials/{item_id}`, `/quotes/{id}/preassigned-serials`, `POST /quotes/{id}/preassign-serials`.
+
+Routers registrados en `server.py`. Tests: iteration_176 → 27/27 backend PASS. Sin regresiones, helpers validados con 422 IRREGULAR en approve de Borrador.
