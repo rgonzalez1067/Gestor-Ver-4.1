@@ -25,6 +25,8 @@ from routes.hardware import router as hardware_router
 from routes.services import router as services_router
 from routes.quotes import router as quotes_router
 from routes.quote_actions import router as quote_actions_router
+from routes.quote_taller import router as quote_taller_router
+from routes.quote_serials import router as quote_serials_router
 from routes.attachments import router as attachments_router
 from routes.integrators import router as integrators_router
 from routes.settings import router as settings_router
@@ -176,6 +178,8 @@ api_router.include_router(banks_router)
 api_router.include_router(hardware_router)
 api_router.include_router(services_router)
 api_router.include_router(quote_actions_router)
+api_router.include_router(quote_taller_router)
+api_router.include_router(quote_serials_router)
 api_router.include_router(quotes_router)
 api_router.include_router(attachments_router)
 api_router.include_router(integrators_router)
