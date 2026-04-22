@@ -596,6 +596,8 @@ class Quote(BaseModel):
     paid_at: Optional[datetime] = None  # NUEVO: Cuando se cobra
     delivered_at: Optional[datetime] = None  # NUEVO: Cuando se entrega (equipos)
     sent_to_implementation_at: Optional[datetime] = None
+    repaired_at: Optional[datetime] = None  # Reparación completada (flujo repair)
+    configured_at: Optional[datetime] = None  # Configuración completada (flujo fast_track)
     # Campos de PDF y factura
     quote_pdf_url: Optional[str] = None  # URL del PDF de la cotización
     invoice_pdf_url: Optional[str] = None  # URL del PDF de la factura

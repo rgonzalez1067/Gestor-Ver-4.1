@@ -27,14 +27,8 @@ const REFERIDOR_OPTIONS = [
   'Banco', 'Cliente Referidor'
 ];
 const CONTACT_ROLES = ['Administrativo', 'Financiero', 'Técnico', 'Cuentas por Pagar', 'Operativo', 'Propietario', 'Director'];
-const CATEGORIAS_COMERCIALES = [
-  'Retail', 'Farmacia', 'Restaurante', 'Supermercado', 'Abasto', 'Panadería',
-  'Bar / Discoteca', 'Comida Rápida', 'Cafetería', 'Tienda de Ropa', 'Boutique',
-  'Salón de Belleza', 'Barbería', 'Spa / Salud', 'Gimnasio', 'Cosmética',
-  'Calzados', 'Mueblería', 'Ferretería', 'Electrodomésticos', 'Joyería',
-  'Electrónica', 'Software', 'Juguetería', 'Librería', 'Tienda por Departamento',
-  'Educación', 'Inmobiliaria', 'Clínica', 'Alimentos', 'Tecnología', 'Servicios',
-];
+// NOTA: Categorías comerciales ahora vienen del catálogo dinámico /api/commercial-categories
+// Ver página /commercial-categories para gestionarlas.
 const TIPOS_SERVICIO = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
 
 const emptyContact = () => ({
@@ -50,6 +44,7 @@ export const Clients = () => {
   const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [categoriasComerciales, setCategoriasComerciales] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -119,7 +114,7 @@ export const Clients = () => {
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchFiscalPrinters(); fetchReferidorOptions(); }, []);
+  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchFiscalPrinters(); fetchReferidorOptions(); fetchCommercialCategories(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -197,6 +192,15 @@ export const Clients = () => {
       toast.error('Error al cargar clientes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCommercialCategories = async () => {
+    try {
+      const { data } = await api.get('/commercial-categories?only_active=true');
+      setCategoriasComerciales(Array.isArray(data) ? data : []);
+    } catch {
+      // Silencioso: el select quedará vacío si falla
     }
   };
 
@@ -1053,9 +1057,21 @@ export const Clients = () => {
                             <SelectTrigger data-testid="client-categoria-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="_none_">Seleccionar...</SelectItem>
-                              {CATEGORIAS_COMERCIALES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                              {categoriasComerciales.map(cat => (
+                                <SelectItem key={cat.category_id} value={cat.name}>{cat.name}</SelectItem>
+                              ))}
+                              {formData.categoria_comercial && !categoriasComerciales.some(c => c.name === formData.categoria_comercial) && (
+                                <SelectItem value={formData.categoria_comercial} className="text-amber-600">
+                                  {formData.categoria_comercial} (inactiva / legado)
+                                </SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
+                          {categoriasComerciales.length === 0 && (
+                            <p className="text-[10px] text-amber-600 mt-1">
+                              Sin categorías activas. Gestiona el catálogo en Catálogos → Categoría Comercial.
+                            </p>
+                          )}
                         </div>
                       </div>
 

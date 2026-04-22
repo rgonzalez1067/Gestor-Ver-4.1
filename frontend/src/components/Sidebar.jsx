@@ -25,6 +25,7 @@ import {
   PinOff,
   Briefcase,
   Phone,
+  Tag,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -49,6 +50,7 @@ const menuItems = [
       { path: '/banks', icon: Building2, label: 'Bancos' },
       { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
       { path: '/hardware', icon: Boxes, label: 'Bienes y Servicios' },
+      { path: '/commercial-categories', icon: Tag, label: 'Categoría Comercial' },
       { path: '/exchange-rate', icon: TrendingUp, label: 'Tasa de Cambio' },
     ]
   },
