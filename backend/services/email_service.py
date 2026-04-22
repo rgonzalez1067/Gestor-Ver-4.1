@@ -6,6 +6,7 @@ import logging
 import uuid
 import smtplib
 import asyncio
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -25,6 +26,65 @@ try:
     import resend
 except ImportError:
     pass
+
+
+# ==================== FOOTER GLOBAL (cache ligero) ====================
+
+_FOOTER_CACHE = {"body_html": None, "fetched_at": 0.0}
+_FOOTER_TTL_SECONDS = 60
+
+
+def invalidate_footer_cache() -> None:
+    """Limpia el caché en memoria del footer global (llamado al guardar)."""
+    _FOOTER_CACHE["body_html"] = None
+    _FOOTER_CACHE["fetched_at"] = 0.0
+
+
+async def _get_global_footer_html() -> str:
+    """Devuelve el footer global (con variables resueltas) listo para anexar al correo.
+
+    Caché en memoria (~60s) para evitar golpear Mongo en cada envío.
+    """
+    now = time.time()
+    cached = _FOOTER_CACHE["body_html"]
+    if cached is not None and (now - _FOOTER_CACHE["fetched_at"]) < _FOOTER_TTL_SECONDS:
+        return cached
+
+    try:
+        doc = await db.config.find_one({"type": "email_footer"}, {"_id": 0, "body_html": 1})
+    except Exception as e:
+        logger.warning(f"[Footer] Error leyendo footer global: {e}")
+        doc = None
+
+    body = (doc or {}).get("body_html", "") or ""
+    if body:
+        year = datetime.now(timezone.utc).strftime("%Y")
+        body = (
+            body.replace("{{año_actual}}", year)
+            .replace("{{ano_actual}}", year)
+            .replace("{{razon_social}}", "Mega Soft Computación, C.A.")
+        )
+
+    _FOOTER_CACHE["body_html"] = body
+    _FOOTER_CACHE["fetched_at"] = now
+    return body
+
+
+def _append_footer_to_html(html: str, footer_html: str) -> str:
+    """Anexa el footer global al final del cuerpo HTML, manteniendo integridad visual."""
+    if not footer_html:
+        return html
+    wrapper = (
+        '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;'
+        'font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;line-height:1.5;">'
+        f'{footer_html}'
+        '</div>'
+    )
+    # Insertar antes de </body> si existe, sino al final
+    if "</body>" in html.lower():
+        import re
+        return re.sub(r"</body>", wrapper + "</body>", html, count=1, flags=re.IGNORECASE)
+    return html + wrapper
 
 
 def _send_smtp(
@@ -98,6 +158,14 @@ async def send_email(
     # Filter empty emails
     to = [e for e in to if e and e.strip() and '@' in e]
     cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
+
+    # Anexar footer global institucional al final del HTML (si hay configurado)
+    try:
+        footer_html = await _get_global_footer_html()
+        if footer_html:
+            html = _append_footer_to_html(html, footer_html)
+    except Exception as e:
+        logger.warning(f"[Footer] No se pudo anexar footer global: {e}")
 
     email_log = {
         "email_log_id": f"eml_{uuid.uuid4().hex[:12]}",

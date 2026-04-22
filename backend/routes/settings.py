@@ -118,6 +118,86 @@ async def update_app_settings(settings: AppSettings, authorization: Optional[str
         "resend_api_key_configured": bool(settings.resend_api_key)
     }
 
+
+# ==================== EMAIL FOOTER GLOBAL ====================
+
+class EmailFooterPayload(BaseModel):
+    body_html: str = ""
+
+
+def _resolve_footer_variables(body_html: str) -> str:
+    """Reemplaza variables dinámicas soportadas en el footer global."""
+    if not body_html:
+        return ""
+    year = datetime.now(timezone.utc).strftime("%Y")
+    return (
+        body_html
+        .replace("{{año_actual}}", year)
+        .replace("{{ano_actual}}", year)
+        .replace("{{razon_social}}", "Mega Soft Computación, C.A.")
+    )
+
+
+@router.get("/config/email-footer")
+async def get_email_footer(authorization: Optional[str] = Header(None)):
+    """Obtiene el footer global que se adjunta automáticamente a todos los correos."""
+    await get_current_user(authorization)
+    doc = await db.config.find_one({"type": "email_footer"}, {"_id": 0})
+    if not doc:
+        return {"body_html": "", "updated_at": None, "updated_by": None}
+    return {
+        "body_html": doc.get("body_html", ""),
+        "updated_at": doc.get("updated_at"),
+        "updated_by": doc.get("updated_by"),
+    }
+
+
+@router.put("/config/email-footer")
+async def update_email_footer(
+    payload: EmailFooterPayload,
+    authorization: Optional[str] = Header(None),
+):
+    """Actualiza el footer global. Solo administradores."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar el footer global")
+
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    update_doc = {
+        "type": "email_footer",
+        "body_html": payload.body_html or "",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": user_name,
+    }
+    await db.config.update_one(
+        {"type": "email_footer"},
+        {"$set": update_doc},
+        upsert=True,
+    )
+    # Invalidar caché del servicio de correo
+    try:
+        from services.email_service import invalidate_footer_cache
+        invalidate_footer_cache()
+    except Exception:
+        pass
+
+    return {
+        "message": "Footer global actualizado",
+        "body_html": update_doc["body_html"],
+        "updated_at": update_doc["updated_at"],
+        "updated_by": update_doc["updated_by"],
+    }
+
+
+@router.post("/config/email-footer/preview")
+async def preview_email_footer(
+    payload: EmailFooterPayload,
+    authorization: Optional[str] = Header(None),
+):
+    """Devuelve el footer con variables resueltas para vista previa."""
+    await get_current_user(authorization)
+    return {"html": _resolve_footer_variables(payload.body_html or "")}
+
 # Endpoint para obtener plantillas de documentos por sede
 @router.get("/config/document-templates")
 async def get_document_templates(authorization: Optional[str] = Header(None)):

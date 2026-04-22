@@ -3,10 +3,11 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2 } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { usePermission } from '../hooks/usePermission';
 
 // Sedes disponibles
@@ -26,6 +27,7 @@ const TEMPLATE_TYPES = [
 
 export const Settings = () => {
   const { canEdit } = usePermission('configuracion');
+  const navigate = useNavigate();
   const [logoUrl, setLogoUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -562,6 +564,36 @@ export const Settings = () => {
                   {savingEmail ? 'Guardando...' : 'Guardar Configuración de Correos'}
                 </Button>
               </div>
+            </div>
+          </div>
+
+          {/* Pie de Página Global Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="global-footer-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileText size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
+                    Gestión de Footer Global
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                    Define el pie de página institucional (cláusulas de confidencialidad,
+                    responsabilidad ambiental, etc.) que se anexará automáticamente al final de
+                    cada correo despachado por el ecosistema MegaNexus.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/email-footer')}
+                variant="outline"
+                className="flex-shrink-0"
+                data-testid="open-email-footer-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
             </div>
           </div>
 

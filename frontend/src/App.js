@@ -12,6 +12,7 @@ import { InventoryAccountingReport } from './pages/InventoryAccountingReport';
 import { AssetLedgerReport } from './pages/AssetLedgerReport';
 import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
+import { EmailFooterConfig } from './pages/EmailFooterConfig';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
 import Banks from './pages/Banks';
@@ -164,6 +165,11 @@ function AppRouter() {
       <Route path="/settings" element={
         <ProtectedRoute>
           <Settings />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/email-footer" element={
+        <ProtectedRoute>
+          <EmailFooterConfig />
         </ProtectedRoute>
       } />
       <Route path="/admin/users" element={
