@@ -114,6 +114,13 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## Enhancement: Actividad Reciente en Dashboard (Feb-2026, iter 180)
+- Endpoint `GET /api/notifications/recent-activity?limit=N` — feed empresa-wide, admin/director-only.
+- Dedup inteligente: agrupa copias por destinatario usando `(event_type, quote/project/title, timestamp@segundo)`.
+- Componente `RecentActivityCard.jsx` en Dashboard (debajo de los stat cards): últimos 5 eventos con prioridad coloreada, categoría, time-ago, click navega al link. Auto-refresh cada 60s.
+- Se oculta automáticamente si el endpoint devuelve 403 (usuario no-admin/no-director).
+- **No expone datos privados** (se excluyen user_id, read_at, is_read del recipient original).
+
 ## P1 — Sistema de Notificaciones Push (Feb-2026, iter 179)
 
 ### Arquitectura

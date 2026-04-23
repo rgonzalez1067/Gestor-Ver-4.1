@@ -16,6 +16,48 @@ logger = logging.getLogger(__name__)
 
 # ==================== REST: Notifications feed ====================
 
+@router.get("/notifications/recent-activity")
+async def recent_activity(
+    limit: int = Query(10, ge=1, le=30),
+    authorization: Optional[str] = Header(None),
+):
+    """Feed global empresa-wide de las últimas notificaciones. Solo admin o director.
+
+    Deduplica por (event_type, quote_id|project_id) para evitar mostrar múltiples copias
+    de un mismo evento dirigido a varios usuarios.
+    """
+    user = await get_current_user(authorization)
+    role = user.get("role")
+    cargo = (user.get("cargo") or "").lower()
+    if role != "admin" and role != "director" and "director" not in cargo:
+        raise HTTPException(403, "Solo administradores o directores")
+
+    # Traer más para poder deduplicar y aun así devolver `limit`
+    cursor = db.notifications.find({}, {"_id": 0}).sort("created_at", -1).limit(limit * 5)
+    seen = set()
+    items = []
+    async for n in cursor:
+        # Dedup: misma notify() genera 1 doc por destinatario, agrupamos por
+        # (event_type, quote/project, timestamp redondeado al segundo).
+        ts = (n.get("created_at") or "")[:19]  # YYYY-MM-DDTHH:MM:SS
+        key = (
+            n.get("event_type"),
+            n.get("quote_id") or n.get("project_id") or n.get("title", ""),
+            ts,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        n.pop("user_id", None)
+        n.pop("read_at", None)
+        n.pop("is_read", None)
+        items.append(n)
+        if len(items) >= limit:
+            break
+
+    return {"items": items, "count": len(items)}
+
+
 @router.get("/notifications")
 async def list_my_notifications(
     limit: int = Query(50, ge=1, le=200),

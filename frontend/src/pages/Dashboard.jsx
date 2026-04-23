@@ -12,6 +12,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { RecentActivityCard } from '../components/RecentActivityCard';
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -223,6 +224,11 @@ export const Dashboard = () => {
                 </div>
               );
             })}
+          </div>
+
+          {/* Actividad Reciente (admin/director) */}
+          <div className="mb-8">
+            <RecentActivityCard limit={5} />
           </div>
 
           {/* Project KPI Card */}
