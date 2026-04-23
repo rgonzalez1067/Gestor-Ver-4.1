@@ -258,6 +258,10 @@ Arquitectura: `Sidebar.jsx` ahora soporta **sub-grupos anidados** vía renderer 
 - `contact_id` autogenerado.
 Si el IC no tenía ni teléfono ni email ni nombre, no se precarga ningún contacto. El frontend `Clients.jsx` ya consume `contacts[]` así que el primer contacto aparece listo para edición sin cambios adicionales. Validado por curl con IC con ambos campos y con sólo teléfono.
 
+## Quotes: eliminada opción "Descargar PDF" del menú de acciones (Feb-2026, iter 182b)
+
+Se removió el `DropdownMenuItem` "Descargar PDF" del menú ⋯ en `/app/frontend/src/components/quotes/QuotesTable.jsx` porque descargaba una versión desactualizada de la cotización. La función `downloadPDF()` y la prop `onDownloadPDF` fueron eliminadas de `Quotes.jsx`. El **PDF oficial se obtiene ahora exclusivamente desde el botón "Anexos"** de cada fila. Validado por screenshot: dropdown empieza con "Modificar (Nueva Versión)" y ya no expone el item con versión errada.
+
 
 ## P2 Refactor Backend — `quote_actions.py` (Feb-2026, iter 176)
 Desglose del monolito `/app/backend/routes/quote_actions.py` (3060 → 2089 líneas, -31%).

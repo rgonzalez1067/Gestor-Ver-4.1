@@ -1568,132 +1568,10 @@ export const Quotes = () => {
     }
   };
 
-  const downloadPDF = async (quoteId) => {
-    const toastId = toast.loading('Generando PDF...');
-    
-    try {
-      // Obtener token de autenticación
-      const token = localStorage.getItem('session_token');
-      if (!token) {
-        toast.dismiss(toastId);
-        toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
-        return;
-      }
-      
-      const backendUrl = process.env.REACT_APP_BACKEND_URL;
-      const pdfUrl = `${backendUrl}/api/quotes/${quoteId}/pdf`;
-      
-      console.log('[PDF Download] Iniciando descarga:', pdfUrl);
-      
-      // Usar fetch nativo para mejor control de la descarga
-      const response = await fetch(pdfUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/pdf'
-        }
-      });
-      
-      console.log('[PDF Download] Response status:', response.status);
-      
-      // Verificar respuesta
-      if (!response.ok) {
-        toast.dismiss(toastId);
-        if (response.status === 404) {
-          toast.error('Cotización no encontrada');
-        } else if (response.status === 401) {
-          toast.error('Sesión expirada. Por favor, inicie sesión nuevamente');
-          localStorage.removeItem('session_token');
-          window.location.href = '/login';
-        } else {
-          const errorText = await response.text();
-          try {
-            const errorData = JSON.parse(errorText);
-            toast.error(errorData.detail || 'Error al generar PDF');
-          } catch {
-            toast.error(`Error del servidor: ${response.status}`);
-          }
-        }
-        return;
-      }
-      
-      // Verificar Content-Type
-      const contentType = response.headers.get('content-type');
-      console.log('[PDF Download] Content-Type:', contentType);
-      
-      if (!contentType || !contentType.includes('application/pdf')) {
-        toast.dismiss(toastId);
-        toast.error('El servidor no devolvió un PDF válido');
-        console.error('[PDF Download] Content-Type inválido:', contentType);
-        return;
-      }
-      
-      // Obtener el blob
-      const blob = await response.blob();
-      console.log('[PDF Download] Blob recibido:', { size: blob.size, type: blob.type });
-      
-      if (blob.size === 0) {
-        toast.dismiss(toastId);
-        toast.error('El archivo PDF está vacío');
-        return;
-      }
-      
-      // Obtener nombre del archivo del header
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = `cotizacion_${quoteId}.pdf`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) {
-          filename = match[1].replace(/['"]/g, '');
-        }
-      }
-      
-      console.log('[PDF Download] Filename:', filename);
-      
-      // Crear URL del blob
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      // Crear elemento de descarga
-      const downloadLink = document.createElement('a');
-      downloadLink.href = blobUrl;
-      downloadLink.download = filename;
-      
-      // Estilos para ocultar pero mantener funcional
-      downloadLink.style.position = 'fixed';
-      downloadLink.style.left = '-9999px';
-      downloadLink.style.top = '-9999px';
-      downloadLink.style.visibility = 'hidden';
-      
-      // Añadir al DOM
-      document.body.appendChild(downloadLink);
-      
-      // Usar setTimeout para asegurar que el elemento esté en el DOM
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Disparar el click
-      downloadLink.click();
-      
-      console.log('[PDF Download] Click disparado');
-      
-      // Esperar un poco antes de limpiar para asegurar que la descarga inicie
-      setTimeout(() => {
-        if (document.body.contains(downloadLink)) {
-          document.body.removeChild(downloadLink);
-        }
-        window.URL.revokeObjectURL(blobUrl);
-        console.log('[PDF Download] Limpieza completada');
-      }, 3000);
-      
-      // Mostrar éxito
-      toast.dismiss(toastId);
-      toast.success(`PDF "${filename}" descargado`);
-      
-    } catch (error) {
-      toast.dismiss(toastId);
-      console.error('[PDF Download] Error:', error);
-      toast.error('Error al descargar el PDF. Verifique su conexión.');
-    }
-  };
+  // Nota iter 182: la descarga de PDF desde el menú de acciones fue eliminada
+  // por descargar una versión desactualizada. El PDF oficial se obtiene ahora
+  // exclusivamente desde el botón "Anexos".
+
 
   // Exportar cotización actual a PDF (sin guardar en BD)
   const exportCurrentQuoteToPDF = async () => {
@@ -3272,7 +3150,6 @@ export const Quotes = () => {
               setAnexosQuoteNumber(quote.quote_number);
               setAnexosOpen(true);
             }}
-            onDownloadPDF={downloadPDF}
             onEditQuote={handleEditQuote}
             onSendToClient={handleSendToClient}
             onApprove={(id) => checkIrregularAndProceed(id, 'approve', openApproveConfirm)}

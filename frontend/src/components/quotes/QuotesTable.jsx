@@ -1,4 +1,4 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, Download, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -40,7 +40,7 @@ export const QuotesTable = ({
   quotes, clients,
   filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
   actionLoading, canEdit,
-  onOpenAnexos, onDownloadPDF, onEditQuote, onSendToClient,
+  onOpenAnexos, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
   clearFilters,
@@ -215,10 +215,6 @@ export const QuotesTable = ({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem onSelect={() => onDownloadPDF(quote.quote_id)} className="cursor-pointer">
-                          <Download size={16} className="mr-2 text-slate-500" /> Descargar PDF
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
                         {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer">
                           <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar (Nueva Versión)
                         </DropdownMenuItem>}
