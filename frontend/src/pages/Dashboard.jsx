@@ -628,15 +628,15 @@ export const Dashboard = () => {
               </div>
             )}
             <div>
-              <Label>Nuevo asignado *</Label>
+              <Label>Transferir a (Gerente) *</Label>
               <Select value={dashTransferUserId} onValueChange={setDashTransferUserId}>
-                <SelectTrigger data-testid="dash-transfer-user"><SelectValue placeholder="Seleccione usuario..." /></SelectTrigger>
+                <SelectTrigger data-testid="dash-transfer-user"><SelectValue placeholder="Seleccione gerente destino..." /></SelectTrigger>
                 <SelectContent>
                   {dashUsers
-                    .filter(u => u.user_id !== dashTransferContact?.assigned_to_user_id && u.is_active !== false)
+                    .filter(u => u.cargo === 'Gerente' && u.user_id !== currentUser?.user_id && u.user_id !== dashTransferContact?.assigned_to_user_id && u.is_active !== false)
                     .map(u => (
                       <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.first_name} {u.last_name} {u.cargo ? `(${u.cargo})` : ''}
+                        {u.first_name} {u.last_name} {u.departamento ? `(${u.departamento}` : ''}{u.sede ? ` - ${u.sede})` : (u.departamento ? ')' : '')}
                       </SelectItem>
                     ))}
                 </SelectContent>
