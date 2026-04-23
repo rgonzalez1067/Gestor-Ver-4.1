@@ -114,6 +114,37 @@ Replicación del sistema de Clientes a Integradores + Nuevos Productos, con arqu
 - Frontend: 5/5 UI checks PASSED
 - Warning cosmético de hydration pre-existente (iteration_171) abierto pero no bloqueante.
 
+## P1 — Sistema de Notificaciones Push (Feb-2026, iter 179)
+
+### Arquitectura
+- **WebSocket real-time** en `/api/ws/notifications/{user_id}?token=X` con `ConnectionManager` que soporta múltiples tabs por usuario. Fallback automático a polling 30s tras 3 fallos de WS.
+- **Colecciones**: `db.notifications` (1 doc por usuario × evento) + `db.notification_config` (config admin global).
+- **APScheduler** corriendo 3 cron jobs a las 08:00/08:05/08:10 America/Caracas: taller >15 días, proyectos asignados sin iniciar, proyectos sin avance en 5 días.
+- **Catálogo**: 16 eventos (13 instantáneos + 3 programados) en 7 categorías. Cada uno configurable por admin (activo + prioridad Alta/Media/Baja).
+
+### Recipients rules
+- Por rol: creator, creator_supervisor, assignee, admin_by_sede, implementation_manager, almacen, sales_by_sede, sales_and_directors.
+- "Administración" filtrado por sede del contexto (TBP/PYME/CORP).
+- **Admins (role=admin) siempre reciben TODAS las notificaciones activas** (regla explícita del usuario).
+
+### Hooks en flujos existentes
+- `quote_actions.py`: approve, send-to-client, invoice, collect, deliver, repair-complete.
+- `quote_helpers.py`: mark_quote_irregular.
+- `quote_transitions.py`: _create_project_from_quote.
+- `projects.py`: asignar implementador, notify-bank, matrix phase completed.
+- `new_products.py`: phase change.
+- `initial_contacts.py`: create contact. (Endpoints viejos `/notifications` eliminados, se centralizó todo.)
+
+### UI
+- Campana (NotificationBell) en sidebar expandido/colapsado con badge rojo de unread + indicador verde de conexión WS.
+- Dropdown 400px con items (barra color por prioridad, pill, categoría, time-ago), click marca leído y navega al link.
+- Toasts coloreados (sonner): rojo/ámbar/slate según prioridad. Sin sonido.
+- Página admin `/settings/notifications`: 16 eventos en 7 acordeones, toggle + 3 selectores de prioridad. Card de acceso en Settings.
+
+### Testing
+- **iter_179**: Backend 11/11 PASS, Frontend 100% PASS. Sin regresiones. WS del ingress preview no soporta upgrade pero polling fallback cubre — no afecta al usuario final.
+- 2 tests de 403 (non-admin) skipped por falta de credenciales no-admin funcionales (minor).
+
 ## Categorías Comerciales Dinámicas + Fix Timestamp Reparada (Feb-2026, iter 178)
 
 ### Nuevo catálogo: Categoría Comercial
