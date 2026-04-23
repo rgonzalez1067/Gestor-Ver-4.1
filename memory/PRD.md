@@ -225,6 +225,30 @@ Arquitectura: `Sidebar.jsx` ahora soporta **sub-grupos anidados** vía renderer 
 
 **Tests** (iteration_180): Backend 8/8 PASS, Frontend 8/8 UI flows PASS. Validados: create con solo phone / solo email / validación frontend si ambos vacíos, delete admin-only (403/404/409/200), transfer end-to-end, bitácora sin "Invalid Date".
 
+## Rediseño Módulo de Seguridad y Perfiles de Acceso (Feb-2026, iter 181)
+
+**Estructura jerárquica**: Nivel 1 (Grupos de menú con toggle Activo/Inactivo) → Nivel 2 (Submódulos con 3 estados: Inactivo/Consulta/Edición Total) → Funciones Especiales (checkboxes que rompen la restricción de Consulta).
+
+**Backend** (`/app/backend/permissions_catalog.py` — fuente única de verdad):
+- 7 grupos de menú: dashboard, gestion_comercial, catalogos, gestion_implementacion, nuevos_productos, gestion_administrativa, gestion_taller.
+- 16 módulos con mapeo a grupo padre. Niveles: `none/read/edit` → UI labels `Inactivo/Consulta/Edición Total`.
+- 7 flags especiales: `proyectos:create`, `cotizaciones:{impl_pyme, impl_corp, equipos, reparaciones}`, `inventarios:create_warehouse`, `integradores:create`.
+- 4 acciones admin-only hardcoded: `integradores:bulk_delete`, `integradores:import`, `proyectos:delete`, `taller_equipos:delete`.
+- Endpoints nuevos: `GET /api/admin/permission-catalog`, `PUT /api/admin/users/{id}/menu-groups`. Extendido `PUT /permissions` y `PUT /special-permissions` para validar contra catálogo.
+- Auto-migración en login + /auth/me: usuarios legacy sin `menu_groups` reciben todos los 7 grupos en `True`.
+- Enforcement admin-only: agregado a `POST /api/integrators/import` (gap pre-existente). Los 3 DELETE restantes ya validaban admin.
+
+**Frontend**:
+- `hooks/usePermission.js` extendido: `hasSpecial(flag)`, `isGroupActive(groupId)`, `MODULE_TO_GROUP`. `canView/canEdit/canCreate` respetan grupo padre activo.
+- `components/Sidebar.jsx`: cada ítem con `groupId`; si el grupo está inactivo, todo el grupo desaparece del menú.
+- `pages/AdminUsers.jsx` (REESCRITO): vista por usuario (panel izq con lista + panel der con detalle). Atributos Rol/Estado/Almacén/Supervisor en grid 4-col. Acordeón por grupo con toggle Activo/Inactivo (banner amarillo informativo si usuario es Admin). Cada módulo con radio Inactivo/Consulta/Edición Total + checkboxes de Funciones Especiales agrupados bajo su módulo. Al desactivar un grupo, módulos hijos se ven opacos + badge "Grupo inactivo" + pointer-events-none.
+- Integradores: botón `Importar` ahora admin-only. `Nuevo Proyecto de Integración` respeta flag `proyectos:create` como override de Consulta.
+- Inventario: botón `Nuevo Almacén` respeta flag `inventarios:create_warehouse` como override.
+- Cotizaciones: los 4 flags de tipo de cotización ya estaban aplicados (iter previa).
+
+**Tests** (iteration_181): Backend 12/12 PASS, Frontend 13/14 OK (1 bug visual de opacidad corregido por main agent). Validado: catálogo, persistencia menu_groups, filtrado de flags inválidos, auto-migración en login, admin enforcement en `/integrators/import`, sidebar cascada, banners admin-only.
+
+
 ## P2 Refactor Backend — `quote_actions.py` (Feb-2026, iter 176)
 Desglose del monolito `/app/backend/routes/quote_actions.py` (3060 → 2089 líneas, -31%).
 Nuevos módulos:

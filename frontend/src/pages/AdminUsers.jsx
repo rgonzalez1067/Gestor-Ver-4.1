@@ -538,11 +538,16 @@ const GroupCard = ({
             const specialFns = specialsByModule(m.id);
             const moduleDisabled = inactiveCascade || disabled;
             return (
-              <div key={m.id} className={`border border-slate-200 rounded-md p-3 ${moduleDisabled ? 'bg-slate-50' : 'bg-white'}`} data-testid={`module-row-${m.id}-${userId}`}>
+              <div key={m.id} className={`border border-slate-200 rounded-md p-3 transition ${moduleDisabled ? 'bg-slate-50 opacity-60 pointer-events-none' : 'bg-white'}`} data-testid={`module-row-${m.id}-${userId}`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${LEVEL_COLORS[level]?.dot || 'bg-slate-300'}`} />
                     <span className="font-medium text-sm text-slate-700">{m.name}</span>
+                    {moduleDisabled && !isAdminUser && (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded uppercase tracking-wide" data-testid={`module-disabled-badge-${m.id}-${userId}`}>
+                        Grupo inactivo
+                      </span>
+                    )}
                   </div>
                   <RadioGroup
                     value={moduleDisabled ? level : level}
