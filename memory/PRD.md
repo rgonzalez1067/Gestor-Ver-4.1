@@ -248,6 +248,16 @@ Arquitectura: `Sidebar.jsx` ahora soporta **sub-grupos anidados** vía renderer 
 
 **Tests** (iteration_181): Backend 12/12 PASS, Frontend 13/14 OK (1 bug visual de opacidad corregido por main agent). Validado: catálogo, persistencia menu_groups, filtrado de flags inválidos, auto-migración en login, admin enforcement en `/integrators/import`, sidebar cascada, banners admin-only.
 
+## Conversión Contacto Inicial → Prospecto: precarga primer contacto (Feb-2026, iter 182)
+
+`POST /api/initial-contacts/{id}/convert` ahora precarga el primer `ContactCRM` del cliente nuevo con los datos del Contacto Inicial:
+- `full_name` = `contact_name` del IC.
+- `phone` = `phone` del IC.
+- `email` = `email` del IC.
+- `role` = "Administrativo" (default).
+- `contact_id` autogenerado.
+Si el IC no tenía ni teléfono ni email ni nombre, no se precarga ningún contacto. El frontend `Clients.jsx` ya consume `contacts[]` así que el primer contacto aparece listo para edición sin cambios adicionales. Validado por curl con IC con ambos campos y con sólo teléfono.
+
 
 ## P2 Refactor Backend — `quote_actions.py` (Feb-2026, iter 176)
 Desglose del monolito `/app/backend/routes/quote_actions.py` (3060 → 2089 líneas, -31%).

@@ -341,6 +341,23 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
     }
     migrated_bitacora = list(contact.get("bitacora", [])) + [conversion_entry]
     
+    # Precargar primer contacto del Prospecto con los datos del Contacto Inicial.
+    # Según requerimiento: Nombre/Teléfono/Email del contacto inicial son el primer contacto del cliente.
+    initial_full_name = (contact.get("contact_name") or "").strip()
+    initial_phone = (contact.get("phone") or "").strip()
+    initial_email = (contact.get("email") or "").strip()
+    first_contact = None
+    if initial_full_name or initial_phone or initial_email:
+        first_contact = {
+            "contact_id": f"cnt_{uuid.uuid4().hex[:8]}",
+            "full_name": initial_full_name,
+            "first_name": None,
+            "last_name": None,
+            "phone": initial_phone,
+            "email": initial_email,
+            "role": "Administrativo",
+        }
+
     new_client = {
         "client_id": client_id,
         "rif": "",
@@ -350,11 +367,13 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
         "contact_name": contact["contact_name"],
         "contact_phone": contact["phone"],
         "contact_email": contact["email"],
+        "contacts": [first_contact] if first_contact else [],
         "address": "",
         "sucursal": "",
         "branch_address": "",
         "additional_info": contact.get("interest_notes", "") or f"Convertido desde Contacto Inicial por {converter_name}",
         "client_status": "Prospecto",
+        "condicion": "Prospecto",
         "account_executive_id": current_user["user_id"],
         "account_executive_name": converter_name,
         "owner_id": current_user["user_id"],
