@@ -26,7 +26,8 @@ const MOV_LABELS = {
 };
 
 export default function Inventory() {
-  const { canEdit, user: currentUser } = usePermission('inventarios');
+  const { canEdit, hasSpecial, user: currentUser } = usePermission('inventarios');
+  const canCreateWarehouse = canEdit || hasSpecial('inventarios:create_warehouse');
   const userAlmacen = currentUser?.almacen_asignado || null;
   const [warehouses, setWarehouses] = useState([]);
   const [hardware, setHardware] = useState([]);
@@ -522,7 +523,7 @@ export default function Inventory() {
                 data-testid="btn-client-search">
                 <Search size={14} className="mr-1.5" />Buscar por Cliente
               </Button>
-              {canEdit && <Button onClick={() => { setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' }); setWhEditing(null); setWhDialog(true); }}
+              {canCreateWarehouse && <Button onClick={() => { setWhForm({ name: '', location: '', notes: '', responsible_user_id: '' }); setWhEditing(null); setWhDialog(true); }}
                 data-testid="add-warehouse-btn" className="bg-teal-600 hover:bg-teal-700 text-white">
                 <Plus size={16} className="mr-1.5" />Nuevo Almacén
               </Button>}

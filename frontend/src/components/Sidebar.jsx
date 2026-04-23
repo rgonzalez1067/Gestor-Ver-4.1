@@ -32,12 +32,12 @@ import {
 import { NotificationBell } from './NotificationBell';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
-import { ROUTE_MODULE_MAP } from '../hooks/usePermission';
+import { ROUTE_MODULE_MAP, isGroupActive } from '../hooks/usePermission';
 
 const menuItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', groupId: 'dashboard' },
   {
-    icon: Briefcase, label: 'Gestion Comercial', isGroup: true,
+    icon: Briefcase, label: 'Gestion Comercial', isGroup: true, groupId: 'gestion_comercial',
     children: [
       { path: '/initial-contacts', icon: Phone, label: 'Contacto Inicial' },
       { path: '/clients', icon: Users, label: 'Clientes' },
@@ -46,7 +46,7 @@ const menuItems = [
     ]
   },
   {
-    icon: Package, label: 'Catálogos', isGroup: true,
+    icon: Package, label: 'Catálogos', isGroup: true, groupId: 'catalogos',
     children: [
       { path: '/banks', icon: Building2, label: 'Bancos' },
       { path: '/medios-pago', icon: CreditCard, label: 'Medios de Pago' },
@@ -56,15 +56,15 @@ const menuItems = [
     ]
   },
   {
-    icon: FolderKanban, label: 'Gestión de Implementación', isGroup: true,
+    icon: FolderKanban, label: 'Gestión de Implementación', isGroup: true, groupId: 'gestion_implementacion',
     children: [
       { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
       { path: '/integrators', icon: UserCheck, label: 'Integradores' },
     ]
   },
-  { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos' },
+  { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos', groupId: 'nuevos_productos' },
   {
-    icon: Warehouse, label: 'Gestión Administrativa', isGroup: true,
+    icon: Warehouse, label: 'Gestión Administrativa', isGroup: true, groupId: 'gestion_administrativa',
     children: [
       { path: '/inventory', icon: Warehouse, label: 'Inventarios' },
       {
@@ -77,7 +77,7 @@ const menuItems = [
       },
     ]
   },
-  { path: '/taller-equipos', icon: Wrench, label: 'Gestión de Taller' },
+  { path: '/taller-equipos', icon: Wrench, label: 'Gestión de Taller', groupId: 'gestion_taller' },
 ];
 
 const securityItems = [
@@ -193,10 +193,14 @@ export const Sidebar = () => {
 
     let items = menuItems.map(item => {
       if (item.isGroup) {
+        // Nivel 1: si el grupo está inactivo para el usuario, se elimina completo del menú.
+        if (item.groupId && !isGroupActive(item.groupId)) return null;
         const filteredChildren = (item.children || []).map(filterChild).filter(Boolean);
         if (filteredChildren.length === 0) return null;
         return { ...item, children: filteredChildren };
       }
+      // Standalone items (Dashboard, Nuevos Productos, Taller) — validar también groupId.
+      if (item.groupId && !isGroupActive(item.groupId)) return null;
       const module = ROUTE_MODULE_MAP[item.path];
       if (!module) return item;
       if (role === 'admin') return item;

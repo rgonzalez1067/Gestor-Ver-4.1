@@ -757,7 +757,9 @@ async def import_integrators(
     mode: str = Form("upsert"),
     authorization: Optional[str] = Header(None)
 ):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden importar data de integradores")
     
     import pandas as pd
     

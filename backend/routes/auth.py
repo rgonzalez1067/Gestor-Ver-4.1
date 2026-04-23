@@ -75,7 +75,10 @@ async def create_session(x_session_id: str = Header(...)):
 
 @router.get("/auth/me")
 async def get_me(authorization: Optional[str] = Header(None)):
+    from permissions_catalog import get_default_menu_groups
     user = await get_current_user(authorization)
+    # Auto-migración: si no tiene menu_groups, se asumen todos activos (legacy).
+    menu_groups = user.get("menu_groups") or get_default_menu_groups(True)
     # Retornar usuario sin password_hash
     return {
         "user_id": user.get("user_id"),
@@ -85,10 +88,17 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "name": user.get("name", f"{user.get('first_name', '')} {user.get('last_name', '')}"),
         "cedula": user.get("cedula", ""),
         "role": user.get("role", "user"),
+        "cargo": user.get("cargo", ""),
+        "departamento": user.get("departamento", ""),
         "sede": user.get("sede", "PYME"),  # Sede del usuario
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
+        "special_permissions": user.get("special_permissions", []),
+        "menu_groups": menu_groups,
+        "almacen_asignado": user.get("almacen_asignado", None),
+        "supervisor_id": user.get("supervisor_id", None),
+        "supervisor_name": user.get("supervisor_name", None),
         "picture": user.get("picture")
     }
 
@@ -263,6 +273,13 @@ async def login_user(credentials: UserLogin):
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Cuenta desactivada. Contacte al administrador.")
     
+    # Auto-migración menu_groups: si no existen, se marcan TODOS como activos (legacy).
+    if not user.get("menu_groups"):
+        from permissions_catalog import get_default_menu_groups
+        default_groups = get_default_menu_groups(True)
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"menu_groups": default_groups}})
+        user["menu_groups"] = default_groups
+    
     # Crear nueva sesión
     session_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -291,6 +308,7 @@ async def login_user(credentials: UserLogin):
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
         "special_permissions": user.get("special_permissions", []),
+        "menu_groups": user.get("menu_groups") or {},
         "almacen_asignado": user.get("almacen_asignado", None),
         "supervisor_id": user.get("supervisor_id", None),
         "supervisor_name": user.get("supervisor_name", None),
@@ -551,6 +569,42 @@ async def get_all_users(authorization: Optional[str] = Header(None)):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
     return users
 
+@router.get("/admin/permission-catalog")
+async def get_permission_catalog(authorization: Optional[str] = Header(None)):
+    """Devuelve la estructura completa del sistema de permisos para renderizado dinámico.
+    Admin-only. Incluye grupos de menú, módulos, funciones especiales y acciones admin-only."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden consultar el catálogo")
+    from permissions_catalog import build_catalog
+    return build_catalog()
+
+
+@router.put("/admin/users/{user_id}/menu-groups")
+async def update_user_menu_groups(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualizar menu_groups de un usuario (Nivel 1 activo/inactivo). Solo admin."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden modificar menu_groups")
+
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    from permissions_catalog import MENU_GROUPS
+    valid_group_ids = {g["id"] for g in MENU_GROUPS}
+    incoming = body.get("menu_groups") or {}
+    # Start from current or default-all-on
+    current_groups = user.get("menu_groups") or {g["id"]: True for g in MENU_GROUPS}
+    for gid, active in incoming.items():
+        if gid in valid_group_ids:
+            current_groups[gid] = bool(active)
+
+    await db.users.update_one({"user_id": user_id}, {"$set": {"menu_groups": current_groups}})
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return {"message": "Menu groups actualizados", "user": updated_user}
+
+
 @router.put("/admin/users/{user_id}/permissions")
 async def update_user_permissions(user_id: str, permissions: dict, authorization: Optional[str] = Header(None)):
     """Actualizar permisos de un usuario (solo admin)"""
@@ -564,17 +618,17 @@ async def update_user_permissions(user_id: str, permissions: dict, authorization
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # Validar permisos
-    valid_permissions = {}
-    for module in AVAILABLE_MODULES:
+    # Validar permisos — aceptar tanto módulos legacy (AVAILABLE_MODULES) como del catálogo nuevo (MODULE_IDS).
+    from permissions_catalog import MODULE_IDS
+    all_modules = list(set(list(AVAILABLE_MODULES) + list(MODULE_IDS)))
+    valid_permissions = dict(user.get("permissions", {}))  # preservar existentes
+    for module in all_modules:
         if module in permissions:
             level = permissions[module]
             if level in PERMISSION_LEVELS:
                 valid_permissions[module] = level
             else:
-                valid_permissions[module] = "read"
-        else:
-            valid_permissions[module] = user.get("permissions", {}).get(module, "read")
+                valid_permissions[module] = valid_permissions.get(module, "read")
     
     # Actualizar permisos
     await db.users.update_one(
@@ -597,11 +651,9 @@ async def update_special_permissions(user_id: str, body: dict, authorization: Op
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
     special_permissions = body.get("special_permissions", [])
-    # Validar formato: cada elemento debe ser "modulo:accion"
-    valid_flags = []
-    for flag in special_permissions:
-        if isinstance(flag, str) and ":" in flag:
-            valid_flags.append(flag)
+    # Validar contra catálogo: solo aceptar flags conocidos
+    from permissions_catalog import SPECIAL_FLAG_IDS
+    valid_flags = [f for f in special_permissions if isinstance(f, str) and f in SPECIAL_FLAG_IDS]
     
     await db.users.update_one(
         {"user_id": user_id},
