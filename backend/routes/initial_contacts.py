@@ -4,16 +4,18 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 import uuid
+import logging
 
 from config import db, get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # --- Models ---
 class InitialContactCreate(BaseModel):
     contact_name: str
-    phone: str
-    email: str
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
     legal_name: str
     interest_notes: Optional[str] = ""
     referred_by: Optional[str] = ""
@@ -90,8 +92,8 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
     contact = {
         "contact_id": contact_id,
         "contact_name": data.contact_name.strip(),
-        "phone": data.phone.strip(),
-        "email": data.email.strip(),
+        "phone": (data.phone or "").strip(),
+        "email": (data.email or "").strip(),
         "legal_name": data.legal_name.strip(),
         "interest_notes": (data.interest_notes or "").strip()[:300],
         "referred_by": (data.referred_by or "").strip(),
@@ -428,3 +430,29 @@ async def get_my_commitments(authorization: Optional[str] = Header(None)):
 
 # NOTA: los endpoints /api/notifications se centralizaron en /app/backend/routes/notifications.py
 # (refactor iter 180, Sistema de Push Notifications P1 con WebSocket).
+
+
+@router.delete("/initial-contacts/{contact_id}")
+async def delete_initial_contact(contact_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina permanentemente un contacto inicial. Solo administradores.
+    Bloquea la eliminación si el contacto ya fue convertido a cliente."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden eliminar contactos iniciales")
+
+    contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contacto no encontrado")
+
+    if contact.get("is_converted"):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: el contacto ya fue convertido a cliente. Elimine primero el cliente relacionado.",
+        )
+
+    await db.initial_contacts.delete_one({"contact_id": contact_id})
+    logger.info(
+        f"[initial_contacts] deleted {contact_id} ({contact.get('legal_name', '')}) "
+        f"by {current_user.get('email')}"
+    )
+    return {"message": "Contacto eliminado exitosamente"}

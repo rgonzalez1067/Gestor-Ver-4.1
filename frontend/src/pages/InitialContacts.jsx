@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Phone, Mail, Building2, User, Search, MessageSquare, UserPlus, ArrowRightLeft, Rocket, Clock, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { Plus, Phone, Mail, Building2, User, Search, MessageSquare, UserPlus, ArrowRightLeft, Rocket, Clock, ChevronDown, ChevronUp, Filter, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -45,6 +45,12 @@ export const InitialContacts = () => {
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [bitacoraContact, setBitacoraContact] = useState(null);
 
+  // Delete (admin only)
+  const [deleteContact, setDeleteContact] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const isAdmin = currentUser?.role === 'admin';
+
   // Expanded rows
   const [expandedRow, setExpandedRow] = useState(null);
 
@@ -66,8 +72,11 @@ export const InitialContacts = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!formData.contact_name || !formData.phone || !formData.email || !formData.legal_name) {
-      toast.error('Todos los campos son obligatorios'); return;
+    if (!formData.contact_name || !formData.legal_name) {
+      toast.error('Nombre del contacto y Razón Social son obligatorios'); return;
+    }
+    if (!formData.phone && !formData.email) {
+      toast.error('Debe indicar al menos Teléfono o Email'); return;
     }
     try {
       await api.post('/initial-contacts', formData);
@@ -124,6 +133,21 @@ export const InitialContacts = () => {
       setConvertConfirmOpen(false);
       fetchData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al convertir'); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteContact) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/initial-contacts/${deleteContact.contact_id}`);
+      toast.success('Contacto eliminado');
+      setDeleteContact(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const canAssign = currentUser?.role === 'admin' || ['Director', 'Gerente', 'Coordinador'].includes(currentUser?.cargo);
@@ -292,6 +316,15 @@ export const InitialContacts = () => {
                           onClick={() => { setBitacoraContact(c); setBitacoraOpen(true); }}>
                           <Clock size={14} />
                         </Button>
+                        {isAdmin && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
+                            title="Eliminar (solo Admin)"
+                            onClick={() => setDeleteContact(c)}
+                            data-testid={`delete-btn-${c.contact_id}`}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -312,14 +345,15 @@ export const InitialContacts = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Telefono *</Label>
-                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+58 412 1234567" required data-testid="input-phone" />
+                  <Label>Telefono</Label>
+                  <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+58 412 1234567" data-testid="input-phone" />
                 </div>
                 <div>
-                  <Label>Email *</Label>
-                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="correo@empresa.com" required data-testid="input-email" />
+                  <Label>Email</Label>
+                  <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="correo@empresa.com" data-testid="input-email" />
                 </div>
               </div>
+              <p className="text-[11px] text-slate-400 -mt-2">Indique al menos uno: Teléfono o Email</p>
               <div>
                 <Label>Nombre Juridico (Razon Social) *</Label>
                 <Input value={formData.legal_name} onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })} placeholder="Razon social tentativa" required data-testid="input-legal-name" />
@@ -489,6 +523,33 @@ export const InitialContacts = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete confirmation (admin only) */}
+        <AlertDialog open={!!deleteContact} onOpenChange={(o) => !o && setDeleteContact(null)}>
+          <AlertDialogContent data-testid="ic-delete-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-600">¿Eliminar contacto inicial?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se eliminará permanentemente el contacto{' '}
+                <strong>{deleteContact?.legal_name || ''}</strong>
+                {deleteContact?.rif ? <> (RIF {deleteContact.rif})</> : null}.
+                <br/>
+                <span className="text-amber-600">Esta acción no se puede deshacer.</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting} data-testid="ic-delete-cancel">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700"
+                data-testid="ic-delete-confirm"
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

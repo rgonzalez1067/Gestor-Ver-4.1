@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -39,6 +39,17 @@ export const Dashboard = () => {
   const [dashAssignContact, setDashAssignContact] = useState(null);
   const [dashAssignUserId, setDashAssignUserId] = useState('');
   const [dashAssignComment, setDashAssignComment] = useState('');
+  // Transferir
+  const [dashTransferOpen, setDashTransferOpen] = useState(false);
+  const [dashTransferContact, setDashTransferContact] = useState(null);
+  const [dashTransferUserId, setDashTransferUserId] = useState('');
+  const [dashTransferReason, setDashTransferReason] = useState('');
+  // Bitacora
+  const [dashBitacoraOpen, setDashBitacoraOpen] = useState(false);
+  const [dashBitacoraContact, setDashBitacoraContact] = useState(null);
+  // Delete (admin only)
+  const [dashDeleteContact, setDashDeleteContact] = useState(null);
+  const [dashDeleting, setDashDeleting] = useState(false);
 
   useEffect(() => { fetchDashboardData(); }, []);
 
@@ -176,6 +187,34 @@ export const Dashboard = () => {
       setDashAssignOpen(false); setDashAssignUserId(''); setDashAssignComment('');
       fetchDashboardData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+  };
+
+  const handleDashTransfer = async () => {
+    if (!dashTransferUserId) { toast.error('Seleccione un usuario destino'); return; }
+    try {
+      await api.post(`/initial-contacts/${dashTransferContact.contact_id}/transfer`, {
+        target_user_id: dashTransferUserId,
+        comment: dashTransferReason || undefined,
+      });
+      toast.success('Contacto transferido');
+      setDashTransferOpen(false); setDashTransferUserId(''); setDashTransferReason('');
+      fetchDashboardData();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error al transferir'); }
+  };
+
+  const handleDashDelete = async () => {
+    if (!dashDeleteContact) return;
+    setDashDeleting(true);
+    try {
+      await api.delete(`/initial-contacts/${dashDeleteContact.contact_id}`);
+      toast.success('Contacto eliminado');
+      setDashDeleteContact(null);
+      fetchDashboardData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar');
+    } finally {
+      setDashDeleting(false);
+    }
   };
 
   const chartData = [
@@ -335,10 +374,29 @@ export const Dashboard = () => {
                                   <UserPlus size={13} />
                                 </Button>
                               )}
+                              {canDashTransfer && (
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-purple-600" title="Transferir"
+                                  onClick={() => { setDashTransferContact(c); setDashTransferUserId(''); setDashTransferReason(''); setDashTransferOpen(true); }}>
+                                  <ArrowRightLeft size={13} />
+                                </Button>
+                              )}
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-green-600" title="Convertir a Prospecto"
                                 onClick={() => { setDashConvertContact(c); setDashConvertOpen(true); }}>
                                 <Rocket size={13} />
                               </Button>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700" title="Ver Bitácora"
+                                onClick={() => { setDashBitacoraContact(c); setDashBitacoraOpen(true); }}>
+                                <Clock size={13} />
+                              </Button>
+                              {currentUser?.role === 'admin' && (
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-red-600"
+                                  title="Eliminar (solo Admin)"
+                                  onClick={() => setDashDeleteContact(c)}
+                                  data-testid={`dash-delete-btn-${c.contact_id}`}
+                                >
+                                  <Trash2 size={13} />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -546,6 +604,120 @@ export const Dashboard = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDashConvert} className="bg-green-600 hover:bg-green-700" data-testid="dash-convert-confirm">Convertir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dashboard: Transferir */}
+      <Dialog open={dashTransferOpen} onOpenChange={setDashTransferOpen}>
+        <DialogContent className="max-w-md" data-testid="dash-transfer-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft size={18} className="text-purple-600" />
+              Transferir contacto
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {dashTransferContact && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm">
+                <p className="font-semibold">{dashTransferContact.legal_name}</p>
+                <p className="text-xs text-slate-500">{dashTransferContact.contact_name}</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Asignado a: <strong>{dashTransferContact.assigned_to_name || '—'}</strong>
+                </p>
+              </div>
+            )}
+            <div>
+              <Label>Nuevo asignado *</Label>
+              <Select value={dashTransferUserId} onValueChange={setDashTransferUserId}>
+                <SelectTrigger data-testid="dash-transfer-user"><SelectValue placeholder="Seleccione usuario..." /></SelectTrigger>
+                <SelectContent>
+                  {dashUsers
+                    .filter(u => u.user_id !== dashTransferContact?.assigned_to_user_id && u.is_active !== false)
+                    .map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.first_name} {u.last_name} {u.cargo ? `(${u.cargo})` : ''}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Motivo (opcional)</Label>
+              <Textarea
+                placeholder="Ej. Reasignación por carga de trabajo..."
+                value={dashTransferReason}
+                onChange={(e) => setDashTransferReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDashTransferOpen(false)}>Cancelar</Button>
+              <Button onClick={handleDashTransfer} className="bg-purple-600 hover:bg-purple-700" data-testid="dash-transfer-confirm">
+                Transferir
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dashboard: Bitácora viewer */}
+      <Dialog open={dashBitacoraOpen} onOpenChange={setDashBitacoraOpen}>
+        <DialogContent className="max-w-lg" data-testid="dash-bitacora-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock size={18} className="text-slate-600" />
+              Bitácora del Contacto
+            </DialogTitle>
+          </DialogHeader>
+          {dashBitacoraContact && (
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                <p className="font-semibold">{dashBitacoraContact.legal_name}</p>
+                <p className="text-xs text-slate-500">{dashBitacoraContact.contact_name}</p>
+              </div>
+              {(dashBitacoraContact.bitacora || []).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">Sin entradas en bitácora aún.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {(dashBitacoraContact.bitacora || []).slice().reverse().map((b, idx) => (
+                    <li key={b.entry_id || idx} className="border-l-2 border-indigo-300 pl-3 py-1">
+                      <p className="text-xs text-slate-500">
+                        {b.timestamp ? new Date(b.timestamp).toLocaleString('es-VE') : ''} · <span className="font-medium text-slate-700">{b.user_name || 'Sistema'}</span>
+                      </p>
+                      <p className="text-sm text-slate-800">{b.description || b.action || ''}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dashboard: Delete confirmation (admin only) */}
+      <AlertDialog open={!!dashDeleteContact} onOpenChange={(o) => !o && setDashDeleteContact(null)}>
+        <AlertDialogContent data-testid="dash-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">¿Eliminar contacto inicial?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará permanentemente el contacto{' '}
+              <strong>{dashDeleteContact?.legal_name || ''}</strong>
+              {dashDeleteContact?.rif ? <> (RIF {dashDeleteContact.rif})</> : null}.
+              <br/>
+              <span className="text-amber-600">Esta acción no se puede deshacer.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={dashDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDashDelete}
+              disabled={dashDeleting}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="dash-delete-confirm"
+            >
+              {dashDeleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
