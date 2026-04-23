@@ -14,6 +14,7 @@ import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
 import { EmailFooterConfig } from './pages/EmailFooterConfig';
 import { CommercialCategories } from './pages/CommercialCategories';
+import { NotificationConfig } from './pages/NotificationConfig';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
 import Banks from './pages/Banks';
@@ -176,6 +177,11 @@ function AppRouter() {
       <Route path="/commercial-categories" element={
         <ProtectedRoute>
           <CommercialCategories />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/notifications" element={
+        <ProtectedRoute>
+          <NotificationConfig />
         </ProtectedRoute>
       } />
       <Route path="/admin/users" element={

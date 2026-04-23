@@ -203,6 +203,28 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         except Exception as e:
             logger.warning(f"Error notificando implementador: {e}")
 
+    # Push notification (evento #7 Proyecto asignado a mí)
+    try:
+        from services.notification_service import notify as _push_notify
+        await _push_notify(
+            event_type="project_assigned_to_me",
+            title=f"Proyecto {project.get('project_number','')} asignado a ti",
+            message=f"Cliente {project.get('client_name','')} · Total USD ${project.get('total_usd',0):,.2f}",
+            context={
+                "assignee_user_id": assignment.assigned_to_user_id,
+                "sede": project.get("client_sede"),
+            },
+            link=f"/projects/{project_id}",
+            project_id=project_id,
+        )
+        # Actualizar assigned_at para que el cron de 'asignado sin iniciar' pueda medir
+        await db.projects.update_one(
+            {"project_id": project_id},
+            {"$set": {"assigned_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    except Exception as e:
+        logger.warning(f"[notify] project_assigned_to_me failed: {e}")
+
     return {"message": "Proyecto asignado exitosamente", "assigned_to": implementer_name}
 
 
@@ -716,6 +738,23 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     }
     await db.projects.update_one({"project_id": project_id}, {"$push": {"bitacora": bitacora_entry}})
 
+    # Push notification (evento #8 Banco notificado en proyecto)
+    try:
+        from services.notification_service import notify as _push_notify
+        await _push_notify(
+            event_type="bank_notified_in_project",
+            title=f"Banco {bank_name} notificado",
+            message=f"Proyecto {project.get('project_number','')} · Nivel {prefix_label} · Target: {target}",
+            context={
+                "assignee_user_id": project.get("assigned_to_user_id"),
+                "sede": project.get("client_sede"),
+            },
+            link=f"/projects/{project_id}",
+            project_id=project_id,
+        )
+    except Exception as e:
+        logger.warning(f"[notify] bank_notified failed: {e}")
+
     return {
         "message": f"[{prefix_label}] enviada a {entity_label} ({email_result.get('status', 'unknown')})",
         "status": email_result.get("status"),
@@ -968,6 +1007,24 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
             {"project_id": project_id},
             {"$set": {"rollup_progress": progress}}
         )
+
+    # Push notification (evento #9 Fase de matriz completada) solo si completed=True
+    if is_completed:
+        try:
+            from services.notification_service import notify as _push_notify
+            await _push_notify(
+                event_type="matrix_phase_completed",
+                title=f"Fase completada: {phase_update.phase}",
+                message=f"Proyecto {updated_project.get('project_number','') if updated_project else ''} · Banco {bank_key} · Producto {phase_update.product_name}",
+                context={
+                    "assignee_user_id": (updated_project or {}).get("assigned_to_user_id"),
+                    "sede": (updated_project or {}).get("client_sede"),
+                },
+                link=f"/projects/{project_id}",
+                project_id=project_id,
+            )
+        except Exception as e:
+            logger.warning(f"[notify] matrix_phase_completed failed: {e}")
 
     return {
         "message": "Fase actualizada",

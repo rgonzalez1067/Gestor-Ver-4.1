@@ -597,6 +597,36 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Notificaciones Push Section */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="notifications-config-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Mail size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope">
+                    Notificaciones Push
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                    Activa o desactiva los 16 eventos del sistema que disparan notificaciones
+                    push en tiempo real (campana + toast). Ajusta la prioridad (Alta / Media / Baja)
+                    por cada uno.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/notifications')}
+                variant="outline"
+                className="flex-shrink-0"
+                data-testid="open-notifications-config-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          </div>
+
           {/* Plantillas de Correo Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">

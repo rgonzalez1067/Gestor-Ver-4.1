@@ -40,8 +40,24 @@ from routes.client_communications import router as client_comms_router
 from routes.entity_communications import router as entity_comms_router
 from routes.quote_history import router as quote_history_router
 from routes.external_api import router as external_api_router
+from routes.notifications import router as notifications_router
+from services.notification_scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(title="Cotizador Merchant Server API")
+
+@app.on_event("startup")
+async def _on_startup():
+    try:
+        start_scheduler()
+    except Exception as e:
+        logging.warning(f"[startup] scheduler failed: {e}")
+
+@app.on_event("shutdown")
+async def _on_shutdown():
+    try:
+        stop_scheduler()
+    except Exception as e:
+        logging.warning(f"[shutdown] scheduler failed: {e}")
 
 # Mount uploads
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
@@ -81,6 +97,8 @@ RBAC_EXEMPT_PREFIXES = [
     "/api/seed",
     "/api/attachments",
     "/api/external",
+    "/api/notifications",
+    "/api/ws/",
 ]
 
 # Métodos HTTP que requieren nivel "edit"
@@ -195,6 +213,7 @@ api_router.include_router(client_comms_router)
 api_router.include_router(entity_comms_router)
 api_router.include_router(quote_history_router)
 api_router.include_router(external_api_router)
+api_router.include_router(notifications_router)
 
 app.include_router(api_router)
 

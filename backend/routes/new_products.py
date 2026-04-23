@@ -413,6 +413,20 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     updated = await db.new_products.find_one({"product_id": product_id}, {"_id": 0})
     if promoted:
         updated["_handoff"] = True
+
+    # Push notification (evento #13 Nuevo Producto cambió de fase)
+    try:
+        from services.notification_service import notify as _push_notify
+        await _push_notify(
+            event_type="new_product_phase_changed",
+            title=f"Nuevo Producto: fase {new_status}",
+            message=f"{product.get('service_name','')} · Banco {product.get('bank_name','')} · Componente: {product.get('component_type','')}",
+            context={},
+            link="/new-products",
+        )
+    except Exception:
+        pass
+
     return updated
 
 

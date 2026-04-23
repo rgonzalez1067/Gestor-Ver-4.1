@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
 import { ROUTE_MODULE_MAP } from '../hooks/usePermission';
@@ -344,18 +345,28 @@ export const Sidebar = () => {
             />
           </div>
 
-          {/* User info - only when expanded */}
+          {/* User info + Notification bell - only when expanded */}
           {!collapsed && userName && (
-            <div className="mx-3 my-1.5 px-3 py-1.5 bg-slate-50 rounded-lg">
-              <p className="text-[10px] text-slate-400">Sesión activa:</p>
-              <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
-                {userName}
-                {isAdmin && (
-                  <span className="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
-                    Admin
-                  </span>
-                )}
-              </p>
+            <div className="mx-3 my-1.5 px-3 py-1.5 bg-slate-50 rounded-lg flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-slate-400">Sesión activa:</p>
+                <p className="text-xs font-medium text-slate-700 flex items-center gap-1.5 truncate">
+                  {userName}
+                  {isAdmin && (
+                    <span className="inline-flex items-center px-1 py-0 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                      Admin
+                    </span>
+                  )}
+                </p>
+              </div>
+              <NotificationBell />
+            </div>
+          )}
+
+          {/* Collapsed: only bell icon */}
+          {collapsed && (
+            <div className="flex justify-center my-1.5">
+              <NotificationBell />
             </div>
           )}
 

@@ -126,3 +126,21 @@ async def mark_quote_irregular(quote_id: str, action: str, reason: str, regulari
         "$set": {"is_irregular": True},
         "$push": {"irregular_exceptions": exception_entry}
     })
+    # Push notification (evento #11 Cotización marcada irregular)
+    try:
+        from services.notification_service import notify as _push_notify
+        quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+        if quote:
+            await _push_notify(
+                event_type="quote_marked_irregular",
+                title=f"Cotización {quote.get('quote_number','')} marcada IRREGULAR",
+                message=f"Acción: {action} · Razón: {reason}",
+                context={
+                    "creator_user_id": quote.get("created_by_user_id"),
+                    "sede": quote.get("sede"),
+                },
+                link="/quotes?filter=irregular",
+                quote_id=quote_id,
+            )
+    except Exception:
+        pass

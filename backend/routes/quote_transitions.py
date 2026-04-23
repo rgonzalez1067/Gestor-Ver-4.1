@@ -231,6 +231,24 @@ async def _create_project_from_quote(
     project.pop("_id", None)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")
 
+    # Push notification (evento #6 Proyecto creado desde cotización)
+    try:
+        from services.notification_service import notify as _push_notify
+        await _push_notify(
+            event_type="project_created",
+            title=f"Nuevo proyecto {project_number}",
+            message=f"Cliente {client_name} · Cotización {quote.get('quote_number','')} · Total USD ${quote.get('total_usd',0):,.2f}",
+            context={
+                "creator_user_id": quote.get("created_by_user_id"),
+                "sede": quote.get("sede") or client_sede,
+            },
+            link=f"/projects/{project['project_id']}",
+            project_id=project["project_id"],
+            quote_id=quote_id,
+        )
+    except Exception as e:
+        logger.warning(f"[notify] project_created failed: {e}")
+
     # Eliminar la cotización origen
     await db.quotes.delete_one({"quote_id": quote_id})
     logger.info(f"Cotización {quote_id} eliminada tras conversión a proyecto {project_number}")

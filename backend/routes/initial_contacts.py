@@ -133,7 +133,29 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
             "created_at": now
         }
         await db.notifications.insert_one(notification)
-    
+
+    # Push notification WebSocket (evento #16 Contacto inicial registrado)
+    try:
+        from services.notification_service import notify as _push_notify
+        # Derivar sede: Pyme/Corp según el created_by
+        creator_sede = None
+        if assigned_user_id:
+            creator_doc = await db.users.find_one({"user_id": assigned_user_id}, {"_id": 0, "sede": 1})
+            if creator_doc:
+                creator_sede = creator_doc.get("sede")
+        await _push_notify(
+            event_type="initial_contact_created",
+            title=f"Nuevo Contacto Inicial registrado",
+            message=f"{contact.get('legal_name','')} · RIF {contact.get('rif','')}",
+            context={
+                "creator_user_id": assigned_user_id,
+                "sede": creator_sede,
+            },
+            link=f"/initial-contacts",
+        )
+    except Exception:
+        pass
+
     return contact
 
 
@@ -404,45 +426,5 @@ async def get_my_commitments(authorization: Optional[str] = Header(None)):
     return contacts
 
 
-# --- Notifications ---
-@router.get("/notifications")
-async def get_notifications(authorization: Optional[str] = Header(None)):
-    """Obtener notificaciones del usuario actual."""
-    current_user = await get_current_user(authorization)
-    notifications = await db.notifications.find(
-        {"user_id": current_user["user_id"]},
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(50)
-    return notifications
-
-
-@router.get("/notifications/unread-count")
-async def get_unread_count(authorization: Optional[str] = Header(None)):
-    """Obtener conteo de notificaciones no leídas."""
-    current_user = await get_current_user(authorization)
-    count = await db.notifications.count_documents(
-        {"user_id": current_user["user_id"], "is_read": False}
-    )
-    return {"count": count}
-
-
-@router.put("/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: str, authorization: Optional[str] = Header(None)):
-    """Marcar notificación como leída."""
-    current_user = await get_current_user(authorization)
-    await db.notifications.update_one(
-        {"notification_id": notification_id, "user_id": current_user["user_id"]},
-        {"$set": {"is_read": True}}
-    )
-    return {"message": "Notificacion marcada como leida"}
-
-
-@router.put("/notifications/read-all")
-async def mark_all_read(authorization: Optional[str] = Header(None)):
-    """Marcar todas las notificaciones como leídas."""
-    current_user = await get_current_user(authorization)
-    await db.notifications.update_many(
-        {"user_id": current_user["user_id"], "is_read": False},
-        {"$set": {"is_read": True}}
-    )
-    return {"message": "Todas las notificaciones marcadas como leidas"}
+# NOTA: los endpoints /api/notifications se centralizaron en /app/backend/routes/notifications.py
+# (refactor iter 180, Sistema de Push Notifications P1 con WebSocket).

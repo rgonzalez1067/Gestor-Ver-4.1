@@ -34,9 +34,28 @@ from routes.quote_helpers import (
     STATUS_ORDER,
 )
 from routes.quote_transitions import _create_project_from_quote
+from services.notification_service import notify as _push_notify
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _push_quote_event(event_type: str, quote: dict, title: str, message: str) -> None:
+    """Wrapper delgado para disparar notificaciones push sin ensuciar cada endpoint."""
+    try:
+        await _push_notify(
+            event_type=event_type,
+            title=title,
+            message=message,
+            context={
+                "creator_user_id": quote.get("created_by_user_id"),
+                "sede": quote.get("sede"),
+            },
+            link=f"/quotes",
+            quote_id=quote.get("quote_id"),
+        )
+    except Exception as e:
+        logger.warning(f"[notify] {event_type} failed: {e}")
 
 @router.get("/quotes/irregular/count")
 async def get_irregular_count(authorization: Optional[str] = Header(None)):
@@ -341,6 +360,13 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
     # Generar tabla de instrucción de facturación para incluir en respuesta
     billing_instruction = billing_data.get("billing_instruction") if billing_data else None
 
+    # Push notification (evento #2 Cotización aprobada)
+    await _push_quote_event(
+        "quote_approved", quote,
+        title=f"Cotización {quote.get('quote_number','')} aprobada",
+        message=f"Cliente {quote.get('client_name','')} · Total USD ${quote.get('total_usd',0):,.2f}",
+    )
+
     return {
         "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else " — Pendiente de Configuración" if is_fast_track else ""),
         "quote_id": quote_id,
@@ -566,6 +592,13 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
         r = await send_email(to=[cc], subject=f"[CC] {rc_subject}", html=rc_html, action="repair_complete_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
         email_results.append(r)
 
+    # Push notification (evento #10 Cotización reparada finalizada)
+    await _push_quote_event(
+        "quote_repair_finalized", quote,
+        title=f"Reparación {quote.get('quote_number','')} finalizada",
+        message=f"Cliente {quote.get('client_name','')} · Lista para entregar",
+    )
+
     return {
         "message": "Reparación marcada como completada. Notificación enviada a Administración y Cliente.",
         "quote_id": quote_id,
@@ -721,7 +754,14 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
         {"quote_id": quote_id},
         {"$set": {"sent_to_client_at": datetime.now(timezone.utc).isoformat(), "quote_status": "Enviada"}}
     )
-    
+
+    # Push notification (evento #1 Cotización enviada al cliente)
+    await _push_quote_event(
+        "quote_sent_to_client", quote,
+        title=f"Cotización {quote.get('quote_number','')} enviada al cliente",
+        message=f"Destinatario: {client_email}",
+    )
+
     return {
         "message": f"Cotización enviada a {client_email}",
         "recipient": client_email,
@@ -987,6 +1027,13 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         r = await send_email(to=[cc], subject=f"[CC] {subject}", html=html_content, action="invoice_cc", quote_id=quote_id, quote_number=quote.get('quote_number'), attachments=invoice_attachments)
         email_results.append(r)
 
+    # Push notification (evento #3 Cotización facturada)
+    await _push_quote_event(
+        "quote_invoiced", quote,
+        title=f"Cotización {quote.get('quote_number','')} facturada",
+        message=f"Factura: {invoice_number}",
+    )
+
     return {"message": "Cotización facturada exitosamente", "invoice_pdf_url": invoice_url, "invoice_number": invoice_number, "emails": email_results}
 
 
@@ -1203,6 +1250,13 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
         }}}
     )
     
+    # Push notification (evento #4 Cotización pagada/cobrada)
+    await _push_quote_event(
+        "quote_collected", quote,
+        title=f"Cotización {quote.get('quote_number','')} cobrada/pagada",
+        message=f"Cliente {quote.get('client_name','')} · Total USD ${quote.get('total_usd',0):,.2f}",
+    )
+
     return {"message": "Cotización marcada como Pagada", "emails": email_results}
 
 
@@ -1645,6 +1699,13 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             logger.info(f"[FastTrack Deliver] Notificación enviada a Ventas: {sales_email_ft} | {r.get('status')}")
         except Exception as e:
             logger.error(f"[FastTrack Deliver] Error enviando notificación a Ventas: {e}")
+
+    # Push notification (evento #5 Cotización entregada)
+    await _push_quote_event(
+        "quote_delivered", quote,
+        title=f"Cotización {quote.get('quote_number','')} entregada",
+        message=f"Items entregados: {len(delivered_pdf_items)} · Cliente {quote.get('client_name','')}",
+    )
 
     return {
         "message": "Cotización marcada como Entregada",
