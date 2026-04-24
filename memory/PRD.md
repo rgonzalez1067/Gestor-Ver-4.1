@@ -298,3 +298,24 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - El **Anexo de Seriales** (página siguiente) se mantiene SIN encabezado según requisito del usuario.
 - Validado con PDF multi-página (14 items): pág 1 ✅ header · pág 2 ✅ header · pág 3 ✅ anexo sin header. Análisis automático de imagen confirmó encabezado completo en la pág 2 (logo Mega Soft, COTIZACIÓN #, fechas, PREPARADO PARA con cliente + RIF + dirección completa, EMITIDO POR).
 
+## Maestro de Perfiles + Techo de Permisos / Ceiling Rule (Feb-2026, iter 183)
+
+**Arquitectura**: El perfil es una plantilla reutilizable que funciona como **techo máximo** de los permisos de cada usuario que lo tenga asignado. En la ficha del usuario solo se pueden reducir permisos — nunca elevarlos por encima del perfil. Admin role queda exento del ceiling.
+
+**Backend**:
+- `/app/backend/permissions_catalog.py`: helpers `LEVEL_RANK`, `level_within_ceiling`, `enforce_permissions/groups/specials_ceiling`.
+- `/app/backend/routes/profiles.py` (NUEVO): CRUD completo. `POST /api/admin/profiles`, `PUT`, `DELETE` (409 si hay users vinculados), `POST /{id}/duplicate`, `PUT /api/admin/users/{id}/profile` (asigna y copia baseline). Al editar un perfil a la baja, re-sincroniza automáticamente todos los usuarios vinculados.
+- `/app/backend/seed_profiles.py` (NUEVO): 4 perfiles semilla idempotentes — Vendedor Pyme, Vendedor Corp, Gerente Operativo, Operador Taller. Ejecutado en `startup`.
+- `/app/backend/routes/auth.py`: añadido ceiling enforcement 403 en los 3 endpoints (`/permissions`, `/menu-groups`, `/special-permissions`) con mensajes específicos. `/auth/me` y login incluyen `profile_id`.
+
+**Frontend**:
+- `/app/frontend/src/pages/AdminProfiles.jsx` (NUEVO): misma paridad visual con AdminUsers. Panel izq lista + panel der acordeón. Botones Crear / Duplicar / Eliminar (con AlertDialog bloqueado si hay users vinculados).
+- `/app/frontend/src/pages/AdminUsers.jsx`: selector "Perfil asignado (techo de permisos)" por usuario. Handler `handleProfileChange` → PUT `/profile` y patcheo local. `GroupCard` ahora recibe `profilePerms/profileGroups/profileSpecials` y renderiza:
+  - Badge "Techo del perfil" junto al grupo si el perfil lo tiene inactivo.
+  - Badge `Max: Edición/Consulta/Inactivo` junto a cada módulo.
+  - `RadioGroupItem.disabled={optionBlocked}` + opacity + tooltip *"Acceso restringido: el nivel máximo para este perfil es [X]"*.
+  - Checkboxes de funciones especiales disabled + etiqueta "no en perfil" cuando el perfil no las tiene.
+- Ruta `/admin/profiles` registrada en App.js y en Sidebar bajo "Gestión de Seguridad → Perfiles de Usuario".
+
+**Tests** (iteration_183): Backend 17/17 pytest PASS en `/app/backend/tests/test_iteration183_profiles_ceiling.py`. Frontend flows críticos PASS: crear/duplicar/eliminar perfil, asignar a user, badges de techo visibles, toggles/radios/checkboxes bloqueados por perfil. Una sugerencia LOW/cosmética ya implementada (disabled HTML nativo en Radix RadioGroupItem).
+
