@@ -1519,6 +1519,9 @@ class EquipmentPDFItem(BaseModel):
     quantity: int = 1
     unit_price_usd: float = 0
     total_usd: float = 0
+    # Seriales asociados a este concepto (solo cotizaciones de Reparación).
+    # Relación N:N con el pool de repair_models: un serial puede aparecer en varios conceptos.
+    serials: List[str] = []
 
 class RepairModelEntry(BaseModel):
     model_name: str
@@ -1572,8 +1575,20 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     items_html = ""
     for item in data.items:
         line_total = item.quantity * item.unit_price_usd
+        serials_block = ""
+        if item.serials:
+            # Chips de seriales en columnas, fuente menor, itálica.
+            serial_spans = "".join(
+                f'<span style="display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;background:#fff7ed;border:1px solid #fed7aa;border-radius:3px;font-family:monospace;font-size:9.5px;color:#9a3412">{s}</span>'
+                for s in item.serials
+            )
+            serials_block = (
+                f'<div style="margin-top:4px;font-size:10px;font-style:italic;color:#6b7280">'
+                f'<span style="font-weight:600;color:#9a3412">Seriales ({len(item.serials)}):</span> {serial_spans}'
+                f'</div>'
+            )
         items_html += f"""<tr>
-            <td><span class="item-name">{item.name}</span><span class="item-desc">{item.hardware_type}</span></td>
+            <td><span class="item-name">{item.name}</span><span class="item-desc">{item.hardware_type}</span>{serials_block}</td>
             <td style="text-align:center">{item.quantity}</td>
             <td style="text-align:right">${item.unit_price_usd:,.2f}</td>
             <td style="text-align:right">${line_total:,.2f}</td>

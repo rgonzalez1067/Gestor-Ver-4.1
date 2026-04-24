@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -6,9 +6,10 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight } from 'lucide-react';
+import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { SerialsSelectorModal } from './SerialsSelectorModal';
 
 // Categorías principales - 4 categorías planas
 const EQUIPMENT_CATEGORIES = [
@@ -171,10 +172,16 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   };
 
   // Actualizar cantidad de un item
+  // Actualizar cantidad de un item
   const updateItemQuantity = (index, quantity) => {
     const updated = [...selectedItems];
-    updated[index].quantity = Math.max(1, parseInt(quantity) || 1);
+    const newQty = Math.max(1, parseInt(quantity) || 1);
+    updated[index].quantity = newQty;
     updated[index].total_usd = updated[index].quantity * updated[index].unit_price_usd;
+    // Si la nueva cantidad es menor que la cantidad de seriales asociados, recortar.
+    if (Array.isArray(updated[index].serials) && updated[index].serials.length > newQty) {
+      updated[index].serials = updated[index].serials.slice(0, newQty);
+    }
     setSelectedItems(updated);
   };
 
@@ -189,6 +196,37 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   // Eliminar item
   const removeItem = (index) => {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
+  // ==========================================
+  // Seriales por concepto (N:N con el pool de repairModels)
+  // ==========================================
+  const [serialsModalIdx, setSerialsModalIdx] = useState(null);
+  // Pool total de seriales precargados en la cotización: [{ serial, model_name, model_id }]
+  const serialsPool = useMemo(() => {
+    const arr = [];
+    for (const m of repairModels) {
+      for (const s of (m.serials || [])) {
+        arr.push({ serial: s, model_name: m.model_name, model_id: m.model_id });
+      }
+    }
+    return arr;
+  }, [repairModels]);
+
+  const openSerialsModal = (index) => {
+    if (serialsPool.length === 0) {
+      toast.error('No hay seriales precargados. Primero agregue modelos con seriales en el paso anterior.');
+      return;
+    }
+    setSerialsModalIdx(index);
+  };
+
+  const saveItemSerials = (serials) => {
+    if (serialsModalIdx === null) return;
+    const updated = [...selectedItems];
+    updated[serialsModalIdx] = { ...updated[serialsModalIdx], serials };
+    setSelectedItems(updated);
+    toast.success(`${serials.length} serial(es) asociados al concepto`);
   };
 
   // Calcular total
@@ -934,15 +972,32 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                             ${item.total_usd.toFixed(2)}
                           </td>
                           <td className="px-3 py-2">
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              onClick={() => removeItem(index)}
-                              className="text-red-500 hover:text-red-700"
-                              data-testid={`equipment-remove-${index}`}
-                            >
-                              <Trash2 size={16} />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              {equipmentCategory === 'Reparacion' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openSerialsModal(index)}
+                                  className={`${(item.serials?.length || 0) === item.quantity && item.quantity > 0
+                                    ? 'text-emerald-600 hover:text-emerald-700'
+                                    : 'text-orange-500 hover:text-orange-700'}`}
+                                  title={`${item.serials?.length || 0}/${item.quantity} seriales asociados`}
+                                  data-testid={`equipment-serials-btn-${index}`}
+                                >
+                                  <ListChecks size={16} />
+                                  <span className="ml-1 text-[11px]">{item.serials?.length || 0}/{item.quantity}</span>
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => removeItem(index)}
+                                className="text-red-500 hover:text-red-700"
+                                data-testid={`equipment-remove-${index}`}
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -988,6 +1043,17 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal selector de seriales por concepto */}
+      <SerialsSelectorModal
+        open={serialsModalIdx !== null}
+        onClose={() => setSerialsModalIdx(null)}
+        pool={serialsPool}
+        initialSelected={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.serials || []) : []}
+        requiredQty={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.quantity || 0) : 0}
+        itemName={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.name || '') : ''}
+        onSave={saveItemSerials}
+      />
 
       {/* Modal de Confirmación */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
