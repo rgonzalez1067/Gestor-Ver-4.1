@@ -589,6 +589,13 @@ export const Integrators = () => {
     return intg.name?.toLowerCase().includes(s) || intg.app_name?.toLowerCase().includes(s) || intg.integration_modality?.toLowerCase().includes(s) || intg.gestor?.toLowerCase().includes(s);
   });
 
+  // Opciones reales para el filtro de Gestor: derivadas de valores distintos presentes
+  // en los integradores cargados. Evita mezcla con Implementadores/Ejecutivos de /auth/users
+  // y asegura match exacto con lo almacenado en BD (ej. "Rafael Gonzalez" sin tilde).
+  const gestorOptions = Array.from(
+    new Set(integrators.map(i => (i.gestor || '').trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+
   if (loading) return (
     <div className="flex min-h-screen"><Sidebar /><div className="flex-1 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-blue-600" /></div></div>
   );
@@ -802,7 +809,7 @@ export const Integrators = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}
+                  {gestorOptions.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                 </SelectContent>
               </Select>
               {(filterStatus || filterType || filterIntType || filterModality || filterGestor || searchTerm) && (

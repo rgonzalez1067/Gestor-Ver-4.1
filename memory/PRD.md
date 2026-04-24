@@ -388,3 +388,11 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - Cada `SelectTrigger` rendea un `<span>` con el label (`TIPO INT.:`, `ESTATUS:`, `TIPO:`, `MODALIDAD:`, `GESTOR:`) en mayúsculas pequeñas seguido de `SelectValue`. Anchos ampliados para acomodar label + valor.
 
 **Validado E2E**: sin filtros 267/234/0/42/32 → Estatus=Certificado 234/234/0/27/0 → +Modalidad=REST 116/116/0/15/0 → Limpiar 267.
+
+## Integradores: Fix filtro Gestor (iter 184c)
+
+**Bug**: el dropdown "Gestor" se poblaba desde `/auth/users` (todos los usuarios activos — mezcla de Gestores, Implementadores, Ejecutivos) con `full_name` canónico ("Rafael González" con tilde). Pero los integradores en BD guardan `gestor="Rafael Gonzalez"` (sin tilde) → el match `intg.gestor !== filterGestor` devolvía 0 de 121 para Rafael.
+
+**Fix** (`Integrators.jsx`): el filtro ahora se popula con `Array.from(new Set(integrators.map(i => i.gestor))).sort()`. Sólo aparecen los 5 gestores reales con integradores asignados, y los valores coinciden exactamente con la BD (match 100%).
+
+**Validado E2E**: `Gestor=Rafael Gonzalez` → Total: 121, Certificados: 107, Sin Implementador: 9, Suspendidos: 14.
