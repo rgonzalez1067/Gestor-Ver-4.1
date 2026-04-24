@@ -447,3 +447,21 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 **Resultado**: `Quotes.jsx` 3299 → 3220 líneas (-79, -2.4%). Lint OK. E2E con Playwright: los 3 botones, dropdown PYME/CORP, banner irregular, filtros y tabla con 15 filas funcionan sin errores en consola.
 
 **Hidratación**: warnings reportados los inyecta el script `emergent-main.js` de Visual Edits (Emergent), sólo activo en preview iframe. NO requiere fix en código de la app.
+
+## Módulo Reportes de Ventas (iter 188)
+
+**Solicitud del usuario**: implementar 3 reportes ejecutivos: Embudo de cotizaciones, Aging y Ventas mensuales.
+
+**Backend** (`/app/backend/routes/sales_reports.py` — NUEVO):
+- `GET /api/reports/sales/funnel?date_from&date_to&segment&category`: conteo y monto cumulativo por etapa (Enviada→Aprobada→Facturada→Pagada→Entregada) usando timestamps `sent_to_client_at`, `approved_at`, `invoiced_at`, `paid_at`, `delivered_at`. Calcula conversión Enviada→Pagada y Enviada→Entregada.
+- `GET /api/reports/sales/aging?segment&category`: cotizaciones no finalizadas (no Entregada y no archivadas) con días en estado actual. Buckets 0-7, 8-15, 16-30, >30 días. Resuelve gestor desde `users.created_by_user_id`.
+- `GET /api/reports/sales/monthly?year&category&segment`: arreglo de 12 meses con cotizado/facturado/cobrado por `created_at`/`invoiced_at`/`paid_at`.
+
+**Frontend** (`/app/frontend/src/pages/SalesReports.jsx` — NUEVO, ruta `/reports/sales`):
+- 3 Tabs (Embudo / Aging / Mensual) con filtros compartidos (segmento, categoría, fechas, año).
+- Recharts: BarChart horizontal para embudo, ComposedChart (bars + line) para mensual.
+- KPIs por reporte, tabla detalle, export CSV en Aging y Mensual.
+- Nuevo link en `Sidebar.jsx` → "Reportes de Ventas" (ícono BarChart3) bajo "Gestión Comercial".
+
+**Validado E2E**: backend con curl (Funnel 19 quotes, Aging 3 rows, Monthly Apr 2026 totales correctos). Frontend con Playwright: los 3 tabs cargan con sus visualizaciones, filtro Categoría=Reparaciones reduce Cotizado de $15.313,16 a $5.998,36 correctamente.
+

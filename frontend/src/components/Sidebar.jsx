@@ -19,6 +19,7 @@ import {
   Wrench,
   FolderKanban,
   Archive,
+  BarChart3,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
@@ -42,6 +43,7 @@ const menuItems = [
       { path: '/initial-contacts', icon: Phone, label: 'Contacto Inicial' },
       { path: '/clients', icon: Users, label: 'Clientes' },
       { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
+      { path: '/reports/sales', icon: BarChart3, label: 'Reportes de Ventas' },
       { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones', requiresHistoryAccess: true },
     ]
   },

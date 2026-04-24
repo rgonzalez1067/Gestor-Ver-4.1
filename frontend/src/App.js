@@ -17,6 +17,7 @@ import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
+import SalesReports from './pages/SalesReports';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
@@ -153,6 +154,11 @@ function AppRouter() {
       <Route path="/historical-quotes" element={
         <ProtectedRoute>
           <HistoricalQuotes />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/sales" element={
+        <ProtectedRoute>
+          <SalesReports />
         </ProtectedRoute>
       } />
       <Route path="/taller-equipos" element={
