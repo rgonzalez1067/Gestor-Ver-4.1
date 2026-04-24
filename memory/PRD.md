@@ -272,3 +272,22 @@ Nuevos módulos:
 - `routes/quote_serials.py` (429 líneas, router independiente): `/quotes/{id}/pinpad-models`, `/quotes/{id}/inventory-serials`, `/quotes/{id}/equipment-for-implementation`, `/inventory/{warehouse_id}/available-serials/{item_id}`, `/quotes/{id}/preassigned-serials`, `POST /quotes/{id}/preassign-serials`.
 
 Routers registrados en `server.py`. Tests: iteration_176 → 27/27 backend PASS. Sin regresiones, helpers validados con 422 IRREGULAR en approve de Borrador.
+
+## Gestión Granular de Seriales por Concepto en Cotizaciones de Reparaciones (Feb-2026, iter 182d)
+
+**Backend** (`/app/backend/routes/quotes.py`):
+- `EquipmentPDFItem` añade campo `serials: List[str] = []` (N:N con el pool `repair_models`).
+- `POST /api/quotes/generate-equipment-pdf` renderiza chips de seriales (fuente monospace 9.5px, itálica, fondo naranja claro, borde naranja) debajo del nombre de cada concepto que tenga `serials`. Total en paréntesis.
+
+**Frontend** (`/app/frontend/src/components/SerialsSelectorModal.jsx` — NUEVO):
+- Modal reutilizable con buscador, agrupación por modelo con sticky header, contador `X/Y` (amber/emerald/red según estado), checkboxes con hard-limit (el checkbox restante se deshabilita con badge "límite alcanzado" al alcanzar la cantidad permitida).
+- Botón `Guardar selección` queda disabled hasta que la cantidad de seriales = `requiredQty` (cantidad del concepto).
+- Pool viene del padre — permite N:N entre conceptos sin bloqueo cruzado.
+
+**Frontend** (`/app/frontend/src/components/EquipmentQuoteWizard.jsx`):
+- Cada fila de la tabla de conceptos (paso 3) agrega un botón ListChecks con contador visual `X/Y` — emerald si está completo, orange si falta.
+- Si el usuario reduce la cantidad del concepto, los seriales asociados se recortan automáticamente vía `slice(0, newQty)`.
+- `serialsPool` derivado con `useMemo` de `repairModels` — aplana `[{serial, model_name, model_id}]`.
+
+**Tests** (iteration_182): Backend 6/6 PASS (pytest en `/app/backend/tests/test_equipment_pdf_serials.py`) + Frontend 9/9 flows PASS. Validado: N:N (serial compartido entre 2 conceptos), hard-limit, buscador, preservación al reabrir, recorte por cambio de cantidad, PDF con chips.
+
