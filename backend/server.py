@@ -270,6 +270,15 @@ async def create_indexes():
     except Exception as e:
         logging.warning(f"Profile seed failed: {e}")
 
+    # Migración one-shot: resetear certifications de integradores al nuevo schema (19 productos).
+    try:
+        from routes.integrators import migrate_integrator_certifications_if_needed
+        affected = await migrate_integrator_certifications_if_needed()
+        if affected:
+            logging.info(f"Integrator certifications reset for {affected} records")
+    except Exception as e:
+        logging.warning(f"Integrator cert migration failed: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

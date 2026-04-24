@@ -170,15 +170,13 @@ export const Integrators = () => {
       const url = params.toString() ? `/integrators?${params}` : '/integrators';
 
       const [intRes, usersRes, servicesRes, implRes] = await Promise.all([
-        api.get(url), api.get('/auth/users'), api.get('/services'), api.get('/auth/implementadores')
+        api.get(url), api.get('/auth/users'), api.get('/integrators/products'), api.get('/auth/implementadores')
       ]);
       setIntegrators(intRes.data);
       setUsers(usersRes.data || []);
       setImplementadores(implRes.data || []);
-      const prods = (servicesRes.data || []).filter(s =>
-        (s.application_type === 'setup' || s.application_type === 'both') && s.service_type === 'Producto'
-      );
-      setCertProducts(prods);
+      // iter 183d: /integrators/products devuelve directo los 19 productos con forma {service_id, name, service_type, application_type}.
+      setCertProducts(servicesRes.data || []);
     } catch { toast.error('Error al cargar datos'); }
     finally { setLoading(false); }
   };

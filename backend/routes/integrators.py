@@ -16,7 +16,71 @@ import base64
 
 router = APIRouter()
 
+# ============================================================
+# Lista maestra de 19 productos de Integradores (M-AE en plantilla).
+# Hardcoded (NO usa db.services para no acoplar con Medios de Pago).
+# ============================================================
+INTEGRATOR_PRODUCTS = [
+    {"id": "prod_tdd_tdc",                      "name": "TDD/TDC"},
+    {"id": "prod_tdc_tdd_excepto_maestro",      "name": "TDC/TDD (excepto maestro)"},
+    {"id": "prod_verificacion_p2c",             "name": "Verificación P2C"},
+    {"id": "prod_c2p",                          "name": "C2P"},
+    {"id": "prod_cryptobuyer_criptomoneda",     "name": "Cryptobuyer/Criptomoneda"},
+    {"id": "prod_biopago",                      "name": "Biopago"},
+    {"id": "prod_cambio_p2c",                   "name": "Cambio P2C"},
+    {"id": "prod_verificacion_pago_zelle",      "name": "Verificación Pago Zelle"},
+    {"id": "prod_credito_inm_verif_transf",     "name": "Credito Inmediato/Verificación Transferencia"},
+    {"id": "prod_debito_inmediato",             "name": "Debito Inmediato"},
+    {"id": "prod_cambio_credito_inm_transf",    "name": "Cambio Credito Inmediato / Cambio Transferencia"},
+    {"id": "prod_deposito_verif_deposito",      "name": "Deposito/Verificación Depósito"},
+    {"id": "prod_cambio_cards",                 "name": "Cambio Cards"},
+    {"id": "prod_consulta_cards",               "name": "Consulta Cards"},
+    {"id": "prod_cambio_de_pin",                "name": "Cambio de Pin"},
+    {"id": "prod_banplus_pay",                  "name": "Banplus Pay"},
+    {"id": "prod_cashea",                       "name": "CASHEA"},
+    {"id": "prod_xcapit",                       "name": "Xcapit"},
+    {"id": "prod_crixto",                       "name": "Crixto"},
+]
+INTEGRATOR_PRODUCT_IDS = [p["id"] for p in INTEGRATOR_PRODUCTS]
+INTEGRATOR_PRODUCT_NAME_TO_ID = {p["name"].lower().strip(): p["id"] for p in INTEGRATOR_PRODUCTS}
+
+
+async def migrate_integrator_certifications_if_needed():
+    """One-shot: resetea las certifications de todos los integradores a N/A con las
+    nuevas keys (drop & reset). Idempotente mediante flag en `_migrations`."""
+    flag = await db["_migrations"].find_one({"_id": "integrator_cert_reset_v1"})
+    if flag:
+        return 0
+    default_certs = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
+    result = await db.integrators.update_many({}, {"$set": {"certifications": default_certs}})
+    await db["_migrations"].insert_one({
+        "_id": "integrator_cert_reset_v1",
+        "ran_at": datetime.now(timezone.utc).isoformat(),
+        "affected": result.modified_count,
+    })
+    return result.modified_count
+
+
 # ==================== INTEGRATORS ENDPOINTS ====================
+
+
+@router.get("/integrators/products")
+async def list_integrator_products(authorization: Optional[str] = Header(None)):
+    """Devuelve la lista maestra de 19 productos de Integradores (iter 183d).
+    Formato compatible con el consumidor legacy (`service_id`/`name`/flags) para
+    que el frontend lo use como drop-in replacement de `/services`."""
+    await get_current_user(authorization)
+    return [
+        {
+            "service_id": p["id"],
+            "name": p["name"],
+            "service_type": "Producto",
+            "application_type": "setup",
+            "order": idx,
+        }
+        for idx, p in enumerate(INTEGRATOR_PRODUCTS)
+    ]
+
 
 @router.get("/integrators", response_model=List[Integrator])
 async def get_integrators(
@@ -62,11 +126,7 @@ async def create_integrator(integrator: IntegratorCreate, authorization: Optiona
     
     # Auto-initialize certifications to N/A for all products if not provided
     if not doc.get('certifications'):
-        cert_products = await db.services.find(
-            {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
-            {"_id": 0, "service_id": 1}
-        ).to_list(1000)
-        doc['certifications'] = {p["service_id"]: "N/A" for p in cert_products}
+        doc['certifications'] = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
     
     doc['created_at'] = doc['created_at'].isoformat()
     await db.integrators.insert_one(doc)
@@ -78,8 +138,7 @@ async def create_integrator(integrator: IntegratorCreate, authorization: Optiona
 async def get_integrations_summary(group_by: str = "phase", authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     integrators = await db.integrators.find({}, {"_id": 0}).to_list(1000)
-    services = await db.services.find({}, {"_id": 0}).to_list(500)
-    service_map = {s['service_id']: s['name'] for s in services}
+    service_map = {p['id']: p['name'] for p in INTEGRATOR_PRODUCTS}
     groups = {}
     if group_by == "phase":
         for intg in integrators:
@@ -554,33 +613,36 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
     
     import pandas as pd
     
-    # Fetch products for cert columns
-    cert_products = await db.services.find(
-        {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
-        {"_id": 0, "service_id": 1, "name": 1}
-    ).sort("name", 1).to_list(1000)
-    
+    # Cabecera exacta según la estructura A-AE oficial de la plantilla (iter 183d).
+    BASE_HEADERS = [
+        'Nombre', 'Tipo', 'Aplicativo', 'Modalidad de Integración', 'Estatus',
+        'Tipo de Integracion', 'Gestor Administrativo', 'Implementador', 'Nro Ticket',
+        'Categoría', 'Último contacto con el Cliente', 'Correo',
+    ]
+
     rows = []
     for intg in integrators:
         row = {
             'Nombre': intg.get('name', ''),
             'Tipo': intg.get('integrator_type', ''),
             'Aplicativo': intg.get('app_name', ''),
-            'Modalidad': intg.get('integration_modality', ''),
+            'Modalidad de Integración': intg.get('integration_modality', ''),
             'Estatus': intg.get('integrator_status', ''),
-            'Tipo Integración': intg.get('integration_type', ''),
-            'Gestor': intg.get('gestor', ''),
+            'Tipo de Integracion': intg.get('integration_type', ''),
+            'Gestor Administrativo': intg.get('gestor', ''),
             'Implementador': intg.get('implementador', ''),
-            'Nro de Ticket': intg.get('ticket_number', ''),
+            'Nro Ticket': intg.get('ticket_number', ''),
             'Categoría': intg.get('categoria', ''),
-            'Último Contacto': intg.get('last_contact_date', ''),
+            'Último contacto con el Cliente': intg.get('last_contact_date', ''),
+            'Correo': intg.get('email', ''),
         }
         certs = intg.get('certifications') or {}
-        for prod in cert_products:
-            row[prod['name']] = certs.get(prod['service_id'], 'N/A')
+        for prod in INTEGRATOR_PRODUCTS:
+            row[prod['name']] = certs.get(prod['id'], 'N/A')
         rows.append(row)
-    
-    df = pd.DataFrame(rows)
+
+    column_order = BASE_HEADERS + [p['name'] for p in INTEGRATOR_PRODUCTS]
+    df = pd.DataFrame(rows, columns=column_order)
     
     buffer = io.BytesIO()
     df.to_excel(buffer, index=False, sheet_name='Integradores')
@@ -650,63 +712,57 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
     
     import pandas as pd
     
-    # Fetch all cert products for dynamic columns
-    cert_products = await db.services.find(
-        {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
-        {"_id": 0, "service_id": 1, "name": 1}
-    ).sort("order", 1).to_list(1000)
-    
-    # Base data with 3 example rows
+    # Plantilla oficial: 31 columnas (A-AE) según Estructura de BD Integradores.
+    # A-L: campos base. M-AE: 19 productos (INTEGRATOR_PRODUCTS).
+    sample_vals = ['C', 'P', 'N/A']
     data = {
+        # A-L
         'Nombre': ['TechPay Solutions', 'ComercioApp', 'GatewayVe'],
         'Tipo': ['Integrador', 'Comercio', 'Integrador'],
         'Aplicativo': ['PaymentHub v3', 'MiTienda App', 'GW-Connect'],
-        'Modalidad': ['PG Universal', 'MPOS', 'REST'],
+        'Modalidad de Integración': ['PG Universal', 'MPOS', 'REST'],
         'Estatus': ['En proceso', 'Certificado', 'En proceso'],
-        'Tipo Integracion': ['PG', 'MP', 'CR'],
-        'Gestor': ['', '', ''],
+        'Tipo de Integracion': ['PG', 'MP', 'CR'],
+        'Gestor Administrativo': ['', '', ''],
         'Implementador': ['', '', ''],
-        'Nro de Ticket': ['TKT-00145', '', 'TKT-00203'],
-        'Categoria': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
-        'Ultimo Contacto': ['15/01/2026', '28/02/2026', ''],
-        'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve']
+        'Nro Ticket': ['TKT-00145', '', 'TKT-00203'],
+        'Categoría': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
+        'Último contacto con el Cliente': ['15/01/2026', '28/02/2026', ''],
+        'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve'],
     }
-    
-    # Add dynamic product columns (excluding 'Correo' which is already a base field)
-    sample_vals = ['C', 'P', 'N/A']
-    for i, prod in enumerate(cert_products):
-        if prod['name'] == 'Correo':
-            continue
+    # M-AE: 19 productos
+    for i, prod in enumerate(INTEGRATOR_PRODUCTS):
         data[prod['name']] = [sample_vals[i % 3], sample_vals[(i + 1) % 3], sample_vals[(i + 2) % 3]]
-    
-    df = pd.DataFrame(data)
+
+    column_order = list(data.keys())  # garantiza orden A-AE
+    df = pd.DataFrame(data, columns=column_order)
     
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Plantilla')
-        
-        # Instructions sheet - base fields + product columns info
+
+        # Hoja Instrucciones — campos base + matriz de productos
         base_fields = [
-            {'Campo': 'Nombre *', 'Descripción': 'Nombre del integrador (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'TechPay Solutions'},
-            {'Campo': 'Tipo *', 'Descripción': 'Integrador o Comercio (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'Integrador'},
-            {'Campo': 'Aplicativo *', 'Descripción': 'Nombre del aplicativo (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PaymentHub v3'},
-            {'Campo': 'Modalidad *', 'Descripción': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Universal'},
-            {'Campo': 'Estatus', 'Descripción': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
-            {'Campo': 'Tipo Integracion', 'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
-            {'Campo': 'Gestor', 'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
-            {'Campo': 'Implementador', 'Descripcion': 'Nombre EXACTO del implementador como figura en la BD de usuarios (o email). Si está vacío, queda por asignar y se puede setear después desde la UI.', 'Obligatorio': 'No', 'Ejemplo': 'Maria Gonzalez'},
-            {'Campo': 'Nro de Ticket', 'Descripcion': 'Número de ticket asociado al proyecto de integración (texto libre). Se puede editar después desde la UI.', 'Obligatorio': 'No', 'Ejemplo': 'TKT-00145'},
-            {'Campo': 'Categoria', 'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
-            {'Campo': 'Ultimo Contacto', 'Descripcion': 'Fecha del ultimo contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
-            {'Campo': 'Correo', 'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
-            {'Campo': '--- MATRIZ DE SERVICIOS Y PRODUCTOS ---', 'Descripcion': 'Las siguientes columnas corresponden a la Matriz de Certificacion', 'Obligatorio': '---', 'Ejemplo': '---'},
+            {'Campo': 'Nombre *',                       'Descripcion': 'Nombre del integrador (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'TechPay Solutions'},
+            {'Campo': 'Tipo *',                         'Descripcion': 'Integrador o Comercio (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'Integrador'},
+            {'Campo': 'Aplicativo *',                   'Descripcion': 'Nombre del aplicativo (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PaymentHub v3'},
+            {'Campo': 'Modalidad de Integración *',     'Descripcion': 'Modalidad de integración (obligatorio)', 'Obligatorio': 'Sí', 'Ejemplo': 'PG Universal'},
+            {'Campo': 'Estatus',                        'Descripcion': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
+            {'Campo': 'Tipo de Integracion',            'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
+            {'Campo': 'Gestor Administrativo',          'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
+            {'Campo': 'Implementador',                  'Descripcion': 'Nombre EXACTO del implementador en BD (o email). Vacío = por asignar.', 'Obligatorio': 'No', 'Ejemplo': 'Maria Gonzalez'},
+            {'Campo': 'Nro Ticket',                     'Descripcion': 'Número de ticket (texto libre). Editable en UI.', 'Obligatorio': 'No', 'Ejemplo': 'TKT-00145'},
+            {'Campo': 'Categoría',                      'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
+            {'Campo': 'Último contacto con el Cliente', 'Descripcion': 'Fecha (DD/MM/AAAA). No futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
+            {'Campo': 'Correo',                         'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
+            {'Campo': '--- MATRIZ DE PRODUCTOS (19) ---', 'Descripcion': 'Columnas M a AE — estado de certificación por producto. Valores C / P / N/A.', 'Obligatorio': '---', 'Ejemplo': '---'},
         ]
-        for prod in cert_products:
+        for prod in INTEGRATOR_PRODUCTS:
             base_fields.append({
                 'Campo': prod['name'],
-                'Descripción': f'Estado de certificación para {prod["name"]}. Valores: C, P, N/A',
+                'Descripcion': f'Estado de certificación para {prod["name"]}. Valores: C, P, N/A',
                 'Obligatorio': 'No',
-                'Ejemplo': 'C / P / N/A'
+                'Ejemplo': 'C / P / N/A',
             })
         pd.DataFrame(base_fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         
@@ -720,7 +776,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             'Cliente/Integrador nuevo Mpos', 'Cliente/Integrador nuevo PG',
             'Cliente/Integrador nuevo VPOS', 'Cliente/Integrador MobilePOS'
         ]
-        max_len = max(len(all_modalities), len(all_categories), len(cert_products), 12)
+        max_len = max(len(all_modalities), len(all_categories), len(INTEGRATOR_PRODUCTS), 12)
         pad = lambda lst: lst + [''] * (max_len - len(lst))
         values_data = {
             'Tipos de Integrador (Col B)': pad(['Integrador', 'Comercio']),
@@ -728,10 +784,10 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             'Tipos de Integración (Col F)': pad(['CR — Caja Registradora', 'LP — Link de Pago',
                 'PG — Payment Gateway', 'MP — Android (Mobile POS)', 'TK — Tokenizador']),
             'Estatus (Col E)': pad(['Certificado', 'En proceso', 'Suspendido']),
-            'Categorías (Col H)': pad(all_categories),
+            'Categorías (Col J)': pad(all_categories),
             'Valores de Certificación': pad(['C — Certificado', 'P — Pendiente', 'N/A — No Aplica',
                 '(vacío) — Se asigna N/A automáticamente', 'Se aceptan mayúsculas y minúsculas (c, p, n/a)']),
-            'Formato de Fechas (Col I)': pad(['DD/MM/AAAA (ej: 15/01/2026)', 'AAAA-MM-DD (ej: 2026-01-15)',
+            'Formato de Fechas (Col K)': pad(['DD/MM/AAAA (ej: 15/01/2026)', 'AAAA-MM-DD (ej: 2026-01-15)',
                 'DD-MM-AAAA (ej: 15-01-2026)', 'No se permiten fechas futuras']),
             'Reglas de Importación': pad([
                 '1. La clave única es: Nombre + Tipo Integración',
@@ -739,8 +795,8 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
                 '3. La Matriz de Certificación existente se preserva al actualizar',
                 '4. Los campos marcados con * son OBLIGATORIOS',
                 '5. Si no indica Estatus, se asigna "En proceso" por defecto',
-                '6. El Gestor debe estar registrado en el sistema (Nombre completo o Email)',
-                '7. Las columnas de productos (J en adelante) son opcionales',
+                '6. El Gestor e Implementador deben estar registrados en el sistema (nombre o email)',
+                '7. Las columnas de productos (M a AE) son opcionales',
                 '8. Celdas vacías en productos se asignan como N/A',
                 '9. Se aceptan archivos .xlsx, .xls y .csv (separador: coma, punto y coma o tab)',
                 '10. Los valores deben coincidir EXACTAMENTE con los de esta hoja (respetar mayúsculas)',
@@ -837,18 +893,25 @@ async def import_integrators(
             'Aplicativo': 'app_name', 'aplicativo': 'app_name', 'nombre_del_aplicativo': 'app_name',
             'Modalidad': 'integration_modality', 'modalidad': 'integration_modality',
             'modalidad_de_integración': 'integration_modality', 'modalidad_de_integracion': 'integration_modality',
+            'Modalidad de Integración': 'integration_modality',
             'Estatus': 'integrator_status', 'estatus': 'integrator_status', 'estado': 'integrator_status',
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
+            'Gestor Administrativo': 'gestor', 'gestor_administrativo': 'gestor',
+            'Gestor Adminisitrativo': 'gestor',  # typo en archivos legados
             'Implementador': 'implementador', 'implementador': 'implementador',
             'implementador_asignado': 'implementador', 'implementer': 'implementador',
             'Nro de Ticket': 'ticket_number', 'nro_de_ticket': 'ticket_number',
             'nro_ticket': 'ticket_number', 'ticket': 'ticket_number',
             'Ticket': 'ticket_number', 'Numero de Ticket': 'ticket_number',
+            'Nro Ticket': 'ticket_number', 'nro ticket': 'ticket_number',
             'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria', 'Categoria': 'categoria',
             'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
             'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date',
+            'Último contacto con el Cliente': 'last_contact_date',
+            'ultimo contacto con el cliente': 'last_contact_date',
             'Correo': 'email', 'correo': 'email', 'email_contacto': 'email',
             'Tipo Integracion': 'integration_type', 'tipo integracion': 'integration_type',
+            'Tipo de Integracion': 'integration_type', 'tipo_de_integracion': 'integration_type',
         }
         
         # Pre-load users and products
@@ -867,16 +930,10 @@ async def import_integrators(
                 user_names.add(email.lower())
                 user_lookup[email.lower()] = {"user_id": u.get("user_id"), "display": display}
         
-        cert_products = await db.services.find(
-            {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
-            {"_id": 0, "service_id": 1, "name": 1}
-        ).to_list(1000)
-        default_certs = {p["service_id"]: "N/A" for p in cert_products}
-        
-        # Build product name -> service_id mapping (case-insensitive)
-        product_name_to_id = {}
-        for p in cert_products:
-            product_name_to_id[p["name"].strip().lower()] = p["service_id"]
+        default_certs = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
+
+        # Build product name -> id mapping (case-insensitive)
+        product_name_to_id = {name.strip(): pid for name, pid in INTEGRATOR_PRODUCT_NAME_TO_ID.items()}
         
         # Identify which columns in the file are product columns
         base_column_names = set(column_mapping.keys())

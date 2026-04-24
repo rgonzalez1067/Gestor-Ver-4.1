@@ -340,3 +340,23 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - **Frontend Integrators.jsx**: campo editable junto a Correo de Contacto en el diálogo Crear/Editar (`data-testid=integrator-ticket-input`). `formData.ticket_number` incluido en `resetForm` y `openEdit`.
 - Validado por curl: plantilla contiene la columna, import persiste valor `TKT-00999`, PUT /integrators/{id} actualiza a `TKT-UPDATED-001`.
 
+## Integradores: Reestructura de BD - Plantilla oficial A-AE con 19 productos (iter 183d)
+
+**Solicitud del usuario**: alinear plantilla de importación y BD de Integradores con el archivo `Estructura de BD Integradores.xlsx` entregado. Restricción: NO tocar `db.services` (para evitar afectar Medios de Pago).
+
+**Backend** (`/app/backend/routes/integrators.py`):
+- Constante hardcoded `INTEGRATOR_PRODUCTS` con los **19 productos oficiales** (M-AE) + `INTEGRATOR_PRODUCT_IDS` + name→id map case-insensitive. Totalmente desacoplado de `db.services`.
+- Reemplazadas las 4 lecturas previas a `db.services.find(...)` por la constante hardcoded (no hay acoplamiento con Medios de Pago).
+- **Plantilla** (`GET /import/template`) ahora renderiza 31 columnas A-AE exactas: A-L (Nombre, Tipo, Aplicativo, Modalidad de Integración, Estatus, Tipo de Integracion, Gestor Administrativo, Implementador, Nro Ticket, Categoría, Último contacto con el Cliente, Correo) + M-AE (TDD/TDC, TDC/TDD (excepto maestro), Verificación P2C, C2P, Cryptobuyer/Criptomoneda, Biopago, Cambio P2C, Verificación Pago Zelle, Credito Inmediato/Verificación Transferencia, Debito Inmediato, Cambio Credito Inmediato/Cambio Transferencia, Deposito/Verificación Depósito, Cambio Cards, Consulta Cards, Cambio de Pin, Banplus Pay, CASHEA, Xcapit, Crixto).
+- **Export** (`GET /export/excel`) emite las mismas 31 columnas en el orden canónico.
+- **Import** acepta los nuevos headers (incluye alias típicos: "Modalidad de Integración", "Gestor Administrativo" con/sin typo legado "Adminisitrativo", "Último contacto con el Cliente", etc.).
+- **Migración one-shot** `migrate_integrator_certifications_if_needed()` ejecutada en startup: resetea `certifications` de TODOS los integradores existentes al nuevo schema (19 keys = N/A). Idempotente vía flag `_migrations/integrator_cert_reset_v1`.
+
+**Validado por curl** (iter 183d):
+- Template: 31 columnas exactas ✅
+- Export: 31 columnas, misma forma que template ✅
+- Import de CSV con 31 columnas: 1 creado, 0 errores, certs persistidas (Crixto=N/A, CASHEA=P, TDD/TDC=C, VerifP2C=N/A) ✅
+- Todos los integradores pre-existentes migrados a certs N/A con 19 keys nuevas ✅
+
+**NO tocado**: `db.services`, módulo de Medios de Pago, modelos, frontend de Integrators.jsx (la UI de certificaciones se adapta automáticamente porque lee `certifications` dinámicamente del integrador).
+
