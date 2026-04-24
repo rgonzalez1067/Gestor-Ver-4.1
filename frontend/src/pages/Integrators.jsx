@@ -13,6 +13,7 @@ import { Calendar } from '../components/ui/calendar';
 import { ImportResultPanel } from '../components/ImportResultPanel';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Search, Filter, Users, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, Award, Download, AlertCircle, RefreshCw, FileDown, CalendarDays, BookOpen, UserPlus, Phone, Mail, X, Layout } from 'lucide-react';
 import { EntityEmailDialog } from '../components/EntityEmailDialog';
+import PurgeIntegratorsDialog from '../components/PurgeIntegratorsDialog';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -138,27 +139,6 @@ export const Integrators = () => {
 
   // Purge (admin only)
   const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
-  const [purgeConfirmText, setPurgeConfirmText] = useState('');
-  const [purging, setPurging] = useState(false);
-
-  const handlePurgeAll = async () => {
-    if (purgeConfirmText !== 'BORRAR TODO') {
-      toast.error('Debe escribir exactamente: BORRAR TODO');
-      return;
-    }
-    setPurging(true);
-    try {
-      const res = await api.delete('/integrators/bulk/all');
-      toast.success(res.data.message || 'Integradores eliminados');
-      setPurgeDialogOpen(false);
-      setPurgeConfirmText('');
-      fetchIntegrators();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error al vaciar la BD');
-    } finally {
-      setPurging(false);
-    }
-  };
 
   useEffect(() => { fetchData(); }, [filterStatus, filterType]);
 
@@ -1635,42 +1615,11 @@ export const Integrators = () => {
       </Dialog>
 
       {/* Purge Dialog — solo admin */}
-      <Dialog open={purgeDialogOpen} onOpenChange={(o) => { setPurgeDialogOpen(o); if (!o) setPurgeConfirmText(''); }}>
-        <DialogContent className="max-w-md" data-testid="purge-integrators-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600">
-              <AlertCircle size={22} /> Vaciar Base de Datos
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-800">
-              <p className="font-semibold mb-1">⚠ Acción irreversible</p>
-              <p className="text-xs">Esto eliminará <b>TODOS</b> los integradores de la base de datos. La operación se bloqueará si hay cotizaciones asociadas.</p>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">Para confirmar, escriba exactamente: <span className="text-rose-600 font-mono">BORRAR TODO</span></label>
-              <Input
-                value={purgeConfirmText}
-                onChange={(e) => setPurgeConfirmText(e.target.value)}
-                placeholder="BORRAR TODO"
-                className="mt-1 font-mono"
-                data-testid="purge-confirm-input"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <Button variant="outline" onClick={() => setPurgeDialogOpen(false)}>Cancelar</Button>
-            <Button
-              onClick={handlePurgeAll}
-              disabled={purging || purgeConfirmText !== 'BORRAR TODO'}
-              className="bg-rose-600 hover:bg-rose-700 text-white"
-              data-testid="purge-confirm-btn"
-            >
-              {purging ? 'Eliminando...' : <><Trash2 size={14} className="mr-1" />Eliminar todos</>}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PurgeIntegratorsDialog
+        open={purgeDialogOpen}
+        onOpenChange={setPurgeDialogOpen}
+        onSuccess={fetchData}
+      />
 
       {/* Notification Dialog Genérico */}
       {notifyIntegrator && (

@@ -360,3 +360,20 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **NO tocado**: `db.services`, módulo de Medios de Pago, modelos, frontend de Integrators.jsx (la UI de certificaciones se adapta automáticamente porque lee `certifications` dinámicamente del integrador).
 
+
+## Integradores: Vaciar BD con flujo de 2 pasos + cascada opcional (iter 184)
+
+**Solicitud del usuario**: (1) Borrar todo lo que no tenga cotizaciones, (2) preguntar si desea forzar borrado cascada para los que sí tienen, (3) corregir latencia del input "BORRAR TODO".
+
+**Backend** (`/app/backend/routes/integrators.py` — `DELETE /integrators/bulk/all`):
+- Nuevo parámetro `force_cascade: bool = False`.
+- Modo **seguro** (default): borra sólo integradores sin referencias en `quotes`/`projects`, y devuelve `protected: [{integrator_id, name, quotes_count, projects_count}]` para que el frontend presente el paso 2.
+- Modo **cascade**: elimina también todas las cotizaciones y proyectos referenciados, y después borra todos los integradores. Registra en `integrators_bulk_deletions` con `mode`, `quotes_deleted`, `projects_deleted`.
+- Solo admin.
+
+**Frontend** (`/app/frontend/src/components/PurgeIntegratorsDialog.jsx` — NUEVO, `memo`izado):
+- Extraído del monolito `Integrators.jsx` (~1700 líneas) → fix latencia del input (cada onChange ya no re-renderiza toda la tabla, sólo el diálogo).
+- Paso 1: confirmar con `BORRAR TODO`. Llama a `/integrators/bulk/all`.
+- Paso 2 (solo si la respuesta trae `protected.length > 0`): muestra lista con asociaciones, pide escribir `FORZAR CASCADA`, llama a `/integrators/bulk/all?force_cascade=true`. Alternativa: botón "Conservar y cerrar".
+
+**Validado E2E con Playwright**: 3 integradores (Norkut, HL Sistemas, Corp XETUX) con 4 cotizaciones → Paso 1 ofreció cascada → Paso 2 eliminó 3 integradores + 4 cotizaciones + 0 proyectos → tabla vacía. Latencia de input imperceptible (~90 ms/char, incluye overhead de Playwright).

@@ -221,43 +221,95 @@ async def delete_integrator(integrator_id: str, authorization: Optional[str] = H
 
 
 @router.delete("/integrators/bulk/all")
-async def delete_all_integrators(authorization: Optional[str] = Header(None)):
-    """Elimina integradores SIN cotizaciones o proyectos asociados.
-    Los que tengan cotizaciones o proyectos abiertos se conservan (integridad referencial).
+async def delete_all_integrators(force_cascade: bool = False, authorization: Optional[str] = Header(None)):
+    """Elimina integradores.
+    - force_cascade=False (default): borra sólo los integradores SIN cotizaciones/proyectos asociados.
+      Devuelve la lista de protegidos para que el frontend pregunte si desea forzar cascada.
+    - force_cascade=True: borra integradores + todas sus cotizaciones + proyectos asociados.
     Solo admin."""
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar esta acción")
 
     # Construir set de integrator_ids referenciados
-    protected_ids = set()
+    referenced_ids = set()
     q_refs = await db.quotes.distinct("integrator_id")
-    protected_ids.update([r for r in q_refs if r])
+    referenced_ids.update([r for r in q_refs if r])
     p_refs = await db.projects.distinct("integrator_id")
-    protected_ids.update([r for r in p_refs if r])
+    referenced_ids.update([r for r in p_refs if r])
 
-    # Borrar sólo los no protegidos
-    result = await db.integrators.delete_many({"integrator_id": {"$nin": list(protected_ids)}})
-    skipped = await db.integrators.count_documents({})
-
-    # Bitácora de auditoría
     now = datetime.now(timezone.utc).isoformat()
+
+    if force_cascade:
+        # Borrar cotizaciones y proyectos asociados primero, luego TODOS los integradores.
+        quotes_del = await db.quotes.delete_many({"integrator_id": {"$in": list(referenced_ids)}}) if referenced_ids else None
+        projects_del = await db.projects.delete_many({"integrator_id": {"$in": list(referenced_ids)}}) if referenced_ids else None
+        result = await db.integrators.delete_many({})
+
+        await db.integrators_bulk_deletions.insert_one({
+            "mode": "cascade",
+            "deleted_count": result.deleted_count,
+            "quotes_deleted": quotes_del.deleted_count if quotes_del else 0,
+            "projects_deleted": projects_del.deleted_count if projects_del else 0,
+            "deleted_by": current_user.get("email"),
+            "deleted_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
+            "deleted_at": now,
+        })
+        return {
+            "message": (
+                f"Se eliminaron {result.deleted_count} integrador(es) en cascada "
+                f"(junto con {quotes_del.deleted_count if quotes_del else 0} cotización(es) y "
+                f"{projects_del.deleted_count if projects_del else 0} proyecto(s))."
+            ),
+            "deleted_count": result.deleted_count,
+            "quotes_deleted": quotes_del.deleted_count if quotes_del else 0,
+            "projects_deleted": projects_del.deleted_count if projects_del else 0,
+            "skipped_count": 0,
+            "protected": [],
+        }
+
+    # Modo seguro: borra sólo los no referenciados
+    result = await db.integrators.delete_many({"integrator_id": {"$nin": list(referenced_ids)}})
+
+    # Detalle de los protegidos (para que el frontend pregunte si desea forzar cascada)
+    protected_docs = await db.integrators.find(
+        {}, {"_id": 0, "integrator_id": 1, "name": 1}
+    ).to_list(None)
+    protected = []
+    for d in protected_docs:
+        iid = d.get("integrator_id")
+        qc = await db.quotes.count_documents({"integrator_id": iid})
+        pc = await db.projects.count_documents({"integrator_id": iid})
+        protected.append({
+            "integrator_id": iid,
+            "name": d.get("name"),
+            "quotes_count": qc,
+            "projects_count": pc,
+        })
+
     await db.integrators_bulk_deletions.insert_one({
+        "mode": "safe",
         "deleted_count": result.deleted_count,
-        "skipped_count": skipped,
-        "protected_ids": list(protected_ids),
+        "skipped_count": len(protected),
+        "protected_ids": [p["integrator_id"] for p in protected],
         "deleted_by": current_user.get("email"),
         "deleted_by_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "deleted_at": now,
     })
-    msg_parts = [f"Se eliminaron {result.deleted_count} integrador(es)"]
-    if skipped > 0:
-        msg_parts.append(f"{skipped} conservado(s) por tener cotizaciones o proyectos asociados")
+
+    if result.deleted_count == 0 and protected:
+        msg = f"Ningún integrador eliminado. {len(protected)} conservado(s) por tener cotizaciones/proyectos asociados."
+    else:
+        parts = [f"Se eliminaron {result.deleted_count} integrador(es)"]
+        if protected:
+            parts.append(f"{len(protected)} conservado(s) por tener cotizaciones/proyectos asociados")
+        msg = ". ".join(parts)
+
     return {
-        "message": ". ".join(msg_parts),
+        "message": msg,
         "deleted_count": result.deleted_count,
-        "skipped_count": skipped,
-        "protected_ids": list(protected_ids),
+        "skipped_count": len(protected),
+        "protected": protected,
     }
 
 @router.put("/integrators/{integrator_id}/assign")
