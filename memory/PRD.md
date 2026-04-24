@@ -319,3 +319,16 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Tests** (iteration_183): Backend 17/17 pytest PASS en `/app/backend/tests/test_iteration183_profiles_ceiling.py`. Frontend flows críticos PASS: crear/duplicar/eliminar perfil, asignar a user, badges de techo visibles, toggles/radios/checkboxes bloqueados por perfil. Una sugerencia LOW/cosmética ya implementada (disabled HTML nativo en Radix RadioGroupItem).
 
+## Integradores: campo "Implementador" en plantilla y flujo de importación (Feb-2026, iter 183b)
+
+`/app/backend/routes/integrators.py`:
+- **Plantilla** (`GET /api/integrators/import/template`): nueva columna **"Implementador"** entre "Gestor" y "Categoria", con hoja de instrucciones explicando que el valor debe ser EXACTO al usuario en BD (nombre completo o email) y que vacío queda por asignar.
+- **Export** (`GET /api/integrators/export`): incluye columna Implementador para round-trip.
+- **Import** (`POST /api/integrators/import`):
+  - Nuevo mapping de columna `Implementador/implementer/implementador_asignado → implementador`.
+  - Pre-carga `user_lookup {nombre_lower | email_lower → {user_id, display}}` para validación.
+  - Si el valor coincide exactamente con un usuario activo (nombre completo o email) → `implementador=display` + `implementador_user_id=user_id`.
+  - Si está vacío → queda `None` (por asignar, se setea luego vía UI o endpoint `assign-implementador`).
+  - Si el nombre NO coincide → reporta error específico en `row_errors` pero el integrador se crea con `implementador=None` (por asignar), alineado al requisito del usuario.
+- Validado por curl: 3 casos (válido/vacío/inválido) todos ejecutados correctamente.
+

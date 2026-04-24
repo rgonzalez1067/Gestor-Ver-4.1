@@ -570,6 +570,7 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
             'Estatus': intg.get('integrator_status', ''),
             'Tipo Integración': intg.get('integration_type', ''),
             'Gestor': intg.get('gestor', ''),
+            'Implementador': intg.get('implementador', ''),
             'Categoría': intg.get('categoria', ''),
             'Último Contacto': intg.get('last_contact_date', ''),
         }
@@ -663,6 +664,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Estatus': ['En proceso', 'Certificado', 'En proceso'],
         'Tipo Integracion': ['PG', 'MP', 'CR'],
         'Gestor': ['', '', ''],
+        'Implementador': ['', '', ''],
         'Categoria': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
         'Ultimo Contacto': ['15/01/2026', '28/02/2026', ''],
         'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve']
@@ -690,6 +692,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Estatus', 'Descripción': 'Estado actual (def: En proceso)', 'Obligatorio': 'No', 'Ejemplo': 'En proceso'},
             {'Campo': 'Tipo Integracion', 'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
             {'Campo': 'Gestor', 'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
+            {'Campo': 'Implementador', 'Descripcion': 'Nombre EXACTO del implementador como figura en la BD de usuarios (o email). Si está vacío, queda por asignar y se puede setear después desde la UI.', 'Obligatorio': 'No', 'Ejemplo': 'Maria Gonzalez'},
             {'Campo': 'Categoria', 'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
             {'Campo': 'Ultimo Contacto', 'Descripcion': 'Fecha del ultimo contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
             {'Campo': 'Correo', 'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
@@ -833,6 +836,8 @@ async def import_integrators(
             'modalidad_de_integración': 'integration_modality', 'modalidad_de_integracion': 'integration_modality',
             'Estatus': 'integrator_status', 'estatus': 'integrator_status', 'estado': 'integrator_status',
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
+            'Implementador': 'implementador', 'implementador': 'implementador',
+            'implementador_asignado': 'implementador', 'implementer': 'implementador',
             'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria', 'Categoria': 'categoria',
             'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
             'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date',
@@ -841,12 +846,20 @@ async def import_integrators(
         }
         
         # Pre-load users and products
-        all_users = await db.users.find({"is_active": True}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1}).to_list(1000)
+        all_users = await db.users.find({"is_active": True}, {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}).to_list(1000)
         user_names = set()
+        # user_lookup maps lowercased fullname/email -> {user_id, display_name}
+        user_lookup = {}
         for u in all_users:
             full = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
-            user_names.add(full.lower())
-            user_names.add(u.get('email', '').lower())
+            email = u.get('email', '')
+            display = full if full else email
+            if full:
+                user_names.add(full.lower())
+                user_lookup[full.lower()] = {"user_id": u.get("user_id"), "display": display}
+            if email:
+                user_names.add(email.lower())
+                user_lookup[email.lower()] = {"user_id": u.get("user_id"), "display": display}
         
         cert_products = await db.services.find(
             {"service_type": "Producto", "application_type": {"$in": ["setup", "both"]}},
@@ -918,6 +931,7 @@ async def import_integrators(
                 integrator_status = _safe_val(row, 'integrator_status', 'En proceso')
                 integration_type = _safe_val(row, 'integration_type')
                 gestor = _safe_val(row, 'gestor')
+                implementador_raw = _safe_val(row, 'implementador')
                 categoria = _safe_val(row, 'categoria')
                 last_contact_raw = _safe_val(row, 'last_contact_date')
                 email = _safe_val(row, 'email')
@@ -993,6 +1007,22 @@ async def import_integrators(
                         error_type='invalid', message=f'Fila {row_num}, Columna G (Gestor): El usuario "{gestor}" no está registrado en el sistema. No se puede asignar como gestor.',
                         suggested_action='Corrija la celda G{0}. El gestor debe ser un usuario activo del sistema (nombre completo o email). Verifique en el módulo de Usuarios.'.format(row_num)))
                 
+                # Implementador (Col H): si viene, debe coincidir EXACTO con un usuario activo.
+                # Si viene vacío, queda por asignar y se setea luego desde UI.
+                implementador_name = None
+                implementador_user_id = None
+                if implementador_raw:
+                    found = user_lookup.get(implementador_raw.lower())
+                    if found:
+                        implementador_name = found["display"]
+                        implementador_user_id = found["user_id"]
+                    else:
+                        row_errors.append(ImportError(row=row_num, column='Implementador (Col H)', value=implementador_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Columna H (Implementador): El usuario "{implementador_raw}" no coincide exactamente con ningún usuario activo. El nombre debe ser IDÉNTICO al registrado en la BD (o usar el email).',
+                            suggested_action='Corrija la celda H{0}. Copie el nombre completo (ej: "Maria Gonzalez") o el email exacto del implementador desde el módulo de Usuarios. Deje vacío para asignar luego.'.format(row_num)))
+
+
                 if integrator_status not in INTEGRATOR_STATUSES:
                     integrator_status = "En proceso"
                 
@@ -1051,6 +1081,9 @@ async def import_integrators(
                         update_data["integration_type"] = integration_type
                     if gestor:
                         update_data["gestor"] = gestor
+                    if implementador_name:
+                        update_data["implementador"] = implementador_name
+                        update_data["implementador_user_id"] = implementador_user_id
                     if categoria:
                         update_data["categoria"] = categoria
                     if last_contact_date:
@@ -1081,6 +1114,8 @@ async def import_integrators(
                         integrator_status=integrator_status,
                         gestor=gestor or None,
                         categoria=categoria or None,
+                        implementador=implementador_name,
+                        implementador_user_id=implementador_user_id,
                         last_contact_date=last_contact_date,
                         email=email or None,
                         certifications=full_certs
