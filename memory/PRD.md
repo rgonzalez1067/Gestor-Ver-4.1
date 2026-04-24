@@ -432,3 +432,18 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Validado por curl**: PDF generado con 3 ítems (1 con 2 seriales + 2 con `no_serial=true`) → "Limpieza General" muestra `Seriales (2): SN-1001 SN-1002`; "Casillero (logístico)" y "Servicio de Envío" muestran `Sin serial · concepto administrativo/logístico` sin chips. Lint frontend OK.
 
+
+
+## Refactor Quotes.jsx — Fase 1 (iter 187)
+
+**Solicitud del usuario**: ejecutar Fase 1 del refactor del monolito `Quotes.jsx` (3299 líneas) sin afectar funcionalidad.
+
+**Extracciones**:
+- `/app/frontend/src/hooks/useQuoteFilters.js` (NUEVO, 33 líneas): centraliza los 6 filtros rápidos + helper `clearFilters`.
+- `/app/frontend/src/hooks/useQuoteRbac.js` (NUEVO, 38 líneas): calcula flags RBAC (impl_pyme/corp/equipos/reparaciones) y filtra `quotes` según permisos especiales.
+- `/app/frontend/src/components/quotes/NewQuoteButtons.jsx` (NUEVO, 75 líneas): barra de 3 botones (Implementaciones con dropdown PYME/CORP, Equipos y Accesorios, Reparaciones), visibilidad por rbac.
+- `/app/frontend/src/components/quotes/IrregularQuotesBanner.jsx` (NUEVO, 24 líneas): banner naranja con conteo de cotizaciones irregulares.
+
+**Resultado**: `Quotes.jsx` 3299 → 3220 líneas (-79, -2.4%). Lint OK. E2E con Playwright: los 3 botones, dropdown PYME/CORP, banner irregular, filtros y tabla con 15 filas funcionan sin errores en consola.
+
+**Hidratación**: warnings reportados los inyecta el script `emergent-main.js` de Visual Edits (Emergent), sólo activo en preview iframe. NO requiere fix en código de la app.
