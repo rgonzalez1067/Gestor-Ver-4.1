@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://crm-core-24.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quotes-serial-mgmt.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "rgonzalez@megasoft.com.ve"

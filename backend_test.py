@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 class PagoFlowAPITester:
-    def __init__(self, base_url="https://crm-core-24.preview.emergentagent.com"):
+    def __init__(self, base_url="https://quotes-serial-mgmt.preview.emergentagent.com"):
         self.base_url = base_url
         self.session_token = None
         self.tests_run = 0
