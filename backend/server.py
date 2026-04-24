@@ -41,6 +41,7 @@ from routes.entity_communications import router as entity_comms_router
 from routes.quote_history import router as quote_history_router
 from routes.external_api import router as external_api_router
 from routes.notifications import router as notifications_router
+from routes.profiles import router as profiles_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(title="Cotizador Merchant Server API")
@@ -214,6 +215,7 @@ api_router.include_router(entity_comms_router)
 api_router.include_router(quote_history_router)
 api_router.include_router(external_api_router)
 api_router.include_router(notifications_router)
+api_router.include_router(profiles_router)
 
 app.include_router(api_router)
 
@@ -258,6 +260,15 @@ async def create_indexes():
             logging.info(f"Synced {synced} default email templates to MongoDB")
     except Exception as e:
         logging.warning(f"Template sync failed: {e}")
+
+    # Seed de perfiles base (idempotente)
+    try:
+        from seed_profiles import seed_profiles_if_needed
+        created = await seed_profiles_if_needed()
+        if created:
+            logging.info(f"Seeded {created} default user profiles")
+    except Exception as e:
+        logging.warning(f"Profile seed failed: {e}")
 
 
 @app.on_event("shutdown")

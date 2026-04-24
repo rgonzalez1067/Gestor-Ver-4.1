@@ -86,6 +86,7 @@ const securityItems = [
     children: [
       { path: '/users', icon: UsersRound, label: 'Creación de Usuarios' },
       { path: '/admin/users', icon: Shield, label: 'Permisos de Usuarios' },
+      { path: '/admin/profiles', icon: Shield, label: 'Perfiles de Usuario' },
     ]
   },
 ];

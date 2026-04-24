@@ -146,3 +146,45 @@ def build_catalog() -> dict:
         "special_permissions": SPECIAL_PERMISSIONS,
         "admin_only_actions": ADMIN_ONLY_ACTIONS,
     }
+
+
+# ============================================================
+# CEILING HELPERS — Jerarquía Perfil → Usuario
+# ============================================================
+LEVEL_RANK = {"none": 0, "read": 1, "edit": 2}
+
+
+def level_within_ceiling(user_level: str, profile_level: str) -> bool:
+    """True si user_level <= profile_level en la jerarquía de permisos."""
+    ul = LEVEL_RANK.get(user_level or "none", 0)
+    pl = LEVEL_RANK.get(profile_level or "none", 0)
+    return ul <= pl
+
+
+def enforce_permissions_ceiling(user_perms: dict, profile_perms: dict) -> dict:
+    """Ajusta user_perms para que ningún módulo exceda el nivel del perfil.
+    Retorna un nuevo dict con los ajustes aplicados (recorta hacia abajo)."""
+    out = {}
+    for module_id, user_lv in (user_perms or {}).items():
+        profile_lv = (profile_perms or {}).get(module_id, "edit")
+        out[module_id] = user_lv if level_within_ceiling(user_lv, profile_lv) else profile_lv
+    return out
+
+
+def enforce_groups_ceiling(user_groups: dict, profile_groups: dict) -> dict:
+    """Si el perfil tiene un grupo Inactivo, el user también lo tendrá inactivo."""
+    out = {}
+    for gid, user_active in (user_groups or {}).items():
+        profile_active = (profile_groups or {}).get(gid, True)
+        out[gid] = bool(user_active) and bool(profile_active)
+    # Copiar los del perfil que no están en user
+    for gid, profile_active in (profile_groups or {}).items():
+        if gid not in out:
+            out[gid] = bool(profile_active)
+    return out
+
+
+def enforce_specials_ceiling(user_flags: list, profile_flags: list) -> list:
+    """El user solo puede tener flags que su perfil también tenga."""
+    profile_set = set(profile_flags or [])
+    return [f for f in (user_flags or []) if f in profile_set]

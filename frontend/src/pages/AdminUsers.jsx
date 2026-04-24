@@ -96,6 +96,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [catalog, setCatalog] = useState(null);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -111,14 +112,16 @@ const AdminUsers = () => {
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [usersRes, whRes, catRes] = await Promise.all([
+      const [usersRes, whRes, catRes, profRes] = await Promise.all([
         api.get('/admin/users'),
         api.get('/inventory/warehouses').catch(() => ({ data: [] })),
         api.get('/admin/permission-catalog'),
+        api.get('/admin/profiles').catch(() => ({ data: [] })),
       ]);
       setUsers(usersRes.data);
       setWarehouses(whRes.data || []);
       setCatalog(catRes.data);
+      setProfiles(profRes.data || []);
       if (!selectedUserId && usersRes.data.length > 0) {
         setSelectedUserId(usersRes.data[0].user_id);
       }
@@ -187,6 +190,22 @@ const AdminUsers = () => {
         : null;
       patchUser(userId, { supervisor_id: value, supervisor_name: supervisorName });
       toast.success(value ? 'Supervisor asignado' : 'Supervisor removido');
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+  };
+
+  const handleProfileChange = async (userId, profileId) => {
+    try {
+      const value = profileId === '__none__' ? null : profileId;
+      const res = await api.put(`/admin/users/${userId}/profile`, { profile_id: value });
+      // El backend devuelve el user actualizado con permisos/grupos/flags reinicializados
+      const updated = res.data?.user || {};
+      patchUser(userId, {
+        profile_id: updated.profile_id ?? null,
+        permissions: updated.permissions || {},
+        menu_groups: updated.menu_groups || {},
+        special_permissions: updated.special_permissions || [],
+      });
+      toast.success(value ? 'Perfil asignado (permisos heredados)' : 'Perfil removido');
     } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
   };
 
@@ -342,11 +361,13 @@ const AdminUsers = () => {
                 catalog={catalog}
                 warehouses={warehouses}
                 allUsers={users}
+                profiles={profiles}
                 savingKey={savingKey}
                 onRoleChange={handleRoleChange}
                 onStatusChange={handleStatusChange}
                 onAlmacenChange={handleAlmacenChange}
                 onSupervisorChange={handleSupervisorChange}
+                onProfileChange={handleProfileChange}
                 onGroupToggle={handleGroupToggle}
                 onLevelChange={handleLevelChange}
                 onSpecialToggle={handleSpecialToggle}
@@ -363,8 +384,8 @@ const AdminUsers = () => {
 // Sub-component: UserPermissionsPanel
 // =============================
 const UserPermissionsPanel = ({
-  user, currentUser, catalog, warehouses, allUsers, savingKey,
-  onRoleChange, onStatusChange, onAlmacenChange, onSupervisorChange,
+  user, currentUser, catalog, warehouses, allUsers, profiles, savingKey,
+  onRoleChange, onStatusChange, onAlmacenChange, onSupervisorChange, onProfileChange,
   onGroupToggle, onLevelChange, onSpecialToggle,
 }) => {
   const isMe = currentUser?.user_id === user.user_id;
@@ -372,6 +393,10 @@ const UserPermissionsPanel = ({
   const menuGroups = user.menu_groups || {};
   const permissions = user.permissions || {};
   const specials = user.special_permissions || [];
+  const activeProfile = (profiles || []).find(p => p.profile_id === user.profile_id) || null;
+  const profilePerms = activeProfile?.permissions || null;
+  const profileGroups = activeProfile?.menu_groups || null;
+  const profileSpecials = activeProfile?.special_permissions || null;
 
   if (!catalog) return <div className="p-8 text-slate-400">Cargando catálogo...</div>;
 
@@ -457,6 +482,38 @@ const UserPermissionsPanel = ({
             </div>
           </div>
         </div>
+
+        {/* Profile picker — fila separada */}
+        {!isAdminUser && (
+          <div className="mt-5 pt-5 border-t border-slate-100">
+            <Label className="text-xs text-slate-500 uppercase tracking-wide flex items-center gap-1"><Shield size={10} /> Perfil asignado (techo de permisos)</Label>
+            <div className="flex items-center gap-2 mt-1.5">
+              <Select value={user.profile_id || '__none__'} onValueChange={(v) => onProfileChange(user.user_id, v)} disabled={isMe}>
+                <SelectTrigger className="h-9 text-sm flex-1" data-testid={`profile-select-${user.user_id}`}>
+                  <SelectValue placeholder="Sin perfil (acceso libre)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__"><span className="text-slate-400">Sin perfil (acceso libre)</span></SelectItem>
+                  {(profiles || []).map(p => (
+                    <SelectItem key={p.profile_id} value={p.profile_id}>
+                      <span className="flex items-center gap-1.5"><Shield size={12} className="text-purple-600" />{p.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {activeProfile && (
+                <Badge variant="secondary" className="text-[10px] bg-purple-100 text-purple-700">
+                  {(activeProfile.description || '').slice(0, 50) || 'Perfil activo'}
+                </Badge>
+              )}
+            </div>
+            {activeProfile && (
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                El usuario hereda los permisos del perfil como <strong>techo</strong>. Solo puede ajustarse hacia abajo.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Admin banner */}
@@ -486,6 +543,10 @@ const UserPermissionsPanel = ({
             specials={specials}
             specialsByModule={specialsByModule}
             savingKey={savingKey}
+            profileName={activeProfile?.name}
+            profilePerms={profilePerms}
+            profileGroups={profileGroups}
+            profileSpecials={profileSpecials}
             onGroupToggle={(active) => onGroupToggle(user.user_id, g.id, active)}
             onLevelChange={(mid, lv) => onLevelChange(user.user_id, mid, lv)}
             onSpecialToggle={(flag, checked) => onSpecialToggle(user.user_id, flag, checked)}
@@ -500,12 +561,21 @@ const UserPermissionsPanel = ({
 // =============================
 // Sub-component: GroupCard
 // =============================
+const LEVEL_RANK = { none: 0, read: 1, edit: 2 };
+
 const GroupCard = ({
   group, active, disabled, isAdminUser, modules, levels, permissions, specials,
-  specialsByModule, savingKey, onGroupToggle, onLevelChange, onSpecialToggle, userId,
+  specialsByModule, savingKey, profileName, profilePerms, profileGroups, profileSpecials,
+  onGroupToggle, onLevelChange, onSpecialToggle, userId,
 }) => {
   const [expanded, setExpanded] = useState(true);
   const inactiveCascade = !active;
+  // Ceiling del grupo: si profileGroups tiene este grupo en false, el toggle no puede activarse.
+  const groupProfileAllowed = profileGroups ? (profileGroups[group.id] !== false) : true;
+  const groupSwitchDisabled = disabled || savingKey === `group-${userId}-${group.id}` || !groupProfileAllowed;
+  const groupTip = !groupProfileAllowed && profileName
+    ? `Acceso restringido: el perfil "${profileName}" tiene este grupo Inactivo.`
+    : '';
 
   return (
     <div className={`bg-white rounded-lg border transition-all ${inactiveCascade ? 'border-slate-200 opacity-70' : 'border-slate-200'} shadow-sm`} data-testid={`group-card-${group.id}`}>
@@ -516,12 +586,17 @@ const GroupCard = ({
           <span className="font-semibold text-sm text-slate-800">{group.name}</span>
           {inactiveCascade && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">Inactivo</span>}
           {isAdminUser && <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">Admin — acceso total</span>}
+          {!groupProfileAllowed && !isAdminUser && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium" title={groupTip}>
+              Techo del perfil
+            </span>
+          )}
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" title={groupTip}>
           <span className="text-[11px] text-slate-500">{active ? 'Activo' : 'Inactivo'}</span>
           <Switch
             checked={active}
-            disabled={disabled || savingKey === `group-${userId}-${group.id}`}
+            disabled={groupSwitchDisabled}
             onCheckedChange={(checked) => onGroupToggle(checked)}
             data-testid={`group-toggle-${group.id}-${userId}`}
           />
@@ -537,6 +612,9 @@ const GroupCard = ({
             const level = permissions[m.id] || 'read';
             const specialFns = specialsByModule(m.id);
             const moduleDisabled = inactiveCascade || disabled;
+            // Ceiling por módulo: profilePerms define el nivel máximo para este módulo.
+            const profileLv = profilePerms ? (profilePerms[m.id] || 'edit') : null;
+            const profileCap = profileLv ? LEVEL_RANK[profileLv] : 2;
             return (
               <div key={m.id} className={`border border-slate-200 rounded-md p-3 transition ${moduleDisabled ? 'bg-slate-50 opacity-60 pointer-events-none' : 'bg-white'}`} data-testid={`module-row-${m.id}-${userId}`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -548,20 +626,36 @@ const GroupCard = ({
                         Grupo inactivo
                       </span>
                     )}
+                    {profileLv && !isAdminUser && (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded uppercase tracking-wide" title={`Nivel máximo permitido por el perfil: ${profileLv}`}>
+                        Max: {profileLv === 'edit' ? 'Edición' : profileLv === 'read' ? 'Consulta' : 'Inactivo'}
+                      </span>
+                    )}
                   </div>
                   <RadioGroup
-                    value={moduleDisabled ? level : level}
+                    value={level}
                     onValueChange={(v) => onLevelChange(m.id, v)}
                     className="flex items-center gap-4"
                     disabled={moduleDisabled || savingKey === `level-${userId}-${m.id}`}
                   >
                     {levels.map(lv => {
                       const color = LEVEL_COLORS[lv.value] || LEVEL_COLORS.none;
+                      const optionBlocked = profileLv && !isAdminUser && LEVEL_RANK[lv.value] > profileCap;
+                      const optionTip = optionBlocked
+                        ? `Acceso restringido: el nivel máximo para el perfil "${profileName}" es "${profileLv === 'edit' ? 'Edición Total' : profileLv === 'read' ? 'Consulta' : 'Inactivo'}".`
+                        : '';
                       return (
-                        <label key={lv.value} className={`flex items-center gap-1.5 cursor-pointer text-xs px-2 py-1 rounded transition ${
-                          level === lv.value ? `${color.bg} ${color.text} ring-1 ${color.ring}` : 'text-slate-500 hover:bg-slate-100'
-                        } ${moduleDisabled ? 'cursor-not-allowed opacity-50' : ''}`}>
-                          <RadioGroupItem value={lv.value} data-testid={`level-${lv.value}-${m.id}-${userId}`} className="h-3 w-3" />
+                        <label key={lv.value}
+                          title={optionTip}
+                          className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition ${
+                            level === lv.value ? `${color.bg} ${color.text} ring-1 ${color.ring}` : 'text-slate-500 hover:bg-slate-100'
+                          } ${moduleDisabled || optionBlocked ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}>
+                          <RadioGroupItem
+                            value={lv.value}
+                            disabled={optionBlocked}
+                            data-testid={`level-${lv.value}-${m.id}-${userId}`}
+                            className="h-3 w-3"
+                          />
                           {lv.label}
                         </label>
                       );
@@ -575,17 +669,22 @@ const GroupCard = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {specialFns.map(sp => {
                         const checked = specials.includes(sp.id);
+                        const flagBlocked = profileSpecials && !isAdminUser && !profileSpecials.includes(sp.id);
+                        const flagTip = flagBlocked
+                          ? `Acceso restringido: el perfil "${profileName}" no incluye esta función.`
+                          : (sp.description || '');
                         return (
-                          <label key={sp.id} className="flex items-start gap-2 cursor-pointer text-xs" title={sp.description}>
+                          <label key={sp.id} className={`flex items-start gap-2 text-xs ${flagBlocked ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`} title={flagTip}>
                             <Checkbox
                               checked={checked}
-                              disabled={moduleDisabled || savingKey === `sp-${userId}-${sp.id}`}
+                              disabled={moduleDisabled || flagBlocked || savingKey === `sp-${userId}-${sp.id}`}
                               onCheckedChange={(c) => onSpecialToggle(sp.id, c)}
                               className="h-3.5 w-3.5 mt-0.5"
                               data-testid={`sp-${sp.id}-${userId}`}
                             />
                             <span className={`${checked ? 'text-purple-700 font-medium' : 'text-slate-600'}`}>
                               {sp.label}
+                              {flagBlocked && <span className="ml-1 text-[9px] text-purple-500 uppercase">no en perfil</span>}
                             </span>
                           </label>
                         );

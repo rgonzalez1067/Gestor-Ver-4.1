@@ -96,6 +96,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "permissions": user.get("permissions", {}),
         "special_permissions": user.get("special_permissions", []),
         "menu_groups": menu_groups,
+        "profile_id": user.get("profile_id"),
         "almacen_asignado": user.get("almacen_asignado", None),
         "supervisor_id": user.get("supervisor_id", None),
         "supervisor_name": user.get("supervisor_name", None),
@@ -309,6 +310,7 @@ async def login_user(credentials: UserLogin):
         "permissions": user.get("permissions", {}),
         "special_permissions": user.get("special_permissions", []),
         "menu_groups": user.get("menu_groups") or {},
+        "profile_id": user.get("profile_id"),
         "almacen_asignado": user.get("almacen_asignado", None),
         "supervisor_id": user.get("supervisor_id", None),
         "supervisor_name": user.get("supervisor_name", None),
@@ -582,7 +584,8 @@ async def get_permission_catalog(authorization: Optional[str] = Header(None)):
 
 @router.put("/admin/users/{user_id}/menu-groups")
 async def update_user_menu_groups(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    """Actualizar menu_groups de un usuario (Nivel 1 activo/inactivo). Solo admin."""
+    """Actualizar menu_groups de un usuario (Nivel 1 activo/inactivo). Solo admin.
+    Ceiling: si el usuario tiene perfil, no puede activar un grupo que el perfil tenga inactivo."""
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden modificar menu_groups")
@@ -594,7 +597,20 @@ async def update_user_menu_groups(user_id: str, body: dict, authorization: Optio
     from permissions_catalog import MENU_GROUPS
     valid_group_ids = {g["id"] for g in MENU_GROUPS}
     incoming = body.get("menu_groups") or {}
-    # Start from current or default-all-on
+
+    # Validar contra el perfil si el usuario tiene uno (ceiling).
+    profile_groups = None
+    if user.get("profile_id") and user.get("role") != "admin":
+        profile = await db.profiles.find_one({"profile_id": user["profile_id"]}, {"_id": 0})
+        if profile:
+            profile_groups = profile.get("menu_groups") or {}
+            for gid, active in incoming.items():
+                if active and gid in valid_group_ids and not profile_groups.get(gid, True):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Acceso restringido: el perfil '{profile.get('name')}' no tiene activo el grupo '{gid}'.",
+                    )
+
     current_groups = user.get("menu_groups") or {g["id"]: True for g in MENU_GROUPS}
     for gid, active in incoming.items():
         if gid in valid_group_ids:
@@ -607,7 +623,7 @@ async def update_user_menu_groups(user_id: str, body: dict, authorization: Optio
 
 @router.put("/admin/users/{user_id}/permissions")
 async def update_user_permissions(user_id: str, permissions: dict, authorization: Optional[str] = Header(None)):
-    """Actualizar permisos de un usuario (solo admin)"""
+    """Actualizar permisos de un usuario (solo admin). Ceiling vs perfil."""
     current_user = await get_current_user(authorization)
     
     if current_user.get("role") != "admin":
@@ -619,7 +635,26 @@ async def update_user_permissions(user_id: str, permissions: dict, authorization
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
     # Validar permisos — aceptar tanto módulos legacy (AVAILABLE_MODULES) como del catálogo nuevo (MODULE_IDS).
-    from permissions_catalog import MODULE_IDS
+    from permissions_catalog import MODULE_IDS, LEVEL_RANK, LEVEL_LABELS
+
+    # Si el usuario tiene perfil, aplicar ceiling: no aceptar niveles superiores al del perfil.
+    profile_perms = None
+    profile_name = None
+    if user.get("profile_id") and user.get("role") != "admin":
+        profile = await db.profiles.find_one({"profile_id": user["profile_id"]}, {"_id": 0})
+        if profile:
+            profile_perms = profile.get("permissions") or {}
+            profile_name = profile.get("name")
+            for module_id, new_lv in permissions.items():
+                if module_id not in MODULE_IDS:
+                    continue
+                prof_lv = profile_perms.get(module_id, "edit")
+                if LEVEL_RANK.get(new_lv, 0) > LEVEL_RANK.get(prof_lv, 2):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Acceso restringido: el nivel máximo para el perfil '{profile_name}' en '{module_id}' es '{LEVEL_LABELS.get(prof_lv, prof_lv)}'.",
+                    )
+
     all_modules = list(set(list(AVAILABLE_MODULES) + list(MODULE_IDS)))
     valid_permissions = dict(user.get("permissions", {}))  # preservar existentes
     for module in all_modules:
@@ -641,7 +676,7 @@ async def update_user_permissions(user_id: str, permissions: dict, authorization
 
 @router.put("/admin/users/{user_id}/special-permissions")
 async def update_special_permissions(user_id: str, body: dict, authorization: Optional[str] = Header(None)):
-    """Actualizar permisos especiales de un usuario (solo admin)"""
+    """Actualizar permisos especiales de un usuario (solo admin). Ceiling vs perfil."""
     current_user = await get_current_user(authorization)
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden modificar permisos especiales")
@@ -654,6 +689,18 @@ async def update_special_permissions(user_id: str, body: dict, authorization: Op
     # Validar contra catálogo: solo aceptar flags conocidos
     from permissions_catalog import SPECIAL_FLAG_IDS
     valid_flags = [f for f in special_permissions if isinstance(f, str) and f in SPECIAL_FLAG_IDS]
+
+    # Ceiling: el user solo puede tener flags que el perfil también tenga.
+    if user.get("profile_id") and user.get("role") != "admin":
+        profile = await db.profiles.find_one({"profile_id": user["profile_id"]}, {"_id": 0})
+        if profile:
+            allowed = set(profile.get("special_permissions") or [])
+            forbidden = [f for f in valid_flags if f not in allowed]
+            if forbidden:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Acceso restringido: el perfil '{profile.get('name')}' no incluye: {', '.join(forbidden)}",
+                )
     
     await db.users.update_one(
         {"user_id": user_id},

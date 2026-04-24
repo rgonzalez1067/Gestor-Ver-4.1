@@ -27,6 +27,7 @@ import Quotes from './pages/Quotes';
 import ExchangeRate from './pages/ExchangeRate';
 import Settings from './pages/Settings';
 import AdminUsers from './pages/AdminUsers';
+import AdminProfiles from './pages/AdminProfiles';
 import UserManagement from './pages/UserManagement';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
@@ -187,6 +188,11 @@ function AppRouter() {
       <Route path="/admin/users" element={
         <ProtectedRoute>
           <AdminUsers />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/profiles" element={
+        <ProtectedRoute>
+          <AdminProfiles />
         </ProtectedRoute>
       } />
       <Route path="/users" element={
