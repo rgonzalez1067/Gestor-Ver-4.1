@@ -1522,6 +1522,9 @@ class EquipmentPDFItem(BaseModel):
     # Seriales asociados a este concepto (solo cotizaciones de Reparación).
     # Relación N:N con el pool de repair_models: un serial puede aparecer en varios conceptos.
     serials: List[str] = []
+    # Concepto sin serial: ítems administrativos/logísticos (Casillero, Envío, Seguro, etc.)
+    # Cuando True se omite la lista de seriales en el PDF y la validación de obligatoriedad.
+    no_serial: bool = False
 
 class RepairModelEntry(BaseModel):
     model_name: str
@@ -1576,7 +1579,14 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     for item in data.items:
         line_total = item.quantity * item.unit_price_usd
         serials_block = ""
-        if item.serials:
+        if getattr(item, "no_serial", False):
+            # Concepto administrativo/logístico — no se desglosan seriales en el PDF.
+            serials_block = (
+                '<div style="margin-top:4px;font-size:10px;font-style:italic;color:#94a3b8">'
+                '<span style="font-weight:600;color:#64748b">Sin serial</span> · concepto administrativo/logístico'
+                '</div>'
+            )
+        elif item.serials:
             # Chips de seriales en columnas, fuente menor, itálica.
             serial_spans = "".join(
                 f'<span style="display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;background:#fff7ed;border:1px solid #fed7aa;border-radius:3px;font-family:monospace;font-size:9.5px;color:#9a3412">{s}</span>'

@@ -412,3 +412,23 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Validado E2E con curl + Playwright**: `POST send-email` → SMTP envía (email_log_id generado) → bitácora registra `notification` con detalle `[Email] <subject> → <recipients>`. Preview muestra correctamente "Hola Juan Pérez Test" / "Test Notif Corp".
 
+
+## Modal de Seriales: Selección Masiva + "Sin Serial" (iter 186)
+
+**Solicitud del usuario**: optimizar la ventana de selección de seriales en cotizaciones de Reparación con (1) botón "Seleccionar todos" sincronizado con `quantity` y (2) opción "Sin Serial" para conceptos administrativos/logísticos (Casillero, Envío, Seguros, etc.).
+
+**Backend** (`/app/backend/routes/quotes.py`):
+- `EquipmentPDFItem` model: nuevo flag `no_serial: bool = False`.
+- `generate-equipment-pdf`: si `item.no_serial=True`, en lugar de la lista de chips se renderiza una etiqueta sutil `Sin serial · concepto administrativo/logístico`. Si `False`, comportamiento original (chips de seriales).
+
+**Frontend** (`/app/frontend/src/components/SerialsSelectorModal.jsx`):
+- Toolbar superior con:
+  - Switch "Sin Serial — concepto administrativo/logístico" (deshabilita lista, búsqueda y permite guardar sin selección).
+  - Botón "Seleccionar todos" que marca hasta `requiredQty` de los visibles (filtrados); si hay más visibles que la cantidad, muestra warning y respeta el límite.
+  - Botón "Limpiar".
+  - Contador `n / requiredQty` o `Sin serial`.
+- `onSave(serials, noSerial)` para que el wizard persista ambos valores.
+- `(EquipmentQuoteWizard.jsx)`: `saveItemSerials(serials, noSerial)` setea `item.no_serial`. `openSerialsModal` permite abrir aunque el pool esté vacío si el item ya está marcado `no_serial`. Etiqueta del botón cambia a "Sin serial" en verde cuando aplica.
+
+**Validado por curl**: PDF generado con 3 ítems (1 con 2 seriales + 2 con `no_serial=true`) → "Limpieza General" muestra `Seriales (2): SN-1001 SN-1002`; "Casillero (logístico)" y "Servicio de Envío" muestran `Sin serial · concepto administrativo/logístico` sin chips. Lint frontend OK.
+

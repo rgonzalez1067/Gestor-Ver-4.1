@@ -214,19 +214,26 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   }, [repairModels]);
 
   const openSerialsModal = (index) => {
-    if (serialsPool.length === 0) {
-      toast.error('No hay seriales precargados. Primero agregue modelos con seriales en el paso anterior.');
+    const item = selectedItems[index];
+    // Si el concepto está marcado "Sin Serial" no exigimos pool — siempre se puede abrir
+    // para alternar el estado o cancelar.
+    if (!item?.no_serial && serialsPool.length === 0) {
+      toast.error('No hay seriales precargados. Primero agregue modelos con seriales en el paso anterior, o marque "Sin Serial" si es un concepto administrativo.');
       return;
     }
     setSerialsModalIdx(index);
   };
 
-  const saveItemSerials = (serials) => {
+  const saveItemSerials = (serials, noSerial = false) => {
     if (serialsModalIdx === null) return;
     const updated = [...selectedItems];
-    updated[serialsModalIdx] = { ...updated[serialsModalIdx], serials };
+    updated[serialsModalIdx] = { ...updated[serialsModalIdx], serials, no_serial: !!noSerial };
     setSelectedItems(updated);
-    toast.success(`${serials.length} serial(es) asociados al concepto`);
+    if (noSerial) {
+      toast.success('Concepto marcado como "Sin Serial"');
+    } else {
+      toast.success(`${serials.length} serial(es) asociados al concepto`);
+    }
   };
 
   // Calcular total
@@ -978,14 +985,18 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => openSerialsModal(index)}
-                                  className={`${(item.serials?.length || 0) === item.quantity && item.quantity > 0
+                                  className={`${item.no_serial
+                                    ? 'text-emerald-600 hover:text-emerald-700'
+                                    : (item.serials?.length || 0) === item.quantity && item.quantity > 0
                                     ? 'text-emerald-600 hover:text-emerald-700'
                                     : 'text-orange-500 hover:text-orange-700'}`}
-                                  title={`${item.serials?.length || 0}/${item.quantity} seriales asociados`}
+                                  title={item.no_serial ? 'Concepto sin serial (administrativo/logístico)' : `${item.serials?.length || 0}/${item.quantity} seriales asociados`}
                                   data-testid={`equipment-serials-btn-${index}`}
                                 >
                                   <ListChecks size={16} />
-                                  <span className="ml-1 text-[11px]">{item.serials?.length || 0}/{item.quantity}</span>
+                                  <span className="ml-1 text-[11px]">
+                                    {item.no_serial ? 'Sin serial' : `${item.serials?.length || 0}/${item.quantity}`}
+                                  </span>
                                 </Button>
                               )}
                               <Button
@@ -1050,6 +1061,7 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         onClose={() => setSerialsModalIdx(null)}
         pool={serialsPool}
         initialSelected={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.serials || []) : []}
+        initialNoSerial={serialsModalIdx !== null ? !!selectedItems[serialsModalIdx]?.no_serial : false}
         requiredQty={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.quantity || 0) : 0}
         itemName={serialsModalIdx !== null ? (selectedItems[serialsModalIdx]?.name || '') : ''}
         onSave={saveItemSerials}
