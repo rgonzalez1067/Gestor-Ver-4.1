@@ -756,35 +756,50 @@ export const Integrators = () => {
                 <DebouncedInput placeholder="Buscar nombre, aplicativo, gestor..." value={searchTerm} onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9 h-9 text-sm" data-testid="search-input" />
               </div>
               <Select value={filterIntType} onValueChange={setFilterIntType}>
-                <SelectTrigger className="w-[110px] h-9 text-xs" data-testid="filter-int-type"><SelectValue placeholder="Tipo Int." /></SelectTrigger>
+                <SelectTrigger className="w-[150px] h-9 text-xs" data-testid="filter-int-type">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Tipo Int.:</span>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {INTEGRATION_TYPE_OPTIONS.map(o => <SelectItem key={o.id} value={o.id}>{o.id}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-status"><SelectValue placeholder="Estatus" /></SelectTrigger>
+                <SelectTrigger className="w-[170px] h-9 text-xs" data-testid="filter-status">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Estatus:</span>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {INTEGRATOR_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-[115px] h-9 text-xs" data-testid="filter-type"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                <SelectTrigger className="w-[160px] h-9 text-xs" data-testid="filter-type">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Tipo:</span>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {INTEGRATOR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterModality} onValueChange={setFilterModality}>
-                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-modality"><SelectValue placeholder="Modalidad" /></SelectTrigger>
+                <SelectTrigger className="w-[200px] h-9 text-xs" data-testid="filter-modality">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Modalidad:</span>
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   {INTEGRATION_MODALITIES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={filterGestor} onValueChange={setFilterGestor}>
-                <SelectTrigger className="w-[120px] h-9 text-xs" data-testid="filter-gestor"><SelectValue placeholder="Gestor" /></SelectTrigger>
+                <SelectTrigger className="w-[180px] h-9 text-xs" data-testid="filter-gestor">
+                  <span className="text-[10px] uppercase text-slate-500 mr-1 shrink-0">Gestor:</span>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {users.map(u => <SelectItem key={u.user_id} value={u.full_name || u.email}>{u.full_name || u.email}</SelectItem>)}
@@ -796,13 +811,13 @@ export const Integrators = () => {
             </div>
           </div>
 
-          {/* Stats */}
+          {/* Stats — reflejan los filtros aplicados */}
           <div className="grid grid-cols-5 gap-3 mb-4">
-            <div className="bg-white rounded-lg border p-3"><div className="text-xs text-slate-500">Total</div><div className="text-xl font-bold text-slate-900">{integrators.length}</div></div>
-            <div className="bg-white rounded-lg border border-green-200 p-3"><div className="text-xs text-green-600">Certificados</div><div className="text-xl font-bold text-green-700">{integrators.filter(i => i.integrator_status === 'Certificado').length}</div></div>
-            <div className="bg-white rounded-lg border border-blue-200 p-3"><div className="text-xs text-blue-600">En Ejecución</div><div className="text-xl font-bold text-blue-700">{integrators.filter(i => i.implementador && i.integrator_status === 'En proceso').length}</div></div>
-            <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">Sin Implementador</div><div className="text-xl font-bold text-amber-700">{integrators.filter(i => !i.implementador).length}</div></div>
-            <div className="bg-white rounded-lg border border-red-200 p-3"><div className="text-xs text-red-600">Suspendidos</div><div className="text-xl font-bold text-red-700">{integrators.filter(i => i.integrator_status === 'Suspendido').length}</div></div>
+            <div className="bg-white rounded-lg border p-3"><div className="text-xs text-slate-500">Total</div><div className="text-xl font-bold text-slate-900">{filteredIntegrators.length}</div></div>
+            <div className="bg-white rounded-lg border border-green-200 p-3"><div className="text-xs text-green-600">Certificados</div><div className="text-xl font-bold text-green-700">{filteredIntegrators.filter(i => i.integrator_status === 'Certificado').length}</div></div>
+            <div className="bg-white rounded-lg border border-blue-200 p-3"><div className="text-xs text-blue-600">En Ejecución</div><div className="text-xl font-bold text-blue-700">{filteredIntegrators.filter(i => i.implementador && i.integrator_status === 'En proceso').length}</div></div>
+            <div className="bg-white rounded-lg border border-amber-200 p-3"><div className="text-xs text-amber-600">Sin Implementador</div><div className="text-xl font-bold text-amber-700">{filteredIntegrators.filter(i => !i.implementador).length}</div></div>
+            <div className="bg-white rounded-lg border border-red-200 p-3"><div className="text-xs text-red-600">Suspendidos</div><div className="text-xl font-bold text-red-700">{filteredIntegrators.filter(i => i.integrator_status === 'Suspendido').length}</div></div>
           </div>
 
           {/* Table */}

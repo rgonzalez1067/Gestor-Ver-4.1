@@ -377,3 +377,14 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - Paso 2 (solo si la respuesta trae `protected.length > 0`): muestra lista con asociaciones, pide escribir `FORZAR CASCADA`, llama a `/integrators/bulk/all?force_cascade=true`. Alternativa: botón "Conservar y cerrar".
 
 **Validado E2E con Playwright**: 3 integradores (Norkut, HL Sistemas, Corp XETUX) con 4 cotizaciones → Paso 1 ofreció cascada → Paso 2 eliminó 3 integradores + 4 cotizaciones + 0 proyectos → tabla vacía. Latencia de input imperceptible (~90 ms/char, incluye overhead de Playwright).
+
+
+## Integradores: Stats reactivas + label visible en filtros (iter 184b)
+
+**Solicitud del usuario**: (1) las tarjetas de totales (Total, Certificados, En Ejecución, Sin Implementador, Suspendidos) deben reflejar el filtrado activo; (2) en el trigger de cada Select debe verse siempre el nombre del campo.
+
+**Frontend** (`/app/frontend/src/pages/Integrators.jsx`):
+- Stats ahora se calculan sobre `filteredIntegrators` (backend `filterStatus`/`filterType` + client-side `filterIntType`/`filterModality`/`filterGestor`/`searchTerm`).
+- Cada `SelectTrigger` rendea un `<span>` con el label (`TIPO INT.:`, `ESTATUS:`, `TIPO:`, `MODALIDAD:`, `GESTOR:`) en mayúsculas pequeñas seguido de `SelectValue`. Anchos ampliados para acomodar label + valor.
+
+**Validado E2E**: sin filtros 267/234/0/42/32 → Estatus=Certificado 234/234/0/27/0 → +Modalidad=REST 116/116/0/15/0 → Limpiar 267.
