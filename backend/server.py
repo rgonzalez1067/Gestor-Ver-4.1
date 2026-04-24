@@ -36,6 +36,7 @@ from routes.projects import router as projects_router
 from routes.new_products import router as new_products_router
 from routes.inventory import router as inventory_router
 from routes.initial_contacts import router as initial_contacts_router
+from routes.initial_contact_communications import router as initial_contact_comms_router
 from routes.client_communications import router as client_comms_router
 from routes.entity_communications import router as entity_comms_router
 from routes.quote_history import router as quote_history_router
@@ -210,6 +211,7 @@ api_router.include_router(seed_templates_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)
 api_router.include_router(initial_contacts_router)
+api_router.include_router(initial_contact_comms_router)
 api_router.include_router(client_comms_router)
 api_router.include_router(entity_comms_router)
 api_router.include_router(quote_history_router)

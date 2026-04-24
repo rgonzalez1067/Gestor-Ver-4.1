@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Phone, Mail, Building2, User, Search, MessageSquare, UserPlus, ArrowRightLeft, Rocket, Clock, ChevronDown, ChevronUp, Filter, Trash2 } from 'lucide-react';
+import { Plus, Phone, Mail, Building2, User, Search, MessageSquare, UserPlus, ArrowRightLeft, Rocket, Clock, ChevronDown, ChevronUp, Filter, Trash2, Send } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
 
 export const InitialContacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -44,6 +45,10 @@ export const InitialContacts = () => {
   // Bitacora viewer
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [bitacoraContact, setBitacoraContact] = useState(null);
+
+  // Notification dialog
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyContact, setNotifyContact] = useState(null);
 
   // Delete (admin only)
   const [deleteContact, setDeleteContact] = useState(null);
@@ -312,6 +317,10 @@ export const InitialContacts = () => {
                           onClick={() => { setConvertContact(c); setConvertConfirmOpen(true); }}>
                           <Rocket size={14} />
                         </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-indigo-600" title="Enviar Notificación" data-testid={`notify-btn-${c.contact_id}`}
+                          onClick={() => { setNotifyContact(c); setNotifyOpen(true); }}>
+                          <Send size={14} />
+                        </Button>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600" title="Ver Bitacora"
                           onClick={() => { setBitacoraContact(c); setBitacoraOpen(true); }}>
                           <Clock size={14} />
@@ -550,6 +559,14 @@ export const InitialContacts = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Notification Dialog */}
+        <InitialContactEmailDialog
+          open={notifyOpen}
+          onClose={() => { setNotifyOpen(false); setNotifyContact(null); }}
+          contact={notifyContact}
+          onSent={fetchData}
+        />
       </main>
     </div>
   );

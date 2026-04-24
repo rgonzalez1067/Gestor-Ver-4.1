@@ -396,3 +396,19 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 **Fix** (`Integrators.jsx`): el filtro ahora se popula con `Array.from(new Set(integrators.map(i => i.gestor))).sort()`. Sólo aparecen los 5 gestores reales con integradores asignados, y los valores coinciden exactamente con la BD (match 100%).
 
 **Validado E2E**: `Gestor=Rafael Gonzalez` → Total: 121, Certificados: 107, Sin Implementador: 9, Suspendidos: 14.
+
+## Notificaciones a Contactos Iniciales (iter 185)
+
+**Solicitud del usuario**: agregar el botón "Enviar Notificación" (similar al de Clientes) en las acciones de Contacto Inicial, tanto en el Dashboard como en la pantalla principal.
+
+**Backend** (`/app/backend/routes/initial_contact_communications.py` — NUEVO):
+- `POST /api/initial-contacts/{contact_id}/send-email` (multipart: recipients JSON, subject, message, internal_doc_ids JSON, files[]). Envía por SMTP, registra en `initial_contacts.bitacora` con `action='notification'` y `email_data` (subject, recipients, attachments, sent_by, sent_at). Reutiliza biblioteca `client_documents` para adjuntos internos.
+- `POST /api/initial-contacts/{contact_id}/preview-email` → resuelve variables `{{contacto}}`, `{{razon_social}}`, `{{email}}`, `{{telefono}}`, `{{referido_por}}`, `{{asignado_a}}`, `{{aspectos_interes}}`, `{{empresa}}`, `{{nombre}}`.
+- Router registrado en `server.py`.
+
+**Frontend**:
+- `/app/frontend/src/components/InitialContactEmailDialog.jsx` (NUEVO): diálogo de 2 columnas con plantillas (fallback `context=CLIENTES` si no hay `INITIAL_CONTACTS`), variables contextuales, vista previa, adjuntos externos e internos.
+- `InitialContacts.jsx` y `Dashboard.jsx`: ícono `Send` (indigo) entre "Convertir a Prospecto" y "Ver Bitácora". `data-testid=notify-btn-{id}` / `dash-notify-btn-{id}`.
+
+**Validado E2E con curl + Playwright**: `POST send-email` → SMTP envía (email_log_id generado) → bitácora registra `notification` con detalle `[Email] <subject> → <recipients>`. Preview muestra correctamente "Hola Juan Pérez Test" / "Test Notif Corp".
+

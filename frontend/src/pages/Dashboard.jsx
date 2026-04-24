@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft, Trash2 } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft, Trash2, Send } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -13,6 +13,7 @@ import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { RecentActivityCard } from '../components/RecentActivityCard';
+import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -47,6 +48,9 @@ export const Dashboard = () => {
   // Bitacora
   const [dashBitacoraOpen, setDashBitacoraOpen] = useState(false);
   const [dashBitacoraContact, setDashBitacoraContact] = useState(null);
+
+  const [dashNotifyOpen, setDashNotifyOpen] = useState(false);
+  const [dashNotifyContact, setDashNotifyContact] = useState(null);
   // Delete (admin only)
   const [dashDeleteContact, setDashDeleteContact] = useState(null);
   const [dashDeleting, setDashDeleting] = useState(false);
@@ -383,6 +387,11 @@ export const Dashboard = () => {
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-green-600" title="Convertir a Prospecto"
                                 onClick={() => { setDashConvertContact(c); setDashConvertOpen(true); }}>
                                 <Rocket size={13} />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-indigo-600" title="Enviar Notificación"
+                                data-testid={`dash-notify-btn-${c.contact_id}`}
+                                onClick={() => { setDashNotifyContact(c); setDashNotifyOpen(true); }}>
+                                <Send size={13} />
                               </Button>
                               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700" title="Ver Bitácora"
                                 onClick={() => { setDashBitacoraContact(c); setDashBitacoraOpen(true); }}>
@@ -721,6 +730,14 @@ export const Dashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Notification Dialog */}
+      <InitialContactEmailDialog
+        open={dashNotifyOpen}
+        onClose={() => { setDashNotifyOpen(false); setDashNotifyContact(null); }}
+        contact={dashNotifyContact}
+        onSent={() => { /* refresh commitments not critical; bitácora modal will re-read on next open */ }}
+      />
     </div>
   );
 };
