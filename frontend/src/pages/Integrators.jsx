@@ -52,6 +52,13 @@ const CATEGORIAS = [
 ];
 const CERT_STATES = { P: { label: 'P', color: 'bg-amber-100 text-amber-700 border-amber-300' }, C: { label: 'C', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }, 'N/A': { label: 'N/A', color: 'bg-[#E3F2FD] text-[#0D47A1] border-[#90CAF9]' } };
 const CERT_CYCLE = ['P', 'C', 'N/A'];
+const PHASE_COLORS = {
+  'Negociación': 'bg-slate-100 text-slate-700 border-slate-300',
+  'Desarrollo':  'bg-sky-100 text-sky-700 border-sky-300',
+  'QA':          'bg-amber-100 text-amber-700 border-amber-300',
+  'SQA':         'bg-purple-100 text-purple-700 border-purple-300',
+  'Producción':  'bg-emerald-100 text-emerald-700 border-emerald-300',
+};
 
 export const Integrators = () => {
   const { canEdit, canCreate: baseCanCreate, hasSpecial, user: currentUser } = usePermission('integradores');
