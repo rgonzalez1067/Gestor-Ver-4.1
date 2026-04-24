@@ -291,3 +291,10 @@ Routers registrados en `server.py`. Tests: iteration_176 → 27/27 backend PASS.
 
 **Tests** (iteration_182): Backend 6/6 PASS (pytest en `/app/backend/tests/test_equipment_pdf_serials.py`) + Frontend 9/9 flows PASS. Validado: N:N (serial compartido entre 2 conceptos), hard-limit, buscador, preservación al reabrir, recorte por cambio de cantidad, PDF con chips.
 
+## PDF Equipos/Reparación: encabezado fijo en todas las páginas (Feb-2026, iter 182e)
+
+Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos (Términos + Total) sin identificación. Se refactorizó el template en `/app/backend/routes/quotes.py` (`generate_equipment_quote_pdf`) usando CSS `position: running(page-header)` + `@page { @top-left { content: element(page-header); } }` con `margin-top: 200px`:
+- El bloque con `logo + número de cotización + fecha + vence + badge de tipo + PREPARADO PARA (cliente/RIF/dirección) + EMITIDO POR` se renderiza ahora en cada página de la cotización.
+- El **Anexo de Seriales** (página siguiente) se mantiene SIN encabezado según requisito del usuario.
+- Validado con PDF multi-página (14 items): pág 1 ✅ header · pág 2 ✅ header · pág 3 ✅ anexo sin header. Análisis automático de imagen confirmó encabezado completo en la pág 2 (logo Mega Soft, COTIZACIÓN #, fechas, PREPARADO PARA con cliente + RIF + dirección completa, EMITIDO POR).
+

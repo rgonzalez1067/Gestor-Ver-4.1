@@ -1647,19 +1647,24 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
 <head>
     <meta charset="UTF-8">
     <style>
-        @page {{ size: letter; margin: 40px; }}
+        @page {{
+            size: letter;
+            margin: 200px 40px 40px 40px;
+            @top-left {{ content: element(page-header); width: 100%; }}
+        }}
         body {{ font-family: Helvetica, Arial, sans-serif; color: #475569; margin: 0; padding: 0; font-size: 13px; }}
-        .header {{ display: flex; justify-content: space-between; border-bottom: 2px solid #f8fafc; padding-bottom: 20px; margin-bottom: 30px; }}
+        .running-header {{ position: running(page-header); width: 100%; padding-top: 10px; }}
+        .header {{ display: flex; justify-content: space-between; border-bottom: 2px solid #f8fafc; padding-bottom: 16px; }}
         .brand {{ font-size: 22px; font-weight: bold; color: #1e293b; }}
         .brand-sub {{ font-size: 11px; color: #94a3b8; margin-top: 4px; }}
         .quote-meta {{ text-align: right; }}
         .quote-id {{ font-size: 18px; color: #3b82f6; font-weight: 800; }}
         .quote-type {{ font-size: 12px; color: #64748b; background: #f1f5f9; padding: 3px 10px; border-radius: 4px; display: inline-block; margin-top: 6px; }}
-        .info-grid {{ display: flex; justify-content: space-between; gap: 40px; margin: 30px 0; }}
+        .info-grid {{ display: flex; justify-content: space-between; gap: 40px; margin: 14px 0 0 0; }}
         .info-block {{ flex: 1; }}
-        .info-block h3 {{ font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin: 0 0 6px 0; }}
-        .info-block strong {{ color: #1e293b; font-size: 14px; }}
-        .info-block span {{ font-size: 12px; color: #64748b; }}
+        .info-block h3 {{ font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin: 0 0 4px 0; }}
+        .info-block strong {{ color: #1e293b; font-size: 13px; }}
+        .info-block span {{ font-size: 11px; color: #64748b; }}
         table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
         th {{ background: #f8fafc; text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }}
         td {{ padding: 14px 12px; border-bottom: 1px solid #f1f5f9; }}
@@ -1673,28 +1678,31 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     </style>
 </head>
 <body>
-    <div class="header">
-        <div>
-            {logo_html}
+    <!-- Encabezado fijo: se renderiza en TODAS las páginas de la cotización vía @top-left -->
+    <div class="running-header">
+        <div class="header">
+            <div>
+                {logo_html}
+            </div>
+            <div class="quote-meta">
+                <div class="quote-id">COTIZACIÓN #{quote_number}</div>
+                <div style="font-size:12px;color:#64748b">Fecha: {fecha}</div>
+                <div style="font-size:12px;color:#64748b">Vence: {vence}</div>
+                <div class="quote-type">{type_title}</div>
+            </div>
         </div>
-        <div class="quote-meta">
-            <div class="quote-id">COTIZACIÓN #{quote_number}</div>
-            <div style="font-size:12px;color:#64748b">Fecha: {fecha}</div>
-            <div style="font-size:12px;color:#64748b">Vence: {vence}</div>
-            <div class="quote-type">{type_title}</div>
-        </div>
-    </div>
-    <div class="info-grid">
-        <div class="info-block">
-            <h3>Preparado para:</h3>
-            <strong>{data.cliente_nombre}</strong><br>
-            <span>RIF: {data.cliente_rif or 'N/A'}</span><br>
-            <span>{data.cliente_address or ''}</span>
-        </div>
-        <div class="info-block" style="text-align:right">
-            <h3>Emitido por:</h3>
-            <strong>Mega Soft, C.A.</strong><br>
-            <span>Sistema de Cotizaciones</span>
+        <div class="info-grid">
+            <div class="info-block">
+                <h3>Preparado para:</h3>
+                <strong>{data.cliente_nombre}</strong><br>
+                <span>RIF: {data.cliente_rif or 'N/A'}</span><br>
+                <span>{data.cliente_address or ''}</span>
+            </div>
+            <div class="info-block" style="text-align:right">
+                <h3>Emitido por:</h3>
+                <strong>Mega Soft, C.A.</strong><br>
+                <span>Sistema de Cotizaciones</span>
+            </div>
         </div>
     </div>
     {repair_section}
