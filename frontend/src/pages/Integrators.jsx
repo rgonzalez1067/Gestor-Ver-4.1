@@ -84,7 +84,7 @@ export const Integrators = () => {
   const [filterGestor, setFilterGestor] = useState('');
   const [formData, setFormData] = useState({
     name: '', integrator_type: '', integration_type: '', app_name: '',
-    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', email: '',
+    integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '',
     contacts: []
   });
   // Confirmación de asignación de implementador
@@ -278,6 +278,7 @@ export const Integrators = () => {
       integration_type: intg.integration_type || '', app_name: intg.app_name,
       integration_modality: intg.integration_modality, integrator_status: intg.integrator_status,
       gestor: intg.gestor || '', categoria: intg.categoria || '',
+      ticket_number: intg.ticket_number || '',
       certifications: intg.certifications || {},
       last_contact_date: intg.last_contact_date || '',
       email: intg.email || '',
@@ -287,7 +288,7 @@ export const Integrators = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', certifications: {}, last_contact_date: '', email: '', contacts: [] });
+    setFormData({ name: '', integrator_type: '', integration_type: '', app_name: '', integration_modality: '', integrator_status: 'En proceso', gestor: '', categoria: '', ticket_number: '', certifications: {}, last_contact_date: '', email: '', contacts: [] });
     setEditingIntegrator(null);
   };
 
@@ -710,15 +711,26 @@ export const Integrators = () => {
                       </div>
                     )}
                     {/* Correo del integrador */}
-                    <div>
-                      <Label>Correo de Contacto</Label>
-                      <Input
-                        value={formData.email || ''}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="correo@empresa.com"
-                        type="email"
-                        data-testid="integrator-email-input"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Correo de Contacto</Label>
+                        <Input
+                          value={formData.email || ''}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="correo@empresa.com"
+                          type="email"
+                          data-testid="integrator-email-input"
+                        />
+                      </div>
+                      <div>
+                        <Label>Nro de Ticket</Label>
+                        <Input
+                          value={formData.ticket_number || ''}
+                          onChange={(e) => setFormData({ ...formData, ticket_number: e.target.value })}
+                          placeholder="Ej: TKT-00145"
+                          data-testid="integrator-ticket-input"
+                        />
+                      </div>
                     </div>
                     {/* Contactos Técnicos */}
                     <div className="border-t border-slate-200 pt-3 mt-1">

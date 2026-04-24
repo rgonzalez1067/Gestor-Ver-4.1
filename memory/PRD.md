@@ -332,3 +332,11 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
   - Si el nombre NO coincide → reporta error específico en `row_errors` pero el integrador se crea con `implementador=None` (por asignar), alineado al requisito del usuario.
 - Validado por curl: 3 casos (válido/vacío/inválido) todos ejecutados correctamente.
 
+## Integradores: campo "Nro de Ticket" (iter 183c)
+
+- Modelo `Integrator` e `IntegratorCreate` extendidos con `ticket_number: Optional[str]`.
+- **Plantilla import/export**: columna **"Nro de Ticket"** añadida entre Implementador y Categoría.
+- **Import**: mapping acepta `Nro de Ticket / ticket / Ticket / Numero de Ticket / nro_de_ticket / nro_ticket`. Texto libre, sin validación.
+- **Frontend Integrators.jsx**: campo editable junto a Correo de Contacto en el diálogo Crear/Editar (`data-testid=integrator-ticket-input`). `formData.ticket_number` incluido en `resetForm` y `openEdit`.
+- Validado por curl: plantilla contiene la columna, import persiste valor `TKT-00999`, PUT /integrators/{id} actualiza a `TKT-UPDATED-001`.
+

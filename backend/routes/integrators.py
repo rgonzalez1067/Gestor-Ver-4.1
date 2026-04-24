@@ -571,6 +571,7 @@ async def export_integrators_excel(authorization: Optional[str] = Header(None)):
             'Tipo Integración': intg.get('integration_type', ''),
             'Gestor': intg.get('gestor', ''),
             'Implementador': intg.get('implementador', ''),
+            'Nro de Ticket': intg.get('ticket_number', ''),
             'Categoría': intg.get('categoria', ''),
             'Último Contacto': intg.get('last_contact_date', ''),
         }
@@ -665,6 +666,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
         'Tipo Integracion': ['PG', 'MP', 'CR'],
         'Gestor': ['', '', ''],
         'Implementador': ['', '', ''],
+        'Nro de Ticket': ['TKT-00145', '', 'TKT-00203'],
         'Categoria': ['Cliente/Integrador nuevo PG', '', 'Cliente/Integrador actual de VPOS'],
         'Ultimo Contacto': ['15/01/2026', '28/02/2026', ''],
         'Correo': ['contacto@techpay.com', 'info@comercioapp.com', 'soporte@gw.ve']
@@ -693,6 +695,7 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             {'Campo': 'Tipo Integracion', 'Descripcion': 'CR, LP, PG, MP, TK', 'Obligatorio': 'No', 'Ejemplo': 'PG'},
             {'Campo': 'Gestor', 'Descripcion': 'Nombre del gestor (debe existir en el sistema)', 'Obligatorio': 'No', 'Ejemplo': 'Juan Perez'},
             {'Campo': 'Implementador', 'Descripcion': 'Nombre EXACTO del implementador como figura en la BD de usuarios (o email). Si está vacío, queda por asignar y se puede setear después desde la UI.', 'Obligatorio': 'No', 'Ejemplo': 'Maria Gonzalez'},
+            {'Campo': 'Nro de Ticket', 'Descripcion': 'Número de ticket asociado al proyecto de integración (texto libre). Se puede editar después desde la UI.', 'Obligatorio': 'No', 'Ejemplo': 'TKT-00145'},
             {'Campo': 'Categoria', 'Descripcion': 'Categoria del integrador', 'Obligatorio': 'No', 'Ejemplo': 'Cliente/Integrador nuevo PG'},
             {'Campo': 'Ultimo Contacto', 'Descripcion': 'Fecha del ultimo contacto (DD/MM/AAAA). No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
             {'Campo': 'Correo', 'Descripcion': 'Email de contacto del integrador', 'Obligatorio': 'No', 'Ejemplo': 'contacto@empresa.com'},
@@ -838,6 +841,9 @@ async def import_integrators(
             'Gestor': 'gestor', 'gestor_asignado': 'gestor',
             'Implementador': 'implementador', 'implementador': 'implementador',
             'implementador_asignado': 'implementador', 'implementer': 'implementador',
+            'Nro de Ticket': 'ticket_number', 'nro_de_ticket': 'ticket_number',
+            'nro_ticket': 'ticket_number', 'ticket': 'ticket_number',
+            'Ticket': 'ticket_number', 'Numero de Ticket': 'ticket_number',
             'Categoría': 'categoria', 'categoría': 'categoria', 'categoria': 'categoria', 'Categoria': 'categoria',
             'Último Contacto': 'last_contact_date', 'último_contacto': 'last_contact_date',
             'ultimo_contacto': 'last_contact_date', 'Ultimo Contacto': 'last_contact_date',
@@ -932,6 +938,7 @@ async def import_integrators(
                 integration_type = _safe_val(row, 'integration_type')
                 gestor = _safe_val(row, 'gestor')
                 implementador_raw = _safe_val(row, 'implementador')
+                ticket_number = _safe_val(row, 'ticket_number')
                 categoria = _safe_val(row, 'categoria')
                 last_contact_raw = _safe_val(row, 'last_contact_date')
                 email = _safe_val(row, 'email')
@@ -1084,6 +1091,8 @@ async def import_integrators(
                     if implementador_name:
                         update_data["implementador"] = implementador_name
                         update_data["implementador_user_id"] = implementador_user_id
+                    if ticket_number:
+                        update_data["ticket_number"] = ticket_number
                     if categoria:
                         update_data["categoria"] = categoria
                     if last_contact_date:
@@ -1116,6 +1125,7 @@ async def import_integrators(
                         categoria=categoria or None,
                         implementador=implementador_name,
                         implementador_user_id=implementador_user_id,
+                        ticket_number=ticket_number or None,
                         last_contact_date=last_contact_date,
                         email=email or None,
                         certifications=full_certs

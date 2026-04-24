@@ -345,6 +345,7 @@ class IntegratorCreate(BaseModel):
     integrator_status: Literal["Certificado", "En proceso", "Suspendido"] = "En proceso"
     gestor: Optional[str] = None
     categoria: Optional[str] = None
+    ticket_number: Optional[str] = None
     certifications: Optional[dict] = None
     last_contact_date: Optional[str] = None
     contacts: Optional[List[TechnicalContact]] = None
@@ -363,6 +364,7 @@ class Integrator(BaseModel):
     categoria: Optional[str] = None
     implementador: Optional[str] = None
     implementador_user_id: Optional[str] = None
+    ticket_number: Optional[str] = None
     certifications: Optional[dict] = None
     last_contact_date: Optional[str] = None
     email: Optional[str] = None
