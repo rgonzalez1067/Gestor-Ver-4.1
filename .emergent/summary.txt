@@ -1,141 +1,168 @@
-<analysis>**original_problem_statement:**
-El usuario solicitó continuar con el desarrollo y corrección de la plataforma, enfocándose en:
-1. Corrección de la edición de cotizaciones: Ajustar el cálculo del Total USD para excluir los costos recurrentes (solo debe reflejar Inversión Inicial: Setup + Equipos) y regenerar correctamente el PDF de la nueva versión sin heredar el PDF original.
-2. Corrección del endpoint de la Bitácora de Clientes que fallaba al guardar.
-3. Creación del reporte Mayor de Activos (Inventario): Valoración bajo método PEPS (FIFO), basado en compras del almacén principal (LCH), mostrando saldos desglosados (LCH/TBP), y ordenados cronológicamente por fecha de adquisición. Todo el inventario debe reflejarse en Bolívares (Bs.).
-4. Refactorización del flujo de modificación de cotizaciones de Equipos y Reparaciones, con modal de justificación obligatoria.
-5. Inclusión de campo Referido Por en Contacto Inicial y habilitar una API externa protegida por API Key para recibir leads desde el widget de la página web u otros sistemas.
-6. Preparar script de migración () para importar la data del entorno de Preview al entorno de Producción tras el Deploy.
-7. Añadir botón de eliminación para Proyectos y Equipos en Reparación (solo para Administradores).
-8. Clonar el sistema de Plantillas de Correo y Notificaciones del módulo de Proyectos hacia el módulo de Clientes para llevar la trazabilidad.
+<analysis>**original_problem_statement:** 
+El usuario solicitó una serie progresiva de mejoras operativas y correcciones:
+1. Eliminar integradores en cascada cuando se purga la base de datos.
+2. Corregir los cálculos y filtros en el dashboard de Integradores y en los selectores de Gestor.
+3. Añadir el envío de correos (notificaciones) en el módulo de Contactos Iniciales.
+4. Mejorar la Cotización de Equipos permitiendo una selección masiva de seriales y añadiendo la opción de ítems Sin Serial (para conceptos logísticos).
+5. Implementar un módulo completo de Reportes de Ventas (Embudo, Aging, Mensual, Por Cobrar, Ranking, Productividad, Stock, Leads) con un Resumen Ejecutivo exportable en PDF.
+6. Refactorizar los archivos monolíticos  y  para mejorar el mantenimiento.
+7. Añadir un botón de mantenimiento (solo admin) para purgar productos Promovidos en el módulo de Nuevos Productos.
+8. Integrar los Reportes de Ventas en el catálogo de Roles y Permisos (con el PDF Ejecutivo como permiso especial).
+ACTUALIDAD: El usuario quedó bloqueado al final de la sesión reportando un error intermitente: Nuevamente tengo problemas para conectarme, da Error de Autenticacion.
 
 **PRODUCT REQUIREMENTS:**
-- El sistema de PDF debe regenerarse dinámicamente al guardar modificaciones en cotizaciones, extrayendo los items correctamente clasificados para el Resumen Ejecutivo.
-- El Mayor de Activos no debe mostrar movimientos de salida, solo saldos disponibles de lotes PEPS con la sumatoria LCH+TBP = Unidades Totales.
-- El módulo de Comunicaciones de Clientes debe estar separado del de Proyectos, tener su propia gestión de documentos, plantillas con variables (, ) y dejar registro en la bitácora del cliente al enviar correos.
+- Reportes de Ventas: 8 reportes utilizando  + Exportación a PDF de un Resumen Ejecutivo.
+- Módulo I+D: Purgado de promovidos exclusivo para administradores.
+- Seguridad: Gating dinámico de reportes basado en .
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-Plataforma Full-stack (React/FastAPI/MongoDB) para la gestión operativa y comercial de MegaNexus. Cuenta con módulos maduros de Clientes, Cotizaciones (con generador dinámico de PDF y control de versiones), Proyectos, Inventarios (Kardex y Mayor de Activos PEPS en Bs.), Contactos Iniciales (con API Externa), y ahora un módulo integral de Comunicaciones y Plantillas asociado directamente a la ficha de los Clientes.
+Un CRM Full-Stack robusto (React/FastAPI/MongoDB). Tiene un sistema de permisos dinámico avanzado (Catálogo y Regla de Techo), flujos modulares para generar PDFs (Cotizaciones, Reportes), dashboards de visualización de datos con  y manejo de integraciones, inventarios y contactos iniciales. 
 
-**Last working item**: 
-    - Last item agent was working: Clonación e implementación del sistema de Plantillas y Notificaciones en el módulo de Clientes. Se crearon los componentes  y , se integraron en  y se creó el backend  con el contexto CLIENTES para los templates.
-    - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: Y
-    - Which testing method agent to use?: Frontend testing agent o manual by screenshot/curl.
+**Last working item**:
+    - Last item agent was working: Investigando un bug crítico reportado por el usuario (Error de Autenticacion). El agente revisó el estado de  y comprobó los logs básicos, pero el proceso se detuvo antes de identificar la causa del rechazo de login o del bloqueo.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use?: execute_bash (revisar base de datos para  o , revisar logs de ) y hacer sanity checks manuales con curl o python -c para emular el login del usuario. 
     - User Testing Done: N
 
-**All Pending/In progress Issue list**: 
-Ningún issue reportado pendiente por corregir. Todos los bugs (Cotizaciones PDF/Totales, PEPS, Errores 500) fueron resueltos y verificados por el usuario.
+**All Pending/In progress Issue list**:
+  Issue 1: Intermittent Authentication Error (P0)
+     - Attempted fixes: Se revisó el estado de los contenedores mediante backend                          RUNNING   pid 43, uptime 0:00:20
+code-server                      STOPPED   Not started
+frontend                         STOPPING  
+mongodb                          RUNNING   pid 49, uptime 0:00:20
+nginx-code-proxy                 RUNNING   pid 41, uptime 0:00:20
+supervisor> , todos figuran . Anteriormente el usuario reportó lo mismo y se arregló solo, sugiriendo un problema de rate limit, tokens estancados en localStorage o la VPN de Cloudflare bloqueando headers.
+     - Next debug checklist: 
+       - Base de datos: Consultar la colección  para los correos administradores verificando si  causó un .
+       - Backend: Revisar los logs en  y  para trazas de Auth.
+       - Frontend: Revisar si la UI se queda colgada con un token obsoleto o emite un 401 continuo.
+     - Why fix this issue and what will be achieved with the fix?: El usuario está completamente bloqueado para usar el sistema.
+     - Status: IN PROGRESS
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on other issue: None
 
-**In progress Task List**: 
-Ninguna tarea en progreso.
+**In progress Task List**:
+  None (Features completed, stopped by P0 bug).
 
 **Upcoming and Future Tasks**
-  - **P1**: Sistema de Notificaciones Push (campana en header con contador) y alertas en tiempo real vía WebSockets/Pusher para Contactos Iniciales.
-  - **P2**: Módulo de Reportes de Ventas.
-  - **P2**: Lógica Completado en Roadmap Bancos.
-  - **P2**: Refactorización de componentes monolíticos restantes ( ~1800 líneas y  ~2900 líneas).
+  - **P2**: Roadmap Bancos - Lógica Completado.
+  - **P3**: Plantillas dedicadas para Contactos Iniciales (en  análoga a clientes).
+  - **P3**: Permiso Especial - Exportar CSV en reportes de ventas (gating separado para exportación de datos).
+  - **P3**: Reactivar Promovidos (botón para regresar productos de I+D promovidos a estado Negociación/IMPLE).
 
 **Completed work in this session**
-- Solucionado Error 500 en rutas ,  y  (modelo Pydantic actualizado). (DONE)
-- Corregido el parser de importación CSV/Excel para Integradores y Servicios. (DONE)
-- Endpoint corregido de  a  para guardar bitácora de clientes. (DONE)
-- Modificación de Cotizaciones: El Total USD ahora solo suma Inversión Inicial (Setup + Equipos). El PDF se regenera de forma limpia y automática a través de  y el catálogo de items fue arreglado para cargar dinámicamente Bienes o Mantenimiento. (DONE)
-- Reporte Mayor de Activos (AssetLedgerReport.jsx): Muestra lotes valorados por PEPS, ordenados por , presentados en Bolívares (Bs.), y desglosados con detalle físico LCH/TBP. Formato de impresión profesional configurado. (DONE)
-- Formulario de Inventarios y Kardex adaptados a moneda local (Bs.). (DONE)
-- Añadido campo Referido Por en Contactos Iniciales. (DONE)
-- Construida API Pública Externa () con API Key para captación de leads externos. (DONE)
-- Creado script  y endpoint  para facilitar la migración de datos al entorno de Producción (Deploy). (DONE)
-- Agregados botones (sólo Admin) para eliminar registros en Proyectos y Taller Equipos. (DONE)
-- Sistema de Plantillas, Gestión de Documentos y envío de correos clonado e implementado en el módulo de Clientes. (DONE)
+- Integrators: Delete en cascada (con confirmación) cuando existen cotizaciones asociadas (DONE).
+- Integrators: Sincronización de stats con filtros y corrección del selector Gestor por fallos de tildes (DONE).
+- Initial Contacts: Botón enviar notificaciones + Dialogo Emails + Logs en Bitácora (DONE).
+- Equipment Quotes: Checkbox Seleccionar Todos y Sin Serial para omisión de listas en PDF (DONE).
+- Sales Reports: Creación de dashboard con 8 reportes gráficos () (DONE).
+- Sales Reports: Generador Resumen Ejecutivo PDF (Weasyprint) con KPIs compilados (DONE).
+- Permissions: Módulo  y permiso especial integrados al UI y Backend de seguridad (DONE).
+- Sidebar: Fix bug de menú Gestión Comercial que no colapsaba (DONE).
+- New Products: Botón de mantenimiento Admin para vaciar productos Promovidos (DONE).
+- Refactor Fase 1 (Quotes.jsx): Extracción de filtros, RBAC y botones (-80 líneas) (DONE).
+- Refactor Fase 2 & 3 (ProjectDetail.jsx): Extracción de 6 diálogos a archivos independientes (-445 líneas) (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-Ninguno.
+   Issue 1: Hydration warnings in 
+   - Debug checklist: El agente comprobó que el error era inyectado por  (script de edición visual de la plataforma en preview). NO REQUIERE ARREGLO en el código fuente, ya que no se despliega a producción.
+   - Status: RESOLVED (Ignored as false positive).
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Tamaños monolíticos de archivos.
-  - Recurrence count: 7 iteraciones.
-  - Status: IN PROGRESS (Se mitigó un poco extrayendo componentes, pero  y  siguen creciendo).
+  - Issue recurrence in previous fork: Archivos Frontend Monolíticos.
+  - Recurrence count: 6 (Reducidos parcialmente en esta sesión, pero aún son grandes).
+  - Status: IN PROGRESS (Fases 1 a 3 ejecutadas, requieren seguir dividiéndose si hay futuras modificaciones).
 
 **Code Architecture**
-- : Módulos FastAPI (quotes, projects, inventory, initial_contacts, external_api, client_communications).
-- : Páginas React (Quotes, Inventory, AssetLedgerReport, Clients, ClientTemplatesConfig).
-- : Componentes modulares (QuoteModals, EditEquipRepairDialog, ClientEmailDialog).
-- Base de datos manejada enteramente con Motor (MongoDB asíncrono).
+- :  (Nuevo, métricas sobre ),  (Nuevo, notificaciones).
+- :  (Nuevo),  (Refactorizado),  (Refactorizado).
+- : Componentes extraídos de  (, , , etc.).
+- : Fuente central de verdad de módulos y permisos.
 
 **Key Technical Concepts**
-- **PDF Stamping & Generation**: Reconstrucción en backend con ReportLab a partir de la data almacenada (no enviada por frontend).
-- **Algoritmo PEPS (FIFO)**: Aplicado en . Resta salidas cronológicamente sobre las entradas en LCH. 
-- **Despliegue y Migración de Datos**: Al hacer deploy en Emergent, no se lleva la data de Preview. Se utiliza un endpoint de importación protegido por API Key.
+- **Recharts**: Se incluyó para gráficos en frontend (BarChart, LineChart, PieChart).
+- **Gobernanza/Roles**: Extensión del sistema Ceiling Rule al menú lateral y endpoints basado en el .
+- **WeasyPrint PDF Synthesis**: Ahora se combinan reportes múltiples en memoria para un solo Resumen Ejecutivo en PDF.
 
 **key DB schema**
-  - : {item_id, warehouse_id, movement_type, quantity, unit_cost, acquisition_date}
-  - : {subtotal_usd, total_usd, equipment_items, setup_items, additional_items, attachments}
-  - : {template_id, context (CLIENTES o PROYECTOS), subject, body_html}
+  - : Ampliamente utilizada para cruces de información (, , fechas , ).
+  - : Campos  y  son críticos para revisar el bug actual.
 
 **changes in tech stack**
-  - Ninguno.
+  - Incorporación de  al package.json.
 
 **All files of reference**
-  -  (Nuevo reporte PEPS)
-  -  (Nueva API Pública)
-  -  (Nuevo script utilitario)
-  -  (Nueva vista de configuración)
-  -  (Nuevo componente de correos)
-  -  (Nuevo backend de correos)
-  -  y  (Actualizados fuertemente para edición y PDF)
-  -  (Nuevo modal de edición equipos/reparación)
+  - 
+  - 
+  - 
+  - 
+  -  (Crucial para revisar el bug de Login).
+  -  (Usuarios para pruebas E2E).
 
 **Areas that need refactoring**: 
-  -  (> 2900 líneas)
-  -  (> 1800 líneas)
-  -  (> 3000 líneas)
+  -  sigue superando las 3000 líneas a pesar de extraer dependencias tempranas. Necesita la abstracción de Wizard components.
 
 **key api endpoints**
-  -  (Importa BD a producción)
-  -  (API de Leads Externos)
   - 
+  -  (PDF)
   - 
+  -  (Revisar en el triage de bugs).
 
-**Critical Info for New Agent** 
-- **Importación a Deploy**: Si el usuario pregunta por despliegues a producción (Deploy), los datos NO viajan con el código. El sistema usa un endpoint protegido por  para inyectar un JSON en crudo desde el navegador (Console -> Fetch) con la data exportada del preview.
-- **Cotizaciones Total USD**: Para MegaNexus,  significa estrictamente Inversión Inicial (Setup + Equipos). JAMÁS incluye recurrentes. Las tarifas de mantenimiento de POS/Pinpads () en reparaciones, se consideran bienes/servicios y están estructuradas de forma particular.
-- **Reporte PEPS en Bs.**: Todo inventario es en Bs. y se evalúa por la fecha de adquisición ().
-- **Comunicaciones**: Las plantillas de Clientes están bajo el context , mientras que las de proyectos usan . Se debe mantener separación estricta por roles.
+**Critical Info for New Agent**
+- Tu primera tarea absoluta (P0) es entender por qué el usuario no puede hacer login. Anteriormente en la sesión ocurrió lo mismo y se arregló solo, lo que sugiere un Rate Limiting temporal o un bloqueo de Cloudflare. Entra a MongoDB, revisa  y checa si el admin está bloqueado por fuerza bruta o similar.
+- Si el login funciona por  desde tu entorno pero falla para el usuario, instruye sobre limpieza de LocalStorage o desactivar la VPN para la prueba de Auth.
 
-**documents and test reports created in this job** 
-  -  (Constantemente actualizado)
+**documents and test reports created in this job**
+  -  (Altamente actualizado con todas las features funcionales de esta iteración).
 
-**Last 10 User Messages and any pending HUMAN messages** 
- 1. (User): Pide corregir error del ancho de la columna LCH/TBP en el Mayor de Activos. (COMPLETED)
- 2. (User): Pregunta cómo hacer Deploy y configurar el widget web para transferir la data. (COMPLETED)
- 3. (User): Pide preparar Script antes del deploy. (COMPLETED)
- 4. (User): Intenta importar la base de datos y pide revisión (faltaban algunas BD purgadas intencionalmente). (COMPLETED)
- 5. (User): Falla la importación en Producción por falta de endpoint público, el agente crea . (COMPLETED)
- 6. (User): Ejecuta el script por DevTools (Fetch) hacia la URL de producción. Pide ayuda con la consola. (COMPLETED)
- 7. (User): Solicita botones exclusivos de Admin para eliminar Proyectos y Taller de Equipos en reparación. (COMPLETED)
- 8. (User): Pide clonar el sistema de Plantillas y Notificaciones (Correos, Anexos, Bitácora) desde el módulo de Proyectos para integrarlo en Clientes, pero manteniendo los repositorios totalmente independientes. (COMPLETED)
-  - *No pending human messages. El clonado fue implementado, validado por compilación y está pendiente de prueba visual / uso final del usuario.*
+**Last 10 User Messages and any pending HUMAN messages**
+ 1. (User): Preguntó sobre Phase 2 de refactor. (COMPLETED)
+ 2. (User): Ejecuta la fase 3. (COMPLETED)
+ 3. (Agent): Finalizó la fase 3.
+ 4. (User): El menu de Gestion comercial abre cuando le das click, pero no se cierra cuando vuelves a darle click. (COMPLETED)
+ 5. (Agent): Arregló el bug del Sidebar modificando lógica de isExpanded.
+ 6. (User): Crea un boton de mantenimiento que permita eliminar productos promovidos, exclusivo para administrador. (COMPLETED)
+ 7. (Agent): Implementó  backend y UI en .
+ 8. (User): Tenemos que actualizar la función de Permisos agregando Reportes de Venta y PDF como función especial. (COMPLETED)
+ 9. (Agent): Aplicó los permisos al catálogo y el Sidebar.
+ 10. (User): Nuevamente tengo problemas para conectarme, da Error de Autenticacion. Luego, Porque se detuvo el proceso ?. (PENDING P0 BUG - AUTHENTICATION ERROR).
 
 **Project Health Check:**
-  - Broken: Ninguno reportado.
+  - Broken: Flujo de Autenticación para el usuario.
   - Mocked: Ninguno.
 
-**3rd Party Integrations** 
-	• Emergent Object Storage — uses Emergent LLM Key
-	• Servicio de Correo SMTP (Resend) — requires User API Key
+**3rd Party Integrations**
+	• Emergent Object Storage — uses Emergent LLM Key 
+	• Resend (Emails) — requires User API Key 
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Agent relied heavily on custom curl testing and frontend screenshots in DevTools).
+  - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions: Fallo en Auth Login (Error 401 en UI).
 
 **Credentials to test flow:**
-Revisar . (Habitualmente el usuario Admin es ).
+  - Leer  (Ej.  / ).
 
 **What agent forgot to execute**
-N/A. Todas las tareas solicitadas fueron codificadas y puestas en funcionamiento.</analysis>
+El agente final anterior interrumpió su proceso antes de dar un veredicto o solución al error de autenticación. Olvidó revisar la BD para descartar la aplicación de Rate Limits al usuario admin.
+
+**Debugging checklist for current issue**
+    Issue: Error de Autenticacion recurrente al hacer login.
+
+    Frontend files to check: 
+    -  (Manejo de respuestas de error 401 / 403 o rate limit).
+    - Validar si hay tokens malformados estancados en el Storage.
+
+    Backend files to check:
+    -  (Buscar por  y ).
+    -  usando  para rastrear las solicitudes de .
+
+    Database to check:
+    - 
+    - Desbloquear el usuario si  está en el futuro.</analysis>
