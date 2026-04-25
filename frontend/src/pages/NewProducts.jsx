@@ -76,6 +76,8 @@ export const NewProducts = () => {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
+  const [purgePromotedOpen, setPurgePromotedOpen] = useState(false);
+  const [purgingPromoted, setPurgingPromoted] = useState(false);
   const [form, setForm] = useState({ service_id: '', component_types: [], bank_id: '', notes: '' });
 
   const COMPONENT_OPTIONS = ['VPOS', 'MPOS', 'Payment Gateway', 'Link de Pago'];
@@ -397,6 +399,17 @@ export const NewProducts = () => {
               <p className="text-sm text-slate-500 mt-1">Pipeline de I+D — Medios de pago en desarrollo antes de despliegue oficial</p>
             </div>
             {canEdit && <div className="flex gap-2">
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  onClick={() => setPurgePromotedOpen(true)}
+                  data-testid="purge-promoted-btn"
+                  className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                  title="Mantenimiento — eliminar todos los productos promovidos"
+                >
+                  <AlertTriangle size={16} className="mr-1.5" />Limpiar Promovidos
+                </Button>
+              )}
               <Button variant="outline" onClick={() => navigate('/new-products/communications')} data-testid="np-templates-btn" className="border-blue-200 text-blue-700 hover:bg-blue-50">
                 <Layout size={16} className="mr-1.5" />Plantillas
               </Button>
@@ -633,6 +646,48 @@ export const NewProducts = () => {
               <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white"
                 data-testid="np-confirm-delete">
                 Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Purge Promoted (Admin Maintenance) */}
+        <AlertDialog open={purgePromotedOpen} onOpenChange={setPurgePromotedOpen}>
+          <AlertDialogContent data-testid="purge-promoted-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                <AlertTriangle size={22} /> Limpieza de Promovidos
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción de mantenimiento eliminará <strong>todos los productos en estado &quot;Promovido&quot;</strong> del pipeline de Nuevos Productos. Los productos ya copiados al banco respectivo permanecen intactos en su pantalla de destino — solo se libera el espacio del pipeline I+D.
+                <br /><br />
+                <span className="text-rose-700 font-semibold">Hay {promotedProducts.length} producto(s) promovido(s) en este momento.</span>
+                <br />
+                Esta acción es <strong>irreversible</strong> y queda registrada en bitácora con tu usuario.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={purgingPromoted}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={purgingPromoted || promotedProducts.length === 0}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setPurgingPromoted(true);
+                  try {
+                    const res = await api.delete('/new-products/maintenance/promoted');
+                    toast.success(res.data.message || 'Limpieza completada');
+                    setPurgePromotedOpen(false);
+                    fetchProducts();
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'Error en mantenimiento');
+                  } finally {
+                    setPurgingPromoted(false);
+                  }
+                }}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+                data-testid="confirm-purge-promoted"
+              >
+                {purgingPromoted ? 'Eliminando...' : `Eliminar ${promotedProducts.length} promovido(s)`}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

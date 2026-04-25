@@ -127,6 +127,44 @@ async def delete_new_product(product_id: str, authorization: Optional[str] = Hea
     return {"message": "Producto eliminado"}
 
 
+@router.delete("/new-products/maintenance/promoted")
+async def delete_promoted_products(authorization: Optional[str] = Header(None)):
+    """Mantenimiento: elimina TODOS los productos en estado 'Promovido' (ya copiados a un banco).
+    Limpia también su evolución, transiciones y asignaciones. Solo admin."""
+    user = await get_current_user(authorization)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar mantenimiento")
+
+    promoted = await db.new_products.find(
+        {"status": "Promovido"},
+        {"_id": 0, "product_id": 1, "name": 1},
+    ).to_list(None)
+    ids = [p["product_id"] for p in promoted]
+    if not ids:
+        return {"deleted_count": 0, "message": "No hay productos promovidos para eliminar.", "deleted": []}
+
+    res = await db.new_products.delete_many({"product_id": {"$in": ids}})
+    await db.new_product_evolution.delete_many({"product_id": {"$in": ids}})
+    await db.np_status_transitions.delete_many({"product_id": {"$in": ids}})
+    await db.np_responsable_assignments.delete_many({"product_id": {"$in": ids}})
+
+    # Bitácora de la acción
+    await db.np_maintenance_log.insert_one({
+        "action": "purge_promoted",
+        "deleted_count": res.deleted_count,
+        "product_ids": ids,
+        "executed_by": user.get("email"),
+        "executed_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "deleted_count": res.deleted_count,
+        "message": f"Se eliminaron {res.deleted_count} producto(s) promovido(s) del pipeline.",
+        "deleted": [p["name"] for p in promoted],
+    }
+
+
 # ==================== ASIGNACIÓN DE RESPONSABLE ====================
 
 @router.post("/new-products/{product_id}/assign-responsable")
