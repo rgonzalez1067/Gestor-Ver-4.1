@@ -505,3 +505,15 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Resultado**: `ProjectDetail.jsx` 2278 → 2069 líneas (-209, -9.2%). Lint OK. Smoke test: detail carga con header, datos del proyecto, matriz de implementación, BatchUpdateModal abre con 5 tiendas y selects funcionales. 0 errores nuevos en consola.
 
+
+## Refactor Fase 3 — ProjectDetail.jsx (iter 192)
+
+**Solicitud del usuario**: completar el refactor de `ProjectDetail.jsx` extrayendo los 3 diálogos restantes.
+
+**Extracciones**:
+- `/app/frontend/src/components/projects/EmailDetailViewer.jsx` (NUEVO, 47 líneas): visualizador read-only del detalle de un correo enviado.
+- `/app/frontend/src/components/projects/TemplatesAdminDialog.jsx` (NUEVO, 167 líneas): CRUD de plantillas con layout 3-cols (lista | form | diccionario de variables agrupadas por Cliente/Proyecto/Infraestructura/Hardware).
+- `/app/frontend/src/components/projects/EmailPreviewDialog.jsx` (NUEVO, 142 líneas): editor final del correo antes de enviar (asunto + contentEditable HTML, insertar variables, paste imágenes).
+
+**Resultado**: `ProjectDetail.jsx` 2069 → 1833 líneas (-236, total 2 fases -445/-19.5% del original). Lint OK. Smoke test: el TemplatesAdminDialog abre correctamente con plantillas existentes, formulario y panel de variables. Sin errores nuevos en consola.
+

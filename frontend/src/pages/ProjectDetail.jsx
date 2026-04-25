@@ -24,6 +24,9 @@ import { InternalEmailInput } from '../components/InternalEmailInput';
 import { PHASES, STORE_PHASES, PHASE_COLORS, ALL_TOKENS } from '../components/projects/projectConstants';
 import { TemplateBodyEditor } from '../components/projects/TemplateBodyEditor';
 import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
+import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
+import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
+import { EmailPreviewDialog } from '../components/projects/EmailPreviewDialog';
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -1766,280 +1769,41 @@ const ProjectDetail = () => {
         </Dialog>
 
         {/* ==================== EMAIL DETAIL VIEWER ==================== */}
-        <Dialog open={emailDetailOpen} onOpenChange={setEmailDetailOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid="email-detail-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Eye size={20} className="text-indigo-500" />Detalle del Correo</DialogTitle>
-            </DialogHeader>
-            {emailDetailData && (
-              <div className="space-y-3">
-                <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-sm">
-                  <div><span className="font-medium text-slate-600">Asunto:</span> <span className="text-slate-800">{emailDetailData.subject}</span></div>
-                  <div><span className="font-medium text-slate-600">Destinatarios:</span> <span className="text-slate-800">{emailDetailData.recipients?.join(', ')}</span></div>
-                  {emailDetailData.level && <div><span className="font-medium text-slate-600">Nivel:</span> <span className="text-slate-800">{emailDetailData.level}</span></div>}
-                  <div><span className="font-medium text-slate-600">Fecha:</span> <span className="text-slate-800">{emailDetailData.sent_at ? new Date(emailDetailData.sent_at).toLocaleString('es-VE') : '—'}</span></div>
-                  {emailDetailData.attachments?.length > 0 && (
-                    <div><span className="font-medium text-slate-600">Adjuntos:</span> <span className="text-slate-800">{emailDetailData.attachments.map(a => a.filename).join(', ')}</span></div>
-                  )}
-                </div>
-                <div className="border rounded-lg p-4">
-                  <p className="text-xs font-medium text-slate-500 uppercase mb-2">Contenido</p>
-                  {emailDetailData.message ? (
-                    <div className="text-sm text-slate-800 whitespace-pre-wrap">{emailDetailData.message}</div>
-                  ) : emailDetailData.html_content ? (
-                    <div className="text-sm text-slate-800 prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: emailDetailData.html_content }} />
-                  ) : (
-                    <p className="text-sm text-slate-400">Sin contenido disponible</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <EmailDetailViewer
+          open={emailDetailOpen}
+          onOpenChange={setEmailDetailOpen}
+          data={emailDetailData}
+        />
 
         {/* ==================== TEMPLATES ADMIN DIALOG ==================== */}
-        <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
-          <DialogContent className="max-w-5xl" data-testid="templates-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><ClipboardList size={20} className="text-slate-600" />Gestionar Plantillas de Correo</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-12 gap-4 min-h-[400px]">
-              {/* Lista de plantillas (col-3) */}
-              <div className="col-span-3 border-r border-slate-200 pr-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
-                <div className="space-y-2 max-h-[450px] overflow-y-auto">
-                  {emailTemplates.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-8">No hay plantillas registradas</p>
-                  ) : emailTemplates.map(t => (
-                    <div key={t.template_id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${editingTemplateId === t.template_id ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                      data-testid={`template-item-${t.template_id}`}>
-                      <p className="text-sm font-semibold text-slate-800">{t.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">Asunto: {t.subject}</p>
-                      {t.body && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{t.body.slice(0, 100)}{t.body.length > 100 ? '...' : ''}</p>}
-                      <div className="flex gap-2 mt-2">
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" data-testid={`edit-template-${t.template_id}`}
-                          onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body_html || t.body || '' }); }}>
-                          Editar
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
-                          data-testid={`delete-template-${t.template_id}`}
-                          onClick={() => handleDeleteTemplate(t.template_id)}>
-                          Eliminar
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Formulario de edición (col-6) */}
-              <div className="col-span-6">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">{editingTemplateId ? 'Editar Plantilla' : 'Nueva Plantilla'}</p>
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-sm">Nombre <span className="text-red-500">*</span></Label>
-                    <Input placeholder="Ej: Solicitud de acceso, Confirmación de pruebas..." value={templateForm.name}
-                      onChange={e => setTemplateForm(p => ({ ...p, name: e.target.value }))}
-                      className="h-9 text-sm mt-1" data-testid="template-name" />
-                  </div>
-                  <div>
-                    <Label className="text-sm">Asunto <span className="text-red-500">*</span></Label>
-                    <Input placeholder="Asunto predeterminado del correo" value={templateForm.subject}
-                      onChange={e => setTemplateForm(p => ({ ...p, subject: e.target.value }))}
-                      className="h-9 text-sm mt-1" data-testid="template-subject" />
-                  </div>
-                  <div>
-                    <Label className="text-sm">Cuerpo del mensaje</Label>
-                    <TemplateBodyEditor
-                      value={templateForm.body}
-                      onChange={val => setTemplateForm(p => ({ ...p, body: val }))}
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button onClick={handleSaveTemplate} disabled={templateSaving || !templateForm.name.trim() || !templateForm.subject.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm" data-testid="save-template-btn">
-                      {templateSaving ? 'Guardando...' : editingTemplateId ? 'Actualizar Plantilla' : 'Crear Plantilla'}
-                    </Button>
-                    {editingTemplateId && (
-                      <Button variant="outline" onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }}
-                        className="text-sm">Nueva Plantilla</Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Panel Diccionario de Variables (col-3) */}
-              <div className="col-span-3 border-l border-slate-200 pl-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Variables Disponibles</p>
-                <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para copiarla al portapapeles e insertarla en el editor.</p>
-                <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
-                  {[
-                    { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
-                      { token: 'Nombre_Cliente', desc: 'Razón social del cliente' },
-                      { token: 'Rif_Cliente', desc: 'RIF del cliente' },
-                      { token: 'Contacto_Principal', desc: 'Nombre del contacto' },
-                      { token: 'Datos_Contacto', desc: 'Contacto + Tel + Email' },
-                      { token: 'Telefono_Contacto', desc: 'Teléfono del contacto' },
-                      { token: 'Email_Contacto', desc: 'Correo del contacto' },
-                    ]},
-                    { cat: 'Proyecto', icon: <FileText size={14} className="text-violet-500" />, vars: [
-                      { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
-                      { token: 'Ticket_Nro', desc: 'Número de ticket' },
-                      { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
-                      { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
-                      { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },
-                      { token: 'Cantidad_Cajas', desc: 'Cantidad de cajas' },
-                    ]},
-                    { cat: 'Infraestructura', icon: <Server size={14} className="text-emerald-500" />, vars: [
-                      { token: 'Servidor_Instalacion', desc: 'Servidor asignado' },
-                      { token: 'Nombre_Implementador', desc: 'Implementador asignado' },
-                      { token: 'Correo_Implementador', desc: 'Correo del implementador' },
-                      { token: 'Integrador', desc: 'Nombre del integrador' },
-                      { token: 'Aplicativo_Integracion', desc: 'App de integración' },
-                    ]},
-                    { cat: 'Hardware', icon: <CreditCard size={14} className="text-amber-500" />, vars: [
-                      { token: 'Modelo_Seriales_POS', desc: 'Tabla de POS/Pinpad' },
-                      { token: 'Modelo_Seriales_Equipos', desc: 'Tabla de equipos' },
-                      { token: 'Lista_VTID', desc: 'Lista de VTIDs' },
-                      { token: 'Matriz_Bancos_Productos', desc: 'Matriz de bancos' },
-                    ]},
-                  ].map(group => (
-                    <div key={group.cat}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        {group.icon}
-                        <span className="text-xs font-bold text-slate-700">{group.cat}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {group.vars.map(v => (
-                          <button key={v.token} title={v.desc}
-                            data-testid={`var-token-${v.token}`}
-                            className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-blue-100 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md cursor-pointer transition-all group"
-                            onClick={() => {
-                              const tag = `{${v.token}}`;
-                              try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch(e) { toast.success(`Insertado: ${tag}`); }
-                              setTemplateForm(p => ({ ...p, body: p.body + tag }));
-                            }}>
-                            <span className="text-slate-500 group-hover:text-blue-500">{'{'}</span>
-                            <span>{v.token}</span>
-                            <span className="text-slate-500 group-hover:text-blue-500">{'}'}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <TemplatesAdminDialog
+          open={templatesDialogOpen}
+          onOpenChange={setTemplatesDialogOpen}
+          emailTemplates={emailTemplates}
+          editingTemplateId={editingTemplateId}
+          setEditingTemplateId={setEditingTemplateId}
+          templateForm={templateForm}
+          setTemplateForm={setTemplateForm}
+          templateSaving={templateSaving}
+          handleSaveTemplate={handleSaveTemplate}
+          handleDeleteTemplate={handleDeleteTemplate}
+        />
 
         {/* ==================== EMAIL PREVIEW / EDITOR DIALOG ==================== */}
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="email-preview-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Edit3 size={20} className="text-blue-500" />Editor de Envío Final</DialogTitle>
-            </DialogHeader>
-            {previewData && (
-              <div className="space-y-3">
-                {/* Editable subject */}
-                <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-sm border border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-500 min-w-[70px] shrink-0">Asunto:</span>
-                    <Input
-                      value={previewSubject}
-                      onChange={e => setPreviewSubject(e.target.value)}
-                      className="h-8 text-sm font-medium"
-                      data-testid="preview-subject-input"
-                    />
-                  </div>
-                  {previewData.recipients && (
-                    <div className="flex items-start gap-2">
-                      <span className="font-medium text-slate-500 min-w-[70px]">Para:</span>
-                      <span className="text-slate-700 text-xs">{previewData.recipients.join(', ')}</span>
-                    </div>
-                  )}
-                  {previewData.entity_label && (
-                    <div className="flex items-start gap-2">
-                      <span className="font-medium text-slate-500 min-w-[70px]">Destino:</span>
-                      <span className="text-slate-700 text-xs">{previewData.entity_label}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Variables resolved (collapsible) */}
-                {previewData.variables && Object.keys(previewData.variables).length > 0 && (
-                  <details className="bg-blue-50 rounded-lg border border-blue-200">
-                    <summary className="px-3 py-2 text-xs font-semibold text-blue-700 cursor-pointer select-none">Variables Resueltas ({Object.keys(previewData.variables).length})</summary>
-                    <div className="px-3 pb-3 grid grid-cols-2 gap-x-4 gap-y-1">
-                      {Object.entries(previewData.variables).map(([k, v]) => (
-                        <div key={k} className="flex items-start gap-1.5 text-[11px]">
-                          <code className="text-blue-600 font-mono shrink-0">{`{${k}}`}</code>
-                          <span className="text-slate-600 truncate" title={String(v)}>{String(v || '—').slice(0, 60)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-
-                {/* EDITABLE HTML content */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-2 border-b flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 uppercase">Contenido Editable — Modifique antes de enviar</p>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={handleInsertImage} className="h-7 px-2 text-xs gap-1 text-slate-600 hover:text-indigo-700" data-testid="preview-insert-image-btn">
-                        <ImagePlus size={14} />Imagen
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Variables insert panel */}
-                  <details className="bg-indigo-50 border-b border-indigo-200">
-                    <summary className="px-3 py-1.5 text-[10px] font-semibold text-indigo-700 cursor-pointer select-none flex items-center gap-1">
-                      <ClipboardList size={11} />Insertar Variable en el editor
-                    </summary>
-                    <div className="px-3 pb-2 flex flex-wrap gap-1">
-                      {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
-                        <button key={v} type="button" onClick={() => insertVariableInEditor(v)}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
-                          title={`Insertar ${v} en la posición del cursor`}>{v}</button>
-                      ))}
-                    </div>
-                    <p className="px-3 pb-1.5 text-[9px] text-indigo-400">Las variables insertadas aquí se procesan automáticamente antes del envío.</p>
-                  </details>
-
-                  <div
-                    ref={editorRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onPaste={handleEditorPaste}
-                    onDrop={handleEditorDrop}
-                    onDragOver={e => e.preventDefault()}
-                    className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto prose prose-sm max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
-                    dangerouslySetInnerHTML={{ __html: previewData.html }}
-                    data-testid="preview-editable-content"
-                  />
-                  <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">
-                    <p className="text-[10px] text-amber-700">Los cambios realizados aquí solo afectan este envío. La plantilla base NO se modifica. Puede pegar imágenes directamente (Ctrl+V) o arrastrar archivos JPG/PNG.</p>
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex justify-between items-center pt-2">
-                  <Button variant="outline" onClick={() => setPreviewOpen(false)} data-testid="close-preview-btn">Cancelar</Button>
-                  <Button
-                    onClick={sendFromPreview}
-                    disabled={previewSending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                    data-testid="preview-send-btn"
-                  >
-                    <Send size={16} />{previewSending ? 'Enviando...' : 'Enviar Correo'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <EmailPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          previewData={previewData}
+          previewSubject={previewSubject}
+          setPreviewSubject={setPreviewSubject}
+          previewSending={previewSending}
+          sendFromPreview={sendFromPreview}
+          editorRef={editorRef}
+          handleEditorPaste={handleEditorPaste}
+          handleEditorDrop={handleEditorDrop}
+          handleInsertImage={handleInsertImage}
+          insertVariableInEditor={insertVariableInEditor}
+        />
 
         {/* ================= Actualización Masiva (Batch Update) ================= */}
         <BatchUpdateModal
