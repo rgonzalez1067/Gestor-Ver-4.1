@@ -465,3 +465,19 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Validado E2E**: backend con curl (Funnel 19 quotes, Aging 3 rows, Monthly Apr 2026 totales correctos). Frontend con Playwright: los 3 tabs cargan con sus visualizaciones, filtro Categoría=Reparaciones reduce Cotizado de $15.313,16 a $5.998,36 correctamente.
 
+
+
+## Reportes de Ventas — Fase 2 (iter 189)
+
+**Solicitud del usuario**: implementar los 5 reportes adicionales propuestos.
+
+**Backend** (`routes/sales_reports.py`, +5 endpoints):
+- `GET /reports/sales/receivables`: cuentas por cobrar con buckets 0-30/31-60/61-90/>90 y top deudores agregados.
+- `GET /reports/sales/clients-ranking?year&top_n`: ranking por monto cotizado con tendencia trimestral (NUEVO si no hay datos previos).
+- `GET /reports/sales/repair-productivity`: lead times Enviada→Reparada y Reparada→Entregada por implementador. SLA breach (>7 días).
+- `GET /reports/sales/stock-vs-demand?months_back`: cruza `inventory_movements` con `equipment_items`. Calcula demanda mensual, cobertura, semáforo crítico/alerta/ok.
+- `GET /reports/sales/leads-funnel`: conversión global de `initial_contacts.is_converted` y por `referred_by`.
+
+**Frontend** (`SalesReports.jsx`, +5 tabs): TabsList ahora con flex-wrap. Recharts PieChart en Leads. Export CSV en cada vista. Cards con badges de status.
+
+**Validado E2E**: curl + Playwright. Por Cobrar $9.303 / 2 facturas. Stock 9 críticos. Leads 83.33% conversión. Lint OK.

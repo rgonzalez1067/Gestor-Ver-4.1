@@ -8,9 +8,9 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
-  LineChart, Line, ComposedChart,
+  Line, ComposedChart, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download } from 'lucide-react';
+import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -58,6 +58,11 @@ const SalesReports = () => {
   const [funnelData, setFunnelData] = useState(null);
   const [agingData, setAgingData] = useState(null);
   const [monthlyData, setMonthlyData] = useState(null);
+  const [receivablesData, setReceivablesData] = useState(null);
+  const [rankingData, setRankingData] = useState(null);
+  const [productivityData, setProductivityData] = useState(null);
+  const [stockData, setStockData] = useState(null);
+  const [leadsData, setLeadsData] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const fetchAll = async () => {
@@ -71,14 +76,24 @@ const SalesReports = () => {
       if (dateFrom) fp.date_from = dateFrom;
       if (dateTo) fp.date_to = dateTo;
 
-      const [fr, ar, mr] = await Promise.all([
+      const [fr, ar, mr, rec, rk, prod, stk, lds] = await Promise.all([
         api.get('/reports/sales/funnel', { params: fp }),
         api.get('/reports/sales/aging', { params }),
         api.get('/reports/sales/monthly', { params: { ...params, year } }),
+        api.get('/reports/sales/receivables', { params }),
+        api.get('/reports/sales/clients-ranking', { params: { ...params, year, top_n: 20 } }),
+        api.get('/reports/sales/repair-productivity', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
+        api.get('/reports/sales/stock-vs-demand', { params: { months_back: 6 } }),
+        api.get('/reports/sales/leads-funnel', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
       ]);
       setFunnelData(fr.data);
       setAgingData(ar.data);
       setMonthlyData(mr.data);
+      setReceivablesData(rec.data);
+      setRankingData(rk.data);
+      setProductivityData(prod.data);
+      setStockData(stk.data);
+      setLeadsData(lds.data);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al cargar reportes');
     } finally {
@@ -174,10 +189,15 @@ const SalesReports = () => {
           </Card>
 
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
+            <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="funnel" data-testid="tab-funnel"><BarChart3 size={14} className="mr-1" /> Embudo</TabsTrigger>
               <TabsTrigger value="aging" data-testid="tab-aging"><Clock size={14} className="mr-1" /> Aging</TabsTrigger>
               <TabsTrigger value="monthly" data-testid="tab-monthly"><TrendingUp size={14} className="mr-1" /> Mensual</TabsTrigger>
+              <TabsTrigger value="receivables" data-testid="tab-receivables"><DollarSign size={14} className="mr-1" /> Por Cobrar</TabsTrigger>
+              <TabsTrigger value="ranking" data-testid="tab-ranking"><Users size={14} className="mr-1" /> Clientes Top</TabsTrigger>
+              <TabsTrigger value="productivity" data-testid="tab-productivity"><Wrench size={14} className="mr-1" /> Productividad</TabsTrigger>
+              <TabsTrigger value="stock" data-testid="tab-stock"><Package size={14} className="mr-1" /> Stock</TabsTrigger>
+              <TabsTrigger value="leads" data-testid="tab-leads"><Target size={14} className="mr-1" /> Leads</TabsTrigger>
             </TabsList>
 
             {/* === FUNNEL === */}
@@ -374,6 +394,354 @@ const SalesReports = () => {
                       </tbody>
                     </table>
                   </Card>
+                </>
+              )}
+            </TabsContent>
+
+            {/* === RECEIVABLES === */}
+            <TabsContent value="receivables" className="mt-4">
+              {!receivablesData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                    <Card className="p-4 col-span-2 border-rose-200 bg-rose-50" data-testid="kpi-pending-total">
+                      <p className="text-xs text-rose-700">Total por cobrar</p>
+                      <p className="text-2xl font-bold text-rose-900">{fmtUSD(receivablesData.total_pending_usd)}</p>
+                      <p className="text-[11px] text-rose-600">{receivablesData.total_pending_count} factura(s)</p>
+                    </Card>
+                    {receivablesData.buckets.map(b => (
+                      <Card key={b.bucket} className="p-4" style={{ borderColor: BUCKET_COLORS[b.bucket] + '55' }} data-testid={`rec-bucket-${b.bucket}`}>
+                        <p className="text-xs uppercase font-semibold" style={{ color: BUCKET_COLORS[b.bucket] }}>{b.bucket} días</p>
+                        <p className="text-xl font-bold text-slate-900">{b.count}</p>
+                        <p className="text-xs text-slate-500 font-mono">{fmtUSD(b.amount_usd)}</p>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {receivablesData.top_debtors.length > 0 && (
+                    <Card className="p-5 border-slate-200 mb-4">
+                      <p className="text-sm font-semibold text-slate-800 mb-3">Top deudores</p>
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-[11px] uppercase text-slate-500 border-b">
+                          <tr><th className="py-2">Cliente</th><th className="py-2 text-right">Facturas</th><th className="py-2 text-right">Monto USD</th><th className="py-2 text-right">Máx. días</th></tr>
+                        </thead>
+                        <tbody>
+                          {receivablesData.top_debtors.map(d => (
+                            <tr key={d.client_id} className="border-b last:border-b-0 hover:bg-slate-50">
+                              <td className="py-2 font-medium">{d.client_name} <Badge variant="outline" className="ml-2 text-[10px]">{d.client_segment}</Badge></td>
+                              <td className="py-2 text-right">{d.invoices}</td>
+                              <td className="py-2 text-right font-mono text-rose-700 font-bold">{fmtUSD(d.amount_usd)}</td>
+                              <td className="py-2 text-right text-xs text-slate-500">{d.max_days}d</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </Card>
+                  )}
+
+                  <Card className="p-5 border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-slate-800">Detalle de facturas pendientes ({receivablesData.rows.length})</p>
+                      <Button size="sm" variant="outline" onClick={() => exportCSV(receivablesData.rows, 'cuentas_por_cobrar.csv')} disabled={!receivablesData.rows.length} data-testid="export-receivables-csv">
+                        <Download size={14} className="mr-1" /> CSV
+                      </Button>
+                    </div>
+                    {receivablesData.rows.length === 0 ? (
+                      <p className="text-center text-emerald-600 py-6">Sin cuentas por cobrar pendientes 🎉</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-left text-[11px] uppercase text-slate-500 border-b">
+                            <tr>
+                              <th className="py-2">Cotización</th><th className="py-2">Factura</th><th className="py-2">Cliente</th>
+                              <th className="py-2">Gestor</th><th className="py-2 text-right">USD</th><th className="py-2 text-right">Días</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {receivablesData.rows.map(r => (
+                              <tr key={r.quote_id} className="border-b last:border-b-0 hover:bg-slate-50">
+                                <td className="py-2 font-mono text-xs">{r.quote_number}</td>
+                                <td className="py-2 text-xs">{r.invoice_number || '—'}</td>
+                                <td className="py-2">{r.client_name}</td>
+                                <td className="py-2 text-xs text-slate-600">{r.gestor || '—'}</td>
+                                <td className="py-2 text-right font-mono">{fmtUSD(r.total_usd)}</td>
+                                <td className="py-2 text-right">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ backgroundColor: BUCKET_COLORS[r.bucket] + '22', color: BUCKET_COLORS[r.bucket] }}>{r.days_since_invoice}d</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </Card>
+                </>
+              )}
+            </TabsContent>
+
+            {/* === RANKING === */}
+            <TabsContent value="ranking" className="mt-4">
+              {!rankingData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <Card className="p-5 border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-slate-800">Top {rankingData.ranking.length} clientes — Total {fmtUSD(rankingData.total_amount)} en {year}</p>
+                    <Button size="sm" variant="outline" onClick={() => exportCSV(rankingData.ranking, `ranking_clientes_${year}.csv`)} disabled={!rankingData.ranking.length} data-testid="export-ranking-csv">
+                      <Download size={14} className="mr-1" /> CSV
+                    </Button>
+                  </div>
+                  {rankingData.ranking.length === 0 ? (
+                    <p className="text-center text-slate-400 py-6">Sin datos para el año seleccionado</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-[11px] uppercase text-slate-500 border-b">
+                        <tr>
+                          <th className="py-2">#</th><th className="py-2">Cliente</th>
+                          <th className="py-2 text-right">Cotizaciones</th>
+                          <th className="py-2 text-right">Total Cotizado</th>
+                          <th className="py-2 text-right">Pagado</th>
+                          <th className="py-2 text-right">Tend. Trim.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rankingData.ranking.map((r, idx) => (
+                          <tr key={r.client_id} className="border-b last:border-b-0 hover:bg-slate-50" data-testid={`ranking-row-${idx}`}>
+                            <td className="py-2 font-bold text-slate-400">{idx + 1}</td>
+                            <td className="py-2 font-medium">{r.client_name} <Badge variant="outline" className="ml-2 text-[10px]">{r.client_segment}</Badge></td>
+                            <td className="py-2 text-right">{r.quotes_count}</td>
+                            <td className="py-2 text-right font-mono font-bold">{fmtUSD(r.total_usd)}</td>
+                            <td className="py-2 text-right font-mono text-emerald-700">{fmtUSD(r.paid_usd)}</td>
+                            <td className="py-2 text-right">
+                              {r.trend_pct === null ? (
+                                <span className="text-xs text-blue-600 font-semibold">NUEVO</span>
+                              ) : r.trend_pct > 0 ? (
+                                <span className="inline-flex items-center text-emerald-700 text-xs font-bold"><ArrowUp size={12} />{r.trend_pct}%</span>
+                              ) : r.trend_pct < 0 ? (
+                                <span className="inline-flex items-center text-rose-700 text-xs font-bold"><ArrowDown size={12} />{r.trend_pct}%</span>
+                              ) : (
+                                <span className="inline-flex items-center text-slate-400 text-xs"><Minus size={12} />0%</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* === PRODUCTIVITY === */}
+            <TabsContent value="productivity" className="mt-4">
+              {!productivityData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <Card className="p-4 border-slate-200" data-testid="kpi-prod-total">
+                      <p className="text-xs text-slate-500">Reparaciones evaluadas</p>
+                      <p className="text-2xl font-bold text-slate-900">{productivityData.sla_total}</p>
+                    </Card>
+                    <Card className="p-4 border-rose-200 bg-rose-50" data-testid="kpi-prod-breach">
+                      <p className="text-xs text-rose-700">Excedieron SLA (&gt;7 días)</p>
+                      <p className="text-2xl font-bold text-rose-900">{productivityData.sla_breach}</p>
+                    </Card>
+                    <Card className="p-4 border-amber-200 bg-amber-50" data-testid="kpi-prod-pct">
+                      <p className="text-xs text-amber-700">% Breach</p>
+                      <p className="text-2xl font-bold text-amber-900">{productivityData.sla_pct}%</p>
+                    </Card>
+                  </div>
+
+                  <Card className="p-5 border-slate-200 mb-4">
+                    <p className="text-sm font-semibold text-slate-800 mb-3">Por implementador / gestor</p>
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-[11px] uppercase text-slate-500 border-b">
+                        <tr>
+                          <th className="py-2">Gestor</th><th className="py-2 text-right">Reparaciones</th>
+                          <th className="py-2 text-right">Avg Reparación (h)</th>
+                          <th className="py-2 text-right">Avg Entrega (h)</th>
+                          <th className="py-2 text-right">Avg Total (días)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productivityData.by_implementor.map(i => (
+                          <tr key={i.gestor} className="border-b last:border-b-0 hover:bg-slate-50">
+                            <td className="py-2 font-medium">{i.gestor}</td>
+                            <td className="py-2 text-right">{i.count}</td>
+                            <td className="py-2 text-right font-mono">{i.avg_repair_hours ?? '—'}h</td>
+                            <td className="py-2 text-right font-mono">{i.avg_deliver_hours ?? '—'}h</td>
+                            <td className="py-2 text-right font-mono font-bold">{i.avg_total_days ?? '—'}d</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+
+                  <Card className="p-5 border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-slate-800">Detalle por reparación</p>
+                      <Button size="sm" variant="outline" onClick={() => exportCSV(productivityData.rows, 'productividad_reparaciones.csv')} disabled={!productivityData.rows.length} data-testid="export-prod-csv">
+                        <Download size={14} className="mr-1" /> CSV
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-[11px] uppercase text-slate-500 border-b sticky top-0 bg-white">
+                          <tr>
+                            <th className="py-2">Cotización</th><th className="py-2">Cliente</th>
+                            <th className="py-2">Gestor</th><th className="py-2 text-right">Reparación (h)</th>
+                            <th className="py-2 text-right">Entrega (h)</th><th className="py-2 text-right">Total (días)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productivityData.rows.map(r => (
+                            <tr key={r.quote_id} className="border-b last:border-b-0 hover:bg-slate-50">
+                              <td className="py-2 font-mono text-xs">{r.quote_number}</td>
+                              <td className="py-2">{r.client_name}</td>
+                              <td className="py-2 text-xs text-slate-600">{r.gestor}</td>
+                              <td className="py-2 text-right font-mono">{r.repair_lead_h ?? '—'}</td>
+                              <td className="py-2 text-right font-mono">{r.deliver_lead_h ?? '—'}</td>
+                              <td className="py-2 text-right font-mono font-bold">{r.total_lead_days ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
+            </TabsContent>
+
+            {/* === STOCK === */}
+            <TabsContent value="stock" className="mt-4">
+              {!stockData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <Card className="p-4 border-rose-200 bg-rose-50" data-testid="kpi-stock-critical">
+                      <p className="text-xs text-rose-700 uppercase font-semibold">Crítico</p>
+                      <p className="text-2xl font-bold text-rose-900">{stockData.summary.critical}</p>
+                      <p className="text-[11px] text-rose-600">&lt;1 mes de cobertura</p>
+                    </Card>
+                    <Card className="p-4 border-amber-200 bg-amber-50" data-testid="kpi-stock-warning">
+                      <p className="text-xs text-amber-700 uppercase font-semibold">Alerta</p>
+                      <p className="text-2xl font-bold text-amber-900">{stockData.summary.warning}</p>
+                      <p className="text-[11px] text-amber-600">1-2 meses de cobertura</p>
+                    </Card>
+                    <Card className="p-4 border-emerald-200 bg-emerald-50" data-testid="kpi-stock-ok">
+                      <p className="text-xs text-emerald-700 uppercase font-semibold">OK</p>
+                      <p className="text-2xl font-bold text-emerald-900">{stockData.summary.ok}</p>
+                      <p className="text-[11px] text-emerald-600">&gt;2 meses de cobertura</p>
+                    </Card>
+                  </div>
+
+                  <Card className="p-5 border-slate-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-slate-800">Top {stockData.items.length} ítems por demanda (últimos {stockData.months_back} meses)</p>
+                      <Button size="sm" variant="outline" onClick={() => exportCSV(stockData.items, 'stock_vs_demanda.csv')} disabled={!stockData.items.length} data-testid="export-stock-csv">
+                        <Download size={14} className="mr-1" /> CSV
+                      </Button>
+                    </div>
+                    <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-[11px] uppercase text-slate-500 border-b sticky top-0 bg-white">
+                          <tr>
+                            <th className="py-2">Ítem</th><th className="py-2">Tipo</th>
+                            <th className="py-2 text-right">Stock</th>
+                            <th className="py-2 text-right">Demanda</th>
+                            <th className="py-2 text-right">Demanda/mes</th>
+                            <th className="py-2 text-right">Cobertura</th>
+                            <th className="py-2 text-center">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stockData.items.map(it => {
+                            const sColors = { critical: 'bg-rose-100 text-rose-700', warning: 'bg-amber-100 text-amber-700', ok: 'bg-emerald-100 text-emerald-700', no_demand: 'bg-slate-100 text-slate-500' };
+                            const sLabel = { critical: 'CRÍTICO', warning: 'ALERTA', ok: 'OK', no_demand: 'SIN DEMANDA' };
+                            return (
+                              <tr key={it.item_id} className="border-b last:border-b-0 hover:bg-slate-50">
+                                <td className="py-2 font-medium">{it.item_name}</td>
+                                <td className="py-2 text-xs text-slate-500">{it.item_type}</td>
+                                <td className="py-2 text-right font-mono">{it.stock}</td>
+                                <td className="py-2 text-right font-mono font-bold">{it.demand}</td>
+                                <td className="py-2 text-right font-mono text-xs">{it.monthly_demand}</td>
+                                <td className="py-2 text-right font-mono text-xs">{it.coverage_months ?? '∞'}</td>
+                                <td className="py-2 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sColors[it.status]}`}>{sLabel[it.status]}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </>
+              )}
+            </TabsContent>
+
+            {/* === LEADS === */}
+            <TabsContent value="leads" className="mt-4">
+              {!leadsData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <Card className="p-4 border-slate-200" data-testid="kpi-leads-total">
+                      <p className="text-xs text-slate-500">Total Leads</p>
+                      <p className="text-2xl font-bold text-slate-900">{leadsData.total_leads}</p>
+                    </Card>
+                    <Card className="p-4 border-emerald-200 bg-emerald-50" data-testid="kpi-leads-converted">
+                      <p className="text-xs text-emerald-700">Convertidos</p>
+                      <p className="text-2xl font-bold text-emerald-900">{leadsData.converted}</p>
+                    </Card>
+                    <Card className="p-4 border-blue-200 bg-blue-50" data-testid="kpi-leads-rate">
+                      <p className="text-xs text-blue-700">Tasa Conversión</p>
+                      <p className="text-2xl font-bold text-blue-900">{leadsData.conversion_pct}%</p>
+                    </Card>
+                    <Card className="p-4 border-purple-200 bg-purple-50" data-testid="kpi-leads-avg-days">
+                      <p className="text-xs text-purple-700">Días Promedio</p>
+                      <p className="text-2xl font-bold text-purple-900">{leadsData.avg_convert_days ?? '—'}</p>
+                    </Card>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Card className="p-5 border-slate-200">
+                      <p className="text-sm font-semibold text-slate-800 mb-3">Distribución por origen</p>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie data={leadsData.by_origin} dataKey="total" nameKey="origin" outerRadius={90} label={(e) => `${e.origin}: ${e.total}`}>
+                            {leadsData.by_origin.map((_, idx) => (
+                              <Cell key={idx} fill={['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ef4444','#10b981'][idx % 6]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Card>
+
+                    <Card className="p-5 border-slate-200">
+                      <p className="text-sm font-semibold text-slate-800 mb-3">Conversión por origen</p>
+                      <table className="w-full text-sm">
+                        <thead className="text-left text-[11px] uppercase text-slate-500 border-b">
+                          <tr><th className="py-2">Origen</th><th className="py-2 text-right">Leads</th><th className="py-2 text-right">Convertidos</th><th className="py-2 text-right">%</th></tr>
+                        </thead>
+                        <tbody>
+                          {leadsData.by_origin.map(o => (
+                            <tr key={o.origin} className="border-b last:border-b-0 hover:bg-slate-50">
+                              <td className="py-2 font-medium">{o.origin}</td>
+                              <td className="py-2 text-right">{o.total}</td>
+                              <td className="py-2 text-right text-emerald-700">{o.converted}</td>
+                              <td className="py-2 text-right font-bold">{o.conversion_pct}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </Card>
+                  </div>
                 </>
               )}
             </TabsContent>

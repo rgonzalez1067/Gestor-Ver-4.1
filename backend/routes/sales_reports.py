@@ -252,3 +252,467 @@ async def monthly_report(
         "cobrado": round(sum(r["cobrado"] for r in months), 2),
     }
     return {"year": year, "months": months, "totals": totals}
+
+
+
+# =====================================================================
+# FASE 2 — Reportes adicionales
+# =====================================================================
+
+@router.get("/reports/sales/receivables")
+async def receivables_report(
+    segment: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Cuentas por cobrar: cotizaciones facturadas pero no pagadas.
+    Buckets 0-30, 31-60, 61-90, >90 días desde `invoiced_at`.
+    Devuelve lista detallada y top deudores agrupados por cliente."""
+    await get_current_user(authorization)
+
+    base = {}
+    if segment and segment != "all":
+        base["client_segment"] = segment
+    if category and category != "all":
+        base["quote_category"] = category
+
+    quotes = await db.quotes.find(
+        {"$and": [base, {"invoiced_at": {"$exists": True, "$ne": None}}]},
+        {"_id": 0, "quote_id": 1, "quote_number": 1, "client_id": 1, "client_name": 1,
+         "client_segment": 1, "quote_category": 1, "total_usd": 1,
+         "invoiced_at": 1, "paid_at": 1, "invoice_number": 1,
+         "created_by_user_id": 1},
+    ).to_list(None)
+
+    # Filtrar las que no están pagadas (paid_at null o ausente)
+    pending = [q for q in quotes if not q.get("paid_at")]
+
+    # Mapeo de gestor
+    user_ids = list({q.get("created_by_user_id") for q in pending if q.get("created_by_user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"user_id": {"$in": user_ids}},
+            {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1},
+        ).to_list(None)
+        for u in users:
+            full = f"{u.get('first_name','')} {u.get('last_name','')}".strip() or u.get("email", "")
+            user_map[u["user_id"]] = full
+
+    rows = []
+    buckets = {"0-30": 0, "31-60": 0, "61-90": 0, ">90": 0}
+    bucket_amounts = {"0-30": 0.0, "31-60": 0.0, "61-90": 0.0, ">90": 0.0}
+    by_client = {}
+
+    for q in pending:
+        days = _days_since(q.get("invoiced_at"))
+        amt = float(q.get("total_usd") or 0)
+        if days <= 30:
+            b = "0-30"
+        elif days <= 60:
+            b = "31-60"
+        elif days <= 90:
+            b = "61-90"
+        else:
+            b = ">90"
+        buckets[b] += 1
+        bucket_amounts[b] += amt
+        rows.append({
+            "quote_id": q.get("quote_id"),
+            "quote_number": q.get("quote_number"),
+            "invoice_number": q.get("invoice_number"),
+            "client_id": q.get("client_id"),
+            "client_name": q.get("client_name"),
+            "client_segment": q.get("client_segment"),
+            "total_usd": round(amt, 2),
+            "days_since_invoice": days,
+            "bucket": b,
+            "gestor": user_map.get(q.get("created_by_user_id"), ""),
+            "invoiced_at": q.get("invoiced_at"),
+        })
+        cid = q.get("client_id") or "SIN_ID"
+        if cid not in by_client:
+            by_client[cid] = {
+                "client_id": cid,
+                "client_name": q.get("client_name", ""),
+                "client_segment": q.get("client_segment", ""),
+                "amount_usd": 0.0,
+                "invoices": 0,
+                "max_days": 0,
+            }
+        by_client[cid]["amount_usd"] += amt
+        by_client[cid]["invoices"] += 1
+        by_client[cid]["max_days"] = max(by_client[cid]["max_days"], days)
+
+    rows.sort(key=lambda r: r["days_since_invoice"], reverse=True)
+    top_debtors = sorted(by_client.values(), key=lambda c: c["amount_usd"], reverse=True)[:10]
+    for d in top_debtors:
+        d["amount_usd"] = round(d["amount_usd"], 2)
+
+    return {
+        "rows": rows,
+        "buckets": [
+            {"bucket": k, "count": buckets[k], "amount_usd": round(bucket_amounts[k], 2)}
+            for k in ["0-30", "31-60", "61-90", ">90"]
+        ],
+        "top_debtors": top_debtors,
+        "total_pending_usd": round(sum(r["total_usd"] for r in rows), 2),
+        "total_pending_count": len(rows),
+    }
+
+
+@router.get("/reports/sales/clients-ranking")
+async def clients_ranking_report(
+    year: int = Query(...),
+    segment: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    top_n: int = Query(20),
+    authorization: Optional[str] = Header(None),
+):
+    """Ranking de clientes por monto (cotizado en el año).
+    Calcula tendencia ↑↓ comparando trimestre actual vs anterior."""
+    await get_current_user(authorization)
+
+    base = {}
+    if segment and segment != "all":
+        base["client_segment"] = segment
+    if category and category != "all":
+        base["quote_category"] = category
+
+    quotes = await db.quotes.find(base, {
+        "_id": 0, "client_id": 1, "client_name": 1, "client_segment": 1,
+        "total_usd": 1, "created_at": 1, "paid_at": 1,
+    }).to_list(None)
+
+    today = datetime.now(timezone.utc)
+    current_q_start_month = ((today.month - 1) // 3) * 3 + 1
+    current_q_year = today.year
+
+    by_client = {}
+    for q in quotes:
+        ca = q.get("created_at")
+        if not ca:
+            continue
+        try:
+            dt = datetime.fromisoformat(ca.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if dt.year != year:
+            continue
+        amt = float(q.get("total_usd") or 0)
+        cid = q.get("client_id") or "SIN_ID"
+        if cid not in by_client:
+            by_client[cid] = {
+                "client_id": cid,
+                "client_name": q.get("client_name", ""),
+                "client_segment": q.get("client_segment", ""),
+                "total_usd": 0.0,
+                "quotes_count": 0,
+                "amount_current_q": 0.0,
+                "amount_prev_q": 0.0,
+                "paid_usd": 0.0,
+            }
+        by_client[cid]["total_usd"] += amt
+        by_client[cid]["quotes_count"] += 1
+        if q.get("paid_at"):
+            by_client[cid]["paid_usd"] += amt
+        # Quarter logic
+        q_month = ((dt.month - 1) // 3) * 3 + 1
+        if dt.year == current_q_year and q_month == current_q_start_month:
+            by_client[cid]["amount_current_q"] += amt
+        elif (dt.year == current_q_year and q_month == current_q_start_month - 3) or \
+             (current_q_start_month == 1 and dt.year == current_q_year - 1 and q_month == 10):
+            by_client[cid]["amount_prev_q"] += amt
+
+    ranking = sorted(by_client.values(), key=lambda c: c["total_usd"], reverse=True)[:top_n]
+    for r in ranking:
+        cur, prev = r["amount_current_q"], r["amount_prev_q"]
+        if prev == 0 and cur > 0:
+            r["trend_pct"] = None  # nuevo
+        elif prev == 0:
+            r["trend_pct"] = 0
+        else:
+            r["trend_pct"] = round((cur - prev) / prev * 100, 1)
+        r["total_usd"] = round(r["total_usd"], 2)
+        r["paid_usd"] = round(r["paid_usd"], 2)
+        r["amount_current_q"] = round(r["amount_current_q"], 2)
+        r["amount_prev_q"] = round(r["amount_prev_q"], 2)
+
+    return {
+        "year": year,
+        "ranking": ranking,
+        "total_amount": round(sum(r["total_usd"] for r in ranking), 2),
+        "current_quarter": current_q_start_month,
+    }
+
+
+@router.get("/reports/sales/repair-productivity")
+async def repair_productivity_report(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Productividad del taller de reparaciones.
+    - Lead times: Enviada→Reparada y Reparada→Entregada por implementador (gestor).
+    - SLA breach: % de reparaciones con lead time total > 7 días."""
+    await get_current_user(authorization)
+
+    match = {"quote_category": "repair", "quote_status": {"$in": ["Reparada", "Facturada", "Pagada", "Entregada"]}}
+    if date_from or date_to:
+        rng = {}
+        if date_from:
+            rng["$gte"] = date_from
+        if date_to:
+            rng["$lte"] = date_to + "T23:59:59"
+        match["created_at"] = rng
+
+    quotes = await db.quotes.find(match, {
+        "_id": 0, "quote_id": 1, "quote_number": 1, "client_name": 1,
+        "sent_to_client_at": 1, "repaired_at": 1, "delivered_at": 1,
+        "created_by_user_id": 1, "total_usd": 1,
+    }).to_list(None)
+
+    user_ids = list({q.get("created_by_user_id") for q in quotes if q.get("created_by_user_id")})
+    user_map = {}
+    if user_ids:
+        users = await db.users.find(
+            {"user_id": {"$in": user_ids}},
+            {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1},
+        ).to_list(None)
+        for u in users:
+            full = f"{u.get('first_name','')} {u.get('last_name','')}".strip() or u.get("email", "")
+            user_map[u["user_id"]] = full
+
+    def _hours_diff(a, b):
+        if not a or not b:
+            return None
+        try:
+            da = datetime.fromisoformat(a.replace("Z", "+00:00"))
+            dbb = datetime.fromisoformat(b.replace("Z", "+00:00"))
+            return round((dbb - da).total_seconds() / 3600, 1)
+        except Exception:
+            return None
+
+    by_implementor = {}
+    rows = []
+    sla_total = 0
+    sla_breach = 0
+    for q in quotes:
+        gestor = user_map.get(q.get("created_by_user_id"), "Sin asignar")
+        repair_h = _hours_diff(q.get("sent_to_client_at"), q.get("repaired_at"))
+        deliver_h = _hours_diff(q.get("repaired_at"), q.get("delivered_at"))
+        total_h = None
+        if repair_h is not None and deliver_h is not None:
+            total_h = round(repair_h + deliver_h, 1)
+        if total_h is not None:
+            sla_total += 1
+            if total_h / 24 > 7:
+                sla_breach += 1
+
+        if gestor not in by_implementor:
+            by_implementor[gestor] = {"gestor": gestor, "count": 0, "repair_total_h": 0.0, "deliver_total_h": 0.0, "samples_repair": 0, "samples_deliver": 0}
+        by_implementor[gestor]["count"] += 1
+        if repair_h is not None:
+            by_implementor[gestor]["repair_total_h"] += repair_h
+            by_implementor[gestor]["samples_repair"] += 1
+        if deliver_h is not None:
+            by_implementor[gestor]["deliver_total_h"] += deliver_h
+            by_implementor[gestor]["samples_deliver"] += 1
+
+        rows.append({
+            "quote_id": q.get("quote_id"),
+            "quote_number": q.get("quote_number"),
+            "client_name": q.get("client_name"),
+            "gestor": gestor,
+            "repair_lead_h": repair_h,
+            "deliver_lead_h": deliver_h,
+            "total_lead_days": round(total_h / 24, 2) if total_h else None,
+            "total_usd": round(float(q.get("total_usd") or 0), 2),
+        })
+
+    by_imp_list = []
+    for k, v in by_implementor.items():
+        avg_repair = v["repair_total_h"] / v["samples_repair"] if v["samples_repair"] else None
+        avg_deliver = v["deliver_total_h"] / v["samples_deliver"] if v["samples_deliver"] else None
+        by_imp_list.append({
+            "gestor": v["gestor"],
+            "count": v["count"],
+            "avg_repair_hours": round(avg_repair, 1) if avg_repair else None,
+            "avg_deliver_hours": round(avg_deliver, 1) if avg_deliver else None,
+            "avg_total_days": round((avg_repair + avg_deliver) / 24, 2) if avg_repair and avg_deliver else None,
+        })
+    by_imp_list.sort(key=lambda x: x["count"], reverse=True)
+
+    return {
+        "rows": rows,
+        "by_implementor": by_imp_list,
+        "sla_total": sla_total,
+        "sla_breach": sla_breach,
+        "sla_pct": round((sla_breach / sla_total * 100), 2) if sla_total else 0,
+    }
+
+
+@router.get("/reports/sales/stock-vs-demand")
+async def stock_vs_demand_report(
+    months_back: int = Query(6),
+    authorization: Optional[str] = Header(None),
+):
+    """Stock actual vs demanda histórica (últimos N meses).
+    - Stock = sum(entradas) - sum(salidas) en `inventory_movements` por item_id.
+    - Demanda = unidades cotizadas (`equipment_items[].quantity`) en quotes recientes."""
+    await get_current_user(authorization)
+
+    cutoff = datetime.now(timezone.utc).replace(day=1)
+    for _ in range(months_back):
+        # restar mes (aprox 30 días)
+        cutoff = cutoff.replace(day=15)
+        prev_month = cutoff.month - 1
+        prev_year = cutoff.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        cutoff = cutoff.replace(year=prev_year, month=prev_month, day=1)
+    cutoff_iso = cutoff.isoformat()
+
+    # Stock: agrupar movimientos por item
+    pipeline = [
+        {"$group": {
+            "_id": "$item_id",
+            "in_qty": {"$sum": {"$cond": [{"$eq": ["$movement_type", "entrada"]}, "$quantity", 0]}},
+            "out_qty": {"$sum": {"$cond": [{"$eq": ["$movement_type", "salida"]}, "$quantity", 0]}},
+            "item_name": {"$first": "$item_name"},
+            "item_type": {"$first": "$item_type"},
+        }},
+    ]
+    stock = {}
+    async for d in db.inventory_movements.aggregate(pipeline):
+        iid = d["_id"]
+        if not iid:
+            continue
+        stock[iid] = {
+            "item_id": iid,
+            "item_name": d.get("item_name", ""),
+            "item_type": d.get("item_type", ""),
+            "stock": int((d.get("in_qty") or 0) - (d.get("out_qty") or 0)),
+            "demand": 0,
+            "quotes_count": 0,
+        }
+
+    # Demanda: equipment_items en quotes recientes
+    quotes = await db.quotes.find(
+        {"created_at": {"$gte": cutoff_iso}, "equipment_items": {"$exists": True, "$ne": []}},
+        {"_id": 0, "equipment_items": 1, "quote_id": 1},
+    ).to_list(None)
+    seen_items_per_quote = {}
+    for q in quotes:
+        for it in (q.get("equipment_items") or []):
+            iid = it.get("hardware_id")
+            if not iid:
+                continue
+            if iid not in stock:
+                stock[iid] = {
+                    "item_id": iid,
+                    "item_name": it.get("name", ""),
+                    "item_type": it.get("hardware_type", ""),
+                    "stock": 0,
+                    "demand": 0,
+                    "quotes_count": 0,
+                }
+            stock[iid]["demand"] += int(it.get("quantity") or 0)
+            qkey = q.get("quote_id")
+            seen_items_per_quote.setdefault(iid, set()).add(qkey)
+
+    for iid, s in stock.items():
+        s["quotes_count"] = len(seen_items_per_quote.get(iid, set()))
+        # Velocidad mensual (demanda/mes)
+        s["monthly_demand"] = round(s["demand"] / months_back, 2)
+        # Cobertura: meses de stock disponibles si demanda continúa
+        if s["monthly_demand"] > 0:
+            s["coverage_months"] = round(s["stock"] / s["monthly_demand"], 2)
+        else:
+            s["coverage_months"] = None
+        # Semáforo
+        if s["monthly_demand"] == 0:
+            s["status"] = "no_demand"
+        elif s["coverage_months"] is None:
+            s["status"] = "ok"
+        elif s["coverage_months"] < 1:
+            s["status"] = "critical"
+        elif s["coverage_months"] < 2:
+            s["status"] = "warning"
+        else:
+            s["status"] = "ok"
+
+    items = sorted(stock.values(), key=lambda s: s["demand"], reverse=True)
+    return {
+        "items": items[:30],  # top 30 por demanda
+        "months_back": months_back,
+        "summary": {
+            "critical": sum(1 for s in items if s["status"] == "critical"),
+            "warning": sum(1 for s in items if s["status"] == "warning"),
+            "ok": sum(1 for s in items if s["status"] == "ok"),
+        },
+    }
+
+
+@router.get("/reports/sales/leads-funnel")
+async def leads_funnel_report(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Funnel de Contactos Iniciales — conversión global y por origen (`referred_by`)."""
+    await get_current_user(authorization)
+
+    match = {}
+    if date_from or date_to:
+        rng = {}
+        if date_from:
+            rng["$gte"] = date_from
+        if date_to:
+            rng["$lte"] = date_to + "T23:59:59"
+        match["created_at"] = rng
+
+    contacts = await db.initial_contacts.find(match, {
+        "_id": 0, "contact_id": 1, "is_converted": 1, "referred_by": 1,
+        "created_at": 1, "updated_at": 1, "converted_client_id": 1,
+    }).to_list(None)
+
+    by_origin = {}
+    total = len(contacts)
+    converted = 0
+    days_to_convert = []
+
+    for c in contacts:
+        origin = (c.get("referred_by") or "Sin origen").strip() or "Sin origen"
+        if origin not in by_origin:
+            by_origin[origin] = {"origin": origin, "total": 0, "converted": 0}
+        by_origin[origin]["total"] += 1
+        if c.get("is_converted"):
+            converted += 1
+            by_origin[origin]["converted"] += 1
+            # Tiempo de conversión: created_at vs updated_at (cuando fue convertido)
+            ca, ua = c.get("created_at"), c.get("updated_at")
+            if ca and ua:
+                try:
+                    da = datetime.fromisoformat(ca.replace("Z", "+00:00"))
+                    db_ = datetime.fromisoformat(ua.replace("Z", "+00:00"))
+                    days_to_convert.append((db_ - da).days)
+                except Exception:
+                    pass
+
+    origins = []
+    for k, v in by_origin.items():
+        rate = round((v["converted"] / v["total"] * 100), 2) if v["total"] else 0
+        origins.append({**v, "conversion_pct": rate})
+    origins.sort(key=lambda x: x["total"], reverse=True)
+
+    avg_convert_days = round(sum(days_to_convert) / len(days_to_convert), 1) if days_to_convert else None
+
+    return {
+        "total_leads": total,
+        "converted": converted,
+        "conversion_pct": round((converted / total * 100), 2) if total else 0,
+        "avg_convert_days": avg_convert_days,
+        "by_origin": origins,
+    }
