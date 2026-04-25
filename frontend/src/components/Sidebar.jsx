@@ -256,7 +256,10 @@ export const Sidebar = () => {
   const renderMenuItem = (item, depth) => {
     if (item.isGroup || item.isSubGroup) {
       const isGroupActive = item.children?.some(c => location.pathname === c.path);
-      const isExpanded = expandedGroups[item.label] || isGroupActive;
+      // Si el usuario tocó el grupo (true/false explícito), respeta su elección.
+      // Si nunca lo tocó (undefined), usa la ruta activa como default.
+      const explicit = expandedGroups[item.label];
+      const isExpanded = explicit !== undefined ? explicit : isGroupActive;
       const GroupIcon = item.icon;
       return (
         <div key={item.label}>
