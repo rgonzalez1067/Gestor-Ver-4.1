@@ -481,3 +481,15 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 **Frontend** (`SalesReports.jsx`, +5 tabs): TabsList ahora con flex-wrap. Recharts PieChart en Leads. Export CSV en cada vista. Cards con badges de status.
 
 **Validado E2E**: curl + Playwright. Por Cobrar $9.303 / 2 facturas. Stock 9 críticos. Leads 83.33% conversión. Lint OK.
+
+
+## Resumen Ejecutivo PDF (iter 190)
+
+**Solicitud del usuario**: botón único que genera un PDF con resumen de los 8 reportes para envío a gerencia.
+
+**Backend** (`routes/sales_reports.py`):
+- `GET /reports/sales/executive-summary?year&segment&category&date_from&date_to`: ejecuta los 8 reportes internamente, ensambla HTML con KPIs + top 5 de cada uno y renderiza con WeasyPrint. Retorna `StreamingResponse application/pdf` con `Content-Disposition: attachment`. Layout 1 página A4 ~32 KB.
+
+**Frontend** (`SalesReports.jsx`): botón "Resumen Ejecutivo PDF" (negro, FileText) junto a "Actualizar". Llama con filtros activos, descarga blob.
+
+**Validado E2E**: curl + Playwright. PDF 31907 bytes con secciones Embudo/Aging/Mensual/Por Cobrar/Top Deudores/Top Clientes/Productividad/Stock/Leads.

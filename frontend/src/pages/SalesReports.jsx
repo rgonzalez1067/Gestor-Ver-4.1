@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
   Line, ComposedChart, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus, FileText } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -103,6 +103,27 @@ const SalesReports = () => {
 
   useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [segment, category, year, dateFrom, dateTo]);
 
+  const downloadExecutiveSummary = async () => {
+    try {
+      const params = { year };
+      if (segment !== 'all') params.segment = segment;
+      if (category !== 'all') params.category = category;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const res = await api.get('/reports/sales/executive-summary', { params, responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, '');
+      a.href = url;
+      a.download = `resumen_ejecutivo_${ts}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Resumen ejecutivo descargado');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al generar PDF');
+    }
+  };
+
   const funnelChart = useMemo(() => {
     if (!funnelData) return [];
     return funnelData.stages.map(s => ({ stage: s.stage, count: s.count, monto: s.amount_usd, fill: FUNNEL_COLORS[s.stage] }));
@@ -134,6 +155,9 @@ const SalesReports = () => {
             </div>
             <Button variant="outline" onClick={fetchAll} disabled={loading} data-testid="refresh-reports">
               <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+            </Button>
+            <Button onClick={downloadExecutiveSummary} className="bg-slate-900 hover:bg-slate-800 text-white" data-testid="download-executive-summary">
+              <FileText size={16} className="mr-2" /> Resumen Ejecutivo PDF
             </Button>
           </div>
 

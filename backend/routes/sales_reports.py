@@ -6,8 +6,11 @@ Tres reportes principales:
 - Monthly: cotizado, facturado y cobrado por mes para el año filtrado.
 """
 from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from datetime import datetime, timezone
+import io
+import weasyprint
 
 from config import db, get_current_user
 
@@ -716,3 +719,235 @@ async def leads_funnel_report(
         "avg_convert_days": avg_convert_days,
         "by_origin": origins,
     }
+
+
+# =====================================================================
+# RESUMEN EJECUTIVO — PDF agregado de los 8 reportes
+# =====================================================================
+
+@router.get("/reports/sales/executive-summary")
+async def executive_summary_pdf(
+    year: int = Query(...),
+    segment: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Genera un PDF de resumen ejecutivo (1-2 páginas) consolidando los 8 reportes
+    con KPIs y top 5 de cada uno. Útil para envío diario por email/WhatsApp."""
+    current_user = await get_current_user(authorization)
+
+    # Reusar las funciones públicas (no las re-llamamos por HTTP, ejecutamos la lógica directa).
+    funnel = await funnel_report(date_from, date_to, segment, category, authorization)
+    aging = await aging_report(segment, category, authorization)
+    monthly = await monthly_report(year, category, segment, authorization)
+    receivables = await receivables_report(segment, category, authorization)
+    ranking = await clients_ranking_report(year, segment, category, 5, authorization)
+    productivity = await repair_productivity_report(date_from, date_to, authorization)
+    stock = await stock_vs_demand_report(6, authorization)
+    leads = await leads_funnel_report(date_from, date_to, authorization)
+
+    def fmt_usd(n):
+        try:
+            return "${:,.2f}".format(float(n or 0)).replace(",", "X").replace(".", ",").replace("X", ".")
+        except Exception:
+            return "$0,00"
+
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    user_name = f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip() or current_user.get("email", "")
+
+    filters_chips = []
+    if segment and segment != "all":
+        filters_chips.append(f"Segmento: {segment}")
+    if category and category != "all":
+        filters_chips.append(f"Categoría: {category}")
+    if date_from:
+        filters_chips.append(f"Desde: {date_from}")
+    if date_to:
+        filters_chips.append(f"Hasta: {date_to}")
+    filters_chips.append(f"Año mensual: {year}")
+    chips_html = " · ".join(f'<span class="chip">{c}</span>' for c in filters_chips)
+
+    # ---- Bloques HTML por reporte ----
+    funnel_rows = "".join(
+        f'<tr><td>{s["stage"]}</td><td class="r">{s["count"]}</td><td class="r">{fmt_usd(s["amount_usd"])}</td></tr>'
+        for s in funnel["stages"]
+    )
+
+    aging_buckets = "".join(
+        f'<tr><td>{b["bucket"]} días</td><td class="r">{b["count"]}</td><td class="r">{fmt_usd(b["amount_usd"])}</td></tr>'
+        for b in aging["buckets"]
+    )
+
+    monthly_rows = "".join(
+        f'<tr><td>{["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][m["month"]-1]}</td>'
+        f'<td class="r">{fmt_usd(m["cotizado"])}</td><td class="r">{fmt_usd(m["facturado"])}</td><td class="r">{fmt_usd(m["cobrado"])}</td></tr>'
+        for m in monthly["months"] if (m["cotizado"] or m["facturado"] or m["cobrado"])
+    ) or '<tr><td colspan="4" class="empty">Sin datos para el año seleccionado</td></tr>'
+
+    rec_buckets = "".join(
+        f'<tr><td>{b["bucket"]} días</td><td class="r">{b["count"]}</td><td class="r">{fmt_usd(b["amount_usd"])}</td></tr>'
+        for b in receivables["buckets"]
+    )
+    top_debtors = "".join(
+        f'<tr><td>{d["client_name"]}</td><td class="r">{d["invoices"]}</td><td class="r">{fmt_usd(d["amount_usd"])}</td><td class="r">{d["max_days"]}d</td></tr>'
+        for d in receivables["top_debtors"][:5]
+    ) or '<tr><td colspan="4" class="empty">Sin deudas pendientes</td></tr>'
+
+    ranking_rows = "".join(
+        f'<tr><td>{i+1}</td><td>{r["client_name"][:45]}</td><td class="r">{r["quotes_count"]}</td><td class="r">{fmt_usd(r["total_usd"])}</td></tr>'
+        for i, r in enumerate(ranking["ranking"][:5])
+    ) or '<tr><td colspan="4" class="empty">Sin cotizaciones en el año</td></tr>'
+
+    prod_rows = "".join(
+        f'<tr><td>{i["gestor"]}</td><td class="r">{i["count"]}</td>'
+        f'<td class="r">{i["avg_repair_hours"] if i["avg_repair_hours"] is not None else "—"}h</td>'
+        f'<td class="r">{i["avg_total_days"] if i["avg_total_days"] is not None else "—"}d</td></tr>'
+        for i in productivity["by_implementor"][:5]
+    ) or '<tr><td colspan="4" class="empty">Sin reparaciones en el período</td></tr>'
+
+    def stock_color(s):
+        return {"critical": "#dc2626", "warning": "#d97706", "ok": "#059669"}.get(s, "#64748b")
+    stock_rows = "".join(
+        f'<tr><td>{s["item_name"][:48]}</td><td class="r">{s["stock"]}</td>'
+        f'<td class="r">{s["demand"]}</td>'
+        f'<td class="r" style="color:{stock_color(s["status"])};font-weight:bold">{s["status"].upper()}</td></tr>'
+        for s in stock["items"][:5]
+    )
+
+    leads_origins = "".join(
+        f'<tr><td>{o["origin"]}</td><td class="r">{o["total"]}</td><td class="r">{o["converted"]}</td><td class="r">{o["conversion_pct"]}%</td></tr>'
+        for o in leads["by_origin"][:5]
+    ) or '<tr><td colspan="4" class="empty">Sin leads en el período</td></tr>'
+
+    html = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>Resumen Ejecutivo de Ventas</title>
+<style>
+@page {{ size: A4; margin: 12mm; @bottom-center {{ content: "Página " counter(page) " de " counter(pages); font-size: 8px; color: #94a3b8; }} }}
+body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 9px; color: #1e293b; }}
+h1 {{ font-size: 18px; margin: 0 0 4px 0; color: #0f172a; }}
+h2 {{ font-size: 11px; margin: 10px 0 4px 0; padding: 4px 8px; background: #f1f5f9; color: #0f172a; border-left: 3px solid #0ea5e9; }}
+.subtitle {{ color: #64748b; font-size: 9px; }}
+.chip {{ background: #e0f2fe; color: #075985; padding: 2px 6px; border-radius: 8px; font-size: 8px; margin-right: 4px; }}
+.kpis {{ display: flex; gap: 6px; margin: 6px 0 4px; }}
+.kpi {{ flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; }}
+.kpi .label {{ font-size: 7px; color: #64748b; text-transform: uppercase; font-weight: bold; }}
+.kpi .value {{ font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 2px; }}
+.kpi.green {{ background: #f0fdf4; border-color: #bbf7d0; }} .kpi.green .value {{ color: #166534; }}
+.kpi.red {{ background: #fef2f2; border-color: #fecaca; }} .kpi.red .value {{ color: #991b1b; }}
+.kpi.amber {{ background: #fffbeb; border-color: #fde68a; }} .kpi.amber .value {{ color: #92400e; }}
+.kpi.blue {{ background: #eff6ff; border-color: #bfdbfe; }} .kpi.blue .value {{ color: #1e40af; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 2px; }}
+th, td {{ padding: 3px 6px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 8.5px; }}
+th {{ background: #f8fafc; font-weight: bold; color: #475569; text-transform: uppercase; font-size: 7px; letter-spacing: 0.4px; }}
+td.r, th.r {{ text-align: right; font-family: 'Courier New', monospace; }}
+.empty {{ text-align: center; color: #94a3b8; font-style: italic; padding: 8px; }}
+.grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
+.section {{ break-inside: avoid; page-break-inside: avoid; }}
+header {{ border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 8px; }}
+.brand {{ color: #0ea5e9; font-weight: bold; }}
+</style></head>
+<body>
+<header>
+  <h1>Resumen Ejecutivo de Ventas</h1>
+  <div class="subtitle"><span class="brand">MegaNexus</span> · Generado el {now_str} por {user_name}</div>
+  <div style="margin-top:4px">{chips_html}</div>
+</header>
+
+<!-- Embudo + KPIs principales -->
+<div class="section">
+  <h2>1. Embudo de Cotizaciones</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="label">Cotizaciones</div><div class="value">{funnel["totals"]["quotes_total"]}</div></div>
+    <div class="kpi blue"><div class="label">Monto cotizado</div><div class="value">{fmt_usd(funnel["totals"]["amount_total_usd"])}</div></div>
+    <div class="kpi green"><div class="label">Conv. Pagada</div><div class="value">{funnel["totals"]["conversion_sent_to_paid"]}%</div></div>
+    <div class="kpi blue"><div class="label">Conv. Entregada</div><div class="value">{funnel["totals"]["conversion_sent_to_delivered"]}%</div></div>
+  </div>
+  <table><thead><tr><th>Etapa</th><th class="r">Cotizaciones</th><th class="r">Monto USD</th></tr></thead><tbody>{funnel_rows}</tbody></table>
+</div>
+
+<div class="grid2">
+  <!-- Aging -->
+  <div class="section">
+    <h2>2. Aging de Cotizaciones (pendientes)</h2>
+    <table><thead><tr><th>Bucket</th><th class="r">#</th><th class="r">USD</th></tr></thead><tbody>{aging_buckets}</tbody></table>
+  </div>
+  <!-- Receivables -->
+  <div class="section">
+    <h2>4. Por Cobrar (Aging facturas)</h2>
+    <div class="kpis">
+      <div class="kpi red" style="flex:none;width:100%"><div class="label">Total por cobrar</div><div class="value">{fmt_usd(receivables["total_pending_usd"])} ({receivables["total_pending_count"]} facturas)</div></div>
+    </div>
+    <table><thead><tr><th>Bucket</th><th class="r">#</th><th class="r">USD</th></tr></thead><tbody>{rec_buckets}</tbody></table>
+  </div>
+</div>
+
+<!-- Mensual -->
+<div class="section">
+  <h2>3. Ventas Mensuales {year}</h2>
+  <div class="kpis">
+    <div class="kpi blue"><div class="label">Cotizado</div><div class="value">{fmt_usd(monthly["totals"]["cotizado"])}</div></div>
+    <div class="kpi amber"><div class="label">Facturado</div><div class="value">{fmt_usd(monthly["totals"]["facturado"])}</div></div>
+    <div class="kpi green"><div class="label">Cobrado</div><div class="value">{fmt_usd(monthly["totals"]["cobrado"])}</div></div>
+  </div>
+  <table><thead><tr><th>Mes</th><th class="r">Cotizado</th><th class="r">Facturado</th><th class="r">Cobrado</th></tr></thead><tbody>{monthly_rows}</tbody></table>
+</div>
+
+<div class="grid2">
+  <!-- Top Deudores -->
+  <div class="section">
+    <h2>4b. Top 5 Deudores</h2>
+    <table><thead><tr><th>Cliente</th><th class="r">#</th><th class="r">Monto</th><th class="r">Días</th></tr></thead><tbody>{top_debtors}</tbody></table>
+  </div>
+  <!-- Top Clientes -->
+  <div class="section">
+    <h2>5. Top 5 Clientes ({year})</h2>
+    <table><thead><tr><th>#</th><th>Cliente</th><th class="r">Cot.</th><th class="r">Total</th></tr></thead><tbody>{ranking_rows}</tbody></table>
+  </div>
+</div>
+
+<div class="grid2">
+  <!-- Productividad -->
+  <div class="section">
+    <h2>6. Productividad de Reparaciones</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Reparaciones</div><div class="value">{productivity["sla_total"]}</div></div>
+      <div class="kpi red"><div class="label">SLA Breach</div><div class="value">{productivity["sla_breach"]} ({productivity["sla_pct"]}%)</div></div>
+    </div>
+    <table><thead><tr><th>Gestor</th><th class="r">#</th><th class="r">Avg rep.</th><th class="r">Avg total</th></tr></thead><tbody>{prod_rows}</tbody></table>
+  </div>
+  <!-- Stock -->
+  <div class="section">
+    <h2>7. Stock vs. Demanda — Top 5</h2>
+    <div class="kpis">
+      <div class="kpi red"><div class="label">Crítico</div><div class="value">{stock["summary"]["critical"]}</div></div>
+      <div class="kpi amber"><div class="label">Alerta</div><div class="value">{stock["summary"]["warning"]}</div></div>
+      <div class="kpi green"><div class="label">OK</div><div class="value">{stock["summary"]["ok"]}</div></div>
+    </div>
+    <table><thead><tr><th>Ítem</th><th class="r">Stock</th><th class="r">Demanda</th><th class="r">Estado</th></tr></thead><tbody>{stock_rows}</tbody></table>
+  </div>
+</div>
+
+<!-- Leads -->
+<div class="section">
+  <h2>8. Funnel de Leads (Contactos Iniciales)</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="label">Total Leads</div><div class="value">{leads["total_leads"]}</div></div>
+    <div class="kpi green"><div class="label">Convertidos</div><div class="value">{leads["converted"]}</div></div>
+    <div class="kpi blue"><div class="label">% Conversión</div><div class="value">{leads["conversion_pct"]}%</div></div>
+    <div class="kpi"><div class="label">Días promedio</div><div class="value">{leads["avg_convert_days"] if leads["avg_convert_days"] is not None else "—"}</div></div>
+  </div>
+  <table><thead><tr><th>Origen</th><th class="r">Leads</th><th class="r">Convertidos</th><th class="r">%</th></tr></thead><tbody>{leads_origins}</tbody></table>
+</div>
+
+</body></html>"""
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    filename = f"resumen_ejecutivo_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
