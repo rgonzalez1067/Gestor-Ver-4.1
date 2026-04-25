@@ -46,6 +46,13 @@ const exportCSV = (rows, filename) => {
 const SalesReports = () => {
   const [tab, setTab] = useState('funnel');
 
+  // RBAC: Resumen Ejecutivo PDF requiere flag especial o admin
+  const currentUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  }, []);
+  const canExportExecutive = currentUser?.role === 'admin' ||
+    (currentUser?.special_permissions || []).includes('reportes_ventas:executive_summary');
+
   // Filtros compartidos
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -156,9 +163,11 @@ const SalesReports = () => {
             <Button variant="outline" onClick={fetchAll} disabled={loading} data-testid="refresh-reports">
               <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> Actualizar
             </Button>
-            <Button onClick={downloadExecutiveSummary} className="bg-slate-900 hover:bg-slate-800 text-white" data-testid="download-executive-summary">
-              <FileText size={16} className="mr-2" /> Resumen Ejecutivo PDF
-            </Button>
+            {canExportExecutive && (
+              <Button onClick={downloadExecutiveSummary} className="bg-slate-900 hover:bg-slate-800 text-white" data-testid="download-executive-summary">
+                <FileText size={16} className="mr-2" /> Resumen Ejecutivo PDF
+              </Button>
+            )}
           </div>
 
           {/* Filtros compartidos */}

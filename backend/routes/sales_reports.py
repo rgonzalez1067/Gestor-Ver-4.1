@@ -735,8 +735,13 @@ async def executive_summary_pdf(
     authorization: Optional[str] = Header(None),
 ):
     """Genera un PDF de resumen ejecutivo (1-2 páginas) consolidando los 8 reportes
-    con KPIs y top 5 de cada uno. Útil para envío diario por email/WhatsApp."""
+    con KPIs y top 5 de cada uno. Útil para envío diario por email/WhatsApp.
+    Requiere flag especial `reportes_ventas:executive_summary` o rol admin."""
     current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        sp = current_user.get("special_permissions") or []
+        if "reportes_ventas:executive_summary" not in sp:
+            raise HTTPException(status_code=403, detail="Requiere permiso especial 'Generar Resumen Ejecutivo PDF'.")
 
     # Reusar las funciones públicas (no las re-llamamos por HTTP, ejecutamos la lógica directa).
     funnel = await funnel_report(date_from, date_to, segment, category, authorization)

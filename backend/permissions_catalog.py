@@ -39,6 +39,7 @@ MODULES = [
     {"id": "initial_contacts", "name": "Contacto Inicial", "group": "gestion_comercial"},
     {"id": "clientes",          "name": "Clientes",          "group": "gestion_comercial"},
     {"id": "cotizaciones",      "name": "Cotizaciones",      "group": "gestion_comercial"},
+    {"id": "reportes_ventas",   "name": "Reportes de Ventas", "group": "gestion_comercial"},
     {"id": "quote_history",     "name": "Histórico de Cotizaciones", "group": "gestion_comercial"},
     # Catálogos
     {"id": "bancos",                "name": "Bancos",               "group": "catalogos"},
@@ -92,6 +93,10 @@ SPECIAL_PERMISSIONS = [
     {"id": "integradores:create", "module": "integradores",
      "label": "Crear Integrador",
      "description": "Permite crear nuevos integradores con nivel Consulta."},
+    # Reportes de Ventas
+    {"id": "reportes_ventas:executive_summary", "module": "reportes_ventas",
+     "label": "Generar Resumen Ejecutivo PDF",
+     "description": "Habilita la descarga del Resumen Ejecutivo (PDF consolidado de los 8 reportes). Útil para gerencia."},
 ]
 
 SPECIAL_FLAG_IDS = [s["id"] for s in SPECIAL_PERMISSIONS]
