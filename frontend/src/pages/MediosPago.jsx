@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
+import { MigrationButtons } from '../components/MigrationButtons';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench, Search } from 'lucide-react';
 
 const SERVICE_TYPES = [
@@ -730,6 +731,10 @@ export const MediosPago = () => {
           {showImportResult && importResult && (
             <ImportResultPanel result={importResult} onClose={closeImportResult} />
           )}
+
+          <div className="flex justify-end mb-4">
+            <MigrationButtons module="payment-methods" label="Medios de Pago" onImported={fetchMediosPago} />
+          </div>
 
           {/* Filter Bar */}
           <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">

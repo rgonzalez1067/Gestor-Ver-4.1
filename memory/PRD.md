@@ -5,6 +5,27 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Migración de Datos Catálogos (Feb 2026) — NUEVO
+**Backend** (`/app/backend/routes/data_migration.py`):
+- 8 endpoints admin-only para Export/Preview/Apply de catálogos maestros entre ambientes (Preview ↔ Deploy).
+- Módulos soportados: `banks`, `payment-methods` (services), `hardware`, `commercial-categories`.
+- Formato JSON consistente: `{schema_version, module, collection, key, exported_at, exported_by, count, documents}`.
+- Endpoints:
+  - `GET  /api/admin/migration/{module}/export` → JSON descargable.
+  - `POST /api/admin/migration/{module}/import-preview` → preview con `to_create_count`/`to_update_count`.
+  - `POST /api/admin/migration/{module}/import-apply` → upsert idempotente por id natural; conserva `created_at` original; refresca `updated_at`.
+- Validación: archivo del módulo correcto; clave natural requerida; duplicados internos detectados; bitácora en `bitacora`.
+- 403 a no-admins; 400 a archivos inválidos / módulo equivocado.
+
+**Frontend** (`/app/frontend/src/components/MigrationButtons.jsx`):
+- Componente reusable con barra ámbar "Migración (Admin): Exportar / Importar".
+- Solo visible si `user.role === 'admin'`.
+- Diálogo de **vista previa con confirmación** antes de aplicar (cuántos crear/actualizar/inválidos).
+- Integrado en: `Banks.jsx`, `MediosPago.jsx`, `Hardware.jsx`, `CommercialCategories.jsx`.
+- Toast con resultado: `X creado(s), Y actualizado(s)`.
+
+**Validado E2E** (curl): export 39 categorías, re-import idempotente (39 actualizados, 0 creados), 403 a no-admin, 400 a archivo de módulo distinto.
+
 ### Histórico de Cotizaciones + Autocomplete Universal (Feb 2026)
 
 **Histórico de Cotizaciones** (`/app/backend/routes/quote_history.py`):

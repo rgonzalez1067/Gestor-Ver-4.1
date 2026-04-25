@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
+import { MigrationButtons } from '../components/MigrationButtons';
 import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -287,7 +288,7 @@ export const Banks = () => {
       <main className="flex-1 p-8" data-testid="banks-page">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-4">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Bancos y Entidades</h1>
               <p className="text-slate-600">Gestione bancos, medios de pago y contactos institucionales</p>
@@ -467,6 +468,10 @@ export const Banks = () => {
           {showImportResult && importResult && (
             <ImportResultPanel result={importResult} onClose={() => { setShowImportResult(false); setImportResult(null); }} />
           )}
+
+          <div className="flex justify-end mb-6">
+            <MigrationButtons module="banks" label="Bancos" onImported={fetchData} />
+          </div>
 
           {/* Integration Report Button */}
           <div className="mb-6">
