@@ -21,124 +21,9 @@ import { SingleBankSection } from '../components/projects/SingleBankSection';
 import { MultistoreBankSection } from '../components/projects/MultistoreBankSection';
 import { StoreBankSection } from '../components/projects/StoreBankSection';
 import { InternalEmailInput } from '../components/InternalEmailInput';
-
-const PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
-const STORE_PHASES = ['Recibido', 'Configurado', 'Testeado', 'En Producción'];
-const PHASE_COLORS = {
-  'Notificado': 'bg-lime-100 text-lime-800',
-  'Recibido': 'bg-sky-100 text-sky-800',
-  'Configurado': 'bg-violet-100 text-violet-800',
-  'Testeado': 'bg-cyan-100 text-cyan-800',
-  'En Producción': 'bg-emerald-100 text-emerald-800',
-};
-
-// ==================== TEMPLATE BODY EDITOR CON RESALTADO Y AUTOCOMPLETE ====================
-const ALL_TOKENS = [
-  'Nombre_Cliente','Rif_Cliente','Contacto_Principal','Datos_Contacto','Telefono_Contacto','Email_Contacto',
-  'Nro_Proyecto','Ticket_Nro','Tipo_Proyecto','Fecha_Asignacion','Nombre_Sucursal','Cantidad_Cajas',
-  'Servidor_Instalacion','Nombre_Implementador','Correo_Implementador','Integrador','Aplicativo_Integracion',
-  'Modelo_Seriales_POS','Modelo_Seriales_Equipos','Lista_VTID','Matriz_Bancos_Productos',
-];
-
-const TemplateBodyEditor = ({ value, onChange }) => {
-  const textareaRef = useRef(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [suggestIdx, setSuggestIdx] = useState(0);
-  const [cursorPos, setCursorPos] = useState(0);
-  const [braceStart, setBraceStart] = useState(-1);
-
-  const handleChange = (e) => {
-    const val = e.target.value;
-    const pos = e.target.selectionStart;
-    onChange(val);
-    setCursorPos(pos);
-
-    // Detect if we're inside a `{...` token being typed
-    const before = val.slice(0, pos);
-    const lastBrace = before.lastIndexOf('{');
-    const lastClose = before.lastIndexOf('}');
-    if (lastBrace > lastClose) {
-      const partial = before.slice(lastBrace + 1);
-      if (!/\s/.test(partial) && partial.length <= 40) {
-        const filtered = ALL_TOKENS.filter(t => t.toLowerCase().startsWith(partial.toLowerCase()));
-        setSuggestions(filtered);
-        setSuggestIdx(0);
-        setBraceStart(lastBrace);
-        setShowSuggestions(filtered.length > 0);
-        return;
-      }
-    }
-    setShowSuggestions(false);
-  };
-
-  const insertSuggestion = (token) => {
-    const before = value.slice(0, braceStart);
-    const after = value.slice(cursorPos);
-    const newVal = before + `{${token}}` + after;
-    onChange(newVal);
-    setShowSuggestions(false);
-    setTimeout(() => {
-      if (textareaRef.current) {
-        const newPos = before.length + token.length + 2;
-        textareaRef.current.selectionStart = newPos;
-        textareaRef.current.selectionEnd = newPos;
-        textareaRef.current.focus();
-      }
-    }, 0);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!showSuggestions) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSuggestIdx(i => Math.min(i + 1, suggestions.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSuggestIdx(i => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter' || e.key === 'Tab') {
-      if (suggestions[suggestIdx]) { e.preventDefault(); insertSuggestion(suggestions[suggestIdx]); }
-    }
-    else if (e.key === 'Escape') { setShowSuggestions(false); }
-  };
-
-  // Render highlighted preview (tokens as blue pills, rest invisible)
-  const renderHighlighted = () => {
-    if (!value) return null;
-    const parts = value.split(/(\{[A-Za-z_]+\})/g);
-    return parts.map((part, i) =>
-      /^\{[A-Za-z_]+\}$/.test(part)
-        ? <mark key={i} className="bg-blue-100 text-blue-700 rounded px-0.5 font-mono text-[11px] border border-blue-200" style={{ color: 'transparent', background: 'rgba(219,234,254,0.7)', borderRadius: '3px', padding: '1px 2px' }}>{part}</mark>
-        : <span key={i} style={{ color: 'transparent' }}>{part}</span>
-    );
-  };
-
-  return (
-    <div className="relative mt-1" data-testid="template-body-editor">
-      {/* Highlighted background layer — only shows colored backgrounds behind tokens */}
-      <div className="absolute inset-0 pointer-events-none p-3 text-sm whitespace-pre-wrap break-words overflow-hidden font-sans leading-[1.625] select-none"
-        aria-hidden="true" style={{ zIndex: 0 }}>
-        {renderHighlighted()}
-      </div>
-      {/* Actual textarea — text fully visible on top */}
-      <textarea ref={textareaRef} value={value} onChange={handleChange} onKeyDown={handleKeyDown}
-        placeholder="Contenido de la plantilla... Escribe { para autocompletar variables"
-        className="w-full text-sm min-h-[200px] resize-y border border-slate-200 rounded-lg p-3 bg-transparent relative focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none leading-[1.625]"
-        style={{ zIndex: 1, color: '#1e293b', caretColor: '#1e293b' }}
-        data-testid="template-body" />
-      {/* Autocomplete dropdown */}
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 bg-white border border-blue-200 rounded-lg shadow-lg max-h-48 overflow-y-auto w-64 left-4"
-          style={{ top: '60px' }} data-testid="token-autocomplete">
-          {suggestions.map((s, i) => (
-            <button key={s} className={`w-full text-left px-3 py-1.5 text-xs font-mono hover:bg-blue-50 transition-colors ${i === suggestIdx ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
-              onMouseDown={(e) => { e.preventDefault(); insertSuggestion(s); }}
-              data-testid={`suggest-${s}`}>
-              <span className="text-blue-400">{'{'}</span>{s}<span className="text-blue-400">{'}'}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
+import { PHASES, STORE_PHASES, PHASE_COLORS, ALL_TOKENS } from '../components/projects/projectConstants';
+import { TemplateBodyEditor } from '../components/projects/TemplateBodyEditor';
+import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -2157,118 +2042,24 @@ const ProjectDetail = () => {
         </Dialog>
 
         {/* ================= Actualización Masiva (Batch Update) ================= */}
-        <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="batch-update-dialog">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-amber-600">
-                <Layers size={22} />
-                Actualización Masiva de Estatus
-              </DialogTitle>
-              <p className="text-xs text-slate-500 mt-1">
-                Marca al 100% una fase + producto + banco para varias tiendas a la vez.
-                Se registra en la bitácora del proyecto.
-              </p>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-xs font-semibold">Fase</Label>
-                  <Select value={batchPhase} onValueChange={setBatchPhase}>
-                    <SelectTrigger className="text-sm" data-testid="batch-phase-select"><SelectValue placeholder="Fase..." /></SelectTrigger>
-                    <SelectContent>
-                      {STORE_PHASES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">Banco / Ente</Label>
-                  <Select value={batchBank} onValueChange={(v) => {
-                    setBatchBank(v);
-                    const firstProd = Object.keys(project?.implementation_matrix?.[v] || {})[0] || '';
-                    setBatchProduct(firstProd);
-                  }}>
-                    <SelectTrigger className="text-sm" data-testid="batch-bank-select"><SelectValue placeholder="Banco..." /></SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(project?.implementation_matrix || {}).map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs font-semibold">Producto</Label>
-                  <Select value={batchProduct} onValueChange={setBatchProduct}>
-                    <SelectTrigger className="text-sm" data-testid="batch-product-select"><SelectValue placeholder="Producto..." /></SelectTrigger>
-                    <SelectContent>
-                      {batchBank && Object.keys((project?.implementation_matrix || {})[batchBank] || {}).map(p =>
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label className="text-xs font-semibold">Tiendas a procesar <span className="text-amber-600">({batchStoreIds.length}/{(project?.stores || []).length})</span></Label>
-                  <Button variant="ghost" size="sm" onClick={toggleAllBatchStores} className="text-xs text-amber-600" data-testid="batch-select-all">
-                    {batchStoreIds.length === (project?.stores || []).length ? 'Deseleccionar todas' : 'Seleccionar todas'}
-                  </Button>
-                </div>
-                <div className="border rounded-lg p-3 max-h-60 overflow-y-auto bg-slate-50">
-                  {(project?.stores || []).length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-3">Este proyecto no tiene tiendas</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {(project?.stores || []).map(s => (
-                        <label key={s.store_id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white cursor-pointer" data-testid={`batch-store-${s.store_id}`}>
-                          <Checkbox
-                            checked={batchStoreIds.includes(s.store_id)}
-                            onCheckedChange={() => toggleBatchStore(s.store_id)}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-slate-700 truncate">{s.name}</div>
-                            <div className="text-[10px] text-slate-400">{s.code || ''} · {s.box_count || 0} PDV</div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-semibold">Motivo / Justificación</Label>
-                <Textarea
-                  value={batchReason}
-                  onChange={(e) => setBatchReason(e.target.value)}
-                  placeholder="Ej: Recepción de información masiva por parte del Banco/Cliente..."
-                  rows={2} className="text-sm"
-                  data-testid="batch-reason"
-                />
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-                <p className="font-semibold mb-1">Resumen:</p>
-                <p>
-                  Se completará <b>{batchPhase || '—'}</b> del producto <b>{batchProduct || '—'}</b> (banco <b>{batchBank || '—'}</b>)
-                  en <b>{batchStoreIds.length}</b> tienda(s). Esta acción queda registrada en la bitácora.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="outline" onClick={() => setBatchModalOpen(false)}>Cancelar</Button>
-              <Button
-                onClick={submitBatchUpdate}
-                disabled={batchSubmitting || batchStoreIds.length === 0}
-                className="bg-amber-500 hover:bg-amber-600 text-white"
-                data-testid="batch-submit-btn"
-              >
-                {batchSubmitting ? 'Procesando...' : <><Layers size={14} className="mr-1" /> Aplicar a {batchStoreIds.length} tienda(s)</>}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <BatchUpdateModal
+          open={batchModalOpen}
+          onOpenChange={setBatchModalOpen}
+          project={project}
+          batchPhase={batchPhase}
+          setBatchPhase={setBatchPhase}
+          batchBank={batchBank}
+          setBatchBank={setBatchBank}
+          batchProduct={batchProduct}
+          setBatchProduct={setBatchProduct}
+          batchStoreIds={batchStoreIds}
+          batchReason={batchReason}
+          setBatchReason={setBatchReason}
+          batchSubmitting={batchSubmitting}
+          toggleBatchStore={toggleBatchStore}
+          toggleAllBatchStores={toggleAllBatchStores}
+          submitBatchUpdate={submitBatchUpdate}
+        />
       </main>
     </div>
   );

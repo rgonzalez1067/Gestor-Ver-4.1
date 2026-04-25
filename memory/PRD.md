@@ -493,3 +493,15 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 **Frontend** (`SalesReports.jsx`): botón "Resumen Ejecutivo PDF" (negro, FileText) junto a "Actualizar". Llama con filtros activos, descarga blob.
 
 **Validado E2E**: curl + Playwright. PDF 31907 bytes con secciones Embudo/Aging/Mensual/Por Cobrar/Top Deudores/Top Clientes/Productividad/Stock/Leads.
+
+## Refactor Fase 2 — ProjectDetail.jsx (iter 191)
+
+**Solicitud del usuario**: ejecutar Fase 2 del refactor del monolito `ProjectDetail.jsx` (2278 líneas).
+
+**Extracciones**:
+- `/app/frontend/src/components/projects/projectConstants.js` (NUEVO, 20 líneas): `PHASES`, `STORE_PHASES`, `PHASE_COLORS`, `ALL_TOKENS` compartidos.
+- `/app/frontend/src/components/projects/TemplateBodyEditor.jsx` (NUEVO, 108 líneas): editor con resaltado de tokens y autocompletado vía `{`. Aislado para evitar re-renders del monolito.
+- `/app/frontend/src/components/projects/BatchUpdateModal.jsx` (NUEVO, 158 líneas): diálogo de Actualización Masiva (fase + banco + producto + tiendas + motivo). Recibe estado y handlers controlados por el padre.
+
+**Resultado**: `ProjectDetail.jsx` 2278 → 2069 líneas (-209, -9.2%). Lint OK. Smoke test: detail carga con header, datos del proyecto, matriz de implementación, BatchUpdateModal abre con 5 tiendas y selects funcionales. 0 errores nuevos en consola.
+
