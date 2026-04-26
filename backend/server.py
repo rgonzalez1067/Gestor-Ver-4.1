@@ -45,6 +45,7 @@ from routes.external_api import router as external_api_router
 from routes.notifications import router as notifications_router
 from routes.profiles import router as profiles_router
 from routes.data_migration import router as data_migration_router
+from routes.project_reports import router as project_reports_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(title="Cotizador Merchant Server API")
@@ -222,6 +223,7 @@ api_router.include_router(external_api_router)
 api_router.include_router(notifications_router)
 api_router.include_router(profiles_router)
 api_router.include_router(data_migration_router)
+api_router.include_router(project_reports_router)
 
 app.include_router(api_router)
 

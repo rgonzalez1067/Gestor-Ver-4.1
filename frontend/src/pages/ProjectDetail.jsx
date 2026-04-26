@@ -14,7 +14,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -23,6 +23,7 @@ import { StoreBankSection } from '../components/projects/StoreBankSection';
 import { InternalEmailInput } from '../components/InternalEmailInput';
 import { PHASES, STORE_PHASES, PHASE_COLORS, ALL_TOKENS } from '../components/projects/projectConstants';
 import { TemplateBodyEditor } from '../components/projects/TemplateBodyEditor';
+import { ProjectProgressReportDialog } from '../components/ProjectProgressReportDialog';
 import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
 import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
@@ -36,6 +37,7 @@ const ProjectDetail = () => {
   const [bitacoraText, setBitacoraText] = useState('');
   const [bitacoraDate, setBitacoraDate] = useState(new Date().toISOString().split('T')[0]);
   const [bitacoraSubmitting, setBitacoraSubmitting] = useState(false);
+  const [progressReportOpen, setProgressReportOpen] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
 
   // Notificaciones secuenciales
@@ -859,6 +861,9 @@ const ProjectDetail = () => {
                   </div>
                 )}
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setProgressReportOpen(true)} className="text-xs gap-1 border-sky-200 text-sky-700 hover:bg-sky-50 h-7 px-2" data-testid="open-progress-report-btn">
+                    <FileBarChart size={12} />Reporte de Avance
+                  </Button>
                   <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-7 px-2" data-testid="adhoc-email-btn">
                     <Megaphone size={12} />Notificaciones
                   </Button>
@@ -1823,6 +1828,12 @@ const ProjectDetail = () => {
           toggleBatchStore={toggleBatchStore}
           toggleAllBatchStores={toggleAllBatchStores}
           submitBatchUpdate={submitBatchUpdate}
+        />
+
+        <ProjectProgressReportDialog
+          open={progressReportOpen}
+          onOpenChange={setProgressReportOpen}
+          projectId={project?.project_id}
         />
       </main>
     </div>
