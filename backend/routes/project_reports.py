@@ -49,22 +49,32 @@ def _filter_matrix(matrix: dict, banks: List[str], products: List[str]) -> dict:
 
 def _aggregate_phases(matrices: list) -> dict:
     """Recibe una lista de implementation_matrix (ya filtradas) y calcula totales por fase.
-    Devuelve: {phase: {expected, processed, percent, completed_count}, total_items}"""
+    El 'expected' de cada fase es la suma de los terminales esperados por producto
+    (cada terminal pasa por TODAS las fases, así que el expected por fase = expected del producto).
+    Devuelve: {phase: {expected, processed, percent, completed_count, total_items}}"""
     totals = {ph: {"expected": 0, "processed": 0, "completed_count": 0, "total_items": 0} for ph in PHASES}
     for matrix in matrices:
         for _bank, products in (matrix or {}).items():
             for _prod, phases in (products or {}).items():
+                # El "expected" del producto = máximo entre todas las fases (típicamente coinciden,
+                # pero si alguna fase no fue inicializada, el max representa el total real).
+                product_expected = 0
                 for ph in PHASES:
                     info = (phases or {}).get(ph) or {}
-                    expected = int(info.get("expected") or 0)
+                    e = int(info.get("expected") or 0)
+                    if e > product_expected:
+                        product_expected = e
+                if product_expected == 0:
+                    continue  # producto sin terminales esperados → no se cuenta
+                for ph in PHASES:
+                    info = (phases or {}).get(ph) or {}
                     processed = int(info.get("processed") or 0)
                     completed = bool(info.get("completed"))
-                    if expected > 0 or processed > 0:
-                        totals[ph]["expected"] += expected
-                        totals[ph]["processed"] += processed
-                        totals[ph]["total_items"] += 1
-                        if completed:
-                            totals[ph]["completed_count"] += 1
+                    totals[ph]["expected"] += product_expected
+                    totals[ph]["processed"] += processed
+                    totals[ph]["total_items"] += 1
+                    if completed:
+                        totals[ph]["completed_count"] += 1
 
     for ph in PHASES:
         e = totals[ph]["expected"] or 0
@@ -101,13 +111,14 @@ def _build_matrix_rows(matrices_by_label: list, banks: List[str], products: List
     return rows
 
 
-async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], products_csv: Optional[str], store_id: Optional[str]):
+async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], products_csv: Optional[str], stores_csv: Optional[str]):
     proj = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not proj:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     banks_filter = _split_csv(banks_csv)
     products_filter = _split_csv(products_csv)
+    stores_filter = [s for s in _split_csv(stores_csv) if s and s != "all"]
 
     project_type = proj.get("project_type", "single")
 
@@ -115,7 +126,7 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
     matrices_by_label = []  # [(label, matrix)]
     if project_type == "multistore":
         for st in (proj.get("stores") or []):
-            if store_id and store_id != "all" and st.get("store_id") != store_id:
+            if stores_filter and st.get("store_id") not in stores_filter:
                 continue
             label = st.get("name") or st.get("store_id") or "—"
             mat = _filter_matrix(st.get("implementation_matrix") or {}, banks_filter, products_filter)
@@ -129,7 +140,7 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
     return proj, matrices_by_label, {
         "banks": banks_filter,
         "products": products_filter,
-        "store_id": store_id or "all",
+        "stores": stores_filter if stores_filter else ["all"],
     }
 
 
@@ -154,12 +165,14 @@ async def project_progress_report(
     project_id: str,
     banks: Optional[str] = Query(None, description="Lista coma-separada de bank_name"),
     products: Optional[str] = Query(None, description="Lista coma-separada de product_name"),
-    store_id: Optional[str] = Query(None),
+    stores: Optional[str] = Query(None, description="Lista coma-separada de store_id"),
+    store_id: Optional[str] = Query(None, description="(deprecated) un solo store_id; usar 'stores'"),
     authorization: Optional[str] = Header(None),
 ):
     """Devuelve el reporte en JSON: encabezado + matriz filtrada + totales por fase."""
     await get_current_user(authorization)
-    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, store_id)
+    stores_csv = stores or store_id
+    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
 
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
@@ -225,12 +238,14 @@ async def project_progress_report_pdf(
     project_id: str,
     banks: Optional[str] = Query(None),
     products: Optional[str] = Query(None),
+    stores: Optional[str] = Query(None),
     store_id: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Genera PDF elegante con membrete MegaNexus."""
     user = await get_current_user(authorization)
-    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, store_id)
+    stores_csv = stores or store_id
+    proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
     totals = _aggregate_phases([m for _l, m in matrices_by_label])
@@ -267,9 +282,12 @@ async def project_progress_report_pdf(
         filt_chips.append(f"Bancos: {', '.join(filters['banks'])}")
     if filters["products"]:
         filt_chips.append(f"Productos: {', '.join(filters['products'])}")
-    if filters["store_id"] and filters["store_id"] != "all":
-        st_match = next((s for s in (proj.get("stores") or []) if s.get("store_id") == filters["store_id"]), None)
-        filt_chips.append(f"Tienda: {(st_match or {}).get('name', filters['store_id'])}")
+    if filters["stores"] and filters["stores"] != ["all"]:
+        names = []
+        for sid in filters["stores"]:
+            st_match = next((s for s in (proj.get("stores") or []) if s.get("store_id") == sid), None)
+            names.append((st_match or {}).get("name", sid))
+        filt_chips.append(f"Tiendas: {', '.join(names)}")
     filters_str = " · ".join(filt_chips) if filt_chips else "Todo el Proyecto (sin filtros)"
 
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")

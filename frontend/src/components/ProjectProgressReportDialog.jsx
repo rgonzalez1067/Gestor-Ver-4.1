@@ -4,7 +4,6 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Checkbox } from './ui/checkbox';
 import { FileBarChart, Eye, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,7 +30,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
   // Filtros
   const [selBanks, setSelBanks] = useState([]);
   const [selProducts, setSelProducts] = useState([]);
-  const [selStore, setSelStore] = useState('all');
+  const [selStores, setSelStores] = useState([]);
 
   // Carga inicial: catálogos (sin filtros) → mostrar Todo el Proyecto
   const fetchReport = async (params) => {
@@ -49,7 +48,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
 
   useEffect(() => {
     if (open && projectId) {
-      setSelBanks([]); setSelProducts([]); setSelStore('all');
+      setSelBanks([]); setSelProducts([]); setSelStores([]);
       fetchReport({});
     }
     // eslint-disable-next-line
@@ -59,7 +58,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
     const params = {};
     if (selBanks.length) params.banks = selBanks.join(',');
     if (selProducts.length) params.products = selProducts.join(',');
-    if (selStore && selStore !== 'all') params.store_id = selStore;
+    if (selStores.length) params.stores = selStores.join(',');
     fetchReport(params);
   };
 
@@ -70,7 +69,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
       const params = {};
       if (selBanks.length) params.banks = selBanks.join(',');
       if (selProducts.length) params.products = selProducts.join(',');
-      if (selStore && selStore !== 'all') params.store_id = selStore;
+      if (selStores.length) params.stores = selStores.join(',');
       const res = await api.get(`/projects/${projectId}/report/avance/pdf`, { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
@@ -208,22 +207,30 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
                   <Label className="text-xs font-semibold text-slate-600">
                     Tienda {!isMultistore && <span className="text-slate-400">(N/A — proyecto single)</span>}
                   </Label>
-                  <Select value={selStore} onValueChange={setSelStore} disabled={!isMultistore}>
-                    <SelectTrigger className="mt-1" data-testid="filter-store">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las Tiendas</SelectItem>
-                      {storesAvail.map((s) => (
-                        <SelectItem key={s.store_id} value={s.store_id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="mt-1 max-h-32 overflow-y-auto border border-slate-200 rounded p-2 space-y-1 bg-slate-50">
+                    {!isMultistore ? (
+                      <p className="text-xs text-slate-400 italic">Sin tiendas (proyecto single)</p>
+                    ) : storesAvail.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Sin tiendas</p>
+                    ) : (
+                      storesAvail.map((s) => (
+                        <label key={s.store_id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-white rounded px-1 py-0.5">
+                          <Checkbox
+                            checked={selStores.includes(s.store_id)}
+                            onCheckedChange={() => setSelStores((cur) => toggleArrayItem(cur, s.store_id))}
+                            data-testid={`filter-store-${s.store_id}`}
+                          />
+                          <span>{s.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">{selStores.length === 0 ? 'Todas' : `${selStores.length} seleccionada(s)`}</p>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 mt-3">
-                <Button variant="outline" size="sm" onClick={() => { setSelBanks([]); setSelProducts([]); setSelStore('all'); fetchReport({}); }}>
+                <Button variant="outline" size="sm" onClick={() => { setSelBanks([]); setSelProducts([]); setSelStores([]); fetchReport({}); }}>
                   Limpiar
                 </Button>
                 <Button onClick={applyFilters} disabled={loading} size="sm" className="bg-sky-600 hover:bg-sky-700 text-white" data-testid="apply-filters-btn">
