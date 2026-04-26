@@ -725,61 +725,107 @@ async def leads_funnel_report(
 # COTIZACIONES EN ESTADO IRREGULAR
 # =====================================================================
 
-# Fases del flujo (orden cronológico): (campo timestamp, label legible)
-PHASE_FIELDS = [
-    ("created_at", "Creada"),
-    ("sent_to_client_at", "Enviada al Cliente"),
-    ("approved_at", "Aprobada"),
-    ("invoiced_at", "Facturada"),
-    ("paid_at", "Pagada"),
-    ("delivered_at", "Entregada"),
-    ("repaired_at", "Reparada"),
-    ("archived_at", "Archivada / Pasada a Proyecto"),
-]
+# Flujos por categoría (espejo de FLOWS en frontend/components/quotes/QuoteStatusStepper.jsx)
+CATEGORY_FLOWS = {
+    "repair": [
+        ("created_at", "Creada"),
+        ("sent_to_client_at", "Enviada al Cliente"),
+        ("approved_at", "Aprobada"),
+        ("repaired_at", "Reparada"),
+        ("invoiced_at", "Facturada"),
+        ("paid_at", "Pagada"),
+        ("delivered_at", "Entregada"),
+    ],
+    "fast_track": [
+        ("created_at", "Creada"),
+        ("sent_to_client_at", "Enviada al Cliente"),
+        ("approved_at", "Aprobada"),
+        ("configured_at", "Configurada"),
+        ("invoiced_at", "Facturada"),
+        ("paid_at", "Pagada"),
+        ("delivered_at", "Entregada"),
+    ],
+    "equipment": [
+        ("created_at", "Creada"),
+        ("sent_to_client_at", "Enviada al Cliente"),
+        ("approved_at", "Aprobada"),
+        ("invoiced_at", "Facturada"),
+        ("paid_at", "Pagada"),
+        ("delivered_at", "Entregada"),
+    ],
+    "implementation": [
+        ("created_at", "Creada"),
+        ("sent_to_client_at", "Enviada al Cliente"),
+        ("approved_at", "Aprobada"),
+        ("invoiced_at", "Facturada"),
+        ("paid_at", "Pagada"),
+        ("sent_to_implementation_at", "Enviada a Imple"),
+    ],
+}
+DEFAULT_FLOW = CATEGORY_FLOWS["implementation"]
+
+
+def _get_flow(cat: Optional[str]) -> list:
+    return CATEGORY_FLOWS.get((cat or "").lower(), DEFAULT_FLOW)
 
 
 def _detect_irregularities(q: dict) -> list:
-    """Reglas de irregularidad — falta de timestamps en fases anteriores cuando ya alcanzó una posterior.
-    - Si llegó a Facturada/Pagada/Entregada/Reparada o Pasó a Proyecto → debe tener `approved_at`.
-    - Si llegó a Pagada/Entregada/Reparada → debe tener `invoiced_at` (excepto categoría implementation que no se factura).
-    - Si llegó a Entregada/Reparada → debe tener `paid_at` (excepto implementation).
+    """Una fase es irregular si una fase POSTERIOR del flujo tiene timestamp pero ella NO.
+    Usa el flujo correspondiente a `quote_category`. Para `implementation`, también
+    cuenta `archived_at` con trigger 'Enviada a Imple' como `sent_to_implementation_at`.
     """
     cat = (q.get("quote_category") or "").lower()
-    has_approved = bool(q.get("approved_at"))
-    has_invoiced = bool(q.get("invoiced_at"))
-    has_paid = bool(q.get("paid_at"))
-    has_delivered = bool(q.get("delivered_at"))
-    has_repaired = bool(q.get("repaired_at"))
+    flow = _get_flow(cat)
+
+    # Para implementation: si pasó a proyecto vía archived, ese trigger sustituye sent_to_implementation_at
     is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
 
+    def has_ts(field):
+        if field == "sent_to_implementation_at" and cat == "implementation":
+            return bool(q.get(field)) or is_to_project
+        return bool(q.get(field))
+
     issues = []
+    last_ts_idx = -1
+    for i, (field, _label) in enumerate(flow):
+        if has_ts(field):
+            last_ts_idx = i
 
-    if (has_invoiced or has_paid or has_delivered or has_repaired or is_to_project) and not has_approved:
-        issues.append("Falta fecha de Aprobación")
+    if last_ts_idx <= 0:
+        return issues  # Solo tiene Creada o nada → no es irregular
 
-    if cat != "implementation":
-        if (has_paid or has_delivered or has_repaired) and not has_invoiced:
-            issues.append("Falta fecha de Facturación")
-        if (has_delivered or has_repaired) and not has_paid:
-            issues.append("Falta fecha de Pago")
-
+    for i, (field, label) in enumerate(flow):
+        if i < last_ts_idx and not has_ts(field):
+            issues.append(f"Falta fecha de {label}")
     return issues
 
 
 def _format_phase_timeline(q: dict) -> list:
-    """Devuelve una lista [{field, label, timestamp, present}] para cada fase relevante."""
+    """Devuelve [{field, label, timestamp, present}] siguiendo el flujo de la categoría."""
+    cat = (q.get("quote_category") or "").lower()
+    flow = _get_flow(cat)
+    is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
+
     out = []
-    for field, label in PHASE_FIELDS:
+    for field, label in flow:
         ts = q.get(field)
-        if field == "archived_at":
-            # solo incluir si realmente pasó a proyecto / fue archivada
-            if not ts:
-                continue
+        # En implementation, usar archived_at si llegó por ese trigger y no hay sent_to_implementation_at
+        if field == "sent_to_implementation_at" and cat == "implementation" and not ts and is_to_project:
+            ts = q.get("archived_at")
         out.append({
             "field": field,
             "label": label,
             "timestamp": ts or None,
             "present": bool(ts),
+        })
+
+    # Para categorías no-implementation que pasaron a proyecto: añadir marca extra
+    if is_to_project and cat != "implementation":
+        out.append({
+            "field": "archived_at",
+            "label": "Pasada a Proyecto",
+            "timestamp": q.get("archived_at"),
+            "present": bool(q.get("archived_at")),
         })
     return out
 
