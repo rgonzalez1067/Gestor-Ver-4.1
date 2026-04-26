@@ -14,6 +14,7 @@ import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, His
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { MigrationButtons } from '../components/MigrationButtons';
 
 const SERIALIZED_TYPES = ['pos', 'pinpad', 'mpos'];
 const isSerializedType = (t) => SERIALIZED_TYPES.includes((t || '').toLowerCase());
@@ -528,6 +529,10 @@ export default function Inventory() {
                 <Plus size={16} className="mr-1.5" />Nuevo Almacén
               </Button>}
             </div>
+          </div>
+
+          <div className="flex justify-end mb-4">
+            <MigrationButtons module="inventory-movements" label="Movimientos de Inventario" onImported={fetchAll} />
           </div>
 
           {/* Warehouse selector */}

@@ -41,7 +41,20 @@ MODULES = {
         "key": "category_id",
         "label": "Categorías Comerciales",
     },
+    "users": {
+        "collection": "users",
+        "key": "user_id",
+        "label": "Usuarios",
+    },
+    "inventory-movements": {
+        "collection": "inventory_movements",
+        "key": "movement_id",
+        "label": "Movimientos de Inventario",
+    },
 }
+
+# Campos que NO deben sobreescribirse al importar usuarios (sesión / bloqueos transitorios)
+USER_SANITIZE_FIELDS = ("failed_attempts", "locked_until", "session_token", "last_login_ip", "last_login_at")
 
 
 def _get_module_or_404(module: str):
@@ -216,6 +229,15 @@ async def import_apply(
             continue
         try:
             doc = {k: v for k, v in d.items() if k != "_id"}
+            # Sanitización especial para 'users': resetear bloqueos/sesiones (no propagarlos del origen)
+            if module == "users":
+                for f in USER_SANITIZE_FIELDS:
+                    if f == "failed_attempts":
+                        doc[f] = 0
+                    elif f == "locked_until":
+                        doc[f] = None
+                    else:
+                        doc.pop(f, None)
             kv = doc[key]
             if kv in existing_map:
                 # Conservar created_at original si existe
