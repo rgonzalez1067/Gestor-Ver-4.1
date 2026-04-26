@@ -722,6 +722,345 @@ async def leads_funnel_report(
 
 
 # =====================================================================
+# COTIZACIONES EN ESTADO IRREGULAR
+# =====================================================================
+
+# Fases del flujo (orden cronológico): (campo timestamp, label legible)
+PHASE_FIELDS = [
+    ("created_at", "Creada"),
+    ("sent_to_client_at", "Enviada al Cliente"),
+    ("approved_at", "Aprobada"),
+    ("invoiced_at", "Facturada"),
+    ("paid_at", "Pagada"),
+    ("delivered_at", "Entregada"),
+    ("repaired_at", "Reparada"),
+    ("archived_at", "Archivada / Pasada a Proyecto"),
+]
+
+
+def _detect_irregularities(q: dict) -> list:
+    """Reglas de irregularidad — falta de timestamps en fases anteriores cuando ya alcanzó una posterior.
+    - Si llegó a Facturada/Pagada/Entregada/Reparada o Pasó a Proyecto → debe tener `approved_at`.
+    - Si llegó a Pagada/Entregada/Reparada → debe tener `invoiced_at` (excepto categoría implementation que no se factura).
+    - Si llegó a Entregada/Reparada → debe tener `paid_at` (excepto implementation).
+    """
+    cat = (q.get("quote_category") or "").lower()
+    has_approved = bool(q.get("approved_at"))
+    has_invoiced = bool(q.get("invoiced_at"))
+    has_paid = bool(q.get("paid_at"))
+    has_delivered = bool(q.get("delivered_at"))
+    has_repaired = bool(q.get("repaired_at"))
+    is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
+
+    issues = []
+
+    if (has_invoiced or has_paid or has_delivered or has_repaired or is_to_project) and not has_approved:
+        issues.append("Falta fecha de Aprobación")
+
+    if cat != "implementation":
+        if (has_paid or has_delivered or has_repaired) and not has_invoiced:
+            issues.append("Falta fecha de Facturación")
+        if (has_delivered or has_repaired) and not has_paid:
+            issues.append("Falta fecha de Pago")
+
+    return issues
+
+
+def _format_phase_timeline(q: dict) -> list:
+    """Devuelve una lista [{field, label, timestamp, present}] para cada fase relevante."""
+    out = []
+    for field, label in PHASE_FIELDS:
+        ts = q.get(field)
+        if field == "archived_at":
+            # solo incluir si realmente pasó a proyecto / fue archivada
+            if not ts:
+                continue
+        out.append({
+            "field": field,
+            "label": label,
+            "timestamp": ts or None,
+            "present": bool(ts),
+        })
+    return out
+
+
+async def _collect_irregular_quotes(match: dict) -> list:
+    """Une `quotes` activas + `quote_history` (archivadas a proyecto) y filtra solo las irregulares."""
+    irregulars = []
+
+    # 1) Cotizaciones activas (no archivadas o aún en quotes)
+    async for q in db.quotes.find(match, {"_id": 0}):
+        issues = _detect_irregularities(q)
+        if not issues:
+            continue
+        irregulars.append({
+            "quote_id": q.get("quote_id"),
+            "quote_number": q.get("quote_number"),
+            "quote_category": q.get("quote_category"),
+            "client_name": q.get("client_name"),
+            "client_segment": q.get("client_segment"),
+            "current_status": q.get("quote_status") or "—",
+            "total_usd": q.get("total_usd") or 0,
+            "passed_to_project": bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple"),
+            "archived": bool(q.get("archived")),
+            "archived_trigger": q.get("archived_trigger"),
+            "phases": _format_phase_timeline(q),
+            "issues": issues,
+            "source": "quotes",
+        })
+
+    # 2) Cotizaciones históricas (incluye las pasadas a Proyecto)
+    # `quote_history` snapshotea todo en el campo 'snapshot' que contiene los timestamps originales.
+    async for h in db.quote_history.find(match, {"_id": 0}):
+        snap = h.get("snapshot") or {}
+        # mezclar campos del top-level con snapshot (fallbacks)
+        combined = {**snap, **{k: h.get(k) for k in ("quote_id", "quote_number", "quote_category", "client_name", "archived_trigger")}}
+        # Marcar como archivada y trigger desde el history
+        combined["archived"] = True
+        if not combined.get("archived_trigger"):
+            combined["archived_trigger"] = h.get("archived_trigger")
+        # Forzar archived_at desde el history
+        combined.setdefault("archived_at", h.get("archived_at"))
+        # Si snapshot no traía estos campos, derivarlos
+        combined.setdefault("client_segment", snap.get("client_segment"))
+        combined.setdefault("total_usd", h.get("total_usd"))
+
+        # Aplicar filtros básicos (date range / segment / category) sobre `created_at` del snapshot
+        if "$gte" in (match.get("created_at") or {}) or "$lte" in (match.get("created_at") or {}):
+            ca = combined.get("created_at") or h.get("created_at")
+            if not ca:
+                continue
+            rng = match["created_at"]
+            if "$gte" in rng and ca < rng["$gte"]:
+                continue
+            if "$lte" in rng and ca > rng["$lte"]:
+                continue
+        if match.get("client_segment") and combined.get("client_segment") != match["client_segment"]:
+            continue
+        if match.get("quote_category") and combined.get("quote_category") != match["quote_category"]:
+            continue
+
+        issues = _detect_irregularities(combined)
+        if not issues:
+            continue
+
+        # Evitar duplicados con `quotes` (si la cotización aún no fue removida)
+        if any(x["quote_id"] == combined.get("quote_id") for x in irregulars):
+            continue
+
+        irregulars.append({
+            "quote_id": combined.get("quote_id"),
+            "quote_number": combined.get("quote_number"),
+            "quote_category": combined.get("quote_category"),
+            "client_name": combined.get("client_name"),
+            "client_segment": combined.get("client_segment"),
+            "current_status": (combined.get("quote_status") or h.get("quote_status_final") or "Archivada"),
+            "total_usd": combined.get("total_usd") or 0,
+            "passed_to_project": (combined.get("archived_trigger") or "").lower().startswith("enviada a imple"),
+            "archived": True,
+            "archived_trigger": combined.get("archived_trigger"),
+            "phases": _format_phase_timeline(combined),
+            "issues": issues,
+            "source": "quote_history",
+        })
+
+    irregulars.sort(key=lambda x: (x.get("quote_number") or ""), reverse=True)
+    return irregulars
+
+
+@router.get("/reports/sales/irregular-quotes")
+async def irregular_quotes_report(
+    segment: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """Lista de cotizaciones con fases sin timestamp esperado.
+    Acepta los mismos filtros que el resto del módulo: segmento, categoría, rango de fechas."""
+    await get_current_user(authorization)
+    match = _build_match(date_from, date_to, segment, category)
+    items = await _collect_irregular_quotes(match)
+
+    # KPIs
+    by_issue = {}
+    passed_to_project = 0
+    total_usd = 0.0
+    for it in items:
+        if it.get("passed_to_project"):
+            passed_to_project += 1
+        try:
+            total_usd += float(it.get("total_usd") or 0)
+        except Exception:
+            pass
+        for iss in it["issues"]:
+            by_issue[iss] = by_issue.get(iss, 0) + 1
+
+    return {
+        "total_irregular": len(items),
+        "passed_to_project": passed_to_project,
+        "total_usd": round(total_usd, 2),
+        "by_issue": by_issue,
+        "items": items,
+    }
+
+
+@router.get("/reports/sales/irregular-quotes/pdf")
+async def irregular_quotes_pdf(
+    segment: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    """PDF elegante del reporte de cotizaciones irregulares."""
+    user = await get_current_user(authorization)
+    match = _build_match(date_from, date_to, segment, category)
+    items = await _collect_irregular_quotes(match)
+
+    passed_to_project = sum(1 for it in items if it.get("passed_to_project"))
+    by_issue = {}
+    total_usd = 0.0
+    for it in items:
+        try:
+            total_usd += float(it.get("total_usd") or 0)
+        except Exception:
+            pass
+        for iss in it["issues"]:
+            by_issue[iss] = by_issue.get(iss, 0) + 1
+
+    def fmt_ts(iso: Optional[str]) -> str:
+        if not iso:
+            return "—"
+        try:
+            return datetime.fromisoformat(str(iso).replace("Z", "+00:00")).strftime("%d/%m/%Y")
+        except Exception:
+            return str(iso)[:10]
+
+    sections_html = []
+    for it in items:
+        # Timeline horizontal
+        chips = ""
+        for ph in it["phases"]:
+            cls = "phase-ok" if ph["present"] else "phase-missing"
+            chips += f'<div class="ph {cls}"><div class="ph-label">{ph["label"]}</div><div class="ph-ts">{fmt_ts(ph["timestamp"])}</div></div>'
+
+        issues_html = " ".join(f'<span class="issue">⚠ {i}</span>' for i in it["issues"])
+        proj_badge = '<span class="badge-proj">🚀 Pasó a Proyecto</span>' if it.get("passed_to_project") else ""
+        cat = (it.get("quote_category") or "—").capitalize()
+        seg = (it.get("client_segment") or "—").upper()
+        amount = f"${(it.get('total_usd') or 0):,.2f}"
+
+        sections_html.append(f"""
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <span class="qnum">{it.get('quote_number') or '—'}</span>
+              <span class="muted">·</span>
+              <span class="client">{it.get('client_name') or '—'}</span>
+              {proj_badge}
+            </div>
+            <div class="card-meta">
+              <span>Categoría: <b>{cat}</b></span>
+              <span>Segmento: <b>{seg}</b></span>
+              <span>Estado actual: <b>{it.get('current_status')}</b></span>
+              <span>Monto: <b>{amount}</b></span>
+            </div>
+          </div>
+          <div class="timeline">{chips}</div>
+          <div class="issues">{issues_html}</div>
+        </div>
+        """)
+
+    if not sections_html:
+        sections_html.append('<div class="empty">No se encontraron cotizaciones irregulares con los filtros aplicados. ✅</div>')
+
+    by_issue_chips = " ".join(
+        f'<span class="kpi-issue">{n} × {k}</span>' for k, n in sorted(by_issue.items(), key=lambda x: -x[1])
+    ) or '<span class="muted">—</span>'
+
+    filters_label = []
+    if date_from or date_to:
+        filters_label.append(f"Fecha: {date_from or '—'} → {date_to or '—'}")
+    if segment and segment != "all":
+        filters_label.append(f"Segmento: {segment}")
+    if category and category != "all":
+        filters_label.append(f"Categoría: {category}")
+    filters_str = " · ".join(filters_label) if filters_label else "Sin filtros aplicados"
+
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    user_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "")
+
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Cotizaciones en Estado Irregular</title>
+<style>
+  @page {{ size: A4; margin: 16mm 12mm; @bottom-right {{ content: "Pág. " counter(page) " / " counter(pages); font-size: 9px; color: #64748b; }} }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: 'Helvetica','Arial',sans-serif; color: #0f172a; font-size: 10px; margin:0; }}
+  .cover {{ border-left: 5px solid #f43f5e; padding: 10px 0 14px 16px; margin-bottom: 14px; }}
+  .cover h1 {{ font-size: 22px; margin: 0 0 4px 0; color: #0f172a; }}
+  .cover p {{ margin: 2px 0; color: #475569; font-size: 10px; }}
+  .summary {{ display: flex; gap: 8px; margin: 0 0 14px 0; }}
+  .stat {{ flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }}
+  .stat .lbl {{ font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }}
+  .stat .val {{ font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 2px; }}
+  .stat.rose {{ border-left: 4px solid #f43f5e; }}
+  .stat.amber {{ border-left: 4px solid #f59e0b; }}
+  .stat.violet {{ border-left: 4px solid #8b5cf6; }}
+  .stat.slate {{ border-left: 4px solid #64748b; }}
+  .by-issue {{ margin: 4px 0 14px 0; font-size: 9.5px; }}
+  .kpi-issue {{ display: inline-block; padding: 2px 8px; margin: 0 4px 4px 0; border-radius: 12px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }}
+  .card {{ border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; page-break-inside: avoid; background: #fff; }}
+  .card-head {{ border-bottom: 1px dashed #e2e8f0; padding-bottom: 4px; margin-bottom: 6px; }}
+  .card-title {{ font-size: 11.5px; font-weight: 700; }}
+  .card-title .qnum {{ color: #0c4a6e; font-family: monospace; }}
+  .card-title .muted {{ color: #cbd5e1; margin: 0 4px; }}
+  .card-title .client {{ color: #0f172a; }}
+  .card-meta {{ font-size: 9px; color: #475569; display: flex; gap: 12px; margin-top: 2px; }}
+  .badge-proj {{ display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 12px; background: linear-gradient(90deg,#a78bfa,#7c3aed); color: white; font-size: 8.5px; font-weight: 600; vertical-align: middle; }}
+  .timeline {{ display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }}
+  .ph {{ flex: 1; min-width: 80px; padding: 4px 6px; border-radius: 4px; text-align: center; border: 1px solid; }}
+  .phase-ok {{ background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }}
+  .phase-missing {{ background: #fef2f2; border-color: #fecaca; color: #991b1b; }}
+  .ph-label {{ font-size: 8.5px; font-weight: 600; }}
+  .ph-ts {{ font-size: 8.5px; margin-top: 1px; font-family: monospace; }}
+  .issues {{ margin-top: 4px; }}
+  .issue {{ display: inline-block; padding: 1px 8px; margin-right: 4px; border-radius: 10px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 9px; }}
+  .empty {{ padding: 30px; text-align: center; color: #16a34a; font-size: 13px; }}
+  .footer {{ margin-top: 12px; padding-top: 6px; border-top: 1px solid #e2e8f0; font-size: 8.5px; color: #94a3b8; text-align: center; }}
+</style></head>
+<body>
+  <div class="cover">
+    <h1>Cotizaciones en Estado Irregular</h1>
+    <p>Cotizaciones cuyo flujo presenta fases avanzadas sin timestamp en fases previas.</p>
+    <p>Generado el <b>{now_str}</b> · Por <b>{user_name}</b></p>
+    <p><b>Filtros:</b> {filters_str}</p>
+  </div>
+
+  <div class="summary">
+    <div class="stat rose"><div class="lbl">Cotizaciones irregulares</div><div class="val">{len(items)}</div></div>
+    <div class="stat violet"><div class="lbl">Pasadas a Proyecto</div><div class="val">{passed_to_project}</div></div>
+    <div class="stat amber"><div class="lbl">Tipos de irregularidad</div><div class="val">{len(by_issue)}</div></div>
+    <div class="stat slate"><div class="lbl">Monto total (USD)</div><div class="val">${total_usd:,.0f}</div></div>
+  </div>
+
+  <div class="by-issue"><b>Resumen de irregularidades:</b> {by_issue_chips}</div>
+
+  {''.join(sections_html)}
+
+  <div class="footer">MegaNexus · Reporte generado automáticamente · Documento confidencial</div>
+</body></html>"""
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    filename = f"cotizaciones_irregulares_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# =====================================================================
 # RESUMEN EJECUTIVO — PDF agregado de los 8 reportes
 # =====================================================================
 

@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
   Line, ComposedChart, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus, FileText } from 'lucide-react';
+import { TrendingUp, Filter, Clock, BarChart3, RefreshCw, Download, DollarSign, Users, Wrench, Package, Target, ArrowUp, ArrowDown, Minus, FileText, AlertTriangle, Rocket } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -70,6 +70,8 @@ const SalesReports = () => {
   const [productivityData, setProductivityData] = useState(null);
   const [stockData, setStockData] = useState(null);
   const [leadsData, setLeadsData] = useState(null);
+  const [irregularData, setIrregularData] = useState(null);
+  const [irregularLoading, setIrregularLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const fetchAll = async () => {
@@ -83,7 +85,7 @@ const SalesReports = () => {
       if (dateFrom) fp.date_from = dateFrom;
       if (dateTo) fp.date_to = dateTo;
 
-      const [fr, ar, mr, rec, rk, prod, stk, lds] = await Promise.all([
+      const [fr, ar, mr, rec, rk, prod, stk, lds, irr] = await Promise.all([
         api.get('/reports/sales/funnel', { params: fp }),
         api.get('/reports/sales/aging', { params }),
         api.get('/reports/sales/monthly', { params: { ...params, year } }),
@@ -92,6 +94,7 @@ const SalesReports = () => {
         api.get('/reports/sales/repair-productivity', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
         api.get('/reports/sales/stock-vs-demand', { params: { months_back: 6 } }),
         api.get('/reports/sales/leads-funnel', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
+        api.get('/reports/sales/irregular-quotes', { params: fp }),
       ]);
       setFunnelData(fr.data);
       setAgingData(ar.data);
@@ -101,6 +104,7 @@ const SalesReports = () => {
       setProductivityData(prod.data);
       setStockData(stk.data);
       setLeadsData(lds.data);
+      setIrregularData(irr.data);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al cargar reportes');
     } finally {
@@ -128,6 +132,30 @@ const SalesReports = () => {
       toast.success('Resumen ejecutivo descargado');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al generar PDF');
+    }
+  };
+
+  const downloadIrregularPdf = async () => {
+    setIrregularLoading(true);
+    try {
+      const params = {};
+      if (segment !== 'all') params.segment = segment;
+      if (category !== 'all') params.category = category;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      const res = await api.get('/reports/sales/irregular-quotes/pdf', { params, responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, '');
+      a.href = url;
+      a.download = `cotizaciones_irregulares_${ts}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('Reporte descargado');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al generar PDF');
+    } finally {
+      setIrregularLoading(false);
     }
   };
 
@@ -231,6 +259,7 @@ const SalesReports = () => {
               <TabsTrigger value="productivity" data-testid="tab-productivity"><Wrench size={14} className="mr-1" /> Productividad</TabsTrigger>
               <TabsTrigger value="stock" data-testid="tab-stock"><Package size={14} className="mr-1" /> Stock</TabsTrigger>
               <TabsTrigger value="leads" data-testid="tab-leads"><Target size={14} className="mr-1" /> Leads</TabsTrigger>
+              <TabsTrigger value="irregular" data-testid="tab-irregular"><AlertTriangle size={14} className="mr-1" /> Irregulares</TabsTrigger>
             </TabsList>
 
             {/* === FUNNEL === */}
@@ -775,6 +804,114 @@ const SalesReports = () => {
                       </table>
                     </Card>
                   </div>
+                </>
+              )}
+            </TabsContent>
+
+            {/* === IRREGULARES === */}
+            <TabsContent value="irregular" className="mt-4">
+              {!irregularData ? (
+                <Card className="p-8 text-center text-slate-400">Cargando...</Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <Card className="p-4 border-rose-200 bg-rose-50" data-testid="kpi-irregular-total">
+                      <p className="text-xs text-rose-700">Cotizaciones irregulares</p>
+                      <p className="text-2xl font-bold text-rose-800">{irregularData.total_irregular}</p>
+                    </Card>
+                    <Card className="p-4 border-violet-200 bg-violet-50" data-testid="kpi-irregular-projects">
+                      <p className="text-xs text-violet-700">Pasadas a Proyecto</p>
+                      <p className="text-2xl font-bold text-violet-800">{irregularData.passed_to_project}</p>
+                    </Card>
+                    <Card className="p-4 border-slate-200" data-testid="kpi-irregular-amount">
+                      <p className="text-xs text-slate-500">Monto total (USD)</p>
+                      <p className="text-2xl font-bold text-slate-900">{fmtUSD(irregularData.total_usd)}</p>
+                    </Card>
+                    <Card className="p-4 border-amber-200 bg-amber-50">
+                      <p className="text-xs text-amber-700 mb-1">Tipos de irregularidad</p>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(irregularData.by_issue || {}).map(([k, n]) => (
+                          <Badge key={k} variant="outline" className="bg-white text-amber-800 border-amber-300 text-[10px]">
+                            {n} × {k}
+                          </Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+
+                  <div className="flex justify-end mb-3">
+                    <Button
+                      onClick={downloadIrregularPdf}
+                      disabled={irregularLoading}
+                      data-testid="download-irregular-pdf"
+                      className="bg-rose-600 hover:bg-rose-700 text-white"
+                    >
+                      <FileText size={16} className="mr-2" />
+                      {irregularLoading ? 'Generando...' : 'Descargar PDF'}
+                    </Button>
+                  </div>
+
+                  {irregularData.items.length === 0 ? (
+                    <Card className="p-10 text-center">
+                      <p className="text-emerald-700 text-lg font-semibold">✅ No hay cotizaciones irregulares con los filtros aplicados.</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-3" data-testid="irregular-list">
+                      {irregularData.items.map((it) => (
+                        <Card key={it.quote_id} className="p-4 border-slate-200">
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-sm font-bold text-sky-800">{it.quote_number || '—'}</span>
+                                <span className="text-slate-300">·</span>
+                                <span className="font-semibold text-slate-800">{it.client_name || '—'}</span>
+                                {it.passed_to_project && (
+                                  <Badge className="bg-gradient-to-r from-violet-500 to-purple-600 text-white text-[10px] border-0">
+                                    <Rocket size={10} className="mr-1" /> Pasó a Proyecto
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex gap-3 mt-1 text-xs text-slate-500 flex-wrap">
+                                <span>Categoría: <b className="text-slate-700">{(it.quote_category || '—')}</b></span>
+                                <span>Segmento: <b className="text-slate-700">{(it.client_segment || '—').toUpperCase()}</b></span>
+                                <span>Estado actual: <b className="text-slate-700">{it.current_status}</b></span>
+                                <span>Monto: <b className="text-slate-700">{fmtUSD(it.total_usd)}</b></span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Timeline */}
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
+                            {it.phases.map((ph) => (
+                              <div
+                                key={ph.field}
+                                className={`px-2 py-1.5 rounded border text-center ${
+                                  ph.present
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                                }`}
+                                data-testid={`phase-${ph.field}`}
+                              >
+                                <div className="text-[10px] font-semibold">{ph.label}</div>
+                                <div className="text-[10px] font-mono mt-0.5">
+                                  {ph.timestamp ? new Date(ph.timestamp).toLocaleDateString('es-VE') : '—'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Issues */}
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {it.issues.map((iss) => (
+                              <Badge key={iss} className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px]">
+                                ⚠ {iss}
+                              </Badge>
+                            ))}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>
