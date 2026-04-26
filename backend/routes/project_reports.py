@@ -47,25 +47,26 @@ def _filter_matrix(matrix: dict, banks: List[str], products: List[str]) -> dict:
     return out
 
 
-def _aggregate_phases(matrices: list) -> dict:
-    """Recibe una lista de implementation_matrix (ya filtradas) y calcula totales por fase.
-    El 'expected' de cada fase es la suma de los terminales esperados por producto
-    (cada terminal pasa por TODAS las fases, así que el expected por fase = expected del producto).
-    Devuelve: {phase: {expected, processed, percent, completed_count, total_items}}"""
+def _aggregate_phases(matrices_with_fallback: list) -> dict:
+    """Recibe [(matrix, fallback_box_count)] y calcula totales por fase.
+    El 'expected' por producto = max entre las fases con valor definido; si todas las fases
+    están vacías, se usa el fallback_box_count (regla del backend de proyectos: line 1077/1179).
+    Cada terminal pasa por TODAS las fases, así que el expected es el mismo para cada fase."""
     totals = {ph: {"expected": 0, "processed": 0, "completed_count": 0, "total_items": 0} for ph in PHASES}
-    for matrix in matrices:
+    for matrix, fallback_box in matrices_with_fallback:
         for _bank, products in (matrix or {}).items():
             for _prod, phases in (products or {}).items():
-                # El "expected" del producto = máximo entre todas las fases (típicamente coinciden,
-                # pero si alguna fase no fue inicializada, el max representa el total real).
                 product_expected = 0
                 for ph in PHASES:
                     info = (phases or {}).get(ph) or {}
                     e = int(info.get("expected") or 0)
                     if e > product_expected:
                         product_expected = e
+                # Fallback al box_count de la tienda/proyecto si no hay ningún expected en las fases
                 if product_expected == 0:
-                    continue  # producto sin terminales esperados → no se cuenta
+                    product_expected = int(fallback_box or 0)
+                if product_expected == 0:
+                    continue  # sin terminales → no se cuenta
                 for ph in PHASES:
                     info = (phases or {}).get(ph) or {}
                     processed = int(info.get("processed") or 0)
@@ -83,14 +84,27 @@ def _aggregate_phases(matrices: list) -> dict:
     return totals
 
 
-def _build_matrix_rows(matrices_by_label: list, banks: List[str], products: List[str]) -> list:
+def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products: List[str]) -> list:
     """Construye filas detalladas para la tabla del reporte.
-    matrices_by_label: [(label, matrix), ...] — label = nombre tienda o '—' para single.
+    matrices_with_fallback: [(label, matrix, fallback_box), ...] — label = nombre tienda o '—'.
+    Si una fase no tiene expected definido, usa product_expected (max entre fases) o el fallback_box.
     """
     rows = []
-    for label, matrix in matrices_by_label:
+    for label, matrix, fallback_box in matrices_with_fallback:
         for bank, bank_products in (matrix or {}).items():
             for prod, phases in (bank_products or {}).items():
+                # expected común a todas las fases del producto
+                product_expected = 0
+                for ph in PHASES:
+                    info = (phases or {}).get(ph) or {}
+                    e = int(info.get("expected") or 0)
+                    if e > product_expected:
+                        product_expected = e
+                if product_expected == 0:
+                    product_expected = int(fallback_box or 0)
+                if product_expected == 0:
+                    continue  # producto sin terminales
+
                 row = {
                     "store_label": label,
                     "bank": bank,
@@ -99,13 +113,12 @@ def _build_matrix_rows(matrices_by_label: list, banks: List[str], products: List
                 }
                 for ph in PHASES:
                     info = (phases or {}).get(ph) or {}
-                    expected = int(info.get("expected") or 0)
                     processed = int(info.get("processed") or 0)
                     row["phases"][ph] = {
-                        "expected": expected,
+                        "expected": product_expected,
                         "processed": processed,
                         "completed": bool(info.get("completed")),
-                        "percent": round((processed / expected) * 100, 1) if expected > 0 else 0.0,
+                        "percent": round((processed / product_expected) * 100, 1) if product_expected > 0 else 0.0,
                     }
                 rows.append(row)
     return rows
@@ -122,8 +135,8 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
 
     project_type = proj.get("project_type", "single")
 
-    # Recolectar matrices a evaluar
-    matrices_by_label = []  # [(label, matrix)]
+    # Recolectar matrices a evaluar: lista de (label, matrix, fallback_box_count)
+    matrices_by_label = []
     if project_type == "multistore":
         for st in (proj.get("stores") or []):
             if stores_filter and st.get("store_id") not in stores_filter:
@@ -131,11 +144,11 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
             label = st.get("name") or st.get("store_id") or "—"
             mat = _filter_matrix(st.get("implementation_matrix") or {}, banks_filter, products_filter)
             if mat:
-                matrices_by_label.append((label, mat))
+                matrices_by_label.append((label, mat, int(st.get("box_count") or 0)))
     else:
         mat = _filter_matrix(proj.get("implementation_matrix") or {}, banks_filter, products_filter)
         if mat:
-            matrices_by_label.append(("—", mat))
+            matrices_by_label.append(("—", mat, int(proj.get("box_count") or 0)))
 
     return proj, matrices_by_label, {
         "banks": banks_filter,
@@ -176,7 +189,7 @@ async def project_progress_report(
 
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([m for _l, m in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb in matrices_by_label])
 
     # Catálogos disponibles para popular la pantalla de filtros (no filtrados)
     available_banks = []
@@ -248,7 +261,7 @@ async def project_progress_report_pdf(
     proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv)
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([m for _l, m in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb in matrices_by_label])
 
     # Helpers
     def fmt_dt(iso):
