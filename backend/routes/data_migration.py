@@ -51,6 +51,11 @@ MODULES = {
         "key": "movement_id",
         "label": "Movimientos de Inventario",
     },
+    "clients": {
+        "collection": "clients",
+        "key": "client_id",
+        "label": "Clientes",
+    },
 }
 
 # Campos que NO deben sobreescribirse al importar usuarios (sesión / bloqueos transitorios)

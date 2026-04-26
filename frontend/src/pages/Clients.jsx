@@ -13,6 +13,7 @@ import DebouncedInput from '../components/DebouncedInput';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { MigrationButtons } from '../components/MigrationButtons';
 import { usePermission } from '../hooks/usePermission';
 import { useNavigate } from 'react-router-dom';
 import { ClientEmailDialog } from '../components/ClientEmailDialog';
@@ -824,7 +825,7 @@ export const Clients = () => {
       <Sidebar />
       <main className="flex-1 p-8" data-testid="clients-page">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-4">
             <div>
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Clientes</h1>
               <p className="text-slate-600">Gestione la información y seguimiento de sus clientes</p>
@@ -1275,10 +1276,13 @@ export const Clients = () => {
           </div>
 
           {/* Search */}
-          <div className="mb-4 max-w-sm relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <DebouncedInput placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
-              onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="max-w-sm relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <DebouncedInput placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
+                onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
+            </div>
+            <MigrationButtons module="clients" label="Clientes" onImported={fetchClients} />
           </div>
 
 
