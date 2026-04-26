@@ -10,7 +10,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
 import { MigrationButtons } from '../components/MigrationButtons';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, Settings2, RefreshCw, Layers, Monitor, Globe, Smartphone, Link, LinkIcon, Box, Wrench, Search, Building2, FileBarChart } from 'lucide-react';
 
 const SERVICE_TYPES = [
   { id: 'Producto', name: 'Producto', icon: Box, description: 'Tangible, requiere despacho (Pinpads, Cables, etc.)' },
@@ -67,6 +67,9 @@ export const MediosPago = () => {
   const fileInputRef = useRef(null);
   const [importResult, setImportResult] = useState(null);
   const [showImportResult, setShowImportResult] = useState(false);
+  // Modal "Bancos asociados al producto"
+  const [banksModal, setBanksModal] = useState({ open: false, loading: false, service: null, banks: [] });
+  const [reportLoading, setReportLoading] = useState(false);
   const [filterServiceType, setFilterServiceType] = useState('all');
   const [filterComponent, setFilterComponent] = useState('all');
   const [filterAppType, setFilterAppType] = useState('all');
@@ -316,6 +319,38 @@ export const MediosPago = () => {
     }
   };
 
+  const openBanksModal = async (service) => {
+    setBanksModal({ open: true, loading: true, service, banks: [] });
+    try {
+      const { data } = await api.get(`/services/${service.service_id}/banks`);
+      setBanksModal({ open: true, loading: false, service, banks: data.banks || [] });
+    } catch (err) {
+      toast.error(`Error: ${err.response?.data?.detail || err.message}`);
+      setBanksModal({ open: false, loading: false, service: null, banks: [] });
+    }
+  };
+
+  const downloadBanksByProductReport = async () => {
+    setReportLoading(true);
+    try {
+      const res = await api.get('/services/report/banks-by-product/pdf', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      const ts = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      a.download = `bancos_por_producto_${ts}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Reporte "Bancos por Producto" descargado');
+    } catch (err) {
+      toast.error(`Error al generar reporte: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   const getApplicationTypeBadge = (type) => {
     switch(type) {
       case 'setup':
@@ -417,6 +452,16 @@ export const MediosPago = () => {
               >
                 <FileText size={18} className="mr-2" />
                 PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={downloadBanksByProductReport}
+                disabled={reportLoading}
+                data-testid="banks-by-product-report-btn"
+                className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
+              >
+                <FileBarChart size={18} className="mr-2" />
+                {reportLoading ? 'Generando...' : 'Bancos por Producto'}
               </Button>
               {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
@@ -896,6 +941,16 @@ export const MediosPago = () => {
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid={`banks-medio-pago-${medioPago.service_id}`}
+                            onClick={() => openBanksModal(medioPago)}
+                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                            title="Ver bancos asociados"
+                          >
+                            <Building2 size={14} className="mr-1" />Bancos
+                          </Button>
                           {canEdit && <Button
                             size="sm"
                             variant="outline"
@@ -951,6 +1006,86 @@ export const MediosPago = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Modal: Bancos asociados al producto */}
+        <Dialog open={banksModal.open} onOpenChange={(o) => !o && setBanksModal({ open: false, loading: false, service: null, banks: [] })}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid="banks-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-manrope">
+                <Building2 className="text-indigo-600" size={22} />
+                Bancos asociados a: <span className="text-indigo-700">{banksModal.service?.name}</span>
+              </DialogTitle>
+            </DialogHeader>
+            {banksModal.loading ? (
+              <div className="text-center py-10 text-slate-500">Cargando...</div>
+            ) : banksModal.banks.length === 0 ? (
+              <div className="text-center py-10 text-slate-500 italic">
+                Este producto no está asociado a ningún banco.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-sm text-slate-600 mb-2">
+                  <strong>{banksModal.banks.length}</strong> banco(s) tienen este producto configurado.
+                </div>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700 w-10">#</th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700">Banco</th>
+                        <th className="px-3 py-2 text-center font-semibold text-slate-700 w-24">Código</th>
+                        <th className="px-3 py-2 text-center font-semibold text-slate-700">Componentes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {banksModal.banks.map((b, idx) => {
+                        const comps = [];
+                        if (b.vpos_available) comps.push({ name: 'VPOS', icon: Monitor });
+                        if (b.gateway_available) comps.push({ name: 'Gateway', icon: Globe });
+                        if (b.mpos_available) comps.push({ name: 'mPOS', icon: Smartphone });
+                        if (b.link_available) comps.push({ name: 'Link', icon: Link });
+                        return (
+                          <tr key={b.bank_id} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-2 text-slate-400 text-xs">{idx + 1}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                {b.bank_logo_url ? (
+                                  <img src={b.bank_logo_url} alt={b.bank_name} className="w-6 h-6 object-contain rounded" />
+                                ) : (
+                                  <Building2 size={16} className="text-slate-400" />
+                                )}
+                                <span className="font-medium text-slate-800">{b.bank_name}</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-center text-slate-500 font-mono text-xs">
+                              {b.bank_code || '—'}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-wrap items-center justify-center gap-1">
+                                {comps.length === 0 ? (
+                                  <span className="text-xs text-slate-400 italic">—</span>
+                                ) : (
+                                  comps.map((c) => {
+                                    const Icon = c.icon;
+                                    return (
+                                      <span key={c.name} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs">
+                                        <Icon size={11} />{c.name}
+                                      </span>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

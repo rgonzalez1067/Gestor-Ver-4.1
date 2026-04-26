@@ -5,6 +5,15 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Bancos por Producto en Medios de Pago (Feb 2026) — NUEVO
+**Backend** (`/app/backend/routes/services.py`):
+- `GET /api/services/{service_id}/banks` → lista de bancos asociados al producto. Cruza por `products.service_id` y por `product_name` normalizado (lowercase + sin acentos + trim, espejo del frontend).
+- `GET /api/services/report/banks-by-product/pdf` → PDF "Bancos por Producto" generado con WeasyPrint. Diseño elegante: portada con KPIs (productos con/sin bancos asociados, total de asociaciones), una sección por producto con tabla de bancos (nombre, código, componentes habilitados como chips VPOS/Gateway/mPOS/Link), footer con paginación.
+
+**Frontend** (`/app/frontend/src/pages/MediosPago.jsx`):
+- Botón "Bancos" en cada fila → modal con lista detallada (logo, nombre, código, componentes habilitados).
+- Botón global "Bancos por Producto" en cabecera → descarga PDF.
+
 ### Migración de Datos Catálogos (Feb 2026) — NUEVO
 **Backend** (`/app/backend/routes/data_migration.py`):
 - 8 endpoints admin-only para Export/Preview/Apply de catálogos maestros entre ambientes (Preview ↔ Deploy).
