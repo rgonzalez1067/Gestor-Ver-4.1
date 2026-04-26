@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
@@ -44,6 +45,7 @@ const exportCSV = (rows, filename) => {
 };
 
 const SalesReports = () => {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('funnel');
 
   // RBAC: Resumen Ejecutivo PDF requiere flag especial o admin
@@ -862,7 +864,21 @@ const SalesReports = () => {
                           <div className="flex items-start justify-between gap-2 flex-wrap">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-mono text-sm font-bold text-sky-800">{it.quote_number || '—'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (it.archived || it.passed_to_project) {
+                                      navigate(`/historical-quotes?quote_id=${encodeURIComponent(it.quote_id)}`);
+                                    } else {
+                                      navigate(`/quotes?highlight=${encodeURIComponent(it.quote_number || '')}`);
+                                    }
+                                  }}
+                                  className="font-mono text-sm font-bold text-sky-700 hover:text-sky-900 hover:underline cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-300 rounded"
+                                  title={it.archived ? 'Abrir en Histórico de Cotizaciones' : 'Abrir en Cotizaciones'}
+                                  data-testid={`irregular-quote-link-${it.quote_id}`}
+                                >
+                                  {it.quote_number || '—'}
+                                </button>
                                 <span className="text-slate-300">·</span>
                                 <span className="font-semibold text-slate-800">{it.client_name || '—'}</span>
                                 {it.passed_to_project && (

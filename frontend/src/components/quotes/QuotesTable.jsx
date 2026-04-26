@@ -40,6 +40,7 @@ export const QuotesTable = ({
   quotes, clients,
   filterClient, filterStatus, filterCategory, filterSegment, filterDateFrom, filterDateTo,
   actionLoading, canEdit,
+  highlightedQuoteNumber,
   onOpenAnexos, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
@@ -95,9 +96,16 @@ export const QuotesTable = ({
               ? (quote.equipment_type === 'POS' || quote.equipment_type === 'Pinpad' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')
               : 'bg-brand-blue-50 text-brand-blue-600';
 
+            const isHighlighted = highlightedQuoteNumber && quote.quote_number === highlightedQuoteNumber;
+
             return (
-              <tr key={quote.quote_id} className="hover:bg-slate-50 group" data-testid={`quote-row-${quote.quote_id}`}>
-                <td className="px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r-2 border-slate-200">{quote.quote_number}</td>
+              <tr
+                key={quote.quote_id}
+                className={`hover:bg-slate-50 group transition-colors ${isHighlighted ? 'ring-2 ring-amber-400 bg-amber-50 animate-pulse' : ''}`}
+                data-testid={`quote-row-${quote.quote_id}`}
+                data-quote-row={quote.quote_number}
+              >
+                <td className={`px-3 py-4 text-sm font-mono font-medium text-slate-900 whitespace-nowrap sticky left-0 z-10 border-r-2 border-slate-200 ${isHighlighted ? 'bg-amber-50 group-hover:bg-amber-50' : 'bg-white group-hover:bg-slate-50'}`}>{quote.quote_number}</td>
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${categoryColor}`}>
                     {isRepair ? 'Reparaciones' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? 'Equipos' : 'Implementación'}

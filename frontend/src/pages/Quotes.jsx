@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -41,6 +42,8 @@ import { useQuoteRbac } from '../hooks/useQuoteRbac';
 
 export const Quotes = () => {
   const { canEdit, user: currentUser } = usePermission('cotizaciones');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightedQuote, setHighlightedQuote] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [clients, setClients] = useState([]);
   const [banks, setBanks] = useState([]);
@@ -241,6 +244,28 @@ export const Quotes = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Auto-highlight cuando se llega con ?highlight=COT-NUMBER (desde Reportes de Irregulares)
+  useEffect(() => {
+    const target = searchParams.get('highlight');
+    if (!target || quotes.length === 0) return;
+    const match = quotes.find(q => q.quote_number === target);
+    if (match) {
+      setHighlightedQuote(target);
+      // Scroll a la fila tras un breve delay para esperar el render
+      setTimeout(() => {
+        const row = document.querySelector(`[data-quote-row="${target}"]`);
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 200);
+      // Quitar highlight a los 6s
+      setTimeout(() => setHighlightedQuote(null), 6000);
+    }
+    // Limpiar el query param
+    const next = new URLSearchParams(searchParams);
+    next.delete('highlight');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line
+  }, [quotes]);
 
   // Búsqueda server-side de clientes con debounce
   useEffect(() => {
@@ -3073,6 +3098,7 @@ export const Quotes = () => {
             filterDateTo={filterDateTo}
             actionLoading={actionLoading}
             canEdit={canEdit}
+            highlightedQuoteNumber={highlightedQuote}
             onOpenAnexos={(quote) => {
               setAnexosQuoteId(quote.quote_id);
               setAnexosQuoteNumber(quote.quote_number);

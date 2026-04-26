@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -34,6 +35,8 @@ export const HistoricalQuotes = () => {
   const [invoiceFilter, setInvoiceFilter] = useState('');
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -54,6 +57,26 @@ export const HistoricalQuotes = () => {
   };
 
   useEffect(() => { fetchHistory(); /* eslint-disable-next-line */ }, [categoryFilter]);
+
+  // Auto-abrir detalle si llega ?quote_id=xxx en la URL (desde Reportes de Irregulares)
+  useEffect(() => {
+    const targetQuoteId = searchParams.get('quote_id');
+    if (!targetQuoteId || autoOpenedRef.current || loading || records.length === 0) return;
+    const match = records.find(r => r.quote_id === targetQuoteId);
+    if (match) {
+      autoOpenedRef.current = true;
+      openDetail(match);
+      // Limpiar el query param para evitar re-abrir si el usuario cierra y vuelve
+      const next = new URLSearchParams(searchParams);
+      next.delete('quote_id');
+      setSearchParams(next, { replace: true });
+    } else if (records.length > 0) {
+      // Records cargados pero no se encontró la cotización
+      autoOpenedRef.current = true;
+      toast.info('La cotización no está en el histórico (puede que esté activa).');
+    }
+    // eslint-disable-next-line
+  }, [records, loading, searchParams]);
 
   const filtered = useMemo(() => records, [records]);
 
