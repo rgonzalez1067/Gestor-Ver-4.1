@@ -221,6 +221,7 @@ const AdminProfiles = () => {
                       </div>
                       <div className="flex-1">
                         <Input
+                          key={`name-${selected.profile_id}`}
                           defaultValue={selected.name}
                           onBlur={handleNameBlur}
                           className="text-lg font-semibold border-0 border-b border-transparent hover:border-slate-200 focus:border-purple-500 rounded-none px-0 h-auto py-0.5"
@@ -248,6 +249,7 @@ const AdminProfiles = () => {
                   <div>
                     <Label className="text-xs text-slate-500 uppercase tracking-wide">Descripción</Label>
                     <Textarea
+                      key={`desc-${selected.profile_id}`}
                       defaultValue={selected.description || ''}
                       onBlur={handleDescBlur}
                       rows={2}
