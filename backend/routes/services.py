@@ -543,7 +543,10 @@ async def report_banks_by_product_pdf(authorization: Optional[str] = Header(None
     user = await get_current_user(authorization)
     import weasyprint
 
-    services = await db.services.find({}, {"_id": 0}).sort("name", 1).to_list(None)
+    services = await db.services.find(
+        {"service_type": "Producto", "application_type": "setup"},
+        {"_id": 0},
+    ).sort("name", 1).to_list(None)
 
     # Pre-construir mapa de bancos para todos los productos (1 sola lectura de banks)
     all_banks = await db.banks.find({}, {"_id": 0}).to_list(None)
@@ -661,7 +664,7 @@ async def report_banks_by_product_pdf(authorization: Optional[str] = Header(None
 <body>
   <div class="cover">
     <h1>Bancos por Producto</h1>
-    <p>Reporte de asociaciones entre el catálogo de Medios de Pago y las entidades bancarias.</p>
+    <p>Reporte de asociaciones entre productos del catálogo (categoría Producto · tipo Setup) y las entidades bancarias.</p>
     <p>Generado el <b>{now_str}</b> · Por <b>{user_name}</b></p>
   </div>
 

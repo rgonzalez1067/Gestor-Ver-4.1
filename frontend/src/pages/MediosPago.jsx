@@ -941,16 +941,18 @@ export const MediosPago = () => {
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`banks-medio-pago-${medioPago.service_id}`}
-                            onClick={() => openBanksModal(medioPago)}
-                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                            title="Ver bancos asociados"
-                          >
-                            <Building2 size={14} className="mr-1" />Bancos
-                          </Button>
+                          {medioPago.service_type === 'Producto' && medioPago.application_type === 'setup' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid={`banks-medio-pago-${medioPago.service_id}`}
+                              onClick={() => openBanksModal(medioPago)}
+                              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                              title="Ver bancos asociados"
+                            >
+                              <Building2 size={14} className="mr-1" />Bancos
+                            </Button>
+                          )}
                           {canEdit && <Button
                             size="sm"
                             variant="outline"
