@@ -588,3 +588,133 @@ async def export_banks_pdf(authorization: Optional[str] = Header(None)):
         headers={"Content-Disposition": "attachment; filename=bancos.pdf"}
     )
 
+
+
+# ==================== REPORTE: PRODUCTOS POR BANCO ====================
+
+@router.get("/banks/report/products-by-bank/pdf")
+async def report_products_by_bank_pdf(authorization: Optional[str] = Header(None)):
+    """Reporte 'Productos por Banco': PDF elegante con cada banco y sus productos asociados.
+    Mismo look & feel que /services/report/banks-by-product/pdf."""
+    user = await get_current_user(authorization)
+    import weasyprint
+
+    banks = await db.banks.find({}, {"_id": 0}).sort("name", 1).to_list(None)
+
+    # KPIs
+    banks_with_products = 0
+    banks_without_products = 0
+    total_links = 0
+
+    sections_html = []
+    for b in banks:
+        products = b.get("products") or []
+        # Ordenar productos alfabéticamente
+        products = sorted(products, key=lambda p: (p.get("product_name") or "").strip().lower())
+        if products:
+            banks_with_products += 1
+            total_links += len(products)
+        else:
+            banks_without_products += 1
+
+        rows = ""
+        if products:
+            for i, p in enumerate(products, 1):
+                comps = []
+                if p.get("vpos_available"):
+                    comps.append("VPOS")
+                if p.get("gateway_available"):
+                    comps.append("Gateway")
+                if p.get("mpos_available"):
+                    comps.append("mPOS")
+                if p.get("link_available"):
+                    comps.append("Link")
+                comps_html = " ".join(f'<span class="chip">{c}</span>' for c in comps) if comps else '<span class="chip-muted">—</span>'
+                rows += (
+                    f'<tr>'
+                    f'<td class="num">{i}</td>'
+                    f'<td class="bank">{(p.get("product_name") or "—").strip()}</td>'
+                    f'<td class="comps">{comps_html}</td>'
+                    f'</tr>'
+                )
+        else:
+            rows = '<tr><td colspan="3" class="empty">— Sin productos asociados —</td></tr>'
+
+        bank_type = b.get("type") or "—"
+        bank_code = b.get("bank_code") or "—"
+        country = b.get("country") or "—"
+
+        sections_html.append(f"""
+        <div class="product">
+          <div class="prod-head">
+            <div class="prod-title">{b.get('name', '—')}</div>
+            <div class="prod-meta"><span>Tipo: <b>{bank_type}</b></span><span>Código: <b>{bank_code}</b></span><span>País: <b>{country}</b></span><span>Productos: <b>{len(products)}</b></span></div>
+          </div>
+          <table>
+            <thead><tr><th class="num">#</th><th>Producto</th><th>Componentes habilitados</th></tr></thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
+        """)
+
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    user_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "")
+
+    html = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Productos por Banco</title>
+<style>
+  @page {{ size: A4; margin: 18mm 14mm; @bottom-right {{ content: "Pág. " counter(page) " / " counter(pages); font-size: 9px; color: #64748b; }} }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: 'Helvetica', 'Arial', sans-serif; color: #0f172a; font-size: 10.5px; margin:0; }}
+  .cover {{ border-left: 5px solid #0ea5e9; padding: 10px 0 14px 16px; margin-bottom: 18px; }}
+  .cover h1 {{ font-size: 22px; margin: 0 0 4px 0; color: #0f172a; letter-spacing: -0.3px; }}
+  .cover p {{ margin: 2px 0; color: #475569; font-size: 10px; }}
+  .summary {{ display: flex; gap: 8px; margin: 0 0 16px 0; }}
+  .stat {{ flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }}
+  .stat .lbl {{ font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }}
+  .stat .val {{ font-size: 18px; font-weight: 700; color: #0f172a; margin-top: 2px; }}
+  .stat.green {{ border-left: 4px solid #10b981; }}
+  .stat.amber {{ border-left: 4px solid #f59e0b; }}
+  .stat.blue  {{ border-left: 4px solid #0ea5e9; }}
+  .stat.slate {{ border-left: 4px solid #64748b; }}
+  .product {{ margin-bottom: 12px; page-break-inside: avoid; }}
+  .prod-head {{ background: #f1f5f9; border-left: 3px solid #0ea5e9; padding: 6px 10px; border-radius: 4px 4px 0 0; }}
+  .prod-title {{ font-size: 12px; font-weight: 700; color: #0c4a6e; }}
+  .prod-meta {{ font-size: 9px; color: #475569; margin-top: 2px; display: flex; gap: 14px; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 0; }}
+  thead th {{ background: #0c4a6e; color: white; font-size: 9.5px; padding: 5px 8px; text-align: left; font-weight: 600; }}
+  thead th.num {{ text-align: center; }}
+  tbody td {{ padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10px; vertical-align: middle; }}
+  td.num {{ text-align: center; color: #64748b; width: 28px; }}
+  td.bank {{ font-weight: 600; color: #0f172a; }}
+  td.empty {{ text-align: center; color: #94a3b8; font-style: italic; padding: 10px; }}
+  .chip {{ display: inline-block; padding: 1px 6px; margin-right: 3px; border-radius: 10px; background: #ecfeff; color: #0e7490; font-size: 8.5px; border: 1px solid #a5f3fc; }}
+  .chip-muted {{ display: inline-block; color: #94a3b8; font-size: 9px; font-style: italic; }}
+  .footer {{ margin-top: 18px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 8.5px; color: #94a3b8; text-align: center; }}
+</style></head>
+<body>
+  <div class="cover">
+    <h1>Productos por Banco</h1>
+    <p>Reporte de productos configurados por cada entidad bancaria, con sus componentes habilitados.</p>
+    <p>Generado el <b>{now_str}</b> · Por <b>{user_name}</b></p>
+  </div>
+
+  <div class="summary">
+    <div class="stat slate"><div class="lbl">Bancos totales</div><div class="val">{len(banks)}</div></div>
+    <div class="stat green"><div class="lbl">Con productos</div><div class="val">{banks_with_products}</div></div>
+    <div class="stat amber"><div class="lbl">Sin productos</div><div class="val">{banks_without_products}</div></div>
+    <div class="stat blue"><div class="lbl">Asociaciones totales</div><div class="val">{total_links}</div></div>
+  </div>
+
+  {''.join(sections_html)}
+
+  <div class="footer">MegaNexus · Reporte generado automáticamente · Documento confidencial</div>
+</body></html>"""
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    filename = f"productos_por_banco_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

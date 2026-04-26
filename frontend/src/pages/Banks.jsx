@@ -9,7 +9,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
 import { MigrationButtons } from '../components/MigrationButtons';
-import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -262,6 +262,28 @@ export const Banks = () => {
     } catch { toast.error('Error al exportar PDF'); }
   };
 
+  const [productsByBankLoading, setProductsByBankLoading] = useState(false);
+  const downloadProductsByBankReport = async () => {
+    setProductsByBankLoading(true);
+    try {
+      const res = await api.get('/banks/report/products-by-bank/pdf', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      const ts = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      a.download = `productos_por_banco_${ts}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Reporte "Productos por Banco" descargado');
+    } catch (err) {
+      toast.error(`Error: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setProductsByBankLoading(false);
+    }
+  };
+
   const getProductChips = (products) => {
     if (!products || products.length === 0) return [];
     const unique = new Map();
@@ -303,6 +325,16 @@ export const Banks = () => {
               </Button>
               <Button variant="outline" onClick={exportToPDF} className="border-brand-blue-600 text-brand-blue-600 hover:bg-brand-blue-50">
                 <FileText size={18} className="mr-2" />PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={downloadProductsByBankReport}
+                disabled={productsByBankLoading}
+                data-testid="products-by-bank-report-btn"
+                className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
+              >
+                <FileBarChart size={18} className="mr-2" />
+                {productsByBankLoading ? 'Generando...' : 'Productos por Banco'}
               </Button>
               {canEdit && <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
                 <DialogTrigger asChild>
