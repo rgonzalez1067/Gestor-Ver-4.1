@@ -47,31 +47,40 @@ def _filter_matrix(matrix: dict, banks: List[str], products: List[str]) -> dict:
     return out
 
 
+def _phase_expected(phases: dict, ph: str, fallback_box: int) -> int:
+    """Expected del producto en la fase ph: usa el valor capturado; si la fase está vacía
+    (objeto {} sin 'expected'), aplica el fallback (box_count). Cada fase es independiente."""
+    info = (phases or {}).get(ph)
+    if not isinstance(info, dict) or not info:
+        # fase no inicializada → fallback al box_count (regla espejo de projects.py:1077)
+        return int(fallback_box or 0)
+    e = info.get("expected")
+    if e is None or e == 0:
+        # fase con dict vacío o expected explícito en 0 sin processed → fallback
+        # solo aplicamos fallback si el dict está vacío (sin expected key)
+        if "expected" not in info:
+            return int(fallback_box or 0)
+        return int(e or 0)
+    return int(e)
+
+
 def _aggregate_phases(matrices_with_fallback: list) -> dict:
-    """Recibe [(matrix, fallback_box_count)] y calcula totales por fase.
-    El 'expected' por producto = max entre las fases con valor definido; si todas las fases
-    están vacías, se usa el fallback_box_count (regla del backend de proyectos: line 1077/1179).
-    Cada terminal pasa por TODAS las fases, así que el expected es el mismo para cada fase."""
+    """Cada fase se suma INDEPENDIENTEMENTE — totales pueden diferir entre fases si los
+    `expected` capturados en la matriz divergen (validador de consistencia para el negocio).
+    Fase no inicializada (objeto vacío) → usa box_count como fallback (espejo de projects.py)."""
     totals = {ph: {"expected": 0, "processed": 0, "completed_count": 0, "total_items": 0} for ph in PHASES}
     for matrix, fallback_box in matrices_with_fallback:
         for _bank, products in (matrix or {}).items():
             for _prod, phases in (products or {}).items():
-                product_expected = 0
+                # Cada fase se evalúa independiente
                 for ph in PHASES:
-                    info = (phases or {}).get(ph) or {}
-                    e = int(info.get("expected") or 0)
-                    if e > product_expected:
-                        product_expected = e
-                # Fallback al box_count de la tienda/proyecto si no hay ningún expected en las fases
-                if product_expected == 0:
-                    product_expected = int(fallback_box or 0)
-                if product_expected == 0:
-                    continue  # sin terminales → no se cuenta
-                for ph in PHASES:
+                    expected = _phase_expected(phases, ph, fallback_box)
                     info = (phases or {}).get(ph) or {}
                     processed = int(info.get("processed") or 0)
                     completed = bool(info.get("completed"))
-                    totals[ph]["expected"] += product_expected
+                    if expected == 0 and processed == 0:
+                        continue
+                    totals[ph]["expected"] += expected
                     totals[ph]["processed"] += processed
                     totals[ph]["total_items"] += 1
                     if completed:
@@ -86,41 +95,36 @@ def _aggregate_phases(matrices_with_fallback: list) -> dict:
 
 def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products: List[str]) -> list:
     """Construye filas detalladas para la tabla del reporte.
-    matrices_with_fallback: [(label, matrix, fallback_box), ...] — label = nombre tienda o '—'.
-    Si una fase no tiene expected definido, usa product_expected (max entre fases) o el fallback_box.
+    Cada celda muestra su PROPIO expected independiente (con fallback a box_count si la fase
+    está vacía). Permite detectar inconsistencias entre fases visualmente.
     """
     rows = []
     for label, matrix, fallback_box in matrices_with_fallback:
         for bank, bank_products in (matrix or {}).items():
             for prod, phases in (bank_products or {}).items():
-                # expected común a todas las fases del producto
-                product_expected = 0
+                # Solo descarta el producto si TODAS las fases dan expected=0 y no hay box_count
+                row_phases = {}
+                any_nonzero = False
                 for ph in PHASES:
+                    expected = _phase_expected(phases, ph, fallback_box)
                     info = (phases or {}).get(ph) or {}
-                    e = int(info.get("expected") or 0)
-                    if e > product_expected:
-                        product_expected = e
-                if product_expected == 0:
-                    product_expected = int(fallback_box or 0)
-                if product_expected == 0:
-                    continue  # producto sin terminales
-
-                row = {
+                    processed = int(info.get("processed") or 0)
+                    if expected > 0 or processed > 0:
+                        any_nonzero = True
+                    row_phases[ph] = {
+                        "expected": expected,
+                        "processed": processed,
+                        "completed": bool(info.get("completed")),
+                        "percent": round((processed / expected) * 100, 1) if expected > 0 else 0.0,
+                    }
+                if not any_nonzero:
+                    continue
+                rows.append({
                     "store_label": label,
                     "bank": bank,
                     "product": prod.strip(),
-                    "phases": {},
-                }
-                for ph in PHASES:
-                    info = (phases or {}).get(ph) or {}
-                    processed = int(info.get("processed") or 0)
-                    row["phases"][ph] = {
-                        "expected": product_expected,
-                        "processed": processed,
-                        "completed": bool(info.get("completed")),
-                        "percent": round((processed / product_expected) * 100, 1) if product_expected > 0 else 0.0,
-                    }
-                rows.append(row)
+                    "phases": row_phases,
+                })
     return rows
 
 
