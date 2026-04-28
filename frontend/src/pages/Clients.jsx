@@ -8,9 +8,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command';
 import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { MigrationButtons } from '../components/MigrationButtons';
@@ -51,6 +53,7 @@ export const Clients = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
   const [searchTerm, setSearchTerm] = useState('');
+  const [integradorPopoverOpen, setIntegradorPopoverOpen] = useState(false);
   // Email communication
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailClient, setEmailClient] = useState(null);
@@ -806,7 +809,8 @@ export const Clients = () => {
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return c.rif?.toLowerCase().includes(s) || c.legal_name?.toLowerCase().includes(s) ||
-      c.fantasy_name?.toLowerCase().includes(s) || (c.sucursal || '').toLowerCase().includes(s);
+      c.fantasy_name?.toLowerCase().includes(s) || (c.sucursal || '').toLowerCase().includes(s) ||
+      (c.grupo_economico || '').toLowerCase().includes(s);
   });
 
   if (loading) {
@@ -1123,13 +1127,56 @@ export const Clients = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label className="text-xs">Integrador</Label>
-                            <Select value={formData.integrador_id || '_none_'} onValueChange={(v) => v === '_none_' ? setFormData(prev => ({ ...prev, integrador_id: '', integrador_name: '', aplicativo: '' })) : handleIntegradorChange(v)}>
-                              <SelectTrigger data-testid="client-integrador-select" className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="_none_">Sin integrador</SelectItem>
-                                {integrators.map(i => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
+                            <Popover open={integradorPopoverOpen} onOpenChange={setIntegradorPopoverOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={integradorPopoverOpen}
+                                  className="w-full h-9 justify-between font-normal"
+                                  data-testid="client-integrador-select"
+                                >
+                                  <span className="truncate">
+                                    {formData.integrador_name || 'Seleccionar integrador...'}
+                                  </span>
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command>
+                                  <CommandInput placeholder="Buscar integrador..." className="h-9" data-testid="client-integrador-search" />
+                                  <CommandList>
+                                    <CommandEmpty>No se encontró integrador.</CommandEmpty>
+                                    <CommandGroup>
+                                      <CommandItem
+                                        value="__none__"
+                                        onSelect={() => {
+                                          setFormData(prev => ({ ...prev, integrador_id: '', integrador_name: '', aplicativo: '' }));
+                                          setIntegradorPopoverOpen(false);
+                                        }}
+                                      >
+                                        <Check className={`mr-2 h-4 w-4 ${!formData.integrador_id ? 'opacity-100' : 'opacity-0'}`} />
+                                        <span className="text-slate-500 italic">Sin integrador</span>
+                                      </CommandItem>
+                                      {integrators.map((i) => (
+                                        <CommandItem
+                                          key={i.integrator_id}
+                                          value={i.name}
+                                          onSelect={() => {
+                                            handleIntegradorChange(i.integrator_id);
+                                            setIntegradorPopoverOpen(false);
+                                          }}
+                                        >
+                                          <Check className={`mr-2 h-4 w-4 ${formData.integrador_id === i.integrator_id ? 'opacity-100' : 'opacity-0'}`} />
+                                          {i.name}
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                           <div>
                             <Label className="text-xs">Aplicativo</Label>
@@ -1279,7 +1326,7 @@ export const Clients = () => {
           <div className="flex items-center justify-between gap-4 mb-4">
             <div className="max-w-sm relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <DebouncedInput placeholder="Buscar por RIF, nombre o sucursal..." value={searchTerm}
+              <DebouncedInput placeholder="Buscar por RIF, nombre, sucursal o grupo económico..." value={searchTerm}
                 onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
             </div>
             <MigrationButtons module="clients" label="Clientes" onImported={fetchClients} />
