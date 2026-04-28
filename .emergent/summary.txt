@@ -1,53 +1,48 @@
 <analysis>**original_problem_statement:** 
-El usuario solicitó una serie progresiva de mejoras operativas y correcciones:
-1. Eliminar integradores en cascada cuando se purga la base de datos.
-2. Corregir los cálculos y filtros en el dashboard de Integradores y en los selectores de Gestor.
-3. Añadir el envío de correos (notificaciones) en el módulo de Contactos Iniciales.
-4. Mejorar la Cotización de Equipos permitiendo una selección masiva de seriales y añadiendo la opción de ítems Sin Serial (para conceptos logísticos).
-5. Implementar un módulo completo de Reportes de Ventas (Embudo, Aging, Mensual, Por Cobrar, Ranking, Productividad, Stock, Leads) con un Resumen Ejecutivo exportable en PDF.
-6. Refactorizar los archivos monolíticos  y  para mejorar el mantenimiento.
-7. Añadir un botón de mantenimiento (solo admin) para purgar productos Promovidos en el módulo de Nuevos Productos.
-8. Integrar los Reportes de Ventas en el catálogo de Roles y Permisos (con el PDF Ejecutivo como permiso especial).
-ACTUALIDAD: El usuario quedó bloqueado al final de la sesión reportando un error intermitente: Nuevamente tengo problemas para conectarme, da Error de Autenticacion.
-
-**PRODUCT REQUIREMENTS:**
-- Reportes de Ventas: 8 reportes utilizando  + Exportación a PDF de un Resumen Ejecutivo.
-- Módulo I+D: Purgado de promovidos exclusivo para administradores.
-- Seguridad: Gating dinámico de reportes basado en .
+El usuario solicitó herramientas de exportación/importación (Migración) de catálogos entre ambientes (Preview ↔ Deploy) para resolver inconsistencias de datos, creación de nuevos reportes en PDF (Bancos por Producto, Productos por Banco, Cotizaciones Irregulares y Avance de Proyectos), resolución de bugs de permisos (RBAC) en Cotizaciones y Contactos Iniciales, y mejoras de usabilidad (búsquedas en selectores largos como Integradores).
+PRODUCT REQUIREMENTS: 
+- Endpoints de exportación/importación JSON para Bancos, Medios de Pago, Hardware, Categorías, Usuarios, Inventario y Clientes.
+- Múltiples PDFs con  filtrados por condiciones específicas.
+- Consolidación de  entre usuario y perfil.
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-Un CRM Full-Stack robusto (React/FastAPI/MongoDB). Tiene un sistema de permisos dinámico avanzado (Catálogo y Regla de Techo), flujos modulares para generar PDFs (Cotizaciones, Reportes), dashboards de visualización de datos con  y manejo de integraciones, inventarios y contactos iniciales. 
+Un CRM Full-Stack robusto (React/FastAPI/MongoDB). Posee módulos de cotizaciones con flujos de aprobación (wizard), matriz de implementación de proyectos con cálculo de avances, catálogos de servicios y hardware, y un sistema avanzado de RBAC dinámico. Ahora incluye herramientas de migración de datos en JSON e informes en PDF consolidados.
 
 **Last working item**:
-    - Last item agent was working: Investigando un bug crítico reportado por el usuario (Error de Autenticacion). El agente revisó el estado de  y comprobó los logs básicos, pero el proceso se detuvo antes de identificar la causa del rechazo de login o del bloqueo.
-    - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use?: execute_bash (revisar base de datos para  o , revisar logs de ) y hacer sanity checks manuales con curl o python -c para emular el login del usuario. 
+    - Last item agent was working: Implementando un selector de Integradores con búsqueda (Combobox) en la ventana de creación de cotizaciones (), replicando el comportamiento que se hizo para los clientes. El código fue insertado y validado con lint, pero la sesión terminó durante la toma de capturas de pantalla para la verificación.
+    - Status: TESTING PENDING
+    - Agent Testing Done: Y (Screenshot execution started but needs final confirmation).
+    - Which testing method agent to use?: Frontend testing agent / Screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Intermittent Authentication Error (P0)
-     - Attempted fixes: Se revisó el estado de los contenedores mediante backend                          RUNNING   pid 43, uptime 0:00:20
-code-server                      STOPPED   Not started
-frontend                         STOPPING  
-mongodb                          RUNNING   pid 49, uptime 0:00:20
-nginx-code-proxy                 RUNNING   pid 41, uptime 0:00:20
-supervisor> , todos figuran . Anteriormente el usuario reportó lo mismo y se arregló solo, sugiriendo un problema de rate limit, tokens estancados en localStorage o la VPN de Cloudflare bloqueando headers.
-     - Next debug checklist: 
-       - Base de datos: Consultar la colección  para los correos administradores verificando si  causó un .
-       - Backend: Revisar los logs en  y  para trazas de Auth.
-       - Frontend: Revisar si la UI se queda colgada con un token obsoleto o emite un 401 continuo.
-     - Why fix this issue and what will be achieved with the fix?: El usuario está completamente bloqueado para usar el sistema.
-     - Status: IN PROGRESS
-     - Is recurring issue? Y
-     - Should Test frontend/backend/both after fix?: Both
+  Issue 1: Token estancado en LocalStorage / Error de Autenticación 401 (P0)
+     - Attempted fixes: Se le indicó al usuario manualmente borrar el  mediante consola o interfaz del navegador (F12). 
+     - Next debug checklist: Implementar en el frontend (en la instancia de Axios o en el hook de Auth) un interceptor que al recibir un error HTTP 401 de cualquier endpoint, haga  y redirija automáticamente a  con un mensaje amigable (Su sesión ha expirado).
+     - Why fix this issue and what will be achieved with the fix?: Evita que el usuario quede bloqueado con la pantalla en blanco o errores continuos cuando el token expira o se reinician las credenciales.
+     - Status: NOT STARTED
+     - Is recurring issue? Y (Ha ocurrido 3 veces)
+     - Should Test frontend/backend/both after fix?: Frontend
      - Blocked on other issue: None
 
+  Issue 2: Posibles registros duplicados al importar catálogos (P2)
+     - Attempted fixes: El import realiza un  basado en el ID interno (, , etc.). El usuario reportó que la data seguía desfasada porque en Deploy los registros antiguos tenían un ID distinto al de Preview a pesar de tener el mismo nombre, creando duplicados.
+     - Next debug checklist: Implementar la opción pre-validada Reemplazar por nombre en los endpoints de .
+     - Why fix this issue and what will be achieved with the fix?: Mantendrá la consistencia estricta de base de datos entre ambientes sin acumular basura.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Both
+
 **In progress Task List**:
-  None (Features completed, stopped by P0 bug).
+  Task 1: Finalizar y validar el selector de integradores con búsqueda en  (P1)
+     - Where to resume: Verificar la UI en  al crear una cotización para asegurar que el Popover y Command funcionen correctamente para seleccionar integradores.
+     - What will be achieved with this?: Facilita la búsqueda en listas largas de integradores.
+     - Status: TESTING PENDING
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on something: Ninguno.
 
 **Upcoming and Future Tasks**
   - **P2**: Roadmap Bancos - Lógica Completado.
@@ -56,84 +51,85 @@ supervisor> , todos figuran . Anteriormente el usuario reportó lo mismo y se ar
   - **P3**: Reactivar Promovidos (botón para regresar productos de I+D promovidos a estado Negociación/IMPLE).
 
 **Completed work in this session**
-- Integrators: Delete en cascada (con confirmación) cuando existen cotizaciones asociadas (DONE).
-- Integrators: Sincronización de stats con filtros y corrección del selector Gestor por fallos de tildes (DONE).
-- Initial Contacts: Botón enviar notificaciones + Dialogo Emails + Logs en Bitácora (DONE).
-- Equipment Quotes: Checkbox Seleccionar Todos y Sin Serial para omisión de listas en PDF (DONE).
-- Sales Reports: Creación de dashboard con 8 reportes gráficos () (DONE).
-- Sales Reports: Generador Resumen Ejecutivo PDF (Weasyprint) con KPIs compilados (DONE).
-- Permissions: Módulo  y permiso especial integrados al UI y Backend de seguridad (DONE).
-- Sidebar: Fix bug de menú Gestión Comercial que no colapsaba (DONE).
-- New Products: Botón de mantenimiento Admin para vaciar productos Promovidos (DONE).
-- Refactor Fase 1 (Quotes.jsx): Extracción de filtros, RBAC y botones (-80 líneas) (DONE).
-- Refactor Fase 2 & 3 (ProjectDetail.jsx): Extracción de 6 diálogos a archivos independientes (-445 líneas) (DONE).
+- Modulo de Migración (Export/Import JSON) para: Bancos, Medios de Pago, Hardware, Categorías Comerciales, Usuarios, Inventario, Clientes (DONE).
+- PDF Bancos por Producto y Productos por Banco (DONE).
+- Corrección visual en Perfiles: El nombre y descripción ahora se refrescan al hacer click en diferentes perfiles (DONE).
+- Reporte Cotizaciones en estado irregular con validación secuencial por categoría + Enlaces directos a Cotizaciones/Histórico mediante Query Params (DONE).
+- Reporte de Estatus / Avance de Proyectos en PDF con filtros por Bancos, Productos y Tiendas, e independencia de cálculo matemático por fases (DONE).
+- Resolución Bug RBAC de Perfiles:  ahora hace un runtime merge de Perfil + Usuario en  (DONE).
+- Resolución Bug Contactos Iniciales: Se removió el filtrado rígido por texto de cargo para mostrar los botones de Transferir/Asignar (DONE).
+- Selector dinámico de Integradores (Combobox con búsqueda) y filtro de Grupo Económico en la pestaña Clientes (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-   Issue 1: Hydration warnings in 
-   - Debug checklist: El agente comprobó que el error era inyectado por  (script de edición visual de la plataforma en preview). NO REQUIERE ARREGLO en el código fuente, ya que no se despliega a producción.
-   - Status: RESOLVED (Ignored as false positive).
+  - Issue 1: Limpieza de duplicados en la colección  del ambiente Deploy. (Derivado de la importación sin cruce de nombres).
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Archivos Frontend Monolíticos.
-  - Recurrence count: 6 (Reducidos parcialmente en esta sesión, pero aún son grandes).
-  - Status: IN PROGRESS (Fases 1 a 3 ejecutadas, requieren seguir dividiéndose si hay futuras modificaciones).
+  - Issue recurrence in previous fork: Archivos Frontend Monolíticos (Quotes.jsx).
+  - Recurrence count: 6 
+  - Status: IN PROGRESS (Se redujo parcialmente extrayendo ).
 
 **Code Architecture**
-- :  (Nuevo, métricas sobre ),  (Nuevo, notificaciones).
-- :  (Nuevo),  (Refactorizado),  (Refactorizado).
-- : Componentes extraídos de  (, , , etc.).
-- : Fuente central de verdad de módulos y permisos.
+-  (Nuevo) - Centraliza lógica de export/import genérica.
+-  (Nuevo) - Lógica de matriz de avance de proyectos.
+-  (Nuevo) - UI compartida para botones de import/export.
+-  (Nuevo) - UI para filtros del reporte de proyectos.
 
 **Key Technical Concepts**
-- **Recharts**: Se incluyó para gráficos en frontend (BarChart, LineChart, PieChart).
-- **Gobernanza/Roles**: Extensión del sistema Ceiling Rule al menú lateral y endpoints basado en el .
-- **WeasyPrint PDF Synthesis**: Ahora se combinan reportes múltiples en memoria para un solo Resumen Ejecutivo en PDF.
+- **Migraciones Idempotentes**: Se usa  basado en IDs naturales o llaves maestras en formato JSON.
+- **WeasyPrint PDF Synthesis**: Múltiples rutas nuevas generando reportes complejos a partir de strings HTML.
+- **Runtime Permission Merge**: Los permisos especiales ahora se combinan entre el Documento del Perfil y el Documento del Usuario en tiempo real para evitar desincronizaciones.
 
 **key DB schema**
-  - : Ampliamente utilizada para cruces de información (, , fechas , ).
-  - : Campos  y  son críticos para revisar el bug actual.
+  - : Estructuras anidadas profundas ( y array  con sub-matrices).
+  -  y : Poseen campo  que dictan acceso fino a los módulos (ej. ver ciertas categorías de cotizaciones).
 
 **changes in tech stack**
-  - Incorporación de  al package.json.
+  - Ninguno.
 
 **All files of reference**
   - 
   - 
   - 
   - 
-  -  (Crucial para revisar el bug de Login).
-  -  (Usuarios para pruebas E2E).
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  -  sigue superando las 3000 líneas a pesar de extraer dependencias tempranas. Necesita la abstracción de Wizard components.
+  -  todavía es bastante extenso, aunque se separó .
 
 **key api endpoints**
   - 
-  -  (PDF)
   - 
-  -  (Revisar en el triage de bugs).
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent**
-- Tu primera tarea absoluta (P0) es entender por qué el usuario no puede hacer login. Anteriormente en la sesión ocurrió lo mismo y se arregló solo, lo que sugiere un Rate Limiting temporal o un bloqueo de Cloudflare. Entra a MongoDB, revisa  y checa si el admin está bloqueado por fuerza bruta o similar.
-- Si el login funciona por  desde tu entorno pero falla para el usuario, instruye sobre limpieza de LocalStorage o desactivar la VPN para la prueba de Auth.
+- Tu prioridad técnica al arrancar, posterior a finalizar el ticket de UI abierto, debería ser implementar un interceptor de red global en Axios (frontend) que maneje el error HTTP 401 haciendo un borrado de localStorage. El usuario está agotado de tener que hacerlo manualmente.
+- No uses  o reasignación destructiva al migrar sin la instrucción expresa del usuario, ya que los ID generados difieren entre ambientes.
+- El agente debe comunicarse exclusivamente en español con el usuario.
 
 **documents and test reports created in this job**
-  -  (Altamente actualizado con todas las features funcionales de esta iteración).
+  -  (Contiene credenciales de admin vigentes).
 
 **Last 10 User Messages and any pending HUMAN messages**
- 1. (User): Preguntó sobre Phase 2 de refactor. (COMPLETED)
- 2. (User): Ejecuta la fase 3. (COMPLETED)
- 3. (Agent): Finalizó la fase 3.
- 4. (User): El menu de Gestion comercial abre cuando le das click, pero no se cierra cuando vuelves a darle click. (COMPLETED)
- 5. (Agent): Arregló el bug del Sidebar modificando lógica de isExpanded.
- 6. (User): Crea un boton de mantenimiento que permita eliminar productos promovidos, exclusivo para administrador. (COMPLETED)
- 7. (Agent): Implementó  backend y UI en .
- 8. (User): Tenemos que actualizar la función de Permisos agregando Reportes de Venta y PDF como función especial. (COMPLETED)
- 9. (Agent): Aplicó los permisos al catálogo y el Sidebar.
- 10. (User): Nuevamente tengo problemas para conectarme, da Error de Autenticacion. Luego, Porque se detuvo el proceso ?. (PENDING P0 BUG - AUTHENTICATION ERROR).
+  1. (User): En la pantalla de creacion de clientes ajusta la busqueda de integradores... (COMPLETED)
+  2. (Agent): Implementó y testeó selector.
+  3. (User): Estoy teniendo error de Autenticacion al entrar a la APP
+  4. (Agent): Validó backend, recomendó vaciar  manualmente y ofreció hacer un script preventivo.
+  5. (User): Cuando copio la linea de comando en la consola me da este error. Observa el capture
+  6. (Agent): Le dio alternativas para vaciar el Storage desde Application o usar modo incógnito.
+  7. (User): Estoy observando algunas inconsistencias de privilegios... Coordinador de Administracion no despliega cotizaciones... Vendedor Pyme no despliega todos los botones...
+  8. (Agent): Encontró bugs de permisos (falta de merge runtime y filtrado duro por texto de cargo).
+  9. (User): Aprobó solución propuesta.
+  10. (Agent): Implementó y testeó fixes de RBAC.
+  11. (User): La lista de Categorias Comerciales debe aparecer ordenada alfabeticamente... (COMPLETED)
+  12. (User): Igual esta sucediendo con la ventana que muestra los integradores en la creacion de cotizaciones... aplica la misma modalidad de busqueda (PENDING - Last working item).
 
 **Project Health Check:**
-  - Broken: Flujo de Autenticación para el usuario.
+  - Broken: Interceptor de sesión expirada (manejo deficiente de error 401 en frontend).
   - Mocked: Ninguno.
 
 **3rd Party Integrations**
@@ -144,25 +140,17 @@ supervisor> , todos figuran . Anteriormente el usuario reportó lo mismo y se ar
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: Fallo en Auth Login (Error 401 en UI).
+  - Known regressions: Inconsistencia residual de IDs duplicados tras la importación en producción (Pendiente limpieza de DB).
 
 **Credentials to test flow:**
-  - Leer  (Ej.  / ).
+  - Leer  ( / ).
 
 **What agent forgot to execute**
-El agente final anterior interrumpió su proceso antes de dar un veredicto o solución al error de autenticación. Olvidó revisar la BD para descartar la aplicación de Rate Limits al usuario admin.
+- El agente olvidó implementar la solución definitiva sugerida para el error de Autenticación 401 (limpieza automática de localStorage ante HTTP 401 en Axios).
+- Olvidó hacer el finish final confirmando la implementación del selector de integradores en  después de correr el screenshot tool.
 
 **Debugging checklist for current issue**
-    Issue: Error de Autenticacion recurrente al hacer login.
-
+    Issue: Finalizar validación del Integrador Searchable en .
     Frontend files to check: 
-    -  (Manejo de respuestas de error 401 / 403 o rate limit).
-    - Validar si hay tokens malformados estancados en el Storage.
-
-    Backend files to check:
-    -  (Buscar por  y ).
-    -  usando  para rastrear las solicitudes de .
-
-    Database to check:
-    - 
-    - Desbloquear el usuario si  está en el futuro.</analysis>
+    -  (Verificar que  funciona correctamente en conjunción con el  y ).
+    - Verificar si faltan importaciones de  o  en dicho archivo, aunque el Lint pasó, es mejor revisar la UI.</analysis>

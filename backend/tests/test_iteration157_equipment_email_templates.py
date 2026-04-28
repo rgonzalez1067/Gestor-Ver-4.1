@@ -12,7 +12,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://contact-comms.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://catalogo-sync.preview.emergentagent.com').rstrip('/')
 
 # Expected equipment template IDs
 EXPECTED_EQUIPMENT_TEMPLATES = [

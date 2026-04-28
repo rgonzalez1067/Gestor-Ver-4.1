@@ -10,6 +10,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Plus, Download, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Trash2, Building2, RefreshCw, Unlock, Eye } from 'lucide-react';
+import { useState } from 'react';
 import { BranchDetailPanel } from '../BranchDetailPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
 import { QUOTE_TYPES, PRICING_MODELS } from './constants';
@@ -60,6 +61,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
     // Misc
     isLoadingEdit, editingQuoteId, currentUser,
   } = ctx;
+
+  // Búsqueda interna en el selector de integradores
+  const [integratorSearchQuery, setIntegratorSearchQuery] = useState('');
 
   return (
           <Dialog open={wizardOpen} onOpenChange={(open) => {
@@ -462,7 +466,18 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       <SelectTrigger data-testid="select-integrator">
                         <SelectValue placeholder="Seleccione integrador..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[280px]">
+                        <div className="px-2 pb-2 sticky top-0 bg-white z-10">
+                          <input
+                            type="text"
+                            placeholder="Buscar por nombre..."
+                            className="w-full h-8 px-2 text-sm border rounded-md outline-none focus:ring-1 focus:ring-blue-400"
+                            value={integratorSearchQuery}
+                            onChange={(e) => setIntegratorSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            data-testid="integrator-search-input"
+                          />
+                        </div>
                         {(isMPOS || isPaymentGateway) && (
                           <SelectItem value="sin_integrador">Sin integrador</SelectItem>
                         )}
@@ -480,13 +495,21 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             }
                             return true;
                           });
-                          return filtered.length > 0 ? filtered.map((integrator) => (
-                            <SelectItem key={integrator.integrator_id} value={integrator.integrator_id}>
+                          // Filtro por búsqueda + orden alfabético
+                          const q = integratorSearchQuery.trim().toLowerCase();
+                          const visible = (q.length > 0
+                            ? filtered.filter(i => (i.name || '').toLowerCase().includes(q))
+                            : filtered
+                          ).slice().sort((a, b) =>
+                            (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' })
+                          );
+                          return visible.length > 0 ? visible.map((integrator) => (
+                            <SelectItem key={integrator.integrator_id} value={integrator.integrator_id} data-testid={`integrator-option-${integrator.integrator_id}`}>
                               {integrator.name}
                             </SelectItem>
                           )) : (
                             <SelectItem value="_no_integrators_" disabled>
-                              No hay integradores para esta modalidad
+                              {q ? 'Sin coincidencias' : 'No hay integradores para esta modalidad'}
                             </SelectItem>
                           );
                         })()}

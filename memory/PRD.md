@@ -5,6 +5,26 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Manejo de Sesión Expirada — Interceptor 401 (Feb 2026) — NUEVO
+**Frontend** (`/app/frontend/src/utils/api.js`):
+- Interceptor de Axios mejorado: al recibir HTTP 401 en cualquier endpoint que no sea `/auth/(login|register|forgot|reset|verify)`, ejecuta `handleSessionExpired()`:
+  - Limpia `session_token`, `user` y cualquier clave de localStorage que coincida con `/token|session|auth|user/i`.
+  - Muestra toast amigable: "Su sesión ha expirado. Por favor inicie sesión nuevamente."
+  - Redirige a `/login` con delay de 600ms para que el toast sea visible.
+  - Flag `sessionExpiredHandled` evita toasts duplicados cuando varias requests fallan en paralelo.
+  - No interfiere con el formulario de login (errores de credenciales se muestran inline).
+- Función `handleSessionExpired` exportable para uso opcional desde llamadas `fetch` raw.
+- Validado E2E con Playwright: token inválido → redirect automático a `/login` y localStorage limpiado.
+
+### Selector de Integradores con Búsqueda en Wizard de Cotizaciones (Feb 2026) — NUEVO
+**Frontend** (`/app/frontend/src/components/quotes/QuoteWizardDialog.jsx`):
+- Input de búsqueda sticky dentro del SelectContent de integradores en `QuoteWizardDialog`.
+- Filtra por `name` (case-insensitive, trim) en tiempo real, ordenado alfabéticamente con `localeCompare('es')`.
+- Muestra "Sin coincidencias" si no hay matches y "No hay integradores para esta modalidad" si la lista filtrada base está vacía.
+- Validado E2E con Playwright: 234 opciones sin filtro → 0 con búsqueda "payway" → 234 al limpiar.
+
+
+
 ### Bancos por Producto en Medios de Pago (Feb 2026) — NUEVO
 **Backend** (`/app/backend/routes/services.py`):
 - `GET /api/services/{service_id}/banks` → lista de bancos asociados al producto. Cruza por `products.service_id` y por `product_name` normalizado (lowercase + sin acentos + trim, espejo del frontend).
