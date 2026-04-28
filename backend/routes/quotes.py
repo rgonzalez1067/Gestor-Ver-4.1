@@ -420,17 +420,33 @@ async def update_pg_defaults(data: dict, authorization: Optional[str] = Header(N
 @router.get("/quotes", response_model=List[Quote])
 async def get_quotes(authorization: Optional[str] = Header(None)):
     current_user = await get_current_user(authorization)
-    
+
     # Construir filtro jerárquico basado en cargo del usuario
     query = {"archived": {"$ne": True}}  # Excluir cotizaciones archivadas en Histórico
     user_sede = current_user.get("sede", "PYME")
-    
+
     if current_user.get("role") != "admin":
         cargo = (current_user.get("cargo") or "").lower()
         user_id = current_user.get("user_id")
         user_depto = current_user.get("departamento", "")
-        
-        if "director" in cargo:
+        # Special permissions efectivos: union(perfil, usuario)
+        sp = list(current_user.get("special_permissions") or [])
+        if current_user.get("profile_id"):
+            prof = await db.profiles.find_one({"profile_id": current_user["profile_id"]}, {"_id": 0, "special_permissions": 1})
+            for p in (prof or {}).get("special_permissions") or []:
+                if p not in sp:
+                    sp.append(p)
+        # Si el usuario tiene perfil con permisos de cotizaciones, el alcance de lectura
+        # lo define el perfil — ignoramos el filtro jerárquico legacy por cargo.
+        # El frontend (useQuoteRbac) ya filtra por categoría según los special_permissions.
+        has_profile_quote_perms = bool(current_user.get("profile_id")) and any(
+            (p or "").startswith("cotizaciones:") for p in sp
+        )
+
+        if has_profile_quote_perms:
+            # Solo filtro por segmento (sede)
+            query["client_segment"] = user_sede
+        elif "director" in cargo:
             # Director: ve todo (sin filtro de segmento ni usuario)
             pass
         elif "gerente" in cargo:
