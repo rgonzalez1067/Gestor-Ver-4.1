@@ -17,6 +17,31 @@ import httpx
 
 router = APIRouter()
 
+
+# ==================== HELPER: Merge runtime profile + user perms ====================
+
+async def _effective_special_permissions(user: dict) -> list:
+    """Devuelve los special_permissions efectivos: union(profile.special_permissions, user.special_permissions).
+    Esto permite que cambios en el perfil se reflejen automáticamente en todos los usuarios vinculados,
+    sin necesidad de reasignarlos manualmente."""
+    user_sp = list(user.get("special_permissions") or [])
+    profile_id = user.get("profile_id")
+    if not profile_id:
+        return user_sp
+    profile = await db.profiles.find_one({"profile_id": profile_id}, {"_id": 0, "special_permissions": 1})
+    if not profile:
+        return user_sp
+    profile_sp = list(profile.get("special_permissions") or [])
+    # Union preservando orden (perfil primero, luego user-only)
+    seen = set()
+    merged = []
+    for sp in profile_sp + user_sp:
+        if sp not in seen:
+            seen.add(sp)
+            merged.append(sp)
+    return merged
+
+
 # ==================== AUTH ENDPOINTS ====================
 
 @router.post("/auth/session")
@@ -79,6 +104,8 @@ async def get_me(authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     # Auto-migración: si no tiene menu_groups, se asumen todos activos (legacy).
     menu_groups = user.get("menu_groups") or get_default_menu_groups(True)
+    # Runtime merge: perfil ∪ usuario (cambios al perfil se propagan automáticamente)
+    effective_sp = await _effective_special_permissions(user)
     # Retornar usuario sin password_hash
     return {
         "user_id": user.get("user_id"),
@@ -94,7 +121,7 @@ async def get_me(authorization: Optional[str] = Header(None)):
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
-        "special_permissions": user.get("special_permissions", []),
+        "special_permissions": effective_sp,
         "menu_groups": menu_groups,
         "profile_id": user.get("profile_id"),
         "almacen_asignado": user.get("almacen_asignado", None),
@@ -292,7 +319,10 @@ async def login_user(credentials: UserLogin):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.user_sessions.insert_one(session_doc)
-    
+
+    # Runtime merge: perfil ∪ usuario para special_permissions
+    effective_sp = await _effective_special_permissions(user)
+
     # Retornar usuario sin password
     user_response = {
         "user_id": user["user_id"],
@@ -308,7 +338,7 @@ async def login_user(credentials: UserLogin):
         "is_active": user.get("is_active", True),
         "is_verified": user.get("is_verified", False),
         "permissions": user.get("permissions", {}),
-        "special_permissions": user.get("special_permissions", []),
+        "special_permissions": effective_sp,
         "menu_groups": user.get("menu_groups") or {},
         "profile_id": user.get("profile_id"),
         "almacen_asignado": user.get("almacen_asignado", None),

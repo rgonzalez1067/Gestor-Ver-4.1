@@ -155,8 +155,10 @@ export const InitialContacts = () => {
     }
   };
 
-  const canAssign = currentUser?.role === 'admin' || ['Director', 'Gerente', 'Coordinador'].includes(currentUser?.cargo);
-  const canTransfer = currentUser?.role === 'admin' || ['Director', 'Gerente'].includes(currentUser?.cargo);
+  // Botones Asignar / Transferir disponibles para todo usuario con acceso al módulo.
+  // El control de visibilidad del módulo ya lo maneja el sistema de permisos vía perfil/special_permissions.
+  const canAssign = !!currentUser;
+  const canTransfer = !!currentUser;
 
   // Filter users for assignment based on hierarchy
   const assignableUsers = users.filter(u => {
