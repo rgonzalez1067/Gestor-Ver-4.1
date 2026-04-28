@@ -202,7 +202,9 @@ export const Clients = () => {
   const fetchCommercialCategories = async () => {
     try {
       const { data } = await api.get('/commercial-categories?only_active=true');
-      setCategoriasComerciales(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      arr.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
+      setCategoriasComerciales(arr);
     } catch {
       // Silencioso: el select quedará vacío si falla
     }
