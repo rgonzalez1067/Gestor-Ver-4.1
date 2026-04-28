@@ -17,7 +17,7 @@ export const PRICING_MODELS = [
 // lockBancos: true = campo Bancos bloqueado para edición
 // autoBancos: true = auto-calcular basado en medios de pago agregados
 export const SETUP_CONCEPTS = [
-  { name: 'Suscripción PDV/Banco', isDefault: true, type: 'setup', lockBancos: false, autoBancos: false },
+  { name: 'Suscripción PDV/Banco', isDefault: true, type: 'setup', lockBancos: false, autoBancos: false, inheritBancos: true },
   { name: 'Configuración dispositivo (Pinpad o POS)', isDefault: true, type: 'setup', lockBancos: true, autoBancos: false },
   { name: 'Configuración PDV en MServer', isDefault: true, type: 'setup', lockBancos: true, autoBancos: false },
   { name: 'Configuración Medio de Pago / Banco en MServer, por PDV', isDefault: true, type: 'setup', lockBancos: false, autoBancos: true }

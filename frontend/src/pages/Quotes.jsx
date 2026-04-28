@@ -323,7 +323,8 @@ export const Quotes = () => {
 
   // Sincronizar valores de Cajas de la cabecera con los conceptos base
   // REGLA DE ORO: Solo propaga cajas cuando el USUARIO cambia manualmente el header
-  // BANCOS: Ya NO se propaga — cada fila tiene su valor estático e independiente.
+  // BANCOS: Solo se propaga a items con `inheritBancos: true` (ej. "Suscripción PDV/Banco").
+  //         Para el resto cada fila tiene su valor estático e independiente.
   // NO durante carga de edición (los datos guardados tienen prioridad absoluta)
   useEffect(() => {
     const cajas = quoteData.cantidad_cajas;
@@ -336,10 +337,11 @@ export const Quotes = () => {
       return;
     }
 
-    // Si las CAJAS no cambiaron, no propagar (bancos nunca se propaga)
-    if (prevCajasRef.current === cajas) {
-      // Actualizar ref de bancos para mantenerlo en sincronía con el header
-      prevBancosRef.current = bancos;
+    const cajasChanged = prevCajasRef.current !== cajas;
+    const bancosChanged = prevBancosRef.current !== bancos;
+
+    // Si nada cambió, salir
+    if (!cajasChanged && !bancosChanged) {
       return;
     }
 
@@ -355,19 +357,25 @@ export const Quotes = () => {
 
     let needsUpdate = false;
     const newCajas = cajas || 1;
+    const newBancos = bancos || 1;
 
-    // Actualizar Setup items — SOLO CAJAS
+    // Actualizar Setup items — CAJAS siempre; BANCOS solo si inheritBancos
     const updatedSetupItems = setup_items.map(item => {
-      if (item.cantidad_cajas !== newCajas) {
+      let updated = item;
+      if (cajasChanged && item.cantidad_cajas !== newCajas) {
+        updated = { ...updated, cantidad_cajas: newCajas };
         needsUpdate = true;
-        return { ...item, cantidad_cajas: newCajas };
       }
-      return item;
+      if (bancosChanged && item.inheritBancos && item.cantidad_bancos !== newBancos) {
+        updated = { ...updated, cantidad_bancos: newBancos };
+        needsUpdate = true;
+      }
+      return updated;
     });
 
     // Actualizar Recurrentes Básicos — SOLO CAJAS
     const updatedRecurringBasic = recurring_basic_items.map(item => {
-      if (item.cantidad_cajas !== newCajas) {
+      if (cajasChanged && item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
         return { ...item, cantidad_cajas: newCajas };
       }
@@ -376,7 +384,7 @@ export const Quotes = () => {
 
     // Actualizar Otros Recurrentes — SOLO CAJAS
     const updatedRecurringOther = recurring_other_items.map(item => {
-      if (item.cantidad_cajas !== newCajas) {
+      if (cajasChanged && item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
         return { ...item, cantidad_cajas: newCajas };
       }
@@ -385,7 +393,7 @@ export const Quotes = () => {
 
     // Actualizar Items Adicionales — SOLO CAJAS
     const updatedAdditionalItems = (additional_items || []).map(item => {
-      if (item.cantidad_cajas !== newCajas) {
+      if (cajasChanged && item.cantidad_cajas !== newCajas) {
         needsUpdate = true;
         return { ...item, cantidad_cajas: newCajas };
       }
@@ -560,16 +568,18 @@ export const Quotes = () => {
     return concepts.map((concept) => {
       const prices = findServicePriceWithModel(concept.name, pricingModel);
       // Por defecto cantidad_bancos=1 e independiente del selector global
+      // Excepción: conceptos con inheritBancos heredan el valor del header
       return {
         id: `setup_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: 1,
+        cantidad_bancos: concept.inheritBancos ? (cantidadBancos || 1) : 1,
         tarifa: prices.setup_cost,
         isDefault: true,
         type: 'setup',
         lockBancos: concept.lockBancos || false,
-        autoBancos: concept.autoBancos || false
+        autoBancos: concept.autoBancos || false,
+        inheritBancos: concept.inheritBancos || false
       };
     });
   };
@@ -2469,6 +2479,14 @@ export const Quotes = () => {
     const hasAutoBancos = (itemName) => {
       return itemName.toLowerCase().includes('medio de pago / banco');
     };
+
+    // Función auxiliar para detectar si un concepto debe heredar bancos del header
+    // (Solo "Suscripción PDV/Banco" - sin la palabra "Configuración" antes)
+    const hasInheritBancos = (itemName) => {
+      const lower = (itemName || '').toLowerCase();
+      // "Suscripción PDV/Banco" base — excluye "Configuración Medio de Pago / Banco..."
+      return lower.startsWith('suscripción pdv/banco') || lower.startsWith('suscripcion pdv/banco');
+    };
     
     // Obtener los servicios y mapear al formato del wizard
     const services = quote.services || [];
@@ -2482,6 +2500,7 @@ export const Quotes = () => {
       const itemName = s.item_name || s.name || '';
       const isLocked = defaultConcept?.lockBancos || shouldLockBancos(itemName);
       const isAuto = defaultConcept?.autoBancos || hasAutoBancos(itemName);
+      const isInherit = defaultConcept?.inheritBancos || hasInheritBancos(itemName);
       
       // Solo es "default" si hay un concepto base que coincida y no es auto-vinculado
       const isBaseDefault = defaultConcept !== null && !isAutoLinkedItem;
@@ -2501,6 +2520,7 @@ export const Quotes = () => {
         isAutoLinked: isAutoLinkedItem || s.isAutoLinked || false,
         lockBancos: isLocked,
         autoBancos: isAuto,
+        inheritBancos: isInherit,
         // Restaurar overrides guardados
         bancosOverride: s.bancosOverride || null,
         totalOverride: s.totalOverride || null

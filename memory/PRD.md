@@ -5,6 +5,17 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Herencia de "Bancos/Entes" en Suscripción PDV/Banco (Feb 2026) — NUEVO
+**Frontend** (`/app/frontend/src/components/quotes/constants.js`, `Quotes.jsx`, `QuoteWizardDialog.jsx`):
+- Flag `inheritBancos: true` añadido al concepto base "Suscripción PDV/Banco" (item 1 de Setup).
+- `initializeSetupConcepts` ahora copia `cantidad_bancos` del header al inicializar items con `inheritBancos`.
+- `useEffect` de propagación extendido: además de propagar Cajas, ahora propaga Bancos solo a items con `inheritBancos: true` cuando el usuario cambia el campo Bancos/Entes del header.
+- `mapService` (loadQuoteForEdit) preserva el flag al cargar cotizaciones existentes; helper `hasInheritBancos()` detecta por nombre.
+- UI: campo Bancos del item se renderiza como **read-only** (azul) con tooltip `Heredado del campo Bancos/Entes del header (N)`. El usuario ya no puede desincronizar manualmente.
+- Validado E2E con Playwright: header=5 → item=5; cambio header→8 → item se actualiza a 8 automáticamente.
+
+
+
 ### Manejo de Sesión Expirada — Interceptor 401 (Feb 2026) — NUEVO
 **Frontend** (`/app/frontend/src/utils/api.js`):
 - Interceptor de Axios mejorado: al recibir HTTP 401 en cualquier endpoint que no sea `/auth/(login|register|forgot|reset|verify)`, ejecuta `handleSessionExpired()`:
