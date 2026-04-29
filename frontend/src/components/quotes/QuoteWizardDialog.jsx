@@ -541,7 +541,15 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </Label>
                     <Select 
                       value={quoteData.pinpad_id} 
-                      onValueChange={(value) => setQuoteData({ ...quoteData, pinpad_id: value })}
+                      onValueChange={(value) => {
+                        // Si el usuario selecciona "Sin Pinpad/POS" (none), también
+                        // forzar Sin Entidad Patrocinadora automáticamente.
+                        const updates = { ...quoteData, pinpad_id: value };
+                        if (value === 'none') {
+                          updates.sponsor_bank_id = 'none';
+                        }
+                        setQuoteData(updates);
+                      }}
                     >
                       <SelectTrigger data-testid="select-pinpad">
                         <SelectValue placeholder={isFastTrackType ? 'Seleccione modelo (obligatorio)...' : `Seleccione ${isMPOS ? 'POS' : 'modelo'}...`} />

@@ -5,6 +5,22 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Refinamientos UX y Bug Fixes (Feb 2026) — NUEVO
+
+**1. Bug Fix — Banco con email duplicado del Cliente** (`routes/projects.py /suggested-contacts`):
+- La deduplicación previa eliminaba contactos legítimos: si un contacto Principal de un Banco compartía email con un contacto del Cliente, solo quedaba uno.
+- Fix: deduplicar por tupla `(email, source, bank_name)`. Ahora el mismo email puede aparecer como Cliente y como contacto de cada Banco.
+
+**2. Labels compactos en panel de contactos**:
+- Eliminado "Banco Banco" duplicado y posición.
+- Cliente: `Rafael Gonzalez` (antes: `Cliente: Rafael Gonzalez`).
+- Banco: `Manuel Suarez · Principal` (antes: `Banco Banco Mercantil (Manuel Suarez · Ejecutivo · Principal)`).
+
+**3. Autocompletar "Sin Entidad Patrocinadora"** (`QuoteWizardDialog.jsx`):
+- Al seleccionar "Sin Pinpad/POS" en el wizard, `sponsor_bank_id` se setea automáticamente en `'none'` (Sin Entidad Patrocinadora). Lógica simétrica que ya existía en backend para nullear sponsor_bank_name al guardar.
+
+
+
 ### Refinamiento de Notificaciones Secuenciales (Feb 2026) — NUEVO
 **Backend** + **Frontend**:
 

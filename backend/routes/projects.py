@@ -1573,17 +1573,17 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
             client_label = project.get("client_name", client.get("fantasy_name", "Cliente"))
             # Email principal del cliente (si existe)
             if client.get("email"):
-                contacts.append({"email": client["email"], "label": f"Cliente: {client_label}", "source": "client"})
+                contacts.append({"email": client["email"], "label": client_label, "source": "client"})
             # Contactos CRM del cliente (array contacts)
             for c in client.get("contacts", []):
                 if c.get("email"):
                     name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Contacto"
-                    contacts.append({"email": c["email"], "label": f"Cliente ({name})", "source": "client"})
+                    contacts.append({"email": c["email"], "label": name, "source": "client"})
             # Contactos legacy (contact1, contact2)
             for key in ["contact1", "contact2"]:
                 legacy = client.get(key)
                 if legacy and isinstance(legacy, dict) and legacy.get("email"):
-                    contacts.append({"email": legacy["email"], "label": f"Cliente ({legacy.get('name', key)})", "source": "client"})
+                    contacts.append({"email": legacy["email"], "label": legacy.get('name', key), "source": "client"})
 
     # Contactos de bancos del proyecto
     matrix = project.get("implementation_matrix", {})
@@ -1599,8 +1599,8 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
                     if c.get("email"):
                         full = c.get("full_name") or f"{c.get('first_name','')} {c.get('last_name','')}".strip() or "Contacto"
                         ctype = c.get("contact_type") or "Otro"
-                        position = c.get("position") or ""
-                        label = f"Banco {bank_name} ({full}{' · ' + position if position else ''} · {ctype})"
+                        # Label compacto: solo nombre + tipo (sin repetir banco que ya va en bank_name)
+                        label = f"{full} · {ctype}"
                         contacts.append({
                             "email": c["email"],
                             "label": label,
@@ -1615,20 +1615,24 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
                     contact_name = bank.get("contact_name") or "Contacto"
                     contacts.append({
                         "email": bank["contact_email"],
-                        "label": f"Banco {bank_name} ({contact_name})",
+                        "label": f"{contact_name} · Principal",
                         "source": "bank",
                         "bank_name": bank_name,
                         "contact_type": "Principal",
                         "name": contact_name,
                     })
 
-    # Deduplicar por email
-    seen_emails = set()
+    # Deduplicar permitiendo el mismo email en distintas fuentes (cliente vs banco)
+    # y en distintos bancos. Ej: si Manuel Suarez (Banco Mercantil) tiene el mismo
+    # email que el contacto Cliente, ambos deben aparecer.
+    seen_keys = set()
     unique_contacts = []
     for c in contacts:
-        if c["email"] not in seen_emails:
-            seen_emails.add(c["email"])
-            unique_contacts.append(c)
+        key = (c.get("email", "").lower(), c.get("source"), c.get("bank_name") or "")
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        unique_contacts.append(c)
 
     return unique_contacts
 
