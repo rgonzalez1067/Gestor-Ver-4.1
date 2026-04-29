@@ -1342,6 +1342,14 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                 <div className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-slate-400 bg-slate-100 rounded">
                                   N/A
                                 </div>
+                              ) : item.inheritBancos ? (
+                                <div
+                                  className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded"
+                                  title={`Heredado del campo Bancos/Entes del header (${quoteData.cantidad_bancos || 1})`}
+                                  data-testid={`recurring-basic-bancos-inherit-${index}`}
+                                >
+                                  {item.cantidad_bancos || 1}
+                                </div>
                               ) : (
                                 <Input
                                   type="number"

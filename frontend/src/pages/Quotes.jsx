@@ -374,12 +374,18 @@ export const Quotes = () => {
     });
 
     // Actualizar Recurrentes Básicos — SOLO CAJAS
+    // Actualizar Recurrentes Básicos — CAJAS siempre; BANCOS solo si inheritBancos
     const updatedRecurringBasic = recurring_basic_items.map(item => {
+      let updated = item;
       if (cajasChanged && item.cantidad_cajas !== newCajas) {
+        updated = { ...updated, cantidad_cajas: newCajas };
         needsUpdate = true;
-        return { ...item, cantidad_cajas: newCajas };
       }
-      return item;
+      if (bancosChanged && item.inheritBancos && item.cantidad_bancos !== newBancos) {
+        updated = { ...updated, cantidad_bancos: newBancos };
+        needsUpdate = true;
+      }
+      return updated;
     });
 
     // Actualizar Otros Recurrentes — SOLO CAJAS
@@ -592,11 +598,14 @@ export const Quotes = () => {
         id: `recurring_basic_${concept.name}`,
         medio_pago_name: concept.name,
         cantidad_cajas: cantidadCajas,
-        cantidad_bancos: 1, // Default 1 - independiente del selector global
+        // Por defecto 1 (independiente del selector global). Si el concepto tiene
+        // inheritBancos, hereda el valor del header.
+        cantidad_bancos: concept.inheritBancos ? (cantidadBancos || 1) : 1,
         tarifa: prices.monthly_cost,
         isDefault: true,
         type: 'recurring_basic',
-        lockBancos: concept.lockBancos || false
+        lockBancos: concept.lockBancos || false,
+        inheritBancos: concept.inheritBancos || false
       };
     });
   };
@@ -2484,8 +2493,16 @@ export const Quotes = () => {
     // (Solo "Suscripción PDV/Banco" - sin la palabra "Configuración" antes)
     const hasInheritBancos = (itemName) => {
       const lower = (itemName || '').toLowerCase();
-      // "Suscripción PDV/Banco" base — excluye "Configuración Medio de Pago / Banco..."
-      return lower.startsWith('suscripción pdv/banco') || lower.startsWith('suscripcion pdv/banco');
+      // 1) "Suscripción PDV/Banco" base — excluye "Configuración Medio de Pago / Banco..."
+      if (lower.startsWith('suscripción pdv/banco') || lower.startsWith('suscripcion pdv/banco')) {
+        return true;
+      }
+      // 2) "Derecho de uso de plataforma MServer por PDV / Banco" (recurrente básico)
+      if (lower.startsWith('derecho de uso de plataforma mserver por pdv / banco') ||
+          lower.startsWith('derecho de uso de plataforma mserver por pdv/banco')) {
+        return true;
+      }
+      return false;
     };
     
     // Obtener los servicios y mapear al formato del wizard
