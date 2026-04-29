@@ -76,7 +76,8 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
     });
   }, [billingDate, open]);
 
-  // Consolidate items: para equipos usa equipment_items, para implementación usa services
+  // Consolidate items: para equipos usa equipment_items, para implementación usa services,
+  // para Payment Gateway (quote_type=GATEWAY) usa pg_setup_items.
   const consolidated = useMemo(() => {
     if (!quote) return [];
 
@@ -89,6 +90,24 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         unit_price_usd: item.unit_price_usd || item.price || 0,
         total_usd: (item.unit_price_usd || item.price || 0) * (item.quantity || 1),
       }));
+    }
+
+    // Payment Gateway: los conceptos viven en `pg_setup_items` (no en `services`)
+    if ((quote.quote_type || '').toUpperCase() === 'GATEWAY') {
+      const pgItems = quote.pg_setup_items || [];
+      const map = {};
+      for (const it of pgItems) {
+        const baseName = it.concepto || it.item_name || it.name || 'Concepto PG';
+        const bank = it.banco && it.banco !== 'N/A' ? it.banco : '';
+        const name = bank ? `${baseName} — ${bank}` : baseName;
+        const cost = Number(it.costo ?? it.unit_price_usd ?? it.total_usd ?? 0) || 0;
+        if (!map[name]) {
+          map[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: cost };
+        }
+        map[name].quantity += 1;
+        map[name].total_usd += cost;
+      }
+      return Object.values(map);
     }
 
     // Cotización de Implementación: usar services (excluir recurrentes)
@@ -439,7 +458,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                 <tfoot>
                   <tr className="bg-slate-50 border-t border-slate-200">
                     <td className="px-3 py-2 text-xs text-slate-700 font-semibold" colSpan={2}>
-                      {isEquipmentQuote ? 'Subtotal (Equipos y Accesorios)' : 'Subtotal (Setup + Productos)'}
+                      {isEquipmentQuote ? 'Subtotal (Equipos y Accesorios)' : ((quote?.quote_type || '').toUpperCase() === 'GATEWAY' ? 'Subtotal (Conceptos PG)' : 'Subtotal (Setup + Productos)')}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold">${grandTotalUsd.toFixed(2)}</td>
                     <td className="px-3 py-2"></td>
