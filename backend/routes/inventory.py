@@ -10,6 +10,7 @@ from config import db, get_current_user, UPLOADS_DIR
 from models import Warehouse, WarehouseCreate, InventoryMovement, SERIALIZED_TYPES
 from services.email_service import send_email
 from services.transfer_note_pdf import generate_transfer_note_pdf
+from services.pdf_storage import save_pdf_dual
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -705,8 +706,7 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
         )
         pdf_filename = f"TransferenciaAlmacen_{transfer_number}.pdf"
         pdf_path = UPLOADS_DIR / pdf_filename
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_buffer.getvalue())
+        save_pdf_dual(pdf_path, pdf_buffer.getvalue(), pdf_filename)
         transfer_note_url = f"/uploads/{pdf_filename}"
 
         # Store the transfer_number and pdf_url in both movements

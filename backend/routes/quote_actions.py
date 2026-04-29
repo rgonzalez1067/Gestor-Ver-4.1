@@ -17,6 +17,7 @@ import os
 import base64
 
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template, inject_custom_message
+from services.pdf_storage import save_pdf_dual
 from models import *
 from services.email_service import send_email
 from services.workflow_notifications import send_workflow_notification
@@ -1551,8 +1552,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             )
             pdf_filename = f"NotaEntrega_{correlativo}.pdf"
             pdf_path = UPLOADS_DIR / pdf_filename
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_buffer.getvalue())
+            save_pdf_dual(pdf_path, pdf_buffer.getvalue(), pdf_filename)
             hoja_ruta_url = f"/uploads/{pdf_filename}"
 
             # Attach to quote
@@ -1911,8 +1911,7 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         )
         pdf_filename = f"NotaEntrega_Reparacion_{correlativo}.pdf"
         pdf_path = UPLOADS_DIR / pdf_filename
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_buffer.getvalue())
+        save_pdf_dual(pdf_path, pdf_buffer.getvalue(), pdf_filename)
         hoja_ruta_url = f"/uploads/{pdf_filename}"
 
         # Adjuntar a la cotización

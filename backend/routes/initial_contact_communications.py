@@ -10,6 +10,7 @@ import os
 import logging
 
 from config import db, get_current_user
+from services.pdf_storage import save_pdf_dual
 from services.email_service import send_email
 
 router = APIRouter()
@@ -86,8 +87,7 @@ async def send_initial_contact_email(
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
             file_path = os.path.join(upload_dir, safe_name)
             content = await f.read()
-            with open(file_path, "wb") as fp:
-                fp.write(content)
+            save_pdf_dual(file_path, content, f"initial_contact_emails/{contact_id}/{safe_name}")
             saved_files.append({
                 "filename": f.filename,
                 "url": f"/uploads/initial_contact_emails/{contact_id}/{safe_name}",

@@ -64,8 +64,38 @@ async def _on_shutdown():
     except Exception as e:
         logging.warning(f"[shutdown] scheduler failed: {e}")
 
-# Mount uploads
-app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+# Mount uploads — primero intenta Object Storage (persistente entre deploys),
+# fallback a filesystem local para archivos legacy/temporales.
+from fastapi import Path as FPath
+from fastapi.responses import Response, FileResponse
+from services.pdf_storage import get_pdf_from_storage
+
+uploads_router = APIRouter()
+
+
+@uploads_router.get("/api/uploads/{file_path:path}")
+async def serve_upload(file_path: str = FPath(...)):
+    """Sirve archivos del directorio uploads.
+
+    Orden de búsqueda:
+      1. Emergent Object Storage (namespace por ambiente: preview/production).
+      2. Filesystem local (compatibilidad con archivos legacy / generados sin storage).
+    """
+    # 1) Object Storage
+    result = get_pdf_from_storage(file_path)
+    if result is not None:
+        content, content_type = result
+        return Response(content=content, media_type=content_type or "application/octet-stream")
+
+    # 2) Filesystem fallback
+    fs_path = UPLOADS_DIR / file_path
+    if fs_path.exists() and fs_path.is_file():
+        return FileResponse(str(fs_path))
+
+    return Response(status_code=404, content="File not found")
+
+
+app.include_router(uploads_router)
 
 # CORS
 app.add_middleware(

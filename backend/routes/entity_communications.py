@@ -11,6 +11,7 @@ import os
 import logging
 
 from config import db, get_current_user
+from services.pdf_storage import save_pdf_dual
 from services.email_service import send_email
 
 router = APIRouter()
@@ -78,8 +79,7 @@ async def upload_entity_document(
     safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
     file_path = os.path.join(upload_dir, safe_name)
     content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    save_pdf_dual(file_path, content, f"entity_documents/{context.lower()}/{safe_name}")
 
     doc = {
         "document_id": f"edoc_{uuid.uuid4().hex[:12]}",
@@ -219,8 +219,9 @@ async def _send_and_log(
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
             file_path = os.path.join(upload_dir, safe_name)
             content = await f.read()
-            with open(file_path, "wb") as fp:
-                fp.write(content)
+            # Subir también a Object Storage usando el path relativo dentro de uploads
+            rel = os.path.relpath(file_path, "/app/backend/uploads")
+            save_pdf_dual(file_path, content, rel)
             saved_files.append({"filename": f.filename, "path": file_path})
 
     # Cargar documentos internos

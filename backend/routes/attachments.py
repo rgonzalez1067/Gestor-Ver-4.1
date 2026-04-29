@@ -10,6 +10,7 @@ import io
 import os
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
+from services.pdf_storage import save_pdf_dual
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 
@@ -71,10 +72,10 @@ async def upload_quote_attachment(
     safe_filename = f"{attachment_id}{file_ext}"
     file_path = attachments_dir / safe_filename
     
-    # Guardar archivo
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
+    # Guardar archivo (FS + Object Storage)
+    content = await file.read()
+    relative_key = f"attachments/{quote_id}/{safe_filename}"
+    save_pdf_dual(file_path, content, relative_key)
     
     attachment = {
         "attachment_id": attachment_id,

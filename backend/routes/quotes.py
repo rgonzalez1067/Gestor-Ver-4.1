@@ -9,6 +9,7 @@ import io
 import os
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
+from services.pdf_storage import save_pdf_dual
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 from reportlab.lib.pagesizes import letter
@@ -219,11 +220,11 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Estampar header/footer en TODAS las páginas (incluyendo anexos inyectados)
                 pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
                 
-                # Guardar PDF en el servidor
+                # Guardar PDF en el servidor + Object Storage (persistente entre deploys)
                 pdf_filename = f"{quote_number}_Cotizacion.pdf"
                 pdf_path = UPLOADS_DIR / pdf_filename
-                with open(pdf_path, 'wb') as f:
-                    f.write(pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read())
+                final_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read()
+                save_pdf_dual(pdf_path, final_bytes, pdf_filename)
                 
                 quote_pdf_url = f"/uploads/{pdf_filename}"
                 logging.info(f"PDF generado y almacenado: {quote_pdf_url}")
@@ -290,8 +291,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                     
                     pdf_filename = f"{quote_number}_Cotizacion.pdf"
                     pdf_path = UPLOADS_DIR / pdf_filename
-                    with open(pdf_path, 'wb') as f:
-                        f.write(pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read())
+                    final_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read()
+                    save_pdf_dual(pdf_path, final_bytes, pdf_filename)
                     quote_pdf_url = f"/uploads/{pdf_filename}"
                     logging.info(f"PDF PG generado con DynamicGenerator: {quote_pdf_url}")
             except Exception as e:
@@ -865,12 +866,11 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         # Estampar header/footer
         pdf_buffer = stamp_header_footer_on_all_pages(pdf_buffer, quote_number, logo_path)
         
-        # Guardar PDF en disco
+        # Guardar PDF en disco + Object Storage
         pdf_filename = f"{quote_number}_Cotizacion.pdf"
         pdf_path = UPLOADS_DIR / pdf_filename
         pdf_bytes = pdf_buffer.getvalue() if hasattr(pdf_buffer, 'getvalue') else pdf_buffer.read()
-        with open(pdf_path, 'wb') as f:
-            f.write(pdf_bytes)
+        save_pdf_dual(pdf_path, pdf_bytes, pdf_filename)
         
         quote_pdf_url = f"/uploads/{pdf_filename}"
         
@@ -1820,11 +1820,10 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     # Anexar condiciones legales según el tipo de cotización
     pdf_bytes = append_equipment_conditions(pdf_bytes, data.equipment_type, user_sede)
 
-    # Guardar PDF en el servidor
+    # Guardar PDF en el servidor + Object Storage
     pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"
     pdf_path = UPLOADS_DIR / pdf_filename
-    with open(pdf_path, 'wb') as f:
-        f.write(pdf_bytes)
+    save_pdf_dual(pdf_path, pdf_bytes, pdf_filename)
     quote_pdf_url = f"/uploads/{pdf_filename}"
     logging.info(f"PDF equipos generado y almacenado: {quote_pdf_url}")
 
@@ -2041,11 +2040,10 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
 
     pdf_bytes = weasyprint.HTML(string=html).write_pdf()
 
-    # Guardar PDF
+    # Guardar PDF + Object Storage
     pdf_filename = f"{quote_number}_Cotizacion_Equipo.pdf"
     pdf_path = UPLOADS_DIR / pdf_filename
-    with open(pdf_path, 'wb') as f:
-        f.write(pdf_bytes)
+    save_pdf_dual(pdf_path, pdf_bytes, pdf_filename)
     quote_pdf_url = f"/uploads/{pdf_filename}"
 
     # Reemplazar attachment de Cotización

@@ -9,6 +9,7 @@ import os
 import logging
 
 from config import db, get_current_user
+from services.pdf_storage import save_pdf_dual
 from services.email_service import send_email
 
 router = APIRouter()
@@ -47,8 +48,7 @@ async def upload_client_document(
     safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
     file_path = os.path.join(upload_dir, safe_name)
     content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    save_pdf_dual(file_path, content, f"client_documents/{safe_name}")
 
     doc = {
         "document_id": f"cdoc_{uuid.uuid4().hex[:12]}",
@@ -177,8 +177,7 @@ async def send_client_email(
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
             file_path = os.path.join(upload_dir, safe_name)
             content = await f.read()
-            with open(file_path, "wb") as fp:
-                fp.write(content)
+            save_pdf_dual(file_path, content, f"client_emails/{client_id}/{safe_name}")
             saved_files.append({
                 "filename": f.filename,
                 "url": f"/uploads/client_emails/{client_id}/{safe_name}",

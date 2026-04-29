@@ -16,6 +16,7 @@ from models import PROJECT_STATUSES
 from services.email_service import send_email
 from services.project_template_vars import resolve_project_template_vars
 from services.object_storage import init_storage, put_object, get_object
+from services.pdf_storage import save_pdf_dual
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1478,8 +1479,7 @@ async def send_adhoc_email(
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
             file_path = os.path.join(upload_dir, safe_name)
             content = await f.read()
-            with open(file_path, "wb") as fp:
-                fp.write(content)
+            save_pdf_dual(file_path, content, f"adhoc_emails/{project_id}/{safe_name}")
             saved_files.append({
                 "filename": f.filename,
                 "url": f"/uploads/adhoc_emails/{project_id}/{safe_name}",

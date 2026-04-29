@@ -5,6 +5,35 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Persistencia de PDFs entre Deploys vía Object Storage (Feb 2026) — NUEVO
+
+**Problema resuelto**: Los PDFs (cotizaciones, adjuntos de emails, transferencias) vivían en `/app/backend/uploads/` (filesystem local). Cada deploy de Preview→Production sobrescribía el filesystem llevándose los PDFs de Producción.
+
+**Solución implementada**:
+- **Helper `services/pdf_storage.py`**:
+  - `save_pdf_dual(path, bytes, name)` → escribe en disco (cache local) + sube a Emergent Object Storage.
+  - `get_pdf_from_storage(filename)` → lee desde storage, devuelve `(bytes, content_type)` o None.
+  - **Namespace por ambiente**: usa `APP_ENV` env var (preview / production) → key prefix `pdfs/{APP_ENV}/...`. Cada ambiente tiene su propio bucket lógico aislado.
+- **Endpoint `/api/uploads/{file_path:path}`** (`server.py`):
+  - Sustituye al `StaticFiles` mount.
+  - **1° intenta Object Storage** (persistente entre deploys).
+  - **2° fallback al filesystem** (legacy / archivos no migrados).
+  - 404 si no existe en ninguno.
+- **Dual-write aplicado en**:
+  - `quotes.py` (5 sitios: PDFs principales de cotizaciones, equipo, regenerar).
+  - `quote_actions.py` (2 sitios: Notas de Entrega, Reparación).
+  - `inventory.py` (transferencias de almacén).
+  - `attachments.py` (adjuntos de cotizaciones).
+  - `client_communications.py`, `entity_communications.py`, `initial_contact_communications.py`, `projects.py` (adjuntos de emails ad-hoc).
+- **Configuración**: `APP_ENV=preview` añadido a `/app/backend/.env`. En Producción debe configurarse `APP_ENV=production`.
+- **Limpieza preview**: PDFs y adjuntos viejos eliminados (261MB → 2.9MB), preservando logo institucional, templates, bank_logos y documentos institucionales.
+- **Validado E2E**: 
+  - Subida vía `save_pdf_to_storage()` → 200 OK con APP_ENV=preview.
+  - GET `/api/uploads/test_pdf_storage_xyz.pdf` → HTTP 200 desde Object Storage.
+  - Fallback filesystem para archivos pre-existentes.
+
+
+
 ### Refinamientos UX y Bug Fixes (Feb 2026) — NUEVO
 
 **1. Bug Fix — Banco con email duplicado del Cliente** (`routes/projects.py /suggested-contacts`):
