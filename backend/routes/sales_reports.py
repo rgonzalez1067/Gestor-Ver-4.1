@@ -867,7 +867,7 @@ def _format_phase_timeline(q: dict) -> list:
     """Devuelve [{field, label, timestamp, present, subsana}] siguiendo el flujo de la categoría."""
     cat = (q.get("quote_category") or "").lower()
     flow = _get_flow(cat)
-    is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
+    is_to_project = bool(q.get("archived")) and _is_to_project_trigger(q.get("archived_trigger"))
     is_history = bool(q.get("_is_history"))
     subsanados = _get_subsanados(q)
     final_field = flow[-1][0] if flow else None

@@ -386,6 +386,12 @@ async def upload_history_attachment(
     # Dual write: filesystem + Object Storage
     save_pdf_dual(file_path, content, relative_key)
 
+    # Categorías que sí subsanan irregularidades — alineado con SUBSANA_CATEGORY_MAP
+    # de sales_reports.py. 'Otros' es documentación miscelánea y NO normaliza fases.
+    SUBSANA_CATEGORIES = {
+        "Cotización", "Soporte de Aprobación", "Orden de Compra",
+        "Factura", "Pagos", "Nota de Entrega",
+    }
     attachment = {
         "attachment_id": attachment_id,
         "category": category,
@@ -399,7 +405,7 @@ async def upload_history_attachment(
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
         "file_size": len(content),
         "content_type": file.content_type or "application/octet-stream",
-        "is_subsana": True,  # marca explícita: subsano de auditoría
+        "is_subsana": category in SUBSANA_CATEGORIES,
     }
 
     await db.quote_history.update_one(

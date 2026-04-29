@@ -5,7 +5,35 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Persistencia de PDFs entre Deploys vía Object Storage (Feb 2026) — NUEVO
+### Gestión Documental en Histórico de Cotizaciones + Normalización de Irregularidades (Feb 2026) — NUEVO
+
+**Problema resuelto**: Las cotizaciones del Histórico aparecían en el reporte de "Cotizaciones Irregulares" sin manera de subsanarlas (no había forma de cargar el documento faltante). Además, la última fase del flujo aparecía en rojo aunque la cotización ya hubiera completado su ciclo operativo.
+
+**Solución implementada**:
+- **Backend** — nuevos endpoints en `routes/quote_history.py` exclusivos para Administradores del Sistema:
+  - `GET    /api/quote-history/{history_id}/attachments` — listar (Director o Admin).
+  - `POST   /api/quote-history/{history_id}/attachments` — subir (multipart, validación 10MB, categorías). **SOLO admin.**
+  - `DELETE /api/quote-history/{history_id}/attachments/{attachment_id}` — eliminar. **SOLO admin.**
+  - `GET    /api/quote-history/{history_id}/attachments/{attachment_id}/download` — descargar (Director o Admin). Lee desde Object Storage con fallback a filesystem.
+  - Storage path: `attachments/history/{quote_id}/...` (dual-write FS + Emergent Object Storage).
+  - Marca `is_subsana=True` solo si la categoría está en el conjunto subsanador (excluye 'Otros').
+- **Backend — Normalización en `sales_reports.py`**:
+  - `SUBSANA_CATEGORY_MAP` mapea cada categoría de anexo histórico al timestamp del flujo que subsana: `Cotización→sent_to_client_at`, `Soporte de Aprobación`/`Orden de Compra→approved_at`, `Factura→invoiced_at`, `Pagos→paid_at`, `Nota de Entrega→delivered_at`.
+  - `_detect_irregularities` y `_format_phase_timeline` ahora reciben el flag `_is_history` y la lista de `attachments`. Cuando una fase faltante tiene un anexo subsanador → la fase se marca `present=True, subsana=True` y la irregularidad desaparece.
+  - **Última fase siempre verde** para cotizaciones del histórico (ya completaron su ciclo operativo).
+  - La irregularidad "Pasó a Proyecto sin Aprobación previa" se subsana al subir 'Orden de Compra' o 'Soporte de Aprobación'.
+  - Consistencia: `_format_phase_timeline` ahora usa `_is_to_project_trigger()` (igual que `_detect_irregularities`) para reconocer ambos formatos `'status_enviada_imple'` y `'Enviada a Imple'`.
+- **`models.py`**: `ATTACHMENT_CATEGORIES` extendido con `'Nota de Entrega'`.
+- **Frontend**:
+  - Nuevo componente `components/HistoricalAnexosModal.jsx` (7 categorías con etiquetas que indican qué fase subsanan).
+  - `pages/HistoricalQuotes.jsx`: botón "Anexos" (icono `FolderOpen` ámbar) visible **solo para admin** (`data-testid="qh-anexos-{history_id}"`).
+  - `pages/SalesReports.jsx`: timeline del reporte de irregulares colorea las fases subsanadas en cyan (`bg-cyan-50`) con tooltip explicativo.
+- **Validación**:
+  - Backend: 11/11 pytest pasados (RBAC, upload, listado, descarga, delete, subsanación E2E, PDF render).
+  - Frontend: smoke OK (botón visible para admin, modal abre con 7 categorías).
+  - Curl manual: subir Orden de Compra subsana `approved_at`; subir OC + Factura + Pagos remueve la cotización del reporte de irregulares.
+
+### Persistencia de PDFs entre Deploys vía Object Storage (Feb 2026)
 
 **Problema resuelto**: Los PDFs (cotizaciones, adjuntos de emails, transferencias) vivían en `/app/backend/uploads/` (filesystem local). Cada deploy de Preview→Production sobrescribía el filesystem llevándose los PDFs de Producción.
 
