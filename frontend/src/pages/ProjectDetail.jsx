@@ -126,6 +126,8 @@ const ProjectDetail = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Destinatarios principales (TO) seleccionados manualmente para la notificación secuencial
+  const [mainRecipients, setMainRecipients] = useState([]);
   const [previewSubject, setPreviewSubject] = useState('');
   const [previewSending, setPreviewSending] = useState(false);
   const [previewContext, setPreviewContext] = useState(null); // {type: 'sequential'|'adhoc', target, bankName}
@@ -394,17 +396,9 @@ const ProjectDetail = () => {
   const openNotifDialog = async (type, bankName) => {
     setNotifTarget({ type, bankName });
     setAdditionalRecipients('');
+    setMainRecipients([]);
+    setResolvedRecipients([]);
     fetchSuggestedContacts();
-    // Resolver destinatarios reales desde el backend
-    try {
-      const res = await api.post(`/projects/${projectId}/preview-notification`, {
-        target: type,
-        bank_name: bankName || null,
-      });
-      setResolvedRecipients(res.data.recipients || []);
-    } catch {
-      setResolvedRecipients([]);
-    }
     setNotifDialogOpen(true);
   };
 
@@ -420,6 +414,11 @@ const ProjectDetail = () => {
   const [additionalRecipients, setAdditionalRecipients] = useState('');
 
   const sendNotification = async () => {
+    // Validar al menos un destinatario principal
+    if (!mainRecipients || mainRecipients.length === 0) {
+      toast.error('Agregue al menos un destinatario principal (TO) desde el panel "Contactos del Proyecto"');
+      return;
+    }
     setNotifSending('sending');
     try {
       // Parse additional recipients (comma or semicolon separated)
@@ -431,10 +430,12 @@ const ProjectDetail = () => {
       const res = await api.post(`/projects/${projectId}/send-notification`, {
         target: notifTarget.type,
         bank_name: notifTarget.bankName || null,
+        to_override: mainRecipients,
         additional_recipients: ccList.length > 0 ? ccList : null,
       });
       toast.success(res.data.message);
       setAdditionalRecipients('');
+      setMainRecipients([]);
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al enviar notificación');
@@ -551,11 +552,16 @@ const ProjectDetail = () => {
 
   // ==================== PREVIEW DE EMAIL (EDITABLE) ====================
   const previewNotification = async (target, bankName) => {
+    if (!mainRecipients || mainRecipients.length === 0) {
+      toast.error('Agregue al menos un destinatario principal antes de generar la vista previa');
+      return;
+    }
     setPreviewLoading(true);
     try {
       const res = await api.post(`/projects/${projectId}/preview-notification`, {
         target: target || 'client',
         bank_name: bankName || null,
+        to_override: mainRecipients,
       });
       setPreviewData(res.data);
       setPreviewSubject(res.data.subject || '');
@@ -1475,7 +1481,7 @@ const ProjectDetail = () => {
               <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.type === 'bank_client' ? `Cliente + ${notifTarget?.bankName}` : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {/* Mostrar contactos relevantes con acción rápida "Agregar a CC" */}
+              {/* Mostrar contactos relevantes con acción rápida "Agregar como destinatario principal (TO)" */}
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-medium text-slate-500 uppercase">Contactos del Proyecto</p>
@@ -1491,18 +1497,16 @@ const ProjectDetail = () => {
                     if (filtered.length === 0) return null;
                     return (
                       <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
-                        data-testid="add-all-contacts-cc-btn"
+                        data-testid="add-all-contacts-to-btn"
                         onClick={() => {
-                          const existing = additionalRecipients.split(/[,;]/).map(x => x.trim().toLowerCase()).filter(Boolean);
+                          const existing = mainRecipients.map(x => x.toLowerCase());
                           const toAdd = filtered.map(c => c.email).filter(e => e && !existing.includes(e.toLowerCase()));
-                          if (toAdd.length === 0) { toast.info('Todos los contactos ya están en CC'); return; }
-                          const next = [additionalRecipients.trim().replace(/[,;]\s*$/, ''), toAdd.join(', ')]
-                            .filter(Boolean).join(', ');
-                          setAdditionalRecipients(next);
-                          toast.success(`${toAdd.length} contacto(s) agregado(s) a CC`);
+                          if (toAdd.length === 0) { toast.info('Todos los contactos ya están agregados'); return; }
+                          setMainRecipients([...mainRecipients, ...toAdd]);
+                          toast.success(`${toAdd.length} contacto(s) agregado(s)`);
                         }}
                       >
-                        <Plus size={12} className="mr-1" />Agregar todos a CC
+                        <Plus size={12} className="mr-1" />Agregar todos
                       </Button>
                     );
                   })()}
@@ -1519,8 +1523,7 @@ const ProjectDetail = () => {
                     return <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>;
                   }
                   const renderRow = (c, i, prefix) => {
-                    const inCC = additionalRecipients
-                      .split(/[,;]/).map(x => x.trim().toLowerCase()).includes((c.email || '').toLowerCase());
+                    const inTO = mainRecipients.map(x => x.toLowerCase()).includes((c.email || '').toLowerCase());
                     return (
                       <div key={`${prefix}-${i}`} className="flex items-center justify-between gap-2 text-sm py-1 border-b border-slate-200/60 last:border-b-0" data-testid={`contact-row-${prefix}-${i}`}>
                         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1528,16 +1531,16 @@ const ProjectDetail = () => {
                           <span className="text-slate-700 truncate">{c.email}</span>
                           <span className="text-[10px] text-slate-400 truncate">({c.label})</span>
                         </div>
-                        <Button type="button" size="sm" variant={inCC ? 'ghost' : 'outline'} className="h-6 text-[11px] px-2 shrink-0"
-                          disabled={inCC}
-                          data-testid={`add-to-cc-${prefix}-${i}`}
+                        <Button type="button" size="sm" variant={inTO ? 'ghost' : 'outline'} className="h-6 text-[11px] px-2 shrink-0"
+                          disabled={inTO}
+                          data-testid={`add-to-main-${prefix}-${i}`}
                           onClick={() => {
-                            const next = additionalRecipients.trim().replace(/[,;]\s*$/, '');
-                            setAdditionalRecipients(next ? `${next}, ${c.email}` : c.email);
-                            toast.success('Agregado a CC');
+                            if (inTO) return;
+                            setMainRecipients([...mainRecipients, c.email]);
+                            toast.success('Agregado a destinatarios principales');
                           }}
                         >
-                          {inCC ? '✓ En CC' : <><Plus size={10} className="mr-0.5" />CC</>}
+                          {inTO ? '✓ Agregado' : <><Plus size={10} className="mr-0.5" />Agregar</>}
                         </Button>
                       </div>
                     );
@@ -1614,14 +1617,21 @@ const ProjectDetail = () => {
                       {/* Destinatarios resueltos */}
                       <div className="mb-3 space-y-2">
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios Principales (TO) — desde Base de Datos</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {resolvedRecipients.length === 0 ? (
-                              <span className="text-xs text-red-500 italic">Sin correos registrados en la ficha</span>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios Principales (TO) — Selecciónelos arriba</p>
+                          <div className="flex flex-wrap gap-1.5 min-h-[28px]" data-testid="main-recipients-chips">
+                            {mainRecipients.length === 0 ? (
+                              <span className="text-xs text-amber-600 italic">Aún no hay destinatarios. Use el botón "+ Agregar" en el panel superior.</span>
                             ) : (
-                              resolvedRecipients.map((email, i) => (
-                                <span key={i} className="px-2 py-0.5 text-xs bg-emerald-50 border border-emerald-200 rounded text-emerald-700 font-mono" data-testid={`resolved-recipient-${i}`}>
+                              mainRecipients.map((email, i) => (
+                                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-emerald-50 border border-emerald-200 rounded text-emerald-700 font-mono" data-testid={`main-recipient-${i}`}>
                                   {email}
+                                  <button
+                                    type="button"
+                                    className="ml-1 text-emerald-500 hover:text-rose-600"
+                                    title="Quitar"
+                                    data-testid={`remove-main-recipient-${i}`}
+                                    onClick={() => setMainRecipients(mainRecipients.filter((_, j) => j !== i))}
+                                  >×</button>
                                 </span>
                               ))
                             )}

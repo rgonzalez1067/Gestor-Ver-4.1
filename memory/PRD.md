@@ -5,6 +5,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Refinamiento de Notificaciones Secuenciales (Feb 2026) — NUEVO
+**Backend** + **Frontend**:
+
+**1. Bug Fix — Matriz Bancos×Productos lookup case-trim** (`services/project_template_vars.py`):
+- El lookup `qty_lookup` aplicaba `.strip()` solo en la indexación pero no al consultarlo desde `implementation_matrix`. Productos con trailing space (ej: `'C@mbio - Pago Móvil '`) no matcheaban, alternando 10/1/10/1 en la columna Cantidad.
+- Fix: aplicado `.strip().lower()` en ambos lados del lookup. Verificado E2E: las 7 filas de la matriz ahora muestran 10 (cantidad real).
+
+**2. Refactor UX — Selección manual de destinatarios principales (TO)** (`ProjectDetail.jsx` + `routes/projects.py`):
+- El campo "Destinatarios Principales (TO)" ya **NO se autopobla**; inicia vacío.
+- Botones de cada contacto cambiados de **"+CC"** a **"+Agregar"** (al TO) y **"Agregar todos a CC"** → **"Agregar todos"**.
+- Chips de TO con botón **×** para quitar individualmente.
+- Backend: `SequentialNotifyRequest` y `PreviewNotificationRequest` aceptan nuevo campo `to_override: List[str]`. Si está presente, sustituye el TO auto-resuelto. Los emails de CC siguen yendo separados.
+- Validación frontend: bloquea preview/envío sin TO manual.
+- Validado E2E backend: `POST /preview-notification` con `to_override:["custom1@x.com","custom2@x.com"]` retorna esos como recipients; sin override mantiene comportamiento legacy.
+- UI idéntica para Cliente y Banco (mismos componentes y data-testids con prefijo `client`/`bank`).
+
+
+
 ### Optimizaciones de Comunicación, Trazabilidad y Reportes (Feb 2026) — NUEVO
 **Backend** + **Frontend**:
 

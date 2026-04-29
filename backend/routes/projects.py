@@ -334,6 +334,7 @@ class SequentialNotifyRequest(BaseModel):
     target: str  # "client", "bank", or "bank_client"
     bank_name: Optional[str] = None
     additional_recipients: Optional[List[str]] = None  # CC emails
+    to_override: Optional[List[str]] = None  # Si se envía, reemplaza el TO auto-resuelto desde DB
     custom_html: Optional[str] = None  # Editable preview override
     custom_subject: Optional[str] = None  # Editable subject override
 
@@ -346,6 +347,7 @@ async def send_sequential_notification(project_id: str, body: SequentialNotifyRe
         additional_recipients=body.additional_recipients,
         custom_html=body.custom_html,
         custom_subject=body.custom_subject,
+        to_override=body.to_override,
     )
 
 
@@ -587,7 +589,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
-async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None):
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None, to_override: Optional[List[str]] = None):
     """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
     
     El cuerpo del correo siempre viene de la plantilla configurada.
@@ -643,7 +645,15 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 
     # Construir email con plantilla + prefijo dinámico
     email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars)
-    to_list = email_data["to_list"]
+    # Si el usuario seleccionó destinatarios manualmente desde el panel, sustituir TO
+    if to_override:
+        valid_to = [e.strip() for e in to_override if e and '@' in e]
+        if valid_to:
+            to_list = valid_to
+        else:
+            to_list = email_data["to_list"]
+    else:
+        to_list = email_data["to_list"]
     subject = custom_subject if custom_subject else email_data["subject"]
     html = custom_html if custom_html else email_data["html"]
     entity_label = email_data["entity_label"]
@@ -772,6 +782,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
 class PreviewNotificationRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
+    to_override: Optional[List[str]] = None  # destinatarios manuales seleccionados
 
 
 @router.post("/projects/{project_id}/preview-notification")
@@ -794,13 +805,20 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
     # Construir email (sin enviar) con prefijo basado en conteo
     email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars)
 
+    # Si hay destinatarios manuales, sustituir el TO en la respuesta
+    to_list = email_data["to_list"]
+    if body.to_override:
+        valid_to = [e.strip() for e in body.to_override if e and '@' in e]
+        if valid_to:
+            to_list = valid_to
+
     # Determinar próximo prefijo
     prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
 
     return {
         "subject": email_data["subject"],
         "html": email_data["html"],
-        "recipients": email_data["to_list"],
+        "recipients": to_list,
         "entity_label": email_data["entity_label"],
         "prefix": NOTIFICATION_PREFIXES[prefix_idx],
         "send_number": send_count + 1,

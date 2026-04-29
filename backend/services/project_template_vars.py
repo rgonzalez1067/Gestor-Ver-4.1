@@ -75,7 +75,9 @@ def _build_matrix_html(implementation_matrix: dict, services: list = None) -> st
     for bank_name, prods in bank_products.items():
         for prod_name in prods:
             bg = "#f8f9fa" if row_idx % 2 == 0 else "#ffffff"
-            qty = qty_lookup.get((bank_name.lower(), prod_name.lower()), 0)
+            # Lookup case-insensitive y trim para matchear nombres con trailing spaces
+            key = ((bank_name or "").strip().lower(), (prod_name or "").strip().lower())
+            qty = qty_lookup.get(key, 0)
             qty_display = qty if qty > 0 else 1
             html += (
                 f'<tr style="background:{bg};">'
