@@ -64,6 +64,7 @@ export const QuoteModals = ({ ctx }) => {
     handleProjectTypeSelect, advanceToMultistorePhase, modifyInheritedStores, handleMultistoreAnswer,
     // PYME extended flow
     pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
+    economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
     pymeNeedsPinpads, setPymeNeedsPinpads,
     pymePinpadModels, pymePinpadSelectedModel,
     pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
@@ -421,6 +422,50 @@ export const QuoteModals = ({ ctx }) => {
                     </Button>
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handlePymeServerContinue}
                       disabled={!pymeServerName || (pymeServerName === 'Otro' && !pymeServerCustom.trim())} data-testid="server-continue-btn">
+                      Continuar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Fase PYME: Datos comerciales (Grupo Económico + Nombre de Fantasía) */}
+              {multistorePhase === 'economic_data' && (
+                <div className="space-y-4 py-2" data-testid="pyme-economic-data-phase">
+                  <div className="border-b pb-2">
+                    <p className="text-sm text-slate-600 font-medium">Datos del Comercio</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Información complementaria para la Ficha Técnica de Implementación. Si los deja vacíos, se aplicarán valores por defecto.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="economic_group_input" className="text-sm font-medium">Grupo Económico</Label>
+                      <Input
+                        id="economic_group_input"
+                        type="text"
+                        placeholder="(opcional — vacío registra 'Sin Grupo Económico')"
+                        value={economicGroup}
+                        onChange={(e) => setEconomicGroup(e.target.value)}
+                        className="mt-1.5"
+                        data-testid="economic-group-input"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="fantasy_name_input" className="text-sm font-medium">Nombre de Fantasía</Label>
+                      <Input
+                        id="fantasy_name_input"
+                        type="text"
+                        placeholder="(opcional — vacío hereda Nombre del Comercio)"
+                        value={fantasyName}
+                        onChange={(e) => setFantasyName(e.target.value)}
+                        className="mt-1.5"
+                        data-testid="fantasy-name-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('server')} data-testid="economic-back-btn">
+                      Atrás
+                    </Button>
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handleEconomicDataContinue} data-testid="economic-continue-btn">
                       Continuar
                     </Button>
                   </div>

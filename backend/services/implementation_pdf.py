@@ -139,10 +139,15 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     quote_type = quote.get('quote_type', 'N/A')
     tipo_display = 'VPOS / MPOS' if quote_type in ('VPOS_MPOS', 'VPOS') else 'Payment Gateway' if quote_type == 'GATEWAY' else 'MPOS (Imple + POS)' if quote_type == 'FAST_TRACK' else quote_type
 
+    economic_group = quote.get('economic_group') or 'Sin Grupo Económico'
+    fantasy_name = quote.get('fantasy_name') or client.get('fantasy_name') or client_name
+
     elements.append(_key_value_table([
         ("Tipo de Proyecto", tipo_display),
+        ("Grupo Económico", economic_group),
         ("Nombre del Comercio", client_name),
         ("RIF", client.get('rif', 'N/A')),
+        ("Nombre de Fantasía", fantasy_name),
     ], styles))
     elements.append(Spacer(1, 14))
 

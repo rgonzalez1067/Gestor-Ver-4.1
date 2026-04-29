@@ -902,15 +902,20 @@ const SalesReports = () => {
                               <div
                                 key={ph.field}
                                 className={`px-2 py-1.5 rounded border text-center ${
-                                  ph.present
+                                  ph.subsana
+                                    ? 'bg-cyan-50 border-cyan-200 text-cyan-800'
+                                    : ph.present
                                     ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                                     : 'bg-rose-50 border-rose-200 text-rose-800'
                                 }`}
                                 data-testid={`phase-${ph.field}`}
+                                title={ph.subsana ? 'Subsanado por anexo cargado en el Histórico' : undefined}
                               >
-                                <div className="text-[10px] font-semibold">{ph.label}</div>
+                                <div className="text-[10px] font-semibold">
+                                  {ph.label}{ph.subsana ? ' ✓' : ''}
+                                </div>
                                 <div className="text-[10px] font-mono mt-0.5">
-                                  {ph.timestamp ? new Date(ph.timestamp).toLocaleDateString('es-VE') : '—'}
+                                  {ph.timestamp ? new Date(ph.timestamp).toLocaleDateString('es-VE') : (ph.subsana ? 'subsanado' : '—')}
                                 </div>
                               </div>
                             ))}

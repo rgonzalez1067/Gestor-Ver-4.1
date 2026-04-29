@@ -648,6 +648,7 @@ ATTACHMENT_CATEGORIES = [
     "Factura",
     "Pagos",
     "Soporte de Aprobación",
+    "Nota de Entrega",
     "Otros"
 ]
 

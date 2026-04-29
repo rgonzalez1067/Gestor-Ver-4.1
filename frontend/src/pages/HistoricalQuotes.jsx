@@ -8,9 +8,10 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2 } from 'lucide-react';
+import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2, FolderOpen } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { HistoricalAnexosModal } from '../components/HistoricalAnexosModal';
 
 const CATEGORY_LABELS = {
   equipment: 'Equipos/Accesorios',
@@ -38,6 +39,8 @@ export const HistoricalQuotes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const autoOpenedRef = useRef(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [anexosOpen, setAnexosOpen] = useState(false);
+  const [anexosTarget, setAnexosTarget] = useState(null);
   const currentUser = (() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   })();
@@ -216,6 +219,17 @@ export const HistoricalQuotes = () => {
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => { setAnexosTarget(r); setAnexosOpen(true); }}
+                            data-testid={`qh-anexos-${r.history_id}`}
+                            title="Anexos del histórico (solo administradores)"
+                          >
+                            <FolderOpen className="w-4 h-4 text-amber-500 hover:text-amber-700" />
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => deleteRecord(r)}
                             disabled={deletingId === r.history_id}
                             data-testid={`qh-delete-${r.history_id}`}
@@ -297,6 +311,15 @@ export const HistoricalQuotes = () => {
             )}
           </DialogContent>
         </Dialog>
+        {anexosOpen && anexosTarget && (
+          <HistoricalAnexosModal
+            open={anexosOpen}
+            onClose={() => { setAnexosOpen(false); setAnexosTarget(null); }}
+            historyId={anexosTarget.history_id}
+            quoteNumber={anexosTarget.quote_number}
+            onChange={fetchHistory}
+          />
+        )}
       </main>
     </div>
   );

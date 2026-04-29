@@ -777,6 +777,8 @@ class SendToImplementationRequest(BaseModel):
     project_type_impl: Optional[str] = None  # "pos_fast_track", "vpos_mpos", "payment_gateway"
     equipment_serials: Optional[list] = None  # [{modelo, serial, nota_entrega_id?}]
     server_name: Optional[str] = None  # "Multicomercio MSC", "Multicomercio MSC2", o texto libre
+    economic_group: Optional[str] = None  # Grupo Económico (texto libre)
+    fantasy_name: Optional[str] = None    # Nombre de Fantasía (texto libre)
     pinpad_serials: Optional[list] = None  # [{modelo, serial, movement_id}]
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
@@ -821,6 +823,16 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     # Inyectar datos PYME (servidor/pinpads) en el quote para el PDF
     if body and body.server_name:
         quote["server_name"] = body.server_name
+    # Grupo Económico y Nombre de Fantasía con defaults sensatos
+    if body and body.economic_group is not None:
+        quote["economic_group"] = body.economic_group.strip() if body.economic_group.strip() else "Sin Grupo Económico"
+    else:
+        quote["economic_group"] = "Sin Grupo Económico"
+    if body and body.fantasy_name is not None and body.fantasy_name.strip():
+        quote["fantasy_name"] = body.fantasy_name.strip()
+    else:
+        # Hereda de Nombre del Comercio (legal_name) o fantasy_name del cliente
+        quote["fantasy_name"] = client_name
     if body and body.pinpad_serials:
         quote["pinpad_serials"] = body.pinpad_serials
     if body and body.equipment_serials:
@@ -854,7 +866,10 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         pt_impl = body.project_type_impl if body else None
         srv_name = body.server_name if body else None
         pp_serials = body.pinpad_serials if body else None
-        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials)
+        # Inyectar Grupo Económico y Nombre de Fantasía ya normalizados (con defaults aplicados arriba)
+        eg = quote.get("economic_group")
+        fn = quote.get("fantasy_name")
+        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials, eg, fn)
     except HTTPException:
         raise
     except Exception as e:

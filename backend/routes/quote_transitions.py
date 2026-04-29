@@ -23,6 +23,8 @@ async def _create_project_from_quote(
     project_type_impl: str = None,
     server_name: str = None,
     pinpad_serials: list = None,
+    economic_group: str = None,
+    fantasy_name: str = None,
 ):
     """Crea un proyecto a partir de una cotización enviada a implementación."""
     existing = await db.projects.find_one({"quote_id": quote_id})
@@ -190,6 +192,12 @@ async def _create_project_from_quote(
             "created_by_name": "Sistema",
             "created_at": now.isoformat(),
         })
+
+    # Grupo Económico y Nombre de Fantasía (defaults aplicados aguas arriba)
+    if economic_group is not None:
+        project["economic_group"] = economic_group
+    if fantasy_name is not None:
+        project["fantasy_name"] = fantasy_name
 
     # Pinpad seriales seleccionados (flujo PYME)
     if pinpad_serials and isinstance(pinpad_serials, list):

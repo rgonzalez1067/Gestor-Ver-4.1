@@ -234,6 +234,8 @@ export const Quotes = () => {
   // Estado para flujo PYME extendido (Servidor + Pinpads)
   const [pymeServerName, setPymeServerName] = useState(''); // 'Multicomercio MSC' | 'Multicomercio MSC2' | custom
   const [pymeServerCustom, setPymeServerCustom] = useState('');
+  const [economicGroup, setEconomicGroup] = useState('');
+  const [fantasyName, setFantasyName] = useState('');
   const [pymeNeedsPinpads, setPymeNeedsPinpads] = useState(null); // null | true | false
   const [pymePinpadModels, setPymePinpadModels] = useState([]); // [{hardware_id, name, type}]
   const [pymePinpadSelectedModel, setPymePinpadSelectedModel] = useState(''); // hardware_id
@@ -2264,6 +2266,9 @@ export const Quotes = () => {
       if (effectiveServer) {
         body.server_name = effectiveServer;
       }
+      // Grupo Económico y Nombre de Fantasía (campos siempre incluidos para que backend aplique defaults)
+      body.economic_group = (economicGroup || '').trim();
+      body.fantasy_name = (fantasyName || '').trim();
       // PYME extended: pinpad_serials
       const selectedPinpadSerials = pymePinpadSerials.filter(s => pymePinpadSerialsSelected[s.serial]);
       if (selectedPinpadSerials.length > 0) {
@@ -2390,6 +2395,10 @@ export const Quotes = () => {
       toast.error('Seleccione o ingrese el servidor de instalación');
       return;
     }
+    setMultistorePhase('economic_data');
+  };
+
+  const handleEconomicDataContinue = () => {
     setMultistorePhase('pinpad_question');
   };
 
@@ -3310,6 +3319,7 @@ export const Quotes = () => {
             getMultistoreTotalCajas, getMultistoreQuote, confirmInheritedStores,
             handleProjectTypeSelect, advanceToMultistorePhase, modifyInheritedStores, handleMultistoreAnswer,
             pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
+            economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
             pymeNeedsPinpads, setPymeNeedsPinpads,
             pymePinpadModels, pymePinpadSelectedModel,
             pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,

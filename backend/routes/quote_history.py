@@ -2,12 +2,18 @@
 Snapshot inmutable de cotizaciones al alcanzar estado final o convertirse en Proyecto.
 Solo lectura + descarga de PDF. Acceso: admin (Administrador del Sistema) o cargo='Director'.
 """
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from typing import Optional
 from datetime import datetime, timezone
+from pathlib import Path
+import io
+import uuid
 import logging
 
-from config import db, get_current_user
+from config import db, get_current_user, UPLOADS_DIR
+from models import ATTACHMENT_CATEGORIES
+from services.pdf_storage import save_pdf_dual, get_pdf_from_storage
 
 router = APIRouter()
 
@@ -289,3 +295,184 @@ async def migrate_legacy_quotes(authorization: Optional[str] = Header(None)):
         else:
             skipped += 1
     return {"migrated": count, "skipped": skipped}
+
+
+# =====================================================================
+# ANEXOS DEL HISTÓRICO — gestión documental para subsano de auditoría.
+# Solo Administradores del Sistema pueden subir / eliminar anexos. Director
+# y Admin pueden visualizar/descargar.
+# =====================================================================
+
+def _is_system_admin(user: dict) -> bool:
+    return (user.get("role") or "").lower() == "admin"
+
+
+@router.get("/quote-history/{history_id}/attachments")
+async def list_history_attachments(history_id: str, authorization: Optional[str] = Header(None)):
+    """Lista anexos del registro histórico. Lectura: Director o Admin."""
+    current_user = await get_current_user(authorization)
+    if not _can_access_history(current_user):
+        raise HTTPException(status_code=403, detail="Acceso restringido a Director o Administrador del Sistema")
+    doc = await db.quote_history.find_one(
+        {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Registro histórico no encontrado")
+    return {
+        "history_id": doc.get("history_id"),
+        "quote_id": doc.get("quote_id"),
+        "quote_number": doc.get("quote_number"),
+        "attachments": doc.get("attachments", []) or [],
+    }
+
+
+@router.post("/quote-history/{history_id}/attachments")
+async def upload_history_attachment(
+    history_id: str,
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Sube un anexo al registro del histórico. Solo administrador del sistema."""
+    current_user = await get_current_user(authorization)
+    if not _is_system_admin(current_user):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden subir anexos al histórico")
+
+    if category not in ATTACHMENT_CATEGORIES:
+        raise HTTPException(status_code=400, detail=f"Categoría inválida. Opciones: {', '.join(ATTACHMENT_CATEGORIES)}")
+
+    doc = await db.quote_history.find_one(
+        {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Registro histórico no encontrado")
+
+    # Tamaño máx. 10 MB
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo no debe superar los 10MB")
+
+    quote_id = doc.get("quote_id")
+    quote_number = doc.get("quote_number") or quote_id
+
+    attachment_id = f"hatt_{uuid.uuid4().hex[:12]}"
+    file_ext = Path(file.filename).suffix if file.filename else ".pdf"
+    cat_short = (
+        {
+            "Cotización": "Cotizacion",
+            "Orden de Compra": "OrdenCompra",
+            "Soporte de Aprobación": "Aprobacion",
+            "Factura": "Factura",
+            "Pagos": "Pago",
+            "Nota de Entrega": "NotaEntrega",
+            "Otros": "Otros",
+        }
+        .get(category, category.replace(" ", ""))
+    )
+    existing_in_cat = [a for a in (doc.get("attachments") or []) if a.get("category") == category]
+    suffix = f"_{len(existing_in_cat) + 1}" if existing_in_cat else ""
+    display_filename = f"HIST_{quote_number}_{cat_short}{suffix}{file_ext}"
+    safe_filename = f"{attachment_id}{file_ext}"
+
+    # Storage path bajo "attachments/history/{quote_id}/..."
+    rel_dir = f"attachments/history/{quote_id}"
+    local_dir = UPLOADS_DIR / "attachments" / "history" / quote_id
+    local_dir.mkdir(parents=True, exist_ok=True)
+    file_path = local_dir / safe_filename
+    relative_key = f"{rel_dir}/{safe_filename}"
+
+    # Dual write: filesystem + Object Storage
+    save_pdf_dual(file_path, content, relative_key)
+
+    attachment = {
+        "attachment_id": attachment_id,
+        "category": category,
+        "filename": display_filename,
+        "url": f"/uploads/{relative_key}",
+        "uploaded_by": current_user.get("email", "unknown"),
+        "uploaded_by_name": (
+            f"{current_user.get('first_name','')} {current_user.get('last_name','')}".strip()
+            or current_user.get("email", "unknown")
+        ),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "file_size": len(content),
+        "content_type": file.content_type or "application/octet-stream",
+        "is_subsana": True,  # marca explícita: subsano de auditoría
+    }
+
+    await db.quote_history.update_one(
+        {"history_id": doc.get("history_id")},
+        {"$push": {"attachments": attachment}},
+    )
+    return {"message": "Anexo subido exitosamente", "attachment": attachment}
+
+
+@router.delete("/quote-history/{history_id}/attachments/{attachment_id}")
+async def delete_history_attachment(history_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina un anexo del histórico. Solo administrador del sistema."""
+    current_user = await get_current_user(authorization)
+    if not _is_system_admin(current_user):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden depurar anexos del histórico")
+
+    doc = await db.quote_history.find_one(
+        {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
+        {"_id": 0, "history_id": 1, "attachments": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Registro histórico no encontrado")
+    attachment = next((a for a in (doc.get("attachments") or []) if a.get("attachment_id") == attachment_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Anexo no encontrado")
+
+    # Limpieza opcional del archivo físico (storage falla silenciosamente).
+    try:
+        rel = (attachment.get("url") or "").replace("/uploads/", "")
+        local_path = UPLOADS_DIR / rel
+        if local_path.exists():
+            local_path.unlink()
+    except Exception:
+        logging.exception("No se pudo eliminar archivo físico del anexo histórico")
+
+    await db.quote_history.update_one(
+        {"history_id": doc.get("history_id")},
+        {"$pull": {"attachments": {"attachment_id": attachment_id}}},
+    )
+    return {"message": "Anexo eliminado exitosamente"}
+
+
+@router.get("/quote-history/{history_id}/attachments/{attachment_id}/download")
+async def download_history_attachment(history_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
+    """Descarga un anexo histórico. Lectura: Director o Admin."""
+    current_user = await get_current_user(authorization)
+    if not _can_access_history(current_user):
+        raise HTTPException(status_code=403, detail="Acceso restringido")
+    doc = await db.quote_history.find_one(
+        {"$or": [{"history_id": history_id}, {"quote_id": history_id}]},
+        {"_id": 0, "attachments": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+    attachment = next((a for a in (doc.get("attachments") or []) if a.get("attachment_id") == attachment_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Anexo no encontrado")
+
+    rel = (attachment.get("url") or "").replace("/uploads/", "")
+    # Intentar storage primero, fallback al filesystem local
+    obj = get_pdf_from_storage(rel)
+    if obj:
+        content, ctype = obj
+    else:
+        local_path = UPLOADS_DIR / rel
+        if not local_path.exists():
+            raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        content = local_path.read_bytes()
+        ctype = attachment.get("content_type", "application/octet-stream")
+
+    filename = attachment.get("filename", attachment_id)
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=ctype,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

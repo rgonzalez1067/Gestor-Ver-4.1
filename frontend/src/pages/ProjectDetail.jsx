@@ -912,77 +912,86 @@ const ProjectDetail = () => {
                   <p className="text-sm font-semibold text-slate-700">{project.client_name}</p>
                   <p className="text-xs text-slate-400">{project.client_rif} — {project.client_sede}</p>
                 </div>
-                {/* Integrador y Aplicativo */}
+                {/* Datos Comerciales: Grupo Económico + Nombre de Fantasía */}
                 <div className="pt-2 mt-2 border-t border-slate-100 space-y-2">
-                  {editingIntegrator ? (
-                    <>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Integrador</p>
-                        <Select value={integratorName} onValueChange={(v) => {
-                          if (v === 'Stand Alone') {
-                            setIntegratorName('Stand Alone');
-                            setApplicationName('');
-                          } else {
-                            const integ = integratorsList.find(i => i.integrator_id === v);
-                            if (integ) {
-                              setIntegratorName(integ.name);
-                              setApplicationName(integ.app_name || '');
-                            }
-                          }
-                        }}>
-                          <SelectTrigger className="h-7 text-xs" data-testid="integrator-select">
-                            <SelectValue placeholder="Seleccione integrador..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Stand Alone">Stand Alone</SelectItem>
-                            {integratorsList.map(integ => (
-                              <SelectItem key={integ.integrator_id} value={integ.integrator_id}>
-                                {integ.name}{integ.app_name ? ` — ${integ.app_name}` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Aplicativo</p>
-                        <Input value={applicationName} onChange={e => setApplicationName(e.target.value)}
-                          placeholder="Se autocompleta del integrador" className="h-7 text-xs" data-testid="application-input" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Cantidad de Cajas/Terminales</p>
-                        <Input type="number" min={0} value={boxCount} onChange={e => setBoxCount(parseInt(e.target.value) || 0)}
-                          placeholder="Ej: 5" className="h-7 text-xs w-24" data-testid="box-count-input" />
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" className="h-6 text-[10px]" onClick={saveIntegratorFields}>Guardar</Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingIntegrator(false)}>Cancelar</Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-slate-500">Integrador</p>
-                          <p className="text-sm font-semibold text-slate-700" data-testid="integrator-name">{project.integrator_name || 'Stand Alone'}</p>
-                        </div>
-                        {canEditMatrix && (
-                          <button onClick={() => setEditingIntegrator(true)} className="text-slate-400 hover:text-blue-500" data-testid="edit-integrator-btn">
-                            <Edit2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Aplicativo</p>
-                        <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.integrator_app_name || project.application_name || '—'}</p>
-                      </div>
-                    </>
-                  )}
+                  <div>
+                    <p className="text-xs text-slate-500">Grupo Económico</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="economic-group">{project.economic_group || 'Sin Grupo Económico'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Nombre de Fantasía</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="fantasy-name">{project.fantasy_name || project.client_name || '—'}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Bloque 2: Implementación (incluye servidor) */}
+              {/* Bloque 2: Implementación (incluye servidor + integrador/aplicativo) */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Implementación</p>
+                {/* Integrador y Aplicativo (movidos desde el header) */}
+                {editingIntegrator ? (
+                  <div className="space-y-2 pb-2 border-b border-slate-100">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Integrador</p>
+                      <Select value={integratorName} onValueChange={(v) => {
+                        if (v === 'Stand Alone') {
+                          setIntegratorName('Stand Alone');
+                          setApplicationName('');
+                        } else {
+                          const integ = integratorsList.find(i => i.integrator_id === v);
+                          if (integ) {
+                            setIntegratorName(integ.name);
+                            setApplicationName(integ.app_name || '');
+                          }
+                        }
+                      }}>
+                        <SelectTrigger className="h-7 text-xs" data-testid="integrator-select">
+                          <SelectValue placeholder="Seleccione integrador..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Stand Alone">Stand Alone</SelectItem>
+                          {integratorsList.map(integ => (
+                            <SelectItem key={integ.integrator_id} value={integ.integrator_id}>
+                              {integ.name}{integ.app_name ? ` — ${integ.app_name}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Aplicativo</p>
+                      <Input value={applicationName} onChange={e => setApplicationName(e.target.value)}
+                        placeholder="Se autocompleta del integrador" className="h-7 text-xs" data-testid="application-input" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Cantidad de Cajas/Terminales</p>
+                      <Input type="number" min={0} value={boxCount} onChange={e => setBoxCount(parseInt(e.target.value) || 0)}
+                        placeholder="Ej: 5" className="h-7 text-xs w-24" data-testid="box-count-input" />
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" className="h-6 text-[10px]" onClick={saveIntegratorFields}>Guardar</Button>
+                      <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditingIntegrator(false)}>Cancelar</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 pb-2 border-b border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-500">Integrador</p>
+                        <p className="text-sm font-semibold text-slate-700" data-testid="integrator-name">{project.integrator_name || 'Stand Alone'}</p>
+                      </div>
+                      {canEditMatrix && (
+                        <button onClick={() => setEditingIntegrator(true)} className="text-slate-400 hover:text-blue-500" data-testid="edit-integrator-btn">
+                          <Edit2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Aplicativo</p>
+                      <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.integrator_app_name || project.application_name || '—'}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <CreditCard size={18} className="text-emerald-600 shrink-0" />
                   <div>

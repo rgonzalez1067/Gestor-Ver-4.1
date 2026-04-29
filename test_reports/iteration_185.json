@@ -1,0 +1,34 @@
+{
+  "summary": "Validated Phases 3-5 of Quote History anexos (subsana logic): backend pytest 11/11 passed (3 skipped because non-admin user 'srubio@megasoft.com.ve / Test1234!' returns 401 'Credenciales inválidas'). Frontend smoke confirmed: admin sees the FolderOpen 'Anexos' button (data-testid='qh-anexos-{id}'), modal HistoricalAnexosModal opens correctly and lists all 7 categories with their subsana labels (Cotización→Enviada al Cliente, Soporte de Aprobación→Aprobada, Orden de Compra→Aprobada, Factura→Facturada, Pagos→Pagada, Nota de Entrega→Entregada, Otros). All happy-paths working end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "Non-admin test credential 'srubio@megasoft.com.ve / Test1234!' from /app/memory/test_credentials.md returns 401. Cannot validate negative RBAC (403 for non-admin) on attachment endpoints. Admin path validated OK."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration185_quote_history_anexos.py",
+    "/app/test_reports/pytest/iteration185.xml"
+  ],
+  "action_items": [
+    "Reset / re-seed the non-admin test user 'srubio@megasoft.com.ve' with password 'Test1234!' so that negative RBAC tests can run (or update /app/memory/test_credentials.md with a working non-admin)."
+  ],
+  "critical_code_review_comments": [
+    "sales_reports.py _format_phase_timeline uses (q.get('archived_trigger') or '').lower().startswith('enviada a imple') for is_to_project but _detect_irregularities uses _is_to_project_trigger() which also handles 'status_enviada_imple'. The two checks are inconsistent: a quote with archived_trigger='status_enviada_imple' will be detected as to_project for irregularity but the timeline rendering won't substitute archived_at into sent_to_implementation_at because the startswith check fails. Recommend reusing _is_to_project_trigger in _format_phase_timeline for consistency.",
+    "quote_history.py upload_history_attachment hard-codes is_subsana=True for ALL categories including 'Otros' which (per modal text 'no normaliza fases') should not flag is_subsana. Suggest only setting is_subsana=True when category in SUBSANA_CATEGORY_MAP."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration185_quote_history_anexos.py"
+  ],
+  "success_rate": {"backend": "100% of executable tests (11/11); 3 RBAC negative skipped due to credential issue", "frontend": "100% smoke (button visible for admin, modal opens, 7 categories rendered)"},
+  "test_credentials": "Admin (works): rgonzalez@megasoft.com.ve / admin123. Non-admin (BROKEN): srubio@megasoft.com.ve / Test1234! returns 401.",
+  "seed_data_creation": "Inserted synthetic quote_history doc 'qhist_test_v2_it185' (and 'qhist_ui_smoke' for UI smoke). Both deleted at teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend endpoints for quote-history attachments verified: GET /list, POST /upload (with size>10MB and bad-category validation), GET /download, DELETE work. Subsana logic in /api/reports/sales/irregular-quotes verified: when OC+Factura+Pagos+Nota de Entrega anexos are uploaded to a history record, the irregular item is removed (or all phases marked subsana=True). PDF /api/reports/sales/irregular-quotes/pdf renders with new 'subsana' phase styling without errors. Frontend qh-anexos-{id} testid working. Two minor code-review nits in critical_code_review_comments."
+}

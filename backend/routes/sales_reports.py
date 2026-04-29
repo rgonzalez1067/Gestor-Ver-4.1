@@ -782,10 +782,41 @@ def _is_to_project_trigger(trigger: Optional[str]) -> bool:
     return "enviada_imple" in norm or "enviada_a_imple" in norm
 
 
+# Mapa de subsano: una categoría de anexo subsana la falta de timestamp en
+# la fase indicada. Útil para que un Administrador, al subir el documento
+# faltante en el Histórico, normalice automáticamente el reporte de
+# irregularidades (la celda pasa de roja a verde).
+SUBSANA_CATEGORY_MAP = {
+    "Cotización": "sent_to_client_at",
+    "Soporte de Aprobación": "approved_at",
+    "Orden de Compra": "approved_at",
+    "Factura": "invoiced_at",
+    "Pagos": "paid_at",
+    "Nota de Entrega": "delivered_at",
+}
+
+
+def _get_subsanados(q: dict) -> set:
+    """Devuelve el set de campos (timestamps) cuya falta queda subsanada por
+    los anexos cargados en la cotización."""
+    fields = set()
+    for att in (q.get("attachments") or []):
+        f = SUBSANA_CATEGORY_MAP.get(att.get("category"))
+        if f:
+            fields.add(f)
+    return fields
+
+
 def _detect_irregularities(q: dict) -> list:
     """Una fase es irregular si una fase POSTERIOR del flujo tiene timestamp pero ella NO.
     Usa el flujo correspondiente a `quote_category`. Para `implementation`, también
     cuenta `archived_at` con trigger 'Enviada a Imple' como `sent_to_implementation_at`.
+
+    Reglas de normalización adicionales:
+    - Si la cotización proviene del Histórico (`_is_history`), la última fase del
+      flujo se considera SIEMPRE cumplida (verde) — ya completó el ciclo.
+    - Si existe un anexo del Histórico cuya categoría subsana una fase faltante
+      (ver `SUBSANA_CATEGORY_MAP`), esa fase se considera cumplida.
 
     Adicionalmente marca como irregular cualquier cotización que:
     - Pasó a Proyecto (archived + trigger 'Enviada a Imple') sin `approved_at`.
@@ -795,10 +826,19 @@ def _detect_irregularities(q: dict) -> list:
 
     # Para implementation: si pasó a proyecto vía archived, ese trigger sustituye sent_to_implementation_at
     is_to_project = bool(q.get("archived")) and _is_to_project_trigger(q.get("archived_trigger"))
+    is_history = bool(q.get("_is_history"))
+    subsanados = _get_subsanados(q)
+    final_field = flow[-1][0] if flow else None
 
     def has_ts(field):
         if field == "sent_to_implementation_at" and cat == "implementation":
             return bool(q.get(field)) or is_to_project
+        # Histórico → fase final siempre verde (ya cerró ciclo operativo)
+        if is_history and field == final_field:
+            return True
+        # Subsanado por anexo cargado en el Histórico
+        if field in subsanados:
+            return True
         return bool(q.get(field))
 
     issues = []
@@ -812,8 +852,10 @@ def _detect_irregularities(q: dict) -> list:
             if i < last_ts_idx and not has_ts(field):
                 issues.append(f"Falta fecha de {label}")
 
-    # Check explícito: pasó a Proyecto sin aprobación
-    if is_to_project and not q.get("approved_at"):
+    # Check explícito: pasó a Proyecto sin aprobación.
+    # Si el Admin subió "Soporte de Aprobación" / "Orden de Compra" en el
+    # histórico, la falta se considera subsanada.
+    if is_to_project and not q.get("approved_at") and "approved_at" not in subsanados:
         msg = "Pasó a Proyecto sin Aprobación previa"
         if msg not in issues:
             issues.append(msg)
@@ -822,10 +864,13 @@ def _detect_irregularities(q: dict) -> list:
 
 
 def _format_phase_timeline(q: dict) -> list:
-    """Devuelve [{field, label, timestamp, present}] siguiendo el flujo de la categoría."""
+    """Devuelve [{field, label, timestamp, present, subsana}] siguiendo el flujo de la categoría."""
     cat = (q.get("quote_category") or "").lower()
     flow = _get_flow(cat)
     is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
+    is_history = bool(q.get("_is_history"))
+    subsanados = _get_subsanados(q)
+    final_field = flow[-1][0] if flow else None
 
     out = []
     for field, label in flow:
@@ -833,11 +878,20 @@ def _format_phase_timeline(q: dict) -> list:
         # En implementation, usar archived_at si llegó por ese trigger y no hay sent_to_implementation_at
         if field == "sent_to_implementation_at" and cat == "implementation" and not ts and is_to_project:
             ts = q.get("archived_at")
+
+        is_subsana = (not ts) and (field in subsanados)
+        is_final_history = is_history and (field == final_field) and not ts
+        # Para histórico, cuando la fase final no tiene timestamp explícito, usamos archived_at
+        if is_final_history:
+            ts = q.get("archived_at") or ts
+
+        present = bool(ts) or is_subsana or is_final_history
         out.append({
             "field": field,
             "label": label,
             "timestamp": ts or None,
-            "present": bool(ts),
+            "present": present,
+            "subsana": is_subsana,
         })
 
     # Para categorías no-implementation que pasaron a proyecto: añadir marca extra
@@ -847,6 +901,7 @@ def _format_phase_timeline(q: dict) -> list:
             "label": "Pasada a Proyecto",
             "timestamp": q.get("archived_at"),
             "present": bool(q.get("archived_at")),
+            "subsana": False,
         })
     return out
 
@@ -884,6 +939,10 @@ async def _collect_irregular_quotes(match: dict) -> list:
         combined = {**snap, **{k: h.get(k) for k in ("quote_id", "quote_number", "quote_category", "client_name", "archived_trigger")}}
         # Marcar como archivada y trigger desde el history
         combined["archived"] = True
+        combined["_is_history"] = True
+        # Anexos: priorizar los del documento histórico (incluye los subsanos
+        # cargados por Admin sobre el registro archivado).
+        combined["attachments"] = h.get("attachments") or snap.get("attachments") or []
         if not combined.get("archived_trigger"):
             combined["archived_trigger"] = h.get("archived_trigger")
         # Forzar archived_at desde el history
@@ -1009,8 +1068,14 @@ async def irregular_quotes_pdf(
         # Timeline horizontal
         chips = ""
         for ph in it["phases"]:
-            cls = "phase-ok" if ph["present"] else "phase-missing"
-            chips += f'<div class="ph {cls}"><div class="ph-label">{ph["label"]}</div><div class="ph-ts">{fmt_ts(ph["timestamp"])}</div></div>'
+            if ph.get("subsana"):
+                cls = "phase-subsana"
+            elif ph["present"]:
+                cls = "phase-ok"
+            else:
+                cls = "phase-missing"
+            label = ph["label"] + (" ✓ subsanado" if ph.get("subsana") else "")
+            chips += f'<div class="ph {cls}"><div class="ph-label">{label}</div><div class="ph-ts">{fmt_ts(ph["timestamp"])}</div></div>'
 
         issues_html = " ".join(f'<span class="issue">⚠ {i}</span>' for i in it["issues"])
         proj_badge = '<span class="badge-proj">🚀 Pasó a Proyecto</span>' if it.get("passed_to_project") else ""
@@ -1088,6 +1153,7 @@ async def irregular_quotes_pdf(
   .timeline {{ display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }}
   .ph {{ flex: 1; min-width: 80px; padding: 4px 6px; border-radius: 4px; text-align: center; border: 1px solid; }}
   .phase-ok {{ background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }}
+  .phase-subsana {{ background: #ecfeff; border-color: #67e8f9; color: #0e7490; }}
   .phase-missing {{ background: #fef2f2; border-color: #fecaca; color: #991b1b; }}
   .ph-label {{ font-size: 8.5px; font-weight: 600; }}
   .ph-ts {{ font-size: 8.5px; margin-top: 1px; font-family: monospace; }}
