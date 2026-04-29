@@ -1475,46 +1475,92 @@ const ProjectDetail = () => {
               <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.type === 'bank_client' ? `Cliente + ${notifTarget?.bankName}` : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {/* Mostrar TODOS los destinatarios del proyecto agrupados */}
+              {/* Mostrar contactos relevantes con acción rápida "Agregar a CC" */}
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                <p className="text-xs font-medium text-slate-500 uppercase mb-2">Destinatarios del Proyecto</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-slate-500 uppercase">Contactos del Proyecto</p>
+                  {(() => {
+                    const tType = notifTarget?.type;
+                    const tBank = notifTarget?.bankName;
+                    const filtered = suggestedContacts.filter(c => {
+                      if (tType === 'client') return c.source === 'client';
+                      if (tType === 'bank') return c.source === 'bank' && (!tBank || c.bank_name === tBank);
+                      if (tType === 'bank_client') return c.source === 'client' || (c.source === 'bank' && (!tBank || c.bank_name === tBank));
+                      return true;
+                    });
+                    if (filtered.length === 0) return null;
+                    return (
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+                        data-testid="add-all-contacts-cc-btn"
+                        onClick={() => {
+                          const existing = additionalRecipients.split(/[,;]/).map(x => x.trim().toLowerCase()).filter(Boolean);
+                          const toAdd = filtered.map(c => c.email).filter(e => e && !existing.includes(e.toLowerCase()));
+                          if (toAdd.length === 0) { toast.info('Todos los contactos ya están en CC'); return; }
+                          const next = [additionalRecipients.trim().replace(/[,;]\s*$/, ''), toAdd.join(', ')]
+                            .filter(Boolean).join(', ');
+                          setAdditionalRecipients(next);
+                          toast.success(`${toAdd.length} contacto(s) agregado(s) a CC`);
+                        }}
+                      >
+                        <Plus size={12} className="mr-1" />Agregar todos a CC
+                      </Button>
+                    );
+                  })()}
+                </div>
                 {(() => {
+                  const tType = notifTarget?.type;
+                  const tBank = notifTarget?.bankName;
                   const clientContacts = suggestedContacts.filter(c => c.source === 'client');
-                  const bankContacts = suggestedContacts.filter(c => c.source === 'bank');
-                  const hasContacts = suggestedContacts.length > 0;
-                  return hasContacts ? (
+                  const bankContacts = suggestedContacts.filter(c => c.source === 'bank' && (!tBank || c.bank_name === tBank));
+                  const showClient = tType === 'client' || tType === 'bank_client';
+                  const showBank = tType === 'bank' || tType === 'bank_client';
+                  const hasAny = (showClient && clientContacts.length > 0) || (showBank && bankContacts.length > 0);
+                  if (!hasAny) {
+                    return <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>;
+                  }
+                  const renderRow = (c, i, prefix) => {
+                    const inCC = additionalRecipients
+                      .split(/[,;]/).map(x => x.trim().toLowerCase()).includes((c.email || '').toLowerCase());
+                    return (
+                      <div key={`${prefix}-${i}`} className="flex items-center justify-between gap-2 text-sm py-1 border-b border-slate-200/60 last:border-b-0" data-testid={`contact-row-${prefix}-${i}`}>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Mail size={12} className={prefix === 'client' ? 'text-indigo-400 shrink-0' : 'text-blue-400 shrink-0'} />
+                          <span className="text-slate-700 truncate">{c.email}</span>
+                          <span className="text-[10px] text-slate-400 truncate">({c.label})</span>
+                        </div>
+                        <Button type="button" size="sm" variant={inCC ? 'ghost' : 'outline'} className="h-6 text-[11px] px-2 shrink-0"
+                          disabled={inCC}
+                          data-testid={`add-to-cc-${prefix}-${i}`}
+                          onClick={() => {
+                            const next = additionalRecipients.trim().replace(/[,;]\s*$/, '');
+                            setAdditionalRecipients(next ? `${next}, ${c.email}` : c.email);
+                            toast.success('Agregado a CC');
+                          }}
+                        >
+                          {inCC ? '✓ En CC' : <><Plus size={10} className="mr-0.5" />CC</>}
+                        </Button>
+                      </div>
+                    );
+                  };
+                  return (
                     <div className="space-y-3">
-                      {clientContacts.length > 0 && (
+                      {showClient && clientContacts.length > 0 && (
                         <div>
                           <p className="text-[10px] font-semibold text-indigo-600 uppercase mb-1">Cliente</p>
-                          <div className="space-y-1">
-                            {clientContacts.map((c, i) => (
-                              <div key={`client-${i}`} className="flex items-center gap-2 text-sm">
-                                <Mail size={12} className="text-indigo-400 shrink-0" />
-                                <span className="text-slate-700">{c.email}</span>
-                                <span className="text-[10px] text-slate-400">({c.label})</span>
-                              </div>
-                            ))}
+                          <div className="bg-white rounded border border-indigo-100 px-2">
+                            {clientContacts.map((c, i) => renderRow(c, i, 'client'))}
                           </div>
                         </div>
                       )}
-                      {bankContacts.length > 0 && (
+                      {showBank && bankContacts.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-semibold text-blue-600 uppercase mb-1">Bancos</p>
-                          <div className="space-y-1">
-                            {bankContacts.map((c, i) => (
-                              <div key={`bank-${i}`} className="flex items-center gap-2 text-sm">
-                                <Mail size={12} className="text-blue-400 shrink-0" />
-                                <span className="text-slate-700">{c.email}</span>
-                                <span className="text-[10px] text-slate-400">({c.label})</span>
-                              </div>
-                            ))}
+                          <p className="text-[10px] font-semibold text-blue-600 uppercase mb-1">{tBank ? `Banco: ${tBank}` : 'Bancos'}</p>
+                          <div className="bg-white rounded border border-blue-100 px-2">
+                            {bankContacts.map((c, i) => renderRow(c, i, 'bank'))}
                           </div>
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>
                   );
                 })()}
               </div>

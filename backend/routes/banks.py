@@ -183,6 +183,20 @@ async def create_bank(bank_data: BankCreate, authorization: Optional[str] = Head
     bank = Bank(**bank_data.model_dump())
     doc = bank.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
+    # Asegurar contact_ids en cada contacto
+    for c in doc.get("contacts", []):
+        if not c.get("contact_id"):
+            c["contact_id"] = f"bcn_{uuid.uuid4().hex[:8]}"
+    # Sincronizar campos legacy con primer contacto Principal (o el primero disponible)
+    if doc.get("contacts"):
+        primary = next((c for c in doc["contacts"] if c.get("contact_type") == "Principal"), doc["contacts"][0])
+        full = (primary.get("full_name") or f"{primary.get('first_name','')} {primary.get('last_name','')}").strip()
+        if full and not doc.get("contact_name"):
+            doc["contact_name"] = full
+        if primary.get("email") and not doc.get("contact_email"):
+            doc["contact_email"] = primary.get("email")
+        if primary.get("phone") and not doc.get("contact_phone"):
+            doc["contact_phone"] = primary.get("phone")
     await db.banks.insert_one(doc)
     return bank
 
@@ -204,6 +218,31 @@ def migrate_integration_status(integration):
     integration["status"] = STATUS_MIGRATION.get(old_status, "PreProd")
     return integration
 
+
+def ensure_bank_contacts(bank: dict) -> dict:
+    """Si el banco no tiene `contacts` pero sí tiene contact_name/email/phone legacy,
+    genera un primer contacto en el array para que la UI pueda mostrarlo.
+    No persiste — solo enriquece el documento devuelto al cliente.
+    """
+    contacts = bank.get("contacts") or []
+    if not contacts and (bank.get("contact_name") or bank.get("contact_email") or bank.get("contact_phone")):
+        full = (bank.get("contact_name") or "").strip()
+        # split simple: primer token = first_name, resto = last_name
+        parts = full.split(" ", 1) if full else ["", ""]
+        first = parts[0]
+        last = parts[1] if len(parts) > 1 else ""
+        bank["contacts"] = [{
+            "contact_id": f"bcn_legacy_{uuid.uuid4().hex[:6]}",
+            "first_name": first,
+            "last_name": last,
+            "full_name": full,
+            "position": "",
+            "email": bank.get("contact_email") or "",
+            "phone": bank.get("contact_phone") or "",
+            "contact_type": "Principal"
+        }]
+    return bank
+
 @router.get("/banks", response_model=List[Bank])
 async def get_banks(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
@@ -217,14 +256,31 @@ async def get_banks(authorization: Optional[str] = Header(None)):
         # Migrate old integration statuses to new 3-state model
         if bank.get("integrations"):
             bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
+        # Migrate legacy contact fields → contacts[] (in-memory only)
+        ensure_bank_contacts(bank)
     return banks
 
 @router.put("/banks/{bank_id}", response_model=Bank)
 async def update_bank(bank_id: str, bank_data: BankCreate, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
+    payload = bank_data.model_dump()
+    # Asegurar contact_ids
+    for c in payload.get("contacts", []):
+        if not c.get("contact_id"):
+            c["contact_id"] = f"bcn_{uuid.uuid4().hex[:8]}"
+    # Sincronizar campos legacy con primer contacto si está presente
+    if payload.get("contacts"):
+        primary = next((c for c in payload["contacts"] if c.get("contact_type") == "Principal"), payload["contacts"][0])
+        full = (primary.get("full_name") or f"{primary.get('first_name','')} {primary.get('last_name','')}").strip()
+        if full and not payload.get("contact_name"):
+            payload["contact_name"] = full
+        if primary.get("email") and not payload.get("contact_email"):
+            payload["contact_email"] = primary.get("email")
+        if primary.get("phone") and not payload.get("contact_phone"):
+            payload["contact_phone"] = primary.get("phone")
     result = await db.banks.update_one(
         {"bank_id": bank_id},
-        {"$set": bank_data.model_dump()}
+        {"$set": payload}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Bank not found")
@@ -237,6 +293,7 @@ async def update_bank(bank_id: str, bank_data: BankCreate, authorization: Option
     # Migrate old integration statuses to new 3-state model
     if bank.get("integrations"):
         bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
+    ensure_bank_contacts(bank)
     return bank
 
 @router.delete("/banks/{bank_id}")

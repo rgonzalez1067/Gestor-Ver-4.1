@@ -16,7 +16,7 @@ import io
 import os
 import base64
 
-from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template
+from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template, inject_custom_message
 from models import *
 from services.email_service import send_email
 from services.workflow_notifications import send_workflow_notification
@@ -448,7 +448,7 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        ft_config_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:500]}</p></div>'
+        ft_config_html = inject_custom_message(ft_config_html, custom_message, user_name, max_chars=500)
 
     email_results = []
     r = await send_email(to=[warehouse_email], subject=ft_config_subject, html=ft_config_html, action="configure_ft_warehouse", quote_id=quote_id, quote_number=quote.get("quote_number"))
@@ -568,7 +568,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
 
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        rc_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+        rc_html = inject_custom_message(rc_html, custom_message, user_name, max_chars=200)
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
@@ -713,7 +713,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     # Agregar mensaje personalizado
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=200)
 
     # Parsear destinatarios adicionales
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
@@ -981,7 +981,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     # Agregar mensaje personalizado
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=200)
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
@@ -1196,7 +1196,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
 
         if custom_message and custom_message.strip():
             user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-            rw_html += f'<div style="margin-top:16px;padding:12px;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:4px"><p style="font-size:13px;color:#1e40af;margin:0"><strong>Mensaje de {user_name}:</strong></p><p style="font-size:13px;color:#334155;margin:6px 0 0">{custom_message.strip()[:200]}</p></div>'
+            rw_html = inject_custom_message(rw_html, custom_message, user_name, max_chars=200)
 
         # Enviar al Almacén
         r = await send_email(to=[warehouse_email], subject=rw_subject, html=rw_html, action="repair_collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))

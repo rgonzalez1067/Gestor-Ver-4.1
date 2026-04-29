@@ -122,6 +122,16 @@ class BankIntegration(BaseModel):
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class BankContact(BaseModel):
+    contact_id: str = Field(default_factory=lambda: f"bcn_{uuid.uuid4().hex[:8]}")
+    first_name: str = ""
+    last_name: str = ""
+    full_name: Optional[str] = None  # opcional, derivable de first/last
+    position: Optional[str] = ""     # Cargo
+    email: str = ""
+    phone: str = ""
+    contact_type: Optional[str] = "Otro"  # "Principal" | "Técnico" | "Otro"
+
 class BankCreate(BaseModel):
     name: str
     type: str
@@ -134,6 +144,7 @@ class BankCreate(BaseModel):
     bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
     integrations: List[BankIntegration] = []
+    contacts: List[BankContact] = []
 
 class Bank(BaseModel):
     bank_id: str = Field(default_factory=lambda: f"bnk_{uuid.uuid4().hex[:12]}")
@@ -148,6 +159,7 @@ class Bank(BaseModel):
     bank_logo_url: Optional[str] = None
     products: List[BankProduct] = []
     integrations: List[BankIntegration] = []
+    contacts: List[BankContact] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ComponentTypeCreate(BaseModel):

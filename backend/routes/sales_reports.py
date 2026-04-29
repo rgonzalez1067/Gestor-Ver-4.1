@@ -773,6 +773,9 @@ def _detect_irregularities(q: dict) -> list:
     """Una fase es irregular si una fase POSTERIOR del flujo tiene timestamp pero ella NO.
     Usa el flujo correspondiente a `quote_category`. Para `implementation`, también
     cuenta `archived_at` con trigger 'Enviada a Imple' como `sent_to_implementation_at`.
+
+    Adicionalmente marca como irregular cualquier cotización que:
+    - Pasó a Proyecto (archived + trigger 'Enviada a Imple') sin `approved_at`.
     """
     cat = (q.get("quote_category") or "").lower()
     flow = _get_flow(cat)
@@ -791,12 +794,17 @@ def _detect_irregularities(q: dict) -> list:
         if has_ts(field):
             last_ts_idx = i
 
-    if last_ts_idx <= 0:
-        return issues  # Solo tiene Creada o nada → no es irregular
+    if last_ts_idx > 0:
+        for i, (field, label) in enumerate(flow):
+            if i < last_ts_idx and not has_ts(field):
+                issues.append(f"Falta fecha de {label}")
 
-    for i, (field, label) in enumerate(flow):
-        if i < last_ts_idx and not has_ts(field):
-            issues.append(f"Falta fecha de {label}")
+    # Check explícito: pasó a Proyecto sin aprobación
+    if is_to_project and not q.get("approved_at"):
+        msg = "Pasó a Proyecto sin Aprobación previa"
+        if msg not in issues:
+            issues.append(msg)
+
     return issues
 
 

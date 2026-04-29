@@ -1574,14 +1574,35 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
         if not bank:
             bank = await db.banks.find_one({"bank_name": bank_name}, {"_id": 0})
         if bank:
-            # Email de contacto principal del banco
-            if bank.get("contact_email"):
-                contact_name = bank.get("contact_name") or "Contacto"
-                contacts.append({"email": bank["contact_email"], "label": f"Banco {bank_name} ({contact_name})", "source": "bank"})
-            # Array contacts (si existe en el banco)
-            for c in bank.get("contacts", []):
-                if c.get("email"):
-                    contacts.append({"email": c["email"], "label": f"Banco {bank_name} ({c.get('name', '')})", "source": "bank"})
+            # Array contacts (nuevo modelo multi-contacto) - prioridad
+            bank_contacts_arr = bank.get("contacts") or []
+            if bank_contacts_arr:
+                for c in bank_contacts_arr:
+                    if c.get("email"):
+                        full = c.get("full_name") or f"{c.get('first_name','')} {c.get('last_name','')}".strip() or "Contacto"
+                        ctype = c.get("contact_type") or "Otro"
+                        position = c.get("position") or ""
+                        label = f"Banco {bank_name} ({full}{' · ' + position if position else ''} · {ctype})"
+                        contacts.append({
+                            "email": c["email"],
+                            "label": label,
+                            "source": "bank",
+                            "bank_name": bank_name,
+                            "contact_type": ctype,
+                            "name": full,
+                        })
+            else:
+                # Fallback legacy contact_email
+                if bank.get("contact_email"):
+                    contact_name = bank.get("contact_name") or "Contacto"
+                    contacts.append({
+                        "email": bank["contact_email"],
+                        "label": f"Banco {bank_name} ({contact_name})",
+                        "source": "bank",
+                        "bank_name": bank_name,
+                        "contact_type": "Principal",
+                        "name": contact_name,
+                    })
 
     # Deduplicar por email
     seen_emails = set()

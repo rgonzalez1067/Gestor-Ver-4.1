@@ -15,10 +15,36 @@ from config import db
 logger = logging.getLogger(__name__)
 
 
-def _build_matrix_html(implementation_matrix: dict) -> str:
-    """Genera tabla HTML de Bancos y Productos desde implementation_matrix."""
+def _build_matrix_html(implementation_matrix: dict, services: list = None) -> str:
+    """Genera tabla HTML de Bancos y Productos desde implementation_matrix.
+
+    `services` (opcional): lista de servicios del proyecto/cotización original.
+    Si se provee, la columna Cantidad refleja `cantidad_cajas` real del item
+    (banco, producto) en la cotización; si no, cae a 1.
+    """
     if not implementation_matrix:
         return "<p><em>Sin matriz de implementación definida.</em></p>"
+
+    # Indexar cantidades reales por (banco, producto) desde services
+    qty_lookup = {}
+    if services:
+        for s in services:
+            if s.get("item_type") not in ("additional", None):
+                # Solo items "additional" representan productos por banco
+                continue
+            bn = (s.get("bank_name") or "").strip()
+            name = (s.get("item_name") or s.get("name") or "").strip()
+            if not bn or not name:
+                continue
+            # Preferir cantidad_cajas; fallback a quantity
+            cajas = s.get("cantidad_cajas") or s.get("quantity") or 0
+            try:
+                cajas = int(cajas)
+            except (TypeError, ValueError):
+                cajas = 0
+            key = (bn.lower(), name.lower())
+            # Si el mismo banco/producto aparece varias veces, sumar
+            qty_lookup[key] = qty_lookup.get(key, 0) + max(0, cajas)
 
     rows = []
     for bank_name, products in implementation_matrix.items():
@@ -49,12 +75,13 @@ def _build_matrix_html(implementation_matrix: dict) -> str:
     for bank_name, prods in bank_products.items():
         for prod_name in prods:
             bg = "#f8f9fa" if row_idx % 2 == 0 else "#ffffff"
-            qty = 1  # Each product line in the matrix = 1 entry
+            qty = qty_lookup.get((bank_name.lower(), prod_name.lower()), 0)
+            qty_display = qty if qty > 0 else 1
             html += (
                 f'<tr style="background:{bg};">'
                 f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{bank_name}</td>'
                 f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{prod_name}</td>'
-                f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{qty}</td>'
+                f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{qty_display}</td>'
                 f'</tr>'
             )
             row_idx += 1
@@ -280,7 +307,8 @@ async def resolve_project_template_vars(project: dict) -> dict:
 
     # === {Matriz_Bancos_Productos} ===
     matrix = project.get("implementation_matrix", {})
-    matriz_html = _build_matrix_html(matrix)
+    project_services = project.get("services", []) or []
+    matriz_html = _build_matrix_html(matrix, services=project_services)
 
     # === {Lista_VTID} ===
     # Combine project-level + store-level VTIDs

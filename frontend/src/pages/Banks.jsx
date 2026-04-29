@@ -104,7 +104,7 @@ export const Banks = () => {
     name: '', type: 'Banco', country: 'Venezuela',
     rif: '', bank_code: '',
     contact_name: '', contact_phone: '', contact_email: '',
-    bank_logo_url: '', products: []
+    bank_logo_url: '', products: [], contacts: []
   });
   const [newProduct, setNewProduct] = useState({
     product_name: '', description: '', service_id: '',
@@ -190,12 +190,29 @@ export const Banks = () => {
 
   const openEditDialog = (bank) => {
     setEditingBank(bank);
+    // Si no tiene contacts pero tiene legacy contact_name → migrar al primer contacto
+    let contacts = bank.contacts || [];
+    if (contacts.length === 0 && (bank.contact_name || bank.contact_email || bank.contact_phone)) {
+      const full = (bank.contact_name || '').trim();
+      const [first, ...rest] = full.split(' ');
+      contacts = [{
+        contact_id: `bcn_legacy_${Date.now()}`,
+        first_name: first || '',
+        last_name: rest.join(' '),
+        full_name: full,
+        position: '',
+        email: bank.contact_email || '',
+        phone: bank.contact_phone || '',
+        contact_type: 'Principal'
+      }];
+    }
     setFormData({
       name: bank.name, type: bank.type, country: bank.country,
       rif: bank.rif || '', bank_code: bank.bank_code || '',
       contact_name: bank.contact_name || '', contact_phone: bank.contact_phone || '',
       contact_email: bank.contact_email || '', bank_logo_url: bank.bank_logo_url || '',
-      products: bank.products || []
+      products: bank.products || [],
+      contacts
     });
     setDialogOpen(true);
   };
@@ -205,10 +222,35 @@ export const Banks = () => {
       name: '', type: 'Banco', country: 'Venezuela',
       rif: '', bank_code: '',
       contact_name: '', contact_phone: '', contact_email: '',
-      bank_logo_url: '', products: []
+      bank_logo_url: '', products: [], contacts: []
     });
     setNewProduct({ product_name: '', description: '', service_id: '', vpos_available: false, gateway_available: false, mpos_available: false, link_available: false });
     setEditingBank(null);
+  };
+
+  // ===== Multi-contacto helpers =====
+  const emptyBankContact = () => ({
+    contact_id: '',
+    first_name: '', last_name: '', full_name: '',
+    position: '', email: '', phone: '',
+    contact_type: 'Otro'
+  });
+  const addBankContact = () => {
+    setFormData(prev => ({ ...prev, contacts: [...(prev.contacts || []), emptyBankContact()] }));
+  };
+  const updateBankContact = (idx, field, value) => {
+    setFormData(prev => {
+      const arr = [...(prev.contacts || [])];
+      arr[idx] = { ...arr[idx], [field]: value };
+      // Sincronizar full_name al cambiar first/last
+      if (field === 'first_name' || field === 'last_name') {
+        arr[idx].full_name = `${arr[idx].first_name || ''} ${arr[idx].last_name || ''}`.trim();
+      }
+      return { ...prev, contacts: arr };
+    });
+  };
+  const removeBankContact = (idx) => {
+    setFormData(prev => ({ ...prev, contacts: (prev.contacts || []).filter((_, i) => i !== idx) }));
   };
 
   const handleDialogClose = (open) => { setDialogOpen(open); if (!open) resetForm(); };
@@ -399,26 +441,53 @@ export const Banks = () => {
                       </div>
                     </div>
 
-                    {/* Contact Info */}
+                    {/* Contact Info — Multi-contacto */}
                     <div className="border-t pt-4">
-                      <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                        <User size={16} />Contacto Institucional
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3">
-                        <div>
-                          <Label htmlFor="contact_name">Nombre del Contacto</Label>
-                          <Input id="contact_name" data-testid="bank-contact-name" placeholder="Juan Pérez - Gerente de Canales" value={formData.contact_name} onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label htmlFor="contact_phone">Teléfono</Label>
-                            <Input id="contact_phone" data-testid="bank-contact-phone" placeholder="+58 412-0000000" value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} />
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-sm text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                          <User size={16} />Contactos del Banco
+                        </h3>
+                        <Button type="button" variant="outline" size="sm" onClick={addBankContact} data-testid="add-bank-contact-btn">
+                          <Plus size={14} className="mr-1" />Agregar contacto
+                        </Button>
+                      </div>
+                      {(formData.contacts || []).length === 0 && (
+                        <p className="text-xs text-slate-500 italic">Aún no hay contactos. Agrega al menos uno (Principal o Técnico).</p>
+                      )}
+                      <div className="space-y-3">
+                        {(formData.contacts || []).map((c, idx) => (
+                          <div key={c.contact_id || idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50/60" data-testid={`bank-contact-row-${idx}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-500">#{idx + 1}</span>
+                                <Select value={c.contact_type || 'Otro'} onValueChange={(v) => updateBankContact(idx, 'contact_type', v)}>
+                                  <SelectTrigger className="h-7 w-[140px] text-xs" data-testid={`bank-contact-type-${idx}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Principal">Principal</SelectItem>
+                                    <SelectItem value="Técnico">Técnico</SelectItem>
+                                    <SelectItem value="Otro">Otro</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removeBankContact(idx)} className="text-rose-600 hover:text-rose-700" data-testid={`remove-bank-contact-${idx}`}>
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 mb-2">
+                              <Input placeholder="Nombre" value={c.first_name || ''} onChange={(e) => updateBankContact(idx, 'first_name', e.target.value)} data-testid={`bank-contact-first-${idx}`} />
+                              <Input placeholder="Apellido" value={c.last_name || ''} onChange={(e) => updateBankContact(idx, 'last_name', e.target.value)} data-testid={`bank-contact-last-${idx}`} />
+                            </div>
+                            <div className="mb-2">
+                              <Input placeholder="Cargo (ej: Gerente de Canales)" value={c.position || ''} onChange={(e) => updateBankContact(idx, 'position', e.target.value)} data-testid={`bank-contact-position-${idx}`} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Input type="email" placeholder="correo@banco.com" value={c.email || ''} onChange={(e) => updateBankContact(idx, 'email', e.target.value)} data-testid={`bank-contact-email-${idx}`} />
+                              <Input placeholder="+58 412-0000000" value={c.phone || ''} onChange={(e) => updateBankContact(idx, 'phone', e.target.value)} data-testid={`bank-contact-phone-${idx}`} />
+                            </div>
                           </div>
-                          <div>
-                            <Label htmlFor="contact_email">Correo Electrónico</Label>
-                            <Input id="contact_email" data-testid="bank-contact-email" placeholder="jperez@banco.com" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} />
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
 

@@ -344,3 +344,77 @@ def render_email_template(template_body: str, variables: dict) -> str:
         result = result.replace(f"#{{{key}}}", str(value))
         result = result.replace(f"{{{key}}}", str(value))
     return result
+
+
+def build_custom_message_block(custom_message: str, user_name: str = "", max_chars: int = 1000) -> str:
+    """Construye el bloque HTML del mensaje personalizado del operador.
+
+    Si custom_message es vacío, retorna string vacío.
+    """
+    if not custom_message or not str(custom_message).strip():
+        return ""
+    safe_msg = str(custom_message).strip()
+    if max_chars and len(safe_msg) > max_chars:
+        safe_msg = safe_msg[:max_chars]
+    label = f"Mensaje de {user_name}".strip() if user_name else "Mensaje del remitente"
+    return (
+        '<div style="margin:16px 0;padding:12px;background:#f0f9ff;'
+        'border-left:4px solid #3b82f6;border-radius:4px;">'
+        f'<p style="font-size:13px;color:#1e40af;margin:0;"><strong>{label}:</strong></p>'
+        f'<p style="font-size:13px;color:#334155;margin:6px 0 0;white-space:pre-wrap;">{safe_msg}</p>'
+        '</div>'
+    )
+
+
+def inject_custom_message(html: str, custom_message: str, user_name: str = "", max_chars: int = 1000) -> str:
+    """Inserta el bloque del mensaje personalizado en el HTML del correo.
+
+    Orden buscado:
+      1. Marcador `{{Mensaje_Personalizado}}` o `{Mensaje_Personalizado}` en la plantilla → reemplaza (control fino).
+      2. Antes de patrones típicos de cierre/firma ("Atentamente", "Saludos cordiales", "Equipo Mega Soft", "Equipo MegaNexus", etc.) → inserta ANTES.
+      3. Antes de </body> si existe.
+      4. Append al final como último recurso.
+
+    El footer institucional global se anexa después en `send_email()`, por lo que
+    el resultado final queda: Cuerpo → Mensaje Personalizado → Firma plantilla → Footer global.
+    """
+    block = build_custom_message_block(custom_message, user_name, max_chars=max_chars)
+    if not html:
+        return block
+    if not block:
+        # Limpiar marcadores residuales si los hay
+        cleaned = html
+        for marker in ("{{Mensaje_Personalizado}}", "{Mensaje_Personalizado}", "#{Mensaje_Personalizado}"):
+            cleaned = cleaned.replace(marker, "")
+        return cleaned
+
+    # 1) Reemplazo por marcador explícito
+    for marker in ("{{Mensaje_Personalizado}}", "{Mensaje_Personalizado}", "#{Mensaje_Personalizado}"):
+        if marker in html:
+            return html.replace(marker, block)
+
+    # 2) Insertar antes de patrones de cierre (case-insensitive)
+    import re
+    closing_patterns = [
+        r"atentamente[,.\s]",
+        r"saludos\s+cordiales",
+        r"cordialmente",
+        r"equipo\s+mega\s*soft",
+        r"equipo\s+mega\s*nexus",
+        r"quedamos\s+a\s+su\s+disposici",
+    ]
+    for pat in closing_patterns:
+        m = re.search(pat, html, re.IGNORECASE)
+        if m:
+            # Buscar el inicio del tag/bloque que contiene este texto (último <p, <div o <br antes)
+            cut_search = re.search(r"<(p|div|br|hr|table)[^>]*>(?=[^<]*" + pat + ")", html, re.IGNORECASE)
+            insert_at = cut_search.start() if cut_search else m.start()
+            return html[:insert_at] + block + html[insert_at:]
+
+    # 3) Antes de </body>
+    if "</body>" in html.lower():
+        return re.sub(r"</body>", block + "</body>", html, count=1, flags=re.IGNORECASE)
+
+    # 4) Append al final
+    return html + block
+
