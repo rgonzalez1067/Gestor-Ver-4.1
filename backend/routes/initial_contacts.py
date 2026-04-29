@@ -38,6 +38,7 @@ HIERARCHY_CAN_ASSIGN = {
     "Director": ["Gerente"],
     "Gerente": ["Coordinador", "Ejecutivo"],
     "Coordinador": ["Ejecutivo"],
+    "Ejecutivo": ["Ejecutivo"],
 }
 
 async def get_user_by_id(user_id: str):

@@ -163,8 +163,9 @@ export const InitialContacts = () => {
   // Filter users for assignment based on hierarchy
   const assignableUsers = users.filter(u => {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin') return u.user_id !== currentUser.user_id;
-    const allowed = { Director: ['Gerente'], Gerente: ['Coordinador', 'Ejecutivo'], Coordinador: ['Ejecutivo'] };
+    if (u.user_id === currentUser.user_id) return false; // No asignar a sí mismo
+    if (currentUser.role === 'admin') return true;
+    const allowed = { Director: ['Gerente'], Gerente: ['Coordinador', 'Ejecutivo'], Coordinador: ['Ejecutivo'], Ejecutivo: ['Ejecutivo'] };
     return (allowed[currentUser.cargo] || []).includes(u.cargo) && u.is_active !== false;
   });
 
