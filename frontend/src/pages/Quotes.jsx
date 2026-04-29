@@ -321,6 +321,78 @@ export const Quotes = () => {
     }
   }, [quoteData.additional_items.length]);
 
+  // Productos CORE (Tarjetas) — disparan tarifa plana (techo) en items con autoTariff
+  const CORE_PRODUCTS_LOWER = [
+    'tarjeta de crédito y débito',
+    'tarjeta de credito y debito',
+    'tarjeta de crédito/débito',
+    'tarjeta de credito/debito',
+    'tarjetas de crédito y débito',
+    'tarjetas de credito y debito',
+    'tdc / tdd liquidación en divisas',
+    'tdc / tdd liquidacion en divisas',
+    'tdc/tdd liquidación en divisas',
+    'tdc/tdd liquidacion en divisas',
+  ];
+
+  /** Determina si un nombre de producto es CORE (Tarjeta o TDC/TDD divisas). */
+  const isCoreProductName = (name) => {
+    const n = (name || '').toLowerCase().trim();
+    if (!n) return false;
+    return CORE_PRODUCTS_LOWER.some(c => n === c || n.startsWith(c));
+  };
+
+  /**
+   * Calcula la tarifa automática según las reglas de negocio:
+   * - Si hay al menos un producto CORE en `additional_items` → retorna `ceiling`.
+   * - Si NO hay CORE → suma `perUnit` por cada combinación digital/banco con techo `ceiling`.
+   * Cada item en `additional_items` ya representa una combinación (producto, banco).
+   */
+  const calculateAutoTariff = (additionalItems, ceiling, perUnit) => {
+    const items = additionalItems || [];
+    const hasCore = items.some(it => isCoreProductName(it.medio_pago_name || it.name));
+    if (hasCore) return ceiling;
+    const digitalCount = items.filter(it => !isCoreProductName(it.medio_pago_name || it.name)).length;
+    return Math.min(digitalCount * perUnit, ceiling);
+  };
+
+  // Reactividad: recalcular tarifas en items con autoTariff cuando cambien los additional_items
+  useEffect(() => {
+    if (isLoadingEdit) return;
+    const additionals = quoteData.additional_items || [];
+
+    let changed = false;
+
+    const updatedBasic = (quoteData.recurring_basic_items || []).map(item => {
+      if (!item.autoTariff) return item;
+      const newT = calculateAutoTariff(additionals, item.autoTariff.ceiling, item.autoTariff.perUnit);
+      if (Number(item.tarifa) !== newT) {
+        changed = true;
+        return { ...item, tarifa: newT };
+      }
+      return item;
+    });
+
+    const updatedOther = (quoteData.recurring_other_items || []).map(item => {
+      if (!item.autoTariff) return item;
+      const newT = calculateAutoTariff(additionals, item.autoTariff.ceiling, item.autoTariff.perUnit);
+      if (Number(item.tarifa) !== newT) {
+        changed = true;
+        return { ...item, tarifa: newT };
+      }
+      return item;
+    });
+
+    if (changed) {
+      setQuoteData(prev => ({
+        ...prev,
+        recurring_basic_items: updatedBasic,
+        recurring_other_items: updatedOther,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteData.additional_items, isLoadingEdit]);
+
   // Sincronizar valores de Cajas de la cabecera con los conceptos base
   // REGLA DE ORO: Solo propaga cajas cuando el USUARIO cambia manualmente el header
   // BANCOS: Solo se propaga a items con `inheritBancos: true` (ej. "Suscripción PDV/Banco").
@@ -605,7 +677,8 @@ export const Quotes = () => {
         isDefault: true,
         type: 'recurring_basic',
         lockBancos: concept.lockBancos || false,
-        inheritBancos: concept.inheritBancos || false
+        inheritBancos: concept.inheritBancos || false,
+        autoTariff: concept.autoTariff || null
       };
     });
   };
@@ -642,7 +715,8 @@ export const Quotes = () => {
         tarifa,
         isDefault: true,
         type: 'recurring_other',
-        lockBancos: concept.lockBancos || false
+        lockBancos: concept.lockBancos || false,
+        autoTariff: concept.autoTariff || null
       };
     });
   };
@@ -2518,6 +2592,7 @@ export const Quotes = () => {
       const isLocked = defaultConcept?.lockBancos || shouldLockBancos(itemName);
       const isAuto = defaultConcept?.autoBancos || hasAutoBancos(itemName);
       const isInherit = defaultConcept?.inheritBancos || hasInheritBancos(itemName);
+      const autoTariffCfg = defaultConcept?.autoTariff || null;
       
       // Solo es "default" si hay un concepto base que coincida y no es auto-vinculado
       const isBaseDefault = defaultConcept !== null && !isAutoLinkedItem;
@@ -2538,6 +2613,7 @@ export const Quotes = () => {
         lockBancos: isLocked,
         autoBancos: isAuto,
         inheritBancos: isInherit,
+        autoTariff: autoTariffCfg,
         // Restaurar overrides guardados
         bancosOverride: s.bancosOverride || null,
         totalOverride: s.totalOverride || null

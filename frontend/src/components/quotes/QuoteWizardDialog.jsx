@@ -1323,6 +1323,15 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                   <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">Básico</span>
                                 )}
                                 {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">N/A</span>}
+                                {item.autoTariff && (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded cursor-help"
+                                    title={`Tarifa automática: $${item.autoTariff.ceiling} si la cotización incluye TDC/TDD; en caso contrario $${item.autoTariff.perUnit} por cada combinación producto digital × banco, con techo de $${item.autoTariff.ceiling}.`}
+                                    data-testid={`recurring-basic-tariff-info-${index}`}
+                                  >
+                                    ⓘ Auto
+                                  </span>
+                                )}
                               </div>
                               {item.linkedTo && (
                                 <div className="text-xs text-slate-500 mt-1">Vinculado a: {item.linkedTo}</div>
@@ -1361,14 +1370,24 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.tarifa}
-                                onChange={(e) => updateRecurringBasicItem(index, 'tarifa', e.target.value)}
-                                className="w-20 h-7 text-right text-sm mx-auto font-mono"
-                              />
+                              {item.autoTariff ? (
+                                <div
+                                  className="w-20 h-7 flex items-center justify-end pr-2 text-sm mx-auto font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded"
+                                  title={`Tarifa automática: $${item.autoTariff.ceiling} si hay TDC/TDD; sino $${item.autoTariff.perUnit} por cada combinación digital/banco (techo $${item.autoTariff.ceiling})`}
+                                  data-testid={`recurring-basic-tariff-auto-${index}`}
+                                >
+                                  ${Number(item.tarifa || 0).toFixed(2)}
+                                </div>
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.tarifa}
+                                  onChange={(e) => updateRecurringBasicItem(index, 'tarifa', e.target.value)}
+                                  className="w-20 h-7 text-right text-sm mx-auto font-mono"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-green-50 font-mono font-semibold text-brand-green-600">
                               ${calcularTotal(item).toFixed(2)}
@@ -1423,6 +1442,15 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                 <span className="font-medium text-slate-900">{item.medio_pago_name}</span>
                                 <span className="px-1.5 py-0.5 text-xs font-medium bg-teal-100 text-teal-700 rounded">Otro</span>
                                 {item.lockBancos && <span className="px-1.5 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded">N/A</span>}
+                                {item.autoTariff && (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded cursor-help"
+                                    title={`Tarifa automática: $${item.autoTariff.ceiling} si la cotización incluye TDC/TDD; en caso contrario $${item.autoTariff.perUnit} por cada combinación producto digital × banco, con techo de $${item.autoTariff.ceiling}.`}
+                                    data-testid={`recurring-other-tariff-info-${index}`}
+                                  >
+                                    ⓘ Auto
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
@@ -1450,17 +1478,29 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               )}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.tarifa}
-                                onChange={(e) => updateRecurringOtherItem(index, 'tarifa', e.target.value)}
-                                className={`w-20 h-7 text-right text-sm mx-auto font-mono ${(!item.tarifa || item.tarifa === 0) ? 'border-amber-400 bg-amber-50' : ''}`}
-                                placeholder="0.00"
-                              />
-                              {(!item.tarifa || item.tarifa === 0) && (
-                                <p className="text-xs text-amber-600 mt-1">Configurar</p>
+                              {item.autoTariff ? (
+                                <div
+                                  className="w-20 h-7 flex items-center justify-end pr-2 text-sm mx-auto font-mono font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded"
+                                  title={`Tarifa automática: $${item.autoTariff.ceiling} si hay TDC/TDD; sino $${item.autoTariff.perUnit} por cada combinación digital/banco (techo $${item.autoTariff.ceiling})`}
+                                  data-testid={`recurring-other-tariff-auto-${index}`}
+                                >
+                                  ${Number(item.tarifa || 0).toFixed(2)}
+                                </div>
+                              ) : (
+                                <>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.tarifa}
+                                    onChange={(e) => updateRecurringOtherItem(index, 'tarifa', e.target.value)}
+                                    className={`w-20 h-7 text-right text-sm mx-auto font-mono ${(!item.tarifa || item.tarifa === 0) ? 'border-amber-400 bg-amber-50' : ''}`}
+                                    placeholder="0.00"
+                                  />
+                                  {(!item.tarifa || item.tarifa === 0) && (
+                                    <p className="text-xs text-amber-600 mt-1">Configurar</p>
+                                  )}
+                                </>
                               )}
                             </td>
                             <td className="px-3 py-2 text-right border border-slate-300 bg-teal-50 font-mono font-semibold text-teal-600">

@@ -27,13 +27,13 @@ export const SETUP_CONCEPTS = [
 // lockBancos: true = campo Bancos bloqueado en 1 (cobro unitario por PDV)
 export const RECURRING_BASIC_CONCEPTS = [
   { name: 'Derecho de uso de plataforma MServer por PDV', isDefault: true, type: 'recurring_basic', lockBancos: true },
-  { name: 'Derecho de uso de plataforma MServer por PDV / Banco', isDefault: true, type: 'recurring_basic', inheritBancos: true }
+  { name: 'Derecho de uso de plataforma MServer por PDV / Banco', isDefault: true, type: 'recurring_basic', inheritBancos: true, autoTariff: { ceiling: 8, perUnit: 2 } }
 ];
 
 // Otros Recurrentes - lockBancos: true para mostrar N/A
 export const RECURRING_OTHER_CONCEPTS = [
   { name: 'Comunicación Backend (SSL Público o VPN, APN, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true },
-  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true }
+  { name: 'Procesamiento (HSM, Server, DC, etc.)', isDefault: true, type: 'recurring_other', lockBancos: true, autoTariff: { ceiling: 6, perUnit: 2 } }
 ];
 
 // Colores de estado
