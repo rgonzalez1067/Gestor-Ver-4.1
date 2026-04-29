@@ -88,20 +88,6 @@ export const HistoricalQuotes = () => {
     } catch { toast.error('No se pudo abrir el detalle'); }
   };
 
-  const downloadPdf = async (r) => {
-    try {
-      const res = await api.get(`/quote-history/${r.history_id}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `historico_${r.quote_number || r.quote_id}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      toast.success('PDF descargado');
-    } catch { toast.error('Error al descargar PDF'); }
-  };
-
   if (forbidden) {
     return (
       <div className="flex min-h-screen bg-slate-50">
@@ -201,9 +187,6 @@ export const HistoricalQuotes = () => {
                         <Button size="sm" variant="ghost" onClick={() => openDetail(r)} data-testid={`qh-view-${r.history_id}`} title="Ver">
                           <Eye className="w-4 h-4 text-slate-500" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => downloadPdf(r)} data-testid={`qh-pdf-${r.history_id}`} title="Descargar PDF">
-                          <Download className="w-4 h-4 text-blue-500" />
-                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -273,11 +256,6 @@ export const HistoricalQuotes = () => {
                     </div>
                   </div>
                 )}
-                <div className="flex justify-end pt-3 border-t">
-                  <Button onClick={() => downloadPdf(detailRecord)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    <Download className="w-4 h-4 mr-1" /> Descargar PDF original
-                  </Button>
-                </div>
               </div>
             )}
           </DialogContent>
