@@ -191,6 +191,38 @@ async def get_quote_history(history_id: str, authorization: Optional[str] = Head
     return doc
 
 
+@router.delete("/quote-history/{history_id}")
+async def delete_quote_history(history_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina un registro del Histórico — exclusivo para administradores del sistema.
+
+    Operación irreversible. Está pensada para depurar registros corruptos o
+    de prueba. NO restaura la cotización al flujo activo, solo borra del
+    repositorio de auditoría.
+    """
+    current_user = await get_current_user(authorization)
+    if (current_user.get("role") or "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden depurar el histórico")
+
+    # Buscar por history_id o quote_id
+    doc = await db.quote_history.find_one({"history_id": history_id}, {"_id": 0, "quote_number": 1, "client_name": 1})
+    if not doc:
+        doc = await db.quote_history.find_one({"quote_id": history_id}, {"_id": 0, "quote_number": 1, "client_name": 1})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Registro no encontrado")
+        result = await db.quote_history.delete_one({"quote_id": history_id})
+    else:
+        result = await db.quote_history.delete_one({"history_id": history_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+
+    return {
+        "ok": True,
+        "message": f"Registro {doc.get('quote_number','')} ({doc.get('client_name','')}) eliminado del histórico",
+        "deleted_count": result.deleted_count,
+    }
+
+
 @router.get("/quote-history/{history_id}/pdf")
 async def download_quote_history_pdf(history_id: str, authorization: Optional[str] = Header(None)):
     """Descarga el PDF original. Usa el generador correcto según la categoría de la cotización."""

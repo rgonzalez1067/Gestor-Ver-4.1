@@ -8,7 +8,7 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert } from 'lucide-react';
+import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -37,6 +37,11 @@ export const HistoricalQuotes = () => {
   const [detailRecord, setDetailRecord] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const autoOpenedRef = useRef(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+  })();
+  const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
 
   const fetchHistory = async () => {
     setLoading(true);
@@ -86,6 +91,26 @@ export const HistoricalQuotes = () => {
       setDetailRecord(res.data);
       setDetailOpen(true);
     } catch { toast.error('No se pudo abrir el detalle'); }
+  };
+
+  const deleteRecord = async (r) => {
+    const label = `${r.quote_number || ''} (${r.client_name || 'sin cliente'})`;
+    const confirmed = window.confirm(
+      `¿Eliminar permanentemente el registro ${label} del histórico?\n\n` +
+      `Esta acción es IRREVERSIBLE y solo borra del repositorio de auditoría — no restaura la cotización al flujo activo.`
+    );
+    if (!confirmed) return;
+    setDeletingId(r.history_id);
+    try {
+      const res = await api.delete(`/quote-history/${r.history_id}`);
+      toast.success(res.data.message || 'Registro eliminado');
+      // Remover de la lista local sin re-fetch
+      setRecords(prev => prev.filter(x => x.history_id !== r.history_id));
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al eliminar registro');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (forbidden) {
@@ -187,6 +212,18 @@ export const HistoricalQuotes = () => {
                         <Button size="sm" variant="ghost" onClick={() => openDetail(r)} data-testid={`qh-view-${r.history_id}`} title="Ver">
                           <Eye className="w-4 h-4 text-slate-500" />
                         </Button>
+                        {isAdmin && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteRecord(r)}
+                            disabled={deletingId === r.history_id}
+                            data-testid={`qh-delete-${r.history_id}`}
+                            title="Depurar registro (solo administradores)"
+                          >
+                            <Trash2 className={`w-4 h-4 ${deletingId === r.history_id ? 'text-slate-300 animate-pulse' : 'text-rose-500 hover:text-rose-700'}`} />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
