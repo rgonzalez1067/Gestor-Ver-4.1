@@ -769,6 +769,19 @@ def _get_flow(cat: Optional[str]) -> list:
     return CATEGORY_FLOWS.get((cat or "").lower(), DEFAULT_FLOW)
 
 
+def _is_to_project_trigger(trigger: Optional[str]) -> bool:
+    """Normaliza el archived_trigger y detecta si la cotización pasó a Proyecto.
+
+    Acepta dos familias de valores usadas en distintas zonas del código:
+    - Etiquetas legibles: 'Enviada a Imple', 'Enviada a Implementación', etc.
+    - Códigos internos: 'status_enviada_imple', 'status_enviada_imple_recovered', etc.
+    """
+    if not trigger:
+        return False
+    norm = str(trigger).strip().lower().replace(" ", "_")
+    return "enviada_imple" in norm or "enviada_a_imple" in norm
+
+
 def _detect_irregularities(q: dict) -> list:
     """Una fase es irregular si una fase POSTERIOR del flujo tiene timestamp pero ella NO.
     Usa el flujo correspondiente a `quote_category`. Para `implementation`, también
@@ -781,7 +794,7 @@ def _detect_irregularities(q: dict) -> list:
     flow = _get_flow(cat)
 
     # Para implementation: si pasó a proyecto vía archived, ese trigger sustituye sent_to_implementation_at
-    is_to_project = bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple")
+    is_to_project = bool(q.get("archived")) and _is_to_project_trigger(q.get("archived_trigger"))
 
     def has_ts(field):
         if field == "sent_to_implementation_at" and cat == "implementation":
@@ -855,7 +868,7 @@ async def _collect_irregular_quotes(match: dict) -> list:
             "client_segment": q.get("client_segment"),
             "current_status": q.get("quote_status") or "—",
             "total_usd": q.get("total_usd") or 0,
-            "passed_to_project": bool(q.get("archived")) and (q.get("archived_trigger") or "").lower().startswith("enviada a imple"),
+            "passed_to_project": bool(q.get("archived")) and _is_to_project_trigger(q.get("archived_trigger")),
             "archived": bool(q.get("archived")),
             "archived_trigger": q.get("archived_trigger"),
             "phases": _format_phase_timeline(q),
@@ -910,7 +923,7 @@ async def _collect_irregular_quotes(match: dict) -> list:
             "client_segment": combined.get("client_segment"),
             "current_status": (combined.get("quote_status") or h.get("quote_status_final") or "Archivada"),
             "total_usd": combined.get("total_usd") or 0,
-            "passed_to_project": (combined.get("archived_trigger") or "").lower().startswith("enviada a imple"),
+            "passed_to_project": _is_to_project_trigger(combined.get("archived_trigger")),
             "archived": True,
             "archived_trigger": combined.get("archived_trigger"),
             "phases": _format_phase_timeline(combined),

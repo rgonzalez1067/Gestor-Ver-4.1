@@ -198,7 +198,9 @@ async def create_bank(bank_data: BankCreate, authorization: Optional[str] = Head
         if primary.get("phone") and not doc.get("contact_phone"):
             doc["contact_phone"] = primary.get("phone")
     await db.banks.insert_one(doc)
-    return bank
+    # Convertir created_at de vuelta para Pydantic
+    doc['created_at'] = bank.created_at
+    return Bank(**{k: v for k, v in doc.items() if k != '_id'})
 
 # Status migration map: old states -> new states
 STATUS_MIGRATION = {

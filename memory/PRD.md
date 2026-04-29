@@ -5,6 +5,41 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Optimizaciones de Comunicación, Trazabilidad y Reportes (Feb 2026) — NUEVO
+**Backend** + **Frontend**:
+
+**1. Bancos multi-contacto (`models.py`, `routes/banks.py`, `Banks.jsx`)**:
+- Nuevo modelo `BankContact` (contact_id, first_name, last_name, full_name, position, email, phone, contact_type ∈ {Principal, Técnico, Otro}).
+- Bank y BankCreate aceptan array `contacts: List[BankContact]`.
+- Helper `ensure_bank_contacts()` migra in-memory bancos legacy (contact_name/email/phone) → `contacts[0]` Principal sin persistir.
+- POST/PUT `/api/banks` sincronizan `contact_name/email/phone` legacy con primer contacto Principal para retrocompat.
+- UI: repeater dinámico con tipo (Principal/Técnico/Otro), Cargo, Email y Teléfono; botón "Agregar contacto" / eliminar.
+
+**2. Selector de destinatarios en notificaciones de Proyectos (`ProjectDetail.jsx`, `routes/projects.py /suggested-contacts`)**:
+- Endpoint `/projects/{id}/suggested-contacts` extendido con `bank_name`, `contact_type`, `name` por contacto (soporta multi-contactos del banco).
+- UI: contactos agrupados por Cliente / Banco, filtrados según `notifTarget.type` (cliente|banco|bank_client|bank).
+- Botón individual "+CC" por contacto y "Agregar todos a CC" — añade emails al campo `additionalRecipients` evitando duplicados (case-insensitive).
+
+**3. Cantidad real en Matriz Bancos×Productos (`services/project_template_vars.py`)**:
+- `_build_matrix_html(matrix, services)` ahora indexa `cantidad_cajas` por (banco, producto) desde `project.services` (item_type='additional').
+- La columna Cantidad refleja la cotización original; fallback a 1 si no hay coincidencia.
+
+**4. Reporte irregularidades extendido (`routes/sales_reports.py`)**:
+- Nueva regla explícita: **"Pasó a Proyecto sin Aprobación previa"** (cuando `archived` + trigger Imple + `approved_at=None`).
+- Helper `_is_to_project_trigger()` normaliza valores `'Enviada a Imple'`, `'status_enviada_imple'`, `'status_enviada_imple_recovered'`. Aplicado en 3 puntos del reporte.
+- Validado E2E: 3 cotizaciones en histórico (COT-2026-04-026/028/029-PYME) ahora aparecen correctamente flageadas.
+
+**6. Layout de correos — mensaje personalizado antes de la firma (`config.py`, `routes/quote_actions.py`)**:
+- Helper `inject_custom_message(html, msg, user_name)` inserta el bloque del operador:
+  1. Reemplaza marcador `{{Mensaje_Personalizado}}` si está presente en plantilla.
+  2. Inserta antes de patrones de cierre: `Atentamente`, `Saludos cordiales`, `Cordialmente`, `Equipo Mega Soft/Nexus`, `Quedamos a su disposición`.
+  3. Antes de `</body>` o append final como fallback.
+- Helper `build_custom_message_block` construye el bloque azul con label "Mensaje de {user_name}".
+- Aplicado a 5 call sites en `quote_actions.py` (FT config, RC, html_content, RW templates).
+- Tests inline: marcador explícito ✅, antes de Atentamente ✅, marcador limpio si custom vacío ✅.
+
+
+
 ### Herencia de "Bancos/Entes" en Suscripción PDV/Banco (Feb 2026) — NUEVO
 **Frontend** (`/app/frontend/src/components/quotes/constants.js`, `Quotes.jsx`, `QuoteWizardDialog.jsx`):
 - Flag `inheritBancos: true` añadido al concepto base "Suscripción PDV/Banco" (item 1 de Setup).
