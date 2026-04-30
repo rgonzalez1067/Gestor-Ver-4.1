@@ -208,6 +208,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             'Ejecutivo Propietario': 'ejecutivo_propietario', 'ejecutivo_propietario': 'ejecutivo_propietario',
             'Cantidad Tiendas': 'cantidad_tiendas', 'cantidad_tiendas': 'cantidad_tiendas',
             'Cantidad Cajas': 'cantidad_cajas', 'cantidad_cajas': 'cantidad_cajas',
+            'Coordinador': 'coordinator_name', 'coordinador': 'coordinator_name',
+            'Implementador': 'implementer_name', 'implementador': 'implementer_name',
             'Fecha Primer Contacto': 'fecha_primer_contacto', 'fecha_primer_contacto': 'fecha_primer_contacto',
             'Tipo Contacto': 'tipo_contacto', 'tipo_contacto': 'tipo_contacto',
             'Tipo Servicio': 'tipo_servicio', 'tipo_servicio': 'tipo_servicio',
@@ -285,6 +287,29 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             full = f"{ej.get('first_name', '')} {ej.get('last_name', '')}".strip()
             ejecutivo_lookup[full.lower()] = {"name": full, "user_id": ej["user_id"]}
             ejecutivo_lookup[ej.get("email", "").lower()] = {"name": full, "user_id": ej["user_id"]}
+
+        # Lookup de Coordinadores e Implementadores (Responsables de Implementación)
+        coords_db = await db.users.find(
+            {"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"},
+            {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}
+        ).to_list(500)
+        coordinador_lookup = {}
+        for u in coords_db:
+            full = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+            coordinador_lookup[full.lower()] = {"name": full, "user_id": u["user_id"]}
+            if u.get("email"):
+                coordinador_lookup[u["email"].lower()] = {"name": full, "user_id": u["user_id"]}
+
+        impls_db = await db.users.find(
+            {"is_active": True, "cargo": "Implementador"},
+            {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1}
+        ).to_list(500)
+        implementador_lookup = {}
+        for u in impls_db:
+            full = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+            implementador_lookup[full.lower()] = {"name": full, "user_id": u["user_id"]}
+            if u.get("email"):
+                implementador_lookup[u["email"].lower()] = {"name": full, "user_id": u["user_id"]}
         
         integradores_db = await db.integrators.find({}, {"_id": 0, "integrator_id": 1, "name": 1}).to_list(1000)
         integrador_lookup = {}
@@ -366,6 +391,8 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                 ejecutivo_propietario = _safe(row, 'ejecutivo_propietario')
                 cantidad_tiendas = _safe_int(row, 'cantidad_tiendas')
                 cantidad_cajas = _safe_int(row, 'cantidad_cajas')
+                coordinator_raw = _safe(row, 'coordinator_name')
+                implementer_raw = _safe(row, 'implementer_name')
                 fecha_primer_contacto_raw = _safe(row, 'fecha_primer_contacto')
                 tipo_contacto = _safe(row, 'tipo_contacto')
                 tipo_servicio_raw = _safe(row, 'tipo_servicio')
@@ -491,6 +518,36 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                             message=f'Fila {row_num}, Col L (Ejecutivo Propietario): El usuario "{ejecutivo_propietario}" no está registrado como ejecutivo de ventas en el sistema.',
                             suggested_action=f'Corrija la celda L{row_num}. Ejecutivos disponibles: {", ".join(unique_names[:10])}. El nombre debe coincidir exactamente.'))
                         ejecutivo_propietario = None
+
+                # === Coordinador validation (Responsables de Implementación) ===
+                coordinator_user_id = None
+                coordinator_name = None
+                if coordinator_raw:
+                    m = coordinador_lookup.get(coordinator_raw.lower())
+                    if m:
+                        coordinator_name = m["name"]
+                        coordinator_user_id = m["user_id"]
+                    else:
+                        available = list({v["name"] for v in coordinador_lookup.values()})
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('coordinator_name'), value=coordinator_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col Q (Coordinador): "{coordinator_raw}" no es un Coordinador válido (cargo "Coordinador", departamento "Implementación").',
+                            suggested_action=f'Corrija la celda Q{row_num}. Coordinadores disponibles: {", ".join(available[:8]) if available else "(ninguno registrado — crear en Usuarios)"}.'))
+
+                # === Implementador validation (Responsables de Implementación) ===
+                implementer_user_id = None
+                implementer_name = None
+                if implementer_raw:
+                    m = implementador_lookup.get(implementer_raw.lower())
+                    if m:
+                        implementer_name = m["name"]
+                        implementer_user_id = m["user_id"]
+                    else:
+                        available = list({v["name"] for v in implementador_lookup.values()})
+                        row_errors.append(ImportError(row=row_num, column=_col_ref('implementer_name'), value=implementer_raw,
+                            error_type='invalid',
+                            message=f'Fila {row_num}, Col R (Implementador): "{implementer_raw}" no es un Implementador válido (cargo "Implementador").',
+                            suggested_action=f'Corrija la celda R{row_num}. Implementadores disponibles: {", ".join(available[:8]) if available else "(ninguno registrado — crear en Usuarios)"}.'))
                 
                 # === Cantidad Tiendas/Cajas validation ===
                 if cantidad_tiendas == 'INVALID':
@@ -627,6 +684,10 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     ejecutivo_user_id=ejecutivo_user_id,
                     cantidad_tiendas=cantidad_tiendas,
                     cantidad_cajas=cantidad_cajas,
+                    coordinator_user_id=coordinator_user_id,
+                    coordinator_name=coordinator_name,
+                    implementer_user_id=implementer_user_id,
+                    implementer_name=implementer_name,
                     fecha_primer_contacto=fecha_primer_contacto,
                     tipo_contacto=tipo_contacto or None,
                     tipo_servicio=tipo_servicio_list,

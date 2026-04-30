@@ -161,9 +161,37 @@ const Projects = () => {
       <Sidebar />
       <main className="flex-1 p-8" data-testid="projects-page">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Proyectos</h1>
-            <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
+          <div className="mb-8 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Proyectos</h1>
+              <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('session_token');
+                  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+                  const res = await fetch(`${BACKEND_URL}/api/projects/reports/workload-pdf`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  if (!res.ok) throw new Error('fail');
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, '_blank');
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch {
+                  toast.error('Error al generar el reporte');
+                }
+              }}
+              data-testid="projects-workload-pdf-btn"
+              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              title="Descarga PDF de carga y estatus agrupado por implementador"
+            >
+              <FileText size={14} className="mr-1.5" />
+              Reporte Carga (PDF)
+            </Button>
           </div>
 
           {/* Stats Cards */}
@@ -314,6 +342,11 @@ const Projects = () => {
                               <span>{project.assigned_to_name}</span>
                               {project.assigned_at && (
                                 <p className="text-[10px] text-slate-400 mt-0.5">Asignado: {new Date(project.assigned_at).toLocaleDateString('es-VE')}</p>
+                              )}
+                              {project.last_contact_at && (
+                                <p className="text-[10px] text-emerald-600 mt-0.5" data-testid={`last-contact-${project.project_id}`}>
+                                  Último contacto: {new Date(project.last_contact_at).toLocaleDateString('es-VE')}
+                                </p>
                               )}
                             </div>
                           ) : <span className="text-slate-400 italic">Sin asignar</span>}

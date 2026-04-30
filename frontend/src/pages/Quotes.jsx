@@ -848,12 +848,14 @@ export const Quotes = () => {
   };
 
   // Handler para selección de integrador
+  // Regla de negocio: "Sin Integrador" → Aplicativo Certificado = "Stand Alone" (obligatorio).
   const handleIntegratorChange = (integratorId) => {
     const integrator = integrators.find(i => i.integrator_id === integratorId);
+    const isSinIntegrador = integratorId === 'sin_integrador';
     setQuoteData({
       ...quoteData,
       integrator_id: integratorId,
-      integrator_app_name: integrator?.app_name || ''
+      integrator_app_name: isSinIntegrador ? 'Stand Alone' : (integrator?.app_name || ''),
     });
   };
 

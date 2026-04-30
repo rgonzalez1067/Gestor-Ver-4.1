@@ -699,7 +699,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         client_history_copy.append(client_entry)
         notification_history["client"] = client_history_copy
 
-    update_set = {"notification_history": notification_history, "updated_at": now}
+    update_set = {"notification_history": notification_history, "updated_at": now, "last_contact_at": now, "last_contact_by": user_name, "last_contact_target": target}
 
     # Primer envío al cliente desbloquea la matriz
     if target == "client" and send_count == 0:
@@ -2027,3 +2027,177 @@ async def delete_project(project_id: str, authorization: Optional[str] = Header(
     await db.projects.delete_one({"project_id": project_id})
     logging.info(f"Proyecto {project_id} eliminado por {current_user.get('email')}")
     return {"message": "Proyecto eliminado exitosamente"}
+
+
+# =====================================================================
+# REPORTE: Carga y Estatus agrupado por Implementador (PDF)
+# =====================================================================
+
+_TYPE_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment", "LINK": "Link de Pago"}
+_TYPE_BADGE_CSS = {
+    "VPOS":    ("#dbeafe", "#1e40af", "#bfdbfe"),
+    "MPOS":    ("#d1fae5", "#065f46", "#a7f3d0"),
+    "GATEWAY": ("#ede9fe", "#5b21b6", "#ddd6fe"),
+    "LINK":    ("#f1f5f9", "#334155", "#e2e8f0"),
+}
+
+
+def _format_es_date(iso: Optional[str]) -> str:
+    if not iso:
+        return "—"
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+    except Exception:
+        return iso[:10] if len(iso) >= 10 else iso
+
+
+@router.get("/projects/reports/workload-pdf")
+async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
+    """PDF: carga de proyectos agrupados por implementador.
+    Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
+    (si reasignado), Fecha asignación, Último contacto.
+    Acceso: usuarios con permiso `proyectos`. Accesible para admin, coordinadores y gerentes.
+    """
+    import weasyprint
+
+    user = await get_current_user(authorization)
+    # Recuperar todos los proyectos activos
+    async for _ in db.projects.find({}):  # small warm-up no-op
+        break
+
+    projects = await db.projects.find(
+        {},
+        {
+            "_id": 0,
+            "project_id": 1, "client_name": 1, "client_rif": 1,
+            "quote_type": 1, "status": 1, "cantidad_cajas": 1, "box_count": 1,
+            "assigned_to_name": 1, "assigned_at": 1,
+            "last_contact_at": 1, "last_contact_by": 1,
+            "reassigned_from_name": 1, "reassignment_history": 1,
+        },
+    ).to_list(5000)
+
+    # Agrupar por implementador asignado
+    groups: dict = {}
+    for p in projects:
+        impl = p.get("assigned_to_name") or "Sin asignar"
+        groups.setdefault(impl, []).append(p)
+
+    # Orden: primero implementadores con más proyectos, "Sin asignar" al final
+    ordered = sorted(groups.keys(), key=lambda k: (k == "Sin asignar", -len(groups[k]), k))
+
+    # HTML
+    section_html_parts = []
+    for impl in ordered:
+        items = groups[impl]
+        rows_html = ""
+        for p in items:
+            qt = (p.get("quote_type") or "").upper()
+            label = _TYPE_LABEL.get(qt, "—")
+            bg, fg, br = _TYPE_BADGE_CSS.get(qt, ("#f8fafc", "#475569", "#e2e8f0"))
+            type_badge = (
+                f'<span style="display:inline-block; padding:2px 6px; font-size:9px; font-weight:600; '
+                f'border-radius:4px; background:{bg}; color:{fg}; border:1px solid {br};">{label}</span>'
+                if label != "—" else '<span class="muted">—</span>'
+            )
+            # Cajas solo para VPOS/MPOS
+            cajas = ""
+            if qt in ("VPOS", "MPOS"):
+                c = p.get("cantidad_cajas") or p.get("box_count") or 0
+                cajas = str(c) if c else "—"
+            else:
+                cajas = "—"
+            # Implementador original (solo si reasignado)
+            orig = p.get("reassigned_from_name") or ""
+            is_reassigned = (p.get("status") == "En proceso/reasignado") or bool(orig)
+            orig_html = f'<span class="orig">{orig}</span>' if (is_reassigned and orig) else '<span class="muted">—</span>'
+            rows_html += f"""
+            <tr>
+              <td>{p.get('client_name') or '—'}<div class="rif">{p.get('client_rif') or ''}</div></td>
+              <td>{type_badge}</td>
+              <td class="num">{cajas}</td>
+              <td class="state">{p.get('status') or '—'}</td>
+              <td>{orig_html}</td>
+              <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
+              <td class="date">{_format_es_date(p.get('last_contact_at'))}</td>
+            </tr>
+            """
+        section_html_parts.append(f"""
+        <div class="group">
+          <div class="group-head">
+            <span class="impl">{impl}</span>
+            <span class="count">{len(items)} proyecto(s)</span>
+          </div>
+          <table class="rep">
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Tipo</th><th>Cajas</th>
+                <th>Estado</th><th>Implementador Original</th>
+                <th>Fecha Asignación</th><th>Último Contacto</th>
+              </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+        </div>
+        """)
+
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+    exec_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get('email','')
+    total = sum(len(v) for v in groups.values())
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+    <meta charset="utf-8" />
+    <style>
+      @page {{ size: A4 landscape; margin: 1.5cm 1.2cm; }}
+      body {{ font-family: 'Helvetica', Arial, sans-serif; color: #1e293b; font-size: 10px; }}
+      h1 {{ font-size: 18px; margin: 0 0 4px; color: #0f172a; }}
+      .sub {{ color: #64748b; font-size: 10px; margin-bottom: 14px; }}
+      .group {{ margin-bottom: 18px; break-inside: avoid; }}
+      .group-head {{
+        display: flex; justify-content: space-between; align-items: baseline;
+        background: #eef2ff; border-left: 4px solid #4f46e5; padding: 6px 10px; border-radius: 4px;
+      }}
+      .group-head .impl {{ font-weight: 700; font-size: 13px; color: #312e81; }}
+      .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
+      table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; }}
+      table.rep th {{
+        background: #f8fafc; color: #475569; text-transform: uppercase; font-size: 8px;
+        padding: 5px 6px; border-bottom: 1px solid #e2e8f0; text-align: left;
+      }}
+      table.rep td {{
+        padding: 6px; border-bottom: 1px solid #f1f5f9; font-size: 10px; vertical-align: top;
+      }}
+      table.rep td.num {{ text-align: center; font-variant-numeric: tabular-nums; }}
+      table.rep td.date {{ font-variant-numeric: tabular-nums; color: #334155; }}
+      table.rep td.state {{ color: #0f172a; font-weight: 500; }}
+      .rif {{ color: #94a3b8; font-size: 9px; font-family: monospace; }}
+      .orig {{ color: #b45309; font-weight: 500; }}
+      .muted {{ color: #cbd5e1; }}
+      .footer {{
+        margin-top: 20px; padding-top: 8px; border-top: 1px solid #e2e8f0;
+        color: #94a3b8; font-size: 9px; display: flex; justify-content: space-between;
+      }}
+    </style>
+    </head>
+    <body>
+      <h1>Reporte de Carga y Estatus de Proyectos</h1>
+      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · Generado: {now_str} · Por: {exec_name}</div>
+      {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
+      <div class="footer">
+        <span>MegaNexus · Departamento de Implementación</span>
+        <span>{now_str}</span>
+      </div>
+    </body>
+    </html>
+    """
+
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    filename = f"carga_implementadores_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

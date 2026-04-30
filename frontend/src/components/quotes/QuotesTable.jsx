@@ -233,7 +233,7 @@ export const QuotesTable = ({
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Comercial</p>
                         )}
                         {canEdit && <DropdownMenuItem onSelect={() => onSendToClient(quote.quote_id)} className="cursor-pointer"
-                          disabled={quote.quote_status !== 'Borrador'}>
+                          data-testid={`send-to-client-btn-${quote.quote_id}`}>
                           <Mail size={16} className="mr-2 text-blue-500" /> Enviar al Cliente
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
                         </DropdownMenuItem>}

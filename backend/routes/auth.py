@@ -395,6 +395,19 @@ async def get_implementadores(authorization: Optional[str] = Header(None)):
     return users
 
 
+@router.get("/auth/coordinadores")
+async def get_coordinadores(authorization: Optional[str] = Header(None)):
+    """Obtener lista de usuarios con cargo de Coordinador en el departamento de Implementación."""
+    await get_current_user(authorization)
+    users = await db.users.find(
+        {"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1, "departamento": 1}
+    ).to_list(1000)
+    for u in users:
+        u["full_name"] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+    return users
+
+
 # ==================== FORGOT / RESET PASSWORD (PUBLIC) ====================
 
 @router.post("/auth/forgot-password")

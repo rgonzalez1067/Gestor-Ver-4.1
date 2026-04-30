@@ -52,6 +52,11 @@ class ClientCreate(BaseModel):
     ejecutivo_user_id: Optional[str] = None
     cantidad_tiendas: Optional[int] = None
     cantidad_cajas: Optional[int] = None
+    # Responsables de Implementación (filtrados del catálogo de usuarios por cargo)
+    coordinator_user_id: Optional[str] = None
+    coordinator_name: Optional[str] = None
+    implementer_user_id: Optional[str] = None
+    implementer_name: Optional[str] = None
     fecha_primer_contacto: Optional[str] = None
     tipo_contacto: Optional[str] = None
     tipo_servicio: List[str] = []
@@ -83,6 +88,11 @@ class Client(BaseModel):
     ejecutivo_user_id: Optional[str] = None
     cantidad_tiendas: Optional[int] = None
     cantidad_cajas: Optional[int] = None
+    # Responsables de Implementación (filtrados del catálogo de usuarios por cargo)
+    coordinator_user_id: Optional[str] = None
+    coordinator_name: Optional[str] = None
+    implementer_user_id: Optional[str] = None
+    implementer_name: Optional[str] = None
     fecha_primer_contacto: Optional[str] = None
     tipo_contacto: Optional[str] = None
     tipo_servicio: List[str] = []

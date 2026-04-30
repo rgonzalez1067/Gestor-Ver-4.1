@@ -366,7 +366,20 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
     
     integradores = await db.integrators.find({}, {"_id": 0, "name": 1}).to_list(500)
     integrador_names = [i["name"] for i in integradores]
-    
+
+    # Coordinadores e Implementadores para referencia (responsables de implementación)
+    coordinadores = await db.users.find(
+        {"is_active": True, "cargo": "Coordinador", "departamento": "Implementación"},
+        {"_id": 0, "first_name": 1, "last_name": 1}
+    ).to_list(100)
+    coordinador_names = [f"{u.get('first_name','')} {u.get('last_name','')}".strip() for u in coordinadores]
+
+    implementadores = await db.users.find(
+        {"is_active": True, "cargo": "Implementador"},
+        {"_id": 0, "first_name": 1, "last_name": 1}
+    ).to_list(100)
+    implementador_names = [f"{u.get('first_name','')} {u.get('last_name','')}".strip() for u in implementadores]
+
     data = {
         'RIF': ['J-12345678-9', 'J-98765432-1', 'J-11223344-5'],
         'Sucursal': ['Principal', 'Sede Norte', 'Principal'],
@@ -384,6 +397,8 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         'Ejecutivo Propietario': [ejecutivo_names[0] if ejecutivo_names else 'Rafael González', '', ''],
         'Cantidad Tiendas': [5, 1, ''],
         'Cantidad Cajas': [12, 2, ''],
+        'Coordinador': [coordinador_names[0] if coordinador_names else '', '', ''],
+        'Implementador': [implementador_names[0] if implementador_names else '', '', ''],
         'Fecha Primer Contacto': ['15/01/2026', '28/02/2026', ''],
         'Tipo Contacto': ['Llamada', 'Correo', ''],
         'Tipo Servicio': ['VPOS, MPOS', 'Payment Gateway', 'Link de Pago'],
@@ -419,15 +434,17 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
             {'Campo': 'Ejecutivo Propietario', 'Columna': 'N', 'Descripción': 'Nombre del ejecutivo de ventas asignado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': ejecutivo_names[0] if ejecutivo_names else 'Rafael González'},
             {'Campo': 'Cantidad Tiendas', 'Columna': 'O', 'Descripción': 'Número de tiendas o locales del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '5'},
             {'Campo': 'Cantidad Cajas', 'Columna': 'P', 'Descripción': 'Número de cajas registradoras del cliente. Solo números enteros.', 'Obligatorio': 'No', 'Ejemplo': '12'},
-            {'Campo': 'Fecha Primer Contacto', 'Columna': 'Q', 'Descripción': 'Fecha del primer contacto. Formatos: DD/MM/AAAA o AAAA-MM-DD. No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
-            {'Campo': 'Tipo Contacto', 'Columna': 'R', 'Descripción': 'Medio de contacto inicial: Llamada, Correo, Presencial, Referido, Otro.', 'Obligatorio': 'No', 'Ejemplo': 'Llamada'},
-            {'Campo': 'Tipo Servicio', 'Columna': 'S', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
-            {'Campo': 'Integrador', 'Columna': 'T', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
-            {'Campo': 'Aplicativo', 'Columna': 'U', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
-            {'Campo': 'Contacto Nombre Completo', 'Columna': 'V', 'Descripcion': 'Nombre completo del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos Perez'},
-            {'Campo': 'Contacto Telefono', 'Columna': 'W', 'Descripcion': 'Telefono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
-            {'Campo': 'Contacto Email', 'Columna': 'X', 'Descripcion': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
-            {'Campo': 'Contacto Rol', 'Columna': 'Y', 'Descripcion': 'Rol del contacto: Administrativo, Financiero, Tecnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
+            {'Campo': 'Coordinador', 'Columna': 'Q', 'Descripción': 'Nombre del Coordinador de Implementación asignado. Debe existir en el sistema con cargo "Coordinador" y departamento "Implementación".', 'Obligatorio': 'No', 'Ejemplo': coordinador_names[0] if coordinador_names else ''},
+            {'Campo': 'Implementador', 'Columna': 'R', 'Descripción': 'Nombre del Implementador asignado. Debe existir en el sistema con cargo "Implementador".', 'Obligatorio': 'No', 'Ejemplo': implementador_names[0] if implementador_names else ''},
+            {'Campo': 'Fecha Primer Contacto', 'Columna': 'S', 'Descripción': 'Fecha del primer contacto. Formatos: DD/MM/AAAA o AAAA-MM-DD. No puede ser futura.', 'Obligatorio': 'No', 'Ejemplo': '15/01/2026'},
+            {'Campo': 'Tipo Contacto', 'Columna': 'T', 'Descripción': 'Medio de contacto inicial: Llamada, Correo, Presencial, Referido, Otro.', 'Obligatorio': 'No', 'Ejemplo': 'Llamada'},
+            {'Campo': 'Tipo Servicio', 'Columna': 'U', 'Descripción': 'Servicios de interés separados por coma. Valores: VPOS, MPOS, Payment Gateway, Link de Pago.', 'Obligatorio': 'No', 'Ejemplo': 'VPOS, MPOS'},
+            {'Campo': 'Integrador', 'Columna': 'V', 'Descripción': 'Nombre del integrador asociado. Debe existir en el sistema.', 'Obligatorio': 'No', 'Ejemplo': integrador_names[0] if integrador_names else ''},
+            {'Campo': 'Aplicativo', 'Columna': 'W', 'Descripción': 'Nombre del aplicativo del integrador.', 'Obligatorio': 'No', 'Ejemplo': 'PaymentHub v3'},
+            {'Campo': 'Contacto Nombre Completo', 'Columna': 'X', 'Descripcion': 'Nombre completo del contacto principal del cliente.', 'Obligatorio': 'No', 'Ejemplo': 'Carlos Perez'},
+            {'Campo': 'Contacto Telefono', 'Columna': 'Y', 'Descripcion': 'Telefono del contacto. Formato libre.', 'Obligatorio': 'No', 'Ejemplo': '0412-1234567'},
+            {'Campo': 'Contacto Email', 'Columna': 'Z', 'Descripcion': 'Email del contacto principal.', 'Obligatorio': 'No', 'Ejemplo': 'carlos@demo.com'},
+            {'Campo': 'Contacto Rol', 'Columna': 'AA', 'Descripcion': 'Rol del contacto: Administrativo, Financiero, Tecnico, Cuentas por Pagar, Operativo. Default: Administrativo.', 'Obligatorio': 'No', 'Ejemplo': 'Administrativo'},
         ]
         pd.DataFrame(fields).to_excel(writer, index=False, sheet_name='Instrucciones')
         

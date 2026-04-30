@@ -97,6 +97,8 @@ export const Clients = () => {
     address: '', branch_address: '', categoria_comercial: '', sucursal: 'Principal',
     grupo_economico: '', ejecutivo_propietario: '', ejecutivo_user_id: '',
     cantidad_tiendas: '', cantidad_cajas: '',
+    coordinator_user_id: '', coordinator_name: '',
+    implementer_user_id: '', implementer_name: '',
     fecha_primer_contacto: '', tipo_contacto: '', tipo_servicio: [],
     integrador_id: '', integrador_name: '', aplicativo: '',
     modelo_impresora_fiscal: '',
@@ -109,6 +111,8 @@ export const Clients = () => {
 
   const [integrators, setIntegrators] = useState([]);
   const [ejecutivos, setEjecutivos] = useState([]);
+  const [coordinadores, setCoordinadores] = useState([]);
+  const [implementadores, setImplementadores] = useState([]);
   const [bitacoraInicioOpen, setBitacoraInicioOpen] = useState(false);
   const [bitacoraInicioText, setBitacoraInicioText] = useState('');
   const [fiscalPrinters, setFiscalPrinters] = useState([]);
@@ -118,7 +122,7 @@ export const Clients = () => {
   const fileInputRef = useRef(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchFiscalPrinters(); fetchReferidorOptions(); fetchCommercialCategories(); }, []);
+  useEffect(() => { fetchClients(); fetchIntegrators(); fetchEjecutivos(); fetchImplementationStaff(); fetchFiscalPrinters(); fetchReferidorOptions(); fetchCommercialCategories(); }, []);
 
   // Handle deep-link from Dashboard alerts
   useEffect(() => {
@@ -143,6 +147,17 @@ export const Clients = () => {
     try {
       const resp = await api.get('/auth/ejecutivos');
       setEjecutivos(resp.data);
+    } catch { /* silently ignore */ }
+  };
+
+  const fetchImplementationStaff = async () => {
+    try {
+      const [coords, impls] = await Promise.all([
+        api.get('/auth/coordinadores'),
+        api.get('/auth/implementadores'),
+      ]);
+      setCoordinadores(coords.data);
+      setImplementadores(impls.data);
     } catch { /* silently ignore */ }
   };
 
@@ -220,7 +235,7 @@ export const Clients = () => {
     if (payload.cantidad_cajas === '' || payload.cantidad_cajas === null) payload.cantidad_cajas = null;
     else payload.cantidad_cajas = parseInt(payload.cantidad_cajas, 10) || null;
     // Convertir strings vacíos a null para campos opcionales
-    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal', 'additional_info']) {
+    for (const key of ['referidor', 'referidor_tipo', 'referidor_id', 'referidor_nombre', 'address', 'branch_address', 'categoria_comercial', 'grupo_economico', 'ejecutivo_propietario', 'ejecutivo_user_id', 'coordinator_user_id', 'coordinator_name', 'implementer_user_id', 'implementer_name', 'fecha_primer_contacto', 'tipo_contacto', 'integrador_id', 'integrador_name', 'aplicativo', 'modelo_impresora_fiscal', 'additional_info']) {
       if (payload[key] === '') payload[key] = null;
     }
     // Ensure legacy fields for backwards compat
@@ -330,6 +345,10 @@ export const Clients = () => {
       ejecutivo_user_id: client.ejecutivo_user_id || '',
       cantidad_tiendas: client.cantidad_tiendas ?? '',
       cantidad_cajas: client.cantidad_cajas ?? '',
+      coordinator_user_id: client.coordinator_user_id || '',
+      coordinator_name: client.coordinator_name || '',
+      implementer_user_id: client.implementer_user_id || '',
+      implementer_name: client.implementer_name || '',
       fecha_primer_contacto: client.fecha_primer_contacto || '',
       tipo_contacto: client.tipo_contacto || '',
       tipo_servicio: client.tipo_servicio || [],
@@ -388,6 +407,10 @@ export const Clients = () => {
       ejecutivo_user_id: client.ejecutivo_user_id || '',
       cantidad_tiendas: client.cantidad_tiendas ?? '',
       cantidad_cajas: client.cantidad_cajas ?? '',
+      coordinator_user_id: client.coordinator_user_id || '',
+      coordinator_name: client.coordinator_name || '',
+      implementer_user_id: client.implementer_user_id || '',
+      implementer_name: client.implementer_name || '',
       fecha_primer_contacto: '', // Limpiar fecha
       tipo_contacto: client.tipo_contacto || '',
       tipo_servicio: client.tipo_servicio || [],
@@ -652,6 +675,10 @@ export const Clients = () => {
       ejecutivo_user_id: '',
       cantidad_tiendas: '',
       cantidad_cajas: '',
+      coordinator_user_id: '',
+      coordinator_name: '',
+      implementer_user_id: '',
+      implementer_name: '',
       fecha_primer_contacto: '',
       tipo_contacto: '',
       tipo_servicio: [],
@@ -1039,7 +1066,7 @@ export const Clients = () => {
                         </div>
                       </div>
 
-                      {/* CUADRANTE 2: Capacidad Operativa */}
+                      {/* CUADRANTE 2: Capacidad Operativa + Responsables de Implementación */}
                       <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
                         <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2">Capacidad Operativa</h3>
                         <div className="grid grid-cols-2 gap-3">
@@ -1079,6 +1106,71 @@ export const Clients = () => {
                               Sin categorías activas. Gestiona el catálogo en Catálogos → Categoría Comercial.
                             </p>
                           )}
+                        </div>
+
+                        {/* Responsables de Implementación — filtrados por cargo del catálogo de Usuarios */}
+                        <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-300 pb-2 pt-2">
+                          Responsables de Implementación
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Coordinador</Label>
+                            <Select
+                              value={formData.coordinator_user_id || '_none_'}
+                              onValueChange={(v) => {
+                                if (v === '_none_') {
+                                  setFormData(prev => ({ ...prev, coordinator_user_id: '', coordinator_name: '' }));
+                                } else {
+                                  const u = coordinadores.find(x => x.user_id === v);
+                                  setFormData(prev => ({ ...prev, coordinator_user_id: v, coordinator_name: u?.full_name || '' }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-9" data-testid="client-coordinator-select">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">Sin asignar</SelectItem>
+                                {coordinadores.map(u => (
+                                  <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {coordinadores.length === 0 && (
+                              <p className="text-[10px] text-amber-600 mt-1">
+                                Sin Coordinadores (departamento: Implementación).
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs">Implementador</Label>
+                            <Select
+                              value={formData.implementer_user_id || '_none_'}
+                              onValueChange={(v) => {
+                                if (v === '_none_') {
+                                  setFormData(prev => ({ ...prev, implementer_user_id: '', implementer_name: '' }));
+                                } else {
+                                  const u = implementadores.find(x => x.user_id === v);
+                                  setFormData(prev => ({ ...prev, implementer_user_id: v, implementer_name: u?.full_name || '' }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-9" data-testid="client-implementer-select">
+                                <SelectValue placeholder="Seleccionar..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">Sin asignar</SelectItem>
+                                {implementadores.map(u => (
+                                  <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {implementadores.length === 0 && (
+                              <p className="text-[10px] text-amber-600 mt-1">
+                                Sin Implementadores (cargo: Implementador).
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 

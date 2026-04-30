@@ -5,7 +5,33 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Reestructuración de Vistas + Badges de Tipo de Negocio (Feb 2026) — NUEVO
+### Fase A — Gestión de Responsables + Reporte de Carga (Feb 2026) — NUEVO
+
+**5 secciones entregadas** (quedan pendientes reasignación masiva + compromisos gerenciales para Fase B):
+
+**Sección 5 — VPOS Stand Alone**: `Quotes.jsx` handler `handleIntegratorChange` ahora detecta `integrator_id === 'sin_integrador'` y auto-completa `integrator_app_name = 'Stand Alone'` (campo obligatorio).
+
+**Sección 2B — Auto "Último Contacto"**: `routes/projects.py` al enviar una notificación (client/provider/sponsor) guarda `last_contact_at`, `last_contact_by`, `last_contact_target`. La grilla de Proyectos lo muestra bajo el implementador en verde esmeralda (`data-testid="last-contact-{project_id}"`).
+
+**Sección 7 — "Enviar al Cliente" siempre disponible**: eliminado `disabled={quote.quote_status !== 'Borrador'}` en `QuotesTable.jsx`. El backend `/quotes/{id}/send-to-client` no tenía gating, confirmado con curl. Aplica a los 3 flujos (Implementaciones / Equipos y Accesorios / Reparaciones) porque todos usan la misma tabla.
+
+**Sección 1 — Responsables de Implementación en Ficha Cliente**:
+- Modelo `Client` / `ClientCreate` extendido con `coordinator_user_id`, `coordinator_name`, `implementer_user_id`, `implementer_name`.
+- Nuevo endpoint `GET /api/auth/coordinadores` (filtra `cargo=Coordinador` + `departamento=Implementación`). `/auth/implementadores` ya existía.
+- `Clients.jsx`: bloque "Responsables de Implementación" bajo "Capacidad Operativa" con 2 dropdowns. Fallback visual cuando no hay usuarios con esos cargos.
+- **Plantilla Excel** (`clients.py` `/clients/template`): columnas Q "Coordinador" + R "Implementador" agregadas. Documentación en hoja "Instrucciones" actualizada.
+- **Importador Excel** (`dashboard.py` `/dashboard/import/clients`): lookups `coordinador_lookup` + `implementador_lookup` con validación por nombre/email. Errores con sugerencia de nombres disponibles.
+
+**Sección 2A — Reporte PDF de Carga por Implementador**: Nuevo `GET /api/projects/reports/workload-pdf`. WeasyPrint landscape A4. Agrupa proyectos por `assigned_to_name`. Columnas: Cliente · Tipo (badge color) · Cajas (solo VPOS/MPOS) · Estado · Implementador Original · Fecha Asignación · Último Contacto. Botón "Reporte Carga (PDF)" en la esquina superior de `Projects.jsx`.
+
+**Validación E2E**:
+- ✅ `/auth/coordinadores` → 1 resultado (Kevin Malaguera), `/auth/implementadores` → 7.
+- ✅ Excel template: 27 columnas con Coordinador/Implementador en posiciones Q/R.
+- ✅ Workload PDF: 200 OK, 21KB.
+- ✅ `send-notification` actualiza `last_contact_at` con timestamp server + `last_contact_by` + `last_contact_target`.
+- ✅ Frontend smoke: grilla Proyectos muestra botón PDF + columna último contacto; modal Cliente muestra bloque "Responsables de Implementación" con ambos dropdowns operativos.
+
+### Reestructuración de Vistas + Badges de Tipo de Negocio (Feb 2026)
 
 **Objetivo**: Identificación inmediata del tipo de negocio (VPOS / MPOS / Payment / Link de Pago) en grilla de Proyectos, Histórico y Reporte de Irregularidades. Limpiar UI eliminando 3 columnas redundantes para liberar espacio.
 
