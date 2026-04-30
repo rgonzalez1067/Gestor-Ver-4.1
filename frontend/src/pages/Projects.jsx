@@ -185,7 +185,7 @@ const Projects = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setBulkReassignOpen(true)}
+                  onClick={() => { fetchImplementers(); setBulkReassignOpen(true); }}
                   data-testid="bulk-reassign-open-btn"
                   className="border-purple-300 text-purple-700 hover:bg-purple-50"
                   title="Reasignar múltiples proyectos entre implementadores"
