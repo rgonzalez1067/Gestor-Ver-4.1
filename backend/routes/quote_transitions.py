@@ -71,19 +71,51 @@ async def _create_project_from_quote(
         if quote["sponsor_bank_name"] not in [b.get("bank_name") for b in banks]:
             banks.append({"bank_name": quote["sponsor_bank_name"]})
 
-    # Construir matriz de implementación desde los items 'additional'
+    # Para Payment Gateway (GATEWAY): los bancos provienen de pg_setup_items
+    # (cada item lleva {concepto, banco, costo, observacion}). Se ignora 'N/A'
+    # que corresponde a items conceptuales fijos (ej. Persona Jurídica).
+    is_gateway = (quote.get("quote_type") or "").upper() == "GATEWAY"
+    if is_gateway:
+        for it in quote.get("pg_setup_items", []) or []:
+            bn = (it.get("banco") or "").strip()
+            if not bn or bn.upper() == "N/A":
+                continue
+            if bn not in [b.get("bank_name") for b in banks]:
+                banks.append({"bank_name": bn})
+
+    # Construir matriz de implementación.
+    # - VPOS/MPOS/Fast Track: items 'additional' de `services` agrupados por banco/producto.
+    # - Payment Gateway: pg_setup_items agrupados por banco/concepto, pre-poblados
+    #   con `expected: 1` para que el implementador pueda editar y propagar a las
+    #   fases siguientes desde "Recibido" (igual UX que hardware).
     implementation_matrix = {}
-    for item in quote.get("services", []):
-        if item.get("item_type") != "additional":
-            continue
-        bn = item.get("bank_name", "")
-        name = item.get("item_name", "")
-        if not bn or not name:
-            continue
-        if bn not in implementation_matrix:
-            implementation_matrix[bn] = {}
-        if name not in implementation_matrix[bn]:
-            implementation_matrix[bn][name] = {}
+    if is_gateway:
+        for it in quote.get("pg_setup_items", []) or []:
+            bn = (it.get("banco") or "").strip()
+            name = (it.get("concepto") or "").strip()
+            if not bn or not name or bn.upper() == "N/A":
+                continue
+            if bn not in implementation_matrix:
+                implementation_matrix[bn] = {}
+            if name not in implementation_matrix[bn]:
+                implementation_matrix[bn][name] = {
+                    "Recibido":      {"expected": 1, "processed": 0, "completed": False},
+                    "Configurado":   {"expected": 1, "processed": 0, "completed": False},
+                    "Testeado":      {"expected": 1, "processed": 0, "completed": False},
+                    "En Producción": {"expected": 1, "processed": 0, "completed": False},
+                }
+    else:
+        for item in quote.get("services", []):
+            if item.get("item_type") != "additional":
+                continue
+            bn = item.get("bank_name", "")
+            name = item.get("item_name", "")
+            if not bn or not name:
+                continue
+            if bn not in implementation_matrix:
+                implementation_matrix[bn] = {}
+            if name not in implementation_matrix[bn]:
+                implementation_matrix[bn][name] = {}
 
     # Heredar anexos de la cotización
     attachments = []

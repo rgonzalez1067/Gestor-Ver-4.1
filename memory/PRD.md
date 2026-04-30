@@ -5,7 +5,32 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Gestión Documental en Histórico de Cotizaciones + Normalización de Irregularidades (Feb 2026) — NUEVO
+### Homologación de Matrices para Proyectos Payment Gateway (Feb 2026) — NUEVO
+
+**Problema resuelto**: Al ejecutar "Enviar a Implementación" en cotizaciones tipo Payment Gateway, el proyecto resultante no recibía la `implementation_matrix` (la lógica original solo construía la matriz desde `services` con `item_type='additional'`, formato exclusivo de VPOS/MPOS). Esto causaba: (1) email de Notificación al Cliente sin tabla de productos, (2) imposibilidad de marcar avances en ProjectDetail (matriz vacía).
+
+**Solución implementada** — `routes/quote_transitions.py` `_create_project_from_quote`:
+- Detecta `quote_type=='GATEWAY'` y construye `implementation_matrix` desde `pg_setup_items`:
+  - Agrupa por `banco × concepto`.
+  - **Excluye** items conceptuales fijos (`banco='N/A'`, ej. "Persona Jurídica").
+  - **Pre-pobla** las 4 fases estándar (`Recibido / Configurado / Testeado / En Producción`) con `{expected: 1, processed: 0, completed: false}` para que el implementador edite cantidades reales (default 1).
+- Lista de `banks` del proyecto incluye los bancos únicos de `pg_setup_items`.
+
+**Comportamiento idéntico a VPOS/MPOS** — heredado sin cambios:
+- UI/UX (`SingleBankSection.jsx`): mismo grid Banco→Producto×Fases con MiniPie de avance.
+- Cascade desde "Recibido" propaga `expected` a las 3 fases siguientes (vía `updateMatrixCascade` que dispara `PUT /api/projects/{id}/matrix/phase` por cada fase).
+- Iconos de estatus (gris→verde) y captura de fecha-hora (`updated_at/completed_at`) al marcar avance.
+- Gating: requiere `client_notified=true` y permisos de implementador asignado/supervisor/admin.
+
+**Email de Notificación al Cliente**:
+- `_build_matrix_html` (`services/project_template_vars.py`) usa la matriz poblada y aplica fallback `qty=1` cuando `services` está vacío (caso PG) → tabla "Banco / Producto / Cantidad" sin precios, mismo look que VPOS.
+
+**Validación E2E** (curl):
+- Cotización PG con `pg_setup_items` (Mercantil×TDC/TDD + Banesco×PagoMovil/C2P + N/A×Persona Jurídica) → al enviar a implementación, proyecto creado con matriz `{Mercantil:{TDC,TDD}, Banesco:{PagoMovil,C2P}}` (Persona Jurídica excluida).
+- `POST /api/projects/{id}/preview-notification`: matrix_html con 4 filas, banco × producto × cantidad=1, sin precios.
+- `PUT /api/projects/{id}/matrix/phase`: cascade expected=5 + completar Recibido = OK, fases siguientes preservan `processed=0` con `expected=5`.
+
+### Gestión Documental en Histórico de Cotizaciones + Normalización de Irregularidades (Feb 2026)
 
 **Problema resuelto**: Las cotizaciones del Histórico aparecían en el reporte de "Cotizaciones Irregulares" sin manera de subsanarlas (no había forma de cargar el documento faltante). Además, la última fase del flujo aparecía en rojo aunque la cotización ya hubiera completado su ciclo operativo.
 
