@@ -7,15 +7,24 @@ Módulos soportados:
   - payment-methods       → collection 'services'              (key: service_id)
   - hardware              → collection 'hardware'              (key: hardware_id)
   - commercial-categories → collection 'commercial_categories' (key: category_id)
+  - quotes-bundle         → multi-collection: 'quotes' + 'quote_history' + 'projects'
+                            con anexos en ZIP separado.
 """
+import io
 import json
+import logging
+import zipfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from config import db, get_current_user
+from config import db, get_current_user, UPLOADS_DIR
+from services.pdf_storage import get_pdf_from_storage, save_pdf_dual
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -287,4 +296,364 @@ async def import_apply(
         "skipped": skipped,
         "errors": errors[:20],
         "message": f"Migración completada: {inserted} creado(s), {updated} actualizado(s), {skipped} omitido(s).",
+    }
+
+
+# =====================================================================
+# QUOTES BUNDLE — Cotizaciones + Histórico + Proyectos + Anexos
+# =====================================================================
+# Diferente al patrón simple de catálogos: este "módulo virtual" abarca
+# múltiples colecciones. Los anexos (binarios) viajan en un ZIP aparte
+# para evitar inflar el JSON con base64.
+#
+# Endpoints:
+#   GET  /admin/quotes-bundle-migration/export-data         → JSON
+#   GET  /admin/quotes-bundle-migration/export-attachments  → ZIP de archivos
+#   POST /admin/quotes-bundle-migration/import-preview      → resumen
+#   POST /admin/quotes-bundle-migration/import-data         → upsert masivo
+#   POST /admin/quotes-bundle-migration/import-attachments  → restaura archivos al storage
+# =====================================================================
+
+QUOTES_BUNDLE_COLLECTIONS = [
+    {"collection": "quotes",        "key": "quote_id",   "label": "Cotizaciones"},
+    {"collection": "quote_history", "key": "history_id", "label": "Cotizaciones Históricas"},
+    {"collection": "projects",      "key": "project_id", "label": "Proyectos"},
+]
+
+
+def _collect_attachment_paths(docs: list) -> set:
+    """Extrae el set de paths relativos (debajo de /uploads/) que deben
+    acompañar al export. Incluye anexos del array `attachments` y los PDFs
+    principales referenciados por `quote_pdf_url` / `invoice_pdf_url` / etc.
+    """
+    paths = set()
+    for d in docs:
+        if not isinstance(d, dict):
+            continue
+        for att in (d.get("attachments") or []):
+            url = (att.get("url") or "").strip()
+            if url.startswith("/uploads/"):
+                paths.add(url[len("/uploads/"):])
+        for url_field in ("quote_pdf_url", "invoice_pdf_url", "delivery_note_pdf_url",
+                          "repair_pdf_url", "implementation_pdf_url"):
+            url = (d.get(url_field) or "").strip()
+            if url.startswith("/uploads/"):
+                paths.add(url[len("/uploads/"):])
+        snap = d.get("snapshot") or {}
+        for att in (snap.get("attachments") or []):
+            url = (att.get("url") or "").strip()
+            if url.startswith("/uploads/"):
+                paths.add(url[len("/uploads/"):])
+    return paths
+
+
+def _read_file_for_export(rel_path: str) -> Optional[bytes]:
+    """1° Object Storage, fallback a filesystem."""
+    obj = get_pdf_from_storage(rel_path)
+    if obj:
+        return obj[0]
+    local = UPLOADS_DIR / rel_path
+    if local.exists() and local.is_file():
+        try:
+            return local.read_bytes()
+        except Exception as e:
+            logger.warning(f"[quotes-bundle] read fail {rel_path}: {e}")
+    return None
+
+
+@router.get("/admin/quotes-bundle-migration/export-data")
+async def quotes_bundle_export_data(authorization: Optional[str] = Header(None)):
+    """Descarga JSON con todas las cotizaciones, históricos y proyectos.
+    NO incluye binarios — los anexos se exportan por separado vía
+    /export-attachments."""
+    user = await _require_admin(authorization)
+
+    payload_collections = {}
+    counts = {}
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        docs = await db[cfg["collection"]].find({}, {"_id": 0}).to_list(None)
+        payload_collections[cfg["collection"]] = docs
+        counts[cfg["collection"]] = len(docs)
+
+    payload = {
+        "schema_version": 1,
+        "module": "quotes-bundle",
+        "collections": payload_collections,
+        "counts": counts,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_by": user.get("email"),
+        "exported_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+    }
+
+    await db.bitacora.insert_one({
+        "action": "quotes_bundle_export_data",
+        "counts": counts,
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    filename = f"quotes_bundle_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/admin/quotes-bundle-migration/export-attachments")
+async def quotes_bundle_export_attachments(authorization: Optional[str] = Header(None)):
+    """ZIP con TODOS los anexos y PDFs referenciados por las cotizaciones,
+    históricos y proyectos. Estructura: manifest.json + <rel_path>... ."""
+    user = await _require_admin(authorization)
+
+    all_docs = []
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        async for d in db[cfg["collection"]].find({}, {
+            "_id": 0,
+            "attachments": 1,
+            "snapshot": 1,
+            "quote_pdf_url": 1, "invoice_pdf_url": 1,
+            "delivery_note_pdf_url": 1, "repair_pdf_url": 1,
+            "implementation_pdf_url": 1,
+            cfg["key"]: 1,
+        }):
+            all_docs.append(d)
+
+    paths = _collect_attachment_paths(all_docs)
+
+    buf = io.BytesIO()
+    included, missing = [], []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for rel in sorted(paths):
+            data = _read_file_for_export(rel)
+            if data is None:
+                missing.append(rel)
+                continue
+            zf.writestr(rel, data)
+            included.append({"path": rel, "size": len(data)})
+
+        manifest = {
+            "schema_version": 1,
+            "module": "quotes-bundle-attachments",
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_by": user.get("email"),
+            "exported_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+            "files_included": included,
+            "files_missing": missing,
+            "total_included": len(included),
+            "total_missing": len(missing),
+        }
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+
+    buf.seek(0)
+
+    await db.bitacora.insert_one({
+        "action": "quotes_bundle_export_attachments",
+        "files_included": len(included),
+        "files_missing": len(missing),
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    filename = f"quotes_bundle_attachments_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _validate_bundle_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Estructura JSON inválida")
+    if payload.get("module") != "quotes-bundle":
+        raise HTTPException(
+            status_code=400,
+            detail=f"El archivo es del módulo '{payload.get('module')}'. Esperado: 'quotes-bundle'.",
+        )
+    cols = payload.get("collections")
+    if not isinstance(cols, dict):
+        raise HTTPException(status_code=400, detail="Campo 'collections' faltante o inválido")
+    return cols
+
+
+@router.post("/admin/quotes-bundle-migration/import-preview")
+async def quotes_bundle_import_preview(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Lee el JSON y devuelve un resumen por colección sin modificar BD."""
+    await _require_admin(authorization)
+    payload = await _read_payload(file)
+    cols = _validate_bundle_payload(payload)
+
+    summary = []
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        docs = cols.get(cfg["collection"], []) or []
+        valid_keys = []
+        invalid = 0
+        for d in docs:
+            if isinstance(d, dict) and d.get(cfg["key"]):
+                valid_keys.append(d[cfg["key"]])
+            else:
+                invalid += 1
+        existing = await db[cfg["collection"]].find(
+            {cfg["key"]: {"$in": valid_keys}}, {"_id": 0, cfg["key"]: 1}
+        ).to_list(None)
+        existing_keys = {e[cfg["key"]] for e in existing}
+        to_update = sum(1 for k in valid_keys if k in existing_keys)
+        to_create = len(valid_keys) - to_update
+        summary.append({
+            "collection": cfg["collection"],
+            "label": cfg["label"],
+            "total_in_file": len(docs),
+            "valid": len(valid_keys),
+            "invalid": invalid,
+            "to_create": to_create,
+            "to_update": to_update,
+        })
+
+    return {
+        "module": "quotes-bundle",
+        "exported_at": payload.get("exported_at"),
+        "exported_by": payload.get("exported_by"),
+        "summary": summary,
+    }
+
+
+@router.post("/admin/quotes-bundle-migration/import-data")
+async def quotes_bundle_import_data(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Aplica el upsert por colección usando el id natural de cada una."""
+    user = await _require_admin(authorization)
+    payload = await _read_payload(file)
+    cols = _validate_bundle_payload(payload)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    results = []
+
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        docs = cols.get(cfg["collection"], []) or []
+        collection = db[cfg["collection"]]
+        key = cfg["key"]
+        inserted = updated = skipped = 0
+        errors = []
+
+        valid_keys = [d[key] for d in docs if isinstance(d, dict) and d.get(key)]
+        existing = await collection.find({key: {"$in": valid_keys}}, {"_id": 0}).to_list(None)
+        existing_map = {e[key]: e for e in existing}
+
+        for d in docs:
+            if not isinstance(d, dict) or not d.get(key):
+                skipped += 1
+                errors.append({"reason": "missing_key", "key_field": key})
+                continue
+            try:
+                doc = {k: v for k, v in d.items() if k != "_id"}
+                kv = doc[key]
+                if kv in existing_map:
+                    original_created = existing_map[kv].get("created_at")
+                    if original_created and not doc.get("created_at"):
+                        doc["created_at"] = original_created
+                    doc["updated_at"] = now_iso
+                    doc["updated_by"] = user.get("email")
+                    await collection.update_one({key: kv}, {"$set": doc})
+                    updated += 1
+                else:
+                    if not doc.get("created_at"):
+                        doc["created_at"] = now_iso
+                    doc["imported_at"] = now_iso
+                    doc["imported_by"] = user.get("email")
+                    await collection.insert_one(doc)
+                    inserted += 1
+            except Exception as e:
+                skipped += 1
+                errors.append({"key": d.get(key), "error": str(e)})
+
+        results.append({
+            "collection": cfg["collection"],
+            "label": cfg["label"],
+            "inserted": inserted,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors[:10],
+        })
+
+    await db.bitacora.insert_one({
+        "action": "quotes_bundle_import_data",
+        "results": results,
+        "source_exported_at": payload.get("exported_at"),
+        "source_exported_by": payload.get("exported_by"),
+        "executed_by": user.get("email"),
+        "executed_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+        "executed_at": now_iso,
+    })
+
+    totals = {
+        "inserted": sum(r["inserted"] for r in results),
+        "updated": sum(r["updated"] for r in results),
+        "skipped": sum(r["skipped"] for r in results),
+    }
+    return {
+        "module": "quotes-bundle",
+        "results": results,
+        "totals": totals,
+        "message": (
+            f"Migración completada: {totals['inserted']} creado(s), "
+            f"{totals['updated']} actualizado(s), {totals['skipped']} omitido(s)."
+        ),
+    }
+
+
+@router.post("/admin/quotes-bundle-migration/import-attachments")
+async def quotes_bundle_import_attachments(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Restaura los archivos del ZIP al Object Storage + filesystem.
+    Cada archivo conserva su path relativo original (`attachments/.../*.pdf`)."""
+    user = await _require_admin(authorization)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Archivo no es un ZIP válido")
+
+    restored = 0
+    skipped = 0
+    errors = []
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        rel = info.filename.lstrip("/")
+        # Evitar el manifest y rutas que quieran salir del directorio
+        if rel == "manifest.json" or ".." in rel.split("/"):
+            skipped += 1
+            continue
+        try:
+            data = zf.read(info)
+            local_path = UPLOADS_DIR / rel
+            save_pdf_dual(local_path, data, rel)
+            restored += 1
+        except Exception as e:
+            errors.append({"path": rel, "error": str(e)})
+            skipped += 1
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.bitacora.insert_one({
+        "action": "quotes_bundle_import_attachments",
+        "restored": restored,
+        "skipped": skipped,
+        "executed_by": user.get("email"),
+        "executed_at": now_iso,
+    })
+
+    return {
+        "module": "quotes-bundle-attachments",
+        "restored": restored,
+        "skipped": skipped,
+        "errors": errors[:20],
+        "message": f"Restauración completada: {restored} archivo(s) restaurado(s), {skipped} omitido(s).",
     }

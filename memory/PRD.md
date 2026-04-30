@@ -5,7 +5,39 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Homologación de Matrices para Proyectos Payment Gateway (Feb 2026) — NUEVO
+### Migración de BD para Cotizaciones, Histórico y Proyectos (Feb 2026) — NUEVO
+
+**Objetivo**: Permitir al Administrador exportar/importar Cotizaciones + Histórico + Proyectos derivados con sus anexos para respaldos, replicación entre ambientes (Preview ↔ Production) o restauración tras pruebas.
+
+**Diseño** — extensión del módulo `routes/data_migration.py`:
+- 2 archivos por export (elegido por el usuario): JSON de datos + ZIP de anexos.
+- Upsert por `id` natural (no destructivo): `quote_id`, `history_id`, `project_id`.
+- Acceso restringido: solo `role=admin` (HTTP 403 para otros).
+
+**5 endpoints nuevos** (paths con prefijo `/admin/quotes-bundle-migration/` para evitar colisión con la ruta dinámica `/admin/migration/{module}`):
+- `GET    /export-data`        → JSON `{collections: {quotes, quote_history, projects}}` con `counts` y metadata.
+- `GET    /export-attachments` → ZIP con `manifest.json` + archivos en sus paths originales (`attachments/{quote_id}/...`, `attachments/history/...`). Lee desde Object Storage con fallback a filesystem.
+- `POST   /import-preview`     → resumen por colección (a crear / a actualizar) sin modificar BD.
+- `POST   /import-data`        → upsert masivo con bitácora; preserva `created_at` original.
+- `POST   /import-attachments` → restaura archivos al Object Storage (dual-write con filesystem) usando los paths del ZIP.
+
+**Frontend** — `components/quotes/QuotesBundleMigrationModal.jsx`:
+- Botón "Migración BD" (icono Database, color índigo) en `pages/Quotes.jsx` visible solo para admin.
+- Modal con 2 tabs: Exportar (descarga JSON + descarga ZIP) e Importar (preview + apply data + restore attachments).
+- Tabla resumen de preview/resultado con conteos por colección.
+- Banner de advertencia: "los registros existentes se actualizarán; los nuevos se crearán; no se elimina nada".
+
+**Bitácora** — cada acción (export-data, export-attachments, import-data, import-attachments) registra una entrada en `db.bitacora` con email del ejecutor y conteos.
+
+**Validación E2E** (curl):
+- ✅ Export data: 5 quotes + 3 history + 8 projects → JSON 253KB.
+- ✅ Export attachments: ZIP de 2.7MB con 5 archivos + manifest (29 missing detectados correctamente — archivos referenciados pero ya purgados del storage).
+- ✅ Import preview: `to_create=0, to_update=16` (todos detectados correctamente).
+- ✅ Import data: 16 actualizados, 0 errores.
+- ✅ Import attachments: 5 restaurados, 1 omitido (el manifest.json, correcto).
+- ✅ RBAC: 403 para usuario no-admin.
+
+### Homologación de Matrices para Proyectos Payment Gateway (Feb 2026)
 
 **Problema resuelto**: Al ejecutar "Enviar a Implementación" en cotizaciones tipo Payment Gateway, el proyecto resultante no recibía la `implementation_matrix` (la lógica original solo construía la matriz desde `services` con `item_type='additional'`, formato exclusivo de VPOS/MPOS). Esto causaba: (1) email de Notificación al Cliente sin tabla de productos, (2) imposibilidad de marcar avances en ProjectDetail (matriz vacía).
 

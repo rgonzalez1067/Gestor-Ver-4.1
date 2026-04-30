@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown, Store } from 'lucide-react';
+import { Plus, FileText, Download, Monitor, Globe, Smartphone, Link, Trash2, Building2, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Pencil, Mail, CheckCircle, Send, Package, Settings2, X, Search, Calendar, Receipt, Banknote, Truck, RefreshCw, Upload, FolderOpen, ChevronsUpDown, Check, Unlock, Eye, AlertTriangle, ChevronDown, Store, Database } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { EquipmentQuoteWizard } from '../components/EquipmentQuoteWizard';
 import { BranchDetailPanel } from '../components/BranchDetailPanel';
@@ -31,6 +31,7 @@ import { RepairCompleteModal } from '../components/quotes/RepairCompleteModal';
 import { PreassignSerialsModal } from '../components/quotes/PreassignSerialsModal';
 import { QuoteWizardDialog } from '../components/quotes/QuoteWizardDialog';
 import { QuoteModals } from '../components/quotes/QuoteModals';
+import { QuotesBundleMigrationModal } from '../components/quotes/QuotesBundleMigrationModal';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS, RECURRING_BASIC_CONCEPTS, RECURRING_OTHER_CONCEPTS, STATUS_COLORS, STATUS_DISPLAY_NAMES, QUOTE_CATEGORY_LABELS, ACTION_LABELS } from '../components/quotes/constants';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -77,6 +78,10 @@ export const Quotes = () => {
 
   // RBAC: Permisos especiales de cotizaciones + listado filtrado
   const { rbac, rbacFilteredQuotes } = useQuoteRbac({ currentUser, canEdit, quotes });
+
+  // Migración de BD (solo admin)
+  const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
+  const [bundleModalOpen, setBundleModalOpen] = useState(false);
   
   // Estado para edición de cotización existente
   const [editingQuoteId, setEditingQuoteId] = useState(null);
@@ -3174,6 +3179,19 @@ export const Quotes = () => {
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizaciones</h1>
               <p className="text-slate-600">Genere cotizaciones profesionales para sus clientes</p>
             </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBundleModalOpen(true)}
+                data-testid="quotes-bundle-migration-btn"
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                title="Exportar / Importar cotizaciones, histórico y proyectos (solo administradores)"
+              >
+                <Database size={14} className="mr-1.5" />
+                Migración BD
+              </Button>
+            )}
           </div>
 
           {/* Botones de Nueva Cotización — Visibilidad por Permisos Especiales */}
@@ -3359,6 +3377,14 @@ export const Quotes = () => {
             quoteNumber={implJustifyQuoteNum}
             version={implJustifyVersion}
           />
+
+          {/* Migración de Cotizaciones (Admin) */}
+          {bundleModalOpen && (
+            <QuotesBundleMigrationModal
+              open={bundleModalOpen}
+              onClose={() => setBundleModalOpen(false)}
+            />
+          )}
         </div>
 
       </main>
