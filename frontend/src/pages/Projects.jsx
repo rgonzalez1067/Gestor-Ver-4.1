@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
   FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2
@@ -29,9 +30,6 @@ const STATUS_TRANSITIONS = [
   { id: 'Suspendido por Banco', label: 'Suspendido por Banco', icon: Pause, iconColor: 'text-orange-600' },
   { id: 'Finalizado / Producción', label: 'Finalizado / Producción', icon: CheckCircle2, iconColor: 'text-emerald-600' },
 ];
-
-const PRIORITY_OPTIONS = ['Alta', 'Media', 'Normal'];
-const PRIORITY_COLORS = { 'Alta': 'text-red-600 font-semibold', 'Media': 'text-orange-600', 'Normal': 'text-blue-600' };
 
 const Projects = () => {
   const { canEdit, user: currentUser } = usePermission('proyectos');
@@ -117,14 +115,6 @@ const Projects = () => {
       fetchProjects();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al cambiar estado'); }
     finally { setStatusLoading(false); }
-  };
-
-  const handlePriorityChange = async (projectId, priority) => {
-    try {
-      await api.put(`/projects/${projectId}/priority`, { priority });
-      toast.success(`Prioridad: ${priority}`);
-      fetchProjects();
-    } catch (err) { toast.error('Error al cambiar prioridad'); }
   };
 
   const handleDeleteProject = async (project) => {
@@ -231,12 +221,11 @@ const Projects = () => {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Proyecto / Ticket</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Cliente</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Cliente / Ticket</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Tipo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Prioridad</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
@@ -289,18 +278,13 @@ const Projects = () => {
                       <tr className="hover:bg-slate-50 transition-colors"
                         data-testid={`project-row-${project.project_id}`}>
                         <td className="px-4 py-3">
-                          {project.ticket_number ? (
-                            <>
-                              <p className="text-sm font-semibold text-slate-900 flex items-center gap-1.5" data-testid={`ticket-${project.project_id}`}>
-                                <Ticket size={13} className="text-indigo-500" />{project.ticket_number}
-                              </p>
-                              <p className="text-xs text-slate-400">{project.project_number} · Cot: {project.quote_number}</p>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-sm font-semibold text-slate-900">{project.project_number}</p>
-                              <p className="text-xs text-slate-400">Cot: {project.quote_number}</p>
-                            </>
+                          {/* Cliente como info principal — se eliminó project_number/quote_number redundantes */}
+                          <p className="text-sm font-semibold text-slate-900">{project.client_name}</p>
+                          <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
+                          {project.ticket_number && (
+                            <p className="text-xs text-indigo-600 flex items-center gap-1 mt-0.5" data-testid={`ticket-${project.project_id}`}>
+                              <Ticket size={11} />{project.ticket_number}
+                            </p>
                           )}
                           <div className="flex gap-1 mt-1 flex-wrap">
                             {project.project_type === 'multistore' && (
@@ -316,8 +300,7 @@ const Projects = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-slate-800">{project.client_name}</p>
-                          <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
+                          <ProjectTypeBadge quoteType={project.quote_type} />
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
                         <td className="px-4 py-3">
@@ -334,16 +317,6 @@ const Projects = () => {
                               )}
                             </div>
                           ) : <span className="text-slate-400 italic">Sin asignar</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Select value={project.priority || 'Normal'} onValueChange={v => handlePriorityChange(project.project_id, v)}>
-                            <SelectTrigger className={`h-7 w-24 text-xs border-0 bg-transparent ${PRIORITY_COLORS[project.priority] || ''}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PRIORITY_OPTIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
@@ -380,7 +353,7 @@ const Projects = () => {
                       </tr>
                       {/* Fila SLA Semáforo */}
                       <tr className="border-b border-slate-200" data-testid={`sla-row-${project.project_id}`}>
-                        <td colSpan={7} className="px-4 py-1.5">
+                        <td colSpan={6} className="px-4 py-1.5">
                           <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
                             <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />

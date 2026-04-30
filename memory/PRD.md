@@ -5,7 +5,43 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Migración de BD para Cotizaciones, Histórico y Proyectos (Feb 2026) — NUEVO
+### Reestructuración de Vistas + Badges de Tipo de Negocio (Feb 2026) — NUEVO
+
+**Objetivo**: Identificación inmediata del tipo de negocio (VPOS / MPOS / Payment / Link de Pago) en grilla de Proyectos, Histórico y Reporte de Irregularidades. Limpiar UI eliminando 3 columnas redundantes para liberar espacio.
+
+**Cambios aplicados**:
+
+1. **Componente reutilizable** — `components/projects/ProjectTypeBadge.jsx`:
+   - 4 tipos: VPOS (azul), MPOS (verde esmeralda), Payment/GATEWAY (púrpura), Link de Pago/LINK (slate).
+   - Cada badge con icono Lucide propio. Fallback gracioso "—" para valores legacy desconocidos.
+   - Tamaños `sm` (default) y `xs` para vistas compactas.
+
+2. **`pages/Projects.jsx`** (grilla):
+   - 🗑 Removidas: columnas "Proyecto/Ticket" (redundante), "Cliente" separada, "Prioridad".
+   - ➕ Nueva columna "Tipo" en lugar de Prioridad.
+   - Cliente ahora es la información principal de la primera columna; Ticket queda subordinado bajo el cliente cuando aplica.
+   - Eliminada lógica muerta `PRIORITY_OPTIONS`/`PRIORITY_COLORS`/`handlePriorityChange` (la API backend `/projects/{id}/priority` se conserva por si se necesita en otra vista).
+
+3. **`pages/HistoricalQuotes.jsx`**:
+   - ➕ Columna "Tipo" entre "Nº Cotización" y "Cliente".
+   - colSpan de filas vacías ajustado a 9.
+
+4. **`pages/SalesReports.jsx`** (Reporte de Irregularidades):
+   - ➕ Badge "Tipo" justo después del número de cotización.
+   - PDF del reporte (`routes/sales_reports.py`) ahora incluye el badge de tipo con colores idénticos a la UI.
+
+5. **`pages/ProjectDetail.jsx`** — bloque "Datos del Proyecto":
+   - ➕ Campo "Cotización Origen" (readonly, fuente mono azul) con `data-testid='project-quote-number-ref'`. Compensa la eliminación del `quote_number` de la grilla.
+
+6. **Backend** — `routes/sales_reports.py`:
+   - `_collect_irregular_quotes` ahora propaga `quote_type` tanto desde `db.quotes` como desde `db.quote_history` (snapshot + top-level).
+   - Items irregulares incluyen `quote_type` en el JSON; el PDF lo renderiza como badge con colores consistentes.
+
+**Retrocompatibilidad**: Los proyectos e históricos existentes ya guardan `quote_type` (heredado de la cotización al crearse). Validado E2E con curl: 8/8 proyectos + 3/3 históricos + items irregulares retornan `quote_type` correcto. Cotizaciones legacy con valores fuera del set (ej. "Verifone") muestran `—` graciosamente sin romper la UI.
+
+**Validación visual**: screenshots confirman 6 columnas en Proyectos con badges Payment púrpura y VPOS azul; Histórico con columna TIPO y los mismos badges.
+
+### Migración de BD para Cotizaciones, Histórico y Proyectos (Feb 2026)
 
 **Objetivo**: Permitir al Administrador exportar/importar Cotizaciones + Histórico + Proyectos derivados con sus anexos para respaldos, replicación entre ambientes (Preview ↔ Production) o restauración tras pruebas.
 

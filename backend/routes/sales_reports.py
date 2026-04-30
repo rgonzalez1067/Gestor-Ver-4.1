@@ -919,6 +919,7 @@ async def _collect_irregular_quotes(match: dict) -> list:
             "quote_id": q.get("quote_id"),
             "quote_number": q.get("quote_number"),
             "quote_category": q.get("quote_category"),
+            "quote_type": q.get("quote_type"),
             "client_name": q.get("client_name"),
             "client_segment": q.get("client_segment"),
             "current_status": q.get("quote_status") or "—",
@@ -936,7 +937,7 @@ async def _collect_irregular_quotes(match: dict) -> list:
     async for h in db.quote_history.find(match, {"_id": 0}):
         snap = h.get("snapshot") or {}
         # mezclar campos del top-level con snapshot (fallbacks)
-        combined = {**snap, **{k: h.get(k) for k in ("quote_id", "quote_number", "quote_category", "client_name", "archived_trigger")}}
+        combined = {**snap, **{k: h.get(k) for k in ("quote_id", "quote_number", "quote_category", "quote_type", "client_name", "archived_trigger")}}
         # Marcar como archivada y trigger desde el history
         combined["archived"] = True
         combined["_is_history"] = True
@@ -978,6 +979,7 @@ async def _collect_irregular_quotes(match: dict) -> list:
             "quote_id": combined.get("quote_id"),
             "quote_number": combined.get("quote_number"),
             "quote_category": combined.get("quote_category"),
+            "quote_type": combined.get("quote_type"),
             "client_name": combined.get("client_name"),
             "client_segment": combined.get("client_segment"),
             "current_status": (combined.get("quote_status") or h.get("quote_status_final") or "Archivada"),
@@ -1082,12 +1084,29 @@ async def irregular_quotes_pdf(
         cat = (it.get("quote_category") or "—").capitalize()
         seg = (it.get("client_segment") or "—").upper()
         amount = f"${(it.get('total_usd') or 0):,.2f}"
+        # Tipo de Negocio (VPOS/MPOS/Payment/Link)
+        qt = (it.get("quote_type") or "").upper()
+        type_label_map = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment", "LINK": "Link de Pago"}
+        type_color_map = {
+            "VPOS":    ("#dbeafe", "#1e40af", "#bfdbfe"),
+            "MPOS":    ("#d1fae5", "#065f46", "#a7f3d0"),
+            "GATEWAY": ("#ede9fe", "#5b21b6", "#ddd6fe"),
+            "LINK":    ("#f1f5f9", "#334155", "#e2e8f0"),
+        }
+        type_label = type_label_map.get(qt, "—") if qt else "—"
+        bg, fg, br = type_color_map.get(qt, ("#f8fafc", "#475569", "#e2e8f0"))
+        type_badge = (
+            f'<span style="display:inline-block; padding:2px 6px; font-size:9px; font-weight:600; '
+            f'border-radius:4px; background:{bg}; color:{fg}; border:1px solid {br}; margin-left:6px;">'
+            f'{type_label}</span>'
+        ) if type_label != "—" else ""
 
         sections_html.append(f"""
         <div class="card">
           <div class="card-head">
             <div class="card-title">
               <span class="qnum">{it.get('quote_number') or '—'}</span>
+              {type_badge}
               <span class="muted">·</span>
               <span class="client">{it.get('client_name') or '—'}</span>
               {proj_badge}

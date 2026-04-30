@@ -907,6 +907,14 @@ const ProjectDetail = () => {
                   <p className="text-xs text-slate-500">N. Proyecto</p>
                   <p className="text-sm font-semibold text-slate-700">{project.project_number}</p>
                 </div>
+                {project.quote_number && (
+                  <div>
+                    <p className="text-xs text-slate-500">Cotización Origen</p>
+                    <p className="text-sm font-mono font-semibold text-blue-700" data-testid="project-quote-number-ref">
+                      {project.quote_number}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-slate-500">Cliente</p>
                   <p className="text-sm font-semibold text-slate-700">{project.client_name}</p>

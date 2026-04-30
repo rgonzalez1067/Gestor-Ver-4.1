@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
   Line, ComposedChart, PieChart, Pie, Cell,
@@ -879,6 +880,7 @@ const SalesReports = () => {
                                 >
                                   {it.quote_number || '—'}
                                 </button>
+                                <ProjectTypeBadge quoteType={it.quote_type} size="xs" />
                                 <span className="text-slate-300">·</span>
                                 <span className="font-semibold text-slate-800">{it.client_name || '—'}</span>
                                 {it.passed_to_project && (

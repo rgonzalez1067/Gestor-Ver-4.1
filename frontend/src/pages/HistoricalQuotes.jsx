@@ -12,6 +12,7 @@ import { Archive, Download, Search, FileText, Eye, Lock, ShieldAlert, Trash2, Fo
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { HistoricalAnexosModal } from '../components/HistoricalAnexosModal';
+import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 
 const CATEGORY_LABELS = {
   equipment: 'Equipos/Accesorios',
@@ -180,6 +181,7 @@ export const HistoricalQuotes = () => {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr className="text-xs text-slate-500 uppercase font-semibold">
                   <th className="px-4 py-3 text-left">Nº Cotización</th>
+                  <th className="px-4 py-3 text-left">Tipo</th>
                   <th className="px-4 py-3 text-left">Cliente</th>
                   <th className="px-4 py-3 text-left">Categoría</th>
                   <th className="px-4 py-3 text-right">Total USD</th>
@@ -191,15 +193,16 @@ export const HistoricalQuotes = () => {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-slate-400">Cargando...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-8 text-slate-400">Cargando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12">
+                  <tr><td colSpan={9} className="text-center py-12">
                     <Archive className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="text-sm text-slate-400">No hay cotizaciones archivadas</p>
                   </td></tr>
                 ) : filtered.map(r => (
                   <tr key={r.history_id} className="border-b border-slate-100 hover:bg-slate-50 text-sm" data-testid={`qh-row-${r.history_id}`}>
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-600">{r.quote_number}</td>
+                    <td className="px-4 py-3"><ProjectTypeBadge quoteType={r.quote_type} size="xs" /></td>
                     <td className="px-4 py-3">{r.client_name || '—'}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={`text-[10px] ${CATEGORY_COLORS[r.quote_category] || 'bg-slate-50'}`}>
