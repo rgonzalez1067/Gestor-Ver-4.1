@@ -2129,6 +2129,15 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
             <span class="count">{len(items)} proyecto(s)</span>
           </div>
           <table class="rep">
+            <colgroup>
+              <col class="c-cliente" />
+              <col class="c-tipo" />
+              <col class="c-cajas" />
+              <col class="c-estado" />
+              <col class="c-orig" />
+              <col class="c-fasign" />
+              <col class="c-ultcont" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Cliente</th><th>Tipo</th><th>Cajas</th>
@@ -2162,13 +2171,22 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
       }}
       .group-head .impl {{ font-weight: 700; font-size: 13px; color: #312e81; }}
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
-      table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; }}
+      table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }}
+      /* Anchos fijos por columna para que TODAS las tablas (por implementador) queden alineadas */
+      table.rep col.c-cliente  {{ width: 22%; }}
+      table.rep col.c-tipo     {{ width: 9%; }}
+      table.rep col.c-cajas    {{ width: 6%; }}
+      table.rep col.c-estado   {{ width: 17%; }}
+      table.rep col.c-orig     {{ width: 16%; }}
+      table.rep col.c-fasign   {{ width: 15%; }}
+      table.rep col.c-ultcont  {{ width: 15%; }}
       table.rep th {{
         background: #f8fafc; color: #475569; text-transform: uppercase; font-size: 8px;
         padding: 5px 6px; border-bottom: 1px solid #e2e8f0; text-align: left;
       }}
       table.rep td {{
         padding: 6px; border-bottom: 1px solid #f1f5f9; font-size: 10px; vertical-align: top;
+        word-wrap: break-word; overflow-wrap: break-word;
       }}
       table.rep td.num {{ text-align: center; font-variant-numeric: tabular-nums; }}
       table.rep td.date {{ font-variant-numeric: tabular-nums; color: #334155; }}
