@@ -14,7 +14,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart, Flag
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -28,12 +28,14 @@ import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
 import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import { EmailPreviewDialog } from '../components/projects/EmailPreviewDialog';
+import { CommitmentModal } from '../components/CommitmentModal';
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [commitmentsOpen, setCommitmentsOpen] = useState(false);
   const [bitacoraText, setBitacoraText] = useState('');
   const [bitacoraDate, setBitacoraDate] = useState(new Date().toISOString().split('T')[0]);
   const [bitacoraSubmitting, setBitacoraSubmitting] = useState(false);
@@ -879,6 +881,52 @@ const ProjectDetail = () => {
                 </div>
               </div>
             </div>
+
+            {/* Compromisos Gerenciales — banner sticky si hay activos */}
+            {(() => {
+              const active = (project.commitments || []).filter(c => !c.completed);
+              if (active.length === 0) return null;
+              return (
+                <div
+                  className="sticky top-0 z-10 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-lg p-4 mb-4 shadow-lg border-2 border-red-700 animate-pulse-slow"
+                  data-testid="commitments-banner"
+                >
+                  <div className="flex items-start gap-3">
+                    <Flag size={22} className="shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-bold text-sm uppercase tracking-wide">
+                        Compromiso gerencial pendiente ({active.length})
+                      </p>
+                      {active.slice(0, 2).map((c) => {
+                        const overdue = c.deadline && new Date(c.deadline) < new Date();
+                        return (
+                          <p key={c.commitment_id} className="text-sm mt-1" data-testid={`commitment-banner-${c.commitment_id}`}>
+                            <b>{c.created_by_name}</b> ({c.created_by_role}): {c.message}
+                            {c.deadline && (
+                              <span className={`ml-2 text-xs ${overdue ? 'bg-yellow-400 text-red-900 font-bold' : 'bg-white/20'} px-2 py-0.5 rounded`}>
+                                {overdue ? 'VENCIDO: ' : 'Límite: '}{new Date(c.deadline).toLocaleDateString('es-VE')}
+                              </span>
+                            )}
+                          </p>
+                        );
+                      })}
+                      {active.length > 2 && (
+                        <p className="text-xs opacity-80 mt-1">+ {active.length - 2} compromiso(s) más...</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCommitmentsOpen(true)}
+                      className="bg-white hover:bg-red-50 text-red-700 border-white font-semibold whitespace-nowrap"
+                      data-testid="commitments-banner-open-btn"
+                    >
+                      Ver / Gestionar
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Bloques de información en grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -1908,6 +1956,22 @@ const ProjectDetail = () => {
           onOpenChange={setProgressReportOpen}
           projectId={project?.project_id}
         />
+
+        {commitmentsOpen && project && (() => {
+          const cargo = (currentUser.cargo || '').toLowerCase();
+          const canManage = (currentUser.role || '').toLowerCase() === 'admin' || cargo === 'coordinador' || cargo === 'gerente';
+          return (
+            <CommitmentModal
+              open={commitmentsOpen}
+              onClose={() => setCommitmentsOpen(false)}
+              projectId={project.project_id}
+              projectNumber={project.project_number}
+              clientName={project.client_name}
+              canManage={canManage}
+              onChange={() => fetchProject()}
+            />
+          );
+        })()}
       </main>
     </div>
   );

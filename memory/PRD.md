@@ -5,7 +5,34 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Fase A — Gestión de Responsables + Reporte de Carga (Feb 2026) — NUEVO
+### Fase B — Reasignación Masiva + Compromisos Gerenciales (Feb 2026) — NUEVO
+
+**Sección 3 — Reasignación Masiva de Proyectos**:
+- Nuevo estatus `"En proceso/reasignado"` agregado a `PROJECT_STATUSES` (6to valor) con color púrpura e icono `UserCog` tanto en UI (`STATUS_CONFIG`) como en transiciones (`STATUS_TRANSITIONS`).
+- Endpoint `POST /api/projects/bulk-reassign` (admin/coordinador/gerente). Body: `{from_user_id, to_user_id, project_ids}`. Por cada proyecto: valida que destino tenga cargo "Implementador", hace push a `reassignment_history[]` (from_*, to_*, reassigned_at, reassigned_by_name), actualiza `assigned_to_*`, setea `reassigned_from_name/user_id`, cambia status.
+- Nuevo componente `BulkReassignModal.jsx`: wizard de 3 pasos (origen → checkboxes con "Seleccionar todos" → destino → confirmar). Botón "Reasignación Masiva" (púrpura) en header de `Projects.jsx`, visible solo para Coord/Gerente/Admin.
+
+**Sección 4 — Compromisos Gerenciales**:
+- Modelo `ProjectCommitment` embebido en `projects.commitments[]`: `commitment_id, message, deadline, created_by_*, created_at, completed, completed_at, completed_by_name`.
+- 4 endpoints: `GET list`, `POST create` (solo Coord/Gerente/Admin), `PUT /{cid}/complete` (idem), `DELETE /{cid}` (idem).
+- Nuevo componente `CommitmentModal.jsx`: formulario con textarea + date picker, sección "Activos" (badge amber/red con VENCIDO si deadline < hoy) + "Cumplidos" (strike-through verde). Prop `canManage` gates mutation buttons.
+- **Alerta "inevitable de ignorar" (opción 2b elegida)**:
+  - Grilla Proyectos: botón bandera (`Flag`) por fila. Roja con **animate-pulse** + badge numérico rojo cuando hay compromisos activos.
+  - `ProjectDetail.jsx`: banner **sticky top-0 z-10 gradient-red** con `animate-pulse-slow` que resume los primeros 2 compromisos activos (creador, mensaje, deadline, marca VENCIDO). Botón "Ver / Gestionar" abre el modal.
+
+**RBAC**:
+- Helper `_is_coordinator_or_admin` en backend: `role=admin` o `cargo IN ('coordinador','gerente')`.
+- Frontend `canManage = role===admin || cargo===coordinador || cargo===gerente`.
+- Doble capa: middleware RBAC de módulo `proyectos` + gate de rol/cargo por endpoint.
+
+**Validación E2E (curl)**:
+- ✅ Create commitment (admin): role=Admin, deadline guardado.
+- ✅ List / Complete / Delete: todos 200 OK.
+- ✅ Bulk reassign: 1 proyecto Omar Jimenez → Jhonatan Rojas. `status='En proceso/reasignado'`, `reassigned_from_name='Omar Jimenez'`, `reassignment_history[0]` completo.
+- ✅ RBAC: srubio (user) bloqueado en middleware; admin autorizado.
+- ✅ Frontend smoke: 9 botones Compromiso en grilla; 1 con badge rojo "1" animado; Modal abre y crea compromisos; modal Reasignación Masiva abre; status "En proceso/reasignado" visible en detalle.
+
+### Fase A — Gestión de Responsables + Reporte de Carga (Feb 2026)
 
 **5 secciones entregadas** (quedan pendientes reasignación masiva + compromisos gerenciales para Fase B):
 

@@ -11,14 +11,17 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '.
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
+import { BulkReassignModal } from '../components/BulkReassignModal';
+import { CommitmentModal } from '../components/CommitmentModal';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
   'Pendiente por Asignar': { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
   'Asignado / En Proceso': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
+  'En proceso/reasignado': { color: 'bg-purple-100 text-purple-800 border-purple-200', icon: UserCog },
   'Suspendido por Cliente': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
   'Suspendido por Banco': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Pause },
   'Finalizado / Producción': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
@@ -26,6 +29,7 @@ const STATUS_CONFIG = {
 
 const STATUS_TRANSITIONS = [
   { id: 'Asignado / En Proceso', label: 'Asignado / En Proceso', icon: UserCheck, iconColor: 'text-blue-600' },
+  { id: 'En proceso/reasignado', label: 'En proceso/reasignado', icon: UserCog, iconColor: 'text-purple-600' },
   { id: 'Suspendido por Cliente', label: 'Suspendido por Cliente', icon: Pause, iconColor: 'text-red-600' },
   { id: 'Suspendido por Banco', label: 'Suspendido por Banco', icon: Pause, iconColor: 'text-orange-600' },
   { id: 'Finalizado / Producción', label: 'Finalizado / Producción', icon: CheckCircle2, iconColor: 'text-emerald-600' },
@@ -33,6 +37,12 @@ const STATUS_TRANSITIONS = [
 
 const Projects = () => {
   const { canEdit, user: currentUser } = usePermission('proyectos');
+  // Coord/Gerente/Admin → acciones gerenciales (reasignación masiva + compromisos)
+  const canManage = (() => {
+    const role = (currentUser?.role || '').toLowerCase();
+    const cargo = (currentUser?.cargo || '').toLowerCase();
+    return role === 'admin' || cargo === 'coordinador' || cargo === 'gerente';
+  })();
   const isAdmin = currentUser?.role === 'admin';
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
@@ -45,6 +55,10 @@ const Projects = () => {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignProject, setAssignProject] = useState(null);
   const [implementers, setImplementers] = useState([]);
+  // Fase B — Reasignación masiva + Compromisos (Coordinador/Gerente/Admin)
+  const [bulkReassignOpen, setBulkReassignOpen] = useState(false);
+  const [commitmentsOpen, setCommitmentsOpen] = useState(false);
+  const [commitmentsTarget, setCommitmentsTarget] = useState(null);
   const [assignForm, setAssignForm] = useState({ assigned_to_user_id: '', estimated_delivery_date: '', reassignment_comment: '', reassignment_date: '' });
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -166,10 +180,24 @@ const Projects = () => {
               <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Proyectos</h1>
               <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkReassignOpen(true)}
+                  data-testid="bulk-reassign-open-btn"
+                  className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  title="Reasignar múltiples proyectos entre implementadores"
+                >
+                  <UserCog size={14} className="mr-1.5" />
+                  Reasignación Masiva
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
                 try {
                   const token = localStorage.getItem('session_token');
                   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -192,6 +220,7 @@ const Projects = () => {
               <FileText size={14} className="mr-1.5" />
               Reporte Carga (PDF)
             </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -374,6 +403,28 @@ const Projects = () => {
                               className="h-8 px-2 text-emerald-600" data-testid={`detail-btn-${project.project_id}`}>
                               <Eye size={14} />
                             </Button>
+                            {/* Compromiso (Coord/Gerente/Admin crea/gestiona; todos leen) */}
+                            {(() => {
+                              const active = (project.commitments || []).filter(c => !c.completed);
+                              const hasActive = active.length > 0;
+                              return (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  title={hasActive ? `${active.length} compromiso(s) activo(s)` : 'Gestionar compromisos gerenciales'}
+                                  onClick={() => { setCommitmentsTarget(project); setCommitmentsOpen(true); }}
+                                  className={`h-8 px-2 relative ${hasActive ? 'text-red-600 border-red-300 hover:bg-red-50 animate-pulse' : 'text-slate-500 hover:text-red-600'}`}
+                                  data-testid={`commitment-btn-${project.project_id}`}
+                                >
+                                  <Flag size={14} />
+                                  {hasActive && (
+                                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                                      {active.length}
+                                    </span>
+                                  )}
+                                </Button>
+                              );
+                            })()}
                             {isAdmin && (
                               <Button size="sm" variant="outline" title="Eliminar Proyecto"
                                 onClick={() => handleDeleteProject(project)}
@@ -568,6 +619,28 @@ const Projects = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Fase B — Modales gerenciales */}
+        {bulkReassignOpen && (
+          <BulkReassignModal
+            open={bulkReassignOpen}
+            onClose={() => setBulkReassignOpen(false)}
+            onSuccess={() => { fetchProjects(); fetchStats(); }}
+            implementadores={implementers.map(u => ({ user_id: u.user_id, full_name: u.full_name || `${u.first_name||''} ${u.last_name||''}`.trim() }))}
+            projects={projects}
+          />
+        )}
+        {commitmentsOpen && commitmentsTarget && (
+          <CommitmentModal
+            open={commitmentsOpen}
+            onClose={() => { setCommitmentsOpen(false); setCommitmentsTarget(null); }}
+            projectId={commitmentsTarget.project_id}
+            projectNumber={commitmentsTarget.project_number || commitmentsTarget.client_name}
+            clientName={commitmentsTarget.client_name}
+            canManage={canManage}
+            onChange={fetchProjects}
+          />
+        )}
       </main>
     </div>
   );

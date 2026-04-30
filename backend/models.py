@@ -675,7 +675,26 @@ class ExchangeRate(BaseModel):
 
 # ==================== PROJECT MODELS ====================
 
-PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "Suspendido por Cliente", "Suspendido por Banco", "Finalizado / Producción"]
+PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "En proceso/reasignado", "Suspendido por Cliente", "Suspendido por Banco", "Finalizado / Producción"]
+
+
+class ProjectCommitment(BaseModel):
+    """Compromiso de seguimiento gerencial sobre un proyecto.
+
+    Creado por Coordinador/Gerente para el implementador. Genera una
+    alerta visible (banner + badge con parpadeo) hasta que sea marcado
+    como completado o eliminado (ambas acciones también restringidas a
+    Coordinador / Gerente / Admin)."""
+    commitment_id: str = Field(default_factory=lambda: f"cmt_{uuid.uuid4().hex[:12]}")
+    message: str
+    deadline: Optional[str] = None  # ISO date string
+    created_by_user_id: str
+    created_by_name: str
+    created_by_role: str  # 'Coordinador' | 'Gerente' | 'Admin'
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    completed: bool = False
+    completed_at: Optional[str] = None
+    completed_by_name: Optional[str] = None
 
 class ProjectNote(BaseModel):
     note_id: str = Field(default_factory=lambda: f"pn_{uuid.uuid4().hex[:8]}")

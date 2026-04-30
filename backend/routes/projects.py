@@ -2219,3 +2219,176 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+
+# =====================================================================
+# REASIGNACIÓN MASIVA (Sección 3)
+# =====================================================================
+
+class BulkReassignBody(BaseModel):
+    from_user_id: Optional[str] = None  # opcional (puede ser "sin_asignar")
+    to_user_id: str
+    project_ids: List[str]
+
+
+def _is_coordinator_or_admin(user: dict) -> bool:
+    """Coord/Gerente/Admin para acciones gerenciales (reasignación masiva, compromisos)."""
+    if (user.get("role") or "").lower() == "admin":
+        return True
+    cargo = (user.get("cargo") or "").lower()
+    return cargo in ("coordinador", "gerente")
+
+
+@router.post("/projects/bulk-reassign")
+async def bulk_reassign_projects(body: BulkReassignBody, authorization: Optional[str] = Header(None)):
+    """Reasignación masiva de proyectos. Solo Coord/Gerente/Admin.
+    - Registra al implementador anterior en `reassignment_history[]`.
+    - Marca `assigned_to_*` al nuevo implementador.
+    - Cambia status a 'En proceso/reasignado'.
+    """
+    user = await get_current_user(authorization)
+    if not _is_coordinator_or_admin(user):
+        raise HTTPException(status_code=403, detail="Solo Coordinadores, Gerentes o Admin pueden reasignar en masa")
+
+    if not body.project_ids:
+        raise HTTPException(status_code=400, detail="No se seleccionaron proyectos")
+
+    to_user = await db.users.find_one({"user_id": body.to_user_id}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+    if not to_user:
+        raise HTTPException(status_code=404, detail="Implementador destino no encontrado")
+    if (to_user.get("cargo") or "").lower() != "implementador":
+        raise HTTPException(status_code=400, detail="El usuario destino no tiene cargo 'Implementador'")
+    to_name = f"{to_user.get('first_name','')} {to_user.get('last_name','')}".strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    exec_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "")
+
+    reassigned = 0
+    skipped = []
+    for pid in body.project_ids:
+        p = await db.projects.find_one({"project_id": pid}, {
+            "_id": 0, "project_id": 1, "assigned_to_user_id": 1, "assigned_to_name": 1, "assigned_at": 1,
+        })
+        if not p:
+            skipped.append({"project_id": pid, "reason": "not_found"})
+            continue
+        if p.get("assigned_to_user_id") == body.to_user_id:
+            skipped.append({"project_id": pid, "reason": "already_assigned"})
+            continue
+
+        history_entry = {
+            "from_user_id": p.get("assigned_to_user_id"),
+            "from_name": p.get("assigned_to_name"),
+            "to_user_id": body.to_user_id,
+            "to_name": to_name,
+            "reassigned_at": now_iso,
+            "reassigned_by_name": exec_name,
+        }
+        await db.projects.update_one(
+            {"project_id": pid},
+            {
+                "$set": {
+                    "assigned_to_user_id": body.to_user_id,
+                    "assigned_to_name": to_name,
+                    "assigned_at": now_iso,
+                    "status": "En proceso/reasignado",
+                    "reassigned_from_name": p.get("assigned_to_name"),
+                    "reassigned_from_user_id": p.get("assigned_to_user_id"),
+                    "updated_at": now_iso,
+                },
+                "$push": {"reassignment_history": history_entry},
+            },
+        )
+        reassigned += 1
+
+    return {
+        "reassigned": reassigned,
+        "skipped": skipped,
+        "to_user_id": body.to_user_id,
+        "to_name": to_name,
+        "message": f"{reassigned} proyecto(s) reasignado(s) a {to_name}",
+    }
+
+
+# =====================================================================
+# COMPROMISOS GERENCIALES (Sección 4)
+# =====================================================================
+
+class CommitmentCreate(BaseModel):
+    message: str
+    deadline: Optional[str] = None
+
+
+@router.get("/projects/{project_id}/commitments")
+async def list_commitments(project_id: str, authorization: Optional[str] = Header(None)):
+    """Cualquier usuario con acceso al proyecto puede ver los compromisos."""
+    await get_current_user(authorization)
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "commitments": 1, "project_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    return p.get("commitments") or []
+
+
+@router.post("/projects/{project_id}/commitments")
+async def create_commitment(project_id: str, body: CommitmentCreate, authorization: Optional[str] = Header(None)):
+    """Crear compromiso. Solo Coord/Gerente/Admin."""
+    user = await get_current_user(authorization)
+    if not _is_coordinator_or_admin(user):
+        raise HTTPException(status_code=403, detail="Solo Coordinadores, Gerentes o Admin pueden crear compromisos")
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "project_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    role = "Admin" if (user.get("role") or "").lower() == "admin" else (user.get("cargo") or "Gerente").capitalize()
+    import uuid as _uuid
+    commitment = {
+        "commitment_id": f"cmt_{_uuid.uuid4().hex[:12]}",
+        "message": (body.message or "").strip(),
+        "deadline": body.deadline or None,
+        "created_by_user_id": user.get("user_id"),
+        "created_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", ""),
+        "created_by_role": role,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "completed": False,
+    }
+    if not commitment["message"]:
+        raise HTTPException(status_code=400, detail="El mensaje del compromiso no puede estar vacío")
+
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"commitments": commitment}})
+    return {"message": "Compromiso registrado", "commitment": commitment}
+
+
+@router.put("/projects/{project_id}/commitments/{commitment_id}/complete")
+async def complete_commitment(project_id: str, commitment_id: str, authorization: Optional[str] = Header(None)):
+    """Marcar compromiso como cumplido. Solo Coord/Gerente/Admin."""
+    user = await get_current_user(authorization)
+    if not _is_coordinator_or_admin(user):
+        raise HTTPException(status_code=403, detail="Solo Coordinadores, Gerentes o Admin pueden completar compromisos")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "")
+    res = await db.projects.update_one(
+        {"project_id": project_id, "commitments.commitment_id": commitment_id},
+        {"$set": {
+            "commitments.$.completed": True,
+            "commitments.$.completed_at": now_iso,
+            "commitments.$.completed_by_name": name,
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Compromiso no encontrado")
+    return {"message": "Compromiso marcado como cumplido"}
+
+
+@router.delete("/projects/{project_id}/commitments/{commitment_id}")
+async def delete_commitment(project_id: str, commitment_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar compromiso. Solo Coord/Gerente/Admin."""
+    user = await get_current_user(authorization)
+    if not _is_coordinator_or_admin(user):
+        raise HTTPException(status_code=403, detail="Solo Coordinadores, Gerentes o Admin pueden eliminar compromisos")
+    res = await db.projects.update_one(
+        {"project_id": project_id},
+        {"$pull": {"commitments": {"commitment_id": commitment_id}}},
+    )
+    if res.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Compromiso no encontrado")
+    return {"message": "Compromiso eliminado"}
