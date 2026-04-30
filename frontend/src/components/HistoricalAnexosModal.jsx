@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import {
   FileText, Upload, Trash2, Download, FolderOpen, File, Image,
-  FileSpreadsheet, Loader2, DollarSign, Truck, BadgeCheck,
+  FileSpreadsheet, Loader2, DollarSign, Truck,
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -13,10 +13,11 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 // Categorías que normalizan ("subsanan") las irregularidades de auditoría.
 // Cada categoría está mapeada en el backend (SUBSANA_CATEGORY_MAP) hacia la
 // fase del flujo cuya falta de timestamp queda compensada por el documento.
+// Nota: "Orden de Compra" subsana la fase Aprobada (consistente con el modal
+// de Cotizaciones activas).
 const HIST_CATEGORIES = [
   { id: 'Cotización',           icon: FileText,        color: 'text-blue-600 bg-blue-50 border-blue-200',         desc: 'PDF de la cotización original (subsana Enviada al Cliente)' },
-  { id: 'Soporte de Aprobación',icon: BadgeCheck,      color: 'text-emerald-600 bg-emerald-50 border-emerald-200',desc: 'Correo / Acta / Soporte (subsana Aprobada)' },
-  { id: 'Orden de Compra',      icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200',      desc: 'OC del cliente (subsana Aprobada)' },
+  { id: 'Orden de Compra',      icon: FileSpreadsheet, color: 'text-amber-600 bg-amber-50 border-amber-200',      desc: 'OC / Soporte de aprobación del cliente (subsana Aprobada)' },
   { id: 'Factura',              icon: File,            color: 'text-purple-600 bg-purple-50 border-purple-200',   desc: 'Documento fiscal (subsana Facturada)' },
   { id: 'Pagos',                icon: DollarSign,      color: 'text-emerald-700 bg-emerald-50 border-emerald-200',desc: 'Comprobantes (subsana Pagada)' },
   { id: 'Nota de Entrega',      icon: Truck,           color: 'text-teal-600 bg-teal-50 border-teal-200',         desc: 'Documento de entrega (subsana Entregada)' },

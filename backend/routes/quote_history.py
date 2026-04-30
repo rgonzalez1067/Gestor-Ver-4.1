@@ -388,8 +388,11 @@ async def upload_history_attachment(
 
     # Categorías que sí subsanan irregularidades — alineado con SUBSANA_CATEGORY_MAP
     # de sales_reports.py. 'Otros' es documentación miscelánea y NO normaliza fases.
+    # Nota: 'Soporte de Aprobación' fue removido del whitelist (consistencia con
+    # módulo de Cotizaciones activas). El mapeo backend lo conserva para anexos
+    # legacy ya cargados previamente.
     SUBSANA_CATEGORIES = {
-        "Cotización", "Soporte de Aprobación", "Orden de Compra",
+        "Cotización", "Orden de Compra",
         "Factura", "Pagos", "Nota de Entrega",
     }
     attachment = {
