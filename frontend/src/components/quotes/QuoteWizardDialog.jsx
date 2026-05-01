@@ -478,7 +478,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             data-testid="integrator-search-input"
                           />
                         </div>
-                        {(isMPOS || isPaymentGateway) && (
+                        {(isMPOS || isPaymentGateway || isVPOS) && (
                           <SelectItem value="sin_integrador">Sin integrador</SelectItem>
                         )}
                         {(() => {
