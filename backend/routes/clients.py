@@ -153,7 +153,7 @@ def parse_rif_data(text: str) -> dict:
 @router.post("/clients/parse-rif")
 async def parse_rif_document(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     """Extrae datos del RIF (PDF o imagen) y verifica duplicados"""
-    await get_current_user(authorization)
+    await require_permission(authorization, "clientes", "edit")
 
     ext = os.path.splitext(file.filename or '')[1].lower()
     if ext not in ALLOWED_RIF_EXTENSIONS:
@@ -191,7 +191,7 @@ async def parse_rif_document(file: UploadFile = File(...), authorization: Option
 @router.post("/clients/{client_id}/update-from-rif")
 async def update_client_from_rif(client_id: str, file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
     """Escanea RIF, extrae datos, actualiza cliente y archiva documento"""
-    current_user = await get_current_user(authorization)
+    current_user = await require_permission(authorization, "clientes", "edit")
 
     client = await db.clients.find_one({"client_id": client_id}, {"_id": 0})
     if not client:
@@ -285,7 +285,7 @@ async def download_rif_document(client_id: str, authorization: Optional[str] = H
 
 @router.post("/clients")
 async def create_client(client_data: ClientCreate, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    await require_permission(authorization, "clientes", "edit")
     # Sanitizar RIF
     client_data.rif = sanitize_rif(client_data.rif)
     # Validar unicidad RIF + Sucursal
@@ -526,7 +526,7 @@ async def get_client(client_id: str, authorization: Optional[str] = Header(None)
 
 @router.put("/clients/{client_id}")
 async def update_client(client_id: str, client_data: ClientCreate, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    await require_permission(authorization, "clientes", "edit")
     # Sanitizar RIF
     client_data.rif = sanitize_rif(client_data.rif)
     # Validar unicidad RIF + Sucursal (excluyendo el propio registro)
@@ -551,7 +551,7 @@ async def update_client(client_id: str, client_data: ClientCreate, authorization
 
 @router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    await require_permission(authorization, "clientes", "edit")
     
     # Validar integridad referencial - verificar si hay cotizaciones vinculadas
     quotes_count = await db.quotes.count_documents({"client_id": client_id})

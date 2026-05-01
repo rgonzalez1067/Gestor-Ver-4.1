@@ -34,6 +34,7 @@ import { NotificationBell } from './NotificationBell';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import api from '../utils/api';
 import { ROUTE_MODULE_MAP, isGroupActive } from '../hooks/usePermission';
+import SidebarErrorBoundary from './SidebarErrorBoundary';
 
 const menuItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', groupId: 'dashboard' },
@@ -93,7 +94,7 @@ const securityItems = [
   },
 ];
 
-export const Sidebar = () => {
+const SidebarInner = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -180,35 +181,45 @@ export const Sidebar = () => {
     const role = user?.role;
 
     const filterChild = (child) => {
-      // Visibilidad especial: Histórico de Cotizaciones (admin o Director)
-      if (child.requiresHistoryAccess && !(role === 'admin' || canSeeHistory)) return null;
-      // Sub-grupo anidado (Reportes Contables)
-      if (child.isSubGroup) {
-        const kept = (child.children || []).map(filterChild).filter(Boolean);
-        if (kept.length === 0) return null;
-        return { ...child, children: kept };
+      try {
+        // Visibilidad especial: Histórico de Cotizaciones (admin o Director)
+        if (child.requiresHistoryAccess && !(role === 'admin' || canSeeHistory)) return null;
+        // Sub-grupo anidado (Reportes Contables)
+        if (child.isSubGroup) {
+          const kept = (child.children || []).map(filterChild).filter(Boolean);
+          if (kept.length === 0) return null;
+          return { ...child, children: kept };
+        }
+        const module = ROUTE_MODULE_MAP[child.path];
+        if (!module) return child;
+        if (role === 'admin') return child;
+        return (permissions[module] || 'none') !== 'none' ? child : null;
+      } catch (err) {
+        console.error('[Sidebar] filterChild error:', err, child);
+        return null; // Excluir el item defectuoso, no romper el menú
       }
-      const module = ROUTE_MODULE_MAP[child.path];
-      if (!module) return child;
-      if (role === 'admin') return child;
-      return (permissions[module] || 'none') !== 'none' ? child : null;
     };
 
     let items = menuItems.map(item => {
-      if (item.isGroup) {
-        // Nivel 1: si el grupo está inactivo para el usuario, se elimina completo del menú.
+      try {
+        if (item.isGroup) {
+          // Nivel 1: si el grupo está inactivo para el usuario, se elimina completo del menú.
+          if (item.groupId && !isGroupActive(item.groupId)) return null;
+          const filteredChildren = (item.children || []).map(filterChild).filter(Boolean);
+          if (filteredChildren.length === 0) return null;
+          return { ...item, children: filteredChildren };
+        }
+        // Standalone items (Dashboard, Nuevos Productos, Taller) — validar también groupId.
         if (item.groupId && !isGroupActive(item.groupId)) return null;
-        const filteredChildren = (item.children || []).map(filterChild).filter(Boolean);
-        if (filteredChildren.length === 0) return null;
-        return { ...item, children: filteredChildren };
+        const module = ROUTE_MODULE_MAP[item.path];
+        if (!module) return item;
+        if (role === 'admin') return item;
+        const level = permissions[module] || 'none';
+        return level !== 'none' ? item : null;
+      } catch (err) {
+        console.error('[Sidebar] menu item error:', err, item);
+        return null;
       }
-      // Standalone items (Dashboard, Nuevos Productos, Taller) — validar también groupId.
-      if (item.groupId && !isGroupActive(item.groupId)) return null;
-      const module = ROUTE_MODULE_MAP[item.path];
-      if (!module) return item;
-      if (role === 'admin') return item;
-      const level = permissions[module] || 'none';
-      return level !== 'none' ? item : null;
     }).filter(Boolean);
 
     // Añadir Gestión de Seguridad solo para admins
@@ -411,5 +422,11 @@ export const Sidebar = () => {
     </TooltipProvider>
   );
 };
+
+export const Sidebar = (props) => (
+  <SidebarErrorBoundary>
+    <SidebarInner {...props} />
+  </SidebarErrorBoundary>
+);
 
 export default Sidebar;

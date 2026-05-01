@@ -20,7 +20,11 @@ export const ProtectedRoute = ({ children }) => {
     if (user?.role !== 'admin') {
       const level = user?.permissions?.[module] || 'none';
       if (level === 'none') {
-        return <Navigate to="/quotes" replace />;
+        // Fallback siempre accesible: /dashboard no está en ROUTE_MODULE_MAP,
+        // por lo que cualquier usuario autenticado puede entrar y evita el
+        // bucle infinito de redirección que dejaba la app en blanco cuando
+        // un módulo (ej. Cotizaciones) estaba inactivo.
+        return <Navigate to="/dashboard" replace />;
       }
     }
   }

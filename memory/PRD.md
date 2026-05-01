@@ -5,6 +5,32 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Fix Crítico Sidebar + Auditoría RBAC Clientes (May 2026) — NUEVO
+
+**Bug P0 resuelto — "Sidebar desaparece al inactivar Cotizaciones"**:
+- Root cause: `ProtectedRoute.jsx` redirigía a `/quotes` como fallback cuando el módulo destino estaba inactivo. Si el usuario tenía `cotizaciones=none`, cualquier intento de navegar a una ruta restringida disparaba un **bucle infinito de redirección** (`/x` → `/quotes` → `/quotes` → …), lo que causaba "Maximum update depth exceeded" en React y desmontaba el Layout completo (incluido el Sidebar).
+- Fix: fallback cambiado a `/dashboard` (ruta no presente en `ROUTE_MODULE_MAP`, siempre accesible para usuarios autenticados) → rompe el ciclo.
+- Defensa en profundidad:
+  - Nuevo `SidebarErrorBoundary.jsx` envuelve al `Sidebar`. Si algún `renderMenuItem` crashea, se muestra un menú mínimo seguro (Dashboard + Configuración + Cerrar Sesión) en lugar de página en blanco.
+  - `Sidebar.jsx` ahora envuelve el filtrado de items/children en `try/catch` individuales: un item defectuoso se excluye en lugar de romper todo el menú.
+
+**Auditoría RBAC en Clientes (P1)**:
+- Frontend `Clients.jsx`:
+  - `handleSubmit` y `handleDelete` validan `canEdit` antes de ejecutar (guard redundante al gating de UI).
+  - Dropdown "Escanear RIF" ahora gateado con `canEdit` (solo roles con edición ven la acción que muta datos).
+- Backend `clients.py` y `dashboard.py`:
+  - `POST /clients`, `PUT /clients/{id}`, `DELETE /clients/{id}`, `POST /clients/{id}/update-from-rif`, `POST /clients/parse-rif`, `POST /clients/import` ahora usan `require_permission(authorization, "clientes", "edit")`.
+  - Belt-and-suspenders: `server.py` ya tiene un middleware RBAC que bloquea `POST/PUT/PATCH/DELETE` para usuarios con `level=read`; la doble capa evita cualquier escape.
+
+**Validación E2E**:
+- Usuario prueba: `srubio@megasoft.com.ve` con `cotizaciones=none`, `clientes=read`.
+- ✅ Navegar a `/quotes` redirige a `/dashboard` sin bucle, sidebar intacto.
+- ✅ POST `/api/clients` → 403 (`"No tiene permisos de escritura en 'clientes'"`).
+- ✅ PUT `/api/clients/fakeid` → 403. DELETE `/api/clients/fakeid` → 403. GET `/api/clients` → 200.
+- ✅ UI Clientes sin botones "Nuevo Cliente", "Importar", "Cargar desde RIF Digital".
+
+
+
 ### Fase B — Reasignación Masiva + Compromisos Gerenciales (Feb 2026) — NUEVO
 
 **Sección 3 — Reasignación Masiva de Proyectos**:

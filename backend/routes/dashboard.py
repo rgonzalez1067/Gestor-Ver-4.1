@@ -15,7 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
 
-from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
+from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template, require_permission
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 
@@ -133,7 +133,7 @@ async def get_missing_pdfs(authorization: Optional[str] = Header(None)):
 
 @router.post("/clients/import")
 async def import_clients(file: UploadFile = File(...), authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    await require_permission(authorization, "clientes", "edit")
     
     import pandas as pd
     

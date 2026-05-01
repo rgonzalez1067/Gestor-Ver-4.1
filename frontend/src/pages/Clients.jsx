@@ -227,6 +227,10 @@ export const Clients = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canEdit) {
+      toast.error('No tiene permisos para guardar cambios en clientes');
+      return;
+    }
     // Migrate legacy contact1/contact2 to contacts array if needed
     const payload = { ...formData };
     // Convertir strings vacíos a null para campos numéricos opcionales
@@ -275,6 +279,10 @@ export const Clients = () => {
   };
 
   const handleDelete = async (clientId) => {
+    if (!canEdit) {
+      toast.error('No tiene permisos para eliminar clientes');
+      return;
+    }
     const client = clients.find(c => c.client_id === clientId);
     setDeleteClientData({ id: clientId, name: client?.fantasy_name || client?.legal_name || 'este cliente' });
     setDeleteConfirmOpen(true);
@@ -1492,9 +1500,9 @@ export const Clients = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem onSelect={() => openUpdateRifDialog(client)} className="cursor-pointer">
+                              {canEdit && <DropdownMenuItem onSelect={() => openUpdateRifDialog(client)} className="cursor-pointer">
                                 <ScanLine size={14} className="mr-2 text-amber-600" /> Escanear RIF
-                              </DropdownMenuItem>
+                              </DropdownMenuItem>}
                               {client.rif_document_url && (
                                 <DropdownMenuItem onSelect={() => downloadRifDocument(client)} className="cursor-pointer">
                                   <Download size={14} className="mr-2 text-green-600" /> Descargar RIF
