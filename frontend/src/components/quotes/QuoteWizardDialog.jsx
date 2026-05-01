@@ -55,6 +55,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
     getPricingModelName,
     handleIntegratorChange, removeAdditionalItem, removeSetupItem,
     removeRecurringBasicItem, removeRecurringOtherItem, removePgSetupItem,
+    duplicateRecurringBasicItem,
     getQuoteTypeName, initPgSetup,
     pgFullRecurringTable, updateSetupItem, updateRecurringBasicItem,
     updateRecurringOtherItem, updateAdditionalItem, updatePgSetupItem,
@@ -1393,15 +1394,29 @@ export const QuoteWizardDialog = ({ ctx }) => {
                               ${calcularTotal(item).toFixed(2)}
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => removeRecurringBasicItem(index)}
-                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={14} />
-                              </Button>
+                              <div className="flex items-center justify-center gap-1">
+                                {(item.inheritBancos || item.isCopy) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => duplicateRecurringBasicItem(index)}
+                                    className="h-7 w-7 p-0 text-brand-blue-500 hover:text-brand-blue-700 hover:bg-blue-50"
+                                    title="Duplicar"
+                                    data-testid={`recurring-basic-duplicate-${index}`}
+                                  >
+                                    <Copy size={14} />
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => removeRecurringBasicItem(index)}
+                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}

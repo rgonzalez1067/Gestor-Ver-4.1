@@ -1100,6 +1100,31 @@ export const Quotes = () => {
     toast.success('Concepto eliminado. Los totales han sido recalculados.');
   };
 
+  // Duplicar un concepto de Recurring Basic — habilitado para el item
+  // "Derecho de uso de plataforma MServer por PDV / Banco" (inheritBancos=true).
+  // La copia es editable en Bancos y Tarifa (se desvinculan las automatizaciones).
+  const duplicateRecurringBasicItem = (index) => {
+    const itemToDuplicate = quoteData.recurring_basic_items[index];
+    if (!itemToDuplicate) return;
+    const newItem = {
+      ...itemToDuplicate,
+      id: `recurring_basic_copy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      isDefault: false,
+      isCopy: true,
+      // La copia es una fila manual editable: desvinculamos herencia y tarifas auto
+      inheritBancos: false,
+      lockBancos: false,
+      autoTariff: null,
+    };
+    const updated = [
+      ...quoteData.recurring_basic_items.slice(0, index + 1),
+      newItem,
+      ...quoteData.recurring_basic_items.slice(index + 1),
+    ];
+    setQuoteData({ ...quoteData, recurring_basic_items: updated });
+    toast.success('Concepto duplicado');
+  };
+
   // Eliminar un concepto de Recurring Other
   const removeRecurringOtherItem = (index) => {
     if (!window.confirm('¿Está seguro de eliminar este concepto? Los totales se recalcularán automáticamente.')) {
@@ -3328,6 +3353,7 @@ export const Quotes = () => {
             getPricingModelName,
             handleIntegratorChange, removeAdditionalItem, removeSetupItem,
             removeRecurringBasicItem, removeRecurringOtherItem, removePgSetupItem,
+            duplicateRecurringBasicItem,
             getQuoteTypeName, initPgSetup,
             pgFullRecurringTable, updateSetupItem, updateRecurringBasicItem,
             updateRecurringOtherItem, updateAdditionalItem, updatePgSetupItem,
