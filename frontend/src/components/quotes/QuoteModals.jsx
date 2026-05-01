@@ -65,6 +65,7 @@ export const QuoteModals = ({ ctx }) => {
     // PYME extended flow
     pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
     economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
+    confirmImplementerInfo, handleConfirmImplementerAdvance,
     pymeNeedsPinpads, setPymeNeedsPinpads,
     pymePinpadModels, pymePinpadSelectedModel,
     pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
@@ -472,6 +473,50 @@ export const QuoteModals = ({ ctx }) => {
                 </div>
               )}
 
+              {/* Fase: Confirmación de Implementador (heredado desde ficha de cliente) */}
+              {multistorePhase === 'confirm_implementer' && (
+                <div className="space-y-4 py-2" data-testid="confirm-implementer-phase">
+                  <div className="border-b pb-2">
+                    <p className="text-sm text-slate-600 font-medium">Confirmación de Responsable</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Herencia automática desde la ficha del cliente.</p>
+                  </div>
+                  <div className="rounded-lg border p-4 bg-slate-50 border-slate-200" data-testid="confirm-implementer-info">
+                    {confirmImplementerInfo?.loading ? (
+                      <p className="text-sm text-slate-500 italic">Consultando ficha del cliente…</p>
+                    ) : confirmImplementerInfo?.name ? (
+                      <>
+                        <p className="text-sm text-slate-700">El implementador asignado para este cliente es:</p>
+                        <p className="text-lg font-bold text-emerald-700 mt-1.5" data-testid="confirm-implementer-name">{confirmImplementerInfo.name}</p>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Al avanzar, la cotización se convertirá en proyecto y quedará asignada automáticamente a este implementador.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-base font-semibold text-amber-700" data-testid="confirm-implementer-unassigned">Por asignar Implementador</p>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          La ficha del cliente no tiene un implementador fijo. El proyecto quedará en estado "Pendiente por Asignar" para que el Coordinador lo asigne manualmente.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex gap-3 justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('economic_data')} data-testid="confirm-implementer-back-btn">
+                      Atrás
+                    </Button>
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      size="sm"
+                      onClick={handleConfirmImplementerAdvance}
+                      disabled={confirmImplementerInfo?.loading}
+                      data-testid="confirm-implementer-advance-btn"
+                    >
+                      Avanzar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Fase PYME: ¿Requiere Pinpads? */}
               {multistorePhase === 'pinpad_question' && (
                 <div className="space-y-4 py-2" data-testid="pyme-pinpad-question-phase">
@@ -492,7 +537,7 @@ export const QuoteModals = ({ ctx }) => {
                     </button>
                   </div>
                   <div className="pt-2 border-t">
-                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('server')} data-testid="pinpad-question-back-btn">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('confirm_implementer')} data-testid="pinpad-question-back-btn">
                       Atrás
                     </Button>
                   </div>

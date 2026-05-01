@@ -13,6 +13,7 @@ import { usePermission } from '../hooks/usePermission';
 import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 import { BulkReassignModal } from '../components/BulkReassignModal';
 import { CommitmentModal } from '../components/CommitmentModal';
+import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
   FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag
@@ -59,6 +60,7 @@ const Projects = () => {
   const [bulkReassignOpen, setBulkReassignOpen] = useState(false);
   const [commitmentsOpen, setCommitmentsOpen] = useState(false);
   const [commitmentsTarget, setCommitmentsTarget] = useState(null);
+  const [workloadFiltersOpen, setWorkloadFiltersOpen] = useState(false);
   const [assignForm, setAssignForm] = useState({ assigned_to_user_id: '', estimated_delivery_date: '', reassignment_comment: '', reassignment_date: '' });
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -197,29 +199,14 @@ const Projects = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={async () => {
-                try {
-                  const token = localStorage.getItem('session_token');
-                  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-                  const res = await fetch(`${BACKEND_URL}/api/projects/reports/workload-pdf`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  if (!res.ok) throw new Error('fail');
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  window.open(url, '_blank');
-                  setTimeout(() => URL.revokeObjectURL(url), 60000);
-                } catch {
-                  toast.error('Error al generar el reporte');
-                }
-              }}
-              data-testid="projects-workload-pdf-btn"
-              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-              title="Descarga PDF de carga y estatus agrupado por implementador"
-            >
-              <FileText size={14} className="mr-1.5" />
-              Reporte Carga (PDF)
-            </Button>
+                onClick={() => setWorkloadFiltersOpen(true)}
+                data-testid="projects-workload-pdf-btn"
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                title="Abrir filtros y generar PDF de carga/estatus agrupado por implementador"
+              >
+                <FileText size={14} className="mr-1.5" />
+                Reporte Carga (PDF)
+              </Button>
             </div>
           </div>
 
@@ -639,6 +626,12 @@ const Projects = () => {
             clientName={commitmentsTarget.client_name}
             canManage={canManage}
             onChange={fetchProjects}
+          />
+        )}
+        {workloadFiltersOpen && (
+          <WorkloadReportFiltersModal
+            open={workloadFiltersOpen}
+            onClose={() => setWorkloadFiltersOpen(false)}
           />
         )}
       </main>

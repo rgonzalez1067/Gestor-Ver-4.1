@@ -247,6 +247,8 @@ export const Quotes = () => {
   const [pymePinpadSerials, setPymePinpadSerials] = useState([]); // [{serial, modelo, movement_id, ...}]
   const [pymePinpadSerialsSelected, setPymePinpadSerialsSelected] = useState({}); // Map serial -> boolean
   const [pymePinpadLoading, setPymePinpadLoading] = useState(false);
+  // Modal 2 — Confirmación de Implementador (heredado desde ficha de cliente)
+  const [confirmImplementerInfo, setConfirmImplementerInfo] = useState({ loading: false, name: '', user_id: '' });
 
   useEffect(() => {
     fetchData();
@@ -2405,7 +2407,29 @@ export const Quotes = () => {
     setMultistorePhase('economic_data');
   };
 
-  const handleEconomicDataContinue = () => {
+  const handleEconomicDataContinue = async () => {
+    // Avanzar a Modal 2: Confirmación de Implementador heredado de la ficha de cliente
+    setMultistorePhase('confirm_implementer');
+    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    if (!quote?.client_id) {
+      setConfirmImplementerInfo({ loading: false, name: '', user_id: '' });
+      return;
+    }
+    setConfirmImplementerInfo({ loading: true, name: '', user_id: '' });
+    try {
+      const res = await api.get(`/clients/${quote.client_id}`);
+      const c = res.data || {};
+      setConfirmImplementerInfo({
+        loading: false,
+        name: c.implementer_name || '',
+        user_id: c.implementer_user_id || '',
+      });
+    } catch {
+      setConfirmImplementerInfo({ loading: false, name: '', user_id: '' });
+    }
+  };
+
+  const handleConfirmImplementerAdvance = () => {
     setMultistorePhase('pinpad_question');
   };
 
@@ -3340,6 +3364,7 @@ export const Quotes = () => {
             handleProjectTypeSelect, advanceToMultistorePhase, modifyInheritedStores, handleMultistoreAnswer,
             pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
             economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
+            confirmImplementerInfo, handleConfirmImplementerAdvance,
             pymeNeedsPinpads, setPymeNeedsPinpads,
             pymePinpadModels, pymePinpadSelectedModel,
             pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,

@@ -29,6 +29,7 @@ import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import { EmailPreviewDialog } from '../components/projects/EmailPreviewDialog';
 import { CommitmentModal } from '../components/CommitmentModal';
+import { ImplementerAlertsModal } from '../components/ImplementerAlertsModal';
 
 const ProjectDetail = () => {
   const { projectId } = useParams();
@@ -36,6 +37,7 @@ const ProjectDetail = () => {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [commitmentsOpen, setCommitmentsOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const [bitacoraText, setBitacoraText] = useState('');
   const [bitacoraDate, setBitacoraDate] = useState(new Date().toISOString().split('T')[0]);
   const [bitacoraSubmitting, setBitacoraSubmitting] = useState(false);
@@ -875,6 +877,30 @@ const ProjectDetail = () => {
                   <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-7 px-2" data-testid="adhoc-email-btn">
                     <Megaphone size={12} />Notificaciones
                   </Button>
+                  {(() => {
+                    const isAssignedImpl = currentUser.user_id && currentUser.user_id === project.assigned_to_user_id;
+                    const cargo = (currentUser.cargo || '').toLowerCase();
+                    const isCoordAdmin = (currentUser.role || '').toLowerCase() === 'admin' || cargo === 'coordinador' || cargo === 'gerente';
+                    if (!(isAssignedImpl || isCoordAdmin)) return null;
+                    const activeAlerts = (project.implementer_alerts || []).filter(a => !a.completed).length;
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAlertsOpen(true)}
+                        className="text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50 h-7 px-2 relative"
+                        data-testid="open-implementer-alerts-btn"
+                        title={isAssignedImpl ? 'Gestionar mis recordatorios personales' : 'Supervisión de alertas del implementador (solo lectura)'}
+                      >
+                        <BellRing size={12} />Mis Alertas
+                        {activeAlerts > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-600 text-white text-[10px] font-bold px-1.5 min-w-[16px] h-[16px]" data-testid="implementer-alerts-badge">
+                            {activeAlerts}
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })()}
                   <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="text-xs gap-1 border-slate-200 text-slate-600 hover:bg-slate-50 h-7 px-2" data-testid="manage-templates-btn">
                     <ClipboardList size={12} />Plantillas
                   </Button>
@@ -1968,6 +1994,24 @@ const ProjectDetail = () => {
               projectNumber={project.project_number}
               clientName={project.client_name}
               canManage={canManage}
+              onChange={() => fetchProject()}
+            />
+          );
+        })()}
+
+        {alertsOpen && project && (() => {
+          const isAssignedImpl = currentUser.user_id && currentUser.user_id === project.assigned_to_user_id;
+          const cargo = (currentUser.cargo || '').toLowerCase();
+          const isCoordAdmin = (currentUser.role || '').toLowerCase() === 'admin' || cargo === 'coordinador' || cargo === 'gerente';
+          return (
+            <ImplementerAlertsModal
+              open={alertsOpen}
+              onClose={() => setAlertsOpen(false)}
+              projectId={project.project_id}
+              projectNumber={project.project_number}
+              clientName={project.client_name}
+              canManage={isAssignedImpl}
+              readOnly={!isAssignedImpl && isCoordAdmin}
               onChange={() => fetchProject()}
             />
           );

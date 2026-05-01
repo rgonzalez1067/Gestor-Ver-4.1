@@ -2052,11 +2052,19 @@ def _format_es_date(iso: Optional[str]) -> str:
 
 
 @router.get("/projects/reports/workload-pdf")
-async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
+async def projects_workload_pdf(
+    authorization: Optional[str] = Header(None),
+    assigned_to: Optional[List[str]] = Query(None, description="Filtrar por Implementador Actual (nombre). Multi-select."),
+    original_implementer: Optional[List[str]] = Query(None, description="Filtrar por Implementador Original (reasignados). Multi-select."),
+    status: Optional[List[str]] = Query(None, description="Filtrar por Estatus. Multi-select."),
+    client: Optional[str] = Query(None, description="Búsqueda parcial por Razón Social o Nombre de Fantasía del cliente."),
+    quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
+):
     """PDF: carga de proyectos agrupados por implementador.
     Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
     (si reasignado), Fecha asignación, Último contacto.
     Acceso: usuarios con permiso `proyectos`. Accesible para admin, coordinadores y gerentes.
+    Soporta filtros multi-selección (parámetros repetibles en query).
     """
     import weasyprint
 
@@ -2074,8 +2082,40 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
             "assigned_to_name": 1, "assigned_at": 1,
             "last_contact_at": 1, "last_contact_by": 1,
             "reassigned_from_name": 1, "reassignment_history": 1,
+            "fantasy_name": 1,
         },
     ).to_list(5000)
+
+    # Aplicar filtros en memoria (dataset pequeño <5k)
+    def _matches(p: dict) -> bool:
+        if assigned_to:
+            impl_now = p.get("assigned_to_name") or "Sin asignar"
+            if impl_now not in assigned_to:
+                return False
+        if original_implementer:
+            orig = p.get("reassigned_from_name") or ""
+            if orig not in original_implementer:
+                return False
+        if status:
+            if (p.get("status") or "") not in status:
+                return False
+        if client:
+            q = client.strip().lower()
+            haystack = " ".join([
+                str(p.get("client_name") or ""),
+                str(p.get("fantasy_name") or ""),
+                str(p.get("client_rif") or ""),
+            ]).lower()
+            if q not in haystack:
+                return False
+        if quote_type:
+            qt = (p.get("quote_type") or "").upper()
+            wanted = [t.upper() for t in quote_type]
+            if qt not in wanted:
+                return False
+        return True
+
+    projects = [p for p in projects if _matches(p)]
 
     # Agrupar por implementador asignado
     groups: dict = {}
@@ -2154,6 +2194,26 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
     exec_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get('email','')
     total = sum(len(v) for v in groups.values())
 
+    # Construir resumen de filtros aplicados (si los hay)
+    filters_chips: list[str] = []
+    if assigned_to:
+        filters_chips.append(f"Implementador Actual: {', '.join(assigned_to)}")
+    if original_implementer:
+        filters_chips.append(f"Implementador Original: {', '.join(original_implementer)}")
+    if status:
+        filters_chips.append(f"Estatus: {', '.join(status)}")
+    if client:
+        filters_chips.append(f"Cliente: {client}")
+    if quote_type:
+        filters_chips.append(f"Tipo: {', '.join(t.upper() for t in quote_type)}")
+    filters_html = ""
+    if filters_chips:
+        chips = "".join(
+            f'<span style="display:inline-block; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; padding:2px 8px; border-radius:10px; font-size:9px; margin:2px 4px 2px 0;">{c}</span>'
+            for c in filters_chips
+        )
+        filters_html = f'<div class="filters"><strong>Filtros aplicados:</strong> {chips}</div>'
+
     html = f"""
     <!DOCTYPE html>
     <html lang="es">
@@ -2164,6 +2224,11 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
       body {{ font-family: 'Helvetica', Arial, sans-serif; color: #1e293b; font-size: 10px; }}
       h1 {{ font-size: 18px; margin: 0 0 4px; color: #0f172a; }}
       .sub {{ color: #64748b; font-size: 10px; margin-bottom: 14px; }}
+      .filters {{
+        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+        padding: 6px 10px; margin-bottom: 14px; font-size: 10px; color: #475569;
+      }}
+      .filters strong {{ color: #312e81; margin-right: 4px; }}
       .group {{ margin-bottom: 18px; break-inside: avoid; }}
       .group-head {{
         display: flex; justify-content: space-between; align-items: baseline;
@@ -2203,6 +2268,7 @@ async def projects_workload_pdf(authorization: Optional[str] = Header(None)):
     <body>
       <h1>Reporte de Carga y Estatus de Proyectos</h1>
       <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · Generado: {now_str} · Por: {exec_name}</div>
+      {filters_html}
       {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
       <div class="footer">
         <span>MegaNexus · Departamento de Implementación</span>
@@ -2392,3 +2458,103 @@ async def delete_commitment(project_id: str, commitment_id: str, authorization: 
     if res.modified_count == 0:
         raise HTTPException(status_code=404, detail="Compromiso no encontrado")
     return {"message": "Compromiso eliminado"}
+
+
+
+# =====================================================================
+# MIS ALERTAS DE IMPLEMENTADOR (Sección 3 — Autogestión)
+# =====================================================================
+
+class ImplementerAlertCreate(BaseModel):
+    message: str
+    deadline: Optional[str] = None
+
+
+def _is_assigned_implementer(user: dict, project: dict) -> bool:
+    """True si el usuario es el implementador asignado actualmente al proyecto."""
+    uid = user.get("user_id")
+    return bool(uid) and uid == project.get("assigned_to_user_id")
+
+
+@router.get("/projects/{project_id}/implementer-alerts")
+async def list_implementer_alerts(project_id: str, authorization: Optional[str] = Header(None)):
+    """Lista alertas del implementador asignado.
+    Visibilidad: Implementador asignado + Coord/Gerente/Admin (lectura para supervisión).
+    """
+    user = await get_current_user(authorization)
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "implementer_alerts": 1, "assigned_to_user_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if not (_is_assigned_implementer(user, p) or _is_coordinator_or_admin(user)):
+        raise HTTPException(status_code=403, detail="No tiene acceso a las alertas de este proyecto")
+    return p.get("implementer_alerts") or []
+
+
+@router.post("/projects/{project_id}/implementer-alerts")
+async def create_implementer_alert(project_id: str, body: ImplementerAlertCreate, authorization: Optional[str] = Header(None)):
+    """Crear alerta personal. Solo el implementador asignado al proyecto."""
+    user = await get_current_user(authorization)
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "assigned_to_user_id": 1, "project_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if not _is_assigned_implementer(user, p):
+        raise HTTPException(status_code=403, detail="Solo el implementador asignado puede crear sus alertas")
+
+    message = (body.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="El mensaje de la alerta no puede estar vacío")
+
+    import uuid as _uuid
+    alert = {
+        "alert_id": f"alt_{_uuid.uuid4().hex[:12]}",
+        "message": message,
+        "deadline": body.deadline or None,
+        "created_by_user_id": user.get("user_id"),
+        "created_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "completed": False,
+    }
+    await db.projects.update_one({"project_id": project_id}, {"$push": {"implementer_alerts": alert}})
+    return {"message": "Alerta registrada", "alert": alert}
+
+
+@router.put("/projects/{project_id}/implementer-alerts/{alert_id}/complete")
+async def complete_implementer_alert(project_id: str, alert_id: str, authorization: Optional[str] = Header(None)):
+    """Marcar alerta como cumplida. Solo el implementador asignado."""
+    user = await get_current_user(authorization)
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "assigned_to_user_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if not _is_assigned_implementer(user, p):
+        raise HTTPException(status_code=403, detail="Solo el implementador asignado puede completar sus alertas")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get("email", "")
+    res = await db.projects.update_one(
+        {"project_id": project_id, "implementer_alerts.alert_id": alert_id},
+        {"$set": {
+            "implementer_alerts.$.completed": True,
+            "implementer_alerts.$.completed_at": now_iso,
+            "implementer_alerts.$.completed_by_name": name,
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Alerta no encontrada")
+    return {"message": "Alerta marcada como cumplida"}
+
+
+@router.delete("/projects/{project_id}/implementer-alerts/{alert_id}")
+async def delete_implementer_alert(project_id: str, alert_id: str, authorization: Optional[str] = Header(None)):
+    """Eliminar alerta personal. Solo el implementador asignado."""
+    user = await get_current_user(authorization)
+    p = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "assigned_to_user_id": 1})
+    if not p:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if not _is_assigned_implementer(user, p):
+        raise HTTPException(status_code=403, detail="Solo el implementador asignado puede eliminar sus alertas")
+    res = await db.projects.update_one(
+        {"project_id": project_id},
+        {"$pull": {"implementer_alerts": {"alert_id": alert_id}}},
+    )
+    if res.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Alerta no encontrada")
+    return {"message": "Alerta eliminada"}

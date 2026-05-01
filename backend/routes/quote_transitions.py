@@ -179,6 +179,26 @@ async def _create_project_from_quote(
         "box_count": int(quote.get("cantidad_cajas", 0) or 0),
     }
 
+    # === Auto-asignación desde la ficha del cliente ===
+    # Si el cliente tiene un Implementador fijado en su ficha, heredamos
+    # la asignación y dejamos el proyecto listo "Asignado / En Proceso".
+    # Si no tiene, mantenemos el estatus "Pendiente por Asignar".
+    client_impl_user_id = (client or {}).get("implementer_user_id")
+    client_impl_name = (client or {}).get("implementer_name")
+    if client_impl_user_id and client_impl_name:
+        project["assigned_to_user_id"] = client_impl_user_id
+        project["assigned_to_name"] = client_impl_name
+        project["assigned_at"] = now.isoformat()
+        project["status"] = "Asignado / En Proceso"
+        project["auto_assigned_from_client"] = True
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Asignado automáticamente a {client_impl_name} desde la ficha del cliente.",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
+
     # Soporte Multitienda (heredado de branch_details de la cotización o enviado manualmente)
     branch_details = quote.get("branch_details", [])
     if not multistore_data and branch_details:
