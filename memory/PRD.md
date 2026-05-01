@@ -5,6 +5,49 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Automatización de Asignación + "Mis Alertas" + Filtros Reporte (May 2026) — NUEVO
+
+**Sección 2 — Modal 2 "Confirmación de Implementador" en Enviar a Implementación**:
+- Nueva fase `confirm_implementer` en el wizard de `QuoteModals.jsx`, insertada entre `economic_data` y `pinpad_question`.
+- Al abrirse consulta `GET /api/clients/{client_id}` y muestra:
+  - Con implementador: "El implementador asignado para este cliente es: **[Nombre]**" + botón **Avanzar**.
+  - Sin implementador: "Por asignar Implementador" + botón **Avanzar**.
+- Botón **Atrás** regresa a `economic_data` para editar Grupo Económico / Nombre de Fantasía.
+- Backend `_create_project_from_quote` (`/backend/routes/quote_transitions.py`):
+  - Si `client.implementer_user_id` presente → setea `assigned_to_*`, `assigned_at`, `status='Asignado / En Proceso'`, `auto_assigned_from_client=True` y añade nota "Asignado automáticamente a [Nombre] desde la ficha del cliente".
+  - Si no → mantiene `status='Pendiente por Asignar'` (comportamiento anterior).
+
+**Sección 3 — "Mis Alertas" (autogestión del Implementador)**:
+- Nuevo array embebido en proyecto: `implementer_alerts[]` con `{alert_id, message, deadline, created_by_*, created_at, completed, completed_at, completed_by_name}`.
+- 4 endpoints REST:
+  - `GET /api/projects/{id}/implementer-alerts` — implementador asignado + admin/coord/gerente (lectura para supervisión).
+  - `POST /api/projects/{id}/implementer-alerts` — **solo** el implementador asignado.
+  - `PUT /api/projects/{id}/implementer-alerts/{alert_id}/complete` — solo el implementador asignado.
+  - `DELETE /api/projects/{id}/implementer-alerts/{alert_id}` — solo el implementador asignado.
+- Helper `_is_assigned_implementer(user, project)` en `projects.py`.
+- Frontend `ImplementerAlertsModal.jsx` (paleta **amber/orange** para diferenciar de los Compromisos rojos):
+  - Icono `BellRing`, textos "Mis Alertas", "Fecha objetivo", "Cumplida".
+  - `canManage` = implementador asignado; `readOnly` = admin/coord/gerente.
+  - Vista readonly muestra banner "Supervisión: solo lectura."
+- Botón "Mis Alertas" en header de `ProjectDetail.jsx`, visible para implementador asignado O admin/coord. Badge amber con contador de alertas activas.
+
+**Sección 4 — Filtros dinámicos en Reporte de Carga PDF**:
+- Backend `GET /api/projects/reports/workload-pdf` ahora acepta query params multi-select:
+  - `assigned_to` (repetible) — Implementador Actual.
+  - `original_implementer` (repetible) — Implementador Original (reasignados).
+  - `status` (repetible) — Estatus del proyecto.
+  - `quote_type` (repetible) — VPOS / MPOS / GATEWAY / LINK.
+  - `client` — búsqueda parcial en razón social, fantasía o RIF.
+- Cabecera del PDF lista los filtros aplicados como chips.
+- Frontend `WorkloadReportFiltersModal.jsx`: modal con chips clicables multi-select + input de cliente + botones "Limpiar filtros" / "Cancelar" / "Generar PDF".
+- Botón "Reporte Carga (PDF)" en `Projects.jsx` ahora abre el modal en lugar de descargar directo.
+
+**Validación E2E**:
+- Backend pytest `test_iteration186_impl_alerts_workload.py`: 7/7 pasados.
+- Script ad-hoc `test_autoassign.py`: herencia de implementer desde ficha de cliente verificada en ambas ramas (con/sin implementador).
+- Frontend: modal de filtros abre con los 5 grupos de filtros; modal Mis Alertas abre en readonly para admin; flujo Modal 2 insertado correctamente.
+
+
 ### Fix Crítico Sidebar + Auditoría RBAC Clientes (May 2026) — NUEVO
 
 **Bug P0 resuelto — "Sidebar desaparece al inactivar Cotizaciones"**:

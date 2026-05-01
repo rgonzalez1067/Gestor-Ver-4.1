@@ -25,3 +25,14 @@
     dispositivos, commercial_categories, exchange_rate, proyectos,
     integradores, nuevos_productos, inventarios, reportes_contables,
     taller_equipos, configuracion: read
+
+## Usuario Implementador para pruebas de "Mis Alertas"
+- Email: Jrojas@megasoft.com.ve
+- Password: Test1234!
+- Role: user
+- user_id: user_a8e3874291c8
+- Name: Jhonatan Rojas
+- cargo: Implementador
+- Permisos: proyectos=edit
+- Nota: tiene al menos un proyecto asignado (prj_bba45a09cd00) para probar
+  los endpoints `/api/projects/{id}/implementer-alerts`.

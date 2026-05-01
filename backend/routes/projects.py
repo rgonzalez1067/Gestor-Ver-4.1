@@ -2069,9 +2069,6 @@ async def projects_workload_pdf(
     import weasyprint
 
     user = await get_current_user(authorization)
-    # Recuperar todos los proyectos activos
-    async for _ in db.projects.find({}):  # small warm-up no-op
-        break
 
     projects = await db.projects.find(
         {},
