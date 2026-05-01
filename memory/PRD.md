@@ -5,6 +5,25 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Recordatorios por Email de "Mis Alertas" (May 2026) — NUEVO
+
+**Sección 5 — Job programado `job_implementer_alerts_due`**:
+- Archivo: `backend/services/notification_scheduler.py`.
+- Cron diario a las 08:15 America/Caracas (cuarto job del scheduler, tras los 3 existentes a :00/:05/:10).
+- Para cada proyecto con `implementer_alerts[]` y `assigned_to_user_id`:
+  - Recorre alertas activas (`completed=false`) con `deadline`.
+  - Si `deadline == hoy` → email "vence hoy".
+  - Si `deadline < hoy` → email "vencida hace N día(s)".
+  - Si `deadline > hoy` → omitida.
+- Email HTML con encabezado amber, detalle del proyecto, mensaje y fecha objetivo.
+- Cool-down de 24h (`implementer_alerts.$.last_reminder_at`) evita spam por ejecución manual/reintentos.
+- Además emite push in-app `implementer_alert_due` (nuevo evento registrado en `NOTIFICATION_EVENTS`).
+
+**Pruebas**:
+- `backend/tests/test_implementer_alert_reminder.py` (nuevo) valida: hoy/pasado envían email y marcan `last_reminder_at`; futuro omitido; cool-down de 24h efectivo.
+- Pytest: 1 passed.
+
+
 ### Automatización de Asignación + "Mis Alertas" + Filtros Reporte (May 2026) — NUEVO
 
 **Sección 2 — Modal 2 "Confirmación de Implementador" en Enviar a Implementación**:

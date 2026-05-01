@@ -5,17 +5,19 @@ Eventos programados:
   #12 taller_equipo_over_15_days — equipos en taller > 15 días
   #14 project_assigned_not_started — proyectos asignados pero no iniciados (>2 días)
   #15 project_stalled_5_days — proyectos iniciados sin avance en los últimos 5 días
+  #16 implementer_alert_due — alertas personales del implementador que vencen hoy o están vencidas
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from config import db
 from services.notification_service import notify
+from services.email_service import send_email
 
 logger = logging.getLogger(__name__)
 
@@ -187,8 +189,124 @@ async def job_project_stalled_5_days() -> None:
 
 # ==================== Scheduler lifecycle ====================
 
+async def job_implementer_alerts_due() -> None:
+    """Recordatorios de "Mis Alertas" del Implementador.
+
+    Para cada alerta activa (completed=false) con `deadline`:
+      - Hoy es el día del deadline → email "Vence hoy".
+      - El deadline ya pasó → email "Vencida (hace N días)".
+    Cool-down: no re-notifica la misma alerta en las últimas 24h.
+    """
+    now = datetime.now(timezone.utc)
+    today = date.today()
+    count = 0
+
+    cursor = db.projects.find(
+        {"implementer_alerts": {"$exists": True, "$not": {"$size": 0}}},
+        {
+            "_id": 0,
+            "project_id": 1, "project_number": 1, "client_name": 1,
+            "assigned_to_user_id": 1, "assigned_to_name": 1,
+            "implementer_alerts": 1,
+        },
+    )
+    async for p in cursor:
+        impl_user_id = p.get("assigned_to_user_id")
+        if not impl_user_id:
+            continue
+        alerts = p.get("implementer_alerts") or []
+        active = [a for a in alerts if not a.get("completed") and a.get("deadline")]
+        if not active:
+            continue
+
+        # Resolver email del implementador (una sola lectura por proyecto)
+        impl_user = await db.users.find_one(
+            {"user_id": impl_user_id, "is_active": True},
+            {"_id": 0, "email": 1, "first_name": 1, "last_name": 1},
+        )
+        if not impl_user or not impl_user.get("email"):
+            continue
+
+        for a in active:
+            try:
+                dl = datetime.fromisoformat(str(a["deadline"])[:10]).date()
+            except Exception:
+                continue
+            delta_days = (today - dl).days
+            # Solo notificamos cuando vence hoy (delta=0) o cuando ya pasó (delta>0).
+            if delta_days < 0:
+                continue
+
+            # Cool-down 24h
+            last = a.get("last_reminder_at")
+            if last:
+                try:
+                    lf = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+                    if lf.tzinfo is None:
+                        lf = lf.replace(tzinfo=timezone.utc)
+                    if (now - lf) < timedelta(hours=24):
+                        continue
+                except Exception:
+                    pass
+
+            # Construir correo
+            vence_label = "vence hoy" if delta_days == 0 else f"está vencida hace {delta_days} día(s)"
+            subject = f"Mi Alerta — {vence_label} · Proyecto {p.get('project_number', '')}"
+            html = f"""
+            <div style="font-family:Arial,sans-serif;color:#1e293b;">
+              <div style="background:#f59e0b;color:#fff;padding:12px 16px;border-radius:6px 6px 0 0;">
+                <h2 style="margin:0;font-size:18px;">🔔 Tu alerta personal {vence_label}</h2>
+              </div>
+              <div style="border:1px solid #fde68a;border-top:none;padding:16px;border-radius:0 0 6px 6px;background:#fffbeb;">
+                <p style="margin:0 0 8px;"><strong>Proyecto:</strong> {p.get('project_number', '')} — {p.get('client_name', '')}</p>
+                <p style="margin:0 0 8px;"><strong>Mensaje:</strong> {a.get('message', '')}</p>
+                <p style="margin:0 0 8px;"><strong>Fecha objetivo:</strong> {dl.strftime('%d/%m/%Y')}</p>
+                <p style="margin:12px 0 0;color:#92400e;font-size:13px;">
+                  Ingresa al proyecto y gestiona tu alerta desde el botón <strong>"Mis Alertas"</strong>.
+                </p>
+              </div>
+              <p style="color:#94a3b8;font-size:11px;margin-top:16px;">
+                Recordatorio automático diario. Este correo se envía a {impl_user.get('email')} como implementador asignado.
+              </p>
+            </div>
+            """
+            try:
+                await send_email(
+                    to=[impl_user["email"]],
+                    subject=subject,
+                    html=html,
+                    action="implementer_alert_reminder",
+                )
+            except Exception as e:
+                logger.warning(f"[scheduler] implementer_alert_reminder email failed: {e}")
+                continue
+
+            # Marcar last_reminder_at en la alerta ($ positional)
+            await db.projects.update_one(
+                {"project_id": p["project_id"], "implementer_alerts.alert_id": a["alert_id"]},
+                {"$set": {"implementer_alerts.$.last_reminder_at": now.isoformat()}},
+            )
+
+            # Push notification in-app (opcional, reaprovecha pipeline existente)
+            try:
+                await notify(
+                    event_type="implementer_alert_due",
+                    title=f"Alerta personal {vence_label}",
+                    message=f"{p.get('project_number', '')} · {a.get('message', '')[:80]}",
+                    context={"assignee_user_id": impl_user_id},
+                    link=f"/projects/{p['project_id']}",
+                    project_id=p["project_id"],
+                )
+            except Exception:
+                pass
+
+            count += 1
+
+    logger.info(f"[scheduler] implementer_alerts_due → {count} recordatorio(s) enviado(s)")
+
+
 def start_scheduler() -> None:
-    """Arranca APScheduler con los 3 jobs. Llamado desde server.py startup."""
+    """Arranca APScheduler con los 4 jobs. Llamado desde server.py startup."""
     global scheduler
     if scheduler and scheduler.running:
         return
@@ -197,8 +315,9 @@ def start_scheduler() -> None:
     scheduler.add_job(job_taller_over_15_days, CronTrigger(hour=8, minute=0), id="taller_15d", replace_existing=True)
     scheduler.add_job(job_project_assigned_not_started, CronTrigger(hour=8, minute=5), id="proj_not_started", replace_existing=True)
     scheduler.add_job(job_project_stalled_5_days, CronTrigger(hour=8, minute=10), id="proj_stalled", replace_existing=True)
+    scheduler.add_job(job_implementer_alerts_due, CronTrigger(hour=8, minute=15), id="impl_alerts_due", replace_existing=True)
     scheduler.start()
-    logger.info("[scheduler] started with 3 jobs at 08:00/08:05/08:10 America/Caracas")
+    logger.info("[scheduler] started with 4 jobs at 08:00/08:05/08:10/08:15 America/Caracas")
 
 
 def stop_scheduler() -> None:

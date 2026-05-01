@@ -125,6 +125,13 @@ NOTIFICATION_EVENTS: Dict[str, Dict[str, Any]] = {
         "recipient_roles": ["sales_by_sede"],
         "category": "Contactos",
     },
+    "implementer_alert_due": {
+        "label": "Mi Alerta del Implementador — vence/vencida",
+        "default_priority": "medium",
+        "recipient_roles": ["assignee"],
+        "category": "Proyectos",
+        "scheduled": True,
+    },
 }
 
 PRIORITIES = {"high", "medium", "low"}
