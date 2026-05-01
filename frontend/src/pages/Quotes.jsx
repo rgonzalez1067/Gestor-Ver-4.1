@@ -249,6 +249,9 @@ export const Quotes = () => {
   const [pymePinpadLoading, setPymePinpadLoading] = useState(false);
   // Modal 2 — Confirmación de Implementador (heredado desde ficha de cliente)
   const [confirmImplementerInfo, setConfirmImplementerInfo] = useState({ loading: false, name: '', user_id: '' });
+  // Instrucciones adicionales para el Implementador (HTML rich-text, máx 500 chars)
+  const [implInstructions, setImplInstructions] = useState('');
+  const [implInstructionsLen, setImplInstructionsLen] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -2303,6 +2306,10 @@ export const Quotes = () => {
       // Grupo Económico y Nombre de Fantasía (campos siempre incluidos para que backend aplique defaults)
       body.economic_group = (economicGroup || '').trim();
       body.fantasy_name = (fantasyName || '').trim();
+      // Instrucciones adicionales para el Implementador (HTML rich-text)
+      if (implInstructions && implInstructions.trim()) {
+        body.implementation_instructions = implInstructions;
+      }
       // PYME extended: pinpad_serials
       const selectedPinpadSerials = pymePinpadSerials.filter(s => pymePinpadSerialsSelected[s.serial]);
       if (selectedPinpadSerials.length > 0) {
@@ -2348,8 +2355,21 @@ export const Quotes = () => {
     setPymePinpadSelectedModel('');
     setPymePinpadSerials([]);
     setPymePinpadSerialsSelected({});
-    setMultistorePhase('project_type');
+    // Reset instrucciones y grupo/fantasía
+    setImplInstructions('');
+    setImplInstructionsLen(0);
     setMultistoreDialogOpen(true);
+    // Auto-inferir project_type desde la cotización (elimina paso manual).
+    // VPOS → vpos_mpos (búsqueda por RIF);  GATEWAY → payment_gateway;  MPOS/FAST_TRACK → pos_fast_track
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const qt = (quote?.quote_type || '').toUpperCase();
+    let inferred = 'pos_fast_track';
+    if (qt === 'VPOS') inferred = 'vpos_mpos';
+    else if (qt === 'GATEWAY' || qt === 'LINK') inferred = 'payment_gateway';
+    else if (qt === 'MPOS' || qt === 'FAST_TRACK') inferred = 'pos_fast_track';
+    // Ejecutamos la selección a continuación (handleProjectTypeSelect usa multistoreQuoteId
+    // que acabamos de fijar; llamada asíncrona no bloquea el render del Dialog).
+    setTimeout(() => { handleProjectTypeSelect(inferred); }, 0);
   };
 
   const handleProjectTypeSelect = async (type) => {
@@ -2361,8 +2381,8 @@ export const Quotes = () => {
     const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
 
     if (isPyme) {
-      // Flujo PYME: server selection → pinpad question → pinpad selection
-      setMultistorePhase('server');
+      // Flujo PYME simplificado: pinpad → consolidated (server+econ+instructions) → confirm → send
+      setMultistorePhase('pinpad_question');
       return;
     }
 
@@ -2404,9 +2424,8 @@ export const Quotes = () => {
     const segment = (quote?.client_segment || '').toLowerCase();
     const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
     if (isPyme) {
-      // PYME flow: close dialog and send directly
-      setMultistoreDialogOpen(false);
-      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+      // PYME flow: skip multistore — go straight to pinpad → consolidated → confirm
+      setMultistorePhase('pinpad_question');
       return;
     }
 
@@ -2455,17 +2474,20 @@ export const Quotes = () => {
   };
 
   const handleConfirmImplementerAdvance = () => {
-    setMultistorePhase('pinpad_question');
+    // Paso 3 (final): confirmar asignación y enviar a implementación
+    const pinpadSerials = pymePinpadSerials.filter(s => pymePinpadSerialsSelected[s.serial]);
+    const stores = isMultistore ? multistoreStores : null;
+    setMultistoreDialogOpen(false);
+    handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, stores);
   };
 
   const handlePymePinpadAnswer = async (needsPinpads) => {
     setPymeNeedsPinpads(needsPinpads);
     if (!needsPinpads) {
-      // No necesita pinpads: proceder directamente a conversión
-      setMultistoreDialogOpen(false);
-      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+      // No pinpads → avanzar al modal consolidado (Paso 2)
+      setMultistorePhase('consolidated_data');
     } else {
-      // Sí necesita pinpads: cargar modelos disponibles
+      // Sí pinpads: cargar modelos disponibles
       setMultistorePhase('pinpad_selection');
       setPymePinpadLoading(true);
       try {
@@ -2501,9 +2523,36 @@ export const Quotes = () => {
   };
 
   const handlePymePinpadConfirm = () => {
-    // Confirm and proceed to send
-    setMultistoreDialogOpen(false);
-    handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+    // Avanzar al modal consolidado (server + grupo + fantasía + instrucciones)
+    setMultistorePhase('consolidated_data');
+  };
+
+  // Avanzar desde consolidado: cargar implementer heredado del cliente → fase confirm
+  const handleConsolidatedContinue = async () => {
+    const effectiveServer = pymeServerName === 'Otro' ? pymeServerCustom.trim() : pymeServerName;
+    if (!effectiveServer) {
+      toast.error('Seleccione o ingrese el servidor de instalación');
+      return;
+    }
+    // Avanzar a Modal 3: Confirmación de Implementador heredado de la ficha de cliente
+    setMultistorePhase('confirm_implementer');
+    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    if (!quote?.client_id) {
+      setConfirmImplementerInfo({ loading: false, name: '', user_id: '' });
+      return;
+    }
+    setConfirmImplementerInfo({ loading: true, name: '', user_id: '' });
+    try {
+      const res = await api.get(`/clients/${quote.client_id}`);
+      const c = res.data || {};
+      setConfirmImplementerInfo({
+        loading: false,
+        name: c.implementer_name || '',
+        user_id: c.implementer_user_id || '',
+      });
+    } catch {
+      setConfirmImplementerInfo({ loading: false, name: '', user_id: '' });
+    }
   };
 
   const getMultistoreQuote = () => quotes.find(q => q.quote_id === multistoreQuoteId);
@@ -2522,18 +2571,16 @@ export const Quotes = () => {
       setMultistoreStores([]);
       setMultistorePhase('collect');
     } else {
-      // Escenario C: No es multitienda — ejecutar directamente (monotienda)
-      setMultistoreDialogOpen(false);
-      handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, null);
+      // Escenario C: No es multitienda — avanzar al Paso 1 (pinpad question)
+      setIsMultistore(false);
+      setMultistorePhase('pinpad_question');
     }
   };
 
   // Confirmar herencia de datos previos (Escenario A - Sí)
   const confirmInheritedStores = async () => {
-    setMultistoreSending(true);
-    setMultistoreDialogOpen(false);
-    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, multistoreStores);
-    setMultistoreSending(false);
+    setIsMultistore(true);
+    setMultistorePhase('pinpad_question');
   };
 
   // Modificar distribución heredada (Escenario A - No)
@@ -2565,10 +2612,8 @@ export const Quotes = () => {
       toast.error(`Debe asignar exactamente ${totalCajas} caja(s). Asignadas: ${multistoreAssignedBoxes}`);
       return;
     }
-    setMultistoreSending(true);
-    setMultistoreDialogOpen(false);
-    await handleSendToImplementation(multistoreQuoteId, multistoreExceptionInfo, isMultistore ? multistoreStores : null);
-    setMultistoreSending(false);
+    // Avanzar al Paso 1 (Pinpad question), no enviar aún.
+    setMultistorePhase('pinpad_question');
   };
 
   // Modificar cotización (abrir wizard con datos precargados)
@@ -3391,6 +3436,7 @@ export const Quotes = () => {
             pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
             economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
             confirmImplementerInfo, handleConfirmImplementerAdvance,
+            implInstructions, setImplInstructions, implInstructionsLen, setImplInstructionsLen, handleConsolidatedContinue,
             pymeNeedsPinpads, setPymeNeedsPinpads,
             pymePinpadModels, pymePinpadSelectedModel,
             pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,

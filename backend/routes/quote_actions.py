@@ -780,6 +780,24 @@ class SendToImplementationRequest(BaseModel):
     economic_group: Optional[str] = None  # Grupo Económico (texto libre)
     fantasy_name: Optional[str] = None    # Nombre de Fantasía (texto libre)
     pinpad_serials: Optional[list] = None  # [{modelo, serial, movement_id}]
+    implementation_instructions: Optional[str] = None  # HTML rich-text (máx 500 chars de texto visible)
+
+
+def _validate_instructions_length(html: Optional[str], max_chars: int = 500) -> Optional[str]:
+    """Valida que el HTML de instrucciones no supere max_chars de texto visible.
+    Retorna el HTML (posiblemente vacío) o None si es vacío. Lanza HTTP 422 si excede.
+    """
+    import re
+    if not html or not html.strip():
+        return None
+    plain = re.sub(r"<[^>]+>", "", html)
+    plain = plain.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+    if len(plain) > max_chars:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Las instrucciones adicionales superan el límite de {max_chars} caracteres (actual: {len(plain)}).",
+        )
+    return html.strip()
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
 async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
@@ -837,6 +855,9 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         quote["pinpad_serials"] = body.pinpad_serials
     if body and body.equipment_serials:
         quote["equipments"] = body.equipment_serials
+    # Instrucciones adicionales para el implementador (HTML rich-text, máx 500 chars visibles)
+    impl_instructions = _validate_instructions_length(body.implementation_instructions if body else None, 500)
+    quote["implementation_instructions"] = impl_instructions
     try:
         impl_pdf_bytes = generate_implementation_pdf(quote, client or {}, contacts, branches)
     except Exception as e:
@@ -869,7 +890,8 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         # Inyectar Grupo Económico y Nombre de Fantasía ya normalizados (con defaults aplicados arriba)
         eg = quote.get("economic_group")
         fn = quote.get("fantasy_name")
-        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials, eg, fn)
+        ii = quote.get("implementation_instructions")
+        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials, eg, fn, ii)
     except HTTPException:
         raise
     except Exception as e:

@@ -390,6 +390,45 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     contact_table.setStyle(TableStyle(contact_style))
     elements.append(contact_table)
 
+    # ==================== 7.5 INSTRUCCIONES ADICIONALES PARA EL IMPLEMENTADOR ====================
+    instructions_html = (quote or {}).get("implementation_instructions") or ""
+    if instructions_html and instructions_html.strip():
+        elements.append(Spacer(1, 18))
+        elements.append(_section_banner("INSTRUCCIONES ADICIONALES PARA EL IMPLEMENTADOR", styles))
+        elements.append(Spacer(1, 6))
+        # ReportLab Paragraph admite un subset de HTML (<b>, <i>, <u>, <br/>, <br>).
+        # Convertimos tags comunes del editor a los admitidos; los desconocidos se eliminan.
+        import re as _re
+        safe = instructions_html
+        # <strong>→<b>, <em>→<i>
+        safe = _re.sub(r"</?(strong)>", lambda m: "</b>" if m.group(0).startswith("</") else "<b>", safe, flags=_re.I)
+        safe = _re.sub(r"</?(em)>", lambda m: "</i>" if m.group(0).startswith("</") else "<i>", safe, flags=_re.I)
+        # <p>…</p> → contenido + <br/>
+        safe = _re.sub(r"<p[^>]*>", "", safe, flags=_re.I)
+        safe = _re.sub(r"</p>", "<br/>", safe, flags=_re.I)
+        # <li>…</li> → • contenido + <br/>
+        safe = _re.sub(r"<li[^>]*>", "&bull; ", safe, flags=_re.I)
+        safe = _re.sub(r"</li>", "<br/>", safe, flags=_re.I)
+        # Quitar <ul>/<ol>
+        safe = _re.sub(r"</?(ul|ol)[^>]*>", "", safe, flags=_re.I)
+        # Remover tags desconocidos excepto b, i, u, br
+        safe = _re.sub(r"<(?!/?(?:b|i|u|br)(?:\s|/?>))[^>]+>", "", safe, flags=_re.I)
+        instr_box = Table(
+            [[Paragraph(safe, styles['NormalText'])]],
+            colWidths=[480],
+        )
+        instr_box.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FFFBEB')),
+            ('BOX', (0, 0), (-1, -1), 0.75, colors.HexColor('#F59E0B')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#FEF3C7')),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(instr_box)
+
     # ==================== 8. PIE DE DOCUMENTO ====================
     elements.append(Spacer(1, 30))
     elements.append(Paragraph(

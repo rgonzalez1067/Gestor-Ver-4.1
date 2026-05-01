@@ -25,6 +25,7 @@ async def _create_project_from_quote(
     pinpad_serials: list = None,
     economic_group: str = None,
     fantasy_name: str = None,
+    implementation_instructions: str = None,
 ):
     """Crea un proyecto a partir de una cotización enviada a implementación."""
     existing = await db.projects.find_one({"quote_id": quote_id})
@@ -250,6 +251,12 @@ async def _create_project_from_quote(
         project["economic_group"] = economic_group
     if fantasy_name is not None:
         project["fantasy_name"] = fantasy_name
+
+    # Instrucciones adicionales para el Implementador (HTML rich-text).
+    # Se persiste en la tabla de proyectos para disponibilidad en la Ficha Técnica
+    # y la vista del implementador. La validación de 500 chars se hizo aguas arriba.
+    if implementation_instructions:
+        project["implementation_instructions"] = implementation_instructions
 
     # Pinpad seriales seleccionados (flujo PYME)
     if pinpad_serials and isinstance(pinpad_serials, list):

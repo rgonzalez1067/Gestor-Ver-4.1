@@ -19,6 +19,7 @@ import { DeliveryDialog } from './DeliveryDialog';
 import { RepairDeliveryDialog } from './RepairDeliveryDialog';
 import { PreassignSerialsModal } from './PreassignSerialsModal';
 import { InternalEmailInput } from '../InternalEmailInput';
+import { RichTextEditor } from '../RichTextEditor';
 import { ACTION_LABELS } from './constants';
 
 export const QuoteModals = ({ ctx }) => {
@@ -66,6 +67,7 @@ export const QuoteModals = ({ ctx }) => {
     pymeServerName, setPymeServerName, pymeServerCustom, setPymeServerCustom,
     economicGroup, setEconomicGroup, fantasyName, setFantasyName, handleEconomicDataContinue,
     confirmImplementerInfo, handleConfirmImplementerAdvance,
+    implInstructions, setImplInstructions, implInstructionsLen, setImplInstructionsLen, handleConsolidatedContinue,
     pymeNeedsPinpads, setPymeNeedsPinpads,
     pymePinpadModels, pymePinpadSelectedModel,
     pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
@@ -370,103 +372,104 @@ export const QuoteModals = ({ ctx }) => {
                 </DialogTitle>
               </DialogHeader>
 
-              {/* Fase 0: Tipo de Proyecto */}
-              {multistorePhase === 'project_type' && (
-                <div className="space-y-4 py-2" data-testid="project-type-phase">
-                  <p className="text-sm text-slate-600 font-medium">Seleccione el tipo de proyecto:</p>
-                  <div className="grid gap-3">
-                    <button onClick={() => handleProjectTypeSelect('pos_fast_track')}
-                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all"
-                      data-testid="project-type-pos">
-                      <p className="text-sm font-bold text-slate-800">MPOS (Imple + POS)</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Equipos de la Gestión de Entrega vinculada a esta cotización</p>
-                    </button>
-                    <button onClick={() => handleProjectTypeSelect('vpos_mpos')}
-                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-violet-400 hover:bg-violet-50 transition-all"
-                      data-testid="project-type-vpos">
-                      <p className="text-sm font-bold text-slate-800">VPOS / MPOS</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Busca equipos entregados al cliente por RIF en Notas de Entrega</p>
-                    </button>
-                    <button onClick={() => handleProjectTypeSelect('payment_gateway')}
-                      className="w-full text-left p-4 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all"
-                      data-testid="project-type-gateway">
-                      <p className="text-sm font-bold text-slate-800">Pasarela de Pago (Payment Gateway)</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Flujo 100% digital — sin vinculación de equipos físicos</p>
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Fase 0: Tipo de Proyecto — ELIMINADA (heredado automáticamente desde quote.quote_type) */}
 
-              {/* Fase PYME: Servidor de Instalación */}
-              {multistorePhase === 'server' && (
-                <div className="space-y-4 py-2" data-testid="pyme-server-phase">
-                  <p className="text-sm text-slate-600 font-medium">Servidor de Instalación</p>
-                  <p className="text-xs text-slate-400">Seleccione el servidor donde se realizará la configuración.</p>
-                  <div className="grid gap-2">
-                    {['Multicomercio MSC', 'Multicomercio MSC2', 'Otro'].map(opt => (
-                      <button key={opt} onClick={() => { setPymeServerName(opt); if (opt !== 'Otro') setPymeServerCustom(''); }}
-                        className={`w-full text-left p-3 rounded-lg border-2 transition-all text-sm ${pymeServerName === opt ? 'border-blue-500 bg-blue-50 font-semibold text-blue-800' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-slate-700'}`}
-                        data-testid={`server-option-${opt.replace(/\s/g, '-').toLowerCase()}`}>
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                  {pymeServerName === 'Otro' && (
-                    <input type="text" value={pymeServerCustom} onChange={e => setPymeServerCustom(e.target.value)}
-                      placeholder="Nombre del servidor personalizado..."
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-300 focus:border-blue-400 outline-none"
-                      data-testid="server-custom-input" />
-                  )}
-                  <div className="flex gap-3 justify-between pt-2 border-t">
-                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('project_type')} data-testid="server-back-btn">
-                      Atrás
-                    </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handlePymeServerContinue}
-                      disabled={!pymeServerName || (pymeServerName === 'Otro' && !pymeServerCustom.trim())} data-testid="server-continue-btn">
-                      Continuar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Fase PYME: Datos comerciales (Grupo Económico + Nombre de Fantasía) */}
-              {multistorePhase === 'economic_data' && (
-                <div className="space-y-4 py-2" data-testid="pyme-economic-data-phase">
+              {/* Fase: Modal Consolidado (Servidor + Grupo Económico + Nombre de Fantasía + Instrucciones) */}
+              {multistorePhase === 'consolidated_data' && (
+                <div className="space-y-4 py-2" data-testid="consolidated-data-phase">
                   <div className="border-b pb-2">
-                    <p className="text-sm text-slate-600 font-medium">Datos del Comercio</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Información complementaria para la Ficha Técnica de Implementación. Si los deja vacíos, se aplicarán valores por defecto.</p>
+                    <p className="text-sm text-slate-600 font-medium">Datos Técnicos e Instrucciones</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Último paso de captura. Estos datos se archivan en la Ficha Técnica del proyecto.</p>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                    {/* Servidor */}
                     <div>
-                      <Label htmlFor="economic_group_input" className="text-sm font-medium">Grupo Económico</Label>
+                      <Label className="text-sm font-medium">Nombre del Servidor <span className="text-red-500">*</span></Label>
+                      <div className="grid gap-1.5 mt-1.5">
+                        {['Multicomercio MSC', 'Multicomercio MSC2', 'Otro'].map(opt => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => { setPymeServerName(opt); if (opt !== 'Otro') setPymeServerCustom(''); }}
+                            className={`w-full text-left px-3 py-2 rounded-md border-2 transition-all text-sm ${pymeServerName === opt ? 'border-blue-500 bg-blue-50 font-semibold text-blue-800' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-slate-700'}`}
+                            data-testid={`consolidated-server-${opt.replace(/\s/g, '-').toLowerCase()}`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      {pymeServerName === 'Otro' && (
+                        <Input
+                          type="text"
+                          value={pymeServerCustom}
+                          onChange={e => setPymeServerCustom(e.target.value)}
+                          placeholder="Nombre del servidor personalizado…"
+                          className="mt-2"
+                          data-testid="consolidated-server-custom-input"
+                        />
+                      )}
+                    </div>
+
+                    {/* Grupo Económico */}
+                    <div>
+                      <Label htmlFor="consolidated_economic_group" className="text-sm font-medium">Grupo Económico</Label>
                       <Input
-                        id="economic_group_input"
+                        id="consolidated_economic_group"
                         type="text"
                         placeholder="(opcional — vacío registra 'Sin Grupo Económico')"
                         value={economicGroup}
                         onChange={(e) => setEconomicGroup(e.target.value)}
                         className="mt-1.5"
-                        data-testid="economic-group-input"
+                        data-testid="consolidated-economic-group-input"
                       />
                     </div>
+
+                    {/* Nombre de Fantasía */}
                     <div>
-                      <Label htmlFor="fantasy_name_input" className="text-sm font-medium">Nombre de Fantasía</Label>
+                      <Label htmlFor="consolidated_fantasy_name" className="text-sm font-medium">Nombre de Fantasía</Label>
                       <Input
-                        id="fantasy_name_input"
+                        id="consolidated_fantasy_name"
                         type="text"
                         placeholder="(opcional — vacío hereda Nombre del Comercio)"
                         value={fantasyName}
                         onChange={(e) => setFantasyName(e.target.value)}
                         className="mt-1.5"
-                        data-testid="fantasy-name-input"
+                        data-testid="consolidated-fantasy-name-input"
+                      />
+                    </div>
+
+                    {/* Instrucciones adicionales (Rich Text, 500 chars) */}
+                    <div>
+                      <Label className="text-sm font-medium">Instrucciones adicionales para el Implementador</Label>
+                      <p className="text-[11px] text-slate-500 mt-0.5 mb-1.5">Máximo 500 caracteres de texto visible. Use negrita, cursiva, listas u otros formatos para destacar puntos clave.</p>
+                      <RichTextEditor
+                        value={implInstructions}
+                        onChange={(html, len) => { setImplInstructions(html); setImplInstructionsLen(len); }}
+                        maxChars={500}
+                        placeholder="Escriba aquí las indicaciones técnicas o comerciales que el implementador debe conocer…"
+                        testid="impl-instructions-editor"
                       />
                     </div>
                   </div>
                   <div className="flex gap-3 justify-between pt-2 border-t">
-                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('server')} data-testid="economic-back-btn">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Volver al paso anterior: pinpad_selection si seleccionó Sí, pinpad_question si No
+                        setMultistorePhase(pymeNeedsPinpads ? 'pinpad_selection' : 'pinpad_question');
+                      }}
+                      data-testid="consolidated-back-btn"
+                    >
                       Atrás
                     </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handleEconomicDataContinue} data-testid="economic-continue-btn">
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      size="sm"
+                      onClick={handleConsolidatedContinue}
+                      disabled={!pymeServerName || (pymeServerName === 'Otro' && !pymeServerCustom.trim())}
+                      data-testid="consolidated-continue-btn"
+                    >
                       Continuar
                     </Button>
                   </div>
@@ -501,7 +504,7 @@ export const QuoteModals = ({ ctx }) => {
                     )}
                   </div>
                   <div className="flex gap-3 justify-between pt-2 border-t">
-                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('economic_data')} data-testid="confirm-implementer-back-btn">
+                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('consolidated_data')} data-testid="confirm-implementer-back-btn">
                       Atrás
                     </Button>
                     <Button
@@ -536,10 +539,20 @@ export const QuoteModals = ({ ctx }) => {
                       <p className="text-[11px] text-slate-500 mt-0.5">Continuar sin equipos</p>
                     </button>
                   </div>
-                  <div className="pt-2 border-t">
-                    <Button variant="outline" size="sm" onClick={() => setMultistorePhase('confirm_implementer')} data-testid="pinpad-question-back-btn">
+                  <div className="pt-2 border-t flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Si venimos desde multistore: volver a inherited/collect/ask; si no, cancelar
+                        if (isMultistore) setMultistorePhase('collect');
+                        else setMultistorePhase('ask');
+                      }}
+                      data-testid="pinpad-question-back-btn"
+                    >
                       Atrás
                     </Button>
+                    <span className="text-[11px] text-slate-400">Paso 1 de 3</span>
                   </div>
                 </div>
               )}
@@ -624,7 +637,7 @@ export const QuoteModals = ({ ctx }) => {
                       Atrás
                     </Button>
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={handlePymePinpadConfirm} data-testid="pinpad-confirm-btn">
-                      Confirmar y Enviar
+                      Continuar
                     </Button>
                   </div>
                 </div>
@@ -718,8 +731,8 @@ export const QuoteModals = ({ ctx }) => {
                       )}
 
                       <div className="flex gap-3 justify-between pt-2 border-t">
-                        <Button variant="outline" size="sm" onClick={() => setMultistorePhase('project_type')} data-testid="equipment-back-btn">
-                          Atrás
+                        <Button variant="outline" size="sm" onClick={() => setMultistoreDialogOpen(false)} data-testid="equipment-back-btn">
+                          Cancelar
                         </Button>
                         <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={advanceToMultistorePhase} data-testid="equipment-continue-btn">
                           Continuar
