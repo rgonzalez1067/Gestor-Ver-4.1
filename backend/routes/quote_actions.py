@@ -784,20 +784,31 @@ class SendToImplementationRequest(BaseModel):
 
 
 def _validate_instructions_length(html: Optional[str], max_chars: int = 500) -> Optional[str]:
-    """Valida que el HTML de instrucciones no supere max_chars de texto visible.
-    Retorna el HTML (posiblemente vacío) o None si es vacío. Lanza HTTP 422 si excede.
+    """Valida que el HTML de instrucciones no supere max_chars de texto visible
+    y sanitiza las etiquetas contra XSS (elimina <script>, <iframe>, on*=, javascript:).
+    Retorna el HTML saneado (posiblemente vacío) o None si es vacío.
+    Lanza HTTP 422 si excede el límite.
     """
     import re
     if not html or not html.strip():
         return None
-    plain = re.sub(r"<[^>]+>", "", html)
+    # Sanitización mínima (TipTap en el frontend ya emite HTML limpio, pero el
+    # backend es la última línea de defensa ante clientes que bypasean el editor).
+    safe = str(html)
+    safe = re.sub(r"<(script|iframe|object|embed|style|meta|link)\b[^>]*>.*?</\1>", "", safe, flags=re.I | re.S)
+    safe = re.sub(r"<(script|iframe|object|embed|style|meta|link)\b[^>]*/?>", "", safe, flags=re.I)
+    safe = re.sub(r"\son\w+\s*=\s*\"[^\"]*\"", "", safe, flags=re.I)
+    safe = re.sub(r"\son\w+\s*=\s*'[^']*'", "", safe, flags=re.I)
+    safe = re.sub(r"javascript:\s*", "", safe, flags=re.I)
+
+    plain = re.sub(r"<[^>]+>", "", safe)
     plain = plain.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
     if len(plain) > max_chars:
         raise HTTPException(
             status_code=422,
             detail=f"Las instrucciones adicionales superan el límite de {max_chars} caracteres (actual: {len(plain)}).",
         )
-    return html.strip()
+    return safe.strip()
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
 async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):

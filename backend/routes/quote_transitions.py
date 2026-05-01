@@ -253,10 +253,9 @@ async def _create_project_from_quote(
         project["fantasy_name"] = fantasy_name
 
     # Instrucciones adicionales para el Implementador (HTML rich-text).
-    # Se persiste en la tabla de proyectos para disponibilidad en la Ficha Técnica
-    # y la vista del implementador. La validación de 500 chars se hizo aguas arriba.
-    if implementation_instructions:
-        project["implementation_instructions"] = implementation_instructions
+    # Se persiste en la tabla de proyectos. Si viene vacío/None, se fuerza a None
+    # para limpiar cualquier contenido previo (importante en re-envíos/regeneraciones).
+    project["implementation_instructions"] = implementation_instructions if implementation_instructions else None
 
     # Pinpad seriales seleccionados (flujo PYME)
     if pinpad_serials and isinstance(pinpad_serials, list):

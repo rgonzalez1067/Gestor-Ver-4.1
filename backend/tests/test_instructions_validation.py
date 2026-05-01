@@ -41,3 +41,29 @@ def test_html_tags_not_counted():
     # 100 'A's with heavy HTML should count as 100 (html tags excluded)
     html = "<p><b><i><u>" + ("A" * 100) + "</u></i></b></p>"
     assert _validate_instructions_length(html, 500) == html
+
+
+def test_script_tag_is_stripped():
+    html = "<p>Hola</p><script>alert('xss')</script>"
+    out = _validate_instructions_length(html)
+    assert "<script" not in out
+    assert "alert" not in out
+
+
+def test_onerror_handler_is_stripped():
+    html = '<p onclick="alert(1)">Hola</p>'
+    out = _validate_instructions_length(html)
+    assert "onclick" not in out
+    assert "alert" not in out
+
+
+def test_javascript_protocol_is_stripped():
+    html = '<p><a href="javascript:alert(1)">link</a></p>'
+    out = _validate_instructions_length(html)
+    assert "javascript:" not in out
+
+
+def test_iframe_is_stripped():
+    html = '<p>hola</p><iframe src="http://evil.com"></iframe>'
+    out = _validate_instructions_length(html)
+    assert "<iframe" not in out

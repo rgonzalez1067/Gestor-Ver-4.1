@@ -5,6 +5,39 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Consolidación Flujo Enviar a Implementación + Instrucciones Rich-Text (May 2026) — NUEVO
+
+**Sección 6 — Simplificación del wizard**:
+- **Eliminado**: paso manual "Tipo de Proyecto". Se infiere automáticamente desde `quote.quote_type` al abrir el wizard (`VPOS→vpos_mpos`, `MPOS/FAST_TRACK→pos_fast_track`, `GATEWAY/LINK→payment_gateway`).
+- **Nueva secuencia unificada**:
+  1. (Multitienda si aplica — prefijo intacto)
+  2. **Paso 1 – Pinpad Question**: ¿Requiere pinpads? (opcional pinpad_selection si Sí)
+  3. **Paso 2 – Modal Consolidado** (`consolidated_data`): fusiona Servidor + Grupo Económico + Nombre de Fantasía + Instrucciones.
+  4. **Paso 3 – Confirmación Implementador** (informativo, nombre heredado o "Por asignar").
+  5. Cierre → crea proyecto.
+- **Se mantiene aparte** el modal de "Personalizar Comunicación" (email).
+
+**Sección 7 — Editor Rich-Text con TipTap**:
+- Nuevo componente `RichTextEditor.jsx` basado en TipTap (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-underline`, `@tiptap/extension-text-align`, `@tiptap/extension-text-style`, `@tiptap/extension-color`).
+- Toolbar: **Negrita**, *Cursiva*, <u>Subrayado</u>, Lista con viñetas, Lista numerada, Alineación (izq/centro/der), Color de texto, Undo/Redo.
+- Contador visual "N/500" con barra de progreso (cambia a naranja al superar 90%).
+- Validación de 500 caracteres de **texto visible** (ignora tags HTML).
+- Hard-cap: si intenta escribir más, dispara `undo()` automáticamente.
+
+**Sección 8 — Persistencia + Ficha Técnica PDF**:
+- Nuevo campo `implementation_instructions` (HTML string) en el modelo `SendToImplementationRequest` y en la colección `projects`.
+- Backend `_validate_instructions_length` (en `quote_actions.py`):
+  - Valida ≤500 chars visibles → HTTP 422 si excede.
+  - **Sanitiza** `<script>`, `<iframe>`, `<object>`, `<embed>`, `<style>`, `<meta>`, `<link>`, handlers `on*=`, y `javascript:` (defensa en profundidad aunque TipTap ya emita HTML limpio).
+- En re-envíos, si llega vacío el campo se borra del proyecto (no queda contenido stale).
+- PDF `implementation_pdf.py`: nueva sección "INSTRUCCIONES ADICIONALES PARA EL IMPLEMENTADOR" con box amber al final de la Ficha Técnica. Convierte `<strong>→<b>`, `<em>→<i>`, `<li>→ • texto`, `<p>→texto<br/>`, y limpia tags desconocidos.
+
+**Pruebas**:
+- `tests/test_instructions_validation.py`: 9 passed (5 de longitud + 4 de sanitización XSS).
+- `tests/test_iteration187_impl_instructions.py` (testing agent): 3/3 pytest passed incluyendo E2E de `POST /api/quotes/{id}/send-to-implementation` con `implementation_instructions` y persistencia en proyecto.
+- Testing agent code-review confirmó estructura del frontend (testids, eliminación de project_type, nuevo phase consolidated_data).
+
+
 ### Recordatorios por Email de "Mis Alertas" (May 2026) — NUEVO
 
 **Sección 5 — Job programado `job_implementer_alerts_due`**:
