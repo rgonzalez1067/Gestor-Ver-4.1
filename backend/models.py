@@ -735,6 +735,10 @@ class Project(BaseModel):
     integrator_app_name: Optional[str] = None
     pinpad_model: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Implementación Patrocinada (heredado desde la cotización)
+    sponsored_implementation: Optional[bool] = False
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     total_usd: float = 0
     total_bs: float = 0
     # Estado y asignación

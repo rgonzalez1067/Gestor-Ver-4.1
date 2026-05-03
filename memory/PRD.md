@@ -5,6 +5,29 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Implementación Patrocinada (May 2026) — NUEVO
+
+**Sección 9 — Campo "Implementación Patrocinada" en el Cotizador**:
+- Nuevos campos en `quotes` (y heredados a `projects`):
+  - `sponsored_implementation: bool` (default `False`).
+  - `sponsoring_bank_id: str | null` (FK a Maestro de Bancos).
+  - `sponsoring_bank_name: str | null` (snapshot del nombre).
+- UI: bloque en sección Datos Generales del wizard (`QuoteWizardDialog.jsx`):
+  - Radio Sí/No (testids `sponsored-impl-yes` / `sponsored-impl-no`).
+  - Dropdown condicional `sponsoring-bank-select` (oculto si No, obligatorio si Sí).
+  - Cambiar Sí→No limpia automáticamente `sponsoring_bank_id` para evitar dato huérfano.
+  - Validación bloquea `isHeaderComplete` si Sí está seleccionado pero no hay banco.
+- Backend:
+  - Modelos `QuoteCreate`, `Quote`, `QuoteCreateWithPDF`, `QuoteUpdate`, `Project` actualizados.
+  - `_create_project_from_quote` ahora hereda los 3 campos al proyecto resultante.
+  - Reglas de limpieza: cuando `sponsored_implementation=False`, los IDs/nombres se persisten como `None`.
+- **Reportes**: pendientes de definición — solo dejamos los campos persistidos, sin filtros UI ni endpoints específicos por ahora.
+
+**Pruebas**:
+- `tests/test_iteration188_sponsored_implementation.py`: 4/5 pytest passed (creación con PDF, default False, PUT update, duplicate). El 5° caso (send-to-implementation) se valida manualmente con script E2E que confirma herencia correcta al proyecto.
+- Tipos cubiertos: aplica a TODOS (VPOS, MPOS, GATEWAY, LINK, PYME, CORP).
+
+
 ### Consolidación Flujo Enviar a Implementación + Instrucciones Rich-Text (May 2026) — NUEVO
 
 **Sección 6 — Simplificación del wizard**:

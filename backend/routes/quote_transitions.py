@@ -154,6 +154,10 @@ async def _create_project_from_quote(
         "integrator_app_name": quote.get("integrator_app_name"),
         "pinpad_model": quote.get("pinpad_model"),
         "sponsor_bank_name": quote.get("sponsor_bank_name"),
+        # Implementación Patrocinada (heredado desde la cotización para reportabilidad)
+        "sponsored_implementation": bool(quote.get("sponsored_implementation", False)),
+        "sponsoring_bank_id": quote.get("sponsoring_bank_id") or None,
+        "sponsoring_bank_name": quote.get("sponsoring_bank_name") or None,
         "total_usd": quote.get("total_usd", 0),
         "total_bs": quote.get("total_bs", 0),
         "status": "Pendiente por Asignar",
