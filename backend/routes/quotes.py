@@ -115,6 +115,10 @@ class QuoteCreateWithPDF(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Implementación Patrocinada (banco que asume el costo de implementación)
+    sponsored_implementation: Optional[bool] = False
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
     # Datos para el PDF (diccionario flexible)
@@ -345,6 +349,9 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             pinpad_model=data.pinpad_model,
             sponsor_bank_id=data.sponsor_bank_id,
             sponsor_bank_name=data.sponsor_bank_name,
+            sponsored_implementation=bool(data.sponsored_implementation),
+            sponsoring_bank_id=data.sponsoring_bank_id if data.sponsored_implementation else None,
+            sponsoring_bank_name=data.sponsoring_bank_name if data.sponsored_implementation else None,
             cantidad_cajas=data.cantidad_cajas,
             cantidad_bancos=data.cantidad_bancos,
             pg_setup_items=data.pg_setup_items,
@@ -670,6 +677,10 @@ class QuoteUpdate(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Implementación Patrocinada
+    sponsored_implementation: Optional[bool] = None
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     subtotal_usd: Optional[float] = None
     total_usd: Optional[float] = None
     recurring_total_usd: Optional[float] = None

@@ -504,6 +504,10 @@ class QuoteCreate(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Implementación Patrocinada (banco que asume costo de implementación)
+    sponsored_implementation: Optional[bool] = False
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
@@ -599,6 +603,10 @@ class Quote(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Implementación Patrocinada (banco que asume costo de implementación)
+    sponsored_implementation: Optional[bool] = False
+    sponsoring_bank_id: Optional[str] = None
+    sponsoring_bank_name: Optional[str] = None
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None

@@ -126,7 +126,10 @@ export const Quotes = () => {
     descuento_setup: 0,
     descuento_recurrente: 0,
     notes: '',
-    include_recurring: true
+    include_recurring: true,
+    // Implementación Patrocinada (radio Sí/No + dropdown banco condicional)
+    sponsored_implementation: false,
+    sponsoring_bank_id: '',
   });
   
   // Estado para agregar nuevo medio de pago
@@ -838,7 +841,9 @@ export const Quotes = () => {
       additional_items: [],
       descuento: 0,
       notes: '',
-      include_recurring: true
+      include_recurring: true,
+      sponsored_implementation: false,
+      sponsoring_bank_id: '',
     });
     setSelectedBankId('');
     setSelectedMedioPagoId('');
@@ -1684,6 +1689,12 @@ export const Quotes = () => {
         })),
         // Detalle de sucursales (opcional)
         branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
+        // Implementación Patrocinada
+        sponsored_implementation: !!quoteData.sponsored_implementation,
+        sponsoring_bank_id: quoteData.sponsored_implementation ? (quoteData.sponsoring_bank_id || '') : '',
+        sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
+          ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
+          : '',
         // Total USD = Total Setup Neto + Equipment (calculado por el wizard)
         override_total_usd: totalNetoSetup + ftHardwareSubtotal,
         descuento_setup: quoteData.descuento_setup || 0,
@@ -2867,7 +2878,9 @@ export const Quotes = () => {
       descuento: quote.descuento || 0,
       descuento_setup: quote.descuento_setup || 0,
       descuento_recurrente: quote.descuento_recurrente || 0,
-      notes: quote.notes || ''
+      notes: quote.notes || '',
+      sponsored_implementation: !!quote.sponsored_implementation,
+      sponsoring_bank_id: quote.sponsoring_bank_id || '',
     });
     
     // Load PG data if it's a Payment Gateway quote
@@ -3044,7 +3057,13 @@ export const Quotes = () => {
           cantidad_bancos: item.cantidad_bancos || 1,
           tarifa: item.tarifa || 0,
           total: (item.tarifa || 0) * (item.cantidad_cajas || 1) * (item.cantidad_bancos || 1)
-        }))
+        })),
+        // Implementación Patrocinada
+        sponsored_implementation: !!quoteData.sponsored_implementation,
+        sponsoring_bank_id: quoteData.sponsored_implementation ? (quoteData.sponsoring_bank_id || '') : '',
+        sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
+          ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
+          : '',
       });
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);
@@ -3237,13 +3256,16 @@ export const Quotes = () => {
   
   // Validación completa incluyendo nuevos campos obligatorios
   // En modo edición, los campos de integración son opcionales ya que pueden no haber sido configurados originalmente
-  const isHeaderComplete = isPaymentGateway 
+  const isHeaderCompleteBase = isPaymentGateway 
     ? (quoteData.quote_type && quoteData.client_id && quoteData.integrator_id)
     : (quoteData.quote_type && 
        quoteData.client_id && 
        quoteData.pricing_model && 
        (quoteData.cantidad_cajas >= 1 || quoteData.cantidad_cajas === '') &&
-       (isEditing || quoteData.integrator_id)); // Pinpad y Entidad Patrocinadora ahora son opcionales
+       (isEditing || quoteData.integrator_id));
+  // Si Implementación Patrocinada = Sí, el banco es obligatorio para considerar el header completo.
+  const isSponsorshipValid = !quoteData.sponsored_implementation || !!quoteData.sponsoring_bank_id;
+  const isHeaderComplete = isHeaderCompleteBase && isSponsorshipValid;
   
   // En modo edición, siempre mostrar los items si existen
   const canShowItems = isEditing 

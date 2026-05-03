@@ -443,6 +443,80 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </span>
                   </div>
                 )}
+
+                {/* Implementación Patrocinada — aplica a TODOS los tipos de cotización */}
+                <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg" data-testid="sponsored-impl-block">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      <Label className="text-sm font-semibold text-slate-800 block mb-2">
+                        Implementación Patrocinada
+                      </Label>
+                      <p className="text-[11px] text-slate-500 mb-2 leading-tight max-w-[200px]">
+                        ¿El costo de la implementación es asumido por una entidad bancaria?
+                      </p>
+                      <div className="flex gap-1.5" role="radiogroup" aria-label="Implementación Patrocinada">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.sponsored_implementation === true}
+                          onClick={() => setQuoteData({ ...quoteData, sponsored_implementation: true })}
+                          data-testid="sponsored-impl-yes"
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            quoteData.sponsored_implementation
+                              ? 'bg-brand-blue-600 text-white border-brand-blue-700 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-brand-blue-400'
+                          }`}
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.sponsored_implementation === false}
+                          onClick={() => setQuoteData({
+                            ...quoteData,
+                            sponsored_implementation: false,
+                            sponsoring_bank_id: '', // limpia para evitar dato huérfano
+                          })}
+                          data-testid="sponsored-impl-no"
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            !quoteData.sponsored_implementation
+                              ? 'bg-slate-700 text-white border-slate-800 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+
+                    {quoteData.sponsored_implementation && (
+                      <div className="flex-1 min-w-0" data-testid="sponsoring-bank-block">
+                        <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                          Banco Patrocinante <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={quoteData.sponsoring_bank_id || ''}
+                          onValueChange={(val) => setQuoteData({ ...quoteData, sponsoring_bank_id: val })}
+                        >
+                          <SelectTrigger className="w-full h-10" data-testid="sponsoring-bank-select">
+                            <SelectValue placeholder="Seleccione el banco patrocinante…" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[280px]">
+                            {(banks || []).map((b) => (
+                              <SelectItem key={b.bank_id} value={b.bank_id} data-testid={`sponsoring-bank-option-${b.bank_id}`}>
+                                {b.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!quoteData.sponsoring_bank_id && (
+                          <p className="text-[11px] text-amber-600 mt-1.5">Debe seleccionar el banco patrocinante.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* SECCIÓN 1.5: Detalles de Integración y Hardware */}
