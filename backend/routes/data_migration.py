@@ -445,19 +445,36 @@ async def quotes_bundle_export_attachments(authorization: Optional[str] = Header
         zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
 
     buf.seek(0)
+    payload = buf.getvalue()
+    buf.close()
 
     await db.bitacora.insert_one({
         "action": "quotes_bundle_export_attachments",
         "files_included": len(included),
         "files_missing": len(missing),
+        "size_bytes": len(payload),
         "executed_by": user.get("email"),
         "executed_at": datetime.now(timezone.utc).isoformat(),
     })
 
     filename = f"quotes_bundle_attachments_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+    # Generador en chunks de 64 KB. Resuelve corrupción cuando el proxy/ingress
+    # trunca respuestas si se itera el BytesIO por líneas (binarios con \n
+    # pueden confundir a NGINX/Cloudflare). Además fijamos Content-Length para
+    # que el cliente detecte downloads incompletos.
+    def _iter_chunks(data: bytes, chunk: int = 64 * 1024):
+        for i in range(0, len(data), chunk):
+            yield data[i:i + chunk]
+
     return StreamingResponse(
-        buf, media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        _iter_chunks(payload),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(payload)),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
     )
 
 
