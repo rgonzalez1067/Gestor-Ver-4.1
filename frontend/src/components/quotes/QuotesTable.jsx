@@ -1,4 +1,4 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package, Landmark } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -123,6 +123,26 @@ export const QuotesTable = ({
                       </span>
                     ) : (
                       <span className="text-xs text-slate-400">—</span>
+                    )}
+                    {quote.sponsored_implementation && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-800 border border-amber-300 max-w-[140px] truncate cursor-default"
+                              data-testid={`sponsored-badge-${quote.quote_id}`}
+                            >
+                              <Landmark size={11} className="shrink-0" />
+                              <span className="truncate">{quote.sponsoring_bank_name || 'Patrocinado'}</span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">
+                              Patrocinado por {quote.sponsoring_bank_name || 'banco no especificado'}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                     {quote.creator_initials && (
                       <TooltipProvider delayDuration={200}>
