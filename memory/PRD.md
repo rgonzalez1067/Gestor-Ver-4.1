@@ -5,6 +5,34 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Privacidad por Departamento + Filtros Granulares + Bug "Hasta" (May 2026) — NUEVO
+
+**Sección 10 — Privacidad por Departamento (P0)**:
+- Reglas de visibilidad de cotizaciones:
+  - **Admin / Director** → ven TODAS (sin filtro).
+  - **Gerente / Coordinador** → solo cotizaciones de usuarios de su departamento (comportamiento previo).
+  - **Ejecutivo / Consulta / perfiles RBAC custom** → ahora filtran por `created_by_user_id IN [usuarios del mismo `departamento` + propio user_id]`.
+- Aplica en `GET /api/quotes` (lista filtrada) y `GET /api/quotes/{id}` (acceso por URL directa devuelve **403** con mensaje "No tiene acceso a esta cotización (privacidad por departamento)" si el creador no pertenece al mismo departamento).
+- Implementación: `/app/backend/routes/quotes.py` líneas ~488-515 (lista) y endpoint `get_quote` con doble validación (cargo + departamento del creador).
+
+**Sección 11 — Categorías separadas en filtro**:
+- Antes: 1 opción "Equipos, Accesorios y Reparaciones".
+- Ahora 3 opciones independientes en `QUOTE_FILTER_CATEGORIES`:
+  - `implementation` — Implementación (VPOS/MPOS/PG)
+  - `equipment` — Equipos y Accesorios
+  - `repair` — Reparaciones
+- Filtra estrictamente por `quote.quote_category` (la lógica antigua era binaria equipment/!equipment).
+
+**Sección 12 — Bug fix: Filtro "Fecha Hasta" inclusivo**:
+- **Causa raíz**: `new Date(filterDateTo)` (ej. `'2026-01-15'`) se interpreta como UTC midnight; al hacer `setHours(23,59,59)` quedaba en `local 23:59`, pero `created_at` (UTC) podía exceder ese límite por el offset de zona horaria, excluyendo cotizaciones del mismo día.
+- **Fix**: `new Date(filterDateTo + 'T23:59:59.999')` interpreta el límite en zona local de forma inclusiva. Mismo arreglo aplicado a "Desde" → `'T00:00:00'`.
+- Archivo: `QuotesTable.jsx`.
+
+**Pruebas**:
+- `tests/test_quote_department_privacy.py` — 1 passed con 5 assertions: admin OK, creador OK, mismo dept OK, otro dept → 403 + lista de quotes excluye/incluye correctamente.
+- Smoke test UI confirmó que las 3 categorías aparecen separadas.
+
+
 ### Implementación Patrocinada (May 2026) — NUEVO
 
 **Sección 9 — Campo "Implementación Patrocinada" en el Cotizador**:

@@ -452,8 +452,22 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
         )
 
         if has_profile_quote_perms:
-            # Solo filtro por segmento (sede)
+            # Visibilidad departamental: Ejecutivos / Consulta / perfiles RBAC ven solo
+            # las cotizaciones creadas por usuarios de su mismo departamento.
+            # (Admin y Director ya bypaseraron este filtro arriba.)
             query["client_segment"] = user_sede
+            if user_depto:
+                dept_users = await db.users.find(
+                    {"departamento": user_depto, "is_active": {"$ne": False}},
+                    {"_id": 0, "user_id": 1}
+                ).to_list(500)
+                dept_user_ids = [u["user_id"] for u in dept_users] or [user_id]
+                # Asegurar que el propio user_id esté incluido (creador siempre se ve a sí mismo)
+                if user_id and user_id not in dept_user_ids:
+                    dept_user_ids.append(user_id)
+                query["created_by_user_id"] = {"$in": dept_user_ids}
+            else:
+                query["created_by_user_id"] = user_id
         elif "director" in cargo:
             # Director: ve todo (sin filtro de segmento ni usuario)
             pass
@@ -486,8 +500,21 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             else:
                 query["created_by_user_id"] = user_id
         else:
-            # Ejecutivo u otro cargo: ve TODAS las cotizaciones de su segmento
+            # Ejecutivo u otro cargo sin jerarquía: solo cotizaciones de su mismo
+            # departamento (privacidad colaborativa por unidad de negocio).
             query["client_segment"] = user_sede
+            if user_depto:
+                dept_users = await db.users.find(
+                    {"departamento": user_depto, "is_active": {"$ne": False}},
+                    {"_id": 0, "user_id": 1}
+                ).to_list(500)
+                dept_user_ids = [u["user_id"] for u in dept_users] or [user_id]
+                if user_id and user_id not in dept_user_ids:
+                    dept_user_ids.append(user_id)
+                query["created_by_user_id"] = {"$in": dept_user_ids}
+            else:
+                # Usuario sin departamento asignado → solo ve sus propias cotizaciones
+                query["created_by_user_id"] = user_id
     
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
@@ -530,10 +557,23 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
 
 @router.get("/quotes/{quote_id}", response_model=Quote)
 async def get_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
+    current_user = await get_current_user(authorization)
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found")
+    # Validación de privacidad por departamento (consistente con GET /quotes lista).
+    # Admin y Director: bypass. Gerente/Coordinador: visibilidad por departamento.
+    # Resto: solo si created_by_user_id pertenece al mismo departamento.
+    role = (current_user.get("role") or "").lower()
+    cargo = (current_user.get("cargo") or "").lower()
+    if role != "admin" and "director" not in cargo:
+        creator_id = quote.get("created_by_user_id")
+        if creator_id and creator_id != current_user.get("user_id"):
+            user_depto = current_user.get("departamento") or ""
+            creator = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "departamento": 1})
+            creator_depto = (creator or {}).get("departamento") or ""
+            if not user_depto or user_depto != creator_depto:
+                raise HTTPException(status_code=403, detail="No tiene acceso a esta cotización (privacidad por departamento)")
     if isinstance(quote['created_at'], str):
         quote['created_at'] = datetime.fromisoformat(quote['created_at'])
     return quote

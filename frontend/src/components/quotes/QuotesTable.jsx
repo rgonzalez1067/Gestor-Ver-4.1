@@ -50,17 +50,22 @@ export const QuotesTable = ({
     if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
     if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
     if (filterCategory && filterCategory !== 'all') {
-      const isEquipment = quote.quote_category === 'equipment';
-      if (filterCategory === 'equipment' && !isEquipment) return false;
-      if (filterCategory === 'implementation' && isEquipment) return false;
+      // 3 categorías independientes: 'implementation' (VPOS/MPOS/PG),
+      // 'equipment' (Equipos y Accesorios), 'repair' (Reparaciones).
+      const cat = quote.quote_category || 'implementation';
+      if (filterCategory !== cat) return false;
     }
     if (filterSegment && filterSegment !== 'all' && (quote.client_segment || 'PYME') !== filterSegment) return false;
     if (filterDateFrom) {
-      if (new Date(quote.created_at) < new Date(filterDateFrom)) return false;
+      // Interpretar fecha en zona local (no UTC) para evitar pérdida de registros
+      // por desplazamientos de zona horaria. "Desde" → inicio del día local.
+      const fromDate = new Date(filterDateFrom + 'T00:00:00');
+      if (new Date(quote.created_at) < fromDate) return false;
     }
     if (filterDateTo) {
-      const toDate = new Date(filterDateTo);
-      toDate.setHours(23, 59, 59, 999);
+      // "Hasta" → fin del día local (23:59:59.999) para que sea inclusivo:
+      // un quote creado a las 18:00 del 15-ene SIEMPRE entra cuando se filtra "hasta 15-ene".
+      const toDate = new Date(filterDateTo + 'T23:59:59.999');
       if (new Date(quote.created_at) > toDate) return false;
     }
     return true;

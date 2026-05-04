@@ -6,7 +6,8 @@ import { Input } from '../ui/input';
 
 const QUOTE_FILTER_CATEGORIES = [
   { id: 'implementation', name: 'Implementación (VPOS/MPOS/PG)' },
-  { id: 'equipment', name: 'Equipos, Accesorios y Reparaciones' },
+  { id: 'equipment', name: 'Equipos y Accesorios' },
+  { id: 'repair', name: 'Reparaciones' },
 ];
 
 export const QuoteFilters = ({
