@@ -65,6 +65,16 @@ MODULES = {
         "key": "client_id",
         "label": "Clientes",
     },
+    "quote-history": {
+        "collection": "quote_history",
+        "key": "history_id",
+        "label": "Histórico de Cotizaciones",
+    },
+    "taller-equipos": {
+        "collection": "taller_equipos",
+        "key": "taller_equipo_id",
+        "label": "Equipos en Taller",
+    },
 }
 
 # Campos que NO deben sobreescribirse al importar usuarios (sesión / bloqueos transitorios)

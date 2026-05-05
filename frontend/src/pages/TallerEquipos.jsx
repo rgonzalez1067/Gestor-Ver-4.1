@@ -13,6 +13,7 @@ import {
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
+import { MigrationButtons } from '../components/MigrationButtons';
 
 const PAGE_SIZE = 25;
 
@@ -100,7 +101,7 @@ export default function TallerEquipos() {
     try {
       await api.delete(`/taller-equipos/${equipo.taller_equipo_id}`);
       toast.success('Registro eliminado');
-      fetchEquipos();
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al eliminar');
     }
@@ -164,16 +165,19 @@ export default function TallerEquipos() {
               </h1>
               <p className="text-sm text-slate-500 mt-1">Control de custodia de equipos de terceros en taller</p>
             </div>
-            <Button
-              onClick={handleExport}
-              disabled={exporting || equipos.length === 0}
-              variant="outline"
-              className="flex items-center gap-2"
-              data-testid="export-excel-btn"
-            >
-              <Download size={16} />
-              {exporting ? 'Exportando...' : 'Exportar Excel'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <MigrationButtons module="taller-equipos" label="Equipos en Taller" onImported={fetchData} />
+              <Button
+                onClick={handleExport}
+                disabled={exporting || equipos.length === 0}
+                variant="outline"
+                className="flex items-center gap-2"
+                data-testid="export-excel-btn"
+              >
+                <Download size={16} />
+                {exporting ? 'Exportando...' : 'Exportar Excel'}
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}

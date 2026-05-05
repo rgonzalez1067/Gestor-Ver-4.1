@@ -13,6 +13,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { HistoricalAnexosModal } from '../components/HistoricalAnexosModal';
 import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
+import { MigrationButtons } from '../components/MigrationButtons';
 
 const CATEGORY_LABELS = {
   equipment: 'Equipos/Accesorios',
@@ -136,12 +137,15 @@ export const HistoricalQuotes = () => {
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
       <main className="flex-1 p-6 overflow-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <Archive className="w-7 h-7 text-amber-500" />
-          <div>
-            <h1 className="text-xl font-bold text-slate-800" data-testid="quote-history-title">Histórico de Cotizaciones</h1>
-            <p className="text-xs text-slate-500 flex items-center gap-1.5"><Lock size={11} /> Repositorio inmutable de auditoría — solo lectura</p>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <Archive className="w-7 h-7 text-amber-500" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-800" data-testid="quote-history-title">Histórico de Cotizaciones</h1>
+              <p className="text-xs text-slate-500 flex items-center gap-1.5"><Lock size={11} /> Repositorio inmutable de auditoría — solo lectura</p>
+            </div>
           </div>
+          <MigrationButtons module="quote-history" label="Histórico de Cotizaciones" onImported={fetchHistory} />
         </div>
 
         {/* Filtros */}
