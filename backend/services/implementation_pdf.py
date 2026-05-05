@@ -266,29 +266,16 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
             Paragraph("<b>Observación</b>", styles['SmallWhite']),
         ]
         pg_data = [pg_header]
-        total_setup = 0.0
         for idx, item in enumerate(pg_setup_items, 1):
             concepto = str(item.get('concepto') or item.get('item_name') or 'N/A')
             banco = str(item.get('banco') or 'N/A')
             observacion = str(item.get('observacion') or '')
-            costo = item.get('costo') or item.get('unit_price_usd') or 0
-            try:
-                total_setup += float(costo) or 0
-            except (TypeError, ValueError):
-                pass
             pg_data.append([
                 Paragraph(str(idx), styles['SmallText']),
                 Paragraph(concepto, styles['SmallText']),
                 Paragraph(banco, styles['SmallText']),
                 Paragraph(observacion, styles['SmallText']),
             ])
-        # Fila TOTAL SETUP
-        pg_data.append([
-            Paragraph("", styles['SmallText']),
-            Paragraph("<b>TOTAL SETUP</b>", styles['SmallText']),
-            Paragraph(f"<b>${total_setup:,.2f}</b>", styles['SmallText']),
-            Paragraph("", styles['SmallText']),
-        ])
 
         pg_table = Table(pg_data, colWidths=[35, 200, 145, 100])
         pg_style = [
@@ -304,12 +291,9 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-            # Resalta fila TOTAL SETUP (última)
-            ('BACKGROUND', (0, -1), (-1, -1), COLOR_AZUL_CLARO),
-            ('FONTNAME', (1, -1), (2, -1), 'Helvetica-Bold'),
         ]
-        # Filas alternas grises (excepto header y total)
-        for i in range(1, len(pg_data) - 1):
+        # Filas alternas grises
+        for i in range(1, len(pg_data)):
             if i % 2 == 0:
                 pg_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
         pg_table.setStyle(TableStyle(pg_style))

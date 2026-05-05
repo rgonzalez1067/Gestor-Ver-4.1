@@ -171,7 +171,36 @@ export const QuotesTable = ({
                 <td className="px-3 py-4 text-sm">
                   <span className={`px-2 py-1 text-xs font-medium rounded ${typeColor}`}>{displayType}</span>
                 </td>
-                <td className="px-3 py-4 text-sm text-slate-900">{quote.client_name || client?.fantasy_name || client?.legal_name || 'N/A'}</td>
+                <td className="px-3 py-4 text-sm text-slate-900">
+                  {(() => {
+                    // Preferir fantasy_name como display rápido; si no hay, usar client_name/legal_name.
+                    const fantasy = client?.fantasy_name || '';
+                    const legal = client?.legal_name || '';
+                    const display = fantasy || quote.client_name || legal || 'N/A';
+                    // Mostrar tooltip con Razón Social siempre que exista legal_name.
+                    if (!legal) {
+                      return <span data-testid={`quote-client-${quote.quote_id}`}>{display}</span>;
+                    }
+                    return (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+                              data-testid={`quote-client-${quote.quote_id}`}
+                            >
+                              {display}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
+                            <p className="font-semibold mb-0.5 text-slate-300">Razón Social</p>
+                            <p className="font-normal">{legal}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()}
+                </td>
                 <td className="px-3 py-4 text-right whitespace-nowrap">
                   <span className="text-sm font-mono text-brand-green-600 font-semibold">
                     ${(quote.total_usd || 0).toFixed(2)}
