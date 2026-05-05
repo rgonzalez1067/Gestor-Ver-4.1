@@ -10,10 +10,14 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 **Sección 10 — Privacidad por Departamento (P0)**:
 - Reglas de visibilidad de cotizaciones:
   - **Admin / Director** → ven TODAS (sin filtro).
+  - **Administración (departamento)** → solo cotizaciones cuyo `client_segment` coincide con su `sede` (PYME, CORP o TBP). Permite que todo el equipo de Administración de una misma sede vea las cotizaciones para procesos de facturación, cobranza y auditoría.
   - **Gerente / Coordinador** → solo cotizaciones de usuarios de su departamento (comportamiento previo).
-  - **Ejecutivo / Consulta / perfiles RBAC custom** → ahora filtran por `created_by_user_id IN [usuarios del mismo `departamento` + propio user_id]`.
-- Aplica en `GET /api/quotes` (lista filtrada) y `GET /api/quotes/{id}` (acceso por URL directa devuelve **403** con mensaje "No tiene acceso a esta cotización (privacidad por departamento)" si el creador no pertenece al mismo departamento).
-- Implementación: `/app/backend/routes/quotes.py` líneas ~488-515 (lista) y endpoint `get_quote` con doble validación (cargo + departamento del creador).
+  - **Ejecutivo / Consulta / perfiles RBAC custom** → filtran por `created_by_user_id IN [usuarios del mismo `departamento` + propio user_id]`.
+- Aplica en `GET /api/quotes` (lista filtrada) y `GET /api/quotes/{id}` (Administración bloquea con 403 si la sede no coincide; otros con 403 por privacidad de departamento).
+- Implementación: `/app/backend/routes/quotes.py` líneas ~454-524 (lista) y endpoint `get_quote` líneas ~571-596 (con detección de departamento "Administración" normalizado con/sin tilde).
+- **Pruebas** (Feb 2026):
+  - `tests/test_quote_admin_director_visibility.py` — 3 passed: Admin Pyme ve solo PYME, Admin Corp ve solo CORP, Director ve todas las sedes; GET por ID respeta sede.
+  - `tests/test_quote_department_privacy.py` — 1 passed: privacidad de Ejecutivo por departamento.
 
 **Sección 11 — Categorías separadas en filtro**:
 - Antes: 1 opción "Equipos, Accesorios y Reparaciones".

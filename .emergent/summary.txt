@@ -1,146 +1,145 @@
-<analysis>**original_problem_statement:** 
-El usuario solicitó asegurar el cumplimiento estricto de la jerarquía de permisos en los perfiles de usuario (RBAC) y corregir un error crítico de interfaz (High Priority Bug) que provoca la desaparición total del menú lateral (Sidebar) al inactivar módulos específicos como Cotizaciones. Además, solicitó validar que un perfil de Consulta en Clientes no pueda editar la ficha técnica, y que las funciones especiales solo se otorguen a perfiles con Edición Total.
+<analysis>**original_problem_statement**: 
+El usuario solicitó optimizar la gestión comercial y técnica: consolidar el flujo Enviar a Implementación (eliminando el tipo de proyecto manual y fusionando modales), añadir un campo Instrucciones adicionales con Rich Text Editor, implementar alertas de autogestión para implementadores (con recordatorios diarios por email), identificar Implementación Patrocinada por bancos, y establecer reglas estrictas de visibilidad y privacidad por departamento (especialmente para Administración por Sede y Director). Adicionalmente, se reportó y corrigió un error de corrupción de archivos ZIP generados en la plataforma.
 
-PRODUCT REQUIREMENTS: 
-- Fix crítico: Manejo de excepciones en la construcción del menú lateral (). La inactivación de un módulo debe ser tratada como una exclusión del renderizado, sin romper el bucle y permitiendo navegar a los demás módulos.
-- Auditoría RBAC: El perfil Consulta en Clientes debe estar estrictamente bloqueado para edición.
+PRODUCT REQUIREMENTS:
+- **Visibilidad/RBAC**: Directores ven todas las cotizaciones; Gerentes/Coordinadores ven las de su departamento; Ejecutivos ven las suyas y las de su departamento; Administración solo ve las cotizaciones de su sede (Pyme o Corp).
+- **Flujo de Implementación**: Modal consolidado en 3 pasos con TipTap (Rich Text) para instrucciones. Auto-asignación heredada del cliente.
+- **Autogestión**: Alertas de implementadores individuales con cronjob de recordatorio.
+- **Exportación**: Garantizar la integridad de los archivos ZIP descargados (Fix de StreamingResponse).
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-Un CRM Full-Stack robusto (React/FastAPI/MongoDB). Recientemente se añadieron módulos de exportación/importación de Base de Datos para cotizaciones, reportes de carga de proyectos en PDF (alineados), gestión de responsables de implementación (Coordinador/Implementador), reasignación masiva de proyectos, compromisos gerenciales con alertas visuales, y reestructuración de vistas con Badges por tipo de negocio.
+Un CRM Full-Stack robusto (React/FastAPI/MongoDB). En esta sesión se expandió drásticamente el flujo operativo: se resolvió un crash crítico del Sidebar, se blindó Clientes como solo lectura para ciertos roles, se introdujo TipTap (RichText) para instrucciones de implementación, alertas por email programadas (APScheduler), soporte para Cotizaciones Patrocinadas por bancos con badges visuales, y reglas de privacidad complejas por departamento y sede.
 
 **Last working item**:
-    - Last item agent was working: Investigando el bug crítico en el renderizado del menú lateral () y preparándose para auditar los permisos de lectura/escritura en el módulo de Clientes.
-    - Status: NOT STARTED
+    - Last item agent was working: Aplicando la nueva regla de visibilidad para el departamento de Administración y Directores en . El código fue modificado y el backend fue reiniciado exitosamente.
+    - Status: TESTING PENDING
     - Agent Testing Done: N
-    - Which testing method agent to use?: Frontend testing agent (para el Sidebar) y validación manual/backend para el RBAC.
+    - Which testing method agent to use?: backend testing agent o manual (pytest / curl) para validar que un usuario de Administración Pyme solo vea cotizaciones de sede PYME, y un Director vea todas.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Falla Crítica de Renderizado de Menú Lateral (P0)
-     - Attempted fixes: Ninguno (agente recién inspeccionó la ruta del archivo).
-     - Next debug checklist: Revisar . Evaluar cómo se filtran u omiten los módulos inactivos en la iteración ( o ). Añadir validación para evitar que el mapeo crashee si falta un nodo o si un permiso viene en .
-     - Why fix this issue and what will be achieved with the fix?: Evitará que la pantalla quede en blanco o sin navegación cuando un administrador le desactiva el acceso a un módulo (ej. Cotizaciones) a un usuario.
-     - Status: IN PROGRESS
+  Issue 1: Verificación de Regla de Visibilidad para Administración y Directores (P0)
+     - Attempted fixes: Se aplicó el filtro en  ( y ).
+     - Next debug checklist: Ejecutar un test manual o automatizado. Loguearse con un usuario del departamento de Administración y verificar que el array de cotizaciones corresponda solo a su sede.
+     - Why fix this issue and what will be achieved with the fix?: Resuelve un bug crítico reportado por el usuario donde la grilla de cotizaciones estaba en blanco para este departamento.
+     - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix?: Frontend
-
-  Issue 2: Auditoría de Perfiles de Seguridad / RBAC Clientes (P1)
-     - Attempted fixes: Ninguno.
-     - Next debug checklist: Revisar  y el hook . Verificar que los campos de formulario, botones de guardado y acciones estén protegidos por la variable  y que los usuarios de solo Consulta no puedan modificar nada.
-     - Why fix this issue and what will be achieved with the fix?: Garantizar el cumplimiento de las normativas de seguridad y accesos del sistema.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix?: Both
+     - Should Test frontend/backend/both after fix?: Backend (curl/pytest) y Frontend (Screenshot).
+     - Blocked on other issue: None
 
 **In progress Task List**:
-  Ninguna tarea nueva (solo issues de bugs/auditoría).
+  No hay tareas en progreso además del Issue 1.
 
-**Upcoming and Future Tasks**
+**Upcoming and Future Tasks**:
   - **P2**: Roadmap Bancos - Lógica Completado.
   - **P3**: Plantillas dedicadas para Contactos Iniciales (en  análoga a clientes).
   - **P3**: Permiso Especial - Exportar CSV en reportes de ventas (gating separado para exportación de datos).
   - **P3**: Reactivar Promovidos (botón para regresar productos de I+D promovidos a estado Negociación/IMPLE).
+  - **P3**: Reporte/Dashboard Top Bancos Patrocinadores (5 bancos con más implementaciones patrocinadas). Postergado temporalmente por el usuario.
 
-**Completed work in this session**
-- Auto-fill Stand Alone en Aplicativo Certificado para VPOS cuando se selecciona Sin Integrador (DONE).
-- Auto-actualización de  al enviar notificación a cliente (DONE).
-- Enviar al Cliente desbloqueado y siempre disponible en todos los flujos comerciales (DONE).
-- Inclusión de Responsables de Implementación (Coordinador e Implementador) en la ficha de Cliente y plantilla Excel de importación (DONE).
-- Reporte de carga y estatus de Proyectos (PDF) agrupado por Implementador, con columnas fijas y alineadas (DONE).
-- Reasignación Masiva de proyectos y creación del estatus En proceso/reasignado (DONE).
-- Compromisos de Seguimiento Gerencial con alertas visuales ineludibles en la vista de proyectos (DONE).
-- Corrección de dropdown vacío en el modal de Reasignación Masiva (DONE).
-- Migración de Base de Datos para Cotizaciones, Histórico y Proyectos + anexos en ZIP (DONE).
-- Reestructuración de grilla de Proyectos con Badges visuales por tipo de negocio (MPOS, VPOS, Payment, Link) y ocultamiento de ID interno/Cotización (DONE).
-- Homologación de categorías de anexos: Eliminada Soporte de Aprobación, centralizada en Orden de Compra (DONE).
+**Completed work in this session**:
+- Fix crítico del Sidebar (loop infinito de redirección) (DONE).
+- Auditoría RBAC en Clientes para bloquear edición a roles de consulta (DONE).
+- Auto-asignación de implementador heredado del cliente (DONE).
+- Mis Alertas para implementadores con email reminder diario vía APScheduler (DONE).
+- Filtros dinámicos (multi-select) en Reporte de Carga PDF de Proyectos (DONE).
+- Selección Sin Integrador -> Stand Alone en VPOS (DONE).
+- Botón Duplicar en ítem #2 de Costos Recurrentes Básicos (DONE).
+- Consolidación del flujo Enviar a Implementación (eliminado paso Tipo de Proyecto, modales fusionados, integrado TipTap Rich Text para instrucciones) (DONE).
+- Campos Implementación Patrocinada con Badges en tabla de cotizaciones (DONE).
+- Bug fix de corrupción de archivos ZIP generados en la migración de bundles (DONE).
+- División de categorías de filtro (Equipos / Reparaciones) y arreglo de filtro Fecha Hasta (DONE).
+- Reglas de privacidad general por departamento (DONE).
 
-**Earlier issues found/mentioned but not fixed**
-  - Ninguno.
+**Earlier issues found/mentioned but not fixed**:
+  None
 
-**Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Archivos Frontend Monolíticos ( y ).
-  - Recurrence count: 8
-  - Status: IN PROGRESS (Aún requieren refactorización pesada a futuro).
+**Known issue recurrence from previous fork**:
+  - Issue recurrence in previous fork: Archivos Frontend Monolíticos ( > 3500 líneas y  > 1900 líneas).
+  - Recurrence count: 9
+  - Status: IN PROGRESS (Requieren refactorización arquitectónica a futuro).
 
-**Code Architecture**
--  para controladores de FastAPI (, , , ).
--  controla la navegación principal.
--  aloja las vistas principales y monolíticas.
+**Code Architecture**:
+-  Controladores principales (, , , ).
+-  Servicios background y generadores (, ).
+-  Vistas (Monolitos).
+-  Componentes modulares (, modales de cotizaciones separados en ).
 
-**Key Technical Concepts**
-- Hooks personalizados de RBAC () controlan la variable .
-- Modales y diálogos gestionados a nivel de página (ej. , ).
+**Key Technical Concepts**:
+- **TipTap**: Utilizado para el RichTextEditor.
+- **APScheduler**: Corre en background () a las 08:00 AM UTC-4 para enviar recordatorios por correo.
+- **StreamingResponse**: Utilizado con  generador de ZIPs (chunks de 64KB + headers).
 
-**key DB schema**
-  - : Ahora contiene  (array de compromisos) y .
-  - : Ahora maneja , , , .
+**key DB schema**:
+  -  & : Ahora incluyen , , , .
+  - : Ahora incluye un array .
 
-**changes in tech stack**
-  - Ninguno.
+**changes in tech stack**:
+  - Instalación de dependencias  (, ) en frontend.
 
-**All files of reference**
-  -  (Bug de navegación)
-  -  (Auditoría RBAC)
+**All files of reference**:
+  -  (Lógica de Visibilidad y Privacidad)
+  -  (Flujo de cotizaciones)
+  -  (Nuevo modal consolidado)
+  -  (Cronjobs)
+  -  (Fix del ZIP)
 
-**Areas that need refactoring**: 
-  - Archivos monolíticos en el Frontend. Especialmente  (>3000 líneas) y  (>1900 líneas).
+**Areas that need refactoring**:
+  -  sigue creciendo (casi 3500 líneas). Se logró extraer una parte a  y , pero requiere mayor separación.
 
-**key api endpoints**
+**key api endpoints**:
+  -  y  (Actualizados con reglas de departamento/sede)
+  -  (Actualizado con validación de 500 chars para instrucciones HTML)
+  -  (Fix aplicado para ZIP).
+
+**Critical Info for New Agent**:
+- El usuario confirmó que un error de visibilidad para Administración ocurre **tanto en preview como en producción**.
+- Tú (Agente actual) ya aplicaste el código para corregir el acceso de Administración (filtrando por sede PYME o CORP) y Director en  y reiniciaste el backend. **Debes realizar pruebas de esta corrección de inmediato**.
+- Una vez verifiques que funciona en Preview, debes indicarle al usuario que sus pruebas pasaron en Preview y **debe redesplegar (redeploy)** para que el arreglo impacte en Producción (https://admin-control-center-21.emergent.host).
+- **Importante**: No puedes tocar producción directamente, el usuario debe accionar el despliegue.
+
+**documents and test reports created in this job**:
+  -  (Contiene las credenciales siempre actualizadas para las pruebas)
   - 
   - 
   - 
+  - 
 
-**Critical Info for New Agent**
-- **Prioridad Inmediata**: Debes revisar  y resolver el error de renderizado que provoca la página en blanco cuando el perfil del usuario tiene el módulo de Cotizaciones marcado como Inactivo. Evita que el  del menú crashee.
-- Luego, debes enfocarte en la auditoría de  para garantizar que un perfil con rol de Consulta no tenga acceso a los botones de guardado ni pueda editar campos.
-- El usuario habla español, responde exclusivamente en español.
+**Last 10 User Messages and any pending HUMAN messages**:
+  1. (User): Pide implementar mejora de correos para Mis Alertas (DONE).
+  2. (User): Pide incorporar opción Sin Integrador -> Stand Alone en VPOS (DONE).
+  3. (User): Solicita botón Copiar en ítem #2 de Costos Recurrentes (DONE).
+  4. (User): Pide consolidar flujo Enviar a Implementación + RichText Editor (DONE).
+  5. (User): Aclara flujo del wizard y limita requerimientos del Editor (DONE).
+  6. (User): Solicita campo Implementación Patrocinada por banco (DONE).
+  7. (User): Confirma que el badge Patrocinado por [Banco] sea implementado, descarta dashboard por ahora (DONE).
+  8. (User): Solicita Privacidad por Departamento, filtros divididos y Bug Fix del ZIP corrupto (DONE).
+  9. (User): La falla es en ambos ambientes (En respuesta al Bug Fix de Administración que no ven cotizaciones). (PENDING TESTING).
 
-**documents and test reports created in this job**
-  -  (Actualizado constantemente en el finish tool).
-
-**Last 10 User Messages and any pending HUMAN messages** 
-  1. (User): En la carpeta de documentos del historico... deja solo Orden de Compra... (COMPLETED)
-  2. (Agent): Elimina redundancia de categoría.
-  3. (User): Pasa requerimientos masivos: Responsables, Reporte PDF, Reasignación, Compromisos, Auto-stand-alone, Desbloqueo Enviar.
-  4. (Agent): Propone dividir en Fase A (Simples/Medios) y Fase B (Grandes).
-  5. (User): Acepta el plan y define el orden de ejecución.
-  6. (Agent): Ejecuta la Fase A completa y testea E2E.
-  7. (User): Indica que las columnas del Reporte PDF de Carga están desalineadas. (COMPLETED)
-  8. (Agent): Aplica  al reporte PDF.
-  9. (User): Ejecuta la fase B pendiente (COMPLETED).
-  10. (Agent): Ejecuta la Fase B (Reasignación y compromisos).
-  11. (User): Reporta que el dropdown de reasignación está vacío. (COMPLETED)
-  12. (Agent): Repara el hook del dropdown de implementadores.
-  13. (User): Requerimiento Técnico: Auditoría de Perfiles y Corrección Crítica de Navegación... (PENDING HUMAN MESSAGE: Crash en Sidebar y auditoría RBAC en Clientes).
-
-**Project Health Check:**
-  - Broken: Sidebar desaparece (pantalla en blanco) si un usuario tiene el módulo Cotizaciones (o principal) inactivo.
+**Project Health Check**:
+  - Broken: Ninguno (Se espera que el último fix haya reparado la vista de Administración).
   - Mocked: Ninguno.
 
-**3rd Party Integrations**
-	• Emergent Object Storage — uses Emergent LLM Key 
-	• Resend (Emails) — requires User API Key 
+**3rd Party Integrations**:
+  - Emergent Object Storage — uses Emergent LLM Key
+  - Resend (Emails) — requires User API Key
 
-**Testing status**
-  - Testing agent used after significant changes: YES (en iteraciones anteriores).
+**Testing status**:
+  - Testing agent used after significant changes: YES (iterations 186, 187, 188)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: Crash de renderizado en .
+  - Test files created: , , , .
+  - Known regressions: None
 
-**Credentials to test flow:**
-  - Verifica  para credenciales de admin o roles específicos. Puedes generar tokens al vuelo vía bash/curl si es necesario probar permisos restringidos.
+**Credentials to test flow**:
+  Revisa el archivo  para extraer un usuario del departamento de Administración o de Dirección y comprobar la visibilidad.
 
-**What agent forgot to execute**
-- El agente acababa de recibir el reporte del Bug en  y RBAC de Clientes. Alcanzó a ejecutar comandos de lectura en bash, pero generó el handoff sin implementar las correcciones. Debes reanudar la auditoría de inmediato.
+**What agent forgot to execute**:
+  El agente aplicó el código para el fix de Visibilidad de Administración y Directores, pero terminó la sesión antes de correr los tests, confirmar con /screenshots y comunicarle al usuario el resultado.
 
-**Debugging checklist for current issue**
-    Issue: Sidebar crash con módulos inactivos
-    Frontend files to check: 
-    - 
-    Checklist:
-    - Identificar dónde se mapean los ítems del menú según el  o el objeto de permisos.
-    - Asegurar que al evaluar  (o ), el objeto simplemente se omita (ej. usando ) en lugar de devolver  sin control o lanzar un error de propiedad indefinida.
-    - Confirmar renderizado cargando la app con un usuario sin permisos en Cotizaciones.</analysis>
+**Debugging checklist for current issue**:
+    Issue: Verificación del fix de Visibilidad de Cotizaciones (Administración por Sede y Director).
+    Backend files to check:  (Líneas 430-480).
+    Database to check: Ejecutar un script para loguearse con un usuario con  y  y confirmar que la ruta  retorna información. Repetir con un perfil  o .</analysis>

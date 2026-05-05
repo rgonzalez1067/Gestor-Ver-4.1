@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://modulo-inactivo-nav.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quote-privacy-rbac.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "rgonzalez@megasoft.com.ve"
