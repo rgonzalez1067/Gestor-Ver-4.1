@@ -152,17 +152,43 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
 
 
 @router.post("/quotes/{quote_id}/approve")
-async def approve_quote(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
-    """Aprobar una cotización con instrucción de facturación. Soporta flujo irregular, adjuntos y consolidación."""
+async def approve_quote(
+    quote_id: str,
+    payload: Optional[str] = Form(None),
+    payment_files: List[UploadFile] = File(default=[]),
+    authorization: Optional[str] = Header(None),
+    exception_reason: Optional[str] = Header(None, alias="x-exception-reason"),
+    regularization_date: Optional[str] = Header(None, alias="x-regularization-date"),
+    custom_message: Optional[str] = Header(None, alias="x-custom-message"),
+    additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"),
+):
+    """Aprobar una cotización con instrucción de facturación.
+
+    Acepta multipart/form-data:
+      - `payload` (str, JSON): datos de billing_instruction (consolidated_items, exchange_rate, ...).
+      - `payment_files` (List[UploadFile], opcional): comprobantes de pago anticipado a
+        adjuntar SOLO al correo de Administración. NO se almacenan en quote.attachments.
+
+    El soporte de aprobación (Orden de Compra) sí persiste en `quote.attachments` y se sube
+    de forma independiente al endpoint /quotes/{id}/attachments antes de invocar este.
+    """
+    import json as _json
+
     current_user = await get_current_user(authorization)
-    
-    if body is None:
-        body = {}
-    
+
+    body: dict = {}
+    if payload:
+        try:
+            body = _json.loads(payload)
+            if not isinstance(body, dict):
+                body = {}
+        except Exception:
+            raise HTTPException(status_code=400, detail="Payload JSON inválido en form field 'payload'")
+
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
+
     current_status = quote.get("quote_status", "Borrador")
     is_irregular = current_status != "Enviada"
     
@@ -317,18 +343,23 @@ async def approve_quote(quote_id: str, body: dict = None, authorization: Optiona
             if pdf_path.exists():
                 pdf_buffer = open(pdf_path, 'rb').read()
 
-        # Cargar soportes de pago adjuntos (si existen)
+        # Cargar soportes de pago anticipado EFÍMEROS (vienen del multipart, NO se almacenan).
+        # Se adjuntan únicamente al correo de Administración. La persistencia de comprobantes
+        # de pago real ocurre en la acción Cobranza (categoría 'Pagos').
         approval_attachments_b64 = []
-        quote_refreshed = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0, "attachments": 1})
-        for att in (quote_refreshed or {}).get("attachments", []):
-            if att.get("category") == "Soporte de Aprobación":
-                att_path = UPLOADS_DIR / att["url"].replace("/uploads/", "")
-                if att_path.exists():
-                    with open(att_path, 'rb') as f:
-                        approval_attachments_b64.append({
-                            "filename": att.get("original_name", "soporte.pdf"),
-                            "content": base64.b64encode(f.read()).decode('utf-8')
-                        })
+        if payment_files:
+            for pf in payment_files:
+                try:
+                    raw = await pf.read()
+                    if not raw:
+                        continue
+                    approval_attachments_b64.append({
+                        "filename": pf.filename or "pago_anticipado.pdf",
+                        "content": base64.b64encode(raw).decode('utf-8'),
+                    })
+                except Exception as e:
+                    logger.warning(f"[Approve] No se pudo leer payment_file {pf.filename}: {e}")
+
 
         # Generar PDF de Cálculos Definitivos (si hay billing_instruction)
         if billing_data.get("billing_instruction") and billing_data["billing_instruction"].get("consolidated_items"):
@@ -569,7 +600,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
 
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        rc_html = inject_custom_message(rc_html, custom_message, user_name, max_chars=200)
+        rc_html = inject_custom_message(rc_html, custom_message, user_name, max_chars=300)
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
@@ -714,7 +745,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     # Agregar mensaje personalizado
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=200)
+        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=300)
 
     # Parsear destinatarios adicionales
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
@@ -1030,7 +1061,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
     # Agregar mensaje personalizado
     if custom_message and custom_message.strip():
         user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=200)
+        html_content = inject_custom_message(html_content, custom_message, user_name, max_chars=300)
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
@@ -1245,7 +1276,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
 
         if custom_message and custom_message.strip():
             user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-            rw_html = inject_custom_message(rw_html, custom_message, user_name, max_chars=200)
+            rw_html = inject_custom_message(rw_html, custom_message, user_name, max_chars=300)
 
         # Enviar al Almacén
         r = await send_email(to=[warehouse_email], subject=rw_subject, html=rw_html, action="repair_collect_warehouse", quote_id=quote_id, quote_number=quote.get('quote_number'))

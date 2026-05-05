@@ -180,19 +180,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
     setUploading(true);
     try {
-      // Step 1: Upload payment proof files (no aplica para reparaciones)
-      if (!isRepairQuote) {
-        for (const file of paymentFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('category', 'Soporte de Aprobación');
-          await api.post(`/quotes/${quoteId}/attachments`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-        }
-      }
-
-      // Step 2: Upload approval proof files
+      // Step 1: Upload approval proof files (Orden de Compra) — SE PERSISTEN en quote.attachments
       for (const file of approvalFiles) {
         const formData = new FormData();
         formData.append('file', file);
@@ -202,7 +190,8 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         });
       }
 
-      // Step 3: Call approve endpoint
+      // Step 2: Build approve payload + multipart con archivos de Pago Anticipado EFÍMEROS
+      // (NO se almacenan; solo se adjuntan al correo de Administración).
       const exHeaders = {};
       if (config?.exceptionHeaders) {
         exHeaders['x-exception-reason'] = config.exceptionHeaders.reason;
@@ -233,7 +222,18 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
         has_approval_proof: approvalFiles.length > 0,
       };
 
-      await api.post(`/quotes/${quoteId}/approve`, billingData, { headers: exHeaders });
+      const approveFormData = new FormData();
+      approveFormData.append('payload', JSON.stringify(billingData));
+      // Solo adjuntar archivos de pago anticipado si NO es reparación (no aplica)
+      if (!isRepairQuote) {
+        for (const file of paymentFiles) {
+          approveFormData.append('payment_files', file);
+        }
+      }
+
+      await api.post(`/quotes/${quoteId}/approve`, approveFormData, {
+        headers: { ...exHeaders, 'Content-Type': 'multipart/form-data' },
+      });
 
       toast.success('Aprobación registrada exitosamente');
       resetState();

@@ -176,14 +176,48 @@ async def send_workflow_notification(
             creator_name = f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip()
             creator_email = creator.get("email", "")
 
+    # Resolver datos del CLIENTE (nombre, dirección, contacto principal: nombre/email/teléfono).
+    # Estos campos no siempre están denormalizados en la cotización; los buscamos en clients.
+    client_legal_name = quote.get("client_name", "")
+    client_rif_val = quote.get("client_rif", "")
+    client_address = ""
+    contact_name = quote.get("client_contact", "")
+    contact_email = quote.get("client_email", "")
+    contact_phone = quote.get("client_phone", "")
+    client_id = quote.get("client_id")
+    if client_id:
+        client_doc = await db.clients.find_one(
+            {"client_id": client_id},
+            {"_id": 0, "fantasy_name": 1, "legal_name": 1, "rif": 1, "address": 1, "contacts": 1, "contact1": 1},
+        )
+        if client_doc:
+            client_legal_name = client_doc.get("fantasy_name") or client_doc.get("legal_name") or client_legal_name
+            if not client_rif_val:
+                client_rif_val = client_doc.get("rif", "")
+            client_address = client_doc.get("address") or ""
+            contacts_list = client_doc.get("contacts") or []
+            primary = contacts_list[0] if contacts_list else (client_doc.get("contact1") or {})
+            if isinstance(primary, dict):
+                if not contact_name:
+                    contact_name = (
+                        primary.get("full_name")
+                        or primary.get("name")
+                        or f"{primary.get('first_name', '')} {primary.get('last_name', '')}".strip()
+                    )
+                if not contact_email:
+                    contact_email = primary.get("email") or ""
+                if not contact_phone:
+                    contact_phone = primary.get("phone") or primary.get("telefono") or ""
+
     template_vars = {
         "quote_number": quote_number,
         "Cotizacion_Nro": quote_number,
         "nro_cotizacion": quote_number,
-        "client_name": quote.get("client_name", ""),
-        "Nombre_Cliente": quote.get("client_name", ""),
-        "client_rif": quote.get("client_rif", ""),
-        "Rif_Cliente": quote.get("client_rif", ""),
+        "client_name": client_legal_name,
+        "Nombre_Cliente": client_legal_name,
+        "nombre_cliente": client_legal_name,
+        "client_rif": client_rif_val,
+        "Rif_Cliente": client_rif_val,
         "quote_type": quote.get("quote_type", "N/A"),
         "total_usd": f"{quote.get('total_usd', 0):.2f}",
         "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
@@ -193,10 +227,15 @@ async def send_workflow_notification(
         "company_name": quote.get("company_name", "Merchant Server"),
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
-        "Contacto_Principal": quote.get("client_contact", ""),
-        "Telefono_Contacto": quote.get("client_phone", ""),
-        "Email_Contacto": quote.get("client_email", ""),
-        "Datos_Contacto": quote.get("client_contact", ""),
+        "Contacto_Principal": contact_name,
+        "contacto_cliente": contact_name,
+        "Telefono_Contacto": contact_phone,
+        "Telefono_Cliente": contact_phone,
+        "Email_Contacto": contact_email,
+        "Email_Cliente": contact_email,
+        "Datos_Contacto": contact_name,
+        "Direccion_Cliente": client_address,
+        "client_address": client_address,
         "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
     }
     if extra_template_vars:

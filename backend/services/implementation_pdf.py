@@ -251,26 +251,51 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(Spacer(1, 6))
 
     # Tabla Bancos / Productos
-    all_services = quote.get('services', [])
-    additional_items = [s for s in all_services if s.get('item_type') == 'additional']
-    if additional_items:
-        bank_header = [
+    # Para cotizaciones Payment Gateway (quote_type='GATEWAY' o quote_category='implementation'
+    # con pg_setup_items presentes), usamos pg_setup_items con columnas
+    # N° / Concepto / Banco / Observación + fila TOTAL SETUP.
+    quote_type_upper = (quote.get('quote_type') or '').upper()
+    pg_setup_items = quote.get('pg_setup_items') or []
+    is_payment_gateway = quote_type_upper == 'GATEWAY' or (pg_setup_items and quote_type_upper != 'VPOS' and quote_type_upper != 'MPOS')
+
+    if is_payment_gateway and pg_setup_items:
+        pg_header = [
+            Paragraph("<b>N°</b>", styles['SmallWhite']),
+            Paragraph("<b>Concepto</b>", styles['SmallWhite']),
             Paragraph("<b>Banco</b>", styles['SmallWhite']),
-            Paragraph("<b>Medio de Pago</b>", styles['SmallWhite']),
-            Paragraph("<b>Cajas</b>", styles['SmallWhite']),
+            Paragraph("<b>Observación</b>", styles['SmallWhite']),
         ]
-        bank_data = [bank_header]
-        for item in additional_items:
-            bank_data.append([
-                Paragraph(str(item.get('bank_name', 'N/A')), styles['SmallText']),
-                Paragraph(str(item.get('item_name', item.get('name', 'N/A'))), styles['SmallText']),
-                Paragraph(str(item.get('quantity', cantidad_cajas)), styles['SmallText']),
+        pg_data = [pg_header]
+        total_setup = 0.0
+        for idx, item in enumerate(pg_setup_items, 1):
+            concepto = str(item.get('concepto') or item.get('item_name') or 'N/A')
+            banco = str(item.get('banco') or 'N/A')
+            observacion = str(item.get('observacion') or '')
+            costo = item.get('costo') or item.get('unit_price_usd') or 0
+            try:
+                total_setup += float(costo) or 0
+            except (TypeError, ValueError):
+                pass
+            pg_data.append([
+                Paragraph(str(idx), styles['SmallText']),
+                Paragraph(concepto, styles['SmallText']),
+                Paragraph(banco, styles['SmallText']),
+                Paragraph(observacion, styles['SmallText']),
             ])
-        bank_table = Table(bank_data, colWidths=[160, 230, 90])
-        bank_style = [
+        # Fila TOTAL SETUP
+        pg_data.append([
+            Paragraph("", styles['SmallText']),
+            Paragraph("<b>TOTAL SETUP</b>", styles['SmallText']),
+            Paragraph(f"<b>${total_setup:,.2f}</b>", styles['SmallText']),
+            Paragraph("", styles['SmallText']),
+        ])
+
+        pg_table = Table(pg_data, colWidths=[35, 200, 145, 100])
+        pg_style = [
             ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
             ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
@@ -278,12 +303,51 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
             ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            # Resalta fila TOTAL SETUP (última)
+            ('BACKGROUND', (0, -1), (-1, -1), COLOR_AZUL_CLARO),
+            ('FONTNAME', (1, -1), (2, -1), 'Helvetica-Bold'),
         ]
-        for i in range(1, len(bank_data)):
+        # Filas alternas grises (excepto header y total)
+        for i in range(1, len(pg_data) - 1):
             if i % 2 == 0:
-                bank_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
-        bank_table.setStyle(TableStyle(bank_style))
-        elements.append(bank_table)
+                pg_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+        pg_table.setStyle(TableStyle(pg_style))
+        elements.append(pg_table)
+    else:
+        all_services = quote.get('services', [])
+        additional_items = [s for s in all_services if s.get('item_type') == 'additional']
+        if additional_items:
+            bank_header = [
+                Paragraph("<b>Banco</b>", styles['SmallWhite']),
+                Paragraph("<b>Medio de Pago</b>", styles['SmallWhite']),
+                Paragraph("<b>Cajas</b>", styles['SmallWhite']),
+            ]
+            bank_data = [bank_header]
+            for item in additional_items:
+                bank_data.append([
+                    Paragraph(str(item.get('bank_name', 'N/A')), styles['SmallText']),
+                    Paragraph(str(item.get('item_name', item.get('name', 'N/A'))), styles['SmallText']),
+                    Paragraph(str(item.get('quantity', cantidad_cajas)), styles['SmallText']),
+                ])
+            bank_table = Table(bank_data, colWidths=[160, 230, 90])
+            bank_style = [
+                ('BACKGROUND', (0, 0), (-1, 0), COLOR_AZUL),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+                ('INNERGRID', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]
+            for i in range(1, len(bank_data)):
+                if i % 2 == 0:
+                    bank_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
+            bank_table.setStyle(TableStyle(bank_style))
+            elements.append(bank_table)
 
     elements.append(Spacer(1, 14))
 

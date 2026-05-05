@@ -220,14 +220,14 @@ export const QuoteModals = ({ ctx }) => {
                   {emailModalConfig.quoteName && <p className="text-xs text-blue-600 mt-0.5">Cotización: {emailModalConfig.quoteName}</p>}
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 200 caracteres)</span></Label>
+                  <Label className="text-sm font-medium">Mensaje personalizado <span className="text-xs text-slate-400">(opcional, máx 300 caracteres)</span></Label>
                   <Textarea
                     key={emailModalOpen ? 'modal-open' : 'modal-closed'}
                     defaultValue={emailCustomMessage}
-                    onBlur={e => setEmailCustomMessage(e.target.value.slice(0, 200))}
+                    onBlur={e => setEmailCustomMessage(e.target.value.slice(0, 300))}
                     placeholder="Ej: Estimado cliente, adjuntamos la documentación solicitada..."
                     className="mt-1 min-h-[70px] text-sm"
-                    maxLength={200}
+                    maxLength={300}
                     data-testid="email-custom-message" />
                 </div>
                 <div>
