@@ -62,6 +62,23 @@ async def get_taller_equipos(
 
     equipos = await db.taller_equipos.find(query, {"_id": 0}).to_list(2000)
 
+    # Enriquecer con client_legal_name (Razón Social) para tooltip en grilla
+    client_ids = list({e.get("client_id") for e in equipos if e.get("client_id")})
+    legal_map = {}
+    if client_ids:
+        async for c in db.clients.find(
+            {"client_id": {"$in": client_ids}},
+            {"_id": 0, "client_id": 1, "legal_name": 1, "fantasy_name": 1},
+        ):
+            legal_map[c["client_id"]] = {
+                "legal_name": c.get("legal_name", ""),
+                "fantasy_name": c.get("fantasy_name", ""),
+            }
+    for eq in equipos:
+        info = legal_map.get(eq.get("client_id"), {})
+        eq["client_legal_name"] = info.get("legal_name", "")
+        eq["client_fantasy_name"] = info.get("fantasy_name", "")
+
     # Calcular dias_en_taller en el servidor
     now = datetime.now(timezone.utc)
     for eq in equipos:

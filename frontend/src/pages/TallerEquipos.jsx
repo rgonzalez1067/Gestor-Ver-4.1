@@ -14,6 +14,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { MigrationButtons } from '../components/MigrationButtons';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const PAGE_SIZE = 25;
 
@@ -320,7 +321,34 @@ export default function TallerEquipos() {
                               </button>
                             </td>
                             <td className="px-4 py-2.5 text-slate-700">{eq.modelo}</td>
-                            <td className="px-4 py-2.5 text-slate-700 max-w-[180px] truncate" title={eq.client_name}>{eq.client_name}</td>
+                            <td className="px-4 py-2.5 text-slate-700 max-w-[180px]">
+                              {(() => {
+                                const fantasy = eq.client_fantasy_name || '';
+                                const legal = eq.client_legal_name || '';
+                                const display = fantasy || eq.client_name || legal || '—';
+                                if (!legal) {
+                                  return <span className="block truncate" title={display}>{display}</span>;
+                                }
+                                return (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span
+                                          className="block truncate cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+                                          data-testid={`taller-client-${eq.taller_equipo_id}`}
+                                        >
+                                          {display}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
+                                        <p className="font-semibold mb-0.5 text-slate-300">Razón Social</p>
+                                        <p className="font-normal">{legal}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })()}
+                            </td>
                             <td className="px-4 py-2.5">
                               <button
                                 onClick={() => navigate('/quotes')}
