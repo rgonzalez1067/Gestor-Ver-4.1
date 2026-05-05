@@ -53,6 +53,7 @@ export const Clients = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
   const [searchTerm, setSearchTerm] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState('all');
   const [integradorPopoverOpen, setIntegradorPopoverOpen] = useState(false);
   // Email communication
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -843,6 +844,7 @@ export const Clients = () => {
 
   // Filtered clients
   const filtered = clients.filter(c => {
+    if (segmentFilter !== 'all' && (c.segment || '') !== segmentFilter) return false;
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return c.rif?.toLowerCase().includes(s) || c.legal_name?.toLowerCase().includes(s) ||
@@ -1426,10 +1428,36 @@ export const Clients = () => {
 
           {/* Search */}
           <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="max-w-sm relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <DebouncedInput placeholder="Buscar por RIF, nombre, sucursal o grupo económico..." value={searchTerm}
-                onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
+            <div className="flex items-center gap-3 flex-1">
+              <div className="max-w-sm relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <DebouncedInput placeholder="Buscar por RIF, nombre, sucursal o grupo económico..." value={searchTerm}
+                  onCommit={(v) => setSearchTerm(v)} debounceMs={400} className="pl-9" data-testid="client-search" />
+              </div>
+              <div className="w-48">
+                <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                  <SelectTrigger className="h-9" data-testid="client-segment-filter">
+                    <SelectValue placeholder="Segmento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" data-testid="client-segment-filter-all">Todos los segmentos</SelectItem>
+                    {SEGMENT_OPTIONS.map(seg => (
+                      <SelectItem key={seg} value={seg} data-testid={`client-segment-filter-${seg.toLowerCase()}`}>{seg}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(segmentFilter !== 'all' || searchTerm) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setSegmentFilter('all'); setSearchTerm(''); }}
+                  data-testid="client-clear-filters-btn"
+                  className="text-slate-500"
+                >
+                  <X size={14} className="mr-1" />Limpiar
+                </Button>
+              )}
             </div>
             <MigrationButtons module="clients" label="Clientes" onImported={fetchClients} />
           </div>
