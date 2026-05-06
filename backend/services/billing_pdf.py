@@ -35,21 +35,33 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     elements.append(Paragraph("Documento interno — No enviar al cliente", subtitle_style))
     elements.append(Spacer(1, 6))
 
-    # Client info - use Paragraphs for proper wrapping
-    elements.append(Paragraph("Datos del Cliente", header_style))
-    client_name = client.get('fantasy_name') or client.get('legal_name') or 'N/A'
-    legal_name = client.get('legal_name') or 'N/A'
-    rif = client.get('rif') or 'N/A'
+    # Datos para la Factura — campos requeridos por Administración
+    elements.append(Paragraph("Datos para la Factura", header_style))
+    legal_name = client.get('legal_name') or client.get('fantasy_name') or 'N/A'
+    address = (client.get('address') or '').strip() or 'No especificada'
+    contacts = client.get('contacts') or []
+    primary_contact = contacts[0] if contacts else (client.get('contact1') or {})
+    if isinstance(primary_contact, dict):
+        contact_name = (
+            primary_contact.get('full_name')
+            or primary_contact.get('name')
+            or f"{primary_contact.get('first_name', '')} {primary_contact.get('last_name', '')}".strip()
+            or 'No especificado'
+        )
+        contact_phone = primary_contact.get('phone') or primary_contact.get('telefono') or 'No especificado'
+        contact_email = primary_contact.get('email') or 'No especificado'
+    else:
+        contact_name = contact_phone = contact_email = 'No especificado'
     quote_number = quote.get('quote_number') or 'N/A'
-    billing_date = billing_instruction.get('billing_date', '')
     approval_date = datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')
 
     info_data = [
-        [Paragraph('<b>Cliente:</b>', cell_bold_style), Paragraph(client_name, cell_style)],
         [Paragraph('<b>Razón Social:</b>', cell_bold_style), Paragraph(legal_name, cell_style)],
-        [Paragraph('<b>RIF:</b>', cell_bold_style), Paragraph(rif, cell_style)],
+        [Paragraph('<b>Dirección Fiscal:</b>', cell_bold_style), Paragraph(address, cell_style)],
+        [Paragraph('<b>Nombre Contacto:</b>', cell_bold_style), Paragraph(contact_name, cell_style)],
+        [Paragraph('<b>Teléfono:</b>', cell_bold_style), Paragraph(contact_phone, cell_style)],
+        [Paragraph('<b>Email:</b>', cell_bold_style), Paragraph(contact_email, cell_style)],
         [Paragraph('<b>Nro. Cotización:</b>', cell_bold_style), Paragraph(quote_number, cell_style)],
-        [Paragraph('<b>Fecha de Facturación:</b>', cell_bold_style), Paragraph(billing_date or 'No especificada', cell_style)],
         [Paragraph('<b>Fecha de Aprobación:</b>', cell_bold_style), Paragraph(approval_date, cell_style)],
     ]
     info_table = Table(info_data, colWidths=[4*cm, 13*cm])
