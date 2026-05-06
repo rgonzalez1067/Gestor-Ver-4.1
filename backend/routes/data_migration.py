@@ -608,6 +608,96 @@ def _validate_bundle_payload(payload: dict) -> dict:
     return cols
 
 
+# ---------------------------------------------------------------------------
+# CONTINGENCIA — Export JSON de datos via temp file streaming (low-memory).
+# ---------------------------------------------------------------------------
+# Variante de `/export-data` que escribe el JSON a disco con cursor MongoDB
+# en streaming (sin cargar todas las colecciones en memoria). Usar cuando el
+# endpoint estándar falle por timeouts o memoria saturada con datasets grandes.
+# ---------------------------------------------------------------------------
+@router.get("/admin/quotes-bundle-migration/export-data-streamed")
+async def quotes_bundle_export_data_streamed(
+    authorization: Optional[str] = Header(None),
+):
+    user = await _require_admin(authorization)
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", prefix="quotes_bundle_data_")
+    os.close(tmp_fd)
+
+    counts = {}
+    try:
+        # Escribir JSON manualmente con un cursor por colección. Esto evita
+        # mantener todos los documentos en memoria simultáneamente.
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write("{\n")
+            f.write('  "schema_version": 1,\n')
+            f.write('  "module": "quotes-bundle",\n')
+            f.write('  "mode": "streamed",\n')
+            f.write('  "exported_at": ' + json.dumps(datetime.now(timezone.utc).isoformat()) + ",\n")
+            f.write('  "exported_by": ' + json.dumps(user.get("email", "")) + ",\n")
+            exporter_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+            f.write('  "exported_by_name": ' + json.dumps(exporter_name) + ",\n")
+            f.write('  "collections": {\n')
+
+            for col_idx, cfg in enumerate(QUOTES_BUNDLE_COLLECTIONS):
+                cname = cfg["collection"]
+                f.write(f'    "{cname}": [')
+                count = 0
+                first = True
+                async for doc in db[cname].find({}, {"_id": 0}):
+                    if not first:
+                        f.write(",")
+                    f.write("\n      ")
+                    f.write(json.dumps(doc, ensure_ascii=False, default=str))
+                    first = False
+                    count += 1
+                f.write("\n    ]")
+                if col_idx < len(QUOTES_BUNDLE_COLLECTIONS) - 1:
+                    f.write(",")
+                f.write("\n")
+                counts[cname] = count
+
+            f.write('  },\n')
+            f.write('  "counts": ' + json.dumps(counts) + "\n")
+            f.write("}\n")
+
+        await db.bitacora.insert_one({
+            "action": "quotes_bundle_export_data_streamed",
+            "counts": counts,
+            "size_bytes": os.path.getsize(tmp_path),
+            "executed_by": user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        filename = f"quotes_bundle_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+
+        def _cleanup(p):
+            try:
+                os.unlink(p)
+            except Exception:  # pragma: no cover
+                pass
+
+        return FileResponse(
+            tmp_path,
+            media_type="application/json",
+            filename=filename,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+                "X-Counts-Quotes": str(counts.get("quotes", 0)),
+                "X-Counts-History": str(counts.get("quote_history", 0)),
+                "X-Counts-Projects": str(counts.get("projects", 0)),
+            },
+            background=BackgroundTask(_cleanup, tmp_path),
+        )
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
+
+
 @router.post("/admin/quotes-bundle-migration/import-preview")
 async def quotes_bundle_import_preview(
     file: UploadFile = File(...),
