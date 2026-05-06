@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Download, ShieldAlert, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import api from '../utils/api';
 
 /**
  * Sección de Configuración (Admin) — Exportación de Contingencia para Anexos.
@@ -33,17 +32,13 @@ export const ContingencyAttachmentsExport = () => {
   if (!isAdmin) return null;
 
   const _streamedDownload = async (path, fallbackName, onSuccessHeaders) => {
-    const token = localStorage.getItem('session_token');
-    const res = await fetch(`${BACKEND_URL}/api${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const blob = await res.blob();
-    if (!res.ok) {
-      let txt = '';
-      try { txt = await blob.text(); } catch { /* ignore */ }
-      throw new Error(txt || `HTTP ${res.status} ${res.statusText || ''}`.trim());
-    }
-    const cd = res.headers.get('Content-Disposition') || '';
+    // Usar axios (api) en lugar de fetch nativo: en producción algunos
+    // service workers / interceptores del ingress consumen el body de Response
+    // antes de que podamos leerlo, generando "body stream already read".
+    // axios usa XHR y devuelve un Blob completo sin re-streamings problemáticos.
+    const res = await api.get(path, { responseType: 'blob' });
+    const blob = res.data;
+    const cd = res.headers?.['content-disposition'] || '';
     const m = cd.match(/filename="?([^"]+)"?/);
     const filename = (m && m[1]) || fallbackName;
     const url = URL.createObjectURL(blob);
@@ -54,7 +49,7 @@ export const ContingencyAttachmentsExport = () => {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-    if (onSuccessHeaders) onSuccessHeaders(res.headers);
+    if (onSuccessHeaders) onSuccessHeaders(res.headers || {});
   };
 
   const handleDownloadAttachments = async () => {
@@ -64,13 +59,14 @@ export const ContingencyAttachmentsExport = () => {
         '/admin/quotes-bundle-migration/export-attachments-streamed',
         'quotes_bundle_attachments_streamed.zip',
         (h) => {
-          const inc = h.get('X-Files-Included') || '?';
-          const miss = h.get('X-Files-Missing') || '0';
+          const inc = h['x-files-included'] || h['X-Files-Included'] || '?';
+          const miss = h['x-files-missing'] || h['X-Files-Missing'] || '0';
           toast.success(`ZIP descargado (${inc} archivos, ${miss} no encontrados)`);
         },
       );
     } catch (e) {
-      toast.error(`Error al exportar (contingencia anexos): ${e.message}`);
+      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      toast.error(`Error al exportar (contingencia anexos): ${msg}`);
     } finally {
       setDownloading(false);
     }
@@ -83,14 +79,15 @@ export const ContingencyAttachmentsExport = () => {
         '/admin/quotes-bundle-migration/export-data-streamed',
         'quotes_bundle_data_streamed.json',
         (h) => {
-          const q = h.get('X-Counts-Quotes') || '?';
-          const hi = h.get('X-Counts-History') || '?';
-          const p = h.get('X-Counts-Projects') || '?';
+          const q = h['x-counts-quotes'] || h['X-Counts-Quotes'] || '?';
+          const hi = h['x-counts-history'] || h['X-Counts-History'] || '?';
+          const p = h['x-counts-projects'] || h['X-Counts-Projects'] || '?';
           toast.success(`JSON descargado · ${q} cotizaciones, ${hi} históricos, ${p} proyectos`);
         },
       );
     } catch (e) {
-      toast.error(`Error al exportar (contingencia datos): ${e.message}`);
+      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      toast.error(`Error al exportar (contingencia datos): ${msg}`);
     } finally {
       setDownloadingData(false);
     }

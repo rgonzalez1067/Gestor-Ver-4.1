@@ -9,30 +9,15 @@ import {
 import api from '../../utils/api';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-
-// Helper: descarga binaria autenticada con el session_token actual.
+// Helper: descarga binaria autenticada usando el cliente axios (api).
+// Antes usaba fetch nativo, pero en producción algunos service workers /
+// interceptores del ingress consumen el body de Response antes de que podamos
+// leerlo, generando "body stream already read". axios usa XHR y devuelve un
+// Blob completo sin re-streaming problemático.
 async function authedDownload(path, suggestedName) {
-  const token = localStorage.getItem('session_token');
-  const res = await fetch(`${BACKEND_URL}/api${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  // Leer el body UNA sola vez como Blob. Si hay error, decodificamos a texto desde el blob.
-  // Esto evita "body stream already read" cuando interceptores/service workers o el
-  // StreamingResponse en producción dejan el stream parcialmente consumido.
-  let blob;
-  try {
-    blob = await res.blob();
-  } catch (err) {
-    throw new Error(`HTTP ${res.status}: no se pudo leer la respuesta (${err.message})`);
-  }
-  if (!res.ok) {
-    let txt = '';
-    try { txt = await blob.text(); } catch (_) { /* ignore */ }
-    throw new Error(txt || `HTTP ${res.status} ${res.statusText || ''}`.trim());
-  }
-  // Intentar nombre desde Content-Disposition
-  const cd = res.headers.get('Content-Disposition') || '';
+  const res = await api.get(path, { responseType: 'blob' });
+  const blob = res.data;
+  const cd = res.headers?.['content-disposition'] || '';
   const m = cd.match(/filename="?([^"]+)"?/);
   const filename = (m && m[1]) || suggestedName;
   const url = URL.createObjectURL(blob);
