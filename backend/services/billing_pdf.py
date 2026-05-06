@@ -56,6 +56,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     approval_date = datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')
 
     info_data = [
+        [Paragraph('<b>RIF:</b>', cell_bold_style), Paragraph(client.get('rif') or 'N/A', cell_style)],
         [Paragraph('<b>Razón Social:</b>', cell_bold_style), Paragraph(legal_name, cell_style)],
         [Paragraph('<b>Dirección Fiscal:</b>', cell_bold_style), Paragraph(address, cell_style)],
         [Paragraph('<b>Nombre Contacto:</b>', cell_bold_style), Paragraph(contact_name, cell_style)],
