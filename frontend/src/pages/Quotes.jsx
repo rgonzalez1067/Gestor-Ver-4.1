@@ -79,6 +79,21 @@ export const Quotes = () => {
   // RBAC: Permisos especiales de cotizaciones + listado filtrado
   const { rbac, rbacFilteredQuotes } = useQuoteRbac({ currentUser, canEdit, quotes });
 
+  // Subset de clientes con cotizaciones activas/visibles para el usuario actual.
+  // Se usa SOLO en el dropdown de Filtros Rápidos para que no muestre todo el catálogo
+  // de clientes (que dificulta la búsqueda). Se considera "activa" toda cotización que
+  // no esté archivada y que el usuario pueda ver por RBAC. La tabla y otros consumidores
+  // siguen recibiendo el catálogo completo para resolver legal_name en cualquier fila.
+  const clientsWithActiveQuotes = useMemo(() => {
+    const ids = new Set(
+      (rbacFilteredQuotes || [])
+        .filter((q) => !q.archived)
+        .map((q) => q.client_id)
+        .filter(Boolean),
+    );
+    return (clients || []).filter((c) => ids.has(c.client_id));
+  }, [rbacFilteredQuotes, clients]);
+
   // Migración de BD (solo admin)
   const isAdmin = (currentUser?.role || '').toLowerCase() === 'admin';
   const [bundleModalOpen, setBundleModalOpen] = useState(false);
@@ -3322,7 +3337,7 @@ export const Quotes = () => {
 
           {/* Filtros Rápidos */}
           <QuoteFilters
-            clients={clients}
+            clients={clientsWithActiveQuotes}
             filterClient={filterClient} setFilterClient={setFilterClient}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
             filterCategory={filterCategory} setFilterCategory={setFilterCategory}
