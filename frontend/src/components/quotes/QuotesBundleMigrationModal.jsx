@@ -17,11 +17,20 @@ async function authedDownload(path, suggestedName) {
   const res = await fetch(`${BACKEND_URL}/api${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || `HTTP ${res.status}`);
+  // Leer el body UNA sola vez como Blob. Si hay error, decodificamos a texto desde el blob.
+  // Esto evita "body stream already read" cuando interceptores/service workers o el
+  // StreamingResponse en producción dejan el stream parcialmente consumido.
+  let blob;
+  try {
+    blob = await res.blob();
+  } catch (err) {
+    throw new Error(`HTTP ${res.status}: no se pudo leer la respuesta (${err.message})`);
   }
-  const blob = await res.blob();
+  if (!res.ok) {
+    let txt = '';
+    try { txt = await blob.text(); } catch (_) { /* ignore */ }
+    throw new Error(txt || `HTTP ${res.status} ${res.statusText || ''}`.trim());
+  }
   // Intentar nombre desde Content-Disposition
   const cd = res.headers.get('Content-Disposition') || '';
   const m = cd.match(/filename="?([^"]+)"?/);
