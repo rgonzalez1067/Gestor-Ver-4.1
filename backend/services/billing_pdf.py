@@ -79,8 +79,14 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     exchange_rate = billing_instruction.get('exchange_rate', 0)
     rate_source = billing_instruction.get('rate_source', 'Manual')
     is_equipment = quote.get('quote_category') == 'equipment'
+    is_repair = quote.get('quote_category') == 'repair'
 
-    section_title = "Equipos y Accesorios Cotizados" if is_equipment else "Conceptos de Setup y Productos Consolidados"
+    if is_equipment:
+        section_title = "Equipos y Accesorios Cotizados"
+    elif is_repair:
+        section_title = "Items de Reparación Consolidados"
+    else:
+        section_title = "Conceptos de Setup y Productos Consolidados"
     elements.append(Paragraph(section_title, header_style))
     elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs.{exchange_rate:,.2f} / $</b> — Fuente: {rate_source}", normal_style))
     elements.append(Spacer(1, 8))
@@ -90,7 +96,12 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     header_center = ParagraphStyle('HeaderCenter', parent=header_cell_style, alignment=1)
     header_right = ParagraphStyle('HeaderRight', parent=header_cell_style, alignment=2)
 
-    concept_label = 'Equipo / Accesorio' if is_equipment else 'Concepto'
+    if is_equipment:
+        concept_label = 'Equipo / Accesorio'
+    elif is_repair:
+        concept_label = 'Concepto / Servicio'
+    else:
+        concept_label = 'Concepto'
     table_data = [[
         Paragraph(concept_label, header_cell_style),
         Paragraph('Cant.', header_center),

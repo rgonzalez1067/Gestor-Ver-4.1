@@ -604,19 +604,44 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
+    # Generar PDF "Cálculos Definitivos para la Factura" SOLO si vino billing_data del modal.
+    # Este PDF se adjunta exclusivamente al correo de Administración/Ventas, NUNCA al cliente.
+    admin_attachments = None
+    if billing_data:
+        try:
+            from services.billing_pdf import generate_billing_pdf
+            executor_full_name = (
+                f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+                if current_user else ""
+            )
+            pdf_bytes = generate_billing_pdf(
+                quote=quote,
+                client=client or {},
+                billing_instruction=billing_data,
+                executor_name=executor_full_name,
+            )
+            admin_attachments = [{
+                "filename": f"Calculos_Definitivos_{quote.get('quote_number', quote_id)}.pdf",
+                "content": base64.b64encode(pdf_bytes).decode('utf-8'),
+            }]
+            logger.info(f"[repair-complete] PDF Cálculos Definitivos generado ({len(pdf_bytes)} bytes) para {quote.get('quote_number')}")
+        except Exception as e:
+            logger.error(f"[repair-complete] Error generando PDF Cálculos Definitivos: {e}")
+            admin_attachments = None
+
     # Enviar con plantilla Reparación Finalizada a Admin + Cliente
     email_results = []
     if admin_email:
-        r = await send_email(to=[admin_email], subject=rc_subject, html=rc_html, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        r = await send_email(to=[admin_email], subject=rc_subject, html=rc_html, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
         email_results.append(r)
     if sales_email:
-        r = await send_email(to=[sales_email], subject=f"[VENTAS] {rc_subject}", html=rc_html, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        r = await send_email(to=[sales_email], subject=f"[VENTAS] {rc_subject}", html=rc_html, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
         email_results.append(r)
     if not admin_email and not sales_email:
-        r = await send_email(to=["admin@sede.local"], subject=rc_subject, html=rc_html, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        r = await send_email(to=["admin@sede.local"], subject=rc_subject, html=rc_html, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
         email_results.append(r)
 
-    # Enviar al cliente
+    # Enviar al cliente — SIN attachments (el PDF de cálculos es interno)
     r = await send_email(to=[client_email], subject=rc_subject, html=rc_html, action="repair_complete_client", quote_id=quote_id, quote_number=quote.get("quote_number"))
     email_results.append(r)
 
