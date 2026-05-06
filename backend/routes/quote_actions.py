@@ -2195,20 +2195,83 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
 
 @router.post("/quotes/{quote_id}/duplicate")
-async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(None)):
-    """Crea una nueva versión de la cotización (Modificar)"""
-    await get_current_user(authorization)
-    
+async def duplicate_quote(
+    quote_id: str,
+    mode: Optional[str] = "new_version",
+    authorization: Optional[str] = Header(None),
+):
+    """Modificar cotización en 2 modos:
+      - mode=new_version (default, comportamiento histórico): crea una NUEVA cotización
+        con nuevo `quote_id` y `quote_number`, deja la original intacta.
+      - mode=in_place: reinicia la MISMA cotización (mismo `quote_id` y `quote_number`)
+        a estado Borrador, limpia attachments y timestamps de fases. Útil cuando se
+        necesita preservar la secuencia de números (recuperación post-deploy, errores).
+        Se registra entrada de bitácora con quién y cuándo.
+    """
+    current_user = await get_current_user(authorization)
+
     original_quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not original_quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
+
+    if mode == "in_place":
+        previous_status = original_quote.get("quote_status")
+        previous_version = original_quote.get("version", 1)
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "quote_status": "Borrador",
+                "sent_to_client_at": None,
+                "approved_at": None,
+                "invoiced_at": None,
+                "paid_at": None,
+                "delivered_at": None,
+                "repaired_at": None,
+                "sent_to_implementation_at": None,
+                "invoice_pdf_url": None,
+                "quote_pdf_url": None,
+                "implementation_pdf_url": None,
+                "delivery_note_pdf_url": None,
+                "repair_pdf_url": None,
+                "invoice_number": None,
+                "attachments": [],
+                "modified_in_place_at": datetime.now(timezone.utc).isoformat(),
+                "modified_in_place_by": current_user.get("email"),
+                "modified_in_place_by_name": (
+                    f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+                    or current_user.get("email", "")
+                ),
+            }},
+        )
+        await db.bitacora.insert_one({
+            "action": "quote_modified_in_place",
+            "quote_id": quote_id,
+            "quote_number": original_quote.get("quote_number"),
+            "previous_status": previous_status,
+            "version": previous_version,
+            "executed_by": current_user.get("email"),
+            "executed_by_name": (
+                f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+                or current_user.get("email", "")
+            ),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return {
+            "message": "Cotización reiniciada al estado Borrador (manteniendo número original)",
+            "new_quote_id": quote_id,
+            "new_quote_number": original_quote.get("quote_number"),
+            "version": previous_version,
+            "parent_quote_id": original_quote.get("parent_quote_id") or quote_id,
+            "mode": "in_place",
+        }
+
+    # mode == "new_version" (default) — crea nueva cotización con nuevo número
     quote_sede = original_quote.get("sede", "PYME")
     new_quote_number = await generate_quote_number(quote_sede)
-    
+
     original_version = original_quote.get("version", 1)
     parent_id = original_quote.get("parent_quote_id") or quote_id
-    
+
     new_quote = {
         **original_quote,
         "quote_id": f"quo_{uuid.uuid4().hex[:12]}",
@@ -2228,15 +2291,30 @@ async def duplicate_quote(quote_id: str, authorization: Optional[str] = Header(N
         "attachments": [],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    
+
     await db.quotes.insert_one(new_quote)
-    
+
+    await db.bitacora.insert_one({
+        "action": "quote_modified_new_version",
+        "original_quote_id": quote_id,
+        "original_quote_number": original_quote.get("quote_number"),
+        "new_quote_id": new_quote["quote_id"],
+        "new_quote_number": new_quote_number,
+        "executed_by": current_user.get("email"),
+        "executed_by_name": (
+            f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            or current_user.get("email", "")
+        ),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
     return {
         "message": "Nueva versión creada exitosamente",
         "new_quote_id": new_quote["quote_id"],
         "new_quote_number": new_quote_number,
         "version": new_quote["version"],
-        "parent_quote_id": parent_id
+        "parent_quote_id": parent_id,
+        "mode": "new_version",
     }
 
 

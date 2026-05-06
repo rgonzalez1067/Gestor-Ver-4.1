@@ -21,6 +21,7 @@ import { MultiProductSelector } from '../components/MultiProductSelector';
 import { EditEquipRepairDialog } from '../components/EditEquipRepairDialog';
 import { JustificationModal } from '../components/JustificationModal';
 import { QuoteFilters } from '../components/quotes/QuoteFilters';
+import { ModifyQuoteChoiceDialog } from '../components/ModifyQuoteChoiceDialog';
 import { QuotesTable } from '../components/quotes/QuotesTable';
 import { NewQuoteButtons } from '../components/quotes/NewQuoteButtons';
 import { IrregularQuotesBanner } from '../components/quotes/IrregularQuotesBanner';
@@ -105,6 +106,10 @@ export const Quotes = () => {
   // Estado para edición de Equipos/Reparaciones
   const [editEquipRepairOpen, setEditEquipRepairOpen] = useState(false);
   const [editEquipRepairQuote, setEditEquipRepairQuote] = useState(null);
+  // Estado para modal de elección "Modificar Cotización"
+  const [modifyChoiceOpen, setModifyChoiceOpen] = useState(false);
+  const [modifyChoiceQuote, setModifyChoiceQuote] = useState(null);
+  const [editMode, setEditMode] = useState('new_version'); // 'new_version' | 'in_place'
   // Estado para modal de justificación en Implementaciones
   const [implJustifyOpen, setImplJustifyOpen] = useState(false);
   const [implJustifyCallback, setImplJustifyCallback] = useState(null);
@@ -2642,22 +2647,29 @@ export const Quotes = () => {
     setMultistorePhase('pinpad_question');
   };
 
-  // Modificar cotización (abrir wizard con datos precargados)
-  const handleEditQuote = async (quote) => {
+  // Modificar cotización: PRIMERO pregunta el modo (nueva versión vs. mantener original)
+  const handleEditQuote = (quote) => {
+    setModifyChoiceQuote(quote);
+    setModifyChoiceOpen(true);
+  };
+
+  // Tras elegir el modo en el ModifyQuoteChoiceDialog, abre el editor real.
+  const handleEditModeChosen = async (mode) => {
+    setEditMode(mode);
+    const quote = modifyChoiceQuote;
+    setModifyChoiceOpen(false);
+    if (!quote) return;
     // Equipos y Reparaciones: usar diálogo propio
     if (quote.quote_category === 'equipment' || quote.quote_category === 'repair') {
       setEditEquipRepairQuote(quote);
       setEditEquipRepairOpen(true);
       return;
     }
-    
     // Implementaciones: mostrar modal de justificación primero
     setImplJustifyQuoteNum(quote.quote_number);
     setImplJustifyVersion(quote.version || 1);
     setImplJustifyCallback(() => async (justification) => {
-      // Guardar justificación para uso al guardar
       window.__implEditJustification = justification;
-      // Cargar datos y abrir wizard
       await loadImplementationForEdit(quote);
     });
     setImplJustifyOpen(true);
@@ -2940,8 +2952,12 @@ export const Quotes = () => {
     if (!isEditing || !editingQuoteId) return;
     
     try {
-      // Primero duplicar la cotización original
-      const duplicateResponse = await api.post(`/quotes/${editingQuoteId}/duplicate`);
+      // Primero duplicar la cotización original (modo elegido por el usuario)
+      const duplicateResponse = await api.post(
+        `/quotes/${editingQuoteId}/duplicate`,
+        null,
+        { params: { mode: editMode } },
+      );
       const newQuoteId = duplicateResponse.data.new_quote_id;
       
       // Luego actualizar la nueva cotización con los datos editados
@@ -3498,7 +3514,16 @@ export const Quotes = () => {
             open={editEquipRepairOpen}
             onClose={() => { setEditEquipRepairOpen(false); setEditEquipRepairQuote(null); }}
             quote={editEquipRepairQuote}
+            editMode={editMode}
             onSaved={fetchData}
+          />
+
+          {/* Modal de elección al ejecutar Modificar Cotización */}
+          <ModifyQuoteChoiceDialog
+            open={modifyChoiceOpen}
+            onClose={() => { setModifyChoiceOpen(false); setModifyChoiceQuote(null); }}
+            quote={modifyChoiceQuote}
+            onChoose={handleEditModeChosen}
           />
 
           {/* Modal de justificación para Implementaciones */}

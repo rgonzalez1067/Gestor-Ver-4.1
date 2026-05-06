@@ -10,7 +10,7 @@ import api from '../utils/api';
 const formatCurrency = (num) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num || 0);
 const IVA_RATE = 0.16;
 
-export const EditEquipRepairDialog = ({ open, onClose, quote, onSaved }) => {
+export const EditEquipRepairDialog = ({ open, onClose, quote, onSaved, editMode = 'new_version' }) => {
   const [items, setItems] = useState([]);
   const [notes, setNotes] = useState('');
   const [repairDescription, setRepairDescription] = useState('');
@@ -147,8 +147,12 @@ export const EditEquipRepairDialog = ({ open, onClose, quote, onSaved }) => {
     }
     setSaving(true);
     try {
-      // 1. Duplicar la cotización original
-      const dupRes = await api.post(`/quotes/${quote.quote_id}/duplicate`);
+      // 1. Duplicar la cotización original (modo elegido por el usuario)
+      const dupRes = await api.post(
+        `/quotes/${quote.quote_id}/duplicate`,
+        null,
+        { params: { mode: editMode } },
+      );
       const newQuoteId = dupRes.data.new_quote_id;
       const newQuoteNumber = dupRes.data.new_quote_number;
       const newVersion = dupRes.data.version;

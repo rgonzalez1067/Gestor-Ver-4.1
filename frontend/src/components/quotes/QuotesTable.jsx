@@ -277,8 +277,8 @@ export const QuotesTable = ({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
-                        {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer">
-                          <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar (Nueva Versión)
+                        {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer" data-testid={`modify-quote-btn-${quote.quote_id}`}>
+                          <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar Cotización
                         </DropdownMenuItem>}
 
                         {/* ── FASE COMERCIAL ── */}

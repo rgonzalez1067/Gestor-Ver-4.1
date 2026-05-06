@@ -668,6 +668,88 @@ async def quotes_bundle_counts(authorization: Optional[str] = Header(None)):
 
 
 # ---------------------------------------------------------------------------
+# CONTINGENCIA · PAGINACIÓN ANEXOS — Lista + descarga individual de archivos.
+# ---------------------------------------------------------------------------
+# El cliente itera la lista de paths y descarga cada uno con un endpoint binario
+# minimalista. Luego empaqueta todo en un ZIP en el browser (con JSZip).
+# Inmune al 504 porque cada archivo viaja en una request <2s.
+# ---------------------------------------------------------------------------
+@router.get("/admin/quotes-bundle-migration/attachments-list")
+async def quotes_bundle_attachments_list(authorization: Optional[str] = Header(None)):
+    """Lista todos los rel_paths del bundle, con tamaño en bytes cuando se puede
+    determinar (None si está en object storage remoto y no se descargó aún)."""
+    await _require_admin(authorization)
+    all_docs = []
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        async for d in db[cfg["collection"]].find({}, {
+            "_id": 0,
+            "attachments": 1, "snapshot": 1,
+            "quote_pdf_url": 1, "invoice_pdf_url": 1,
+            "delivery_note_pdf_url": 1, "repair_pdf_url": 1,
+            "implementation_pdf_url": 1,
+            cfg["key"]: 1,
+        }):
+            all_docs.append(d)
+    paths = sorted(_collect_attachment_paths(all_docs))
+    items = []
+    for rel in paths:
+        size = None
+        try:
+            local = UPLOADS_DIR / rel
+            if local.exists():
+                size = local.stat().st_size
+        except Exception:
+            size = None
+        items.append({"path": rel, "size": size})
+    return {"total": len(items), "items": items}
+
+
+@router.get("/admin/quotes-bundle-migration/attachment")
+async def quotes_bundle_attachment_download(
+    path: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Descarga UN anexo del bundle por su rel_path (relativo a /uploads/).
+
+    Protege contra path traversal: el path debe ser relativo y resolverse
+    DENTRO de UPLOADS_DIR. Si no está en disco local, se intenta object storage.
+    """
+    await _require_admin(authorization)
+    if not path or path.startswith("/") or ".." in path.replace("\\", "/").split("/"):
+        raise HTTPException(status_code=400, detail="Path inválido")
+
+    data = _read_file_for_export(path)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {path}")
+
+    # Determinar nombre de archivo y media type
+    filename = path.rsplit("/", 1)[-1] or "attachment.bin"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    media_map = {
+        "pdf": "application/pdf",
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "gif": "image/gif", "webp": "image/webp",
+        "txt": "text/plain", "json": "application/json",
+        "doc": "application/msword",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls": "application/vnd.ms-excel",
+        "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+    media_type = media_map.get(ext, "application/octet-stream")
+
+    return StreamingResponse(
+        iter([data]),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(data)),
+            "X-Original-Path": path,
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # CONTINGENCIA — Export JSON de datos via temp file streaming (low-memory).
 # ---------------------------------------------------------------------------
 # Variante de `/export-data` que escribe el JSON a disco con cursor MongoDB

@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Download, ShieldAlert, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import JSZip from 'jszip';
 
 /**
  * Sección de Configuración (Admin) — Exportación de Contingencia para Anexos.
@@ -22,6 +23,8 @@ export const ContingencyAttachmentsExport = () => {
   const [downloadingData, setDownloadingData] = useState(false);
   const [downloadingPaged, setDownloadingPaged] = useState(false);
   const [pagedProgress, setPagedProgress] = useState('');
+  const [downloadingPagedZip, setDownloadingPagedZip] = useState(false);
+  const [pagedZipProgress, setPagedZipProgress] = useState('');
 
   // Solo admin
   const userStr = localStorage.getItem('user');
@@ -151,6 +154,73 @@ export const ContingencyAttachmentsExport = () => {
     }
   };
 
+  // Descarga PAGINADA de ZIP DE ANEXOS: lista todos los archivos, los descarga uno
+  // a uno con requests pequeñas y empaqueta el ZIP final en el browser con JSZip.
+  // Inmune al 504: cada archivo viaja en su propia request <2s.
+  const handleDownloadPagedZip = async () => {
+    setDownloadingPagedZip(true);
+    setPagedZipProgress('Listando anexos...');
+    try {
+      const listRes = await api.get('/admin/quotes-bundle-migration/attachments-list');
+      const items = listRes.data?.items || [];
+      const total = items.length;
+      if (total === 0) {
+        toast.info('No hay anexos para descargar.');
+        return;
+      }
+      const zip = new JSZip();
+      const included = [];
+      const missing = [];
+      for (let i = 0; i < total; i++) {
+        const item = items[i];
+        setPagedZipProgress(`Descargando ${i + 1}/${total} · ${item.path.slice(-40)}`);
+        try {
+          const r = await api.get('/admin/quotes-bundle-migration/attachment', {
+            params: { path: item.path },
+            responseType: 'blob',
+          });
+          const buf = await r.data.arrayBuffer();
+          zip.file(item.path, buf);
+          included.push({ path: item.path, size: buf.byteLength });
+        } catch (err) {
+          missing.push({ path: item.path, error: err.message });
+        }
+      }
+      // Manifest
+      zip.file(
+        'manifest.json',
+        JSON.stringify({
+          schema_version: 1,
+          module: 'quotes-bundle-attachments',
+          mode: 'paginated-browser',
+          exported_at: new Date().toISOString(),
+          files_included: included,
+          files_missing: missing,
+          total_included: included.length,
+          total_missing: missing.length,
+        }, null, 2),
+      );
+      setPagedZipProgress('Comprimiendo ZIP local...');
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `quotes_bundle_attachments_paged_${ts}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast.success(`ZIP paginado descargado · ${included.length} archivos${missing.length ? `, ${missing.length} no encontrados` : ''}`);
+    } catch (e) {
+      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      toast.error(`Error al exportar (ZIP paginado): ${msg}`);
+    } finally {
+      setDownloadingPagedZip(false);
+      setPagedZipProgress('');
+    }
+  };
+
   return (
     <div
       className="bg-amber-50 rounded-lg border border-amber-200 p-6 mb-6"
@@ -189,6 +259,24 @@ export const ContingencyAttachmentsExport = () => {
             <>
               <Download size={16} className="mr-2" />
               Descargar JSON Paginado (Recomendado)
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={handleDownloadPagedZip}
+          disabled={downloadingPagedZip}
+          className="bg-cyan-600 hover:bg-cyan-700 text-white"
+          data-testid="contingency-export-paged-zip-btn"
+        >
+          {downloadingPagedZip ? (
+            <>
+              <Loader2 size={16} className="mr-2 animate-spin" />
+              {pagedZipProgress || 'Descargando ZIP paginado...'}
+            </>
+          ) : (
+            <>
+              <Download size={16} className="mr-2" />
+              Descargar ZIP Paginado de Anexos (Recomendado)
             </>
           )}
         </Button>
