@@ -13,13 +13,16 @@ Módulos soportados:
 import io
 import json
 import logging
+import os
+import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from starlette.background import BackgroundTask
 
 from config import db, get_current_user, UPLOADS_DIR
 from services.pdf_storage import get_pdf_from_storage, save_pdf_dual
@@ -486,6 +489,109 @@ async def quotes_bundle_export_attachments(authorization: Optional[str] = Header
             "Cache-Control": "no-store",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# CONTINGENCIA — Export Attachments via temp file streaming (low-memory).
+# ---------------------------------------------------------------------------
+# Usar cuando el endpoint `/export-attachments` (en memoria) falle por:
+#   - Timeout del proxy/ingress (504/Gateway).
+#   - "body stream already read" tras transferencia parcial.
+#   - Datasets grandes que saturan la memoria del backend.
+# El ZIP se escribe a un archivo temporal en disco y se sirve con FileResponse,
+# liberando memoria del proceso. Tras servirlo se elimina automáticamente.
+# ---------------------------------------------------------------------------
+@router.get("/admin/quotes-bundle-migration/export-attachments-streamed")
+async def quotes_bundle_export_attachments_streamed(
+    authorization: Optional[str] = Header(None),
+):
+    user = await _require_admin(authorization)
+
+    all_docs = []
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        async for d in db[cfg["collection"]].find({}, {
+            "_id": 0,
+            "attachments": 1,
+            "snapshot": 1,
+            "quote_pdf_url": 1, "invoice_pdf_url": 1,
+            "delivery_note_pdf_url": 1, "repair_pdf_url": 1,
+            "implementation_pdf_url": 1,
+            cfg["key"]: 1,
+        }):
+            all_docs.append(d)
+
+    paths = _collect_attachment_paths(all_docs)
+
+    # Crear archivo temporal y escribir el ZIP directamente — no se carga el
+    # contenido completo en memoria. Cada archivo se vuelca uno a uno.
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="quotes_bundle_")
+    os.close(tmp_fd)
+
+    included, missing = [], []
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for rel in sorted(paths):
+                data = _read_file_for_export(rel)
+                if data is None:
+                    missing.append(rel)
+                    continue
+                zf.writestr(rel, data)
+                included.append({"path": rel, "size": len(data)})
+
+            manifest = {
+                "schema_version": 1,
+                "module": "quotes-bundle-attachments",
+                "mode": "streamed",
+                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "exported_by": user.get("email"),
+                "exported_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                "files_included": included,
+                "files_missing": missing,
+                "total_included": len(included),
+                "total_missing": len(missing),
+            }
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+
+        size_bytes = os.path.getsize(tmp_path)
+
+        await db.bitacora.insert_one({
+            "action": "quotes_bundle_export_attachments_streamed",
+            "files_included": len(included),
+            "files_missing": len(missing),
+            "size_bytes": size_bytes,
+            "executed_by": user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+        filename = f"quotes_bundle_attachments_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+
+        # FileResponse maneja Range, Content-Length y stream de disco eficientemente.
+        # BackgroundTask elimina el archivo temporal después de enviarlo.
+        def _cleanup(p):
+            try:
+                os.unlink(p)
+            except Exception:  # pragma: no cover
+                pass
+
+        return FileResponse(
+            tmp_path,
+            media_type="application/zip",
+            filename=filename,
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+                "X-Files-Included": str(len(included)),
+                "X-Files-Missing": str(len(missing)),
+            },
+            background=BackgroundTask(_cleanup, tmp_path),
+        )
+    except Exception:
+        # Si algo falla durante la creación del zip, eliminar el temp y propagar.
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        raise
 
 
 def _validate_bundle_payload(payload: dict) -> dict:

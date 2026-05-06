@@ -5,6 +5,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight } from 'lucide-react';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
+import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -394,6 +395,9 @@ export const Settings = () => {
               Inicialice la base de datos con información predeterminada.
             </p>
           </div>
+
+          {/* Contingencia: Export Streaming de Anexos (Admin) */}
+          <ContingencyAttachmentsExport />
 
           {/* Configuración de Correos Section - POR SEDE */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
