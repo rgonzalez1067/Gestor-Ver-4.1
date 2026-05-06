@@ -417,7 +417,6 @@ async def quotes_bundle_export_attachments(authorization: Optional[str] = Header
     """ZIP con TODOS los anexos y PDFs referenciados por las cotizaciones,
     históricos y proyectos. Estructura: manifest.json + <rel_path>... ."""
     user = await _require_admin(authorization)
-
     all_docs = []
     for cfg in QUOTES_BUNDLE_COLLECTIONS:
         async for d in db[cfg["collection"]].find({}, {
@@ -606,6 +605,66 @@ def _validate_bundle_payload(payload: dict) -> dict:
     if not isinstance(cols, dict):
         raise HTTPException(status_code=400, detail="Campo 'collections' faltante o inválido")
     return cols
+
+
+# ---------------------------------------------------------------------------
+# CONTINGENCIA · PAGINACIÓN — Export por colección + página.
+# ---------------------------------------------------------------------------
+# Diseñado para evitar el 504 Gateway Timeout en producción cuando el bundle
+# completo no cabe en una sola request. El cliente itera por (collection, page)
+# y arma el JSON final en memoria local. Cada request descarga máximo `limit`
+# documentos y suele responder en <2s incluso con datasets grandes.
+# Compatible 100% con el endpoint de import-preview existente.
+# ---------------------------------------------------------------------------
+_VALID_BUNDLE_COLLECTIONS = {cfg["collection"] for cfg in QUOTES_BUNDLE_COLLECTIONS}
+
+
+@router.get("/admin/quotes-bundle-migration/page")
+async def quotes_bundle_export_page(
+    collection: str,
+    skip: int = 0,
+    limit: int = 100,
+    authorization: Optional[str] = Header(None),
+):
+    """Descarga una página de documentos de UNA colección del bundle.
+
+    Query params:
+      - collection: una de {quotes, quote_history, projects}.
+      - skip: offset.
+      - limit: tamaño de página (1..500). Recomendado 100.
+    """
+    await _require_admin(authorization)
+    if collection not in _VALID_BUNDLE_COLLECTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Colección '{collection}' no permitida. Válidas: {sorted(_VALID_BUNDLE_COLLECTIONS)}",
+        )
+    if limit <= 0 or limit > 500:
+        raise HTTPException(status_code=400, detail="limit debe estar entre 1 y 500")
+    if skip < 0:
+        raise HTTPException(status_code=400, detail="skip debe ser >= 0")
+
+    total = await db[collection].count_documents({})
+    docs = await db[collection].find({}, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    return JSONResponse({
+        "collection": collection,
+        "skip": skip,
+        "limit": limit,
+        "total": total,
+        "returned": len(docs),
+        "has_more": (skip + len(docs)) < total,
+        "docs": json.loads(json.dumps(docs, default=str)),
+    })
+
+
+@router.get("/admin/quotes-bundle-migration/counts")
+async def quotes_bundle_counts(authorization: Optional[str] = Header(None)):
+    """Devuelve conteos por colección del bundle. Útil para planificar paginación."""
+    await _require_admin(authorization)
+    counts = {}
+    for cfg in QUOTES_BUNDLE_COLLECTIONS:
+        counts[cfg["collection"]] = await db[cfg["collection"]].count_documents({})
+    return {"counts": counts, "collections": sorted(_VALID_BUNDLE_COLLECTIONS)}
 
 
 # ---------------------------------------------------------------------------

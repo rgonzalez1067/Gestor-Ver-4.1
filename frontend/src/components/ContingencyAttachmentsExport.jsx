@@ -20,6 +20,8 @@ import api from '../utils/api';
 export const ContingencyAttachmentsExport = () => {
   const [downloading, setDownloading] = useState(false);
   const [downloadingData, setDownloadingData] = useState(false);
+  const [downloadingPaged, setDownloadingPaged] = useState(false);
+  const [pagedProgress, setPagedProgress] = useState('');
 
   // Solo admin
   const userStr = localStorage.getItem('user');
@@ -93,6 +95,62 @@ export const ContingencyAttachmentsExport = () => {
     }
   };
 
+  // Descarga PAGINADA: itera por (colección, página) y arma el JSON localmente.
+  // Inmune al 504 Gateway Timeout en producción porque cada request es pequeña (<2s).
+  const handleDownloadPaged = async () => {
+    setDownloadingPaged(true);
+    setPagedProgress('Consultando totales...');
+    try {
+      const PAGE_SIZE = 100;
+      const countsRes = await api.get('/admin/quotes-bundle-migration/counts');
+      const counts = countsRes.data?.counts || {};
+      const collections = countsRes.data?.collections || [];
+      const result = {
+        schema_version: 1,
+        module: 'quotes-bundle',
+        mode: 'paginated',
+        exported_at: new Date().toISOString(),
+        collections: {},
+        counts,
+      };
+      for (const col of collections) {
+        const total = counts[col] || 0;
+        result.collections[col] = [];
+        let skip = 0;
+        let pageNo = 1;
+        while (skip < total) {
+          setPagedProgress(`${col} · página ${pageNo} (${skip}/${total})`);
+          const r = await api.get('/admin/quotes-bundle-migration/page', {
+            params: { collection: col, skip, limit: PAGE_SIZE },
+          });
+          const docs = r.data?.docs || [];
+          result.collections[col].push(...docs);
+          skip += docs.length;
+          pageNo += 1;
+          if (docs.length === 0) break;
+        }
+      }
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `quotes_bundle_data_paged_${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      const summary = Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
+      toast.success(`JSON paginado descargado · ${summary}`);
+    } catch (e) {
+      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      toast.error(`Error al exportar (paginado): ${msg}`);
+    } finally {
+      setDownloadingPaged(false);
+      setPagedProgress('');
+    }
+  };
+
   return (
     <div
       className="bg-amber-50 rounded-lg border border-amber-200 p-6 mb-6"
@@ -103,16 +161,37 @@ export const ContingencyAttachmentsExport = () => {
         Contingencia · Migración Cotizaciones (Streaming)
       </h2>
       <p className="text-amber-800 text-sm mb-4 leading-relaxed">
-        Modo alternativo de exportación del bundle de cotizaciones. El JSON y el ZIP se
-        construyen en disco (no en memoria), evitando timeouts y errores de transferencia
-        parcial cuando el dataset es grande.
+        Modo alternativo de exportación del bundle de cotizaciones diseñado para
+        cuando el dataset es grande y el endpoint estándar falla por timeouts (504).
         <br />
-        <span className="font-medium">Uso recomendado:</span> únicamente cuando los botones
-        estándar de "Migración (Admin)" en la pantalla de Cotizaciones fallen por{' '}
-        <code className="bg-amber-100 px-1 rounded">body stream already read</code> o
-        timeouts del ingress. Las opciones estándar permanecen disponibles y sin cambios.
+        <strong className="text-emerald-800">JSON Paginado (Recomendado):</strong> descarga en
+        chunks pequeños (100 docs/pág) y arma el archivo final localmente. Inmune a
+        timeouts del ingress. Compatible con la importación estándar.
+        <br />
+        <span className="font-medium">JSON Streaming / ZIP Streaming:</span> construyen el
+        archivo en disco del backend en una sola request. Útiles si la paginación no aplica.
+        <br />
+        <span className="font-medium">Las opciones estándar de Cotizaciones permanecen sin cambios.</span>
       </p>
       <div className="flex flex-wrap gap-3">
+        <Button
+          onClick={handleDownloadPaged}
+          disabled={downloadingPaged}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          data-testid="contingency-export-paged-btn"
+        >
+          {downloadingPaged ? (
+            <>
+              <Loader2 size={16} className="mr-2 animate-spin" />
+              {pagedProgress || 'Descargando paginado...'}
+            </>
+          ) : (
+            <>
+              <Download size={16} className="mr-2" />
+              Descargar JSON Paginado (Recomendado)
+            </>
+          )}
+        </Button>
         <Button
           onClick={handleDownloadData}
           disabled={downloadingData}
@@ -128,7 +207,7 @@ export const ContingencyAttachmentsExport = () => {
           ) : (
             <>
               <Download size={16} className="mr-2" />
-              Descargar JSON de Datos (Streaming)
+              JSON Streaming (1 request)
             </>
           )}
         </Button>
@@ -146,7 +225,7 @@ export const ContingencyAttachmentsExport = () => {
           ) : (
             <>
               <Download size={16} className="mr-2" />
-              Descargar ZIP de Anexos (Streaming)
+              ZIP de Anexos (Streaming)
             </>
           )}
         </Button>
