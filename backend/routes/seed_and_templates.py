@@ -111,6 +111,7 @@ class EmailTemplate(BaseModel):
     description: Optional[str] = None
     is_active: bool = True
     context: Optional[str] = None  # "COTIZACIONES" | "IMPLEMENTACION" | "ADMINISTRACION" | "CLIENTES"
+    is_custom: bool = False  # True si fue creada manualmente por un usuario admin (no parte del catálogo legacy)
 
 # Plantillas predeterminadas
 DEFAULT_EMAIL_TEMPLATES = {
@@ -847,7 +848,8 @@ async def create_email_template(template: EmailTemplate, authorization: Optional
     template_data = template.model_dump()
     template_data["created_at"] = datetime.now(timezone.utc).isoformat()
     template_data["updated_at"] = template_data["created_at"]
-    
+    template_data["is_custom"] = True  # Marcar siempre las creadas vía POST como personalizadas
+
     await db.email_templates.insert_one(template_data)
     
     return {"message": "Plantilla creada exitosamente", "template_id": template.template_id}

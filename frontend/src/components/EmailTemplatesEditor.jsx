@@ -4,7 +4,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -553,6 +554,18 @@ export const EmailTemplatesEditor = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Crear nueva plantilla personalizada
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    template_id: '',
+    name: '',
+    context: 'COTIZACIONES',
+    description: '',
+    subject: '',
+    body_html: '',
+  });
   
   // Formulario de edición
   const [formData, setFormData] = useState({
@@ -608,9 +621,71 @@ export const EmailTemplatesEditor = () => {
     }
   };
 
+  // Generar template_id sugerido a partir del name (slug)
+  const slugify = (name) => (name || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+
+  const openCreateDialog = () => {
+    setCreateForm({
+      template_id: '',
+      name: '',
+      context: 'COTIZACIONES',
+      description: '',
+      subject: '',
+      body_html: '',
+    });
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreate = async () => {
+    const tid = (createForm.template_id || slugify(createForm.name)).trim();
+    if (!tid) { toast.error('Debes indicar el ID o el nombre de la plantilla'); return; }
+    if (!createForm.name?.trim()) { toast.error('El nombre es obligatorio'); return; }
+    if (!createForm.subject?.trim()) { toast.error('El asunto es obligatorio'); return; }
+    if (!createForm.body_html?.trim()) { toast.error('El cuerpo HTML es obligatorio'); return; }
+    if (!/^[a-z0-9_]+$/i.test(tid)) {
+      toast.error('El ID solo puede contener letras, números y guiones bajos'); return;
+    }
+    setCreating(true);
+    try {
+      await api.post('/email-templates', {
+        template_id: tid,
+        name: createForm.name.trim(),
+        subject: createForm.subject,
+        body_html: createForm.body_html,
+        description: createForm.description || '',
+        context: createForm.context || null,
+        is_active: true,
+      });
+      toast.success('Plantilla creada correctamente');
+      setCreateDialogOpen(false);
+      fetchTemplates();
+    } catch (error) {
+      const detail = error.response?.data?.detail || error.message;
+      toast.error(`Error al crear plantilla: ${detail}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm(`¿Eliminar la plantilla "${templateId}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/email-templates/${templateId}`);
+      toast.success('Plantilla eliminada');
+      fetchTemplates();
+    } catch (error) {
+      const detail = error.response?.data?.detail || error.message;
+      toast.error(`Error al eliminar: ${detail}`);
+    }
+  };
+
   const handleReset = async (templateId) => {
-    if (!window.confirm('¿Está seguro de restablecer esta plantilla a los valores predeterminados?')) return;
-    
+    if (!window.confirm('¿Está seguro de restablecer esta plantilla a los valores predeterminados?')) return;    
     try {
       await api.post(`/email-templates/reset/${templateId}`);
       toast.success('Plantilla restablecida');
@@ -736,18 +811,99 @@ export const EmailTemplatesEditor = () => {
     templatesBySede[sede.id] = templates.filter(t => t.template_id?.endsWith(`_${sede.id}`));
   });
   
-  // Plantillas legacy (sin sede)
-  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_PYME') && !t.template_id?.endsWith('_CORP') && !t.is_project_template && !PROJECT_TEMPLATE_TYPES.some(pt => pt.templateId === t.template_id));
+  // Plantillas legacy (sin sede, no proyecto, no personalizadas)
+  const legacyTemplates = templates.filter(t => !t.template_id?.endsWith('_PYME') && !t.template_id?.endsWith('_CORP') && !t.is_project_template && !t.is_custom && !PROJECT_TEMPLATE_TYPES.some(pt => pt.templateId === t.template_id));
 
   // Plantillas de proyecto (globales)
   const projectTemplates = templates.filter(t => t.is_project_template || PROJECT_TEMPLATE_TYPES.some(pt => pt.templateId === t.template_id));
 
+  // Plantillas personalizadas (creadas por el usuario admin)
+  const customTemplates = templates.filter(t => t.is_custom === true);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-slate-600 mb-4">
-        <AlertCircle size={16} />
-        <span className="text-sm">Use <code className="bg-slate-100 px-1 rounded">{'{variable}'}</code> para insertar datos dinámicos en las plantillas.</span>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 text-slate-600">
+          <AlertCircle size={16} />
+          <span className="text-sm">Use <code className="bg-slate-100 px-1 rounded">{'{variable}'}</code> para insertar datos dinámicos en las plantillas.</span>
+        </div>
+        <Button
+          onClick={openCreateDialog}
+          className="bg-violet-600 hover:bg-violet-700 text-white"
+          data-testid="create-template-btn"
+        >
+          <Plus size={16} className="mr-2" />
+          Crear Nueva Plantilla
+        </Button>
       </div>
+
+      {/* ===== Sección: Plantillas Personalizadas ===== */}
+      {customTemplates.length > 0 && (
+        <div className="border border-violet-200 rounded-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-50 to-fuchsia-50 px-4 py-3 border-b border-violet-200">
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-violet-600" />
+              <span className="font-semibold text-slate-800">Plantillas Personalizadas</span>
+              <span className="text-xs text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">{customTemplates.length}</span>
+            </div>
+            <p className="text-xs text-slate-600 mt-1">
+              Plantillas creadas manualmente. Disponibles en el Motor Dinámico de Notificaciones para asignar a cualquier acción del flujo.
+            </p>
+          </div>
+          <div className="p-4 space-y-3">
+            {customTemplates.map((template) => (
+              <div
+                key={template.template_id}
+                className="p-3 rounded-lg border border-violet-200 bg-white"
+                data-testid={`email-template-${template.template_id}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="p-2 rounded-lg bg-violet-50 text-violet-600 flex-shrink-0">
+                      <Sparkles size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-medium text-slate-900 text-sm truncate">{template.name}</h3>
+                        <code className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{template.template_id}</code>
+                        {template.context && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{template.context}</span>
+                        )}
+                      </div>
+                      {template.description && <p className="text-xs text-slate-600 mt-0.5">{template.description}</p>}
+                      <div className="mt-1 text-xs text-slate-500 truncate">
+                        <span className="font-medium">Asunto:</span> {template.subject}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(template)}
+                      className="h-7 text-xs"
+                      data-testid={`edit-template-${template.template_id}`}
+                    >
+                      <Edit size={12} className="mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteTemplate(template.template_id)}
+                      className="h-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      title="Eliminar plantilla"
+                      data-testid={`delete-template-${template.template_id}`}
+                    >
+                      <Trash2 size={12} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Plantillas agrupadas por sede */}
       {SEDES.map((sede) => (
@@ -1103,6 +1259,104 @@ export const EmailTemplatesEditor = () => {
             <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
               <X size={14} className="mr-1" />
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Crear nueva plantilla personalizada */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="create-template-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles size={20} className="text-violet-600" />
+              Crear Nueva Plantilla
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Nombre *</Label>
+                <Input
+                  value={createForm.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setCreateForm((f) => ({
+                      ...f,
+                      name,
+                      // Auto-generar ID si el usuario aún no escribió uno manual
+                      template_id: f.template_id ? f.template_id : slugify(name),
+                    }));
+                  }}
+                  placeholder="Ej: Bienvenida cliente nuevo"
+                  data-testid="create-template-name"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">ID técnico * (a-z, 0-9, _)</Label>
+                <Input
+                  value={createForm.template_id}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, template_id: e.target.value }))}
+                  placeholder="bienvenida_cliente_nuevo"
+                  className="font-mono text-sm"
+                  data-testid="create-template-id"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Contexto</Label>
+                <Select value={createForm.context || 'COTIZACIONES'} onValueChange={(v) => setCreateForm((f) => ({ ...f, context: v }))}>
+                  <SelectTrigger data-testid="create-template-context"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="COTIZACIONES">Cotizaciones</SelectItem>
+                    <SelectItem value="IMPLEMENTACION">Implementación</SelectItem>
+                    <SelectItem value="ADMINISTRACION">Administración</SelectItem>
+                    <SelectItem value="CLIENTES">Clientes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Descripción (opcional)</Label>
+                <Input
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Cuándo se usa esta plantilla"
+                  data-testid="create-template-description"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Asunto *</Label>
+              <Input
+                value={createForm.subject}
+                onChange={(e) => setCreateForm((f) => ({ ...f, subject: e.target.value }))}
+                placeholder="Asunto del correo (puedes usar {variable})"
+                data-testid="create-template-subject"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Cuerpo HTML *</Label>
+              <Textarea
+                value={createForm.body_html}
+                onChange={(e) => setCreateForm((f) => ({ ...f, body_html: e.target.value }))}
+                placeholder="<html><body><p>Hola {client_name},</p>...</body></html>"
+                rows={12}
+                className="font-mono text-xs"
+                data-testid="create-template-body"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Escribe HTML directo. Usa <code className="bg-slate-100 px-1 rounded">{'{variable}'}</code> para datos dinámicos
+                (por ej. <code className="bg-slate-100 px-1 rounded">{'{client_name}'}</code>, <code className="bg-slate-100 px-1 rounded">{'{quote_number}'}</code>).
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating} data-testid="create-template-cancel">
+              Cancelar
+            </Button>
+            <Button onClick={handleCreate} disabled={creating} className="bg-violet-600 hover:bg-violet-700" data-testid="create-template-confirm">
+              {creating ? 'Creando...' : (<><Save size={14} className="mr-2" />Crear Plantilla</>)}
             </Button>
           </DialogFooter>
         </DialogContent>
