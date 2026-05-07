@@ -357,6 +357,7 @@ export const Quotes = () => {
   }, [quoteData.additional_items.length]);
 
   // Productos CORE (Tarjetas) — disparan tarifa plana (techo) en items con autoTariff
+  // Soporta variantes TDC/TDD ↔ TDD/TDC, con/sin acentos y cualquier número de espacios.
   const CORE_PRODUCTS_LOWER = [
     'tarjeta de crédito y débito',
     'tarjeta de credito y debito',
@@ -364,17 +365,26 @@ export const Quotes = () => {
     'tarjeta de credito/debito',
     'tarjetas de crédito y débito',
     'tarjetas de credito y debito',
-    'tdc / tdd liquidación en divisas',
-    'tdc / tdd liquidacion en divisas',
+    // Liquidación en divisas — orden TDC/TDD
     'tdc/tdd liquidación en divisas',
     'tdc/tdd liquidacion en divisas',
+    'tdc / tdd liquidación en divisas',
+    'tdc / tdd liquidacion en divisas',
+    // Liquidación en divisas — orden TDD/TDC (catálogo real BD)
+    'tdd/tdc liquidación en divisas',
+    'tdd/tdc liquidacion en divisas',
+    'tdd / tdc liquidación en divisas',
+    'tdd / tdc liquidacion en divisas',
   ];
+
+  /** Normaliza nombre: lowercase, trim, colapsa espacios múltiples. */
+  const normalizeProductName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
   /** Determina si un nombre de producto es CORE (Tarjeta o TDC/TDD divisas). */
   const isCoreProductName = (name) => {
-    const n = (name || '').toLowerCase().trim();
+    const n = normalizeProductName(name);
     if (!n) return false;
-    return CORE_PRODUCTS_LOWER.some(c => n === c || n.startsWith(c));
+    return CORE_PRODUCTS_LOWER.some(c => n === c || n.startsWith(c) || n.includes(c));
   };
 
   /**
@@ -402,29 +412,43 @@ export const Quotes = () => {
   // cálculo automático normal.
   //
   // Aplica solo a tipos VPOS, MPOS, FAST_TRACK (no GATEWAY ni LINK).
+  // El item puede aparecer en `setup_items` (concepto base) o en
+  // `additional_items` (medio de pago × banco — caso real de uso).
   // ============================================================================
   const TDD_TDC_DIVISAS_PATTERNS = [
+    // Orden TDD/TDC (catálogo real)
     'tdd/tdc liquidación en divisas',
     'tdd/tdc liquidacion en divisas',
-    'tdc/tdd liquidación en divisas',
-    'tdc/tdd liquidacion en divisas',
     'tdd / tdc liquidación en divisas',
     'tdd / tdc liquidacion en divisas',
+    // Orden TDC/TDD (variante)
+    'tdc/tdd liquidación en divisas',
+    'tdc/tdd liquidacion en divisas',
     'tdc / tdd liquidación en divisas',
     'tdc / tdd liquidacion en divisas',
   ];
   const TDD_TDC_ELIGIBLE_TYPES = ['VPOS', 'MPOS', 'FAST_TRACK'];
 
+  const matchesTddTdcDivisas = (rawName) => {
+    const n = normalizeProductName(rawName);
+    if (!n) return false;
+    return TDD_TDC_DIVISAS_PATTERNS.some(p => n === p || n.startsWith(p) || n.includes(p));
+  };
+
   const isTddTdcDivisasActive = useMemo(() => {
     if (!TDD_TDC_ELIGIBLE_TYPES.includes(quoteData.quote_type)) return false;
-    const items = quoteData.setup_items || [];
-    return items.some(it => {
-      const name = (it.name || '').toLowerCase().trim();
-      const qty = Number(it.cantidad ?? it.quantity ?? 0);
+    // Buscar tanto en setup_items como en additional_items (la sección "Set Up"
+    // de la UI muestra ambos juntos).
+    const setupItems = quoteData.setup_items || [];
+    const additionals = quoteData.additional_items || [];
+    const checkList = (items) => items.some(it => {
+      const rawName = it.medio_pago_name || it.name || '';
+      const qty = Number(it.cantidad_cajas ?? it.cantidad ?? it.quantity ?? 0);
       if (qty <= 0) return false;
-      return TDD_TDC_DIVISAS_PATTERNS.some(p => name === p || name.startsWith(p));
+      return matchesTddTdcDivisas(rawName);
     });
-  }, [quoteData.setup_items, quoteData.quote_type]);
+    return checkList(setupItems) || checkList(additionals);
+  }, [quoteData.setup_items, quoteData.additional_items, quoteData.quote_type]);
 
   // Reactividad: recalcular tarifas en items con autoTariff cuando cambien los additional_items
   useEffect(() => {
