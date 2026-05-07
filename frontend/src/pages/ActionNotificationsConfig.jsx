@@ -1,24 +1,33 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
 /**
- * Configuración de Acciones de Cotizaciones — Fase 1.
+ * Configuración de Acciones de Cotizaciones — Fase 3.
  *
  * Página admin que permite definir, por cada (tipo_negocio, sub_categoria, accion),
  * qué destinatarios reciben qué plantilla y si llevan PDFs.
  *
- * Estructura: acordeones colapsados por defecto.
- *   ▼ Tipo de Negocio
- *     ▼ Sub-Categoría (solo si tiene_sub)
- *       ▼ Acción → matriz de filas (destinatario + plantilla + PDFs)
- *
- * Esta fase NO activa el motor de envío real. Solo guarda configs.
+ * - Tab "Matriz": acordeones colapsados con la configuración de cada combinación.
+ * - Tab "Auditoría": historial de despachos del motor con filtros.
+ * - Botón "Pre-cargar matriz legacy": llama al seeder admin-only que crea
+ *   skeleton (con plantilla cliente cuando aplica) por cada combinación.
  */
 const TEMPLATE_CATEGORIES = ['Pyme', 'Corp', 'Implementación', 'Equipos', 'Reparaciones', 'General'];
 
@@ -312,6 +321,9 @@ export default function ActionNotificationsConfig() {
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState(null);
   const [configs, setConfigs] = useState({});
+  const [tab, setTab] = useState('matrix'); // matrix | audit
+  const [seedDialogOpen, setSeedDialogOpen] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
@@ -335,6 +347,21 @@ export default function ActionNotificationsConfig() {
 
   useEffect(() => { loadAll(); }, []);
 
+  const handleSeed = async (overwrite) => {
+    setSeeding(true);
+    try {
+      const res = await api.post(`/action-notifications/seed-legacy?overwrite=${overwrite}`);
+      const d = res.data;
+      toast.success(`Matriz legacy: ${d.created} creada(s), ${d.updated} actualizada(s), ${d.skipped_existing} omitida(s)`);
+      setSeedDialogOpen(false);
+      await loadAll();
+    } catch (e) {
+      toast.error(`Error precargando matriz: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   const totalConfigs = useMemo(() => Object.keys(configs).filter((k) => configs[k]?.recipients?.length).length, [configs]);
 
   if (loading || !catalog) {
@@ -347,15 +374,26 @@ export default function ActionNotificationsConfig() {
 
   return (
     <div className="max-w-6xl mx-auto p-6" data-testid="action-notifications-page">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <ShieldCheck size={26} className="text-blue-600" />
-          Configuración de Acciones de Cotizaciones
-        </h1>
-        <p className="text-slate-600 mt-1 text-sm">
-          Define, por cada acción del flujo, quiénes reciben correos y con qué plantilla.
-          Las acciones sin configurar conservan el comportamiento por defecto del sistema.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <ShieldCheck size={26} className="text-blue-600" />
+            Configuración de Acciones de Cotizaciones
+          </h1>
+          <p className="text-slate-600 mt-1 text-sm">
+            Define, por cada acción del flujo, quiénes reciben correos y con qué plantilla.
+            Las acciones sin configurar conservan el comportamiento por defecto del sistema.
+          </p>
+        </div>
+        <Button
+          onClick={() => setSeedDialogOpen(true)}
+          variant="outline"
+          className="border-violet-300 text-violet-700 hover:bg-violet-50 flex-shrink-0"
+          data-testid="seed-legacy-btn"
+        >
+          <Sparkles size={16} className="mr-2" />
+          Pre-cargar matriz legacy
+        </Button>
       </div>
 
       <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-5 flex items-start gap-2">
@@ -369,27 +407,252 @@ export default function ActionNotificationsConfig() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-slate-600">
-          <strong className="text-slate-900">{totalConfigs}</strong> configuración(es) guardada(s) ·{' '}
-          <strong className="text-slate-900">{catalog.users.length}</strong> usuarios disponibles ·{' '}
-          <strong className="text-slate-900">{catalog.templates.length}</strong> plantillas disponibles
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setTab('matrix')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'matrix' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          data-testid="tab-matrix"
+        >
+          Matriz de configuración
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('audit')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            tab === 'audit' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          data-testid="tab-audit"
+        >
+          <Activity size={14} />
+          Auditoría de envíos
+        </button>
+      </div>
+
+      {tab === 'matrix' && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-slate-600">
+              <strong className="text-slate-900">{totalConfigs}</strong> configuración(es) guardada(s) ·{' '}
+              <strong className="text-slate-900">{catalog.users.length}</strong> usuarios disponibles ·{' '}
+              <strong className="text-slate-900">{catalog.templates.length}</strong> plantillas disponibles
+            </div>
+          </div>
+
+          {catalog.business_types.map((biz) => (
+            <BusinessTypeAccordion
+              key={biz.id}
+              business={biz}
+              subCategories={catalog.product_subcategories}
+              actions={catalog.actions}
+              allowedMap={catalog.allowed_actions_by_biz_sub || {}}
+              configs={configs}
+              users={catalog.users}
+              templates={catalog.templates}
+              onSaved={loadAll}
+            />
+          ))}
+        </>
+      )}
+
+      {tab === 'audit' && <AuditLogTab actions={catalog.actions} businessTypes={catalog.business_types} />}
+
+      <AlertDialog open={seedDialogOpen} onOpenChange={setSeedDialogOpen}>
+        <AlertDialogContent data-testid="seed-legacy-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pre-cargar matriz legacy</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción crea una configuración base para <strong>cada combinación</strong> (tipo
+              de negocio + sub-categoría + acción). Las combinaciones con notificación al cliente
+              (envío al cliente, aprobación de reparación, reparación finalizada) se precargan con
+              la fila <em>Correo del Cliente</em> y la plantilla equivalente. Las demás se crean
+              vacías para que las completes manualmente.
+              <br /><br />
+              <strong>Las configuraciones que ya tienen destinatarios definidos NO se sobrescriben.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={seeding}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleSeed(false)}
+              disabled={seeding}
+              className="bg-violet-600 hover:bg-violet-700"
+              data-testid="seed-legacy-confirm"
+            >
+              {seeding ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Sparkles size={16} className="mr-2" />}
+              Pre-cargar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function AuditLogTab({ actions, businessTypes }) {
+  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [filters, setFilters] = useState({ action_id: '', business_type: '', quote_number: '', date_from: '', date_to: '' });
+  const [offset, setOffset] = useState(0);
+  const limit = 25;
+
+  const load = async (newOffset = 0) => {
+    setLoading(true);
+    try {
+      const params = { limit, offset: newOffset };
+      Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
+      const res = await api.get('/action-notifications/audit-log', { params });
+      setItems(res.data.items || []);
+      setTotal(res.data.total || 0);
+      setOffset(newOffset);
+    } catch (e) {
+      toast.error(`Error cargando auditoría: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(0); }, []); // eslint-disable-line
+
+  const fmtDate = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <div data-testid="audit-log-tab">
+      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="text-xs text-slate-600 mb-1 block">Acción</label>
+            <Select value={filters.action_id || 'all'} onValueChange={(v) => setFilters((f) => ({ ...f, action_id: v === 'all' ? '' : v }))}>
+              <SelectTrigger className="h-9" data-testid="audit-filter-action">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {actions.map((a) => <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-600 mb-1 block">Tipo de negocio</label>
+            <Select value={filters.business_type || 'all'} onValueChange={(v) => setFilters((f) => ({ ...f, business_type: v === 'all' ? '' : v }))}>
+              <SelectTrigger className="h-9" data-testid="audit-filter-biz">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {businessTypes.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-600 mb-1 block">Nº cotización</label>
+            <Input
+              value={filters.quote_number}
+              onChange={(e) => setFilters((f) => ({ ...f, quote_number: e.target.value }))}
+              placeholder="COT-2026-..."
+              className="h-9"
+              data-testid="audit-filter-quote"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-600 mb-1 block">Desde</label>
+            <Input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+              className="h-9"
+              data-testid="audit-filter-from"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-600 mb-1 block">Hasta</label>
+            <Input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+              className="h-9"
+              data-testid="audit-filter-to"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button onClick={() => load(0)} disabled={loading} size="sm" data-testid="audit-apply-btn">
+            {loading ? <Loader2 size={14} className="mr-1 animate-spin" /> : <RefreshCw size={14} className="mr-1" />}
+            Aplicar filtros
+          </Button>
+          <Button
+            onClick={() => { setFilters({ action_id: '', business_type: '', quote_number: '', date_from: '', date_to: '' }); setTimeout(() => load(0), 0); }}
+            disabled={loading}
+            variant="outline"
+            size="sm"
+            data-testid="audit-clear-btn"
+          >
+            Limpiar
+          </Button>
         </div>
       </div>
 
-      {catalog.business_types.map((biz) => (
-        <BusinessTypeAccordion
-          key={biz.id}
-          business={biz}
-          subCategories={catalog.product_subcategories}
-          actions={catalog.actions}
-          allowedMap={catalog.allowed_actions_by_biz_sub || {}}
-          configs={configs}
-          users={catalog.users}
-          templates={catalog.templates}
-          onSaved={loadAll}
-        />
-      ))}
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Fecha</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Acción</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Combinación</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Cotización</th>
+              <th className="px-3 py-2 text-center font-medium text-slate-600">Enviados</th>
+              <th className="px-3 py-2 text-center font-medium text-slate-600">Saltados</th>
+              <th className="px-3 py-2 text-left font-medium text-slate-600">Ejecutado por</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 && !loading && (
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-400">Sin despachos registrados con estos filtros</td></tr>
+            )}
+            {items.map((it, idx) => (
+              <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50" data-testid={`audit-row-${idx}`}>
+                <td className="px-3 py-2 font-mono text-xs">{fmtDate(it.executed_at)}</td>
+                <td className="px-3 py-2"><Badge variant="outline" className="text-xs">{it.action_id}</Badge></td>
+                <td className="px-3 py-2 font-mono text-xs text-slate-600">{it.config_key}</td>
+                <td className="px-3 py-2 font-mono text-xs">{it.quote_number || '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  <Badge className={it.sent_count > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}>
+                    {it.sent_count || 0}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {(it.skipped?.length || 0) > 0 ? (
+                    <Badge className="bg-amber-100 text-amber-800" title={(it.skipped || []).map((s) => s.reason).join('\n')}>
+                      {it.skipped.length}
+                    </Badge>
+                  ) : (
+                    <span className="text-slate-400 text-xs">0</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-600">{it.executed_by || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-3 py-2 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+          <span>Total: <strong>{total}</strong> · Mostrando {items.length === 0 ? 0 : offset + 1}–{offset + items.length}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={offset === 0 || loading} onClick={() => load(Math.max(0, offset - limit))} data-testid="audit-prev-btn">‹ Anterior</Button>
+            <Button size="sm" variant="outline" disabled={offset + items.length >= total || loading} onClick={() => load(offset + limit)} data-testid="audit-next-btn">Siguiente ›</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -276,3 +276,171 @@ async def delete_config(config_key: str, authorization: Optional[str] = Header(N
     await _require_admin(authorization)
     res = await db.action_notification_configs.delete_one({"config_key": config_key})
     return {"deleted": res.deleted_count, "config_key": config_key}
+
+
+# ==================== FASE 3: Seeder Legacy + Auditoría ====================
+
+# Mapeo de cada (action_id, business_type) → "perfil legacy" sugerido para el seeder.
+# - client_field: cliente recibe correo (cuando la acción legacy le envía).
+# - template_pattern: nombre de plantilla a buscar (sede primero, luego genérica).
+# Las combinaciones NO listadas aquí son acciones internas (admin/ventas/almacén)
+# que no podemos pre-poblar sin un mapa user_id explícito — el admin las completa
+# manualmente.
+LEGACY_CLIENT_FACING = {
+    # action_id → list of business_types donde el cliente recibe correo
+    "send_to_client": ["implementacion_pyme", "implementacion_corp", "equipos", "reparaciones"],
+    "approve":        ["reparaciones"],  # solo en repair se notifica al cliente directo
+    "repair_complete": ["reparaciones"],
+}
+
+# Patrón de plantilla por (action_id, business_type) — busca primero por sede, luego genérica.
+LEGACY_TEMPLATE_PATTERNS = {
+    ("send_to_client", "implementacion_pyme"):  ["quote_sent_PYME", "quote_sent"],
+    ("send_to_client", "implementacion_corp"):  ["quote_sent_CORP", "quote_sent"],
+    ("send_to_client", "equipos"):              ["equipment_sent_PYME", "equipment_sent"],
+    ("send_to_client", "reparaciones"):         ["repair_quote_sent_PYME", "repair_quote_sent"],
+    ("approve", "reparaciones"):                ["repair_approved_PYME", "repair_approved"],
+    ("repair_complete", "reparaciones"):        ["repair_complete_client_PYME", "repair_complete_client"],
+}
+
+
+async def _find_template_id(patterns: list[str]) -> Optional[str]:
+    """Busca la primera plantilla cuyo template_id coincida con alguno de los patterns."""
+    for p in patterns:
+        tpl = await db.email_templates.find_one({"template_id": p}, {"_id": 0, "template_id": 1})
+        if tpl:
+            return tpl["template_id"]
+    return None
+
+
+@router.post("/action-notifications/seed-legacy")
+async def seed_legacy(
+    overwrite: bool = False,
+    authorization: Optional[str] = Header(None),
+):
+    """Pre-carga la matriz de configuraciones según el comportamiento legacy.
+
+    Para cada (business_type, sub_category, action_id) permitido:
+      - Si la combinación es client-facing (send_to_client / approve_repair /
+        repair_complete), pre-llena fila `client_field` con la plantilla
+        equivalente al envío legacy.
+      - Si NO es client-facing, crea config vacía (skeleton) para que el
+        admin la complete con destinatarios internos.
+
+    Por defecto NO sobrescribe configs existentes con recipients ya definidos.
+    Pasa `overwrite=true` para forzar regeneración (úsalo con cuidado).
+    """
+    user = await _require_admin(authorization)
+    now = datetime.now(timezone.utc).isoformat()
+    created, skipped, updated = 0, 0, 0
+
+    for (biz, sub), action_ids in ALLOWED_ACTIONS_BY_BIZ_SUB.items():
+        for action_id in action_ids:
+            config_key = _config_key(biz, sub, action_id)
+            existing = await db.action_notification_configs.find_one({"config_key": config_key}, {"_id": 0})
+            if existing and existing.get("recipients") and not overwrite:
+                skipped += 1
+                continue
+
+            # Construir recipients según patrón legacy
+            recipients: list[dict] = []
+            client_facing_biz = LEGACY_CLIENT_FACING.get(action_id, [])
+            if biz in client_facing_biz:
+                tpl_id = await _find_template_id(
+                    LEGACY_TEMPLATE_PATTERNS.get((action_id, biz), [])
+                )
+                # Solo `send_to_client` adjunta el PDF al cliente (la cotización).
+                # En `approve` y `repair_complete` el PDF (Cálculos Definitivos)
+                # NUNCA se envía al cliente — es interno para Administración.
+                client_send_pdf = action_id == "send_to_client"
+                recipients.append({
+                    "row_id": f"row_{uuid.uuid4().hex[:8]}",
+                    "type": "client_field",
+                    "user_id": None,
+                    "template_id": tpl_id,
+                    "send_pdf_attachments": client_send_pdf,
+                })
+
+            doc = {
+                "config_key": config_key,
+                "business_type": biz,
+                "product_subcategory": sub,
+                "action_id": action_id,
+                "recipients": recipients,
+                "auto_seeded": True,
+                "updated_at": now,
+                "updated_by": user.get("email"),
+            }
+            res = await db.action_notification_configs.update_one(
+                {"config_key": config_key},
+                {"$set": doc, "$setOnInsert": {"created_at": now}},
+                upsert=True,
+            )
+            if res.upserted_id:
+                created += 1
+            else:
+                updated += 1
+
+    # Bitácora
+    await db.bitacora.insert_one({
+        "action": "action_notifications_seed_legacy",
+        "executed_by": user.get("email"),
+        "executed_at": now,
+        "created": created, "updated": updated, "skipped": skipped,
+        "overwrite": overwrite,
+    })
+    return {
+        "message": "Matriz legacy precargada",
+        "created": created,
+        "updated": updated,
+        "skipped_existing": skipped,
+        "total_combinations": sum(len(a) for a in ALLOWED_ACTIONS_BY_BIZ_SUB.values()),
+    }
+
+
+@router.get("/action-notifications/audit-log")
+async def audit_log(
+    limit: int = 50,
+    offset: int = 0,
+    action_id: Optional[str] = None,
+    business_type: Optional[str] = None,
+    quote_number: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """Reporte de auditoría: lista de despachos del motor dinámico.
+
+    Lee de `db.bitacora` los registros con `action=notification_engine_dispatch`
+    y aplica filtros opcionales. Útil para que el admin vea qué correos fueron
+    enviados vía el motor (vs. legacy), cuántos destinatarios alcanzó cada
+    despacho y qué filas fueron saltadas (con motivo).
+    """
+    await _require_admin(authorization)
+
+    query: dict = {"action": "notification_engine_dispatch"}
+    if action_id:
+        query["action_id"] = action_id
+    if quote_number:
+        query["quote_number"] = quote_number
+    if business_type:
+        # business_type está embebido en config_key (formato "biz|sub|action")
+        query["config_key"] = {"$regex": f"^{business_type}\\|"}
+    if date_from or date_to:
+        date_q: dict = {}
+        if date_from:
+            date_q["$gte"] = date_from
+        if date_to:
+            date_q["$lte"] = date_to + ("T23:59:59" if len(date_to) == 10 else "")
+        query["executed_at"] = date_q
+
+    total = await db.bitacora.count_documents(query)
+    items = await (
+        db.bitacora.find(query, {"_id": 0})
+        .sort("executed_at", -1)
+        .skip(max(0, offset))
+        .limit(min(max(1, limit), 500))
+        .to_list(500)
+    )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+

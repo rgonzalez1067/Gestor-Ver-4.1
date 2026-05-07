@@ -5,7 +5,31 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Motor Dinámico de Notificaciones — Fase 2 (Wiring) (Feb 2026) — NUEVO
+### Motor Dinámico de Notificaciones — Fase 3 (Seeder + Auditoría) (Feb 2026) — NUEVO
+
+**Objetivo**: Cerrar el ciclo del Motor Dinámico con dos capacidades operativas:
+1. **Seeder legacy**: pre-cargar la matriz completa de configuraciones (57 combinaciones) con un click, dejando una base sensata para que el admin la afine.
+2. **Auditoría**: ver el historial de despachos del motor con filtros (acción, tipo de negocio, cotización, rango de fechas).
+
+**Backend** (`/app/backend/routes/action_notifications.py`):
+- `POST /api/action-notifications/seed-legacy?overwrite=false` — admin-only. Itera todas las combinaciones permitidas en `ALLOWED_ACTIONS_BY_BIZ_SUB` (57 totales) y crea config con `auto_seeded=True`. Para acciones client-facing (`send_to_client`, `approve` de reparaciones, `repair_complete` de reparaciones) pre-llena fila `client_field` con la plantilla equivalente al envío legacy. Para el resto crea skeleton vacío. **Respeta configs existentes con recipients ya definidos** (no las pisa salvo `overwrite=true`). PDF al cliente solo se adjunta en `send_to_client` (regla "PDF de Cálculos JAMÁS al cliente").
+- `GET /api/action-notifications/audit-log` — admin-only. Lee de `db.bitacora` los registros `action=notification_engine_dispatch` con filtros: `action_id`, `business_type`, `quote_number`, `date_from`, `date_to`, `limit`, `offset`. Retorna `{items, total, limit, offset}`.
+- Bitácora del seeder se registra como `action_notifications_seed_legacy` con conteos.
+
+**Frontend** (`/app/frontend/src/pages/ActionNotificationsConfig.jsx`):
+- Botón **"Pre-cargar matriz legacy"** (violeta, icono Sparkles) en el header del panel admin con `AlertDialog` de confirmación que explica el comportamiento (no sobrescribe existentes).
+- **Tabs** "Matriz de configuración" / "Auditoría de envíos".
+- Componente `AuditLogTab`: tabla paginada con filtros (5 campos), columnas Fecha · Acción · Combinación · Cotización · Enviados · Saltados (badge ámbar con tooltip de motivos) · Ejecutado por. Botones Anterior/Siguiente con conteo total.
+
+**Tests**:
+- `tests/test_notification_engine_phase3.py` — 1 PASS. Valida: seeder respeta configs existentes (skip), client-facing combos llevan `client_field`, internas no lo llevan, audit-log retorna items con filtros (business_type, action_id, quote_number), RBAC 403 para non-admin.
+
+**Validación E2E** (curl):
+- POST `/seed-legacy` → `created=54, updated=0, skipped_existing=3, total_combinations=57`.
+- GET `/audit-log?business_type=equipos` → filtra correctamente los registros con `config_key` que empieza por "equipos|".
+
+
+### Motor Dinámico de Notificaciones — Fase 2 (Wiring) (Feb 2026)
 
 **Objetivo**: Interceptar las acciones del flujo de cotizaciones con el motor dinámico para que, cuando el admin haya creado una configuración custom en `action_notification_configs`, los correos se envíen según la matriz configurada (destinatarios + plantillas + adjuntos PDF). Si NO hay config, se preserva 100% el motor "legacy" (cero regresión).
 
