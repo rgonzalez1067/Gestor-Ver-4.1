@@ -43,6 +43,7 @@ from routes.entity_communications import router as entity_comms_router
 from routes.quote_history import router as quote_history_router
 from routes.external_api import router as external_api_router
 from routes.notifications import router as notifications_router
+from routes.action_notifications import router as action_notifications_router
 from routes.profiles import router as profiles_router
 from routes.data_migration import router as data_migration_router
 from routes.project_reports import router as project_reports_router
@@ -241,6 +242,7 @@ api_router.include_router(integrators_router)
 api_router.include_router(settings_router)
 api_router.include_router(projects_router)  # Projects router before seed_templates to allow new email-templates CRUD routes
 api_router.include_router(seed_templates_router)
+api_router.include_router(action_notifications_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)
 api_router.include_router(initial_contacts_router)

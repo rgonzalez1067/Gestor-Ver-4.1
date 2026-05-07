@@ -3,7 +3,8 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight } from 'lucide-react';
+import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
 import api from '../utils/api';
@@ -624,6 +625,38 @@ export const Settings = () => {
                 variant="outline"
                 className="flex-shrink-0"
                 data-testid="open-notifications-config-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Configuración de Acciones de Cotizaciones (Fase 1 — Motor Dinámico) */}
+          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="action-notifications-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={24} className="text-blue-600 flex-shrink-0" />
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+                    Configuración de Acciones de Cotizaciones
+                  </h2>
+                  <p className="text-sm text-slate-600 max-w-2xl">
+                    Define qué destinatarios reciben qué plantilla en cada acción del flujo
+                    (Enviar al Cliente, Aprobar, Enviar a Implementación, etc.) por tipo de
+                    negocio y sub-categoría de producto. Motor dinámico que reemplaza la
+                    rigidez del código actual.
+                  </p>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 mt-2 text-xs">
+                    Fase 1: configuración (motor de envío inactivo)
+                  </Badge>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/action-notifications')}
+                variant="outline"
+                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                data-testid="open-action-notifications-btn"
               >
                 Configurar
                 <ChevronRight size={16} className="ml-1" />
