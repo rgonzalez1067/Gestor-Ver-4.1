@@ -358,12 +358,14 @@ export default function ActionNotificationsConfig() {
         </p>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 flex items-start gap-2">
-        <AlertCircle size={18} className="text-amber-600 mt-0.5 flex-shrink-0" />
-        <div className="text-sm text-amber-900">
-          <strong>Fase 1 — Modo configuración.</strong> Las configuraciones que guardes aquí se persisten en la base
-          de datos pero <strong>aún no se utilizan</strong> para enviar correos reales. La activación del motor
-          dinámico se hará en una fase posterior, sin perder lo ya configurado.
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-5 flex items-start gap-2">
+        <AlertCircle size={18} className="text-emerald-600 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-emerald-900">
+          <strong>Motor activo.</strong> Las configuraciones guardadas aquí <strong>se ejecutan en
+          tiempo real</strong>: cuando el flujo dispare una acción para una combinación con regla
+          definida, el correo se envía según los destinatarios y plantillas configuradas. Si la
+          combinación no tiene regla, el sistema cae al envío legacy automáticamente (cero
+          regresión).
         </div>
       </div>
 

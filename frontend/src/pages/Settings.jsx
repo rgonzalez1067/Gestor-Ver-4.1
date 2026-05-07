@@ -647,8 +647,8 @@ export const Settings = () => {
                     negocio y sub-categoría de producto. Motor dinámico que reemplaza la
                     rigidez del código actual.
                   </p>
-                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 mt-2 text-xs">
-                    Fase 1: configuración (motor de envío inactivo)
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
+                    Motor activo · fallback seguro a la lógica legacy
                   </Badge>
                 </div>
               </div>
