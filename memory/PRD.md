@@ -5,7 +5,27 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
-### Motor Dinámico de Notificaciones — Fase 3 (Seeder + Auditoría) (Feb 2026) — NUEVO
+### Regla de Negocio: TDD/TDC Liquidación en Divisas — Tarifas default editables (Feb 2026) — NUEVO
+
+**Objetivo**: Cuando el usuario incluye en "Set Up – Puesta en Marcha" un item llamado "TDD/TDC Liquidación en Divisas" (con cantidad > 0), las tarifas mensuales de los recurrentes con `autoTariff` se cargan automáticamente a su techo como **defaults editables**:
+- "Derecho de uso de plataforma MServer por PDV" → **$8** (ceiling autoTariff).
+- "Procesamiento (HSM, Server, DC, etc.)" → **$6** (ceiling autoTariff).
+
+**Reglas**:
+- Aplica solo a tipos de cotización **VPOS, MPOS, MPOS Imple+POS** (no Payment Gateway ni Link de Pago).
+- El usuario puede **editar manualmente** las tarifas; mientras la regla esté activa el sistema no las sobrescribe.
+- Si el usuario **quita el concepto** del Setup (cantidad = 0 o lo elimina), las tarifas **vuelven al cálculo automático** dinámico (`calculateAutoTariff` por unidad).
+- Detección case-insensitive sobre el nombre del item; soporta variantes `TDD/TDC` y `TDC/TDD`, con o sin acentos, y con/sin espacios al separador `/`.
+
+**Implementación** (`/app/frontend/src/pages/Quotes.jsx`):
+- `isTddTdcDivisasActive` (`useMemo`) detecta el estado de la regla.
+- `useEffect` de transición con `useRef` (`prevTddTdcActiveRef`):
+  - Activación → setea tarifas a `autoTariff.ceiling`.
+  - Desactivación → recalcula con `calculateAutoTariff(additional_items, ...)`.
+- El `useEffect` de reactividad por `additional_items` agrega guarda: `if (isTddTdcDivisasActive) return;` para preservar valores cuando la regla está activa.
+
+
+### Motor Dinámico de Notificaciones — Fase 3 (Seeder + Auditoría) (Feb 2026)
 
 **Objetivo**: Cerrar el ciclo del Motor Dinámico con dos capacidades operativas:
 1. **Seeder legacy**: pre-cargar la matriz completa de configuraciones (57 combinaciones) con un click, dejando una base sensata para que el admin la afine.

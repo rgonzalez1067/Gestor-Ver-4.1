@@ -391,9 +391,47 @@ export const Quotes = () => {
     return Math.min(digitalCount * perUnit, ceiling);
   };
 
+  // ============================================================================
+  // REGLA DE NEGOCIO: TDD/TDC Liquidación en Divisas en Setup
+  // ----------------------------------------------------------------------------
+  // Cuando el usuario incluye en "Set Up - Puesta en Marcha" un item llamado
+  // "TDD/TDC Liquidación en Divisas" (con cantidad > 0), las tarifas de los
+  // recurrentes con autoTariff se cargan a su techo ($8 / $6) como DEFAULT
+  // editable. El usuario puede modificarlas manualmente; no se sobrescriben
+  // mientras la regla esté activa. Si quita el concepto, las tarifas vuelven al
+  // cálculo automático normal.
+  //
+  // Aplica solo a tipos VPOS, MPOS, FAST_TRACK (no GATEWAY ni LINK).
+  // ============================================================================
+  const TDD_TDC_DIVISAS_PATTERNS = [
+    'tdd/tdc liquidación en divisas',
+    'tdd/tdc liquidacion en divisas',
+    'tdc/tdd liquidación en divisas',
+    'tdc/tdd liquidacion en divisas',
+    'tdd / tdc liquidación en divisas',
+    'tdd / tdc liquidacion en divisas',
+    'tdc / tdd liquidación en divisas',
+    'tdc / tdd liquidacion en divisas',
+  ];
+  const TDD_TDC_ELIGIBLE_TYPES = ['VPOS', 'MPOS', 'FAST_TRACK'];
+
+  const isTddTdcDivisasActive = useMemo(() => {
+    if (!TDD_TDC_ELIGIBLE_TYPES.includes(quoteData.quote_type)) return false;
+    const items = quoteData.setup_items || [];
+    return items.some(it => {
+      const name = (it.name || '').toLowerCase().trim();
+      const qty = Number(it.cantidad ?? it.quantity ?? 0);
+      if (qty <= 0) return false;
+      return TDD_TDC_DIVISAS_PATTERNS.some(p => name === p || name.startsWith(p));
+    });
+  }, [quoteData.setup_items, quoteData.quote_type]);
+
   // Reactividad: recalcular tarifas en items con autoTariff cuando cambien los additional_items
   useEffect(() => {
     if (isLoadingEdit) return;
+    // Si la regla TDD/TDC Liquidación en Divisas está activa, NO recalcular
+    // automáticamente (preservar valores default $8/$6 o ediciones manuales).
+    if (isTddTdcDivisasActive) return;
     const additionals = quoteData.additional_items || [];
 
     let changed = false;
@@ -426,7 +464,45 @@ export const Quotes = () => {
       }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteData.additional_items, isLoadingEdit]);
+  }, [quoteData.additional_items, isLoadingEdit, isTddTdcDivisasActive]);
+
+  // Detecta transición de la regla TDD/TDC Liquidación en Divisas (activar/desactivar)
+  // - Activar: setea tarifas de items con autoTariff a su `ceiling` ($8 / $6).
+  // - Desactivar: revierte al cálculo automático.
+  const prevTddTdcActiveRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingEdit) {
+      prevTddTdcActiveRef.current = isTddTdcDivisasActive;
+      return;
+    }
+    const wasActive = prevTddTdcActiveRef.current;
+    if (isTddTdcDivisasActive && !wasActive) {
+      // Activación → cargar tarifa ceiling como default editable
+      setQuoteData(prev => ({
+        ...prev,
+        recurring_basic_items: (prev.recurring_basic_items || []).map(it =>
+          it.autoTariff ? { ...it, tarifa: it.autoTariff.ceiling } : it
+        ),
+        recurring_other_items: (prev.recurring_other_items || []).map(it =>
+          it.autoTariff ? { ...it, tarifa: it.autoTariff.ceiling } : it
+        ),
+      }));
+    } else if (!isTddTdcDivisasActive && wasActive) {
+      // Desactivación → recalcular tarifa según additional_items
+      const additionals = quoteData.additional_items || [];
+      setQuoteData(prev => ({
+        ...prev,
+        recurring_basic_items: (prev.recurring_basic_items || []).map(it =>
+          it.autoTariff ? { ...it, tarifa: calculateAutoTariff(additionals, it.autoTariff.ceiling, it.autoTariff.perUnit) } : it
+        ),
+        recurring_other_items: (prev.recurring_other_items || []).map(it =>
+          it.autoTariff ? { ...it, tarifa: calculateAutoTariff(additionals, it.autoTariff.ceiling, it.autoTariff.perUnit) } : it
+        ),
+      }));
+    }
+    prevTddTdcActiveRef.current = isTddTdcDivisasActive;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTddTdcDivisasActive, isLoadingEdit]);
 
   // Sincronizar valores de Cajas de la cabecera con los conceptos base
   // REGLA DE ORO: Solo propaga cajas cuando el USUARIO cambia manualmente el header
