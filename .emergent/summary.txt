@@ -1,145 +1,137 @@
-<analysis>**original_problem_statement**: 
-El usuario solicitó optimizar la gestión comercial y técnica: consolidar el flujo Enviar a Implementación (eliminando el tipo de proyecto manual y fusionando modales), añadir un campo Instrucciones adicionales con Rich Text Editor, implementar alertas de autogestión para implementadores (con recordatorios diarios por email), identificar Implementación Patrocinada por bancos, y establecer reglas estrictas de visibilidad y privacidad por departamento (especialmente para Administración por Sede y Director). Adicionalmente, se reportó y corrigió un error de corrupción de archivos ZIP generados en la plataforma.
+<analysis>Here is the handover summary for the next agent:
+
+**original_problem_statement**: 
+El usuario solicitó optimizar la gestión comercial y técnica: consolidar flujos operativos, fijar reglas de visibilidad por departamento, y más recientemente, crear un **Motor Dinámico de Notificaciones y Gestión de Plantillas**. Este motor debe permitir configurar vía interfaz (para cada Acción, Tipo de Negocio y Subcategoría) qué destinatarios reciben qué plantillas de correo, reemplazando progresivamente la rigidez del código actual (hardcoded emails). Además, solicitó múltiples correcciones UX y de generación de PDFs. 
 
 PRODUCT REQUIREMENTS:
-- **Visibilidad/RBAC**: Directores ven todas las cotizaciones; Gerentes/Coordinadores ven las de su departamento; Ejecutivos ven las suyas y las de su departamento; Administración solo ve las cotizaciones de su sede (Pyme o Corp).
-- **Flujo de Implementación**: Modal consolidado en 3 pasos con TipTap (Rich Text) para instrucciones. Auto-asignación heredada del cliente.
-- **Autogestión**: Alertas de implementadores individuales con cronjob de recordatorio.
-- **Exportación**: Garantizar la integridad de los archivos ZIP descargados (Fix de StreamingResponse).
+- **Fase 1 (Completada):** UI de Configuración de Acciones (Acordeones, Matriz de destinatarios, persistencia de la config).
+- **Fase 2 (Pendiente):** Integrar el motor en el backend para que intercepte acciones. Si hay configuración dinámica en DB, usarla. Si no, usar la lógica legacy actual. Adjuntar siempre los PDFs relevantes de la acción.
+- **Fase 3 (Backlog):** Extender a todas las acciones, migración masiva y auditoría.
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only. RESPOND AND COMMUNICATE IN SPANISH ONLY.
 
 **what currently exists?** 
-Un CRM Full-Stack robusto (React/FastAPI/MongoDB). En esta sesión se expandió drásticamente el flujo operativo: se resolvió un crash crítico del Sidebar, se blindó Clientes como solo lectura para ciertos roles, se introdujo TipTap (RichText) para instrucciones de implementación, alertas por email programadas (APScheduler), soporte para Cotizaciones Patrocinadas por bancos con badges visuales, y reglas de privacidad complejas por departamento y sede.
+Un CRM Full-Stack robusto (React/FastAPI/MongoDB). En esta sesión se resolvieron problemas críticos de timeouts con Cloudflare incorporando exportación de bases de datos e imágenes vía JSON y ZIP paginados (Frontend con JSZip). También se resolvieron bugs de PDFs de implementación PG, encabezados en Facturación y se ajustaron anexos en flujos condicionales. Se completó la Fase 1 del nuevo motor de notificaciones (rutas de backend para catálogo y componente de React ). 
 
 **Last working item**:
-    - Last item agent was working: Aplicando la nueva regla de visibilidad para el departamento de Administración y Directores en . El código fue modificado y el backend fue reiniciado exitosamente.
-    - Status: TESTING PENDING
+    - Last item agent was working: Iniciar la **Fase 2** del Motor de Notificaciones. El agente creó el archivo  pero lo dejó vacío o inicializado sin código de negocio, justo antes de terminar la sesión a petición del usuario para proceder por fases.
+    - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use?: backend testing agent o manual (pytest / curl) para validar que un usuario de Administración Pyme solo vea cotizaciones de sede PYME, y un Director vea todas.
+    - Which testing method agent to use?: Backend testing agent (pytest) para asegurar validación y envíos de notificaciones, y e2e / frontend screenshots para validar los flujos completos de las acciones de cotizaciones.
     - User Testing Done: N
 
-**All Pending/In progress Issue list**:  
-  Issue 1: Verificación de Regla de Visibilidad para Administración y Directores (P0)
-     - Attempted fixes: Se aplicó el filtro en  ( y ).
-     - Next debug checklist: Ejecutar un test manual o automatizado. Loguearse con un usuario del departamento de Administración y verificar que el array de cotizaciones corresponda solo a su sede.
-     - Why fix this issue and what will be achieved with the fix?: Resuelve un bug crítico reportado por el usuario donde la grilla de cotizaciones estaba en blanco para este departamento.
-     - Status: TESTING PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix?: Backend (curl/pytest) y Frontend (Screenshot).
-     - Blocked on other issue: None
+**All Pending/In progress Issue list**: None.
 
 **In progress Task List**:
-  No hay tareas en progreso además del Issue 1.
+  Task 1: Fase 2 - Motor Dinámico de Notificaciones (P0)
+     - Where to resume: Codificar la lógica en  y vincularlo como middleware/hook en las funciones de  (, , , etc.).
+     - What will be achieved with this?: Al dispararse una acción, el backend comprobará si existe una configuración dinámica (). Si la encuentra, enviará correos según la regla. Si no, ejecutará la lógica legacy actual. Añadir validación de que, si un destinatario es el Cliente y no tiene correo, retorne una advertencia antes de ejecutar la acción, y asegurar que los PDFs obligatorios de la acción (ej: Cálculo Definitivo en Aprobación) siempre se adjunten según las reglas vigentes.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix?: Both (pytest unit tests y e2e flow test).
+     - Blocked on something: Nothing.
 
-**Upcoming and Future Tasks**:
+**Upcoming and Future Tasks**
+  - **P1**: Fase 3 - Motor Dinámico de Notificaciones: Generar precargas (seeders) basadas en el comportamiento legacy y un reporte de historial de auditoría de envíos.
   - **P2**: Roadmap Bancos - Lógica Completado.
-  - **P3**: Plantillas dedicadas para Contactos Iniciales (en  análoga a clientes).
+  - **P2**: Plantillas dedicadas para Contactos Iniciales (análoga a clientes).
   - **P3**: Permiso Especial - Exportar CSV en reportes de ventas (gating separado para exportación de datos).
   - **P3**: Reactivar Promovidos (botón para regresar productos de I+D promovidos a estado Negociación/IMPLE).
-  - **P3**: Reporte/Dashboard Top Bancos Patrocinadores (5 bancos con más implementaciones patrocinadas). Postergado temporalmente por el usuario.
+  - **P3**: Re-categorización de Plantillas - Editor masivo (opcional/sugerido) para categorizar manualmente plantillas que hayan quedado bajo General en lugar de Pyme/Corp/Implementación.
 
-**Completed work in this session**:
-- Fix crítico del Sidebar (loop infinito de redirección) (DONE).
-- Auditoría RBAC en Clientes para bloquear edición a roles de consulta (DONE).
-- Auto-asignación de implementador heredado del cliente (DONE).
-- Mis Alertas para implementadores con email reminder diario vía APScheduler (DONE).
-- Filtros dinámicos (multi-select) en Reporte de Carga PDF de Proyectos (DONE).
-- Selección Sin Integrador -> Stand Alone en VPOS (DONE).
-- Botón Duplicar en ítem #2 de Costos Recurrentes Básicos (DONE).
-- Consolidación del flujo Enviar a Implementación (eliminado paso Tipo de Proyecto, modales fusionados, integrado TipTap Rich Text para instrucciones) (DONE).
-- Campos Implementación Patrocinada con Badges en tabla de cotizaciones (DONE).
-- Bug fix de corrupción de archivos ZIP generados en la migración de bundles (DONE).
-- División de categorías de filtro (Equipos / Reparaciones) y arreglo de filtro Fecha Hasta (DONE).
-- Reglas de privacidad general por departamento (DONE).
+**Completed work in this session**
+- Fix de error 400 Categoría inválida en el modal de aprobación convirtiendo el endpoint  a multipart y guardando el Pago Anticipado como archivo efímero solo para enviar por email (DONE).
+- Eliminación de la fila TOTAL SETUP y corrección de la inserción de campos en la Ficha Técnica PG en  (DONE).
+- Fix de Variables Dinámicas del Cliente: Se inyectan datos de contacto del cliente a las variables de la plantilla en el envío de correo (DONE).
+- Tooltip Razón Social sobre el Nombre de Fantasía en grillas de Cotizaciones y Equipos en Taller (DONE).
+- Migración BD - Fix body stream already read y Error 504 de Cloudflare: Se migró la descarga de Data JSON y ZIP de anexos a métodos paginados generados y empaquetados del lado del cliente usando axios y  (DONE).
+- Modificar Cotización (Nueva funcionalidad): Modal para permitir Modificar en el mismo registro o Generar nueva cotización (DONE).
+- Encabezado PDF de Facturación: Cambio de títulos y la inclusión de RIF explícito (DONE).
+- Anexos Selectivos: Adjuntar Cálculos Definitivos PDF sólo a administración (y no al cliente) en la acción Reparada (DONE).
+- Filtro UI Cotizaciones: Dropdown de Clientes ajustado para mostrar solo clientes con cotizaciones activas (DONE).
+- Motor de Notificaciones Fase 1: Creación de Rutas de Backend (), catálogo mapeado por subcategorías, filtro estricto de plantillas y Panel de Configuración UI (DONE).
 
-**Earlier issues found/mentioned but not fixed**:
-  None
+**Earlier issues found/mentioned but not fixed**
+None
 
-**Known issue recurrence from previous fork**:
+**Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: Archivos Frontend Monolíticos ( > 3500 líneas y  > 1900 líneas).
-  - Recurrence count: 9
+  - Recurrence count: 10
   - Status: IN PROGRESS (Requieren refactorización arquitectónica a futuro).
 
-**Code Architecture**:
--  Controladores principales (, , , ).
--  Servicios background y generadores (, ).
--  Vistas (Monolitos).
--  Componentes modulares (, modales de cotizaciones separados en ).
+**Code Architecture**
+- : Controladores (, , , ).
+- : Lógica de negocios y generadores de documentos (, , ).
+- : Componentes (, ).
+- : Monolitos de UI.
 
-**Key Technical Concepts**:
-- **TipTap**: Utilizado para el RichTextEditor.
-- **APScheduler**: Corre en background () a las 08:00 AM UTC-4 para enviar recordatorios por correo.
-- **StreamingResponse**: Utilizado con  generador de ZIPs (chunks de 64KB + headers).
+**Key Technical Concepts**
+- **Notification Engine**: Nuevo motor en desarrollo que interceptará acciones en .
+- **JSZip**: Para contornear los Timeout de Proxys (504 Cloudflare), se ha implementado el empaquetado y paginación en trozos () de archivos adjuntos y descargas JSON de lado del frontend.
 
-**key DB schema**:
-  -  & : Ahora incluyen , , , .
-  - : Ahora incluye un array .
+**key DB schema**
+  - : 
 
-**changes in tech stack**:
-  - Instalación de dependencias  (, ) en frontend.
+**changes in tech stack**
+  - Instalación de dependencia  en el Frontend usando yarn.
 
-**All files of reference**:
-  -  (Lógica de Visibilidad y Privacidad)
-  -  (Flujo de cotizaciones)
-  -  (Nuevo modal consolidado)
-  -  (Cronjobs)
-  -  (Fix del ZIP)
+**All files of reference**
+  -  (Creado vacío, foco de tu sesión).
+  -  (API CRUD del nuevo Motor).
+  -  (Destino donde engancharás el engine).
+  -  (Vista de Admin de Notificaciones).
 
 **Areas that need refactoring**:
-  -  sigue creciendo (casi 3500 líneas). Se logró extraer una parte a  y , pero requiere mayor separación.
+  -  (sigue en crecimiento, más de 3500 líneas).
 
-**key api endpoints**:
-  -  y  (Actualizados con reglas de departamento/sede)
-  -  (Actualizado con validación de 500 chars para instrucciones HTML)
-  -  (Fix aplicado para ZIP).
+**key api endpoints**
+  -  (A interceptar para el notification_engine).
+  -  (Lista las notificaciones dinámicas guardadas).
 
-**Critical Info for New Agent**:
-- El usuario confirmó que un error de visibilidad para Administración ocurre **tanto en preview como en producción**.
-- Tú (Agente actual) ya aplicaste el código para corregir el acceso de Administración (filtrando por sede PYME o CORP) y Director en  y reiniciaste el backend. **Debes realizar pruebas de esta corrección de inmediato**.
-- Una vez verifiques que funciona en Preview, debes indicarle al usuario que sus pruebas pasaron en Preview y **debe redesplegar (redeploy)** para que el arreglo impacte en Producción (https://admin-control-center-21.emergent.host).
-- **Importante**: No puedes tocar producción directamente, el usuario debe accionar el despliegue.
+**Critical Info for New Agent**
+- **Fase 2 de Motor de Notificaciones:** La regla de ORO aquí es Fallback seguro. Si no hay una configuración custom para un evento específico en , tu lógica en  debe devolver el control tranquilamente a la lógica hardcodeada/tradicional (legacy). Bajo ninguna circunstancia puedes romper los flujos de correo actuales si el admin no ha editado reglas personalizadas.
+- Toma en cuenta que las plantillas pueden requerir inyección de variables dinámicas al cliente y que algunos envíos (como ) requieren PDFs nativos autogenerados.
+- Usa los tests Pytest creados () para asegurar de que no existan regresiones a lo largo de tu implementación de Fase 2.
 
-**documents and test reports created in this job**:
-  -  (Contiene las credenciales siempre actualizadas para las pruebas)
-  - 
-  - 
-  - 
+**documents and test reports created in this job**
+  -  (Para credenciales).
   - 
 
-**Last 10 User Messages and any pending HUMAN messages**:
-  1. (User): Pide implementar mejora de correos para Mis Alertas (DONE).
-  2. (User): Pide incorporar opción Sin Integrador -> Stand Alone en VPOS (DONE).
-  3. (User): Solicita botón Copiar en ítem #2 de Costos Recurrentes (DONE).
-  4. (User): Pide consolidar flujo Enviar a Implementación + RichText Editor (DONE).
-  5. (User): Aclara flujo del wizard y limita requerimientos del Editor (DONE).
-  6. (User): Solicita campo Implementación Patrocinada por banco (DONE).
-  7. (User): Confirma que el badge Patrocinado por [Banco] sea implementado, descarta dashboard por ahora (DONE).
-  8. (User): Solicita Privacidad por Departamento, filtros divididos y Bug Fix del ZIP corrupto (DONE).
-  9. (User): La falla es en ambos ambientes (En respuesta al Bug Fix de Administración que no ven cotizaciones). (PENDING TESTING).
+**Last 10 User Messages and any pending HUMAN messages**
+  1. (User): Pide ejecutar Fase 2 que quedó pendiente. (PENDING)
+  2. (User): Ajustes UX (Solo mostrar acciones aplicables en subcategorías, categorizar plantillas). (DONE)
+  3. (User): Aclara tiempos, aprueba ejecución por fases. (DONE)
+  4. (User): Preguntas respondidas (Sin subcategorías en Equipos, usar plantillas existentes, etc.). (DONE)
+  5. (User): Propone Requerimiento Técnico: Motor Dinámico de Notificaciones. (DONE Phase 1)
+  6. (User): Solicita ZIP paginado en la contingencia de migraciones y la acción modificar in-place. (DONE)
+  7. (User): Bug: Cloudflare 504 Timeout probando script de Contingencia en Deploy. (DONE)
+  8. (User): Solicita añadir RIF al principio del Encabezado de Facturación. (DONE)
+  9. (User): Solicita correos separados (admin con anexo PDF y cliente sin anexo) en la acción Reparada. (DONE)
+  10. (User): Filtrado rápido de clientes que muestre solo a los activos en Cotizaciones. (DONE)
 
-**Project Health Check**:
-  - Broken: Ninguno (Se espera que el último fix haya reparado la vista de Administración).
-  - Mocked: Ninguno.
+**Project Health Check:**
+Ninguno roto / mocked. 
 
-**3rd Party Integrations**:
-  - Emergent Object Storage — uses Emergent LLM Key
-  - Resend (Emails) — requires User API Key
+**3rd Party Integrations**
+- Emergent Object Storage — uses Emergent LLM Key
+- Resend (Emails) — requires User API Key
 
-**Testing status**:
-  - Testing agent used after significant changes: YES (iterations 186, 187, 188)
+**Testing status**
+  - Testing agent used after significant changes: YES (previous jobs).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: , , , .
+  - Test files created: Múltiples tests creados con pytest (, , etc.).
   - Known regressions: None
 
-**Credentials to test flow**:
-  Revisa el archivo  para extraer un usuario del departamento de Administración o de Dirección y comprobar la visibilidad.
+**Credentials to test flow:**
+Use credentials present at .
 
-**What agent forgot to execute**:
-  El agente aplicó el código para el fix de Visibilidad de Administración y Directores, pero terminó la sesión antes de correr los tests, confirmar con /screenshots y comunicarle al usuario el resultado.
+**What agent forgot to execute**
+El agente propuso crear y usar  como parte de la Fase 2, hizo el  pero terminó la sesión en ese instante para dar paso al flujo fase a fase. La lógica no ha sido empezada.
 
-**Debugging checklist for current issue**:
-    Issue: Verificación del fix de Visibilidad de Cotizaciones (Administración por Sede y Director).
-    Backend files to check:  (Líneas 430-480).
-    Database to check: Ejecutar un script para loguearse con un usuario con  y  y confirmar que la ruta  retorna información. Repetir con un perfil  o .</analysis>
+**Debugging checklist for current issue**
+    Issue: Codificar e Implementar el Motor Dinámico de Notificaciones (Fase 2)
+    Backend files to check: 
+      - 
+      - 
+    Database to check: Lee de la tabla MongoDB  para aplicar dinámicamente las notificaciones interceptando las acciones.
+    Test: Crear mock data via endpoint API de Action Configs, lanzar  y asegurar mediante logs/mocks en pytest que el motor intercepte y construya los emails adecuados con los archivos adjuntos exigidos y haga throw de warning si falta el correo de cliente en envíos forzosos.</analysis>
