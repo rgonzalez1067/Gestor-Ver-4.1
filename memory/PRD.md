@@ -5,6 +5,28 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Motor Dinámico de Notificaciones — Fase 2 (Wiring) (Feb 2026) — NUEVO
+
+**Objetivo**: Interceptar las acciones del flujo de cotizaciones con el motor dinámico para que, cuando el admin haya creado una configuración custom en `action_notification_configs`, los correos se envíen según la matriz configurada (destinatarios + plantillas + adjuntos PDF). Si NO hay config, se preserva 100% el motor "legacy" (cero regresión).
+
+**Implementación**:
+- Helper único `_engine_or_legacy(action_id, quote, current_user, custom_message, cc_emails, **pdf_ctx)` en `/app/backend/routes/quote_actions.py`.
+- 8 acciones hookeadas: `approve`, `configure`, `repair_complete`, `send_to_client`, `send_to_implementation`, `invoice`, `collect`, `deliver`.
+- Patrón: el helper se llama justo antes del bloque legacy de envío de emails. Si retorna `list[dict]` → engine despachó, se retorna respuesta inmediata. Si retorna `None` → ejecuta legacy intacto.
+- PDFs precalculados upfront y pasados como `**ctx`: `quote_pdf_bytes`, `billing_pdf_bytes`, `implementation_pdf_bytes`, `invoice_pdf_bytes`, `delivery_note_pdf_bytes`.
+- `notification_engine.py` extendido para aceptar 5 keys de PDFs (antes 3).
+- **Guardia de email cliente**: si la config custom incluye fila `client_field` y la cotización no tiene email, retorna HTTP 400 con mensaje legible. Bloquea ejecución antes de mutar cualquier estado.
+
+**Side-effects preservados**:
+- El bloque de transición de seriales preasignados FT + descargo de inventario fue movido ARRIBA del hook del engine en `deliver` para que se ejecute siempre, con o sin notificación dinámica.
+- Status update + push events + bitácora se ejecutan en ambas ramas (engine y legacy).
+
+**Tests**:
+- `tests/test_notification_engine_phase2.py` — 1/1 PASS. Cubre: mapping `_quote_to_biz_sub` (5 casos), fallback sin config, dispatch con config válida, validación cliente sin email, registro en bitácora, `has_config`.
+- `tests/test_approve_multipart_flow.py` + `tests/test_repair_complete_admin_pdf.py` — 5/5 PASS (sin regresiones legacy).
+- E2E curl: `send_to_client` con config dinámica → respuesta `engine_dispatched` + bitácora `sent=1`. Sin config → fallback legacy con SMTP real. Cliente sin email + config `client_field` → HTTP 400 con mensaje legible.
+
+
 ### Privacidad por Departamento + Filtros Granulares + Bug "Hasta" (May 2026) — NUEVO
 
 **Sección 10 — Privacidad por Departamento (P0)**:

@@ -36,9 +36,62 @@ from routes.quote_helpers import (
 )
 from routes.quote_transitions import _create_project_from_quote
 from services.notification_service import notify as _push_notify
+from services.notification_engine import (
+    try_dispatch as engine_try_dispatch,
+    validate_client_email_required as engine_validate_client_email,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _engine_or_legacy(
+    action_id: str,
+    quote: dict,
+    current_user: dict,
+    custom_message: Optional[str] = None,
+    cc_emails: Optional[list] = None,
+    **pdf_ctx,
+):
+    """Phase 2 — Dynamic Notification Engine wrapper with safe legacy fallback.
+
+    Returns:
+      - list[dict] with dispatch outcome → caller MUST skip legacy email flow.
+      - None → no dynamic config OR engine errored; caller MUST run legacy flow.
+
+    Raises HTTP 400 if dynamic config requires `client_field` but quote has no
+    client email registered. This guard is the ONLY way the engine can abort
+    the action; in any other failure scenario it returns None and trusts
+    legacy.
+    """
+    try:
+        warn = await engine_validate_client_email(action_id, quote)
+    except Exception as e:
+        logger.warning(f"[engine] validate_client_email_required errored for {action_id}: {e}")
+        warn = None
+    if warn:
+        raise HTTPException(status_code=400, detail=warn)
+    try:
+        dispatched = await engine_try_dispatch(
+            action_id,
+            quote,
+            current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails or [],
+            **pdf_ctx,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[engine] dispatch failed for {action_id}, falling back to legacy: {e}", exc_info=True)
+        return None
+    if dispatched:
+        return [{
+            "status": "engine_dispatched",
+            "engine": "notification_engine",
+            "action": action_id,
+        }]
+    return None
 
 
 async def _push_quote_event(event_type: str, quote: dict, title: str, message: str) -> None:
@@ -260,11 +313,57 @@ async def approve_quote(
     
     # Preparar email via Workflow Notification
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-    
+
     email_results = []
     is_repair = quote.get("quote_category") == "repair"
     is_fast_track = quote.get("quote_category") == "fast_track"
-    
+
+    # === Notification Engine (Phase 2) — pre-generar PDFs disponibles para hook ===
+    # Generamos los binarios upfront para pasarlos tanto al engine como al
+    # legacy. Si el engine retorna una lista, saltamos legacy.
+    _engine_pdf_quote_bytes = None
+    _engine_pdf_billing_bytes = None
+    if not is_fast_track and not is_repair:
+        pdf_url_pre = quote.get("quote_pdf_url")
+        if pdf_url_pre:
+            try:
+                _pdf_path = UPLOADS_DIR / pdf_url_pre.replace("/uploads/", "")
+                if _pdf_path.exists():
+                    _engine_pdf_quote_bytes = open(_pdf_path, "rb").read()
+            except Exception as _e:
+                logger.warning(f"[approve] No se pudo precargar PDF de cotización: {_e}")
+        if billing_data.get("billing_instruction") and billing_data["billing_instruction"].get("consolidated_items"):
+            try:
+                from services.billing_pdf import generate_billing_pdf
+                _exec_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "Sistema"
+                _engine_pdf_billing_bytes = generate_billing_pdf(quote, client, billing_data["billing_instruction"], _exec_name)
+            except Exception as _e:
+                logger.warning(f"[approve] No se pudo precargar Cálculos Definitivos: {_e}")
+
+    _engine_result = await _engine_or_legacy(
+        "approve", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+        quote_pdf_bytes=_engine_pdf_quote_bytes,
+        billing_pdf_bytes=_engine_pdf_billing_bytes,
+    )
+    if _engine_result is not None:
+        email_results = _engine_result
+        billing_instruction = billing_data.get("billing_instruction") if billing_data else None
+        await _push_quote_event(
+            "quote_approved", quote,
+            title=f"Cotización {quote.get('quote_number','')} aprobada",
+            message=f"Cliente {quote.get('client_name','')} · Total USD ${quote.get('total_usd',0):,.2f}",
+        )
+        return {
+            "message": "Cotización aprobada exitosamente" + (" — Pendiente de Reparación" if is_repair else " — Pendiente de Configuración" if is_fast_track else ""),
+            "quote_id": quote_id,
+            "new_status": "Aprobada",
+            "emails": email_results,
+            "is_repair": is_repair,
+            "is_fast_track": is_fast_track,
+            "billing_instruction": billing_instruction,
+        }
+
     if is_fast_track:
         # Fast Track: Notificar a Administración + Operaciones con plantilla fast_track_approved
         config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
@@ -444,6 +543,19 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
+    # === Notification Engine (Phase 2) ===
+    _engine_result = await _engine_or_legacy(
+        "configure", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+    )
+    if _engine_result is not None:
+        return {
+            "message": "Equipos configurados. Notificación enviada a Administración para facturar.",
+            "quote_id": quote_id,
+            "new_status": "Configurada",
+            "emails": _engine_result,
+        }
+
     # Resolver warehouse email de la sede
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     raw_sede = quote.get("sede", "PYME")
@@ -530,6 +642,40 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
         {"quote_id": quote_id},
         {"$set": update_fields}
     )
+
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
+    # === Notification Engine (Phase 2) ===
+    _engine_billing_pdf_bytes = None
+    if billing_data:
+        try:
+            from services.billing_pdf import generate_billing_pdf
+            _client_for_pdf = await db.clients.find_one({"client_id": quote["client_id"]}, {"_id": 0})
+            _exec_full = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else ""
+            _engine_billing_pdf_bytes = generate_billing_pdf(
+                quote=quote, client=_client_for_pdf or {},
+                billing_instruction=billing_data, executor_name=_exec_full,
+            )
+        except Exception as _e:
+            logger.warning(f"[repair-complete] No se pudo precargar Cálculos Definitivos para engine: {_e}")
+
+    _engine_result = await _engine_or_legacy(
+        "repair_complete", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+        billing_pdf_bytes=_engine_billing_pdf_bytes,
+    )
+    if _engine_result is not None:
+        await _push_quote_event(
+            "quote_repair_finalized", quote,
+            title=f"Reparación {quote.get('quote_number','')} finalizada",
+            message=f"Cliente {quote.get('client_name','')} · Lista para entregar",
+        )
+        return {
+            "message": "Reparación marcada como completada. Notificación enviada a Administración y Cliente.",
+            "quote_id": quote_id,
+            "new_status": "Reparada",
+            "emails": _engine_result,
+        }
 
     # Notificar a Administración (misma lógica que approve para no-reparaciones)
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
@@ -676,7 +822,39 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
+
+    # === Notification Engine (Phase 2) ===
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+    _engine_pdf_quote_bytes = None
+    pdf_url_pre = quote.get("quote_pdf_url")
+    if pdf_url_pre:
+        try:
+            _pdf_path = UPLOADS_DIR / pdf_url_pre.replace("/uploads/", "")
+            if _pdf_path.exists():
+                _engine_pdf_quote_bytes = open(_pdf_path, "rb").read()
+        except Exception as _e:
+            logger.warning(f"[send-to-client] No se pudo precargar PDF de cotización: {_e}")
+    _engine_result = await _engine_or_legacy(
+        "send_to_client", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+        quote_pdf_bytes=_engine_pdf_quote_bytes,
+    )
+    if _engine_result is not None:
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {"sent_to_client_at": datetime.now(timezone.utc).isoformat(), "quote_status": "Enviada"}}
+        )
+        await _push_quote_event(
+            "quote_sent_to_client", quote,
+            title=f"Cotización {quote.get('quote_number','')} enviada al cliente",
+            message="Despachado por Motor de Notificaciones",
+        )
+        return {
+            "message": "Cotización enviada (motor dinámico)",
+            "new_status": "Enviada",
+            "emails": _engine_result,
+        }
+
     # Obtener email(s) del contacto
     contacts = client.get('contacts', [])
     client_emails = []
@@ -967,6 +1145,16 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
 
     # PASO 5: Solo enviar email si el proyecto se creó exitosamente
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+
+    # === Notification Engine (Phase 2) ===
+    _engine_result = await _engine_or_legacy(
+        "send_to_implementation", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+        implementation_pdf_bytes=impl_pdf_bytes,
+    )
+    if _engine_result is not None:
+        return {"message": "Enviado a implementación", "new_status": "Enviada a Imple", "emails": _engine_result}
+
     email_results = await send_workflow_notification(
         action="send-to-implementation",
         quote=quote,
@@ -1021,7 +1209,30 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         update_set["quote_status"] = "Facturada"
     
     await db.quotes.update_one({"quote_id": quote_id}, {"$set": update_set})
-    
+
+    # === Notification Engine (Phase 2) ===
+    cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
+    _engine_invoice_pdf_bytes = None
+    try:
+        _factura = factura_attachments[-1]
+        _factura_path = UPLOADS_DIR / _factura.get("url", "").replace("/uploads/", "")
+        if _factura_path.exists():
+            _engine_invoice_pdf_bytes = open(_factura_path, "rb").read()
+    except Exception as _e:
+        logger.warning(f"[invoice] No se pudo precargar factura para engine: {_e}")
+    _engine_result = await _engine_or_legacy(
+        "invoice", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+        invoice_pdf_bytes=_engine_invoice_pdf_bytes,
+    )
+    if _engine_result is not None:
+        await _push_quote_event(
+            "quote_invoiced", quote,
+            title=f"Cotización {quote.get('quote_number','')} facturada",
+            message=f"Factura: {invoice_number}",
+        )
+        return {"message": "Cotización facturada exitosamente", "invoice_pdf_url": invoice_url, "invoice_number": invoice_number, "emails": _engine_result}
+
     # Enviar notificación con archivo de Factura adjunto
     config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
     quote_sede = quote.get("sede", "PYME")
@@ -1177,7 +1388,33 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     
     # Parsear CC y mensaje personalizado
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
-    
+
+    # === Notification Engine (Phase 2) ===
+    _engine_result = await _engine_or_legacy(
+        "collect", quote, current_user,
+        custom_message=custom_message, cc_emails=cc_emails,
+    )
+    if _engine_result is not None:
+        raw_sede = quote.get("sede", quote.get("client_segment", "PYME"))
+        norm_sede_audit = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if raw_sede in ("CORP", "Corp", "Corporativo") else raw_sede
+        user_name_audit = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() if current_user else "Sistema"
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$push": {"status_history": {
+                "status": "Pagada",
+                "action": "collect",
+                "detail": f"Notificación enviada vía Motor Dinámico (Sede {norm_sede_audit})",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user": user_name_audit,
+            }}}
+        )
+        await _push_quote_event(
+            "quote_collected", quote,
+            title=f"Cotización {quote.get('quote_number','')} cobrada/pagada",
+            message=f"Cliente {quote.get('client_name','')} · Total USD ${quote.get('total_usd',0):,.2f}",
+        )
+        return {"message": "Cotización marcada como Pagada", "emails": _engine_result}
+
     if quote_category == "equipment":
         # Usar plantilla equipment_collect para notificar pago de equipos
         # Destino: Almacén sede (warehouse)
@@ -1706,6 +1943,8 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         logger.error(f"Error archivando cotización {quote_id} al histórico: {e}")
 
     # Fast Track: Transicionar seriales preasignados → asignados + crear movimiento de salida
+    # (movido arriba del engine: side-effect de inventario debe ejecutarse SIEMPRE,
+    # con o sin notificación dinámica)
     if quote_category == "fast_track":
         try:
             preassigned = await db.serial_assignments.find(
@@ -1715,8 +1954,6 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 now_deliver = datetime.now(timezone.utc).isoformat()
                 client_doc = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
                 deliver_rif = client_doc.get("rif", "N/A") if client_doc else "N/A"
-
-                # Transicionar a "asignado"
                 serial_list = [p["serial"] for p in preassigned]
                 await db.serial_assignments.update_many(
                     {"quote_id": quote_id, "status": "preasignado"},
@@ -1726,8 +1963,6 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                         "client_rif": deliver_rif,
                     }}
                 )
-
-                # Crear movimiento de salida en inventario
                 wh_id = preassigned[0].get("warehouse_id", "")
                 it_id = preassigned[0].get("item_id", "")
                 it_name = preassigned[0].get("item_name", "")
@@ -1750,6 +1985,37 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 logger.info(f"[Deliver FT] {len(serial_list)} seriales transicionados a 'asignado' y descargados de inventario")
         except Exception as e:
             logger.error(f"[Deliver FT] Error transicionando seriales: {e}")
+
+    # === Notification Engine (Phase 2) ===
+    # El motor solo despacha si hay config admin para esta combinación. Si no
+    # hay config, devuelve None y se mantiene la lógica legacy (Fast Track
+    # email / sin email para equipment / repair).
+    _engine_ne_pdf_bytes = None
+    if hoja_ruta_url:
+        try:
+            _ne_path = UPLOADS_DIR / hoja_ruta_url.replace("/uploads/", "")
+            if _ne_path.exists():
+                _engine_ne_pdf_bytes = open(_ne_path, "rb").read()
+        except Exception as _e:
+            logger.warning(f"[deliver] No se pudo precargar Nota de Entrega para engine: {_e}")
+    _engine_result = await _engine_or_legacy(
+        "deliver", quote, current_user,
+        custom_message=None, cc_emails=[],
+        delivery_note_pdf_bytes=_engine_ne_pdf_bytes,
+    )
+    if _engine_result is not None:
+        await _push_quote_event(
+            "quote_delivered", quote,
+            title=f"Cotización {quote.get('quote_number','')} entregada",
+            message=f"Items entregados: {len(delivered_pdf_items)} · Cliente {quote.get('client_name','')}",
+        )
+        return {
+            "message": "Cotización marcada como Entregada (motor dinámico)",
+            "inventory_processed": len(delivered_pdf_items) > 0,
+            "items_delivered": len(delivered_pdf_items),
+            "hoja_ruta_url": hoja_ruta_url,
+            "emails": _engine_result,
+        }
 
     # Fast Track: Notificar a Ventas con "Equipos listos para ser entregados" + Nota de Entrega PDF
     if quote_category == "fast_track":

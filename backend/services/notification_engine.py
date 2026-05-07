@@ -154,6 +154,8 @@ async def _collect_pdf_attachments(action_id: str, quote: dict, ctx: dict) -> li
         ("billing_pdf_bytes", f"Calculos_Definitivos_{quote.get('quote_number', 'cot')}.pdf"),
         ("implementation_pdf_bytes", f"Ficha_Tecnica_{quote.get('quote_number', 'cot')}.pdf"),
         ("quote_pdf_bytes", f"Cotizacion_{quote.get('quote_number', 'cot')}.pdf"),
+        ("invoice_pdf_bytes", f"Factura_{quote.get('quote_number', 'cot')}.pdf"),
+        ("delivery_note_pdf_bytes", f"NotaEntrega_{quote.get('quote_number', 'cot')}.pdf"),
     ]:
         if ctx.get(key):
             out.append({
