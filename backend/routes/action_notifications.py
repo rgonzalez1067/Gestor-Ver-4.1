@@ -48,23 +48,62 @@ PRODUCT_SUBCATEGORIES = [
 ACTIONS = [
     {"id": "send_to_client", "label": "Enviar al Cliente",
      "pdfs_default": ["Cotización (PDF)"]},
-    {"id": "approve", "label": "Aprobar",
+    {"id": "approve", "label": "Aprobación",
      "pdfs_default": ["Cálculos Definitivos (PDF)"]},
+    {"id": "preassign_serials", "label": "Preasignación de Seriales",
+     "pdfs_default": []},
+    {"id": "configure", "label": "Configuración",
+     "pdfs_default": []},
+    {"id": "invoice", "label": "Factura/Proforma",
+     "pdfs_default": ["Factura (PDF)"]},
+    {"id": "collect", "label": "Cobranza",
+     "pdfs_default": []},
     {"id": "send_to_implementation", "label": "Enviar a Implementación",
      "pdfs_default": ["Ficha Técnica (PDF)"]},
-    {"id": "configure", "label": "Configurar",
-     "pdfs_default": []},
-    {"id": "invoice", "label": "Facturar",
-     "pdfs_default": ["Factura (PDF)"]},
-    {"id": "collect", "label": "Cobrar",
-     "pdfs_default": []},
-    {"id": "deliver", "label": "Entregar",
+    {"id": "deliver", "label": "Marcar como entregada",
      "pdfs_default": ["Nota de Entrega (PDF)"]},
     {"id": "repair_complete", "label": "Reparada",
      "pdfs_default": ["Cálculos Definitivos Reparación (PDF)"]},
-    {"id": "repair_deliver", "label": "Entregar Reparación",
-     "pdfs_default": ["Nota de Entrega Reparación (PDF)"]},
 ]
+
+
+# Mapping: qué acciones aplican a cada combinación (business_type, product_subcategory).
+# Sub-categoría null para tipos sin sub-cats (Equipos, Reparaciones).
+# La UI debe mostrar SOLO estas acciones por combinación, no todo el catálogo.
+ALLOWED_ACTIONS_BY_BIZ_SUB = {
+    ("implementacion_pyme", "vpos"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_pyme", "mpos_tablet"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_pyme", "payment_gateway"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_pyme", "mpos_imple_pos"): [
+        "send_to_client", "approve", "preassign_serials", "configure",
+        "invoice", "collect", "deliver", "send_to_implementation",
+    ],
+    ("implementacion_corp", "vpos"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_corp", "mpos_tablet"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_corp", "payment_gateway"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_corp", "mpos_imple_pos"): [
+        "send_to_client", "approve", "preassign_serials", "configure",
+        "invoice", "collect", "deliver", "send_to_implementation",
+    ],
+    ("equipos", None): [
+        "send_to_client", "approve", "invoice", "collect", "deliver",
+    ],
+    ("reparaciones", None): [
+        "send_to_client", "approve", "repair_complete", "invoice", "collect", "deliver",
+    ],
+}
 
 
 def _config_key(business_type: str, sub_category: Optional[str], action_id: str) -> str:
@@ -119,25 +158,37 @@ async def get_catalog(authorization: Optional[str] = Header(None)):
         "_id": 0, "template_id": 1, "name": 1, "subject": 1,
         "context": 1, "sede": 1, "category": 1, "is_active": 1,
     }).to_list(500)
-    # Categorizar plantillas: si tiene `category` lo respeta, si no lo deriva
-    # del campo legacy `sede` o `context`.
+    # Categorización de plantillas: prioridad a campo `sede` (PYME/CORP) sobre cualquier
+    # otra heurística. Si no hay sede, intenta derivar por `context`.
     for t in templates:
         if not t.get("category"):
-            sede = (t.get("sede") or "").upper()
-            ctx = (t.get("context") or "").upper()
+            sede = (t.get("sede") or "").strip().upper()
+            ctx = (t.get("context") or "").strip().lower()
             if sede == "PYME":
                 t["category"] = "Pyme"
             elif sede == "CORP":
                 t["category"] = "Corp"
-            elif "IMPLEMENT" in ctx:
+            elif "implement" in ctx:
                 t["category"] = "Implementación"
+            elif "equip" in ctx:
+                t["category"] = "Equipos"
+            elif "repair" in ctx or "reparac" in ctx:
+                t["category"] = "Reparaciones"
             else:
                 t["category"] = "General"
+
+    # Diccionario: lista de actions permitidas por (biz_type, sub_cat) — el frontend
+    # filtra qué acciones mostrar por combinación.
+    allowed = {}
+    for (biz, sub), action_ids in ALLOWED_ACTIONS_BY_BIZ_SUB.items():
+        key = f"{biz}|{sub or '_'}"
+        allowed[key] = action_ids
 
     return {
         "business_types": BUSINESS_TYPES,
         "product_subcategories": PRODUCT_SUBCATEGORIES,
         "actions": ACTIONS,
+        "allowed_actions_by_biz_sub": allowed,
         "users": users,
         "templates": templates,
     }
@@ -177,6 +228,19 @@ async def upsert_config(payload: ActionConfigPayload, authorization: Optional[st
     valid_actions = {a["id"] for a in ACTIONS}
     if payload.action_id not in valid_actions:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(valid_actions)}")
+    # Validar que la acción esté permitida para esta combinación (biz, sub)
+    allowed_for_combo = ALLOWED_ACTIONS_BY_BIZ_SUB.get(
+        (payload.business_type, payload.product_subcategory), []
+    )
+    if allowed_for_combo and payload.action_id not in allowed_for_combo:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Acción '{payload.action_id}' no aplica a {payload.business_type}"
+                + (f" / {payload.product_subcategory}" if payload.product_subcategory else "")
+                + f". Permitidas: {allowed_for_combo}"
+            ),
+        )
 
     for r in payload.recipients:
         if r.type not in ("client_field", "user"):

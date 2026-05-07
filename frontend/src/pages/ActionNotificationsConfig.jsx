@@ -20,7 +20,7 @@ import api from '../utils/api';
  *
  * Esta fase NO activa el motor de envío real. Solo guarda configs.
  */
-const TEMPLATE_CATEGORIES = ['Pyme', 'Corp', 'Implementación', 'General'];
+const TEMPLATE_CATEGORIES = ['Pyme', 'Corp', 'Implementación', 'Equipos', 'Reparaciones', 'General'];
 
 function configKey(business_type, sub_category, action_id) {
   return `${business_type}|${sub_category || '_'}|${action_id}`;
@@ -219,10 +219,16 @@ function ActionAccordion({ action, businessType, subCategory, configs, users, te
   );
 }
 
-function SubCategoryAccordion({ subCategory, businessType, actions, configs, users, templates, onSaved }) {
+function SubCategoryAccordion({ subCategory, businessType, actions, allowedMap, configs, users, templates, onSaved }) {
   const [expanded, setExpanded] = useState(false);
   const subId = subCategory?.id || null;
-  const actionsConfigured = actions.filter((a) => configs[configKey(businessType, subId, a.id)]?.recipients?.length).length;
+  // Filtrar acciones permitidas para esta combinación (biz, sub)
+  const allowedKey = `${businessType}|${subId || '_'}`;
+  const allowedIds = allowedMap?.[allowedKey] || [];
+  const filteredActions = allowedIds.length > 0
+    ? allowedIds.map((id) => actions.find((a) => a.id === id)).filter(Boolean)
+    : actions;
+  const actionsConfigured = filteredActions.filter((a) => configs[configKey(businessType, subId, a.id)]?.recipients?.length).length;
 
   return (
     <div className="border border-slate-200 rounded-md mb-2 bg-slate-50/50">
@@ -235,14 +241,15 @@ function SubCategoryAccordion({ subCategory, businessType, actions, configs, use
         <div className="flex items-center gap-2">
           {expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
           <span className="font-semibold text-slate-700">{subCategory?.label || 'Sin sub-categoría'}</span>
+          <Badge variant="outline" className="text-xs">{filteredActions.length} acción(es)</Badge>
           {actionsConfigured > 0 && (
-            <Badge className="bg-blue-100 text-blue-700">{actionsConfigured}/{actions.length} acciones configuradas</Badge>
+            <Badge className="bg-blue-100 text-blue-700">{actionsConfigured}/{filteredActions.length} configuradas</Badge>
           )}
         </div>
       </button>
       {expanded && (
         <div className="px-3 pb-3">
-          {actions.map((act) => (
+          {filteredActions.map((act) => (
             <ActionAccordion
               key={act.id}
               action={act}
@@ -260,7 +267,7 @@ function SubCategoryAccordion({ subCategory, businessType, actions, configs, use
   );
 }
 
-function BusinessTypeAccordion({ business, subCategories, actions, configs, users, templates, onSaved }) {
+function BusinessTypeAccordion({ business, subCategories, actions, allowedMap, configs, users, templates, onSaved }) {
   const [expanded, setExpanded] = useState(false);
   const subs = business.has_sub ? subCategories : [null];
 
@@ -288,6 +295,7 @@ function BusinessTypeAccordion({ business, subCategories, actions, configs, user
               subCategory={sub}
               businessType={business.id}
               actions={actions}
+              allowedMap={allowedMap}
               configs={configs}
               users={users}
               templates={templates}
@@ -373,6 +381,7 @@ export default function ActionNotificationsConfig() {
           business={biz}
           subCategories={catalog.product_subcategories}
           actions={catalog.actions}
+          allowedMap={catalog.allowed_actions_by_biz_sub || {}}
           configs={configs}
           users={catalog.users}
           templates={catalog.templates}
