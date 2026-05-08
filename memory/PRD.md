@@ -1092,3 +1092,22 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 
 **Resultado**: `ProjectDetail.jsx` 2069 → 1833 líneas (-236, total 2 fases -445/-19.5% del original). Lint OK. Smoke test: el TemplatesAdminDialog abre correctamente con plantillas existentes, formulario y panel de variables. Sin errores nuevos en consola.
 
+
+
+## Acciones Dinámicas — Migración a `allowed_user_ids` (iter 193, Feb 2026)
+
+**Solicitud del usuario**: en las Acciones Custom y Overrides del flujo de cotizaciones, reemplazar el input de "Cargos permitidos" (texto libre) por un **selector múltiple de Usuarios específicos**. También asegurar que las Custom Actions aparezcan en el catálogo del Motor de Notificaciones para poder asignarles plantillas.
+
+**Backend** (pre-migrado en fork anterior):
+- `ActionOverride` y `CustomAction` aceptan `allowed_user_ids: List[str]`.
+- `dispatch_custom_action` valida con `allowed_user_ids` (admin siempre OK, user_id debe estar en lista).
+- `/api/action-notifications/catalog` inyecta las custom actions en `allowed_actions_by_biz_sub` y `actions[]` para que se puedan configurar plantillas en la Matriz.
+
+**Frontend** (completado en esta iteración):
+- Nuevo componente `UserMultiSelect` en `ActionNotificationsConfig.jsx`: popover con búsqueda y checkboxes por usuario (label, cargo/departamento visible).
+- `OverrideRow` y `CustomActionDialog` ahora usan `UserMultiSelect` y envían `allowed_user_ids` (no `required_cargos`).
+- Tabla de Custom Actions muestra columna **"Usuarios"** con nombres resueltos (o "Todos" si vacío).
+- `QuotesTable.jsx` filtra overrides y custom actions por `currentUserId` contra `allowed_user_ids` (con fallback legacy a `required_cargos` si está vacío).
+- `Quotes.jsx` pasa `currentUserId={currentUser?.user_id}` a `QuotesTable`.
+
+**Validado**: Testing agent iter1 — backend 7/7 pytest (persistencia, catalog, dispatch con 403 a no autorizados) y frontend 100% (UserMultiSelect con 24 usuarios, data-testids verificados, columna "Usuarios" renderizando correctamente).
