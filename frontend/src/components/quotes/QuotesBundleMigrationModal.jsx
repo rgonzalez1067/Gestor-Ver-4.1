@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
+import JSZip from 'jszip';
 
 // Helper: descarga binaria autenticada usando el cliente axios (api).
 // Antes usaba fetch nativo, pero en producción algunos service workers /
@@ -36,6 +37,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const [previewing, setPreviewing] = useState(false);
   const [importingData, setImportingData] = useState(false);
   const [importingZip, setImportingZip] = useState(false);
+  const [zipProgress, setZipProgress] = useState('');
   const [previewSummary, setPreviewSummary] = useState(null);
   const [dataResult, setDataResult] = useState(null);
   const [zipResult, setZipResult] = useState(null);
@@ -131,18 +133,60 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
       return;
     }
     setImportingZip(true);
+    setZipResult(null);
+    setZipProgress('Leyendo ZIP local...');
     try {
-      const fd = new FormData();
-      fd.append('file', f);
-      const res = await api.post('/admin/quotes-bundle-migration/import-attachments', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Extraer el ZIP en el browser con JSZip y subir cada archivo
+      // individualmente. Inmune al límite de tamaño del ingress (que rechaza
+      // uploads grandes con 413) y al timeout del proxy.
+      const zip = await JSZip.loadAsync(f);
+      const entries = [];
+      zip.forEach((relPath, entry) => {
+        if (entry.dir) return;
+        if (relPath === 'manifest.json') return;
+        if (relPath.split('/').includes('..')) return;
+        entries.push({ relPath, entry });
       });
-      setZipResult(res.data);
-      toast.success(res.data.message || 'Anexos restaurados');
+      const total = entries.length;
+      if (total === 0) {
+        toast.error('El ZIP no contiene archivos restaurables');
+        return;
+      }
+      let restored = 0;
+      let skipped = 0;
+      const errors = [];
+      for (let i = 0; i < total; i++) {
+        const { relPath, entry } = entries[i];
+        setZipProgress(`Subiendo ${i + 1}/${total} · ${relPath.slice(-40)}`);
+        try {
+          const blob = await entry.async('blob');
+          const fd = new FormData();
+          fd.append('path', relPath);
+          fd.append('file', blob, relPath.split('/').pop() || 'file.bin');
+          await api.post('/admin/quotes-bundle-migration/import-attachment', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          restored += 1;
+        } catch (err) {
+          skipped += 1;
+          errors.push({ path: relPath, error: err.response?.data?.detail || err.message });
+        }
+      }
+      const result = {
+        module: 'quotes-bundle-attachments',
+        restored,
+        skipped,
+        errors: errors.slice(0, 20),
+        message: `Restauración completada: ${restored} archivo(s) restaurado(s), ${skipped} omitido(s).`,
+      };
+      setZipResult(result);
+      if (restored > 0) toast.success(result.message);
+      else toast.error(result.message);
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Error al restaurar anexos');
+      toast.error(e.response?.data?.detail || e.message || 'Error al restaurar anexos');
     } finally {
       setImportingZip(false);
+      setZipProgress('');
     }
   };
 
@@ -350,7 +394,10 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                 <FileArchive size={20} className="text-emerald-600 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-slate-800">2. Restaurar anexos (ZIP)</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Vuelca los archivos al Object Storage manteniendo sus paths originales.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Descomprime el ZIP en tu navegador y sube cada archivo individualmente
+                    al Object Storage. Inmune a límites de tamaño del proxy (ingress).
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 mt-2">
@@ -369,7 +416,7 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   {importingZip ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
-                  Restaurar
+                  {importingZip ? (zipProgress || 'Restaurando...') : 'Restaurar'}
                 </Button>
               </div>
               {zipResult && (

@@ -1123,3 +1123,16 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - El render invoca `renderAnchoredCustomActions` inmediatamente después de cada acción legacy (`send_to_client`, `approve`, `repair_complete`, `invoice`, `collect`, `deliver`, `send_to_implementation`). Las actions sin ancla siguen apareciendo al final bajo el encabezado "Personalizadas".
 
 **Verificado**: orden del menú PYME/VPOS → `Enviar al Cliente → Aprobación → Factura → Registrar Pago → **Validar Pago** → Enviar a Implementación → Eliminar`.
+
+
+## Bugfix — Restaurar Anexos en producción (Feb 2026)
+
+**Reportado**: en deploy, el respaldo (ZIP de ~68 MB) se generaba bien con "Contingencia · Migración Cotizaciones (Streaming)", pero al **importarlo** en el modal "Migración BD" → "Restaurar anexos", el toast mostraba "Error al restaurar anexos" sin mensaje específico.
+
+**Root cause**: el endpoint legacy `POST /admin/quotes-bundle-migration/import-attachments` recibe el ZIP completo en una sola request (`await file.read()` lo carga en RAM). El ingress de Kubernetes (nginx) suele rechazar bodies > 1 MB con 413, y el frontend solo mostraba el genérico "Error al restaurar anexos".
+
+**Fix** (mismo patrón que el download paginado de `ContingencyAttachmentsExport.jsx`):
+- **Backend** (`/app/backend/routes/data_migration.py`): nuevo endpoint `POST /admin/quotes-bundle-migration/import-attachment` que recibe un solo archivo + `path` (form). Valida path traversal, descarta `manifest.json`, y guarda con `save_pdf_dual` (FS local + Object Storage). El endpoint legacy en bloque permanece como fallback.
+- **Frontend** (`QuotesBundleMigrationModal.jsx`): `handleImportAttachments` ahora descomprime el ZIP **en el navegador** con JSZip y sube cada archivo individualmente (request pequeña <2 MB típicamente). Botón muestra progreso `Subiendo X/N · ruta...`.
+
+**Verificado E2E**: ZIP creado con 2 archivos + manifest → endpoint reporta `restored=2 skipped=1 errors=[]`, archivos físicamente presentes en `UPLOADS_DIR`.

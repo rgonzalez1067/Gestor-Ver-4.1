@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, UploadFile, File
+from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from starlette.background import BackgroundTask
 
@@ -1021,3 +1021,48 @@ async def quotes_bundle_import_attachments(
         "errors": errors[:20],
         "message": f"Restauración completada: {restored} archivo(s) restaurado(s), {skipped} omitido(s).",
     }
+
+
+# ---------------------------------------------------------------------------
+# CONTINGENCIA · IMPORT PAGINADO ANEXOS — Subida individual por archivo.
+# ---------------------------------------------------------------------------
+# Diseñado para sortear el límite de tamaño del ingress (típicamente 1MB en
+# nginx por defecto) y los timeouts del proxy: cada archivo se sube en su
+# propia request pequeña. El cliente (browser) extrae el ZIP localmente con
+# JSZip y emite N peticiones POST. Es el simétrico del download paginado.
+# ---------------------------------------------------------------------------
+@router.post("/admin/quotes-bundle-migration/import-attachment")
+async def quotes_bundle_import_attachment(
+    path: str = Form(...),
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Restaura UN solo anexo dado su path relativo (relativo a /uploads/)."""
+    user = await _require_admin(authorization)
+    rel = (path or "").lstrip("/")
+    if not rel or ".." in rel.replace("\\", "/").split("/"):
+        raise HTTPException(status_code=400, detail="Path inválido")
+    if rel == "manifest.json":
+        return {"ok": True, "skipped": True, "reason": "manifest"}
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
+
+    try:
+        local_path = UPLOADS_DIR / rel
+        save_pdf_dual(local_path, raw, rel)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error guardando {rel}: {e}")
+
+    # Bitácora ligera (sin spam: una sola línea con el contador es suficiente
+    # cuando se usa en lote; aquí solo log de debug si se necesita rastrear).
+    await db.bitacora.insert_one({
+        "action": "quotes_bundle_import_attachment_single",
+        "path": rel,
+        "size": len(raw),
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {"ok": True, "path": rel, "size": len(raw)}
