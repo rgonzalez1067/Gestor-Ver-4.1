@@ -48,6 +48,11 @@ const webpackConfig = {
     },
     configure: (webpackConfig) => {
 
+      // Deshabilitar cache filesystem de Webpack para evitar acumular GBs en
+      // node_modules/.cache que rompen el deploy (tar exit 2). En memoria es
+      // suficiente para HMR del dev server.
+      webpackConfig.cache = { type: 'memory' };
+
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
           ...webpackConfig.watchOptions,
