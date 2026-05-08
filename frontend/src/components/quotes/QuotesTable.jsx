@@ -44,7 +44,7 @@ export const QuotesTable = ({
   onOpenAnexos, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
-  actionOverrides = {}, customActions = [], currentUserCargo = '', currentUserRole = '', onCustomAction,
+  actionOverrides = {}, customActions = [], currentUserId = '', currentUserCargo = '', currentUserRole = '', onCustomAction,
   clearFilters,
 }) => {
   // Helper: mapea quote → (biz_type, sub_cat) para resolver overrides.
@@ -69,9 +69,14 @@ export const QuotesTable = ({
     const ov = actionOverrides[`${biz}|${sub || '_'}|${actionId}`] || actionOverrides[`${biz}|_|${actionId}`];
     if (!ov) return { label: defaultLabel, hidden: false, disabled: false, tooltip: null };
     if (!ov.enabled) return { label: ov.custom_label || defaultLabel, hidden: true, disabled: true, tooltip: 'Acción desactivada' };
-    const cargosReq = ov.required_cargos || [];
     const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
-    if (cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
+    const allowedUserIds = ov.allowed_user_ids || [];
+    if (allowedUserIds.length && !isAdmin && !allowedUserIds.includes(currentUserId)) {
+      return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: 'No autorizado para esta acción' };
+    }
+    // Fallback legacy: algunos overrides viejos pueden tener required_cargos
+    const cargosReq = ov.required_cargos || [];
+    if (!allowedUserIds.length && cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
       return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: `Solo cargos: ${cargosReq.join(', ')}` };
     }
     return { label: ov.custom_label || defaultLabel, hidden: false, disabled: false, tooltip: null };
@@ -85,6 +90,12 @@ export const QuotesTable = ({
       if (!ca.enabled) return false;
       if (ca.business_type !== biz) return false;
       if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
+      const allowedUserIds = ca.allowed_user_ids || [];
+      if (allowedUserIds.length) {
+        if (!isAdmin && !allowedUserIds.includes(currentUserId)) return false;
+        return true;
+      }
+      // Fallback legacy
       const cargosReq = ca.required_cargos || [];
       if (cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) return false;
       return true;

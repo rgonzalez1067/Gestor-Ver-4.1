@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw, Edit2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -482,9 +482,9 @@ export default function ActionNotificationsConfig() {
 
       {tab === 'audit' && <AuditLogTab actions={catalog.actions} businessTypes={catalog.business_types} />}
 
-      {tab === 'overrides' && <OverridesTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} allowedMap={catalog.allowed_actions_by_biz_sub || {}} />}
+      {tab === 'overrides' && <OverridesTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} allowedMap={catalog.allowed_actions_by_biz_sub || {}} users={catalog.users} />}
 
-      {tab === 'custom' && <CustomActionsTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} />}
+      {tab === 'custom' && <CustomActionsTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} users={catalog.users} />}
 
       <AlertDialog open={seedDialogOpen} onOpenChange={setSeedDialogOpen}>
         <AlertDialogContent data-testid="seed-legacy-dialog">
@@ -686,7 +686,107 @@ function AuditLogTab({ actions, businessTypes }) {
 // ============================================================================
 // FASE B — Override de Acciones Legacy (renombrar / desactivar / restringir)
 // ============================================================================
-function OverridesTab({ actions, businessTypes, subCategories, allowedMap }) {
+// ============================================================================
+// UserMultiSelect — Selector múltiple de usuarios con búsqueda
+// ============================================================================
+function UserMultiSelect({ users = [], selected = [], onChange, testid = 'user-multi-select' }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? users.filter((u) =>
+        (u.label || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.cargo || '').toLowerCase().includes(q) ||
+        (u.departamento || '').toLowerCase().includes(q)
+      )
+    : users;
+
+  const toggle = (uid) => {
+    if (selected.includes(uid)) onChange(selected.filter((x) => x !== uid));
+    else onChange([...selected, uid]);
+  };
+
+  const selectedLabels = selected
+    .map((uid) => users.find((u) => u.user_id === uid)?.label)
+    .filter(Boolean);
+
+  return (
+    <div className="relative" ref={containerRef} data-testid={testid}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full min-h-9 px-2 py-1.5 border border-slate-200 rounded bg-white text-left text-sm hover:border-slate-300 focus:outline-none focus:border-blue-500 flex flex-wrap items-center gap-1"
+        data-testid={`${testid}-trigger`}
+      >
+        {selected.length === 0 ? (
+          <span className="text-slate-400">Todos los usuarios</span>
+        ) : (
+          selectedLabels.slice(0, 3).map((lab, i) => (
+            <Badge key={i} variant="secondary" className="text-[10px] bg-blue-100 text-blue-800">{lab}</Badge>
+          ))
+        )}
+        {selected.length > 3 && <Badge variant="secondary" className="text-[10px]">+{selected.length - 3}</Badge>}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-72 bg-white border border-slate-200 rounded shadow-lg flex flex-col">
+          <div className="p-2 border-b border-slate-100">
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar usuario..."
+              className="h-8 text-sm"
+              data-testid={`${testid}-search`}
+            />
+          </div>
+          <div className="overflow-y-auto flex-1 py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-slate-400 text-center">Sin resultados</div>
+            ) : (
+              filtered.map((u) => {
+                const checked = selected.includes(u.user_id);
+                return (
+                  <label
+                    key={u.user_id}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-sm"
+                    data-testid={`${testid}-option-${u.user_id}`}
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => toggle(u.user_id)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{u.label}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{u.cargo || u.departamento || u.email}</div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          {selected.length > 0 && (
+            <div className="p-1.5 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-[10px] text-slate-500 px-2">{selected.length} seleccionado{selected.length !== 1 ? 's' : ''}</span>
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => onChange([])}>Limpiar</Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function OverridesTab({ actions, businessTypes, subCategories, allowedMap, users = [] }) {
   const [overrides, setOverrides] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -708,7 +808,7 @@ function OverridesTab({ actions, businessTypes, subCategories, allowedMap }) {
   return (
     <div data-testid="overrides-tab" className="space-y-4">
       <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
-        <strong>Override de acciones existentes.</strong> Renombra el botón, desactívalo o restringe qué cargos pueden ejecutarlo. La lógica de la acción (cambio de estado, generación de PDFs, archivos) NO se altera.
+        <strong>Override de acciones existentes.</strong> Renombra el botón, desactívalo o restringe qué usuarios pueden ejecutarlo. La lógica de la acción (cambio de estado, generación de PDFs, archivos) NO se altera.
       </div>
       {businessTypes.map((biz) => (
         <BusinessOverridesBlock
@@ -718,6 +818,7 @@ function OverridesTab({ actions, businessTypes, subCategories, allowedMap }) {
           actions={actions}
           allowedMap={allowedMap}
           overrides={overrides}
+          users={users}
           onChanged={load}
         />
       ))}
@@ -725,7 +826,7 @@ function OverridesTab({ actions, businessTypes, subCategories, allowedMap }) {
   );
 }
 
-function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overrides, onChanged }) {
+function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overrides, users = [], onChanged }) {
   const [expanded, setExpanded] = useState(false);
   const subs = biz.has_sub ? subCategories.filter((s) => (allowedMap[`${biz.id}|${s.id}`] || []).length) : [{ id: null, label: '' }];
 
@@ -755,6 +856,7 @@ function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overr
                       bizId={biz.id}
                       subId={sub.id}
                       override={overrides[key]}
+                      users={users}
                       onChanged={onChanged}
                     />
                   );
@@ -768,23 +870,22 @@ function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overr
   );
 }
 
-function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
+function OverrideRow({ action, configKey, bizId, subId, override, users = [], onChanged }) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(override?.custom_label || '');
   const [enabled, setEnabled] = useState(override?.enabled !== false);
-  const [requiredCargos, setRequiredCargos] = useState((override?.required_cargos || []).join(', '));
+  const [allowedUserIds, setAllowedUserIds] = useState(override?.allowed_user_ids || []);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setLabel(override?.custom_label || '');
     setEnabled(override?.enabled !== false);
-    setRequiredCargos((override?.required_cargos || []).join(', '));
+    setAllowedUserIds(override?.allowed_user_ids || []);
   }, [override]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const cargos = requiredCargos.split(',').map((c) => c.trim()).filter(Boolean);
       await api.put('/quote-action-overrides', {
         business_type: bizId,
         product_subcategory: subId || null,
@@ -792,7 +893,8 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
         custom_label: label.trim() || null,
         enabled,
         required_roles: [],
-        required_cargos: cargos,
+        required_cargos: [],
+        allowed_user_ids: allowedUserIds,
       });
       toast.success('Override guardado');
       setEditing(false);
@@ -813,6 +915,10 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
     } finally { setSaving(false); }
   };
 
+  const allowedUsersLabel = (override?.allowed_user_ids || [])
+    .map((uid) => users.find((u) => u.user_id === uid)?.label)
+    .filter(Boolean);
+
   if (!editing) {
     return (
       <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded border border-slate-200">
@@ -820,7 +926,11 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
           <span className={`text-sm ${enabled ? '' : 'line-through text-slate-400'}`}>{label || action.label}</span>
           {label && <Badge variant="secondary" className="text-[10px]">renombrado</Badge>}
           {!enabled && <Badge variant="secondary" className="bg-red-100 text-red-700 text-[10px]">desactivado</Badge>}
-          {requiredCargos && <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-[10px]">cargos: {requiredCargos}</Badge>}
+          {allowedUsersLabel.length > 0 && (
+            <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-[10px]" title={allowedUsersLabel.join(', ')}>
+              {allowedUsersLabel.length} usuario{allowedUsersLabel.length !== 1 ? 's' : ''}
+            </Badge>
+          )}
         </div>
         <Button variant="ghost" size="sm" onClick={() => setEditing(true)} data-testid={`override-edit-${action.id}`}>
           <Edit2 size={14} />
@@ -839,8 +949,8 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={action.label} className="h-8" />
         </div>
         <div>
-          <label className="text-[11px] text-slate-600">Cargos permitidos (coma)</label>
-          <Input value={requiredCargos} onChange={(e) => setRequiredCargos(e.target.value)} placeholder="Administración, Gerente" className="h-8" />
+          <label className="text-[11px] text-slate-600">Usuarios autorizados (vacío = todos)</label>
+          <UserMultiSelect users={users} selected={allowedUserIds} onChange={setAllowedUserIds} testid={`override-users-${action.id}`} />
         </div>
       </div>
       <label className="flex items-center gap-2 text-sm">
@@ -848,7 +958,7 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
         Acción activa (visible en el menú)
       </label>
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleSave} disabled={saving}>
+        <Button size="sm" onClick={handleSave} disabled={saving} data-testid={`override-save-${action.id}`}>
           {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
           Guardar
         </Button>
@@ -861,7 +971,7 @@ function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
 // ============================================================================
 // FASE A — Acciones Personalizadas (nuevas, sin cambio de estado)
 // ============================================================================
-function CustomActionsTab({ actions, businessTypes, subCategories }) {
+function CustomActionsTab({ actions, businessTypes, subCategories, users = [] }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -912,7 +1022,7 @@ function CustomActionsTab({ actions, businessTypes, subCategories }) {
                 <th className="px-3 py-2 text-left font-medium text-slate-600">Label</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600">Tipo · Sub</th>
                 <th className="px-3 py-2 text-left font-medium text-slate-600">Posición</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-600">Cargos</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-600">Usuarios</th>
                 <th className="px-3 py-2 text-center font-medium text-slate-600">Activa</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -923,7 +1033,14 @@ function CustomActionsTab({ actions, businessTypes, subCategories }) {
                   <td className="px-3 py-2"><strong>{it.label}</strong> <code className="text-[10px] bg-slate-100 px-1 rounded ml-1">{it.action_id}</code></td>
                   <td className="px-3 py-2 text-xs text-slate-600">{(businessTypes.find((b) => b.id === it.business_type) || {}).label || it.business_type}{it.product_subcategory ? ` · ${it.product_subcategory}` : ''}</td>
                   <td className="px-3 py-2 text-xs">{it.position_after ? `después de ${actions.find((a) => a.id === it.position_after)?.label || it.position_after}` : 'al final'}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600">{(it.required_cargos || []).join(', ') || '—'}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">
+                    {(() => {
+                      const ids = it.allowed_user_ids || [];
+                      if (!ids.length) return 'Todos';
+                      const names = ids.map((uid) => users.find((u) => u.user_id === uid)?.label).filter(Boolean);
+                      return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-center">{it.enabled ? <Eye size={14} className="inline text-emerald-500" /> : <EyeOff size={14} className="inline text-slate-400" />}</td>
                   <td className="px-3 py-2 text-right">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(it)}><Edit2 size={14} /></Button>
@@ -943,17 +1060,18 @@ function CustomActionsTab({ actions, businessTypes, subCategories }) {
         actions={actions}
         businessTypes={businessTypes}
         subCategories={subCategories}
+        users={users}
         onSaved={() => { setDialogOpen(false); load(); }}
       />
     </div>
   );
 }
 
-function CustomActionDialog({ open, onOpenChange, editing, actions, businessTypes, subCategories, onSaved }) {
+function CustomActionDialog({ open, onOpenChange, editing, actions, businessTypes, subCategories, users = [], onSaved }) {
   const [form, setForm] = useState({
     action_id: '', business_type: 'implementacion_pyme', product_subcategory: null,
     label: '', position_after: '', enabled: true,
-    required_cargos: '', icon: 'Mail', color: 'blue', description: '',
+    allowed_user_ids: [], icon: 'Mail', color: 'blue', description: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -964,7 +1082,7 @@ function CustomActionDialog({ open, onOpenChange, editing, actions, businessType
         product_subcategory: editing.product_subcategory || null,
         label: editing.label, position_after: editing.position_after || '',
         enabled: editing.enabled !== false,
-        required_cargos: (editing.required_cargos || []).join(', '),
+        allowed_user_ids: editing.allowed_user_ids || [],
         icon: editing.icon || 'Mail', color: editing.color || 'blue',
         description: editing.description || '',
       });
@@ -972,7 +1090,7 @@ function CustomActionDialog({ open, onOpenChange, editing, actions, businessType
       setForm({
         action_id: '', business_type: 'implementacion_pyme', product_subcategory: null,
         label: '', position_after: '', enabled: true,
-        required_cargos: '', icon: 'Mail', color: 'blue', description: '',
+        allowed_user_ids: [], icon: 'Mail', color: 'blue', description: '',
       });
     }
   }, [editing, open]);
@@ -989,7 +1107,8 @@ function CustomActionDialog({ open, onOpenChange, editing, actions, businessType
         position_after: form.position_after || null,
         enabled: form.enabled,
         required_roles: [],
-        required_cargos: form.required_cargos.split(',').map((c) => c.trim()).filter(Boolean),
+        required_cargos: [],
+        allowed_user_ids: form.allowed_user_ids || [],
         icon: form.icon || null, color: form.color || null,
         description: form.description || null,
       });
@@ -1060,8 +1179,8 @@ function CustomActionDialog({ open, onOpenChange, editing, actions, businessType
               </Select>
             </div>
             <div>
-              <label className="text-xs text-slate-600">Cargos permitidos (coma)</label>
-              <Input value={form.required_cargos} onChange={(e) => setForm((f) => ({ ...f, required_cargos: e.target.value }))} placeholder="Administración, Taller" />
+              <label className="text-xs text-slate-600">Usuarios autorizados (vacío = todos)</label>
+              <UserMultiSelect users={users} selected={form.allowed_user_ids} onChange={(ids) => setForm((f) => ({ ...f, allowed_user_ids: ids }))} testid="custom-action-users" />
             </div>
           </div>
 

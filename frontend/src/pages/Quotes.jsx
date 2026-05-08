@@ -3498,6 +3498,7 @@ export const Quotes = () => {
             clients={clients}
             actionOverrides={actionOverrides}
             customActions={customActions}
+            currentUserId={currentUser?.user_id || ''}
             currentUserCargo={currentUser?.cargo || ''}
             currentUserRole={currentUser?.role || ''}
             onCustomAction={async (quoteId, actionId, label) => {
