@@ -157,25 +157,38 @@ async def get_catalog(authorization: Optional[str] = Header(None)):
     templates = await db.email_templates.find({}, {
         "_id": 0, "template_id": 1, "name": 1, "subject": 1,
         "context": 1, "sede": 1, "category": 1, "is_active": 1,
+        "is_project_template": 1, "is_custom": 1, "group": 1,
     }).to_list(500)
-    # Categorización de plantillas: prioridad a campo `sede` (PYME/CORP) sobre cualquier
-    # otra heurística. Si no hay sede, intenta derivar por `context`.
+    # Categorización de plantillas para el dropdown del Motor: prioridad
+    #   1. Campo explícito `group` (set por el creador al guardar la plantilla)
+    #   2. Sufijo `_PYME` / `_CORP` en el `template_id` (legacy)
+    #   3. Campo `sede` (PYME/CORP)
+    #   4. Flag `is_project_template` o context "implement" → "Implementación"
+    #   5. Context heurístico (equip/repair)
+    #   6. "General"
+    PROJECT_TEMPLATE_IDS = {
+        "project_notify_client", "project_notify_bank_client", "project_implementation_initial",
+        "implementer_assigned", "implementation_completed", "new_integration_project",
+    }
     for t in templates:
-        if not t.get("category"):
-            sede = (t.get("sede") or "").strip().upper()
-            ctx = (t.get("context") or "").strip().lower()
-            if sede == "PYME":
-                t["category"] = "Pyme"
-            elif sede == "CORP":
-                t["category"] = "Corp"
-            elif "implement" in ctx:
-                t["category"] = "Implementación"
-            elif "equip" in ctx:
-                t["category"] = "Equipos"
-            elif "repair" in ctx or "reparac" in ctx:
-                t["category"] = "Reparaciones"
-            else:
-                t["category"] = "General"
+        if t.get("group"):
+            t["category"] = t["group"]
+            continue
+        tid = (t.get("template_id") or "")
+        sede = (t.get("sede") or "").strip().upper()
+        ctx = (t.get("context") or "").strip().lower()
+        if tid.endswith("_PYME") or sede == "PYME":
+            t["category"] = "Pyme"
+        elif tid.endswith("_CORP") or sede == "CORP":
+            t["category"] = "Corp"
+        elif t.get("is_project_template") or tid in PROJECT_TEMPLATE_IDS or "implement" in ctx:
+            t["category"] = "Implementación"
+        elif "equip" in ctx:
+            t["category"] = "Equipos"
+        elif "repair" in ctx or "reparac" in ctx:
+            t["category"] = "Reparaciones"
+        else:
+            t["category"] = "General"
 
     # Diccionario: lista de actions permitidas por (biz_type, sub_cat) — el frontend
     # filtra qué acciones mostrar por combinación.

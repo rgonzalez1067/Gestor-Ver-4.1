@@ -562,6 +562,7 @@ export const EmailTemplatesEditor = () => {
     template_id: '',
     name: '',
     context: 'COTIZACIONES',
+    group: 'General',
     description: '',
     subject: '',
     body_html: '',
@@ -634,6 +635,7 @@ export const EmailTemplatesEditor = () => {
       template_id: '',
       name: '',
       context: 'COTIZACIONES',
+      group: 'General',
       description: '',
       subject: '',
       body_html: '',
@@ -642,7 +644,7 @@ export const EmailTemplatesEditor = () => {
   };
 
   const handleCreate = async () => {
-    const tid = (createForm.template_id || slugify(createForm.name)).trim();
+    let tid = (createForm.template_id || slugify(createForm.name)).trim();
     if (!tid) { toast.error('Debes indicar el ID o el nombre de la plantilla'); return; }
     if (!createForm.name?.trim()) { toast.error('El nombre es obligatorio'); return; }
     if (!createForm.subject?.trim()) { toast.error('El asunto es obligatorio'); return; }
@@ -650,18 +652,27 @@ export const EmailTemplatesEditor = () => {
     if (!/^[a-z0-9_]+$/i.test(tid)) {
       toast.error('El ID solo puede contener letras, números y guiones bajos'); return;
     }
+    // Auto-sufijar template_id según grupo (compatibilidad con legacy)
+    const group = createForm.group || 'General';
+    if (group === 'Pyme' && !tid.endsWith('_PYME')) tid = `${tid}_PYME`;
+    else if (group === 'Corp' && !tid.endsWith('_CORP')) tid = `${tid}_CORP`;
+
+    const payload = {
+      template_id: tid,
+      name: createForm.name.trim(),
+      subject: createForm.subject,
+      body_html: createForm.body_html,
+      description: createForm.description || '',
+      context: createForm.context || null,
+      is_active: true,
+      group,
+      sede: group === 'Pyme' ? 'PYME' : group === 'Corp' ? 'CORP' : null,
+      is_project_template: group === 'Implementación',
+    };
     setCreating(true);
     try {
-      await api.post('/email-templates', {
-        template_id: tid,
-        name: createForm.name.trim(),
-        subject: createForm.subject,
-        body_html: createForm.body_html,
-        description: createForm.description || '',
-        context: createForm.context || null,
-        is_active: true,
-      });
-      toast.success('Plantilla creada correctamente');
+      await api.post('/email-templates', payload);
+      toast.success(`Plantilla creada en grupo "${group}"`);
       setCreateDialogOpen(false);
       fetchTemplates();
     } catch (error) {
@@ -1303,7 +1314,19 @@ export const EmailTemplatesEditor = () => {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <Label className="text-xs">Grupo *</Label>
+                <Select value={createForm.group || 'General'} onValueChange={(v) => setCreateForm((f) => ({ ...f, group: v }))}>
+                  <SelectTrigger data-testid="create-template-group"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pyme">Pyme (sufijo _PYME)</SelectItem>
+                    <SelectItem value="Corp">Corp (sufijo _CORP)</SelectItem>
+                    <SelectItem value="Implementación">Implementación</SelectItem>
+                    <SelectItem value="General">General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label className="text-xs">Contexto</Label>
                 <Select value={createForm.context || 'COTIZACIONES'} onValueChange={(v) => setCreateForm((f) => ({ ...f, context: v }))}>

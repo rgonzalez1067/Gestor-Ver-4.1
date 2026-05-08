@@ -112,6 +112,9 @@ class EmailTemplate(BaseModel):
     is_active: bool = True
     context: Optional[str] = None  # "COTIZACIONES" | "IMPLEMENTACION" | "ADMINISTRACION" | "CLIENTES"
     is_custom: bool = False  # True si fue creada manualmente por un usuario admin (no parte del catálogo legacy)
+    group: Optional[str] = None  # "Pyme" | "Corp" | "Implementación" | "General" — categoría visible en el Motor de Notificaciones
+    sede: Optional[str] = None   # "PYME" | "CORP" — para alinear con plantillas legacy por sede
+    is_project_template: Optional[bool] = None
 
 # Plantillas predeterminadas
 DEFAULT_EMAIL_TEMPLATES = {

@@ -80,7 +80,15 @@ async def _resolve_user_email(user_id: str) -> Optional[tuple[str, str]]:
 
 
 async def _build_template_vars(quote: dict) -> dict:
-    """Resuelve variables comunes desde la cotización + cliente."""
+    """Resuelve variables comunes desde la cotización + cliente.
+
+    HOMOLOGADO con el motor legacy (`services.workflow_notifications.py`):
+    expone tanto los nombres en snake_case (legacy: `client_name`,
+    `quote_number`, `total_usd`, etc.) como los CamelCase
+    (`Nombre_Cliente`, `Cotizacion_Nro`, ...) y minúsculas
+    (`nombre_cliente`, `nro_cotizacion`) para máxima compatibilidad con
+    plantillas existentes y futuras.
+    """
     creator_name, creator_email = "", ""
     if quote.get("created_by_user_id"):
         creator = await db.users.find_one(
@@ -110,24 +118,65 @@ async def _build_template_vars(quote: dict) -> dict:
             contacts = c.get("contacts") or []
             primary = contacts[0] if contacts else (c.get("contact1") or {})
             if isinstance(primary, dict):
-                contact_name = contact_name or primary.get("full_name") or primary.get("name") or ""
+                contact_name = contact_name or primary.get("full_name") or primary.get("name") or (
+                    f"{primary.get('first_name', '')} {primary.get('last_name', '')}".strip()
+                )
                 contact_email = contact_email or primary.get("email") or ""
                 contact_phone = contact_phone or primary.get("phone") or primary.get("telefono") or ""
 
+    raw_segment = quote.get("sede", quote.get("client_segment", "PYME"))
+    norm_segment = (
+        "PYME" if raw_segment in ("TBP", "PYME", "Pymes", "pyme")
+        else "CORP" if raw_segment in ("CORP", "Corp", "Corporativo")
+        else raw_segment
+    )
+    quote_number = quote.get("quote_number", "")
+    invoice_number = quote.get("invoice_number", "") or ""
+    approved_at = quote.get("approved_at") or quote.get("collected_at") or ""
+    approved_date = ""
+    if approved_at:
+        try:
+            from datetime import datetime
+            approved_date = datetime.fromisoformat(approved_at.replace("Z", "+00:00")).strftime("%d/%m/%Y")
+        except Exception:
+            approved_date = approved_at[:10] if isinstance(approved_at, str) else ""
+
     return {
-        "Cotizacion_Nro": quote.get("quote_number", ""),
-        "nro_cotizacion": quote.get("quote_number", ""),
+        # ----- Cotización -----
+        "quote_number": quote_number,
+        "Cotizacion_Nro": quote_number,
+        "nro_cotizacion": quote_number,
+        "quote_type": quote.get("quote_type", "N/A"),
+        "total_usd": f"{quote.get('total_usd', 0):.2f}",
+        "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
+        "invoice_number": invoice_number,
+        "approved_date": approved_date,
+        # ----- Cliente -----
+        "client_name": legal_name,
         "Nombre_Cliente": legal_name,
         "nombre_cliente": legal_name,
+        "client_rif": rif,
         "Rif_Cliente": rif,
-        "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
+        "client_address": address,
+        "Direccion_Cliente": address,
+        # ----- Contacto -----
+        "Contacto_Principal": contact_name,
+        "contacto_cliente": contact_name,
+        "Datos_Contacto": contact_name,
+        "Email_Contacto": contact_email,
+        "Email_Cliente": contact_email,
+        "Telefono_Contacto": contact_phone,
+        "Telefono_Cliente": contact_phone,
+        # ----- Ejecutivo -----
         "Nombre_Ejecutivo": creator_name,
         "Email_Ejecutivo": creator_email,
-        "Contacto_Principal": contact_name,
-        "Datos_Contacto": contact_name,
-        "Telefono_Contacto": contact_phone,
-        "Email_Contacto": contact_email,
-        "Direccion_Cliente": address,
+        # ----- Empresa / Integración -----
+        "company_name": quote.get("company_name", "Merchant Server"),
+        "integrator_name": quote.get("integrator_name", ""),
+        "pinpad_model": quote.get("pinpad_model", ""),
+        # ----- Sede -----
+        "sede_name": norm_segment,
+        "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
     }
 
 
