@@ -60,22 +60,24 @@ class ActionOverride(BaseModel):
     action_id: str
     custom_label: Optional[str] = None  # None = usa label original
     enabled: bool = True
-    required_roles: List[str] = Field(default_factory=list)  # vacío = sin restricción extra
-    required_cargos: List[str] = Field(default_factory=list)  # cargos puntuales (ej. "Administración")
+    required_roles: List[str] = Field(default_factory=list)
+    required_cargos: List[str] = Field(default_factory=list)
+    allowed_user_ids: List[str] = Field(default_factory=list)  # IDs de usuarios autorizados (NUEVO)
 
 
 class CustomAction(BaseModel):
     """Fase A: nueva acción creada por el usuario."""
-    action_id: str  # slug único (a-z0-9_)
+    action_id: str
     business_type: str
     product_subcategory: Optional[str] = None
-    label: str  # texto del botón
-    position_after: Optional[str] = None  # legacy action_id "approve" / "collect" / etc. None = al final
+    label: str
+    position_after: Optional[str] = None
     enabled: bool = True
     required_roles: List[str] = Field(default_factory=list)
     required_cargos: List[str] = Field(default_factory=list)
-    icon: Optional[str] = None  # nombre lucide-react (ej. "Mail")
-    color: Optional[str] = None  # tailwind color (ej. "blue", "purple")
+    allowed_user_ids: List[str] = Field(default_factory=list)  # NUEVO
+    icon: Optional[str] = None
+    color: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -205,15 +207,22 @@ async def dispatch_custom_action(
     if not custom or not custom.get("enabled", True):
         raise HTTPException(404, f"Acción custom '{action_id}' no encontrada o inactiva para esta cotización")
 
-    # Verificar permisos (cargo o role)
+    # Verificar permisos: cargo, role, o user_id directo
     user_role = user.get("role", "")
     user_cargo = user.get("cargo", "")
+    user_id = user.get("user_id", "")
     req_roles = custom.get("required_roles") or []
     req_cargos = custom.get("required_cargos") or []
-    if req_roles and user_role not in req_roles:
-        raise HTTPException(403, f"Tu rol ({user_role}) no puede ejecutar esta acción")
-    if req_cargos and user_cargo not in req_cargos:
-        raise HTTPException(403, f"Tu cargo ({user_cargo}) no puede ejecutar esta acción")
+    allowed_user_ids = custom.get("allowed_user_ids") or []
+    is_admin = user_role == "admin"
+    if not is_admin:
+        if allowed_user_ids and user_id not in allowed_user_ids:
+            raise HTTPException(403, "No estás autorizado para ejecutar esta acción")
+        if not allowed_user_ids:
+            if req_roles and user_role not in req_roles:
+                raise HTTPException(403, f"Tu rol ({user_role}) no puede ejecutar esta acción")
+            if req_cargos and user_cargo not in req_cargos:
+                raise HTTPException(403, f"Tu cargo ({user_cargo}) no puede ejecutar esta acción")
 
     # Validar email del cliente si la config dinámica lo requiere
     warn = await validate_client_email_required(action_id, quote)

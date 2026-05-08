@@ -197,11 +197,46 @@ async def get_catalog(authorization: Optional[str] = Header(None)):
         key = f"{biz}|{sub or '_'}"
         allowed[key] = action_ids
 
+    # Mezclar custom actions del módulo de personalización para que el Motor las
+    # exponga como `actions` válidas y permita configurar destinatarios+plantillas.
+    custom_actions = await db.quote_custom_actions.find({}, {"_id": 0}).to_list(500)
+    actions_extended = list(ACTIONS) + [
+        {
+            "id": ca["action_id"],
+            "label": ca.get("label", ca["action_id"]),
+            "is_custom": True,
+        }
+        for ca in custom_actions if ca.get("enabled", True)
+    ]
+    # Extender allowed_actions_by_biz_sub para incluir custom actions
+    allowed_extended = {k: list(v) for k, v in allowed.items()}
+    for ca in custom_actions:
+        if not ca.get("enabled", True):
+            continue
+        biz_id = ca.get("business_type")
+        sub_id = ca.get("product_subcategory")
+        biz_def = next((b for b in BUSINESS_TYPES if b["id"] == biz_id), None)
+        if not biz_def:
+            continue
+        # Si la custom action no especifica sub, aplica a TODAS las subs del biz
+        if biz_def.get("has_sub") and sub_id:
+            key = f"{biz_id}|{sub_id}"
+            if key in allowed_extended and ca["action_id"] not in allowed_extended[key]:
+                allowed_extended[key].append(ca["action_id"])
+        elif biz_def.get("has_sub"):
+            for k, lst in allowed_extended.items():
+                if k.startswith(f"{biz_id}|") and ca["action_id"] not in lst:
+                    lst.append(ca["action_id"])
+        else:
+            key = f"{biz_id}|_"
+            if key in allowed_extended and ca["action_id"] not in allowed_extended[key]:
+                allowed_extended[key].append(ca["action_id"])
+
     return {
         "business_types": BUSINESS_TYPES,
         "product_subcategories": PRODUCT_SUBCATEGORIES,
-        "actions": ACTIONS,
-        "allowed_actions_by_biz_sub": allowed,
+        "actions": actions_extended,
+        "allowed_actions_by_biz_sub": allowed_extended,
         "users": users,
         "templates": templates,
     }
@@ -239,21 +274,27 @@ async def upsert_config(payload: ActionConfigPayload, authorization: Optional[st
     else:
         payload.product_subcategory = None
     valid_actions = {a["id"] for a in ACTIONS}
-    if payload.action_id not in valid_actions:
-        raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(valid_actions)}")
-    # Validar que la acción esté permitida para esta combinación (biz, sub)
-    allowed_for_combo = ALLOWED_ACTIONS_BY_BIZ_SUB.get(
-        (payload.business_type, payload.product_subcategory), []
-    )
-    if allowed_for_combo and payload.action_id not in allowed_for_combo:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Acción '{payload.action_id}' no aplica a {payload.business_type}"
-                + (f" / {payload.product_subcategory}" if payload.product_subcategory else "")
-                + f". Permitidas: {allowed_for_combo}"
-            ),
+    # Aceptar también action_ids de custom actions (creadas vía /quote-custom-actions)
+    custom_action_ids = {ca["action_id"] async for ca in db.quote_custom_actions.find({}, {"_id": 0, "action_id": 1})}
+    valid_actions_extended = valid_actions | custom_action_ids
+    if payload.action_id not in valid_actions_extended:
+        raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos legacy: {sorted(valid_actions)}; custom: {sorted(custom_action_ids)}")
+    # Validar que la acción esté permitida para esta combinación (biz, sub).
+    # Para custom actions saltamos esta validación porque ellas mismas definen
+    # su biz/sub al crearse.
+    if payload.action_id in valid_actions:
+        allowed_for_combo = ALLOWED_ACTIONS_BY_BIZ_SUB.get(
+            (payload.business_type, payload.product_subcategory), []
         )
+        if allowed_for_combo and payload.action_id not in allowed_for_combo:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Acción '{payload.action_id}' no aplica a {payload.business_type}"
+                    + (f" / {payload.product_subcategory}" if payload.product_subcategory else "")
+                    + f". Permitidas: {allowed_for_combo}"
+                ),
+            )
 
     for r in payload.recipients:
         if r.type not in ("client_field", "user"):
