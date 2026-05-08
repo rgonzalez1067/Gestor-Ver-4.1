@@ -56,6 +56,8 @@ export const Quotes = () => {
   const [allHardware, setAllHardware] = useState([]); // Todos los dispositivos y accesorios
   const [actionLoading, setActionLoading] = useState(null); // Para indicar carga en acciones
   const [loading, setLoading] = useState(true);
+  const [actionOverrides, setActionOverrides] = useState({}); // Fase B: overrides por config_key
+  const [customActions, setCustomActions] = useState([]);     // Fase A: acciones custom
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
   const [equipmentWizardMode, setEquipmentWizardMode] = useState(''); // 'equipment' o 'repair'
@@ -278,6 +280,21 @@ export const Quotes = () => {
 
   useEffect(() => {
     fetchData();
+    // Cargar overrides + custom actions del Motor de Notificaciones
+    (async () => {
+      try {
+        const [ovRes, caRes] = await Promise.all([
+          api.get('/quote-action-overrides'),
+          api.get('/quote-custom-actions'),
+        ]);
+        const ovMap = {};
+        for (const o of ovRes.data?.items || []) ovMap[o.config_key] = o;
+        setActionOverrides(ovMap);
+        setCustomActions(caRes.data?.items || []);
+      } catch {
+        // Si los endpoints no existen aún (deploy parcial), usar valores por defecto
+      }
+    })();
   }, []);
 
   // Auto-highlight cuando se llega con ?highlight=COT-NUMBER (desde Reportes de Irregulares)
@@ -3479,6 +3496,22 @@ export const Quotes = () => {
           <QuotesTable
             quotes={rbacFilteredQuotes}
             clients={clients}
+            actionOverrides={actionOverrides}
+            customActions={customActions}
+            currentUserCargo={currentUser?.cargo || ''}
+            currentUserRole={currentUser?.role || ''}
+            onCustomAction={async (quoteId, actionId, label) => {
+              if (!window.confirm(`Ejecutar "${label}" para esta cotización?`)) return;
+              try {
+                setActionLoading(quoteId);
+                const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, {});
+                toast.success(res.data?.message || `${label} ejecutada`);
+              } catch (e) {
+                toast.error(e.response?.data?.detail || `Error ejecutando ${label}`);
+              } finally {
+                setActionLoading(null);
+              }
+            }}
             filterClient={filterClient}
             filterStatus={filterStatus}
             filterCategory={filterCategory}

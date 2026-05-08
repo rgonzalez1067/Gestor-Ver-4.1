@@ -1,4 +1,4 @@
-import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package, Landmark } from 'lucide-react';
+import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package, Landmark, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -44,8 +44,53 @@ export const QuotesTable = ({
   onOpenAnexos, onEditQuote, onSendToClient,
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
+  actionOverrides = {}, customActions = [], currentUserCargo = '', currentUserRole = '', onCustomAction,
   clearFilters,
 }) => {
+  // Helper: mapea quote → (biz_type, sub_cat) para resolver overrides.
+  const resolveBizSub = (q) => {
+    const cat = q.quote_category;
+    if (cat === 'equipment') return { biz: 'equipos', sub: null };
+    if (cat === 'repair') return { biz: 'reparaciones', sub: null };
+    const sede = (q.sede || q.client_segment || 'PYME').toUpperCase();
+    const biz = sede === 'CORP' ? 'implementacion_corp' : 'implementacion_pyme';
+    let sub = null;
+    const qt = (q.quote_type || '').toUpperCase();
+    if (qt === 'VPOS') sub = 'vpos';
+    else if (qt === 'GATEWAY') sub = 'payment_gateway';
+    else if (qt === 'LINK_PAGO') sub = 'link_pago';
+    else if (qt === 'MPOS') sub = (q.sub_quote_type === 'IMPLE_POS') ? 'mpos_imple_pos' : 'mpos_tablet';
+    return { biz, sub };
+  };
+
+  // Helper: aplica override a (quote, action_id) → { label, hidden, disabled, tooltip }
+  const getActionMeta = (quote, actionId, defaultLabel) => {
+    const { biz, sub } = resolveBizSub(quote);
+    const ov = actionOverrides[`${biz}|${sub || '_'}|${actionId}`] || actionOverrides[`${biz}|_|${actionId}`];
+    if (!ov) return { label: defaultLabel, hidden: false, disabled: false, tooltip: null };
+    if (!ov.enabled) return { label: ov.custom_label || defaultLabel, hidden: true, disabled: true, tooltip: 'Acción desactivada' };
+    const cargosReq = ov.required_cargos || [];
+    const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
+    if (cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) {
+      return { label: ov.custom_label || defaultLabel, hidden: false, disabled: true, tooltip: `Solo cargos: ${cargosReq.join(', ')}` };
+    }
+    return { label: ov.custom_label || defaultLabel, hidden: false, disabled: false, tooltip: null };
+  };
+
+  // Helper: lista de acciones custom aplicables a una cotización
+  const getCustomActionsFor = (quote) => {
+    const { biz, sub } = resolveBizSub(quote);
+    const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
+    return customActions.filter((ca) => {
+      if (!ca.enabled) return false;
+      if (ca.business_type !== biz) return false;
+      if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
+      const cargosReq = ca.required_cargos || [];
+      if (cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) return false;
+      return true;
+    });
+  };
+
   const filteredQuotes = quotes.filter(quote => {
     if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
     if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
@@ -286,17 +331,17 @@ export const QuotesTable = ({
                         {canEdit && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Comercial</p>
                         )}
-                        {canEdit && <DropdownMenuItem onSelect={() => onSendToClient(quote.quote_id)} className="cursor-pointer"
+                        {(() => { const m = getActionMeta(quote, 'send_to_client', 'Enviar al Cliente'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onSendToClient(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer"
                           data-testid={`send-to-client-btn-${quote.quote_id}`}>
-                          <Mail size={16} className="mr-2 text-blue-500" /> Enviar al Cliente
+                          <Mail size={16} className="mr-2 text-blue-500" /> {m.label}
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
-                        </DropdownMenuItem>}
-                        {canEdit && <DropdownMenuItem onSelect={() => onApprove(quote.quote_id)} className="cursor-pointer">
-                          <CheckCircle size={16} className="mr-2 text-green-500" /> Aprobación
+                        </DropdownMenuItem>; })()}
+                        {(() => { const m = getActionMeta(quote, 'approve', 'Aprobación'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onApprove(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                          <CheckCircle size={16} className="mr-2 text-green-500" /> {m.label}
                           {quote.approved_at && <span className="ml-auto text-xs text-green-500">&#10003;</span>}
                           {!quote.approved_at && quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
                           {!quote.approved_at && quote.quote_status !== 'Enviada' && quote.quote_status !== 'Borrador' && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>}
+                        </DropdownMenuItem>; })()}
                         {canEdit && isRepair && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onRepairComplete(quote.quote_id)} className="cursor-pointer"
                             data-testid={`repair-complete-btn-${quote.quote_id}`}>
@@ -351,18 +396,18 @@ export const QuotesTable = ({
                         {canEdit && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Financiera</p>
                         )}
-                        {canEdit && <DropdownMenuItem onSelect={() => onInvoice(quote.quote_id)} className="cursor-pointer">
-                          <Receipt size={16} className="mr-2 text-purple-500" /> Factura / Proforma
+                        {(() => { const m = getActionMeta(quote, 'invoice', 'Factura / Proforma'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onInvoice(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                          <Receipt size={16} className="mr-2 text-purple-500" /> {m.label}
                           {quote.invoiced_at && <span className="ml-auto text-xs text-purple-500">&#10003;</span>}
                           {!quote.invoiced_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-purple-500">&#x25CF;</span>}
                           {!quote.invoiced_at && !['Borrador', 'Enviada', 'Aprobada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>}
-                        {canEdit && <DropdownMenuItem onSelect={() => onCollect(quote.quote_id)} className="cursor-pointer">
-                          <Banknote size={16} className="mr-2 text-emerald-500" /> Cobranza
+                        </DropdownMenuItem>; })()}
+                        {(() => { const m = getActionMeta(quote, 'collect', 'Cobranza'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onCollect(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                          <Banknote size={16} className="mr-2 text-emerald-500" /> {m.label}
                           {quote.paid_at && <span className="ml-auto text-xs text-emerald-500">&#10003;</span>}
                           {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
-                        </DropdownMenuItem>}
+                        </DropdownMenuItem>; })()}
 
                         {/* ── ENTREGA / IMPLEMENTACIÓN ── */}
                         {canEdit && <DropdownMenuSeparator />}
@@ -383,6 +428,28 @@ export const QuotesTable = ({
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
+                        {/* ── ACCIONES PERSONALIZADAS (Fase A) ── */}
+                        {(() => {
+                          const cas = getCustomActionsFor(quote);
+                          if (!cas.length) return null;
+                          return (
+                            <>
+                              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-violet-500 select-none">Personalizadas</p>
+                              {cas.map((ca) => (
+                                <DropdownMenuItem
+                                  key={ca.action_id}
+                                  onSelect={() => onCustomAction?.(quote.quote_id, ca.action_id, ca.label)}
+                                  className="cursor-pointer"
+                                  data-testid={`custom-action-${ca.action_id}-${quote.quote_id}`}
+                                  title={ca.description || null}
+                                >
+                                  <Sparkles size={16} className="mr-2 text-violet-500" /> {ca.label}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                            </>
+                          );
+                        })()}
                         {canEdit && <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
                           className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 size={16} className="mr-2" /> Eliminar Cotización

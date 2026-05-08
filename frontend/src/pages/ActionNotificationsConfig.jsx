@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw, Edit2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
@@ -321,7 +321,7 @@ export default function ActionNotificationsConfig() {
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState(null);
   const [configs, setConfigs] = useState({});
-  const [tab, setTab] = useState('matrix'); // matrix | audit
+  const [tab, setTab] = useState('matrix'); // matrix | audit | overrides | custom
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
@@ -430,6 +430,28 @@ export default function ActionNotificationsConfig() {
           <Activity size={14} />
           Auditoría de envíos
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('overrides')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            tab === 'overrides' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          data-testid="tab-overrides"
+        >
+          <Sparkles size={14} />
+          Override de Acciones
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('custom')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            tab === 'custom' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          data-testid="tab-custom"
+        >
+          <Plus size={14} />
+          Acciones Personalizadas
+        </button>
       </div>
 
       {tab === 'matrix' && (
@@ -459,6 +481,10 @@ export default function ActionNotificationsConfig() {
       )}
 
       {tab === 'audit' && <AuditLogTab actions={catalog.actions} businessTypes={catalog.business_types} />}
+
+      {tab === 'overrides' && <OverridesTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} allowedMap={catalog.allowed_actions_by_biz_sub || {}} />}
+
+      {tab === 'custom' && <CustomActionsTab actions={catalog.actions} businessTypes={catalog.business_types} subCategories={catalog.product_subcategories} />}
 
       <AlertDialog open={seedDialogOpen} onOpenChange={setSeedDialogOpen}>
         <AlertDialogContent data-testid="seed-legacy-dialog">
@@ -654,5 +680,414 @@ function AuditLogTab({ actions, businessTypes }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ============================================================================
+// FASE B — Override de Acciones Legacy (renombrar / desactivar / restringir)
+// ============================================================================
+function OverridesTab({ actions, businessTypes, subCategories, allowedMap }) {
+  const [overrides, setOverrides] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/quote-action-overrides');
+      const map = {};
+      for (const o of res.data?.items || []) map[o.config_key] = o;
+      setOverrides(map);
+    } catch (e) {
+      toast.error(`Error cargando overrides: ${e.response?.data?.detail || e.message}`);
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="flex items-center justify-center h-32"><Loader2 size={24} className="animate-spin text-blue-600" /></div>;
+
+  return (
+    <div data-testid="overrides-tab" className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900">
+        <strong>Override de acciones existentes.</strong> Renombra el botón, desactívalo o restringe qué cargos pueden ejecutarlo. La lógica de la acción (cambio de estado, generación de PDFs, archivos) NO se altera.
+      </div>
+      {businessTypes.map((biz) => (
+        <BusinessOverridesBlock
+          key={biz.id}
+          biz={biz}
+          subCategories={subCategories}
+          actions={actions}
+          allowedMap={allowedMap}
+          overrides={overrides}
+          onChanged={load}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overrides, onChanged }) {
+  const [expanded, setExpanded] = useState(false);
+  const subs = biz.has_sub ? subCategories.filter((s) => (allowedMap[`${biz.id}|${s.id}`] || []).length) : [{ id: null, label: '' }];
+
+  return (
+    <div className="border border-slate-200 rounded bg-white">
+      <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50">
+        <span className="font-medium text-slate-800">{biz.label}</span>
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+      {expanded && (
+        <div className="p-3 border-t border-slate-100 space-y-3">
+          {subs.map((sub) => {
+            const allowed = allowedMap[`${biz.id}|${sub.id || '_'}`] || [];
+            if (!allowed.length) return null;
+            return (
+              <div key={sub.id || 'no-sub'} className="space-y-1.5">
+                {sub.label && <p className="text-xs font-semibold text-slate-500 uppercase">{sub.label}</p>}
+                {allowed.map((aid) => {
+                  const action = actions.find((a) => a.id === aid);
+                  if (!action) return null;
+                  const key = `${biz.id}|${sub.id || '_'}|${aid}`;
+                  return (
+                    <OverrideRow
+                      key={key}
+                      action={action}
+                      configKey={key}
+                      bizId={biz.id}
+                      subId={sub.id}
+                      override={overrides[key]}
+                      onChanged={onChanged}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OverrideRow({ action, configKey, bizId, subId, override, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(override?.custom_label || '');
+  const [enabled, setEnabled] = useState(override?.enabled !== false);
+  const [requiredCargos, setRequiredCargos] = useState((override?.required_cargos || []).join(', '));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLabel(override?.custom_label || '');
+    setEnabled(override?.enabled !== false);
+    setRequiredCargos((override?.required_cargos || []).join(', '));
+  }, [override]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const cargos = requiredCargos.split(',').map((c) => c.trim()).filter(Boolean);
+      await api.put('/quote-action-overrides', {
+        business_type: bizId,
+        product_subcategory: subId || null,
+        action_id: action.id,
+        custom_label: label.trim() || null,
+        enabled,
+        required_roles: [],
+        required_cargos: cargos,
+      });
+      toast.success('Override guardado');
+      setEditing(false);
+      onChanged?.();
+    } catch (e) {
+      toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+    } finally { setSaving(false); }
+  };
+  const handleReset = async () => {
+    if (!override) return;
+    setSaving(true);
+    try {
+      await api.delete(`/quote-action-overrides/${encodeURIComponent(configKey)}`);
+      toast.success('Override eliminado');
+      onChanged?.();
+    } catch (e) {
+      toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+    } finally { setSaving(false); }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded border border-slate-200">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className={`text-sm ${enabled ? '' : 'line-through text-slate-400'}`}>{label || action.label}</span>
+          {label && <Badge variant="secondary" className="text-[10px]">renombrado</Badge>}
+          {!enabled && <Badge variant="secondary" className="bg-red-100 text-red-700 text-[10px]">desactivado</Badge>}
+          {requiredCargos && <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-[10px]">cargos: {requiredCargos}</Badge>}
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)} data-testid={`override-edit-${action.id}`}>
+          <Edit2 size={14} />
+        </Button>
+        {override && <Button variant="ghost" size="sm" onClick={handleReset} className="text-red-500" title="Eliminar override"><Trash2 size={14} /></Button>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-2 bg-blue-50 rounded border border-blue-300 space-y-2">
+      <div className="text-xs text-slate-600">Acción original: <strong>{action.label}</strong> ({action.id})</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-slate-600">Nuevo label (vacío = original)</label>
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={action.label} className="h-8" />
+        </div>
+        <div>
+          <label className="text-[11px] text-slate-600">Cargos permitidos (coma)</label>
+          <Input value={requiredCargos} onChange={(e) => setRequiredCargos(e.target.value)} placeholder="Administración, Gerente" className="h-8" />
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(!!v)} />
+        Acción activa (visible en el menú)
+      </label>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+          Guardar
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancelar</Button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// FASE A — Acciones Personalizadas (nuevas, sin cambio de estado)
+// ============================================================================
+function CustomActionsTab({ actions, businessTypes, subCategories }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/quote-custom-actions');
+      setItems(res.data?.items || []);
+    } catch (e) {
+      toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const openNew = () => { setEditing(null); setDialogOpen(true); };
+  const openEdit = (item) => { setEditing(item); setDialogOpen(true); };
+  const handleDelete = async (item) => {
+    if (!window.confirm(`¿Eliminar acción "${item.label}"?`)) return;
+    try {
+      await api.delete(`/quote-custom-actions/${encodeURIComponent(item.config_key)}`);
+      toast.success('Acción eliminada');
+      load();
+    } catch (e) { toast.error(`Error: ${e.response?.data?.detail || e.message}`); }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-32"><Loader2 size={24} className="animate-spin text-blue-600" /></div>;
+
+  return (
+    <div data-testid="custom-actions-tab" className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="bg-violet-50 border border-violet-200 rounded p-3 text-sm text-violet-900 flex-1">
+          <strong>Acciones personalizadas.</strong> Crea botones nuevos en el menú de cotizaciones. NO cambian el estado de la cotización; solo envían correos según la configuración del Motor de Notificaciones.
+        </div>
+        <Button onClick={openNew} className="bg-violet-600 hover:bg-violet-700 text-white flex-shrink-0" data-testid="new-custom-action-btn">
+          <Plus size={14} className="mr-1" /> Nueva Acción
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 text-sm">Sin acciones personalizadas. Crea la primera con el botón superior.</div>
+      ) : (
+        <div className="border border-slate-200 rounded overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-slate-600">Label</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-600">Tipo · Sub</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-600">Posición</th>
+                <th className="px-3 py-2 text-left font-medium text-slate-600">Cargos</th>
+                <th className="px-3 py-2 text-center font-medium text-slate-600">Activa</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it) => (
+                <tr key={it.config_key} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-3 py-2"><strong>{it.label}</strong> <code className="text-[10px] bg-slate-100 px-1 rounded ml-1">{it.action_id}</code></td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{(businessTypes.find((b) => b.id === it.business_type) || {}).label || it.business_type}{it.product_subcategory ? ` · ${it.product_subcategory}` : ''}</td>
+                  <td className="px-3 py-2 text-xs">{it.position_after ? `después de ${actions.find((a) => a.id === it.position_after)?.label || it.position_after}` : 'al final'}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">{(it.required_cargos || []).join(', ') || '—'}</td>
+                  <td className="px-3 py-2 text-center">{it.enabled ? <Eye size={14} className="inline text-emerald-500" /> : <EyeOff size={14} className="inline text-slate-400" />}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(it)}><Edit2 size={14} /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(it)} className="text-red-500"><Trash2 size={14} /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <CustomActionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editing={editing}
+        actions={actions}
+        businessTypes={businessTypes}
+        subCategories={subCategories}
+        onSaved={() => { setDialogOpen(false); load(); }}
+      />
+    </div>
+  );
+}
+
+function CustomActionDialog({ open, onOpenChange, editing, actions, businessTypes, subCategories, onSaved }) {
+  const [form, setForm] = useState({
+    action_id: '', business_type: 'implementacion_pyme', product_subcategory: null,
+    label: '', position_after: '', enabled: true,
+    required_cargos: '', icon: 'Mail', color: 'blue', description: '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        action_id: editing.action_id, business_type: editing.business_type,
+        product_subcategory: editing.product_subcategory || null,
+        label: editing.label, position_after: editing.position_after || '',
+        enabled: editing.enabled !== false,
+        required_cargos: (editing.required_cargos || []).join(', '),
+        icon: editing.icon || 'Mail', color: editing.color || 'blue',
+        description: editing.description || '',
+      });
+    } else if (open) {
+      setForm({
+        action_id: '', business_type: 'implementacion_pyme', product_subcategory: null,
+        label: '', position_after: '', enabled: true,
+        required_cargos: '', icon: 'Mail', color: 'blue', description: '',
+      });
+    }
+  }, [editing, open]);
+
+  const handleSave = async () => {
+    if (!form.action_id || !form.label) { toast.error('action_id y label son obligatorios'); return; }
+    setSaving(true);
+    try {
+      await api.put('/quote-custom-actions', {
+        action_id: form.action_id.trim().toLowerCase(),
+        business_type: form.business_type,
+        product_subcategory: form.product_subcategory || null,
+        label: form.label.trim(),
+        position_after: form.position_after || null,
+        enabled: form.enabled,
+        required_roles: [],
+        required_cargos: form.required_cargos.split(',').map((c) => c.trim()).filter(Boolean),
+        icon: form.icon || null, color: form.color || null,
+        description: form.description || null,
+      });
+      toast.success('Acción guardada');
+      onSaved?.();
+    } catch (e) {
+      toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+    } finally { setSaving(false); }
+  };
+
+  if (!open) return null;
+  const biz = businessTypes.find((b) => b.id === form.business_type);
+  const subs = biz?.has_sub ? subCategories : [];
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent className="max-w-2xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{editing ? 'Editar' : 'Nueva'} Acción Personalizada</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta acción aparecerá en el menú de cotizaciones del tipo seleccionado. Solo envía correos; no cambia el estado de la cotización.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-600">ID técnico * (a-z, 0-9, _)</label>
+              <Input value={form.action_id} onChange={(e) => setForm((f) => ({ ...f, action_id: e.target.value }))} disabled={!!editing} placeholder="pago_recibido" className="font-mono text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">Texto del botón *</label>
+              <Input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} placeholder="Pago Recibido" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-600">Tipo de negocio *</label>
+              <Select value={form.business_type} onValueChange={(v) => setForm((f) => ({ ...f, business_type: v, product_subcategory: null }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {businessTypes.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">Subcategoría {biz?.has_sub ? '*' : '(no aplica)'}</label>
+              <Select disabled={!biz?.has_sub} value={form.product_subcategory || 'none'} onValueChange={(v) => setForm((f) => ({ ...f, product_subcategory: v === 'none' ? null : v }))}>
+                <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Todas las subcategorías</SelectItem>
+                  {subs.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-600">Posición en menú</label>
+              <Select value={form.position_after || 'end'} onValueChange={(v) => setForm((f) => ({ ...f, position_after: v === 'end' ? '' : v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="end">Al final</SelectItem>
+                  {actions.map((a) => <SelectItem key={a.id} value={a.id}>Después de "{a.label}"</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-600">Cargos permitidos (coma)</label>
+              <Input value={form.required_cargos} onChange={(e) => setForm((f) => ({ ...f, required_cargos: e.target.value }))} placeholder="Administración, Taller" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-600">Descripción (opcional)</label>
+            <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Cuándo usar esta acción" />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={form.enabled} onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: !!v }))} />
+            Acción activa
+          </label>
+
+          <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-900">
+            Recuerda configurar los <strong>destinatarios y plantillas</strong> de esta acción en la pestaña <strong>Matriz</strong> luego de crearla. Sin destinatarios, el botón aparecerá pero no enviará correos.
+          </div>
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">
+            {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+            {editing ? 'Guardar' : 'Crear'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
