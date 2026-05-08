@@ -111,21 +111,71 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
         Paragraph('Total (Bs.)', header_right),
     ]]
 
-    for item in items:
-        bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
-        qty = item.get('quantity', 1) or 1
-        cu_bs = bs_val / qty if qty > 0 else 0
-        table_data.append([
-            Paragraph(item.get('name', 'N/A'), cell_style),
-            Paragraph(str(qty), cell_center_style),
-            Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
-            Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
-            Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
-            Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
-        ])
+    # Detección de secciones — si algún item tiene `section`, agrupamos por
+    # ese campo e insertamos sub-headers en la tabla (caso típico: Fast Track
+    # / MPOS Imple+POS que mezcla Implementación + Pinpads).
+    section_header_rows = []  # índices (0-based dentro de table_data) de filas que son sub-headers
+    has_sections = any((it.get('section') for it in items))
+    section_header_style = ParagraphStyle(
+        'SectionHeaderInTable', parent=cell_bold_style,
+        textColor=colors.HexColor('#2c3e50'), fontSize=10,
+    )
+
+    if has_sections:
+        # Agrupar manteniendo el orden de aparición de las secciones.
+        grouped: list[tuple[str, list]] = []
+        order: list[str] = []
+        bucket: dict[str, list] = {}
+        for it in items:
+            sec = it.get('section') or 'Otros'
+            if sec not in bucket:
+                bucket[sec] = []
+                order.append(sec)
+            bucket[sec].append(it)
+        for sec in order:
+            grouped.append((sec, bucket[sec]))
+
+        for sec_name, sec_items in grouped:
+            # Sub-header row (occupies all 6 columns visually via background)
+            section_header_rows.append(len(table_data))
+            table_data.append([
+                Paragraph(f"<b>{sec_name}</b>", section_header_style),
+                '', '', '', '', '',
+            ])
+            for item in sec_items:
+                bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
+                qty = item.get('quantity', 1) or 1
+                cu_bs = bs_val / qty if qty > 0 else 0
+                table_data.append([
+                    Paragraph(item.get('name', 'N/A'), cell_style),
+                    Paragraph(str(qty), cell_center_style),
+                    Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
+                    Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
+                    Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
+                    Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
+                ])
+    else:
+        for item in items:
+            bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
+            qty = item.get('quantity', 1) or 1
+            cu_bs = bs_val / qty if qty > 0 else 0
+            table_data.append([
+                Paragraph(item.get('name', 'N/A'), cell_style),
+                Paragraph(str(qty), cell_center_style),
+                Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
+                Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
+                Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
+                Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
+            ])
 
     # Summary rows style
     cell_bold_right = ParagraphStyle('CellBoldRight', parent=cell_right_style, fontName='Helvetica-Bold')
+
+    # Calcular el índice de la última fila de body antes de añadir summary.
+    # Esto sustituye al legacy `num_items = len(items)` que era incorrecto
+    # cuando se insertaban sub-headers de sección.
+    last_body_idx = len(table_data) - 1
+    num_items = last_body_idx  # alias legacy para los comandos de estilo
 
     # Subtotal row
     subtotal_usd = billing_instruction.get('grand_total_usd', 0)
@@ -157,7 +207,6 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
         Paragraph(f"<nobr><b>Bs.{total_bs:,.2f}</b></nobr>", total_white_style),
     ])
 
-    num_items = len(items)
     # Column widths: 6 columns with C.U. Bs. added
     col_widths = [4.8*cm, 1.3*cm, 2.5*cm, 2.2*cm, 3.2*cm, 3.5*cm]
     t = Table(table_data, colWidths=col_widths)
@@ -180,6 +229,15 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
         # Total row
         ('BACKGROUND', (0, num_items + 3), (-1, num_items + 3), colors.HexColor('#2c3e50')),
     ]
+    # Estilo para sub-headers de sección (cuando aplica): fondo destacado y
+    # span horizontal de la fila.
+    for sh_row in section_header_rows:
+        style_commands.extend([
+            ('BACKGROUND', (0, sh_row), (-1, sh_row), colors.HexColor('#dfe6ec')),
+            ('SPAN', (0, sh_row), (-1, sh_row)),
+            ('TOPPADDING', (0, sh_row), (-1, sh_row), 8),
+            ('BOTTOMPADDING', (0, sh_row), (-1, sh_row), 8),
+        ])
     t.setStyle(TableStyle(style_commands))
     elements.append(t)
 

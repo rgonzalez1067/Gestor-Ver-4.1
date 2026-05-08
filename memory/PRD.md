@@ -1136,3 +1136,20 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - **Frontend** (`QuotesBundleMigrationModal.jsx`): `handleImportAttachments` ahora descomprime el ZIP **en el navegador** con JSZip y sube cada archivo individualmente (request pequeña <2 MB típicamente). Botón muestra progreso `Subiendo X/N · ruta...`.
 
 **Verificado E2E**: ZIP creado con 2 archivos + manifest → endpoint reporta `restored=2 skipped=1 errors=[]`, archivos físicamente presentes en `UPLOADS_DIR`.
+
+
+## Bugfix — PDF Cálculos Definitivos en MPOS Imple+POS (Fast Track) (Feb 2026)
+
+**Reportado**: en cotizaciones MPOS (Imple + POS) — `quote_category="fast_track"` —, al ejecutar la acción **Aprobado**: (1) el PDF "Cálculos Definitivos" no se anexa al correo, y (2) el PDF debería mostrar **dos secciones** (Implementación y Pinpads) porque la cotización es mixta.
+
+**Root cause**:
+- En `quote_actions.py::approve_quote`, la generación del PDF estaba dentro de `if not is_fast_track and not is_repair:`, excluyendo fast_track.
+- En `ApprovalBillingModal.jsx`, los `consolidated_items` para fast_track caían en la rama "Implementación" usando solo `services` (los Pinpads de `ft_equipment_items` quedaban fuera).
+- En `billing_pdf.py`, la tabla no soportaba sub-headers de sección.
+
+**Fix aplicado**:
+- **`quote_actions.py`**: la generación del billing PDF ahora aplica para `not is_repair` (incluye fast_track). Para el flujo legacy fast_track se anexa al `extra_attachments` del `send_workflow_notification` junto con el PDF de la cotización.
+- **`ApprovalBillingModal.jsx`**: para `quote_category === 'fast_track'`, el consolidado emite items con `section: 'Implementación'` (de `services` no recurrentes) **y** `section: 'Pinpads'` (de `ft_equipment_items`). El payload incluye `section` en cada item.
+- **`billing_pdf.py`**: si algún item trae `section`, el render agrupa visualmente por sección con sub-headers (fondo `#dfe6ec`, span horizontal). Los índices de Subtotal/IVA/Total se recalculan dinámicamente con `last_body_idx = len(table_data) - 1` para no descuadrarse cuando hay sub-headers.
+
+**Verificado**: PDF generado con dos secciones (Implementación + Pinpads), subtotal, IVA y total general correctos. Análisis con AI confirmó: "secciones bien diferenciadas, orden lógico (Implementación → Pinpads), subtotal/IVA/TOTAL presentes y correctos".

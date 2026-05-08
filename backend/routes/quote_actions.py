@@ -330,7 +330,9 @@ async def approve_quote(
     _engine_pdf_quote_bytes = None
     _engine_pdf_billing_bytes = None
     _engine_extra_attachments: list[dict] = []
-    if not is_fast_track and not is_repair:
+    # PDF de cotización: aplica para implementación, equipos y fast_track
+    # (no para reparación, que tiene su propio PDF de Cálculos en repair-complete).
+    if not is_repair:
         pdf_url_pre = quote.get("quote_pdf_url")
         if pdf_url_pre:
             try:
@@ -339,6 +341,10 @@ async def approve_quote(
                     _engine_pdf_quote_bytes = open(_pdf_path, "rb").read()
             except Exception as _e:
                 logger.warning(f"[approve] No se pudo precargar PDF de cotización: {_e}")
+        # PDF de Cálculos Definitivos: se genera siempre que vengan items
+        # consolidados en billing_instruction. Aplica también a fast_track
+        # (MPOS Imple+POS), donde la cotización es MIXTA: contiene una sección
+        # Implementación y otra de Pinpads.
         if billing_data.get("billing_instruction") and billing_data["billing_instruction"].get("consolidated_items"):
             try:
                 from services.billing_pdf import generate_billing_pdf
@@ -403,12 +409,24 @@ async def approve_quote(
         if not ft_recipients:
             ft_recipients.append("admin@sede.local")
 
+        # Adjuntos para fast_track: PDF de Cotización + Cálculos Definitivos
+        # (cuando aplique) + comprobantes de pago anticipado efímeros.
+        ft_attachments = list(_engine_extra_attachments) if _engine_extra_attachments else []
+        if _engine_pdf_billing_bytes:
+            ft_attachments.append({
+                "filename": f"Calculos_Definitivos_{quote.get('quote_number', 'N-A')}.pdf",
+                "content": base64.b64encode(_engine_pdf_billing_bytes).decode("utf-8"),
+            })
+            logger.info(f"[Approve/FastTrack] Cálculos Definitivos adjunto para {quote.get('quote_number')}")
+
         email_results = await send_workflow_notification(
             action="approve",
             quote=quote,
             current_user=current_user,
             custom_message=custom_message,
             cc_emails=cc_emails,
+            pdf_buffer=_engine_pdf_quote_bytes,
+            extra_attachments=ft_attachments if ft_attachments else None,
             template_base_override="fast_track_approved",
             override_recipients=ft_recipients,
         )

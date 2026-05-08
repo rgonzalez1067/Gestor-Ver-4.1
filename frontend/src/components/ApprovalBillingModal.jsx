@@ -78,8 +78,45 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
 
   // Consolidate items: para equipos usa equipment_items, para implementación usa services,
   // para Payment Gateway (quote_type=GATEWAY) usa pg_setup_items.
+  // Para Fast Track (MPOS Imple+POS) la cotización es MIXTA: incluye dos secciones:
+  //   1. Implementación (de `services`, excluyendo recurrentes)
+  //   2. Pinpads (de `ft_equipment_items`)
   const consolidated = useMemo(() => {
     if (!quote) return [];
+
+    const isFastTrack = quote.quote_category === 'fast_track';
+
+    if (isFastTrack) {
+      const out = [];
+      // Sección 1: Implementación (services, excluyendo recurrentes)
+      const services = quote.services || [];
+      const implMap = {};
+      for (const s of services) {
+        if (s.item_type === 'recurring_basic' || s.item_type === 'recurring_other') continue;
+        const name = s.item_name || s.name || 'Sin nombre';
+        if (!implMap[name]) {
+          implMap[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: s.unit_price_usd || s.price || 0, section: 'Implementación' };
+        }
+        implMap[name].quantity += (s.quantity || 1);
+        implMap[name].total_usd += (s.total_usd || s.subtotal_usd || 0);
+      }
+      out.push(...Object.values(implMap));
+      // Sección 2: Pinpads (ft_equipment_items)
+      const ftItems = quote.ft_equipment_items || [];
+      const pinMap = {};
+      for (const it of ftItems) {
+        const name = it.modelo || it.model_name || it.name || 'Pinpad';
+        const qty = Number(it.quantity || 1) || 1;
+        const unit = Number(it.unit_price_usd || it.price || 0) || 0;
+        if (!pinMap[name]) {
+          pinMap[name] = { name, quantity: 0, total_usd: 0, unit_price_usd: unit, section: 'Pinpads' };
+        }
+        pinMap[name].quantity += qty;
+        pinMap[name].total_usd += unit * qty;
+      }
+      out.push(...Object.values(pinMap));
+      return out;
+    }
 
     if (isEquipmentQuote) {
       // Cotización de Equipos y Accesorios: usar equipment_items
@@ -208,6 +245,7 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
           total_usd: c.total_usd,
           exchange_rate: rateNum,
           total_bs: c.total_usd * rateNum,
+          section: c.section || null,
         })),
         exchange_rate: rateNum,
         rate_source: rateSource,
