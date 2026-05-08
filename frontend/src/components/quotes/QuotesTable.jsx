@@ -102,6 +102,37 @@ export const QuotesTable = ({
     });
   };
 
+  // Agrupa las custom actions aplicables por su "ancla" (position_after).
+  // Las que no tienen position_after van al bucket '__end__' y se muestran
+  // al final en la sección "Personalizadas".
+  const getCustomActionsByAnchor = (quote) => {
+    const cas = getCustomActionsFor(quote);
+    const byAnchor = {};
+    for (const ca of cas) {
+      const anchor = ca.position_after || '__end__';
+      if (!byAnchor[anchor]) byAnchor[anchor] = [];
+      byAnchor[anchor].push(ca);
+    }
+    return byAnchor;
+  };
+
+  // Renderiza las custom actions ancladas a un legacy action_id (inline).
+  const renderAnchoredCustomActions = (quote, anchorId, byAnchor) => {
+    const items = byAnchor[anchorId];
+    if (!items || !items.length) return null;
+    return items.map((ca) => (
+      <DropdownMenuItem
+        key={ca.action_id}
+        onSelect={() => onCustomAction?.(quote.quote_id, ca.action_id, ca.label)}
+        className="cursor-pointer"
+        data-testid={`custom-action-${ca.action_id}-${quote.quote_id}`}
+        title={ca.description || null}
+      >
+        <Sparkles size={16} className="mr-2 text-violet-500" /> {ca.label}
+      </DropdownMenuItem>
+    ));
+  };
+
   const filteredQuotes = quotes.filter(quote => {
     if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
     if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
@@ -158,6 +189,7 @@ export const QuotesTable = ({
               : 'bg-brand-blue-50 text-brand-blue-600';
 
             const isHighlighted = highlightedQuoteNumber && quote.quote_number === highlightedQuoteNumber;
+            const customByAnchor = getCustomActionsByAnchor(quote);
 
             return (
               <tr
@@ -347,12 +379,14 @@ export const QuotesTable = ({
                           <Mail size={16} className="mr-2 text-blue-500" /> {m.label}
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
                         </DropdownMenuItem>; })()}
+                        {renderAnchoredCustomActions(quote, 'send_to_client', customByAnchor)}
                         {(() => { const m = getActionMeta(quote, 'approve', 'Aprobación'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onApprove(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
                           <CheckCircle size={16} className="mr-2 text-green-500" /> {m.label}
                           {quote.approved_at && <span className="ml-auto text-xs text-green-500">&#10003;</span>}
                           {!quote.approved_at && quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
                           {!quote.approved_at && quote.quote_status !== 'Enviada' && quote.quote_status !== 'Borrador' && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>; })()}
+                        {renderAnchoredCustomActions(quote, 'approve', customByAnchor)}
                         {canEdit && isRepair && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onRepairComplete(quote.quote_id)} className="cursor-pointer"
                             data-testid={`repair-complete-btn-${quote.quote_id}`}>
@@ -360,6 +394,7 @@ export const QuotesTable = ({
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
+                        {canEdit && isRepair && renderAnchoredCustomActions(quote, 'repair_complete', customByAnchor)}
 
                         {/* ── FASE LOGÍSTICA (Fast Track) ── */}
                         {canEdit && isFastTrack && <DropdownMenuSeparator />}
@@ -413,12 +448,14 @@ export const QuotesTable = ({
                           {!quote.invoiced_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-purple-500">&#x25CF;</span>}
                           {!quote.invoiced_at && !['Borrador', 'Enviada', 'Aprobada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>; })()}
+                        {renderAnchoredCustomActions(quote, 'invoice', customByAnchor)}
                         {(() => { const m = getActionMeta(quote, 'collect', 'Cobranza'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onCollect(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
                           <Banknote size={16} className="mr-2 text-emerald-500" /> {m.label}
                           {quote.paid_at && <span className="ml-auto text-xs text-emerald-500">&#10003;</span>}
                           {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
                           {!quote.paid_at && !['Borrador', 'Enviada', 'Aprobada', 'Facturada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>; })()}
+                        {renderAnchoredCustomActions(quote, 'collect', customByAnchor)}
 
                         {/* ── ENTREGA / IMPLEMENTACIÓN ── */}
                         {canEdit && <DropdownMenuSeparator />}
@@ -432,21 +469,23 @@ export const QuotesTable = ({
                             {!quote.delivered_at && quote.quote_status === 'Pagada' && <span className="ml-auto text-xs text-teal-500">&#x25CF;</span>}
                           </DropdownMenuItem>
                         )}
+                        {canEdit && (isEquipment || isRepair || isFastTrack) && renderAnchoredCustomActions(quote, 'deliver', customByAnchor)}
                         {canEdit && (!isEquipment && !isRepair) && (
                           <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer">
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
                             {isFastTrack && !quote.delivered_at && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Entregar primero</span>}
                           </DropdownMenuItem>
                         )}
+                        {canEdit && (!isEquipment && !isRepair) && renderAnchoredCustomActions(quote, 'send_to_implementation', customByAnchor)}
                         <DropdownMenuSeparator />
-                        {/* ── ACCIONES PERSONALIZADAS (Fase A) ── */}
+                        {/* ── ACCIONES PERSONALIZADAS SIN ANCLA (Fase A) ── */}
                         {(() => {
-                          const cas = getCustomActionsFor(quote);
-                          if (!cas.length) return null;
+                          const unanchored = customByAnchor['__end__'] || [];
+                          if (!unanchored.length) return null;
                           return (
                             <>
                               <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-violet-500 select-none">Personalizadas</p>
-                              {cas.map((ca) => (
+                              {unanchored.map((ca) => (
                                 <DropdownMenuItem
                                   key={ca.action_id}
                                   onSelect={() => onCustomAction?.(quote.quote_id, ca.action_id, ca.label)}

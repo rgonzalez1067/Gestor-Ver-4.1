@@ -1111,3 +1111,15 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - `Quotes.jsx` pasa `currentUserId={currentUser?.user_id}` a `QuotesTable`.
 
 **Validado**: Testing agent iter1 — backend 7/7 pytest (persistencia, catalog, dispatch con 403 a no autorizados) y frontend 100% (UserMultiSelect con 24 usuarios, data-testids verificados, columna "Usuarios" renderizando correctamente).
+
+
+## Bugfix — `position_after` de Custom Actions ahora respetado (Feb 2026)
+
+**Reportado**: user capturó screenshot donde "Validar Pago" (custom action `valida_pago`, `position_after=collect`) siempre aparecía en una sección "PERSONALIZADAS" al final del dropdown, ignorando el anclaje.
+
+**Fix** (`QuotesTable.jsx`):
+- Nueva función `getCustomActionsByAnchor(quote)` que agrupa las custom actions por su `position_after` (o `__end__` si no se especifica).
+- Nueva función `renderAnchoredCustomActions(quote, anchorId, byAnchor)` que emite los `DropdownMenuItem` de las custom actions ancladas a un legacy action_id.
+- El render invoca `renderAnchoredCustomActions` inmediatamente después de cada acción legacy (`send_to_client`, `approve`, `repair_complete`, `invoice`, `collect`, `deliver`, `send_to_implementation`). Las actions sin ancla siguen apareciendo al final bajo el encabezado "Personalizadas".
+
+**Verificado**: orden del menú PYME/VPOS → `Enviar al Cliente → Aprobación → Factura → Registrar Pago → **Validar Pago** → Enviar a Implementación → Eliminar`.
