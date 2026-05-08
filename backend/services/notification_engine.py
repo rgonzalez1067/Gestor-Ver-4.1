@@ -214,6 +214,39 @@ async def _collect_pdf_attachments(action_id: str, quote: dict, ctx: dict) -> li
     return out
 
 
+def _insert_before_footer(body: str, block: str) -> str:
+    """Inserta `block` ANTES del footer/firma del cuerpo HTML.
+
+    Estrategia (en orden de prioridad):
+    1. Si hay un cierre clásico de despedida (`Atentamente`, `Saludos`,
+       `Cordialmente`, `Gracias por`) → insertar antes del bloque que lo
+       contiene (es la regla principal: el "footer" de la mayoría de
+       plantillas es esa firma).
+    2. Si no hay despedida pero existe `</body>` → insertar justo antes.
+    3. Fallback: append al final del body.
+    """
+    if not body:
+        return block
+    if not block:
+        return body
+    import re
+    lower = body.lower()
+    for needle in ("atentamente", "saludos cordiales", "cordialmente", "saludos,", "gracias por"):
+        idx = lower.find(needle)
+        if idx == -1:
+            continue
+        # Buscar el inicio del último <p|div|table|hr> antes del needle (incluye sus tags abiertos)
+        candidates = [body.rfind(t, 0, idx) for t in ("<p", "<div", "<table", "<hr")]
+        anchor = max(candidates) if any(c != -1 for c in candidates) else -1
+        if anchor != -1:
+            return body[:anchor] + block + body[anchor:]
+        return body[:idx] + block + body[idx:]
+    m = re.search(r"</body\s*>", body, flags=re.IGNORECASE)
+    if m:
+        return body[:m.start()] + block + body[m.start():]
+    return body + block
+
+
 async def try_dispatch(
     action_id: str,
     quote: dict,
@@ -299,9 +332,10 @@ async def try_dispatch(
         # Render subject + body con variables resueltas
         subject = _render(tpl.get("subject", ""), tpl_vars)
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), tpl_vars)
-        # Mensaje personalizado SIEMPRE al FINAL del cuerpo (homologado con legacy).
+        # Mensaje personalizado se inserta ANTES del footer/firma de la
+        # plantilla (no al final absoluto, ni al inicio).
         if custom_block:
-            body = body + custom_block
+            body = _insert_before_footer(body, custom_block)
 
         # Anexos: PDFs auto-generados (sujetos al flag) + extra_attachments (siempre).
         attachments = []
