@@ -51,6 +51,7 @@ async def _engine_or_legacy(
     current_user: dict,
     custom_message: Optional[str] = None,
     cc_emails: Optional[list] = None,
+    extra_attachments: Optional[list] = None,
     **pdf_ctx,
 ):
     """Phase 2 — Dynamic Notification Engine wrapper with safe legacy fallback.
@@ -63,6 +64,10 @@ async def _engine_or_legacy(
     client email registered. This guard is the ONLY way the engine can abort
     the action; in any other failure scenario it returns None and trusts
     legacy.
+
+    `extra_attachments`: forwarded to the engine as siempre-adjuntos (eg.
+    payment receipts, custom modal uploads). Independent del flag
+    `send_pdf_attachments` por destinatario.
     """
     try:
         warn = await engine_validate_client_email(action_id, quote)
@@ -78,6 +83,7 @@ async def _engine_or_legacy(
             current_user,
             custom_message=custom_message,
             cc_emails=cc_emails or [],
+            extra_attachments=extra_attachments or None,
             **pdf_ctx,
         )
     except HTTPException:
@@ -318,11 +324,12 @@ async def approve_quote(
     is_repair = quote.get("quote_category") == "repair"
     is_fast_track = quote.get("quote_category") == "fast_track"
 
-    # === Notification Engine (Phase 2) — pre-generar PDFs disponibles para hook ===
+    # === Notification Engine (Phase 2) — pre-generar PDFs y anexos disponibles para hook ===
     # Generamos los binarios upfront para pasarlos tanto al engine como al
     # legacy. Si el engine retorna una lista, saltamos legacy.
     _engine_pdf_quote_bytes = None
     _engine_pdf_billing_bytes = None
+    _engine_extra_attachments: list[dict] = []
     if not is_fast_track and not is_repair:
         pdf_url_pre = quote.get("quote_pdf_url")
         if pdf_url_pre:
@@ -339,10 +346,25 @@ async def approve_quote(
                 _engine_pdf_billing_bytes = generate_billing_pdf(quote, client, billing_data["billing_instruction"], _exec_name)
             except Exception as _e:
                 logger.warning(f"[approve] No se pudo precargar Cálculos Definitivos: {_e}")
+    # Comprobantes de pago anticipado (multipart) — efímeros, NO se persisten.
+    # Se anexan SIEMPRE al correo (engine y legacy).
+    if payment_files:
+        for _pf in payment_files:
+            try:
+                _raw = await _pf.read()
+                if not _raw:
+                    continue
+                _engine_extra_attachments.append({
+                    "filename": _pf.filename or "pago_anticipado.pdf",
+                    "content": base64.b64encode(_raw).decode("utf-8"),
+                })
+            except Exception as _e:
+                logger.warning(f"[Approve] No se pudo leer payment_file {_pf.filename}: {_e}")
 
     _engine_result = await _engine_or_legacy(
         "approve", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
+        extra_attachments=_engine_extra_attachments or None,
         quote_pdf_bytes=_engine_pdf_quote_bytes,
         billing_pdf_bytes=_engine_pdf_billing_bytes,
     )
@@ -442,22 +464,10 @@ async def approve_quote(
             if pdf_path.exists():
                 pdf_buffer = open(pdf_path, 'rb').read()
 
-        # Cargar soportes de pago anticipado EFÍMEROS (vienen del multipart, NO se almacenan).
-        # Se adjuntan únicamente al correo de Administración. La persistencia de comprobantes
-        # de pago real ocurre en la acción Cobranza (categoría 'Pagos').
-        approval_attachments_b64 = []
-        if payment_files:
-            for pf in payment_files:
-                try:
-                    raw = await pf.read()
-                    if not raw:
-                        continue
-                    approval_attachments_b64.append({
-                        "filename": pf.filename or "pago_anticipado.pdf",
-                        "content": base64.b64encode(raw).decode('utf-8'),
-                    })
-                except Exception as e:
-                    logger.warning(f"[Approve] No se pudo leer payment_file {pf.filename}: {e}")
+        # Cargar soportes de pago anticipado EFÍMEROS — ya fueron leídos arriba al
+        # construir _engine_extra_attachments (el caller los puede haber consumido
+        # del stream). Reutilizamos esos para evitar doble lectura.
+        approval_attachments_b64 = list(_engine_extra_attachments) if _engine_extra_attachments else []
 
 
         # Generar PDF de Cálculos Definitivos (si hay billing_instruction)
@@ -1390,9 +1400,24 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
     # === Notification Engine (Phase 2) ===
+    # Cargar comprobantes de pago como extra_attachments (siempre se anexan).
+    _engine_extra: list[dict] = []
+    for _pp in payment_proofs:
+        try:
+            _pp_path = UPLOADS_DIR / _pp.get("url", "").replace("/uploads/", "")
+            if _pp_path.exists():
+                with open(_pp_path, "rb") as _fh:
+                    _engine_extra.append({
+                        "filename": _pp.get("name") or _pp_path.name,
+                        "content": base64.b64encode(_fh.read()).decode("utf-8"),
+                    })
+        except Exception as _e:
+            logger.warning(f"[collect] No se pudo leer comprobante de pago {_pp.get('name')}: {_e}")
+
     _engine_result = await _engine_or_legacy(
         "collect", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
+        extra_attachments=_engine_extra or None,
     )
     if _engine_result is not None:
         raw_sede = quote.get("sede", quote.get("client_segment", "PYME"))

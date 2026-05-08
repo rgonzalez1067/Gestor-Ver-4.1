@@ -221,6 +221,7 @@ async def try_dispatch(
     custom_message: Optional[str] = None,
     cc_emails: Optional[list[str]] = None,
     extra_template_vars: Optional[dict] = None,
+    extra_attachments: Optional[list[dict]] = None,
     **ctx: Any,
 ) -> bool:
     """Despacha notificaciones según la config dinámica para esta acción.
@@ -231,6 +232,11 @@ async def try_dispatch(
 
     Si la fila tiene `type=client_field` pero la cotización no tiene email del
     cliente: salta esa fila con warning en logs (no bloquea las demás filas).
+
+    `extra_attachments`: lista [{filename, content (base64)}] de archivos
+    adicionales (ej. comprobantes de pago anticipado, soportes del modal de
+    personalización). Se adjuntan SIEMPRE al correo (no dependen del flag
+    send_pdf_attachments — son responsabilidad del caller).
     """
     biz, sub = _quote_to_biz_sub(quote)
     if not biz:
@@ -252,11 +258,15 @@ async def try_dispatch(
     pdf_attachments = await _collect_pdf_attachments(action_id, quote, ctx)
     custom_block = ""
     if custom_message:
-        safe = (custom_message or "").strip()[:300]
+        safe = (custom_message or "").strip()[:1000]
+        # Bloque visual de "Mensaje del Ejecutivo" — se anexa al FINAL del cuerpo
+        # (igual que el motor legacy).
         custom_block = (
-            "<div style='border-left:4px solid #2563eb;padding:8px 12px;"
-            "background:#eff6ff;margin:10px 0'>"
-            f"<p style='margin:0;color:#334155'>{safe}</p></div>"
+            "<hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0 16px'/>"
+            "<div style='border-left:4px solid #2563eb;padding:10px 14px;"
+            "background:#eff6ff;margin:10px 0;border-radius:4px'>"
+            "<p style='margin:0 0 6px;font-size:12px;color:#1e3a8a;font-weight:600;text-transform:uppercase;letter-spacing:.5px'>Mensaje del Ejecutivo</p>"
+            f"<p style='margin:0;color:#334155;line-height:1.5'>{safe}</p></div>"
         )
 
     sent_count = 0
@@ -289,10 +299,17 @@ async def try_dispatch(
         # Render subject + body con variables resueltas
         subject = _render(tpl.get("subject", ""), tpl_vars)
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), tpl_vars)
+        # Mensaje personalizado SIEMPRE al FINAL del cuerpo (homologado con legacy).
         if custom_block:
-            body = custom_block + body
+            body = body + custom_block
 
-        attachments = pdf_attachments if row.get("send_pdf_attachments", True) else None
+        # Anexos: PDFs auto-generados (sujetos al flag) + extra_attachments (siempre).
+        attachments = []
+        if row.get("send_pdf_attachments", True) and pdf_attachments:
+            attachments.extend(pdf_attachments)
+        if extra_attachments:
+            attachments.extend(extra_attachments)
+        attachments = attachments or None
 
         try:
             await send_email(
