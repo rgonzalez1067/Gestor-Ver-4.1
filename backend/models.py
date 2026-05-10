@@ -630,6 +630,10 @@ class Quote(BaseModel):
     sent_to_implementation_at: Optional[datetime] = None
     repaired_at: Optional[datetime] = None  # Reparación completada (flujo repair)
     configured_at: Optional[datetime] = None  # Configuración completada (flujo fast_track)
+    # Preasignación de seriales (Fast Track / MPOS Imple+POS)
+    preassigned_serials: Optional[List[str]] = None  # Lista de seriales reservados
+    preassigned_at: Optional[datetime] = None  # Cuándo se preasignaron los seriales
+    preassigned_warehouse_id: Optional[str] = None  # Almacén origen de los seriales
     # Campos de PDF y factura
     quote_pdf_url: Optional[str] = None  # URL del PDF de la cotización
     invoice_pdf_url: Optional[str] = None  # URL del PDF de la factura

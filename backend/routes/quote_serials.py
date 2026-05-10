@@ -17,6 +17,7 @@ import logging
 
 from config import db, get_current_user, render_email_template
 from services.email_service import send_email
+from services.notification_engine import try_dispatch as _ne_try_dispatch
 from routes.quote_helpers import get_email_template
 
 
@@ -378,85 +379,108 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
         "preassigned_warehouse_id": warehouse_id,
     }})
 
-    # === NOTIFICACIÓN: Enviar a Operaciones sede PYME ===
-    # El correo se envía con send_email() directo (no por motor de notif.) porque
-    # esta acción no está en WORKFLOW_MATRIX. Devolvemos `email_sent` y
-    # `email_error` explícitos para que el frontend muestre toast diferenciado.
+    # === NOTIFICACIÓN: motor dinámico (config catálogo) → fallback legacy ===
+    # Si en "Configuración de Notificaciones" se asignó plantilla y destinatarios
+    # para `preassign_serials` en (biz_type, sub_cat), se respeta esa config
+    # (incluyendo destinatario tipo Cliente). Si no hay config: legacy a Operaciones.
     email_sent = False
     email_error = None
     email_recipients = []
     email_results = []
+
+    # Refrescar la cotización para que el motor lea preassigned_serials/at recién persistidos
+    quote_refreshed = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0}) or quote
+    serials_html = "<br>".join([f"&bull; {s}" for s in selected_serials])
+    extra_vars = {
+        "Cotizacion_Nro": quote_refreshed.get("quote_number", ""),
+        "Nombre_Cliente": client_name,
+        "Modelo_Equipo": model_name,
+        "Lista_Seriales": serials_html,
+        "Lista_Seriales_Texto": ", ".join(selected_serials),
+        "Cantidad_Seriales": str(len(selected_serials)),
+        "Nombre_Ejecutivo": user_name,
+        "Email_Ejecutivo": user_email,
+    }
+
     try:
-        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        raw_sede = quote.get("sede", "PYME")
-        norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP"
-        sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
-
-        # Cadena de fallback robusta:
-        # 1. operations de la sede → 2. admin de la sede → 3. ejecutivo creador
-        # 4. ejecutivo que ejecuta la acción. NUNCA usar dominio inexistente.
-        candidates = []
-        if sede_emails.get("operations"):
-            candidates.append(sede_emails["operations"])
-        if sede_emails.get("admin") and sede_emails["admin"] not in candidates:
-            candidates.append(sede_emails["admin"])
-        creator_id = quote.get("created_by_user_id")
-        if creator_id:
-            creator_doc = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "email": 1})
-            ce = (creator_doc or {}).get("email")
-            if ce and ce not in candidates:
-                candidates.append(ce)
-        if user_email and user_email not in candidates:
-            candidates.append(user_email)
-
-        if not candidates:
-            email_error = "No hay destinatario configurado para Preasignación. Configure el correo de Operaciones/Administración en Configuración › Sede."
-            logger.warning(f"[Preassign] {email_error} (quote={quote_id})")
-        else:
-            ops_email = candidates[0]
-            email_recipients = [ops_email]
-            logger.info(f"[Preassign] Destinatario resuelto: {ops_email} (de candidatos {candidates})")
-
-            # Buscar plantilla
-            template = await get_email_template(f"serial_preassignment_{norm_sede}")
-            if not template:
-                template = await get_email_template("serial_preassignment_PYME")
-                if template:
-                    logger.warning(f"[Preassign] Plantilla por sede '{norm_sede}' no encontrada, usando 'PYME' como fallback")
-
-            serials_html = "<br>".join([f"&bull; {s}" for s in selected_serials])
-            template_vars = {
-                "Cotizacion_Nro": quote.get("quote_number", ""),
-                "Nombre_Cliente": client_name,
-                "Modelo_Equipo": model_name,
-                "Lista_Seriales": serials_html,
-                "Nombre_Ejecutivo": user_name,
-                "Email_Ejecutivo": user_email,
-            }
-
-            if template:
-                subject = render_email_template(template["subject"], template_vars)
-                html = render_email_template(template["body_html"], template_vars)
-            else:
-                logger.warning("[Preassign] Sin plantilla en BD, usando contenido fallback inline")
-                subject = f"PREASIGNACIÓN DE SERIALES: {quote.get('quote_number', '')} - {client_name}"
-                html = f"<h2>Preasignación de Seriales</h2><p>Cotización: {quote.get('quote_number')}</p><p>Cliente: {client_name}</p><p>Modelo: {model_name}</p><p>Seriales: {', '.join(selected_serials)}</p>"
-
-            r = await send_email(
-                to=[ops_email], subject=subject, html=html,
-                action="preassign_serials", quote_id=quote_id,
-                quote_number=quote.get("quote_number"),
-            )
-            email_results.append(r)
-            email_sent = bool((r or {}).get("status") in ("sent", "queued") or (r or {}).get("id"))
-            if email_sent:
-                logger.info(f"[Preassign] Notificación enviada a Operaciones: {ops_email}")
-            else:
-                email_error = (r or {}).get("error") or "El servicio de correo no confirmó el envío"
-                logger.error(f"[Preassign] Envío no confirmado: {email_error} (response={r})")
+        dispatched = await _ne_try_dispatch(
+            action_id="preassign_serials",
+            quote=quote_refreshed,
+            current_user=current_user,
+            extra_template_vars=extra_vars,
+        )
     except Exception as e:
-        email_error = str(e)
-        logger.exception(f"[Preassign] Error enviando notificación: {e}")
+        dispatched = False
+        logger.exception(f"[Preassign] Excepción en motor dinámico: {e}")
+
+    if dispatched:
+        email_sent = True
+        email_recipients = ["(según Configuración de Notificaciones)"]
+        logger.info(f"[Preassign] Notificación despachada por motor dinámico (quote={quote_id})")
+    else:
+        # === FALLBACK LEGACY: a Operaciones de la sede ===
+        try:
+            config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
+            raw_sede = quote.get("sede", "PYME")
+            norm_sede = "PYME" if raw_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP"
+            sede_emails = (config.get("emails_by_sede", {}) if config else {}).get(norm_sede, {})
+
+            # Cadena de fallback robusta:
+            # 1. operations sede → 2. admin sede → 3. creador → 4. ejecutante.
+            candidates = []
+            if sede_emails.get("operations"):
+                candidates.append(sede_emails["operations"])
+            if sede_emails.get("admin") and sede_emails["admin"] not in candidates:
+                candidates.append(sede_emails["admin"])
+            creator_id = quote.get("created_by_user_id")
+            if creator_id:
+                creator_doc = await db.users.find_one({"user_id": creator_id}, {"_id": 0, "email": 1})
+                ce = (creator_doc or {}).get("email")
+                if ce and ce not in candidates:
+                    candidates.append(ce)
+            if user_email and user_email not in candidates:
+                candidates.append(user_email)
+
+            if not candidates:
+                email_error = "No hay destinatario configurado para Preasignación. Configure el correo de Operaciones/Administración en Configuración › Sede, o asigne una plantilla con destinatario en Configuración de Notificaciones."
+                logger.warning(f"[Preassign] {email_error} (quote={quote_id})")
+            else:
+                ops_email = candidates[0]
+                email_recipients = [ops_email]
+                logger.info(f"[Preassign/legacy] Destinatario resuelto: {ops_email} (de {candidates})")
+
+                template = await get_email_template(f"serial_preassignment_{norm_sede}")
+                if not template:
+                    template = await get_email_template("serial_preassignment_PYME")
+                    if template:
+                        logger.warning(f"[Preassign/legacy] Plantilla por sede '{norm_sede}' no encontrada, usando 'PYME'")
+
+                if template:
+                    subject = render_email_template(template["subject"], extra_vars)
+                    html = render_email_template(template["body_html"], extra_vars)
+                else:
+                    logger.warning("[Preassign/legacy] Sin plantilla en BD, usando fallback inline")
+                    subject = f"PREASIGNACIÓN DE SERIALES: {quote.get('quote_number', '')} - {client_name}"
+                    html = (f"<h2>Preasignación de Seriales</h2>"
+                            f"<p>Cotización: {quote.get('quote_number')}</p>"
+                            f"<p>Cliente: {client_name}</p><p>Modelo: {model_name}</p>"
+                            f"<p>Seriales: {', '.join(selected_serials)}</p>")
+
+                r = await send_email(
+                    to=[ops_email], subject=subject, html=html,
+                    action="preassign_serials", quote_id=quote_id,
+                    quote_number=quote.get("quote_number"),
+                )
+                email_results.append(r)
+                email_sent = bool((r or {}).get("status") in ("sent", "queued") or (r or {}).get("id"))
+                if email_sent:
+                    logger.info(f"[Preassign/legacy] Notificación enviada a Operaciones: {ops_email}")
+                else:
+                    email_error = (r or {}).get("error") or "El servicio de correo no confirmó el envío"
+                    logger.error(f"[Preassign/legacy] Envío no confirmado: {email_error} (response={r})")
+        except Exception as e:
+            email_error = str(e)
+            logger.exception(f"[Preassign/legacy] Error enviando notificación: {e}")
 
     return {
         "message": f"Prerregistro exitoso: {len(selected_serials)} seriales reservados",
@@ -466,4 +490,5 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
         "email_sent": email_sent,
         "email_error": email_error,
         "email_recipients": email_recipients,
+        "dispatched_by": "engine" if dispatched else "legacy",
     }

@@ -1186,3 +1186,26 @@ Tres fallas reportadas: (1) "Marcar como Configurada" no aparece activa pese a c
 - **`PreassignSerialsModal.jsx`**: muestra toast secundario diferenciado (warning si `email_sent=false` con `email_error`, info con destinatarios cuando se envió).
 
 **Verificado**: smoke screenshot confirmó stepper con 7 pasos (Enviada→Aprobada→Preasign.→Config.→Factura→Pagada→Entregada), botón "Marcar como Configurada" presente con indicador "Requiere seriales", y "Preasignación de Seriales" con bullet azul (pendiente). Lint OK en los 4 archivos.
+
+
+## Bugfix follow-up — Causa real del Trio MPOS (Feb 2026)
+
+Tras prueba en preview, los 3 puntos seguían fallando. Causa raíz adicional encontrada:
+
+**1) `Quote` model no incluía `preassigned_serials`/`preassigned_at`** → como `GET /api/quotes` usa `response_model=List[Quote]`, Pydantic strippeaba los campos del response. El frontend recibía `preassigned_serials: undefined`, así que:
+- El stepper no podía marcar `Preasignada` como completed.
+- "Marcar como Configurada" calculaba `hasPreassigned=false` y quedaba disabled con "Requiere seriales".
+
+**Fix `models.py`**: agregados al modelo `Quote`:
+- `preassigned_serials: Optional[List[str]] = None`
+- `preassigned_at: Optional[datetime] = None`
+- `preassigned_warehouse_id: Optional[str] = None`
+
+**2) Correo de Preasignación NO respetaba "Configuración de Notificaciones"** → el envío legacy hardcoded a Operaciones ignoraba completamente lo que el admin configurara en `/settings/action-notifications` para la acción `preassign_serials` (incluso cuando el admin asignó destinatario tipo Cliente).
+
+**Fix `quote_serials.py::preassign_serials`**: ahora llama PRIMERO al motor dinámico `notification_engine.try_dispatch(action_id="preassign_serials", quote, current_user, extra_template_vars={Lista_Seriales, Modelo_Equipo, ...})`. Si el catálogo tiene config para esa combinación (biz/sub/action), el motor despacha respetando plantilla y destinatarios (Cliente, Usuarios, etc). Solo si NO hay config cae al fallback legacy a Operaciones (con la cadena de fallback robusta del fix anterior). El response incluye `dispatched_by: "engine"|"legacy"` para observabilidad.
+
+**Verificado E2E**:
+- `GET /api/quotes` ahora devuelve `preassigned_serials: [...]` y `preassigned_at: ...` (2 cotizaciones de prueba con datos reales).
+- Stepper de COT-2026-05-054-PYME muestra `Preasignada` como **completed** (verde con check).
+- Dropdown "Marcar como Configurada" ahora aparece **habilitada** con bullet siguiente-paso, sin "Requiere seriales".
