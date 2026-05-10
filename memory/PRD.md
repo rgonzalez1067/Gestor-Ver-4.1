@@ -1153,3 +1153,16 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - **`billing_pdf.py`**: si algún item trae `section`, el render agrupa visualmente por sección con sub-headers (fondo `#dfe6ec`, span horizontal). Los índices de Subtotal/IVA/Total se recalculan dinámicamente con `last_body_idx = len(table_data) - 1` para no descuadrarse cuando hay sub-headers.
 
 **Verificado**: PDF generado con dos secciones (Implementación + Pinpads), subtotal, IVA y total general correctos. Análisis con AI confirmó: "secciones bien diferenciadas, orden lógico (Implementación → Pinpads), subtotal/IVA/TOTAL presentes y correctos".
+
+
+## Bugfix iter2 — Cálculos Definitivos: facturas separadas para MPOS Imple+POS (Feb 2026)
+
+**Solicitud del usuario**: en cotizaciones MPOS Imple+POS, los costos de Implementación y de Equipo (Pinpads) NO deben mezclarse. Cada sección debe mostrar su propio IVA y Total como facturas independientes.
+
+**Fix** (`backend/services/billing_pdf.py`):
+- Refactor del render: helper interno `_build_invoice_table(items, subtotal_label)` que produce una mini-factura completa (header + items + Subtotal + IVA + TOTAL).
+- Si los items vienen con campo `section`, se renderiza **una mini-factura por sección** (ej. "Factura 1: Implementación", "Factura 2: Pinpads"), cada una con su propio Subtotal/IVA/TOTAL calculados desde sus propios items. NO se emite total combinado.
+- Se añade nota al pie aclarando que cada sección se factura por separado.
+- El comportamiento legacy (sin secciones) se preserva exacto, usando los totales pre-calculados del frontend.
+
+**Verificado E2E**: PDF de prueba con 2 secciones (Implementación: $600 sub / $96 IVA / $696 total; Pinpads: $2,100 sub / $336 IVA / $2,436 total) → AI analyzer confirmó valores exactos, separación independiente, ausencia de total combinado.

@@ -91,7 +91,7 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
     elements.append(Paragraph(f"Tasa de Cambio aplicada: <b>Bs.{exchange_rate:,.2f} / $</b> — Fuente: {rate_source}", normal_style))
     elements.append(Spacer(1, 8))
 
-    # Table header
+    # Header styles
     header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontSize=9, textColor=colors.white, fontName='Helvetica-Bold', leading=11)
     header_center = ParagraphStyle('HeaderCenter', parent=header_cell_style, alignment=1)
     header_right = ParagraphStyle('HeaderRight', parent=header_cell_style, alignment=2)
@@ -102,28 +102,86 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
         concept_label = 'Concepto / Servicio'
     else:
         concept_label = 'Concepto'
-    table_data = [[
-        Paragraph(concept_label, header_cell_style),
-        Paragraph('Cant.', header_center),
-        Paragraph('Monto ($)', header_right),
-        Paragraph('Tasa Bs./$', header_center),
-        Paragraph('C.U. Bs.', header_right),
-        Paragraph('Total (Bs.)', header_right),
-    ]]
 
-    # Detección de secciones — si algún item tiene `section`, agrupamos por
-    # ese campo e insertamos sub-headers en la tabla (caso típico: Fast Track
-    # / MPOS Imple+POS que mezcla Implementación + Pinpads).
-    section_header_rows = []  # índices (0-based dentro de table_data) de filas que son sub-headers
+    cell_bold_right = ParagraphStyle('CellBoldRight', parent=cell_right_style, fontName='Helvetica-Bold')
+    total_white_style = ParagraphStyle('TotalWhite', parent=cell_style, textColor=colors.white, fontName='Helvetica-Bold', fontSize=10, alignment=2)
+    total_white_left = ParagraphStyle('TotalWhiteLeft', parent=total_white_style, alignment=0)
+    col_widths = [4.8*cm, 1.3*cm, 2.5*cm, 2.2*cm, 3.2*cm, 3.5*cm]
+
+    def _build_invoice_table(block_items: list, subtotal_label: str) -> Table:
+        """Construye una mini-factura: header + rows + Subtotal + IVA + TOTAL.
+        Cada bloque tiene su propio IVA y TOTAL. No depende del agregado global.
+        """
+        td = [[
+            Paragraph(concept_label, header_cell_style),
+            Paragraph('Cant.', header_center),
+            Paragraph('Monto ($)', header_right),
+            Paragraph('Tasa Bs./$', header_center),
+            Paragraph('C.U. Bs.', header_right),
+            Paragraph('Total (Bs.)', header_right),
+        ]]
+        sub_usd = 0.0
+        sub_bs = 0.0
+        for item in block_items:
+            usd_val = float(item.get('total_usd', 0) or 0)
+            bs_val = float(item.get('total_bs', usd_val * exchange_rate) or 0)
+            qty = item.get('quantity', 1) or 1
+            cu_bs = bs_val / qty if qty > 0 else 0
+            td.append([
+                Paragraph(item.get('name', 'N/A'), cell_style),
+                Paragraph(str(qty), cell_center_style),
+                Paragraph(f"${usd_val:,.2f}", cell_right_style),
+                Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
+                Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
+                Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
+            ])
+            sub_usd += usd_val
+            sub_bs += bs_val
+        n_rows = len(td) - 1  # excluyendo header
+
+        iva_usd_b = sub_usd * 0.16
+        iva_bs_b = sub_bs * 0.16
+        total_usd_b = sub_usd + iva_usd_b
+        total_bs_b = sub_bs + iva_bs_b
+        td.append([
+            Paragraph(f'<b>{subtotal_label}</b>', cell_bold_style), '',
+            Paragraph(f"<b>${sub_usd:,.2f}</b>", cell_bold_right), '', '',
+            Paragraph(f"<nobr><b>Bs.{sub_bs:,.2f}</b></nobr>", cell_bold_right),
+        ])
+        td.append([
+            Paragraph('IVA (16%)', cell_style), '',
+            Paragraph(f"${iva_usd_b:,.2f}", cell_right_style), '', '',
+            Paragraph(f"<nobr>Bs.{iva_bs_b:,.2f}</nobr>", cell_right_style),
+        ])
+        td.append([
+            Paragraph('<b>TOTAL</b>', total_white_left), '',
+            Paragraph(f"<nobr><b>${total_usd_b:,.2f}</b></nobr>", total_white_style), '', '',
+            Paragraph(f"<nobr><b>Bs.{total_bs_b:,.2f}</b></nobr>", total_white_style),
+        ])
+
+        tbl = Table(td, colWidths=col_widths)
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, n_rows), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('BACKGROUND', (0, n_rows + 1), (-1, n_rows + 1), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, n_rows + 2), (-1, n_rows + 2), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, n_rows + 3), (-1, n_rows + 3), colors.HexColor('#2c3e50')),
+        ]))
+        return tbl
+
     has_sections = any((it.get('section') for it in items))
-    section_header_style = ParagraphStyle(
-        'SectionHeaderInTable', parent=cell_bold_style,
-        textColor=colors.HexColor('#2c3e50'), fontSize=10,
-    )
 
     if has_sections:
-        # Agrupar manteniendo el orden de aparición de las secciones.
-        grouped: list[tuple[str, list]] = []
+        # Cotización MIXTA (típico Fast Track / MPOS Imple+POS): renderizamos
+        # UNA mini-factura independiente por sección (Implementación, Pinpads,
+        # ...). Cada bloque tiene su propio Subtotal/IVA/TOTAL, sin mezclar
+        # los costos. NO se emite un total combinado.
         order: list[str] = []
         bucket: dict[str, list] = {}
         for it in items:
@@ -132,114 +190,84 @@ def generate_billing_pdf(quote: dict, client: dict, billing_instruction: dict, e
                 bucket[sec] = []
                 order.append(sec)
             bucket[sec].append(it)
-        for sec in order:
-            grouped.append((sec, bucket[sec]))
 
-        for sec_name, sec_items in grouped:
-            # Sub-header row (occupies all 6 columns visually via background)
-            section_header_rows.append(len(table_data))
-            table_data.append([
-                Paragraph(f"<b>{sec_name}</b>", section_header_style),
-                '', '', '', '', '',
-            ])
-            for item in sec_items:
-                bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
-                qty = item.get('quantity', 1) or 1
-                cu_bs = bs_val / qty if qty > 0 else 0
-                table_data.append([
-                    Paragraph(item.get('name', 'N/A'), cell_style),
-                    Paragraph(str(qty), cell_center_style),
-                    Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
-                    Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
-                    Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
-                    Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
-                ])
+        section_subtitle_style = ParagraphStyle(
+            'SectionSubtitle', parent=header_style, fontSize=12,
+            textColor=colors.HexColor('#1f3a5f'), spaceBefore=10, spaceAfter=4,
+        )
+        for idx, sec_name in enumerate(order):
+            elements.append(Paragraph(f"<b>Factura {idx + 1}: {sec_name}</b>", section_subtitle_style))
+            elements.append(_build_invoice_table(bucket[sec_name], f"SUBTOTAL {sec_name.upper()}"))
+            elements.append(Spacer(1, 14))
+
+        elements.append(Paragraph(
+            "<i>Nota: cada sección se factura por separado. Los totales mostrados arriba "
+            "son independientes y NO deben combinarse en una sola factura.</i>",
+            ParagraphStyle('NoteSep', parent=normal_style, textColor=colors.HexColor('#7f8c8d'), fontSize=8),
+        ))
     else:
+        # Comportamiento legacy: una sola tabla con Subtotal/IVA/Total.
+        # Usamos los valores ya calculados por el frontend para mantener
+        # paridad con la vista previa del modal.
+        subtotal_label = 'SUBTOTAL (Equipos)' if is_equipment else 'SUBTOTAL'
+        td = [[
+            Paragraph(concept_label, header_cell_style),
+            Paragraph('Cant.', header_center),
+            Paragraph('Monto ($)', header_right),
+            Paragraph('Tasa Bs./$', header_center),
+            Paragraph('C.U. Bs.', header_right),
+            Paragraph('Total (Bs.)', header_right),
+        ]]
         for item in items:
-            bs_val = item.get('total_bs', item.get('total_usd', 0) * exchange_rate)
+            usd_val = float(item.get('total_usd', 0) or 0)
+            bs_val = float(item.get('total_bs', usd_val * exchange_rate) or 0)
             qty = item.get('quantity', 1) or 1
             cu_bs = bs_val / qty if qty > 0 else 0
-            table_data.append([
+            td.append([
                 Paragraph(item.get('name', 'N/A'), cell_style),
                 Paragraph(str(qty), cell_center_style),
-                Paragraph(f"${item.get('total_usd', 0):,.2f}", cell_right_style),
+                Paragraph(f"${usd_val:,.2f}", cell_right_style),
                 Paragraph(f"{exchange_rate:,.2f}", cell_center_style),
                 Paragraph(f"<nobr>Bs.{cu_bs:,.2f}</nobr>", cell_right_style),
                 Paragraph(f"<nobr>Bs.{bs_val:,.2f}</nobr>", cell_right_style),
             ])
-
-    # Summary rows style
-    cell_bold_right = ParagraphStyle('CellBoldRight', parent=cell_right_style, fontName='Helvetica-Bold')
-
-    # Calcular el índice de la última fila de body antes de añadir summary.
-    # Esto sustituye al legacy `num_items = len(items)` que era incorrecto
-    # cuando se insertaban sub-headers de sección.
-    last_body_idx = len(table_data) - 1
-    num_items = last_body_idx  # alias legacy para los comandos de estilo
-
-    # Subtotal row
-    subtotal_usd = billing_instruction.get('grand_total_usd', 0)
-    subtotal_bs = billing_instruction.get('grand_total_bs', 0)
-    subtotal_label = 'SUBTOTAL (Equipos)' if is_equipment else 'SUBTOTAL'
-    table_data.append([
-        Paragraph(f'<b>{subtotal_label}</b>', cell_bold_style), '',
-        Paragraph(f"<b>${subtotal_usd:,.2f}</b>", cell_bold_right), '', '',
-        Paragraph(f"<nobr><b>Bs.{subtotal_bs:,.2f}</b></nobr>", cell_bold_right),
-    ])
-
-    # IVA row
-    iva_usd = billing_instruction.get('iva_usd', subtotal_usd * 0.16)
-    iva_bs = billing_instruction.get('iva_bs', subtotal_bs * 0.16)
-    table_data.append([
-        Paragraph('IVA (16%)', cell_style), '',
-        Paragraph(f"${iva_usd:,.2f}", cell_right_style), '', '',
-        Paragraph(f"<nobr>Bs.{iva_bs:,.2f}</nobr>", cell_right_style),
-    ])
-
-    # Total row
-    total_usd = billing_instruction.get('grand_total_con_iva_usd', subtotal_usd + iva_usd)
-    total_bs = billing_instruction.get('grand_total_con_iva_bs', subtotal_bs + iva_bs)
-    total_white_style = ParagraphStyle('TotalWhite', parent=cell_style, textColor=colors.white, fontName='Helvetica-Bold', fontSize=10, alignment=2)
-    total_white_left = ParagraphStyle('TotalWhiteLeft', parent=total_white_style, alignment=0)
-    table_data.append([
-        Paragraph('<b>TOTAL GENERAL</b>', total_white_left), '',
-        Paragraph(f"<nobr><b>${total_usd:,.2f}</b></nobr>", total_white_style), '', '',
-        Paragraph(f"<nobr><b>Bs.{total_bs:,.2f}</b></nobr>", total_white_style),
-    ])
-
-    # Column widths: 6 columns with C.U. Bs. added
-    col_widths = [4.8*cm, 1.3*cm, 2.5*cm, 2.2*cm, 3.2*cm, 3.5*cm]
-    t = Table(table_data, colWidths=col_widths)
-
-    style_commands = [
-        # Header
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
-        # Body
-        ('ROWBACKGROUNDS', (0, 1), (-1, num_items), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        # Subtotal row
-        ('BACKGROUND', (0, num_items + 1), (-1, num_items + 1), colors.HexColor('#f0f0f0')),
-        # IVA row
-        ('BACKGROUND', (0, num_items + 2), (-1, num_items + 2), colors.HexColor('#f0f0f0')),
-        # Total row
-        ('BACKGROUND', (0, num_items + 3), (-1, num_items + 3), colors.HexColor('#2c3e50')),
-    ]
-    # Estilo para sub-headers de sección (cuando aplica): fondo destacado y
-    # span horizontal de la fila.
-    for sh_row in section_header_rows:
-        style_commands.extend([
-            ('BACKGROUND', (0, sh_row), (-1, sh_row), colors.HexColor('#dfe6ec')),
-            ('SPAN', (0, sh_row), (-1, sh_row)),
-            ('TOPPADDING', (0, sh_row), (-1, sh_row), 8),
-            ('BOTTOMPADDING', (0, sh_row), (-1, sh_row), 8),
+        n_rows = len(td) - 1
+        sub_usd_g = billing_instruction.get('grand_total_usd', 0)
+        sub_bs_g = billing_instruction.get('grand_total_bs', 0)
+        iva_usd_g = billing_instruction.get('iva_usd', sub_usd_g * 0.16)
+        iva_bs_g = billing_instruction.get('iva_bs', sub_bs_g * 0.16)
+        total_usd_g = billing_instruction.get('grand_total_con_iva_usd', sub_usd_g + iva_usd_g)
+        total_bs_g = billing_instruction.get('grand_total_con_iva_bs', sub_bs_g + iva_bs_g)
+        td.append([
+            Paragraph(f'<b>{subtotal_label}</b>', cell_bold_style), '',
+            Paragraph(f"<b>${sub_usd_g:,.2f}</b>", cell_bold_right), '', '',
+            Paragraph(f"<nobr><b>Bs.{sub_bs_g:,.2f}</b></nobr>", cell_bold_right),
         ])
-    t.setStyle(TableStyle(style_commands))
-    elements.append(t)
+        td.append([
+            Paragraph('IVA (16%)', cell_style), '',
+            Paragraph(f"${iva_usd_g:,.2f}", cell_right_style), '', '',
+            Paragraph(f"<nobr>Bs.{iva_bs_g:,.2f}</nobr>", cell_right_style),
+        ])
+        td.append([
+            Paragraph('<b>TOTAL GENERAL</b>', total_white_left), '',
+            Paragraph(f"<nobr><b>${total_usd_g:,.2f}</b></nobr>", total_white_style), '', '',
+            Paragraph(f"<nobr><b>Bs.{total_bs_g:,.2f}</b></nobr>", total_white_style),
+        ])
+        t = Table(td, colWidths=col_widths)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, n_rows), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('BACKGROUND', (0, n_rows + 1), (-1, n_rows + 1), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, n_rows + 2), (-1, n_rows + 2), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, n_rows + 3), (-1, n_rows + 3), colors.HexColor('#2c3e50')),
+        ]))
+        elements.append(t)
 
     # Payment proof note
     if billing_instruction.get('has_payment_proof'):
