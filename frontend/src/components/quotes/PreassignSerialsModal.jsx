@@ -96,7 +96,19 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Error');
+      // Toast principal: éxito de la preasignación (siempre que la BD se haya actualizado)
       toast.success(data.message);
+      // Toast secundario: estado del correo. Si no se envió, mostrar warning
+      // con detalle accionable (configuración faltante, fallo SMTP, etc.).
+      if (data.email_sent === false) {
+        toast.warning(
+          data.email_error
+            ? `Correo no enviado: ${data.email_error}`
+            : 'Correo de notificación no enviado. Revise Configuración › Sede › Operaciones.'
+        );
+      } else if (data.email_sent === true && (data.email_recipients || []).length) {
+        toast.info(`Correo enviado a ${data.email_recipients.join(', ')}`);
+      }
       onSuccess?.();
       onClose();
     } catch (e) {

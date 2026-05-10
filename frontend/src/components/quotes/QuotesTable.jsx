@@ -417,7 +417,18 @@ export const QuotesTable = ({
                         )}
                         {canEdit && isFastTrack && (() => {
                           const hasPreassigned = quote.preassigned_serials?.length > 0;
-                          const isDisabled = !hasPreassigned;
+                          const isDisabledByPreassign = !hasPreassigned;
+                          const defaultLabel = quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración';
+                          // Aplicar overrides del catálogo (action_id = 'configure'):
+                          // permite renombrar el botón, ocultarlo o restringir
+                          // por usuarios. Si el override desactiva la acción,
+                          // hidden=true y no se renderiza.
+                          const m = getActionMeta(quote, 'configure', defaultLabel);
+                          if (m.hidden) return null;
+                          const isDisabled = isDisabledByPreassign || m.disabled;
+                          const tooltip = isDisabledByPreassign
+                            ? 'Debe preasignar los seriales de los equipos antes de proceder con la configuración técnica'
+                            : (m.tooltip || '');
                           return (
                             <DropdownMenuItem
                               onSelect={() => {
@@ -426,13 +437,13 @@ export const QuotesTable = ({
                               }}
                               className={`cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                               disabled={isDisabled}
-                              title={isDisabled ? 'Debe preasignar los seriales de los equipos antes de proceder con la configuración técnica' : ''}
+                              title={tooltip}
                               data-testid={`configure-btn-${quote.quote_id}`}>
                               <Settings size={16} className={`mr-2 ${isDisabled ? 'text-slate-400' : 'text-indigo-600'}`} />
-                              {quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración'}
+                              {m.label}
                               {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
                               {!quote.configured_at && !isDisabled && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
-                              {isDisabled && <span className="ml-auto text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Requiere seriales</span>}
+                              {isDisabledByPreassign && <span className="ml-auto text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Requiere seriales</span>}
                             </DropdownMenuItem>
                           );
                         })()}

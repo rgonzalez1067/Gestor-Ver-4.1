@@ -1166,3 +1166,23 @@ Usuario reportó que la página 2 de la cotización quedaba con bloques sueltos 
 - El comportamiento legacy (sin secciones) se preserva exacto, usando los totales pre-calculados del frontend.
 
 **Verificado E2E**: PDF de prueba con 2 secciones (Implementación: $600 sub / $96 IVA / $696 total; Pinpads: $2,100 sub / $336 IVA / $2,436 total) → AI analyzer confirmó valores exactos, separación independiente, ausencia de total combinado.
+
+
+## Bugfix Trio — Flujo MPOS Imple+POS (Feb 2026)
+
+Tres fallas reportadas: (1) "Marcar como Configurada" no aparece activa pese a config OK; (2) círculo de estado de Preasignación invisible; (3) correo de preasignación no se despacha pese a inventario OK.
+
+**Causa raíz**:
+1. El botón "Marcar como Configurada" en `QuotesTable.jsx` no aplicaba `getActionMeta()` → ignoraba overrides del catálogo de acciones (no respetaba `custom_label` ni `allowed_user_ids`).
+2. El stepper `QuoteStatusStepper.fast_track` no tenía paso 'Preasignada' — la fase no era visible.
+3. `quote_serials.preassign_serials` defaulteaba a `operaciones@sede.local` (dominio inexistente) cuando `emails_by_sede.<SEDE>.operations` faltaba, y el response no informaba si el correo había fallado: el toast de éxito ocultaba el problema.
+
+**Fixes aplicados**:
+- **`QuoteStatusStepper.jsx`**: agregado paso `Preasignada` entre `Aprobada` y `Configurada` en flow `fast_track` (`ts: 'preassigned_at'`). `getStepStates` ahora marca como completed cualquier step con timestamp aunque el `quote_status` no haya avanzado por él (caso típico de fases laterales).
+- **`QuotesTable.jsx`**: la acción "Marcar como Configurada" ahora pasa por `getActionMeta(quote, 'configure', defaultLabel)` — respeta hidden/disabled/custom_label/allowed_user_ids del override. Mantiene la regla de `Requiere seriales` cuando no hay preasignación.
+- **`quote_serials.py::preassign_serials`**:
+  - Cadena de fallback robusta para destinatarios: `operations` sede → `admin` sede → email del **creador de la cotización** → email del **ejecutante**. Nunca cae a dominio inexistente.
+  - Respuesta enriquecida: `email_sent: bool`, `email_error: str|null`, `email_recipients: list`. Logging explícito por cada decisión.
+- **`PreassignSerialsModal.jsx`**: muestra toast secundario diferenciado (warning si `email_sent=false` con `email_error`, info con destinatarios cuando se envió).
+
+**Verificado**: smoke screenshot confirmó stepper con 7 pasos (Enviada→Aprobada→Preasign.→Config.→Factura→Pagada→Entregada), botón "Marcar como Configurada" presente con indicador "Requiere seriales", y "Preasignación de Seriales" con bullet azul (pendiente). Lint OK en los 4 archivos.

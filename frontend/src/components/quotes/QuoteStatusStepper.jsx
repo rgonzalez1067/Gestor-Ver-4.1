@@ -16,6 +16,7 @@ const FLOWS = {
   fast_track: [
     { key: 'Enviada', label: 'Enviada', ts: 'sent_to_client_at' },
     { key: 'Aprobada', label: 'Aprobada', ts: 'approved_at' },
+    { key: 'Preasignada', label: 'Preasign.', ts: 'preassigned_at' },
     { key: 'Configurada', label: 'Config.', ts: 'configured_at' },
     { key: 'Facturada', label: 'Factura', ts: 'invoiced_at' },
     { key: 'Pagada', label: 'Pagada', ts: 'paid_at' },
@@ -63,6 +64,11 @@ function getStepStates(steps, quote) {
     if (isPastCurrent && hasTimestamp) return 'completed';
     if (isPastCurrent && !hasTimestamp && isIrregular) return 'bypassed';
     if (isPastCurrent) return 'completed';
+    // Pasos intermedios "fuera de la espina dorsal" (ej. Preasignada en
+    // fast_track) que no son estados oficiales pero tienen timestamp propio:
+    // si ya se ejecutaron, mostrarlos como completados aunque queden por
+    // delante del currentIdx (porque el quote_status no avanza por este paso).
+    if (hasTimestamp) return 'completed';
     return 'pending';
   });
 }
