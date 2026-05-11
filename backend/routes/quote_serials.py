@@ -305,6 +305,8 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
     warehouse_id = request.get("warehouse_id", "")
     item_id = request.get("item_id", "")
     item_name = request.get("item_name", "")
+    custom_message = (request.get("custom_message") or "").strip() or None
+    cc_emails = request.get("cc_emails") or []
 
     if not selected_serials or not warehouse_id or not item_id:
         raise HTTPException(status_code=400, detail="Faltan datos: serials, warehouse_id, item_id")
@@ -407,6 +409,8 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
             action_id="preassign_serials",
             quote=quote_refreshed,
             current_user=current_user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
             extra_template_vars=extra_vars,
         )
     except Exception as e:

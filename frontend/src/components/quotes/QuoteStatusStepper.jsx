@@ -58,17 +58,20 @@ function getStepStates(steps, quote) {
     const isPastCurrent = currentIdx >= 0 && idx <= currentIdx;
     const isCurrent = currentIdx >= 0 && idx === currentIdx;
 
-    // Final step reached: show as completed (solid green + check)
+    // Regla principal: si el step tiene su timestamp, la acción ya se ejecutó.
+    // Siempre se marca como completed (check verde sólido), aunque sea el
+    // step "current" del quote_status. Esto evita el caso donde la cotización
+    // sigue en estado "Aprobada" pero ya pasó por Preasignación: visualmente
+    // ambos pasos quedan como completed.
+    if (hasTimestamp) return 'completed';
+
+    // Final step alcanzado sin timestamp (caso borde): completed
     if (isCurrent && isAtFinalStep) return 'completed';
+    // Step actual sin timestamp todavía: en progreso
     if (isCurrent) return 'current';
-    if (isPastCurrent && hasTimestamp) return 'completed';
+    // Step pasado sin timestamp: bypassed (si la cotización es irregular) o completed legacy
     if (isPastCurrent && !hasTimestamp && isIrregular) return 'bypassed';
     if (isPastCurrent) return 'completed';
-    // Pasos intermedios "fuera de la espina dorsal" (ej. Preasignada en
-    // fast_track) que no son estados oficiales pero tienen timestamp propio:
-    // si ya se ejecutaron, mostrarlos como completados aunque queden por
-    // delante del currentIdx (porque el quote_status no avanza por este paso).
-    if (hasTimestamp) return 'completed';
     return 'pending';
   });
 }

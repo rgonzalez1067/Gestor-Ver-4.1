@@ -57,7 +57,10 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
     if resend_key:
         resend_key_masked = f"{'*' * (len(resend_key) - 4)}{resend_key[-4:]}" if len(resend_key) > 4 else "****"
     
-    # Normalizar emails_by_sede para incluir siempre el campo 'sales'
+    # Normalizar emails_by_sede para incluir siempre los campos esperados por la UI.
+    # `operations` (solo PYME) es el buzón usado por flujos de logística como
+    # Preasignación de Seriales. Si se omite, el frontend lo muestra vacío y el
+    # admin pierde el valor al re-guardar otras secciones.
     raw_ebs = config.get("emails_by_sede", {})
     emails_by_sede = {}
     for sede_id in ["PYME", "CORP"]:
@@ -65,7 +68,8 @@ async def get_app_settings(authorization: Optional[str] = Header(None)):
         emails_by_sede[sede_id] = {
             "admin": sede_data.get("admin", config.get("admin_email", "") if sede_id == "PYME" else ""),
             "warehouse": sede_data.get("warehouse", config.get("warehouse_email", "") if sede_id == "PYME" else ""),
-            "sales": sede_data.get("sales", "")
+            "sales": sede_data.get("sales", ""),
+            "operations": sede_data.get("operations", config.get("operations_email", "") if sede_id == "PYME" else ""),
         }
     
     return {

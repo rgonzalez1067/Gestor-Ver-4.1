@@ -38,6 +38,12 @@ def _quote_to_biz_sub(quote: dict) -> tuple[Optional[str], Optional[str]]:
         return "equipos", None
     if cat == "repair":
         return "reparaciones", None
+    # MPOS Imple+POS (Fast Track) usa el bucket de Implementación en el catálogo:
+    # el admin lo configura bajo "Implementaciones Pyme/Corp · MPOS Imple+POS".
+    if cat == "fast_track":
+        sede = (quote.get("sede") or quote.get("client_segment") or "PYME").upper()
+        biz = "implementacion_corp" if sede == "CORP" else "implementacion_pyme"
+        return biz, "mpos_imple_pos"
     if cat != "implementation":
         return None, None
 

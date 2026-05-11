@@ -1209,3 +1209,34 @@ Tras prueba en preview, los 3 puntos seguían fallando. Causa raíz adicional en
 - `GET /api/quotes` ahora devuelve `preassigned_serials: [...]` y `preassigned_at: ...` (2 cotizaciones de prueba con datos reales).
 - Stepper de COT-2026-05-054-PYME muestra `Preasignada` como **completed** (verde con check).
 - Dropdown "Marcar como Configurada" ahora aparece **habilitada** con bullet siguiente-paso, sin "Requiere seriales".
+
+
+## Bugfix Quad — MPOS Imple+POS + Motor + UX (Feb 2026)
+
+Tras pruebas en preview, 4 fallas reportadas. **TODAS corregidas**:
+
+**1) "Correo de Operaciones" en Configuración → Sede PYME no persistía**
+Causa: `routes/settings.py` GET normalizaba `emails_by_sede` sin incluir `operations` — el valor sí se guardaba en BD, pero el siguiente GET retornaba `operations: ""` y la UI lo mostraba vacío (efecto "se borró al guardar").
+Fix: agregada normalización de `operations` (con fallback a `operations_email` legacy del config plano para PYME).
+
+**2) Acción Preasignación NO usaba "Configuración de Notificaciones"**
+Causa raíz: `notification_engine._quote_to_biz_sub()` mapeaba SOLO `quote_category` ∈ {implementation, equipment, repair} a (biz, sub). Para cotizaciones MPOS Imple+POS — categoría `fast_track` — retornaba `(None, None)`, por lo que `try_dispatch` salía inmediatamente y el flujo caía SIEMPRE al legacy a Operaciones, ignorando la matriz del catálogo (donde están bajo "Implementaciones Pyme · MPOS Imple+POS").
+Fix: agregado caso `fast_track` → `(implementacion_pyme|corp, mpos_imple_pos)` según `sede`. Validado: config con key `implementacion_pyme|mpos_imple_pos|preassign_serials` (2 destinatarios: user + cliente) ahora es encontrada.
+
+**3) Modal "Personalizar Comunicación" no aparecía para Preasignación**
+Causa: `PreassignSerialsModal` solo manejaba selección de seriales, no había UI para mensaje/CC. El backend tampoco recibía esos campos.
+Fix: añadida sección **"Personalizar Comunicación"** en el modal con mensaje personalizado (300 chars) y chips de CC. Backend recibe `custom_message` y `cc_emails` y los pasa a `try_dispatch` para que el motor los aplique sobre la plantilla configurada.
+
+**4) Stepper: ícono de Aprobada no se actualizaba al ejecutar Preasignación**
+Causa: `getStepStates` marcaba el step `current` (donde está `quote_status`) como `'current'` (círculo bordeado con número), no como completed, aunque ya tuviera `approved_at`. Resultado visual: Enviada ✓ - Aprobada "2" - Preasign ✓ - …
+Fix: regla simplificada — **si el step tiene su timestamp, es completed** (independiente del current_status). El estado `current` solo aplica si NO hay timestamp todavía.
+
+**5) Modelo Quote no exponía preassigned fields**
+(Fix previo, pero relevante al combo): agregados `preassigned_serials`, `preassigned_at`, `preassigned_warehouse_id` al modelo Pydantic para que el `response_model` no los strippee.
+
+**Verificado E2E en preview**:
+- GET `/api/config/settings` retorna `operations: "ragg1008@gmail.com"` ✅
+- `_quote_to_biz_sub(quote fast_track PYME)` → `(implementacion_pyme, mpos_imple_pos)` ✅
+- DB tiene config con esa key y 2 destinatarios → motor la encuentra ✅
+- Stepper COT-054: 3 checks verdes (Enviada, Aprobada, Preasign) ✅
+- Modal Preasignación muestra "Personalizar Comunicación" con textarea + chips CC ✅

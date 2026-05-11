@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
 import { toast } from 'sonner';
-import { Search, Package, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Package, CheckCircle, AlertCircle, Loader2, Mail, Plus, X } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -16,6 +18,10 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [existingAssignments, setExistingAssignments] = useState([]);
+  // Personalizar Comunicación
+  const [customMessage, setCustomMessage] = useState('');
+  const [ccRecipients, setCcRecipients] = useState([]);
+  const [ccInput, setCcInput] = useState('');
 
   // Get equipment info from quote
   const ftItems = quote?.ft_equipment_items || [];
@@ -26,6 +32,10 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
   // Load warehouses and existing assignments
   useEffect(() => {
     if (!open || !quote) return;
+    // Reset el formulario de personalización al abrir
+    setCustomMessage('');
+    setCcRecipients([]);
+    setCcInput('');
     const load = async () => {
       try {
         const [whRes, assignRes] = await Promise.all([
@@ -92,6 +102,8 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
           warehouse_id: selectedWarehouse,
           item_id: itemId,
           item_name: modelName,
+          custom_message: customMessage.trim() || null,
+          cc_emails: ccRecipients,
         }),
       });
       const data = await res.json();
@@ -225,6 +237,80 @@ export const PreassignSerialsModal = ({ open, onClose, quote, token, onSuccess }
             )}
           </>
         )}
+
+        {/* Personalizar Comunicación — mensaje opcional + CCs */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <Mail size={16} className="text-blue-600" />
+            <p className="text-sm font-semibold text-blue-800">Personalizar Comunicación</p>
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-slate-700">
+              Mensaje personalizado <span className="text-slate-400">(opcional, máx 300 caracteres)</span>
+            </Label>
+            <Textarea
+              value={customMessage}
+              onChange={(e) => setCustomMessage(e.target.value.slice(0, 300))}
+              placeholder="Ej: Estos seriales corresponden al despacho urgente coordinado con el cliente..."
+              className="mt-1 min-h-[60px] text-sm bg-white"
+              maxLength={300}
+              data-testid="preassign-custom-message"
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-medium text-slate-700">Destinatarios adicionales (CC)</Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                value={ccInput}
+                onChange={(e) => setCcInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const v = ccInput.trim();
+                    if (v && v.includes('@') && !ccRecipients.includes(v)) {
+                      setCcRecipients([...ccRecipients, v]);
+                      setCcInput('');
+                    }
+                  }
+                }}
+                placeholder="correo@ejemplo.com"
+                className="flex-1 bg-white text-sm h-9"
+                data-testid="preassign-cc-input"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const v = ccInput.trim();
+                  if (v && v.includes('@') && !ccRecipients.includes(v)) {
+                    setCcRecipients([...ccRecipients, v]);
+                    setCcInput('');
+                  }
+                }}
+                disabled={!ccInput.trim() || !ccInput.includes('@')}
+                data-testid="preassign-cc-add"
+              >
+                <Plus size={14} />
+              </Button>
+            </div>
+            {ccRecipients.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {ccRecipients.map((email, idx) => (
+                  <span key={idx} className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                    {email}
+                    <button
+                      onClick={() => setCcRecipients(ccRecipients.filter((e) => e !== email))}
+                      className="hover:text-red-500 ml-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
