@@ -80,15 +80,28 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
     contact_id = f"ic_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     creator_name = user_display(current_user)
-    
+
     # Resolver usuario asignado (si se proporcionó)
     assigned_user_id = data.assigned_to_user_id or current_user["user_id"]
     assigned_name = creator_name
+    assigned_user_doc = None
     if data.assigned_to_user_id and data.assigned_to_user_id != current_user["user_id"]:
         target = await get_user_by_id(data.assigned_to_user_id)
         if target:
             assigned_name = user_display(target)
             assigned_user_id = target["user_id"]
+            assigned_user_doc = target
+
+    # Determinar sede válida (PYME o CORP). Si la sede del usuario actual o
+    # del asignado no está en la lista permitida (ej. "TBP" para admins de
+    # plataforma), caer a "PYME" como default seguro.
+    def _valid_sede(s):
+        return s if s in ("PYME", "CORP") else None
+    sede = (
+        _valid_sede((assigned_user_doc or {}).get("sede"))
+        or _valid_sede(current_user.get("sede"))
+        or "PYME"
+    )
     
     contact = {
         "contact_id": contact_id,
@@ -103,7 +116,7 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
         "due_date": data.due_date or None,
         "created_by_user_id": current_user["user_id"],
         "created_by_name": creator_name,
-        "sede": current_user.get("sede", "PYME"),
+        "sede": sede,
         "is_converted": False,
         "converted_client_id": None,
         "created_at": now,
@@ -674,6 +687,7 @@ async def close_initial_contact(
 
 class InitialContactReopen(BaseModel):
     reason: Optional[str] = ""
+    new_due_date: Optional[str] = None  # YYYY-MM-DD; si vacío, se aplica hoy+5 días
 
 
 @router.post("/initial-contacts/{contact_id}/reopen")
@@ -683,7 +697,9 @@ async def reopen_initial_contact(
     authorization: Optional[str] = Header(None),
 ):
     """Reabre una gestión cerrada. Disponible para todos los usuarios con
-    acceso al módulo. Cada reapertura genera entrada automática en bitácora."""
+    acceso al módulo. Al reabrir, el SLA se resetea: la `due_date` queda
+    en `new_due_date` (si fue provista) o en hoy + 5 días, de modo que
+    el indicador visual arranque en VERDE (En Tiempo) como una gestión nueva."""
     current_user = await get_current_user(authorization)
     contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
     if not contact:
@@ -695,10 +711,26 @@ async def reopen_initial_contact(
     reopen_reason = (payload.reason if payload else "") or ""
     reopen_reason = reopen_reason.strip()
 
+    # Calcular nueva fecha límite (reset SLA → arranca en verde)
+    from datetime import timedelta
+    raw_new_due = (payload.new_due_date if payload else None) or ""
+    raw_new_due = raw_new_due.strip()
+    if raw_new_due:
+        new_due_date = raw_new_due
+    else:
+        new_due_date = (now + timedelta(days=5)).strftime("%Y-%m-%d")
+
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
         {
-            "$set": {"status": "active"},
+            "$set": {
+                "status": "active",
+                "due_date": new_due_date,
+                "reopened_at": now.isoformat(),
+                "reopened_by": current_user.get("user_id"),
+                "reopened_by_name": user_display(current_user),
+                "updated_at": now.isoformat(),
+            },
             "$unset": {
                 "closed_at": "",
                 "closed_by": "",
@@ -708,9 +740,9 @@ async def reopen_initial_contact(
         },
     )
     # Registrar la reapertura como entrada de bitácora para trazabilidad
-    detail = "[REAPERTURA DE GESTIÓN]"
+    detail = f"[REAPERTURA DE GESTIÓN] Nueva fecha límite: {new_due_date}"
     if reopen_reason:
-        detail += f" {reopen_reason}"
+        detail += f". Motivo: {reopen_reason}"
     await db.initial_contact_logs.insert_one({
         "log_id": str(uuid.uuid4()),
         "contact_id": contact_id,
@@ -726,7 +758,13 @@ async def reopen_initial_contact(
         "origin": "initial_contact_reopen",
     })
     logger.info(
-        f"[initial_contacts] REOPENED {contact_id} by {current_user.get('email')}"
+        f"[initial_contacts] REOPENED {contact_id} by {current_user.get('email')} "
+        f"new_due_date={new_due_date}"
     )
-    return {"contact_id": contact_id, "status": "active", "reopened_at": now.isoformat()}
+    return {
+        "contact_id": contact_id,
+        "status": "active",
+        "reopened_at": now.isoformat(),
+        "new_due_date": new_due_date,
+    }
 

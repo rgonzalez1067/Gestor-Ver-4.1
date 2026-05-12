@@ -5,6 +5,29 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Contacto Inicial — Fix Sede TBP + Reset SLA al Reabrir (Feb 2026) — NUEVO
+
+**Problemas resueltos**:
+
+**1. Sede inválida ("TBP") en contactos iniciales**:
+- Bug: el campo `sede` se tomaba directamente de `current_user.sede`. Los admins corporativos tienen sede `"TBP"` (transversal de plataforma), lo que producía contactos con sede inválida.
+- Fix: en `create_initial_contact` se introduce función helper `_valid_sede` que sólo acepta `PYME` o `CORP`. La sede se resuelve en este orden:
+  1. Sede del usuario asignado (si es válida).
+  2. Sede del usuario creador (si es válida).
+  3. Fallback: `"PYME"`.
+- Migración aplicada: 8 contactos existentes con `sede=TBP` fueron actualizados a `sede=PYME`.
+
+**2. SLA al reabrir gestión arrancaba en rojo**:
+- Bug: al reabrir, la `due_date` no se reseteaba y el indicador visual quedaba "vencido" reflejando la fecha de la gestión original.
+- Fix: el endpoint `POST /reopen` ahora acepta `new_due_date` opcional. Si no se provee, calcula automáticamente **hoy + 5 días** (indicador verde — "En Tiempo"). El frontend muestra un campo `date` precargado con ese default y el usuario puede ajustarlo.
+- Trazabilidad reforzada: la entrada de bitácora incluye la nueva fecha límite y, opcionalmente, el motivo.
+- Campos `reopened_at`, `reopened_by`, `reopened_by_name` se persisten en el documento del contacto.
+
+**Validado E2E**:
+- ✅ Admin con sede TBP crea contacto → queda con `sede=PYME`.
+- ✅ Reapertura sin fecha → default `hoy+5` (verde).
+- ✅ Reapertura con fecha custom → respeta el valor enviado.
+
 ### Contacto Inicial — Homologación Dashboard + Cierre/Reapertura democratizados (Feb 2026) — NUEVO
 
 **Objetivo**: Paridad funcional entre la pantalla maestra de Contacto Inicial y el Dashboard, y democratización de las acciones de cierre/reapertura (antes admin-only).

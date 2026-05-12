@@ -57,7 +57,15 @@ export const InitialContacts = () => {
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenContact, setReopenContact] = useState(null);
   const [reopenReason, setReopenReason] = useState('');
+  const [reopenDueDate, setReopenDueDate] = useState('');
   const [reopening, setReopening] = useState(false);
+
+  // Default fecha límite al reabrir: hoy + 5 días
+  const defaultReopenDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    return d.toISOString().slice(0, 10);
+  };
 
   // Filtro de status: active | closed | all
   const [filterStatus, setFilterStatus] = useState('active');
@@ -364,7 +372,7 @@ export const InitialContacts = () => {
                         ) : (
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-emerald-600"
                             title="Reabrir Gestión"
-                            onClick={() => { setReopenContact(c); setReopenReason(''); setReopenOpen(true); }}
+                            onClick={() => { setReopenContact(c); setReopenReason(''); setReopenDueDate(defaultReopenDate()); setReopenOpen(true); }}
                             data-testid={`reopen-btn-${c.contact_id}`}>
                             <RotateCcw size={14} />
                           </Button>
@@ -622,7 +630,15 @@ export const InitialContacts = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-2 my-3">
-              <Label className="text-xs">Motivo de reapertura (opcional)</Label>
+              <Label className="text-xs">Nueva fecha límite (SLA reinicia en VERDE)</Label>
+              <Input
+                type="date"
+                value={reopenDueDate}
+                onChange={(e) => setReopenDueDate(e.target.value)}
+                data-testid="reopen-due-date-input"
+              />
+              <p className="text-[11px] text-slate-400">Por defecto: hoy + 5 días. Puede ajustarla.</p>
+              <Label className="text-xs mt-2">Motivo de reapertura (opcional)</Label>
               <Textarea
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
@@ -638,11 +654,15 @@ export const InitialContacts = () => {
                 onClick={async () => {
                   setReopening(true);
                   try {
-                    await api.post(`/initial-contacts/${reopenContact.contact_id}/reopen`, { reason: reopenReason.trim() });
+                    await api.post(`/initial-contacts/${reopenContact.contact_id}/reopen`, {
+                      reason: reopenReason.trim(),
+                      new_due_date: reopenDueDate || undefined,
+                    });
                     toast.success('Gestión reabierta');
                     setReopenOpen(false);
                     setReopenContact(null);
                     setReopenReason('');
+                    setReopenDueDate('');
                     fetchData();
                   } catch (e) {
                     toast.error(e.response?.data?.detail || 'Error al reabrir gestión');

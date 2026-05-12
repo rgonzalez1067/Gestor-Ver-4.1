@@ -56,7 +56,14 @@ export const Dashboard = () => {
   const [dashReopenOpen, setDashReopenOpen] = useState(false);
   const [dashReopenContact, setDashReopenContact] = useState(null);
   const [dashReopenReason, setDashReopenReason] = useState('');
+  const [dashReopenDueDate, setDashReopenDueDate] = useState('');
   const [dashReopening, setDashReopening] = useState(false);
+
+  const defaultReopenDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    return d.toISOString().slice(0, 10);
+  };
 
   const [dashNotifyOpen, setDashNotifyOpen] = useState(false);
   const [dashNotifyContact, setDashNotifyContact] = useState(null);
@@ -403,7 +410,7 @@ export const Dashboard = () => {
                               ) : (
                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-emerald-600" title="Reabrir Gestión"
                                   data-testid={`dash-reopen-btn-${c.contact_id}`}
-                                  onClick={() => { setDashReopenContact(c); setDashReopenReason(''); setDashReopenOpen(true); }}>
+                                  onClick={() => { setDashReopenContact(c); setDashReopenReason(''); setDashReopenDueDate(defaultReopenDate()); setDashReopenOpen(true); }}>
                                   <RotateCcw size={13} />
                                 </Button>
                               )}
@@ -741,7 +748,15 @@ export const Dashboard = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 my-3">
-            <Label className="text-xs">Motivo de reapertura (opcional)</Label>
+            <Label className="text-xs">Nueva fecha límite (SLA reinicia en VERDE)</Label>
+            <Input
+              type="date"
+              value={dashReopenDueDate}
+              onChange={(e) => setDashReopenDueDate(e.target.value)}
+              data-testid="dash-reopen-due-date-input"
+            />
+            <p className="text-[11px] text-slate-400">Por defecto: hoy + 5 días. Puede ajustarla.</p>
+            <Label className="text-xs mt-2">Motivo de reapertura (opcional)</Label>
             <Textarea
               value={dashReopenReason}
               onChange={(e) => setDashReopenReason(e.target.value)}
@@ -757,11 +772,15 @@ export const Dashboard = () => {
               onClick={async () => {
                 setDashReopening(true);
                 try {
-                  await api.post(`/initial-contacts/${dashReopenContact.contact_id}/reopen`, { reason: dashReopenReason.trim() });
+                  await api.post(`/initial-contacts/${dashReopenContact.contact_id}/reopen`, {
+                    reason: dashReopenReason.trim(),
+                    new_due_date: dashReopenDueDate || undefined,
+                  });
                   toast.success('Gestión reabierta');
                   setDashReopenOpen(false);
                   setDashReopenContact(null);
                   setDashReopenReason('');
+                  setDashReopenDueDate('');
                   fetchDashboardData();
                 } catch (e) {
                   toast.error(e.response?.data?.detail || 'Error al reabrir gestión');
