@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -103,12 +104,21 @@ const AdminUsers = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [savingKey, setSavingKey] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (userStr) setCurrentUser(JSON.parse(userStr));
     fetchAll();
   }, []);
+
+  // Preselect user via ?user=<id> (deep-link desde auditoría de perfiles)
+  useEffect(() => {
+    const uid = searchParams.get('user');
+    if (uid && users.some((u) => u.user_id === uid)) {
+      setSelectedUserId(uid);
+    }
+  }, [users, searchParams]);
 
   const fetchAll = async () => {
     try {
@@ -141,14 +151,27 @@ const AdminUsers = () => {
 
   const filteredUsers = useMemo(() => {
     const q = searchTerm.toLowerCase();
-    if (!q) return users;
-    return users.filter(u =>
-      u.email?.toLowerCase().includes(q) ||
-      u.first_name?.toLowerCase().includes(q) ||
-      u.last_name?.toLowerCase().includes(q) ||
-      u.name?.toLowerCase().includes(q) ||
-      u.cedula?.includes(searchTerm)
-    );
+    const base = !q
+      ? users
+      : users.filter(u =>
+          u.email?.toLowerCase().includes(q) ||
+          u.first_name?.toLowerCase().includes(q) ||
+          u.last_name?.toLowerCase().includes(q) ||
+          u.name?.toLowerCase().includes(q) ||
+          u.cedula?.includes(searchTerm)
+        );
+    // Ordenamiento: Administradores anclados arriba, resto alfabético A-Z.
+    const fullName = (u) =>
+      (u.first_name || u.last_name
+        ? `${u.first_name || ''} ${u.last_name || ''}`.trim()
+        : (u.name || u.email || '')
+      ).toLowerCase();
+    return [...base].sort((a, b) => {
+      const aAdmin = a.role === 'admin' ? 0 : 1;
+      const bAdmin = b.role === 'admin' ? 0 : 1;
+      if (aAdmin !== bAdmin) return aAdmin - bAdmin;
+      return fullName(a).localeCompare(fullName(b), 'es', { sensitivity: 'base' });
+    });
   }, [users, searchTerm]);
 
   // ========= Mutations =========

@@ -5,6 +5,30 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Seguridad — Auditoría de Perfiles y Orden de Usuarios (Feb 2026) — NUEVO
+
+**Objetivo**: Acelerar la administración de Seguridad anclando al/los Administrador(es) al tope de la lista, ordenando el resto alfabéticamente y permitiendo auditar de un vistazo a qué usuarios está asignado cada perfil.
+
+**Reglas / UX**:
+- **Anclaje (Pinning)** en `AdminUsers.jsx`: usuarios con `role === 'admin'` aparecen siempre al tope; el resto en orden alfabético A-Z por nombre completo (`localeCompare` con `es`).
+- **Auditoría de perfiles** en `AdminProfiles.jsx`: nuevo botón **"Ver usuarios" + badge con conteo** junto a Duplicar/Eliminar. Al hacer clic abre un modal con tabla de los usuarios asignados:
+  - **Nombre completo** (con badge Admin si aplica y badge de cargo)
+  - **Login (email)**
+  - **Sede / Departamento**
+  - **Estatus** (Activo/Inactivo con icono y color)
+- **Filtro local** dentro del modal por nombre, login, sede o departamento.
+- **Hipervínculo**: cada fila es clickable y navega a `/admin/users?user=<id>` (deep link con pre-selección automática vía `useSearchParams`).
+- **Carga bajo demanda**: el endpoint solo se invoca al abrir el modal (lazy).
+- Si el perfil no tiene usuarios asignados (`user_count === 0`), el botón se deshabilita con tooltip explicativo.
+
+**Backend**:
+- `GET /api/admin/profiles/{profile_id}/users` (admin-only) — devuelve `{profile_id, profile_name, total, users[]}` con campos mínimos: `user_id, email, first_name, last_name, cargo, sede, departamento, is_active, role`. Lista ordenada alfabéticamente.
+
+**Archivos**:
+- `/app/backend/routes/profiles.py` — nuevo endpoint `list_profile_users`.
+- `/app/frontend/src/pages/AdminUsers.jsx` — sort con pinning admin + deep link `?user=`.
+- `/app/frontend/src/pages/AdminProfiles.jsx` — botón + modal de auditoría + navegación.
+
 ### Unificación de Bitácora — Contacto Inicial → Cliente (Feb 2026) — NUEVO
 
 **Objetivo**: Heredar trazabilidad completa al convertir un Contacto Inicial en Prospecto.

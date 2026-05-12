@@ -10,9 +10,10 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Badge } from '../components/ui/badge';
-import { Shield, Plus, Trash2, Copy, Search, RefreshCw, ChevronDown, Users } from 'lucide-react';
+import { Shield, Plus, Trash2, Copy, Search, RefreshCw, ChevronDown, Users, Eye, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const LEVEL_COLORS = {
   none: { dot: 'bg-slate-400' },
@@ -31,6 +32,50 @@ const AdminProfiles = () => {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Auditoría: listado de usuarios por perfil
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditData, setAuditData] = useState(null); // { profile_name, total, users:[] }
+  const [auditSearch, setAuditSearch] = useState('');
+  const navigate = useNavigate();
+
+  const openAudit = async () => {
+    if (!selected) return;
+    setAuditOpen(true);
+    setAuditLoading(true);
+    setAuditData(null);
+    setAuditSearch('');
+    try {
+      const res = await api.get(`/admin/profiles/${selected.profile_id}/users`);
+      setAuditData(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cargar usuarios del perfil');
+      setAuditOpen(false);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const goToUser = (userId) => {
+    setAuditOpen(false);
+    navigate(`/admin/users?user=${encodeURIComponent(userId)}`);
+  };
+
+  const filteredAuditUsers = useMemo(() => {
+    if (!auditData?.users) return [];
+    const q = auditSearch.trim().toLowerCase();
+    if (!q) return auditData.users;
+    return auditData.users.filter((u) => {
+      const full = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.sede || '').toLowerCase().includes(q) ||
+        (u.departamento || '').toLowerCase().includes(q)
+      );
+    });
+  }, [auditData, auditSearch]);
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -231,6 +276,20 @@ const AdminProfiles = () => {
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={openAudit}
+                        disabled={(selected.user_count || 0) === 0}
+                        className="text-purple-700 hover:text-purple-800 hover:bg-purple-50"
+                        title={(selected.user_count || 0) === 0 ? 'Este perfil aún no tiene usuarios asignados' : 'Ver usuarios asignados a este perfil'}
+                        data-testid="profile-audit-btn"
+                      >
+                        <Eye size={14} className="mr-1" />
+                        Ver usuarios
+                        <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0 bg-purple-100 text-purple-700">
+                          {selected.user_count || 0}
+                        </Badge>
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => handleDuplicate(selected.profile_id)} data-testid="profile-duplicate-btn">
                         <Copy size={14} className="mr-1" />Duplicar
                       </Button>
@@ -327,13 +386,141 @@ const AdminProfiles = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Audit dialog: usuarios asignados a este perfil */}
+      <Dialog open={auditOpen} onOpenChange={setAuditOpen}>
+        <DialogContent
+          className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
+          data-testid="profile-audit-dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-600" />
+              Usuarios asignados — {auditData?.profile_name || selected?.name || ''}
+              {auditData && (
+                <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-700">
+                  {auditData.total}
+                </Badge>
+              )}
+            </DialogTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              Auditoría visual: valide que cada usuario asignado corresponde al área/sede prevista. Haga clic en una fila para editar al usuario.
+            </p>
+          </DialogHeader>
+
+          <div className="px-1 pb-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+                placeholder="Filtrar por nombre, login, sede o departamento..."
+                className="pl-9 h-9 text-sm"
+                data-testid="profile-audit-search"
+                disabled={auditLoading}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto border-t border-slate-100">
+            {auditLoading ? (
+              <div className="p-8 text-center text-slate-400 text-sm">
+                <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+                Cargando usuarios...
+              </div>
+            ) : !auditData || auditData.users.length === 0 ? (
+              <div className="p-10 text-center text-slate-400 text-sm">
+                No hay usuarios asignados a este perfil.
+              </div>
+            ) : filteredAuditUsers.length === 0 ? (
+              <div className="p-10 text-center text-slate-400 text-sm">
+                Ningún usuario coincide con el filtro.
+              </div>
+            ) : (
+              <table className="w-full" data-testid="profile-audit-table">
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Nombre completo</th>
+                    <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Login</th>
+                    <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Sede / Departamento</th>
+                    <th className="px-4 py-2 text-center text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Estatus</th>
+                    <th className="px-4 py-2 text-center text-[10px] font-semibold text-slate-600 uppercase tracking-wide"> </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredAuditUsers.map((u) => {
+                    const fullName =
+                      `${u.first_name || ''} ${u.last_name || ''}`.trim() ||
+                      u.name ||
+                      u.email;
+                    const isActive = u.is_active !== false;
+                    return (
+                      <tr
+                        key={u.user_id}
+                        onClick={() => goToUser(u.user_id)}
+                        className="hover:bg-purple-50 cursor-pointer transition group"
+                        data-testid={`profile-audit-row-${u.user_id}`}
+                      >
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-800 group-hover:text-purple-700 underline-offset-2 group-hover:underline">
+                              {fullName}
+                            </span>
+                            {u.role === 'admin' && (
+                              <Badge variant="secondary" className="text-[9px] bg-amber-100 text-amber-700">
+                                Admin
+                              </Badge>
+                            )}
+                            {u.cargo && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">
+                                {u.cargo}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-slate-500">{u.email}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-600">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{u.sede || '—'}</span>
+                            {u.departamento && (
+                              <span className="text-[11px] text-slate-400">{u.departamento}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          {isActive ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 size={11} /> Activo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                              <XCircle size={11} /> Inactivo
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <ExternalLink size={13} className="text-slate-300 group-hover:text-purple-600 inline" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-slate-100 pt-3">
+            <p className="text-[11px] text-slate-400 mr-auto">
+              Tip: Si detecta un usuario fuera de área, haga clic para corregir su asignación.
+            </p>
+            <Button variant="outline" onClick={() => setAuditOpen(false)} data-testid="profile-audit-close">
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
-
-// =============================
-// GroupCard (for profile editor — simpler than user variant, no ceiling since this IS the ceiling)
-// =============================
 const GroupCard = ({ group, active, modules, levels, permissions, specials, specialsByModule, savingKey, onGroupToggle, onLevelChange, onSpecialToggle }) => {
   const [expanded, setExpanded] = useState(true);
   return (

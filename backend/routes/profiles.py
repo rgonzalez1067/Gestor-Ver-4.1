@@ -88,6 +88,50 @@ async def get_profile(profile_id: str, authorization: Optional[str] = Header(Non
     return profile
 
 
+@router.get("/admin/profiles/{profile_id}/users")
+async def list_profile_users(profile_id: str, authorization: Optional[str] = Header(None)):
+    """Auditoría: usuarios asignados a un perfil de seguridad.
+    Devuelve datos mínimos para validación cruzada del Administrador
+    (nombre, login, sede/departamento, estatus, role)."""
+    await _require_admin(authorization)
+    profile = await db.profiles.find_one(
+        {"profile_id": profile_id}, {"_id": 0, "profile_id": 1, "name": 1}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+    cursor = db.users.find(
+        {"profile_id": profile_id},
+        {
+            "_id": 0,
+            "user_id": 1,
+            "email": 1,
+            "first_name": 1,
+            "last_name": 1,
+            "name": 1,
+            "cargo": 1,
+            "sede": 1,
+            "departamento": 1,
+            "is_active": 1,
+            "role": 1,
+        },
+    )
+    users = [u async for u in cursor]
+
+    def _full_name(u):
+        if u.get("first_name") or u.get("last_name"):
+            return f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+        return u.get("name") or u.get("email") or ""
+
+    users.sort(key=lambda u: _full_name(u).lower())
+    return {
+        "profile_id": profile["profile_id"],
+        "profile_name": profile.get("name"),
+        "total": len(users),
+        "users": users,
+    }
+
+
 @router.post("/admin/profiles")
 async def create_profile(data: ProfileCreate, authorization: Optional[str] = Header(None)):
     await _require_admin(authorization)
