@@ -54,6 +54,10 @@ export const QuotesTable = ({
     if (cat === 'repair') return { biz: 'reparaciones', sub: null };
     const sede = (q.sede || q.client_segment || 'PYME').toUpperCase();
     const biz = sede === 'CORP' ? 'implementacion_corp' : 'implementacion_pyme';
+    // Fast Track (MPOS Imple+POS) — siempre mpos_imple_pos para coincidir con
+    // el catálogo del Motor de Notificaciones, sin importar quote_type
+    // (puede venir como "FAST_TRACK" o "MPOS" según versión).
+    if (cat === 'fast_track') return { biz, sub: 'mpos_imple_pos' };
     let sub = null;
     const qt = (q.quote_type || '').toUpperCase();
     if (qt === 'VPOS') sub = 'vpos';
@@ -297,7 +301,11 @@ export const QuotesTable = ({
                 </td>
                 <td className="px-3 py-4 text-sm">
                   <div className="flex items-center gap-1.5">
-                    <QuoteStatusStepper quote={quote} onOpenBitacoraFlujo={onOpenBitacoraFlujo} />
+                    <QuoteStatusStepper
+                      quote={quote}
+                      onOpenBitacoraFlujo={onOpenBitacoraFlujo}
+                      customActions={getCustomActionsFor(quote)}
+                    />
                     {quote.is_irregular && (
                       <Popover>
                         <PopoverTrigger asChild>

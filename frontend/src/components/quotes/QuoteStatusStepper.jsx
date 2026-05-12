@@ -100,10 +100,64 @@ function formatStepDate(isoDate) {
   } catch { return null; }
 }
 
-const QuoteStatusStepper = memo(function QuoteStatusStepper({ quote, onOpenBitacoraFlujo }) {
+const QuoteStatusStepper = memo(function QuoteStatusStepper({ quote, onOpenBitacoraFlujo, customActions = [] }) {
   const cat = quote.quote_category || 'implementation';
-  const steps = FLOWS[cat] || FLOWS.implementation;
-  const states = getStepStates(steps, quote);
+  const baseSteps = FLOWS[cat] || FLOWS.implementation;
+  const exec = quote.custom_actions_executed || {};
+
+  // Inyectar custom actions del catálogo como pasos extra.
+  // - Si la custom action tiene `position_after`, intentar insertarla justo después de ese step.
+  // - Si no tiene `position_after` (o no encontramos el ancla), va al final.
+  // Cada custom action se trata como un paso virtual con timestamp en `exec[action_id]`.
+  const steps = (() => {
+    const result = [...baseSteps];
+    const noAnchor = [];
+    for (const ca of customActions) {
+      const stepObj = {
+        key: `custom:${ca.action_id}`,
+        label: (ca.label || ca.action_id).slice(0, 12),
+        ts: null,                              // timestamp se resuelve via exec map
+        custom_action_id: ca.action_id,
+        custom: true,
+      };
+      const anchor = ca.position_after;
+      if (anchor) {
+        const idx = result.findIndex((s) => {
+          const map = {
+            send_to_client: 'Enviada', approve: 'Aprobada', invoice: 'Facturada',
+            collect: 'Pagada', deliver: 'Entregada', configure: 'Configurada',
+            repair_complete: 'Reparada', send_to_implementation: 'Enviada a Imple',
+          };
+          return s.key === (map[anchor] || anchor);
+        });
+        if (idx >= 0) {
+          result.splice(idx + 1, 0, stepObj);
+          continue;
+        }
+      }
+      noAnchor.push(stepObj);
+    }
+    result.push(...noAnchor);
+    return result;
+  })();
+
+  // Helper para resolver timestamp incluso de custom steps
+  const getStepTimestamp = (step) => step.custom ? exec[step.custom_action_id] : quote[step.ts];
+  const states = steps.map((step, idx) => {
+    if (getStepTimestamp(step)) return 'completed';
+    // Para steps base usamos la lógica existente; para custom sin timestamp, pending
+    if (step.custom) return 'pending';
+    // Reusar getStepStates solo sobre los baseSteps para el resto
+    return null;
+  });
+  // Calcular estados base con la función original sobre baseSteps y mapear por key
+  const baseStates = getStepStates(baseSteps, quote);
+  const baseStateByKey = {};
+  baseSteps.forEach((s, i) => { baseStateByKey[s.key] = baseStates[i]; });
+  for (let i = 0; i < steps.length; i++) {
+    if (states[i] === null) states[i] = baseStateByKey[steps[i].key] || 'pending';
+  }
+
   const exceptions = quote.irregular_exceptions || [];
 
   return (
@@ -112,32 +166,32 @@ const QuoteStatusStepper = memo(function QuoteStatusStepper({ quote, onOpenBitac
         {steps.map((step, idx) => {
           const state = states[idx];
           const exc = state === 'bypassed' ? getBypassedException(step, exceptions) : null;
-          const tsValue = quote[step.ts];
+          const tsValue = getStepTimestamp(step);
           const dateStr = formatStepDate(tsValue);
 
           // Colors per state
           const circleClass =
             state === 'completed'
-              ? 'bg-emerald-500 text-white'
+              ? (step.custom ? 'bg-violet-500 text-white' : 'bg-emerald-500 text-white')
               : state === 'current'
                 ? 'bg-emerald-100 border-2 border-emerald-500 text-emerald-700'
                 : state === 'bypassed'
                   ? 'bg-red-100 border-2 border-red-400 text-red-600'
-                  : 'bg-slate-100 border border-slate-300 text-slate-400';
+                  : (step.custom ? 'bg-violet-50 border border-violet-300 text-violet-400' : 'bg-slate-100 border border-slate-300 text-slate-400');
           const lineClass =
             state === 'pending'
               ? 'bg-slate-200'
               : state === 'bypassed'
                 ? 'bg-red-300'
-                : 'bg-emerald-400';
+                : (step.custom ? 'bg-violet-400' : 'bg-emerald-400');
           const labelClass =
             state === 'completed'
-              ? 'text-emerald-600 font-semibold'
+              ? (step.custom ? 'text-violet-600 font-semibold' : 'text-emerald-600 font-semibold')
               : state === 'current'
                 ? 'text-emerald-700 font-bold'
                 : state === 'bypassed'
                   ? 'text-red-500 font-semibold'
-                  : 'text-slate-400';
+                  : (step.custom ? 'text-violet-400' : 'text-slate-400');
 
           const circleContent =
             state === 'completed'
