@@ -29,6 +29,7 @@ export const Dashboard = () => {
   const [regenerating, setRegenerating] = useState({});
   const [loading, setLoading] = useState(true);
   const [commitments, setCommitments] = useState([]);
+  const [commitmentsFilter, setCommitmentsFilter] = useState('active'); // active | closed | all
   const [dashUsers, setDashUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   // Dashboard action modals
@@ -321,17 +322,36 @@ export const Dashboard = () => {
 
           {/* Alerts Widget */}
           {/* Mis Compromisos - Central de Acciones */}
-          {commitments.length > 0 && (
+          {commitments.length > 0 && (() => {
+            const filteredCommitments = commitments.filter((c) => {
+              const isClosed = c.status === 'closed';
+              if (commitmentsFilter === 'all') return true;
+              if (commitmentsFilter === 'closed') return isClosed;
+              return !isClosed; // 'active'
+            });
+            return (
             <div className="mb-8 bg-white rounded-lg border border-blue-200 overflow-hidden" data-testid="commitments-widget">
               <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100 bg-blue-50">
                 <div className="flex items-center gap-2">
                   <Phone size={18} className="text-blue-700" />
                   <h2 className="text-base font-semibold text-blue-900">Contacto Inicial — Central de Acciones</h2>
-                  <span className="text-xs bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 ml-1">{commitments.length}</span>
+                  <span className="text-xs bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 ml-1" data-testid="commitments-count">{filteredCommitments.length}</span>
                 </div>
-                <Button variant="outline" size="sm" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => navigate('/initial-contacts')} data-testid="go-to-contacts">
-                  Ver todos
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Select value={commitmentsFilter} onValueChange={setCommitmentsFilter}>
+                    <SelectTrigger className="h-7 w-[130px] text-xs border-blue-300 bg-white" data-testid="commitments-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Activos</SelectItem>
+                      <SelectItem value="closed">Cerrados</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => navigate('/initial-contacts')} data-testid="go-to-contacts">
+                    Ver todos
+                  </Button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -346,7 +366,17 @@ export const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {commitments.map(c => {
+                    {filteredCommitments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-6 text-center text-slate-400 text-xs">
+                          {commitmentsFilter === 'closed'
+                            ? 'No hay gestiones cerradas.'
+                            : commitmentsFilter === 'active'
+                            ? 'No hay gestiones activas.'
+                            : 'Sin compromisos.'}
+                        </td>
+                      </tr>
+                    ) : filteredCommitments.map(c => {
                       const sla = getSLAStatus(c.due_date);
                       const isClosed = c.status === 'closed';
                       return (
@@ -432,7 +462,8 @@ export const Dashboard = () => {
                 </table>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {alerts.total > 0 && (
             <div className="mb-8 bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="alerts-widget">
