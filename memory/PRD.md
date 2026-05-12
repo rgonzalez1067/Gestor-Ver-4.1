@@ -1240,3 +1240,24 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 - DB tiene config con esa key y 2 destinatarios → motor la encuentra ✅
 - Stepper COT-054: 3 checks verdes (Enviada, Aprobada, Preasign) ✅
 - Modal Preasignación muestra "Personalizar Comunicación" con textarea + chips CC ✅
+
+
+## Mejoras de Sesión — Bloques 1-4 (Feb 2026)
+
+**Bloque 1 (Motor de Notificaciones)**:
+- 2A: CCs del modal viajan como Cc real del SMTP (no copia separada con body genérico).
+- 2B: `_build_template_vars` ahora calcula universalmente `items_table`, `Modelo_Equipo`, `Cantidad`, `lista_modelos_seriales`, `lista_equipos_seriales`, `almacen_custodia`, `Direccion_Entrega`, `modelos_resumen`.
+- 2C: Custom actions pasan por modal "Personalizar Comunicación"; backend persiste timestamp en `custom_actions_executed.{action_id}`.
+
+**Bloque 2 (UI/Flujos)**:
+- 3A: Stepper inyecta custom actions ejecutadas como pasos extra **violeta** (con anclaje por `position_after`). Verificado: "Validar Pago" aparece en COT-058 entre Pagada y Entregada.
+- 3B: `resolveBizSub` ahora mapea `quote_category="fast_track"` → `(implementacion_pyme|corp, mpos_imple_pos)` igual que el backend, así los overrides se aplican en el dropdown.
+
+**Bloque 3 (Nota de Entrega Reparaciones)**:
+- Si la Nota de Entrega no se genera, **no se envía correo** (evita anexo incorrecto o vacío).
+- `repair_deliver` ahora pasa por `_engine_or_legacy` con SOLO `delivery_note_pdf_bytes`.
+- Fallback legacy adjunta exclusivamente `NotaEntrega_{correlativo}.pdf`.
+- `RepairDeliveryDialog` muestra toast diferenciado según `email_sent`.
+
+**Bloque 4 (UX Grilla)**:
+- `QuotesTable.jsx`: scrollbar superior espejo del inferior. Ambos sincronizados con refs + `onScroll` + `requestAnimationFrame` (evita loop). El top scrollbar tiene 14px de alto. Recalcula ancho con `useEffect` cuando cambian quotes/filtros.

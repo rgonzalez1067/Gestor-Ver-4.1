@@ -1,5 +1,5 @@
 import { FileText, Search, X, FolderOpen, MoreHorizontal, RefreshCw, Mail, CheckCircle, Receipt, Banknote, Truck, Send, Trash2, Eye, Wrench, Settings, Package, Landmark, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -162,8 +162,50 @@ export const QuotesTable = ({
     return true;
   });
 
+  // === Doble scrollbar sincronizado (arriba + abajo) ===
+  // Necesario porque la tabla es muy ancha (min-w-[1200px]) y el usuario tiene
+  // que llegar al final de la lista para encontrar el scrollbar inferior.
+  // El scrollbar superior es un div delgado con un spacer del mismo ancho
+  // que la tabla, y los listeners onScroll sincronizan ambos sin loop.
+  const topScrollRef = useRef(null);
+  const bottomScrollRef = useRef(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
+  const syncingRef = useRef(false);
+
+  // Recalcular ancho del scroll cuando cambian filas (al filtrar/recargar)
+  useEffect(() => {
+    if (bottomScrollRef.current) {
+      setTableScrollWidth(bottomScrollRef.current.scrollWidth);
+    }
+  }, [quotes, filterClient, filterStatus, filterCategory, filterSegment]);
+
+  const onTopScroll = (e) => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    if (bottomScrollRef.current) bottomScrollRef.current.scrollLeft = e.target.scrollLeft;
+    requestAnimationFrame(() => { syncingRef.current = false; });
+  };
+  const onBottomScroll = (e) => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = e.target.scrollLeft;
+    requestAnimationFrame(() => { syncingRef.current = false; });
+  };
+
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+    <div className="bg-white rounded-lg border border-slate-200">
+      {/* Scrollbar superior — espejo del inferior */}
+      <div
+        ref={topScrollRef}
+        onScroll={onTopScroll}
+        className="overflow-x-auto overflow-y-hidden border-b border-slate-100"
+        style={{ height: '14px' }}
+        data-testid="quotes-table-top-scrollbar"
+      >
+        <div style={{ width: tableScrollWidth || 1200, height: '1px' }} />
+      </div>
+      {/* Tabla con scrollbar inferior nativo */}
+      <div ref={bottomScrollRef} onScroll={onBottomScroll} className="overflow-x-auto">
       <table className="w-full min-w-[1200px]" data-testid="quotes-unified-table">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
@@ -532,6 +574,7 @@ export const QuotesTable = ({
           })}
         </tbody>
       </table>
+      </div>{/* /bottom scrollable */}
 
       {/* Empty states */}
       {quotes.length === 0 ? (
