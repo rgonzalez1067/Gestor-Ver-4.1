@@ -5,6 +5,24 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Proyectos — Tooltip de Nombre de Fantasía (Feb 2026) — NUEVO
+
+**Objetivo**: Replicar la UX de Cotizaciones en la pantalla de Proyectos para ver rápidamente el Nombre de Fantasía del cliente al pasar el mouse sobre la Razón Social.
+
+**Comportamiento**:
+- En Cotizaciones se muestra el **Nombre de Fantasía** y al hover aparece la **Razón Social**.
+- En Proyectos (espejo invertido): se muestra la **Razón Social** (campo principal del proyecto, `client_name`) y al hover aparece el **Nombre de Fantasía** en un tooltip oscuro.
+- Si el cliente no tiene `fantasy_name` o coincide con `legal_name`, el texto se renderiza sin tooltip (sin subrayado punteado) para evitar ruido visual.
+
+**Frontend** (`/app/frontend/src/pages/Projects.jsx`):
+- Carga `/clients` en paralelo con `/projects` y `/projects/stats`, construye `clientMap = {client_id → {fantasy_name, legal_name}}`.
+- Render del nombre del cliente con el componente `Tooltip` de shadcn (mismo patrón que `QuotesTable.jsx` línea 309-336):
+  - Subrayado punteado + cursor `help` cuando hay fantasy distinto.
+  - `TooltipContent` con fondo `slate-900` blanco y label "Nombre de Fantasía" + valor.
+- `data-testid="project-client-<id>"` en el `<p>` del nombre para regression tests.
+
+**Validado visualmente**: prueba con cliente "INVERSIONES PAGO AQUI 24/7, C.A." cuyo `fantasy_name` se setteó temporalmente a "Astrocel Tienda Centro" — el tooltip se renderizó correctamente. Datos restaurados tras la verificación.
+
 ### Inventario — Edición Manual de Movimientos (Admin-only) (Feb 2026) — NUEVO
 
 **Objetivo**: Permitir al Administrador corregir cualquier campo de un movimiento de inventario durante el arranque del sistema o ante data legacy errónea, dejando registro completo en auditoría.

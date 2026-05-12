@@ -8,6 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
@@ -47,6 +48,7 @@ const Projects = () => {
   const isAdmin = currentUser?.role === 'admin';
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [clientMap, setClientMap] = useState({}); // client_id → {fantasy_name, legal_name}
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,9 +74,24 @@ const Projects = () => {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const [projRes, statsRes] = await Promise.all([api.get('/projects'), api.get('/projects/stats')]);
+      const [projRes, statsRes, clientsRes] = await Promise.all([
+        api.get('/projects'),
+        api.get('/projects/stats'),
+        api.get('/clients').catch(() => ({ data: [] })),
+      ]);
       setProjects(projRes.data);
       setStats(statsRes.data);
+      // Construir mapa cliente_id → {fantasy_name, legal_name} para tooltip
+      const map = {};
+      (clientsRes.data || []).forEach((c) => {
+        if (c.client_id) {
+          map[c.client_id] = {
+            fantasy_name: c.fantasy_name || '',
+            legal_name: c.legal_name || '',
+          };
+        }
+      });
+      setClientMap(map);
     } catch (err) { toast.error('Error cargando proyectos'); }
     finally { setLoading(false); }
   }, []);
@@ -322,8 +339,38 @@ const Projects = () => {
                       <tr className="hover:bg-slate-50 transition-colors"
                         data-testid={`project-row-${project.project_id}`}>
                         <td className="px-4 py-3">
-                          {/* Cliente como info principal — se eliminó project_number/quote_number redundantes */}
-                          <p className="text-sm font-semibold text-slate-900">{project.client_name}</p>
+                          {/* Cliente como info principal — tooltip con Nombre de Fantasía al hover */}
+                          {(() => {
+                            const c = clientMap[project.client_id] || {};
+                            const fantasy = c.fantasy_name || '';
+                            const legal = c.legal_name || project.client_name || '';
+                            // Mostramos Razón Social (legal) como principal; hover → Nombre de Fantasía.
+                            if (!fantasy || fantasy === legal) {
+                              return (
+                                <p className="text-sm font-semibold text-slate-900" data-testid={`project-client-${project.project_id}`}>
+                                  {project.client_name}
+                                </p>
+                              );
+                            }
+                            return (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <p
+                                      className="text-sm font-semibold text-slate-900 cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500 inline-block"
+                                      data-testid={`project-client-${project.project_id}`}
+                                    >
+                                      {project.client_name}
+                                    </p>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
+                                    <p className="font-semibold mb-0.5 text-slate-300">Nombre de Fantasía</p>
+                                    <p className="font-normal">{fantasy}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })()}
                           <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
                           {project.ticket_number && (
                             <p className="text-xs text-indigo-600 flex items-center gap-1 mt-0.5" data-testid={`ticket-${project.project_id}`}>
