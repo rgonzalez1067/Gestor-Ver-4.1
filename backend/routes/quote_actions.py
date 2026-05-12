@@ -2352,9 +2352,12 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
 
         logger.info(f"Nota de Entrega Reparación generada: {hoja_ruta_url}")
     except Exception as e:
-        logger.error(f"Error generando Nota de Entrega Reparación: {e}")
+        # Capturamos con stack completo y marcamos hoja_ruta_url como None para
+        # que el envío de correo respete la regla "no enviar sin anexo correcto".
+        logger.error(f"[Repair Delivery] Error generando Nota de Entrega Reparación: {e}")
         import traceback
         traceback.print_exc()
+        hoja_ruta_url = None
 
     # UPDATE masivo: cambiar estatus a "Entregado" con fecha_entrega
     await db.taller_equipos.update_many(
@@ -2431,64 +2434,100 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         await db.quotes.update_one({"quote_id": quote_id}, {"$set": {"repair_delivery_invoice": repair_invoice_number}})
 
     # --- Notificación al CLIENTE: Entrega de Equipos Reparados ---
-    try:
-        contacts_crm = client.get('contacts', []) if client else []
-        client_email_delivery = None
-        if contacts_crm:
-            client_email_delivery = contacts_crm[0].get('email')
-        if not client_email_delivery:
-            contact1_d = client.get('contact1') or {} if client else {}
-            client_email_delivery = contact1_d.get('email') if isinstance(contact1_d, dict) else None
-        if not client_email_delivery or client_email_delivery == 'sin@email.com':
-            client_email_delivery = f"cliente_{(client or {}).get('rif', 'unknown')}@simulado.local"
-
-        contacto_cliente_d = client_name
-        if contacts_crm:
-            contacto_cliente_d = contacts_crm[0].get('full_name') or contacts_crm[0].get('name') or client_name
-
-        quote_sede = quote.get("sede", "PYME")
-        norm_sede_d = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
-        rd_template = await get_email_template(f"repair_delivery_{norm_sede_d}")
-        if not rd_template:
-            rd_template = await get_email_template("repair_delivery")
-        if not rd_template:
-            rd_template = {
-                "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
-                "body_html": "<h2>Entrega de Equipos Reparados</h2><p>Estimado(a) <strong>{contacto_cliente}</strong>, se ha generado una <strong>{tipo_nota_entrega}</strong> para sus equipos.</p><p>Nota: {nro_nota_entrega} | Equipos: {cantidad_entregada} | Estatus: {estatus_entrega}</p>"
-            }
-
-        rd_vars = {
-            "nro_cotizacion": quote.get("quote_number", ""),
-            "quote_number": quote.get("quote_number", ""),
-            "nombre_cliente": client_name,
-            "client_name": client_name,
-            "contacto_cliente": contacto_cliente_d,
-            "tipo_nota_entrega": "Entrega Final" if is_final_delivery else "Entrega Parcial",
-            "nro_nota_entrega": correlativo,
-            "cantidad_entregada": str(cantidad_entregando),
-            "estatus_entrega": "Finalizado" if is_final_delivery else "Pendiente",
-            "Nombre_Ejecutivo": user_name,
-        }
-        rd_subject = render_email_template(rd_template["subject"], rd_vars)
-        rd_html = render_email_template(rd_template["body_html"], rd_vars)
-
-        # Adjuntar PDF de Nota de Entrega
-        rd_attachments = None
-        if hoja_ruta_url:
+    # Si la Nota de Entrega NO se generó (hoja_ruta_url is None), NO enviamos
+    # correo — evita correos sin anexo o que se confundan con la acción
+    # previa. Se loguea explícitamente y se devuelve un flag al frontend.
+    nota_entrega_b64 = None
+    email_sent_repair_deliver = False
+    if hoja_ruta_url:
+        try:
             ne_pdf_path = UPLOADS_DIR / hoja_ruta_url.replace("/uploads/", "")
             if ne_pdf_path.exists():
                 with open(ne_pdf_path, 'rb') as f:
-                    ne_b64 = base64.b64encode(f.read()).decode('utf-8')
-                rd_attachments = [{"filename": f"NotaEntrega_{correlativo}.pdf", "content": ne_b64}]
+                    nota_entrega_b64 = base64.b64encode(f.read()).decode('utf-8')
+        except Exception as _e:
+            logger.error(f"[Repair Delivery] No se pudo leer Nota de Entrega: {_e}")
 
-        r = await send_email(
-            to=[client_email_delivery], subject=rd_subject, html=rd_html,
-            action="repair_delivery_client", quote_id=quote_id, quote_number=quote.get("quote_number"),
-            attachments=rd_attachments
+    if not nota_entrega_b64:
+        logger.warning(
+            f"[Repair Delivery] Nota de Entrega no disponible para {quote.get('quote_number')} "
+            f"— NO se envía correo (evita anexo incorrecto o sin anexo)."
         )
-        logger.info(f"[Repair Delivery] Notificación al cliente: {client_email_delivery} | {r.get('status')}")
-    except Exception as e:
-        logger.error(f"Error enviando notificación de entrega al cliente: {e}")
+    else:
+        # --- Motor dinámico primero, con SOLO la Nota de Entrega ---
+        # Si el admin configuró destinatarios para `repair-deliver` en el
+        # catálogo, el motor despacha. Si no, fallback al envío legacy a
+        # cliente. El motor NO inyecta ningún otro PDF (gracias a que solo
+        # pasamos `delivery_note_pdf_bytes` y NO otros *_pdf_bytes).
+        ne_bytes_for_engine = base64.b64decode(nota_entrega_b64)
+        try:
+            _engine_result_rd = await _engine_or_legacy(
+                "repair-deliver", quote, current_user,
+                custom_message=None, cc_emails=[],
+                delivery_note_pdf_bytes=ne_bytes_for_engine,
+            )
+        except Exception as _e:
+            logger.warning(f"[Repair Delivery] Motor dinámico falló, fallback legacy: {_e}")
+            _engine_result_rd = None
+
+        if _engine_result_rd is not None:
+            email_sent_repair_deliver = True
+            logger.info(f"[Repair Delivery] Motor dinámico despachó la entrega de {quote.get('quote_number')}")
+        else:
+            # --- Fallback legacy al cliente, solo con Nota de Entrega ---
+            try:
+                contacts_crm = client.get('contacts', []) if client else []
+                client_email_delivery = None
+                if contacts_crm:
+                    client_email_delivery = contacts_crm[0].get('email')
+                if not client_email_delivery:
+                    contact1_d = client.get('contact1') or {} if client else {}
+                    client_email_delivery = contact1_d.get('email') if isinstance(contact1_d, dict) else None
+                if not client_email_delivery or client_email_delivery == 'sin@email.com':
+                    client_email_delivery = f"cliente_{(client or {}).get('rif', 'unknown')}@simulado.local"
+
+                contacto_cliente_d = client_name
+                if contacts_crm:
+                    contacto_cliente_d = contacts_crm[0].get('full_name') or contacts_crm[0].get('name') or client_name
+
+                quote_sede = quote.get("sede", "PYME")
+                norm_sede_d = "PYME" if quote_sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP" if quote_sede in ("CORP", "Corp", "Corporativo") else quote_sede
+                rd_template = await get_email_template(f"repair_delivery_{norm_sede_d}")
+                if not rd_template:
+                    rd_template = await get_email_template("repair_delivery")
+                if not rd_template:
+                    rd_template = {
+                        "subject": "Entrega de Equipos Reparados - Nota de Entrega Nro. {nro_nota_entrega}",
+                        "body_html": "<h2>Entrega de Equipos Reparados</h2><p>Estimado(a) <strong>{contacto_cliente}</strong>, se ha generado una <strong>{tipo_nota_entrega}</strong> para sus equipos.</p><p>Nota: {nro_nota_entrega} | Equipos: {cantidad_entregada} | Estatus: {estatus_entrega}</p>"
+                    }
+
+                rd_vars = {
+                    "nro_cotizacion": quote.get("quote_number", ""),
+                    "quote_number": quote.get("quote_number", ""),
+                    "nombre_cliente": client_name,
+                    "client_name": client_name,
+                    "contacto_cliente": contacto_cliente_d,
+                    "tipo_nota_entrega": "Entrega Final" if is_final_delivery else "Entrega Parcial",
+                    "nro_nota_entrega": correlativo,
+                    "cantidad_entregada": str(cantidad_entregando),
+                    "estatus_entrega": "Finalizado" if is_final_delivery else "Pendiente",
+                    "Nombre_Ejecutivo": user_name,
+                }
+                rd_subject = render_email_template(rd_template["subject"], rd_vars)
+                rd_html = render_email_template(rd_template["body_html"], rd_vars)
+
+                # ÚNICO adjunto: la Nota de Entrega recién generada.
+                rd_attachments = [{"filename": f"NotaEntrega_{correlativo}.pdf", "content": nota_entrega_b64}]
+
+                r = await send_email(
+                    to=[client_email_delivery], subject=rd_subject, html=rd_html,
+                    action="repair_delivery_client", quote_id=quote_id, quote_number=quote.get("quote_number"),
+                    attachments=rd_attachments
+                )
+                email_sent_repair_deliver = bool((r or {}).get("status") in ("sent", "queued") or (r or {}).get("id"))
+                logger.info(f"[Repair Delivery/legacy] Notificación al cliente: {client_email_delivery} | {r.get('status')}")
+            except Exception as e:
+                logger.error(f"Error enviando notificación de entrega al cliente: {e}")
 
     return {
         "message": f"Entrega {tipo_entrega} registrada: {len(equipos_to_deliver)} equipo(s) entregados",
@@ -2498,6 +2537,8 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         "tipo_entrega": tipo_entrega,
         "supply_exits": supply_exit_results,
         "invoice_number": repair_invoice_number,
+        "email_sent": email_sent_repair_deliver,
+        "email_warning": None if email_sent_repair_deliver else "Correo no enviado: la Nota de Entrega no se pudo generar. Revise los logs.",
     }
 
 

@@ -159,6 +159,12 @@ export function RepairDeliveryDialog({ open, onOpenChange, quoteId, exceptionInf
       if (res.data.hoja_ruta_url) {
         toast.success('Nota de Entrega PDF generada');
       }
+      // Toast diferenciado: correo enviado / advertencia si no se pudo
+      if (res.data.email_sent === false) {
+        toast.warning(res.data.email_warning || 'Correo de entrega no enviado');
+      } else if (res.data.email_sent === true) {
+        toast.info('Notificación al cliente enviada');
+      }
       onOpenChange(false);
       if (onDelivered) onDelivered(res.data);
     } catch (error) {
