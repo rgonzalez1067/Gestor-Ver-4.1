@@ -1869,7 +1869,18 @@ export const Clients = () => {
                             : <Circle size={16} className={isOverdue ? 'text-red-400' : 'text-slate-300'} />}
                         </button>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${log.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{log.detail}</p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className={`text-sm flex-1 ${log.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{log.detail}</p>
+                            {log.origin === 'initial_contact' && (
+                              <span
+                                title="Esta entrada proviene del módulo Contacto Inicial"
+                                className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200"
+                                data-testid={`origin-badge-${log.log_id}`}
+                              >
+                                Origen: Contacto Inicial
+                              </span>
+                            )}
+                          </div>
                           {log.action && (
                             <p className="text-xs text-blue-600 mt-1 font-medium">Acción/Compromiso: {log.action}</p>
                           )}

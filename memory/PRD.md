@@ -5,6 +5,26 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Unificación de Bitácora — Contacto Inicial → Cliente (Feb 2026) — NUEVO
+
+**Objetivo**: Heredar trazabilidad completa al convertir un Contacto Inicial en Prospecto.
+
+**Reglas**:
+- Al ejecutar `POST /api/initial-contacts/{id}/convert`, el sistema copia íntegramente todas las entradas de `initial_contact_logs` a `client_logs`, asignándoles el nuevo `client_id`.
+- Cada entrada heredada conserva: `detail`, `action`, `follow_up_date`, `contacted_person`, `is_completed`, `created_by`, `created_by_name`, `created_at`, `contact_date`.
+- Se agregan campos de trazabilidad: `origin = "initial_contact"`, `origin_contact_id`, `origin_log_id`.
+- Se inserta una entrada adicional de tipo "[CONVERSIÓN]" indicando cuántos logs fueron heredados.
+- La respuesta del endpoint incluye `inherited_logs: <count>`.
+
+**UI**:
+- En el modal de Bitácora de Clientes (`/app/frontend/src/pages/Clients.jsx`), cada entrada con `origin === "initial_contact"` muestra un badge ámbar "Origen: Contacto Inicial" con tooltip explicativo.
+- El modal unificado `BitacoraModal.jsx` ya respeta `originBadge` cuando se reutiliza desde otros módulos.
+
+**Archivos**:
+- `/app/backend/routes/initial_contacts.py` — función `convert_to_prospect` actualizada.
+- `/app/frontend/src/pages/Clients.jsx` — badge de origen en sección de logs.
+- `/app/frontend/src/pages/InitialContacts.jsx` — bugfix `fetchData()` y import `MessageSquare`.
+
 ### Regla de Negocio: TDD/TDC Liquidación en Divisas — Tarifas default editables (Feb 2026) — NUEVO
 
 **Objetivo**: Cuando el usuario incluye en "Set Up – Puesta en Marcha" un item llamado "TDD/TDC Liquidación en Divisas" (con cantidad > 0), las tarifas mensuales de los recurrentes con `autoTariff` se cargan automáticamente a su techo como **defaults editables**:

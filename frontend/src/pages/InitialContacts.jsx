@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Phone, Mail, Building2, User, Search, MessageSquare, UserPlus, ArrowRightLeft, Rocket, Clock, ChevronDown, ChevronUp, Filter, Trash2, Send } from 'lucide-react';
+import { Plus, Phone, Mail, Building2, User, Search, BookOpen, UserPlus, ArrowRightLeft, Rocket, ChevronDown, ChevronUp, Filter, Trash2, Send, XCircle, MessageSquare } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
+import BitacoraModal from '../components/BitacoraModal';
 
 export const InitialContacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -42,9 +43,18 @@ export const InitialContacts = () => {
   const [convertConfirmOpen, setConvertConfirmOpen] = useState(false);
   const [convertContact, setConvertContact] = useState(null);
 
-  // Bitacora viewer
+  // Bitacora viewer (unified)
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [bitacoraContact, setBitacoraContact] = useState(null);
+
+  // Cerrar gestión (admin only)
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeContact, setCloseContact] = useState(null);
+  const [closeReason, setCloseReason] = useState('');
+  const [closing, setClosing] = useState(false);
+
+  // Filtro de status: active | closed | all
+  const [filterStatus, setFilterStatus] = useState('active');
 
   // Notification dialog
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -179,7 +189,9 @@ export const InitialContacts = () => {
     const q = searchTerm.toLowerCase();
     const matchSearch = !q || c.contact_name?.toLowerCase().includes(q) || c.legal_name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.includes(q) || c.referred_by?.toLowerCase().includes(q);
     const matchSede = filterSede === 'all' || c.sede === filterSede;
-    return matchSearch && matchSede;
+    const isClosed = c.status === 'closed';
+    const matchStatus = filterStatus === 'all' || (filterStatus === 'closed' ? isClosed : !isClosed);
+    return matchSearch && matchSede && matchStatus;
   });
 
   const getSLAStatus = (dueDate) => {
@@ -231,6 +243,16 @@ export const InitialContacts = () => {
               <SelectItem value="CORP">Corp</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[140px]" data-testid="filter-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Activos</SelectItem>
+              <SelectItem value="closed">Cerrados</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="bg-slate-100 px-3 py-1.5 rounded-md text-sm text-slate-600">
             <span className="font-semibold">{filtered.length}</span> contacto(s)
           </div>
@@ -259,7 +281,7 @@ export const InitialContacts = () => {
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">No hay contactos iniciales</td></tr>
                 ) : filtered.map((c) => (
-                  <tr key={c.contact_id} className="hover:bg-slate-50 group" data-testid={`contact-row-${c.contact_id}`}>
+                  <tr key={c.contact_id} className={`group ${c.status === 'closed' ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`} data-testid={`contact-row-${c.contact_id}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">
@@ -300,9 +322,9 @@ export const InitialContacts = () => {
                     <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDate(c.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600" title="Documentar" data-testid={`doc-btn-${c.contact_id}`}
-                          onClick={() => { setDocumentContact(c); setDocumentComment(''); setDocumentOpen(true); }}>
-                          <MessageSquare size={14} />
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-blue-600" title="Bitácora" data-testid={`bitacora-btn-${c.contact_id}`}
+                          onClick={() => { setBitacoraContact(c); setBitacoraOpen(true); }}>
+                          <BookOpen size={14} />
                         </Button>
                         {canAssign && (
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-amber-600" title="Asignar" data-testid={`assign-btn-${c.contact_id}`}
@@ -316,18 +338,24 @@ export const InitialContacts = () => {
                             <ArrowRightLeft size={14} />
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-green-600" title="Convertir a Prospecto" data-testid={`convert-btn-${c.contact_id}`}
-                          onClick={() => { setConvertContact(c); setConvertConfirmOpen(true); }}>
-                          <Rocket size={14} />
-                        </Button>
+                        {c.status !== 'closed' && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-green-600" title="Convertir a Prospecto" data-testid={`convert-btn-${c.contact_id}`}
+                            onClick={() => { setConvertContact(c); setConvertConfirmOpen(true); }}>
+                            <Rocket size={14} />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-indigo-600" title="Enviar Notificación" data-testid={`notify-btn-${c.contact_id}`}
                           onClick={() => { setNotifyContact(c); setNotifyOpen(true); }}>
                           <Send size={14} />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600" title="Ver Bitacora"
-                          onClick={() => { setBitacoraContact(c); setBitacoraOpen(true); }}>
-                          <Clock size={14} />
-                        </Button>
+                        {isAdmin && c.status !== 'closed' && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-700"
+                            title="Cerrar Gestión (solo Admin)"
+                            onClick={() => { setCloseContact(c); setCloseReason(''); setCloseOpen(true); }}
+                            data-testid={`close-btn-${c.contact_id}`}>
+                            <XCircle size={14} />
+                          </Button>
+                        )}
                         {isAdmin && (
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
                             title="Eliminar (solo Admin)"
@@ -510,31 +538,64 @@ export const InitialContacts = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Bitacora Modal */}
-        <Dialog open={bitacoraOpen} onOpenChange={setBitacoraOpen}>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Clock size={20} className="text-slate-600" /> Bitacora: {bitacoraContact?.legal_name}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              {(bitacoraContact?.bitacora || []).slice().reverse().map((entry) => (
-                <div key={entry.entry_id} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    entry.action === 'created' ? 'bg-green-500' :
-                    entry.action === 'assigned' ? 'bg-amber-500' :
-                    entry.action === 'transferred' ? 'bg-purple-500' :
-                    entry.action === 'converted' ? 'bg-blue-500' : 'bg-slate-400'
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-700">{entry.description}</p>
-                    <p className="text-xs text-slate-400 mt-1">{formatDate(entry.timestamp)} - {entry.user_name}</p>
-                  </div>
-                </div>
-              ))}
-              {(!bitacoraContact?.bitacora || bitacoraContact.bitacora.length === 0) && (
-                <p className="text-sm text-slate-400 text-center py-4">Sin registros en bitacora</p>
-              )}
+        {/* Bitácora Modal (unificado, mismo del módulo Clientes) */}
+        <BitacoraModal
+          open={bitacoraOpen}
+          onOpenChange={setBitacoraOpen}
+          entityId={bitacoraContact?.contact_id}
+          entityName={bitacoraContact?.legal_name || ''}
+          contacts={bitacoraContact ? [{
+            id: bitacoraContact.contact_id,
+            name: bitacoraContact.contact_name || '',
+            role: 'Contacto principal',
+          }] : []}
+          apiPrefix="initial-contacts"
+        />
+
+        {/* Cerrar Gestión (admin only) */}
+        <AlertDialog open={closeOpen} onOpenChange={setCloseOpen}>
+          <AlertDialogContent data-testid="close-gestion-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-blue-700">Cerrar Gestión</AlertDialogTitle>
+              <AlertDialogDescription>
+                El contacto <strong>{closeContact?.legal_name}</strong> quedará marcado como GESTIONADO (fondo azul) y dejará de aparecer en la bandeja activa. Los datos se conservan para histórico y estadísticas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 my-3">
+              <Label className="text-xs">Motivo del cierre (obligatorio)</Label>
+              <Textarea
+                value={closeReason}
+                onChange={(e) => setCloseReason(e.target.value)}
+                placeholder="Ej: Cliente no interesado / Recursos suspendidos / Duplicado..."
+                rows={3}
+                data-testid="close-reason-input"
+              />
             </div>
-          </DialogContent>
-        </Dialog>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={closing}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={closing || !closeReason.trim()}
+                onClick={async () => {
+                  setClosing(true);
+                  try {
+                    await api.post(`/initial-contacts/${closeContact.contact_id}/close`, { reason: closeReason.trim() });
+                    toast.success('Gestión cerrada');
+                    setCloseOpen(false);
+                    setCloseContact(null);
+                    setCloseReason('');
+                    fetchData();
+                  } catch (e) {
+                    toast.error(e.response?.data?.detail || 'Error al cerrar gestión');
+                  } finally { setClosing(false); }
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="close-confirm-btn"
+              >
+                {closing ? 'Cerrando...' : 'Cerrar Gestión'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Delete confirmation (admin only) */}
         <AlertDialog open={!!deleteContact} onOpenChange={(o) => !o && setDeleteContact(null)}>

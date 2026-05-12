@@ -386,7 +386,61 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
     }
     
     await db.clients.insert_one(new_client)
-    
+
+    # ──────────────────────────────────────────────────────────────────────
+    # HERENCIA DE BITÁCORA (initial_contact_logs → client_logs)
+    # Copiamos íntegramente las entradas de la bitácora unificada del
+    # Contacto Inicial al nuevo Cliente, conservando trazabilidad mediante
+    # el campo `origin = "initial_contact"`. El UI muestra un badge
+    # "Origen: Contacto Inicial" para cada entrada heredada.
+    # ──────────────────────────────────────────────────────────────────────
+    inherited_count = 0
+    try:
+        cursor = db.initial_contact_logs.find(
+            {"contact_id": contact_id}, {"_id": 0}
+        ).sort("created_at", 1)
+        async for src in cursor:
+            inherited = {
+                "log_id": f"log_{uuid.uuid4().hex[:12]}",
+                "client_id": client_id,
+                "contact_date": src.get("contact_date") or now[:10],
+                "detail": src.get("detail") or "",
+                "action": src.get("action"),
+                "follow_up_date": src.get("follow_up_date"),
+                "contacted_person": src.get("contacted_person"),
+                "is_completed": bool(src.get("is_completed", False)),
+                "created_by": src.get("created_by"),
+                "created_by_name": src.get("created_by_name"),
+                "created_at": src.get("created_at") or now,
+                "origin": "initial_contact",
+                "origin_contact_id": contact_id,
+                "origin_log_id": src.get("log_id"),
+            }
+            await db.client_logs.insert_one(inherited)
+            inherited_count += 1
+    except Exception as e:
+        logger.warning(
+            f"[initial_contacts] No se pudieron heredar logs del contacto "
+            f"{contact_id} al cliente {client_id}: {e}"
+        )
+
+    # Entrada de conversión también en client_logs para trazabilidad
+    await db.client_logs.insert_one({
+        "log_id": f"log_{uuid.uuid4().hex[:12]}",
+        "client_id": client_id,
+        "contact_date": now[:10],
+        "detail": f"[CONVERSIÓN] Prospecto creado a partir del Contacto Inicial. {inherited_count} entrada(s) de bitácora heredada(s).",
+        "action": "Convertido a Prospecto",
+        "follow_up_date": None,
+        "contacted_person": None,
+        "is_completed": True,
+        "created_by": current_user.get("email", "unknown"),
+        "created_by_name": converter_name,
+        "created_at": now,
+        "origin": "initial_contact",
+        "origin_contact_id": contact_id,
+    })
+
     # Mark contact as converted
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
@@ -399,8 +453,12 @@ async def convert_to_prospect(contact_id: str, authorization: Optional[str] = He
             "$push": {"bitacora": conversion_entry}
         }
     )
-    
-    return {"message": f"Contacto convertido a Prospecto exitosamente", "client_id": client_id}
+
+    return {
+        "message": "Contacto convertido a Prospecto exitosamente",
+        "client_id": client_id,
+        "inherited_logs": inherited_count,
+    }
 
 
 @router.get("/initial-contacts/{contact_id}")
@@ -476,3 +534,157 @@ async def delete_initial_contact(contact_id: str, authorization: Optional[str] =
         f"by {current_user.get('email')}"
     )
     return {"message": "Contacto eliminado exitosamente"}
+
+
+# ============================================================================
+# BITÁCORA — Espejo del modelo de Clientes para uso unificado.
+# Cada entrada vive en `initial_contact_logs`. Si tiene `follow_up_date` y
+# `is_completed=False`, aparece como alerta en el Dashboard de Seguimiento.
+# ============================================================================
+
+class InitialContactLogCreate(BaseModel):
+    detail: str
+    action: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    contacted_person: Optional[str] = None
+
+
+@router.get("/initial-contacts/{contact_id}/logs")
+async def list_initial_contact_logs(contact_id: str, authorization: Optional[str] = Header(None)):
+    await get_current_user(authorization)
+    cursor = db.initial_contact_logs.find(
+        {"contact_id": contact_id}, {"_id": 0}
+    ).sort("created_at", -1)
+    return [doc async for doc in cursor]
+
+
+@router.post("/initial-contacts/{contact_id}/logs")
+async def add_initial_contact_log(
+    contact_id: str,
+    payload: InitialContactLogCreate,
+    authorization: Optional[str] = Header(None),
+):
+    current_user = await get_current_user(authorization)
+    contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    if not contact:
+        raise HTTPException(404, "Contacto no encontrado")
+    if not payload.detail.strip():
+        raise HTTPException(400, "El detalle es obligatorio")
+
+    now = datetime.now(timezone.utc)
+    log_doc = {
+        "log_id": str(uuid.uuid4()),
+        "contact_id": contact_id,
+        "detail": payload.detail.strip(),
+        "action": (payload.action or "").strip() or None,
+        "follow_up_date": payload.follow_up_date or None,
+        "contacted_person": payload.contacted_person or None,
+        "contact_date": now.strftime("%Y-%m-%d"),
+        "created_at": now.isoformat(),
+        "created_by": current_user.get("user_id"),
+        "created_by_name": user_display(current_user),
+        "is_completed": False,
+        "origin": "initial_contact",
+    }
+    await db.initial_contact_logs.insert_one(log_doc)
+    # Bump timestamp del contacto para indicar última gestión
+    await db.initial_contacts.update_one(
+        {"contact_id": contact_id},
+        {"$set": {"last_activity_at": now.isoformat()}},
+    )
+    log_doc.pop("_id", None)
+    return log_doc
+
+
+@router.patch("/initial-contacts/logs/{log_id}/complete")
+async def toggle_initial_contact_log_complete(
+    log_id: str, authorization: Optional[str] = Header(None)
+):
+    await get_current_user(authorization)
+    log = await db.initial_contact_logs.find_one({"log_id": log_id}, {"_id": 0})
+    if not log:
+        raise HTTPException(404, "Entrada no encontrada")
+    new_state = not log.get("is_completed", False)
+    await db.initial_contact_logs.update_one(
+        {"log_id": log_id}, {"$set": {"is_completed": new_state}}
+    )
+    return {"log_id": log_id, "is_completed": new_state}
+
+
+# ============================================================================
+# CERRAR GESTIÓN — Admin only. Marca el contacto como "closed" sin borrarlo.
+# La fila se renderizará con fondo azul (estado "gestionado, no activo").
+# ============================================================================
+
+class InitialContactClose(BaseModel):
+    reason: str
+
+
+@router.post("/initial-contacts/{contact_id}/close")
+async def close_initial_contact(
+    contact_id: str,
+    payload: InitialContactClose,
+    authorization: Optional[str] = Header(None),
+):
+    current_user = await get_current_user(authorization)
+    if (current_user.get("role") or "").lower() != "admin":
+        raise HTTPException(403, "Solo administradores pueden cerrar gestiones")
+    if not payload.reason or not payload.reason.strip():
+        raise HTTPException(400, "El motivo de cierre es obligatorio")
+
+    contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    if not contact:
+        raise HTTPException(404, "Contacto no encontrado")
+    if contact.get("status") == "closed":
+        raise HTTPException(400, "El contacto ya está cerrado")
+
+    now = datetime.now(timezone.utc)
+    await db.initial_contacts.update_one(
+        {"contact_id": contact_id},
+        {"$set": {
+            "status": "closed",
+            "closed_at": now.isoformat(),
+            "closed_by": current_user.get("user_id"),
+            "closed_by_name": user_display(current_user),
+            "closed_reason": payload.reason.strip(),
+        }},
+    )
+    # Registrar el cierre como entrada de bitácora para trazabilidad
+    await db.initial_contact_logs.insert_one({
+        "log_id": str(uuid.uuid4()),
+        "contact_id": contact_id,
+        "detail": f"[CIERRE DE GESTIÓN] {payload.reason.strip()}",
+        "action": None,
+        "follow_up_date": None,
+        "contacted_person": None,
+        "contact_date": now.strftime("%Y-%m-%d"),
+        "created_at": now.isoformat(),
+        "created_by": current_user.get("user_id"),
+        "created_by_name": user_display(current_user),
+        "is_completed": True,
+        "origin": "initial_contact_closure",
+    })
+    logger.info(
+        f"[initial_contacts] CLOSED {contact_id} by {current_user.get('email')} "
+        f"reason={payload.reason!r}"
+    )
+    return {"contact_id": contact_id, "status": "closed", "closed_at": now.isoformat()}
+
+
+@router.post("/initial-contacts/{contact_id}/reopen")
+async def reopen_initial_contact(
+    contact_id: str, authorization: Optional[str] = Header(None)
+):
+    """Reabrir una gestión cerrada (admin only)."""
+    current_user = await get_current_user(authorization)
+    if (current_user.get("role") or "").lower() != "admin":
+        raise HTTPException(403, "Solo administradores pueden reabrir gestiones")
+    contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    if not contact:
+        raise HTTPException(404, "Contacto no encontrado")
+    await db.initial_contacts.update_one(
+        {"contact_id": contact_id},
+        {"$set": {"status": "active"}, "$unset": {"closed_at": "", "closed_by": "", "closed_by_name": "", "closed_reason": ""}},
+    )
+    return {"contact_id": contact_id, "status": "active"}
+

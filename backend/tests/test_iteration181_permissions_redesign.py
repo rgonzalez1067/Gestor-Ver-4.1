@@ -12,7 +12,7 @@ import io
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://notification-motor.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://bitacora-heredada.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "ragg1008@gmail.com"
 ADMIN_PASS = "admin123"
 
