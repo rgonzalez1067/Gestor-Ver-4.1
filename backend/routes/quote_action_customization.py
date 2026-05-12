@@ -230,8 +230,23 @@ async def dispatch_custom_action(
         raise HTTPException(400, warn)
 
     custom_message = payload.get("custom_message") or None
-    additional_recipients = payload.get("additional_recipients") or ""
-    cc_emails = [e.strip() for e in additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+    # Soporta tanto `cc_emails: [str]` (frontend nuevo del modal) como
+    # `additional_recipients: "a,b,c"` (legacy comma-separated).
+    raw_cc = payload.get("cc_emails")
+    if isinstance(raw_cc, list):
+        cc_emails = [e.strip() for e in raw_cc if e and "@" in str(e).strip()]
+    else:
+        additional_recipients = payload.get("additional_recipients") or ""
+        cc_emails = [e.strip() for e in additional_recipients.split(",") if e.strip() and "@" in e.strip()]
+
+    # Marcar la ejecución en la cotización para que el stepper la refleje.
+    # Usamos `custom_actions_executed.{action_id}` con timestamp ISO.
+    from datetime import datetime, timezone as _tz
+    exec_ts = datetime.now(_tz.utc).isoformat()
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {"$set": {f"custom_actions_executed.{action_id}": exec_ts}},
+    )
 
     dispatched = await try_dispatch(
         action_id, quote, user,
@@ -250,5 +265,6 @@ async def dispatch_custom_action(
         "ok": True,
         "action_id": action_id,
         "label": custom.get("label", action_id),
+        "executed_at": exec_ts,
         "message": f"Acción '{custom.get('label', action_id)}' ejecutada correctamente",
     }

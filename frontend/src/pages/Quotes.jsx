@@ -2262,6 +2262,27 @@ export const Quotes = () => {
       openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'deliver') {
       handleDeliverQuote(quoteId, pendingAction?.exceptionHeaders || null);
+    } else if (action && action.startsWith('custom:')) {
+      // Custom action (override de catálogo): action="custom:<action_id>"
+      const actionId = action.slice('custom:'.length);
+      executeCustomAction(quoteId, actionId, emailModalConfig.actionLabel || actionId);
+    }
+  };
+
+  // Ejecuta una custom action con mensaje personalizado + CCs del modal
+  const executeCustomAction = async (quoteId, actionId, label) => {
+    try {
+      setActionLoading(quoteId);
+      const payload = {
+        custom_message: emailCustomMessage?.trim() || null,
+        cc_emails: emailRecipientsList || [],
+      };
+      const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, payload);
+      toast.success(res.data?.message || `${label} ejecutada`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || `Error ejecutando ${label}`);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -3501,17 +3522,19 @@ export const Quotes = () => {
             currentUserId={currentUser?.user_id || ''}
             currentUserCargo={currentUser?.cargo || ''}
             currentUserRole={currentUser?.role || ''}
-            onCustomAction={async (quoteId, actionId, label) => {
-              if (!window.confirm(`Ejecutar "${label}" para esta cotización?`)) return;
-              try {
-                setActionLoading(quoteId);
-                const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, {});
-                toast.success(res.data?.message || `${label} ejecutada`);
-              } catch (e) {
-                toast.error(e.response?.data?.detail || `Error ejecutando ${label}`);
-              } finally {
-                setActionLoading(null);
-              }
+            onCustomAction={(quoteId, actionId, label) => {
+              // Pasa por modal de Personalización (estándar) en lugar de window.confirm
+              const q = quotes.find((qq) => qq.quote_id === quoteId);
+              setEmailModalConfig({
+                action: `custom:${actionId}`,
+                actionLabel: label,
+                quoteId,
+                quoteName: q?.quote_number || '',
+              });
+              setEmailCustomMessage('');
+              setEmailNewRecipient('');
+              setEmailRecipientsList([]);
+              setEmailModalOpen(true);
             }}
             filterClient={filterClient}
             filterStatus={filterStatus}

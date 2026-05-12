@@ -147,6 +147,75 @@ async def _build_template_vars(quote: dict) -> dict:
         except Exception:
             approved_date = approved_at[:10] if isinstance(approved_at, str) else ""
 
+    # ============================================================
+    # Variables computadas (HTML tables / listas) — antes solo
+    # existían en motores legacy específicos. Ahora se construyen
+    # universalmente para que CUALQUIER plantilla las reciba sin
+    # importar qué acción invoque al motor.
+    # ============================================================
+    # 1) items_table — Despacho/Equipos: tabla HTML compacta
+    items_table_html = ""
+    equipment_items = quote.get("equipment_items") or []
+    ft_items = quote.get("ft_equipment_items") or []
+    all_eq = equipment_items + ft_items
+    if all_eq:
+        rows = ["<tr><th style='padding:6px;border:1px solid #cbd5e1;background:#f1f5f9;text-align:left'>Modelo</th><th style='padding:6px;border:1px solid #cbd5e1;background:#f1f5f9;text-align:right'>Cant.</th></tr>"]
+        for it in all_eq:
+            name = it.get("name") or it.get("hardware_name") or it.get("model_name") or it.get("modelo") or "Equipo"
+            qty = it.get("quantity", 1) or 1
+            rows.append(f"<tr><td style='padding:6px;border:1px solid #e2e8f0'>{name}</td><td style='padding:6px;border:1px solid #e2e8f0;text-align:right'>{qty}</td></tr>")
+        items_table_html = f"<table style='border-collapse:collapse;width:100%;margin:8px 0;font-size:13px'>{''.join(rows)}</table>"
+
+    # 2) Modelo_Equipo / Cantidad — Fast Track (primer item de ft_equipment_items)
+    modelo_equipo = ""
+    cantidad_str = ""
+    if ft_items:
+        primary = ft_items[0]
+        modelo_equipo = primary.get("name") or primary.get("model_name") or primary.get("modelo") or ""
+        cantidad_total = sum(int(it.get("quantity", 1) or 1) for it in ft_items)
+        cantidad_str = str(cantidad_total)
+    elif equipment_items:
+        primary = equipment_items[0]
+        modelo_equipo = primary.get("name") or primary.get("hardware_name") or ""
+        cantidad_total = sum(int(it.get("quantity", 1) or 1) for it in equipment_items)
+        cantidad_str = str(cantidad_total)
+
+    # 3) lista_modelos_seriales / lista_equipos_seriales — Reparaciones
+    lista_modelos_seriales_html = ""
+    lista_equipos_seriales_html = ""
+    repaired_models = quote.get("repaired_models") or []
+    for rm in repaired_models:
+        mn = rm.get("model_name", "N/A")
+        serials = rm.get("serials") or []
+        line = f"<p style='margin:4px 0'><strong>{mn}</strong>: {', '.join(serials) if serials else 'sin seriales'}</p>"
+        lista_modelos_seriales_html += line
+        lista_equipos_seriales_html += line
+    # Fallback con preassigned_serials para fast_track
+    if not lista_modelos_seriales_html:
+        preassigned = quote.get("preassigned_serials") or []
+        if preassigned:
+            primary_model = modelo_equipo or "Equipo"
+            block = f"<p style='margin:4px 0'><strong>{primary_model}</strong>: {', '.join(preassigned)}</p>"
+            lista_modelos_seriales_html = block
+            lista_equipos_seriales_html = block
+
+    # 4) modelos_resumen — lista plana de modelos (para subjects y previews)
+    modelos_resumen = ""
+    if repaired_models:
+        modelos_resumen = ", ".join([rm.get("model_name", "N/A") for rm in repaired_models])
+    elif all_eq:
+        modelos_resumen = ", ".join([
+            (it.get("name") or it.get("hardware_name") or it.get("model_name") or "Equipo")
+            for it in all_eq
+        ])
+
+    # 5) almacen_custodia — nombre de la sede como almacén custodio
+    sede_names = {"PYME": "Almacen Torre Banco Plaza (Pymes)", "CORP": "Almacen Corporativo"}
+    almacen_custodia = sede_names.get(norm_segment, norm_segment)
+
+    # 6) Direccion_Entrega — del cliente; si no existe usar address legal
+    direccion_entrega = address or ""
+
     return {
         # ----- Cotización -----
         "quote_number": quote_number,
@@ -183,6 +252,19 @@ async def _build_template_vars(quote: dict) -> dict:
         # ----- Sede -----
         "sede_name": norm_segment,
         "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
+        # ----- Variables computadas (despacho/reparación/fast track) -----
+        "items_table": items_table_html,
+        "Modelo_Equipo": modelo_equipo,
+        "modelo_equipo": modelo_equipo,
+        "Cantidad": cantidad_str,
+        "cantidad": cantidad_str,
+        "lista_modelos_seriales": lista_modelos_seriales_html,
+        "lista_equipos_seriales": lista_equipos_seriales_html,
+        "Lista_Seriales": lista_modelos_seriales_html,
+        "modelos_resumen": modelos_resumen,
+        "almacen_custodia": almacen_custodia,
+        "Direccion_Entrega": direccion_entrega,
+        "direccion_entrega": direccion_entrega,
     }
 
 
@@ -310,6 +392,12 @@ async def try_dispatch(
 
     sent_count = 0
     skipped = []
+    # Política de CC del modal: los user_cc_emails se anexan UNA sola vez como
+    # CC efectivo del primer envío exitoso (no como copias de cortesía con body
+    # genérico). Así llegan como destinatarios visibles del mensaje real,
+    # ven los adjuntos y aparecen en el encabezado Cc del receptor.
+    user_cc_list = [c for c in (cc_emails or []) if c and "@" in c]
+    cc_already_attached = False
     for row in cfg["recipients"]:
         # Resolver destinatario
         rcpt_email, rcpt_name = "", ""
@@ -351,6 +439,14 @@ async def try_dispatch(
             attachments.extend(extra_attachments)
         attachments = attachments or None
 
+        # Adjuntar CCs al primer destinatario solamente (evita N copias)
+        cc_for_this_send = None
+        if user_cc_list and not cc_already_attached:
+            # Excluir el propio destinatario para no duplicar
+            cc_for_this_send = [c for c in user_cc_list if c.lower() != rcpt_email.lower()]
+            if cc_for_this_send:
+                cc_already_attached = True
+
         try:
             await send_email(
                 to=[rcpt_email],
@@ -360,26 +456,18 @@ async def try_dispatch(
                 quote_id=quote.get("quote_id"),
                 quote_number=quote.get("quote_number"),
                 attachments=attachments,
+                cc=cc_for_this_send,
             )
             sent_count += 1
         except Exception as e:
             logger.error(f"[engine] Error enviando a {rcpt_email}: {e}")
             skipped.append({"row_id": row.get("row_id"), "reason": str(e)})
 
-    # Cc adicionales (sin attachments por privacidad — siguen política legacy)
-    for cc in (cc_emails or []):
-        if cc and "@" in cc:
-            try:
-                await send_email(
-                    to=[cc],
-                    subject=f"[CC] Notificación · {quote.get('quote_number', '')}",
-                    html=f"<p>Copia de cortesía de la acción <b>{action_id}</b>.</p>",
-                    action=f"{action_id}_dynamic_cc",
-                    quote_id=quote.get("quote_id"),
-                    quote_number=quote.get("quote_number"),
-                )
-            except Exception as e:
-                logger.warning(f"[engine] Error CC {cc}: {e}")
+    # Fallback: si no se logró adjuntar los CCs (porque ningún destinatario
+    # principal fue válido), enviar un correo separado a los CCs con el ÚLTIMO
+    # subject/body renderizado, para no perderlos.
+    if user_cc_list and not cc_already_attached and sent_count == 0:
+        logger.warning(f"[engine] CCs {user_cc_list} no pudieron adjuntarse — sin destinatarios principales válidos")
 
     # Bitácora del despacho dinámico
     await db.bitacora.insert_one({
