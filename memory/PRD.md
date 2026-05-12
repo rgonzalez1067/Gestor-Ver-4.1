@@ -5,6 +5,28 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Inventario — Edición Manual de Movimientos (Admin-only) (Feb 2026) — NUEVO
+
+**Objetivo**: Permitir al Administrador corregir cualquier campo de un movimiento de inventario durante el arranque del sistema o ante data legacy errónea, dejando registro completo en auditoría.
+
+**Backend** (`/app/backend/routes/inventory.py`):
+- `PUT /api/inventory/movements/{movement_id}` (admin-only): edición libre absoluta. Acepta cualquier campo del documento (excepto `movement_id`, `_id`, `created_at`, `created_by` que son protegidos). Computa el diff campo-a-campo y solo registra cambios reales (no escribe audit si no hay cambios).
+- `GET /api/inventory/movements/{movement_id}/audit` (admin-only): retorna el historial ordenado descendente.
+- Audit log persiste en colección `inventory_movement_audits` con: `audit_id, movement_id, edited_by, edited_by_name, edited_by_email, edited_at, changes: {field: {old, new}}, warehouse_id, item_id, item_name`.
+- El documento del movimiento gana `updated_at`, `last_edited_by`, `last_edited_by_name`.
+
+**Frontend** (`/app/frontend/src/pages/Inventory.jsx`):
+- Botón **lápiz (azul)** junto al de eliminar en cada fila de la pestaña "Movimientos" (solo visible para admin).
+- Modal con dos pestañas:
+  - **Datos**: grid de 2 columnas con TODOS los campos editables (tipo, almacén, ítem, cantidad, costo, fecha, proveedor, factura, cliente, cotización, referencia, seriales, notas, estado certificación, transfer_id).
+  - **Historial**: tabla por edición mostrando Campo | Antes (rojo) | Después (verde), agrupado por timestamp + autor.
+- Banner ámbar de advertencia: *"Edición libre absoluta (uso de arranque/corrección)"*.
+- Validación de números (quantity → int, unit_cost → float) y normalización de seriales (CSV → lista).
+
+**Seguridad**:
+- Ambos endpoints retornan **403** para no-admin (validado E2E con usuario `srubio@megasoft.com.ve`).
+- Bugfix paralelo: el handler de eliminar movimientos llamaba a `fetchMovements(selectedWh)` (función inexistente); ahora usa `fetchStock()`.
+
 ### Seguridad — Auditoría de Perfiles y Orden de Usuarios (Feb 2026) — NUEVO
 
 **Objetivo**: Acelerar la administración de Seguridad anclando al/los Administrador(es) al tope de la lista, ordenando el resto alfabéticamente y permitiendo auditar de un vistazo a qué usuarios está asignado cada perfil.

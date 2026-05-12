@@ -80,6 +80,76 @@ export default function Inventory() {
   // Precarga toggle en entrada
   const [isPrecarga, setIsPrecarga] = useState(false);
 
+  // ==================== EDICIÓN MANUAL DE MOVIMIENTOS (ADMIN) ====================
+  const [editMovOpen, setEditMovOpen] = useState(false);
+  const [editMov, setEditMov] = useState(null);  // documento original (snapshot)
+  const [editForm, setEditForm] = useState({}); // valores actuales del form
+  const [editSaving, setEditSaving] = useState(false);
+  const [editAudits, setEditAudits] = useState([]);
+  const [editTab, setEditTab] = useState('form'); // form | history
+
+  const openEditMovement = async (m) => {
+    setEditMov(m);
+    setEditForm({
+      item_id: m.item_id || '',
+      item_name: m.item_name || '',
+      item_type: m.item_type || '',
+      movement_type: m.movement_type || '',
+      quantity: m.quantity ?? 0,
+      unit_cost: m.unit_cost ?? 0,
+      warehouse_id: m.warehouse_id || '',
+      serials: Array.isArray(m.serials) ? m.serials.join(', ') : (m.serials || ''),
+      reference: m.reference || '',
+      client_name: m.client_name || '',
+      client_id: m.client_id || '',
+      quote_id: m.quote_id || '',
+      quote_number: m.quote_number || '',
+      notes: m.notes || '',
+      supplier: m.supplier || '',
+      invoice_ref: m.invoice_ref || '',
+      acquisition_date: m.acquisition_date || '',
+      certification_status: m.certification_status || '',
+      transfer_id: m.transfer_id || '',
+    });
+    setEditTab('form');
+    setEditAudits([]);
+    setEditMovOpen(true);
+    // Carga el historial en paralelo
+    try {
+      const res = await api.get(`/inventory/movements/${m.movement_id}/audit`);
+      setEditAudits(res.data?.audits || []);
+    } catch {
+      setEditAudits([]);
+    }
+  };
+
+  const saveEditMovement = async () => {
+    if (!editMov) return;
+    setEditSaving(true);
+    try {
+      const payload = { ...editForm };
+      // Normalizar números
+      if (payload.quantity !== '' && payload.quantity !== null) payload.quantity = Number(payload.quantity);
+      if (payload.unit_cost !== '' && payload.unit_cost !== null) payload.unit_cost = Number(payload.unit_cost);
+      const res = await api.put(`/inventory/movements/${editMov.movement_id}`, payload);
+      if (res.data?.changes_count === 0) {
+        toast.info('No se detectaron cambios');
+      } else {
+        toast.success(`Movimiento actualizado · ${res.data.changes_count} campo(s)`);
+      }
+      // Refrescar listado y auditoría
+      await fetchStock();
+      const a = await api.get(`/inventory/movements/${editMov.movement_id}/audit`);
+      setEditAudits(a.data?.audits || []);
+      // Refrescar snapshot
+      if (res.data?.movement) setEditMov(res.data.movement);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al guardar');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const navigate = useNavigate();
   const fetchAll = useCallback(async () => {
     try {
@@ -753,18 +823,25 @@ export default function Inventory() {
                             </td>
                             {currentUser?.role === 'admin' && (
                               <td className="px-4 py-2.5 text-center">
-                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" title="Eliminar movimiento"
-                                  data-testid={`delete-mov-${m.movement_id}`}
-                                  onClick={async () => {
-                                    if (!window.confirm(`Eliminar este movimiento de ${m.item_name}?`)) return;
-                                    try {
-                                      await api.delete(`/inventory/movements/${m.movement_id}`);
-                                      toast.success('Movimiento eliminado');
-                                      fetchMovements(selectedWh);
-                                    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
-                                  }}>
-                                  <Trash2 size={13} />
-                                </Button>
+                                <div className="inline-flex items-center gap-0.5">
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-blue-600" title="Editar movimiento (Admin)"
+                                    data-testid={`edit-mov-${m.movement_id}`}
+                                    onClick={() => openEditMovement(m)}>
+                                    <Pencil size={13} />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-600" title="Eliminar movimiento"
+                                    data-testid={`delete-mov-${m.movement_id}`}
+                                    onClick={async () => {
+                                      if (!window.confirm(`Eliminar este movimiento de ${m.item_name}?`)) return;
+                                      try {
+                                        await api.delete(`/inventory/movements/${m.movement_id}`);
+                                        toast.success('Movimiento eliminado');
+                                        fetchStock();
+                                      } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
+                                    }}>
+                                    <Trash2 size={13} />
+                                  </Button>
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -1399,6 +1476,215 @@ export default function Inventory() {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== EDIT MOVEMENT DIALOG (Admin-only) ==================== */}
+        <Dialog open={editMovOpen} onOpenChange={setEditMovOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" data-testid="edit-mov-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil size={18} className="text-blue-600" />
+                Editar Movimiento de Inventario
+                <span className="text-[11px] font-mono text-slate-400 ml-2">{editMov?.movement_id}</span>
+              </DialogTitle>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+                <AlertTriangle size={12} className="inline mr-1" />
+                <strong>Edición libre absoluta (uso de arranque/corrección).</strong> Todos los cambios quedan registrados en la pestaña <em>Historial</em>.
+              </p>
+            </DialogHeader>
+
+            {/* Tabs */}
+            <div className="flex gap-1 border-b border-slate-200 -mx-6 px-6">
+              <button
+                onClick={() => setEditTab('form')}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition ${
+                  editTab === 'form' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+                data-testid="edit-mov-tab-form"
+              >
+                Datos
+              </button>
+              <button
+                onClick={() => setEditTab('history')}
+                className={`px-3 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
+                  editTab === 'history' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+                data-testid="edit-mov-tab-history"
+              >
+                <History size={13} />
+                Historial
+                {editAudits.length > 0 && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">{editAudits.length}</span>
+                )}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto py-4">
+              {editTab === 'form' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Tipo de movimiento</Label>
+                    <Select value={editForm.movement_type} onValueChange={(v) => setEditForm(p => ({ ...p, movement_type: v }))}>
+                      <SelectTrigger className="h-9" data-testid="edit-mov-type"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="entrada">Entrada</SelectItem>
+                        <SelectItem value="salida">Salida</SelectItem>
+                        <SelectItem value="transferencia_entrada">Transferencia recibida</SelectItem>
+                        <SelectItem value="transferencia_salida">Transferencia enviada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Almacén</Label>
+                    <Select value={editForm.warehouse_id} onValueChange={(v) => setEditForm(p => ({ ...p, warehouse_id: v }))}>
+                      <SelectTrigger className="h-9" data-testid="edit-mov-warehouse"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {warehouses.map(w => (
+                          <SelectItem key={w.warehouse_id} value={w.warehouse_id}>{w.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Ítem ID (hardware_id)</Label>
+                    <Input value={editForm.item_id} onChange={(e) => setEditForm(p => ({ ...p, item_id: e.target.value }))} className="h-9 font-mono text-xs" data-testid="edit-mov-item-id" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nombre del ítem</Label>
+                    <Input value={editForm.item_name} onChange={(e) => setEditForm(p => ({ ...p, item_name: e.target.value }))} className="h-9" data-testid="edit-mov-item-name" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Tipo de ítem</Label>
+                    <Input value={editForm.item_type} onChange={(e) => setEditForm(p => ({ ...p, item_type: e.target.value }))} className="h-9" data-testid="edit-mov-item-type" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cantidad</Label>
+                    <Input type="number" min="0" value={editForm.quantity} onChange={(e) => setEditForm(p => ({ ...p, quantity: e.target.value }))} className="h-9" data-testid="edit-mov-quantity" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Costo unitario (USD)</Label>
+                    <Input type="number" step="0.01" min="0" value={editForm.unit_cost} onChange={(e) => setEditForm(p => ({ ...p, unit_cost: e.target.value }))} className="h-9" data-testid="edit-mov-unit-cost" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Fecha de adquisición</Label>
+                    <Input type="date" value={editForm.acquisition_date || ''} onChange={(e) => setEditForm(p => ({ ...p, acquisition_date: e.target.value }))} className="h-9" data-testid="edit-mov-acq-date" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Proveedor</Label>
+                    <Input value={editForm.supplier} onChange={(e) => setEditForm(p => ({ ...p, supplier: e.target.value }))} className="h-9" data-testid="edit-mov-supplier" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nº Factura / Doc.</Label>
+                    <Input value={editForm.invoice_ref} onChange={(e) => setEditForm(p => ({ ...p, invoice_ref: e.target.value }))} className="h-9" data-testid="edit-mov-invoice-ref" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Cliente (nombre)</Label>
+                    <Input value={editForm.client_name} onChange={(e) => setEditForm(p => ({ ...p, client_name: e.target.value }))} className="h-9" data-testid="edit-mov-client-name" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Cliente ID</Label>
+                    <Input value={editForm.client_id} onChange={(e) => setEditForm(p => ({ ...p, client_id: e.target.value }))} className="h-9 font-mono text-xs" data-testid="edit-mov-client-id" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Cotización ID</Label>
+                    <Input value={editForm.quote_id} onChange={(e) => setEditForm(p => ({ ...p, quote_id: e.target.value }))} className="h-9 font-mono text-xs" data-testid="edit-mov-quote-id" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Nº Cotización</Label>
+                    <Input value={editForm.quote_number} onChange={(e) => setEditForm(p => ({ ...p, quote_number: e.target.value }))} className="h-9" data-testid="edit-mov-quote-number" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label className="text-xs">Referencia</Label>
+                    <Input value={editForm.reference} onChange={(e) => setEditForm(p => ({ ...p, reference: e.target.value }))} className="h-9" data-testid="edit-mov-reference" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label className="text-xs">Seriales (separados por coma, solo POS/Pinpad)</Label>
+                    <Textarea value={editForm.serials} onChange={(e) => setEditForm(p => ({ ...p, serials: e.target.value }))} rows={2} className="font-mono text-xs" data-testid="edit-mov-serials" />
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label className="text-xs">Notas / Descripción</Label>
+                    <Textarea value={editForm.notes} onChange={(e) => setEditForm(p => ({ ...p, notes: e.target.value }))} rows={3} data-testid="edit-mov-notes" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Estado certificación</Label>
+                    <Select value={editForm.certification_status || '__none__'} onValueChange={(v) => setEditForm(p => ({ ...p, certification_status: v === '__none__' ? '' : v }))}>
+                      <SelectTrigger className="h-9" data-testid="edit-mov-cert-status"><SelectValue placeholder="Sin estado" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Sin estado —</SelectItem>
+                        <SelectItem value="precarga">Precarga</SelectItem>
+                        <SelectItem value="certificado">Certificado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Transfer ID (par transferencia)</Label>
+                    <Input value={editForm.transfer_id} onChange={(e) => setEditForm(p => ({ ...p, transfer_id: e.target.value }))} className="h-9 font-mono text-xs" data-testid="edit-mov-transfer-id" />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2" data-testid="edit-mov-history-list">
+                  {editAudits.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">Aún no hay ediciones registradas para este movimiento.</p>
+                  ) : editAudits.map((a) => (
+                    <div key={a.audit_id} className="border border-slate-200 rounded p-3 bg-slate-50" data-testid={`audit-${a.audit_id}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs">
+                          <span className="font-semibold text-slate-800">{a.edited_by_name || a.edited_by_email || a.edited_by}</span>
+                          <span className="text-slate-400 ml-2">{(a.edited_at || '').slice(0, 19).replace('T', ' ')}</span>
+                        </div>
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+                          {Object.keys(a.changes || {}).length} campo(s)
+                        </span>
+                      </div>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-[10px] uppercase text-slate-400 border-b border-slate-200">
+                            <th className="text-left py-1">Campo</th>
+                            <th className="text-left py-1">Antes</th>
+                            <th className="text-left py-1">Después</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(a.changes || {}).map(([field, vals]) => (
+                            <tr key={field} className="border-b border-slate-100">
+                              <td className="py-1 font-mono text-[11px] text-slate-700">{field}</td>
+                              <td className="py-1 text-red-600 truncate max-w-[200px]" title={String(vals.old ?? '')}>
+                                {vals.old === null || vals.old === undefined || vals.old === '' ? <em className="text-slate-400">vacío</em> : String(Array.isArray(vals.old) ? vals.old.join(', ') : vals.old)}
+                              </td>
+                              <td className="py-1 text-emerald-700 truncate max-w-[200px]" title={String(vals.new ?? '')}>
+                                {vals.new === null || vals.new === undefined || vals.new === '' ? <em className="text-slate-400">vacío</em> : String(Array.isArray(vals.new) ? vals.new.join(', ') : vals.new)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <Button variant="outline" onClick={() => setEditMovOpen(false)} disabled={editSaving} data-testid="edit-mov-cancel">
+                Cerrar
+              </Button>
+              {editTab === 'form' && (
+                <Button onClick={saveEditMovement} disabled={editSaving} className="bg-blue-600 hover:bg-blue-700" data-testid="edit-mov-save">
+                  {editSaving ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       </main>

@@ -129,6 +129,116 @@ async def delete_movement(movement_id: str, authorization: Optional[str] = Heade
     return {"message": "Movimiento eliminado"}
 
 
+# ==================== EDICIÓN MANUAL DE MOVIMIENTOS (ADMIN-ONLY) ====================
+# Caso de uso: arranque del sistema / corrección de data legacy. El admin puede
+# editar cualquier campo del movimiento. Cada cambio queda registrado en
+# `inventory_movement_audits` para trazabilidad.
+
+# Campos prohibidos (identificadores estructurales / derivados)
+_MOVEMENT_PROTECTED_FIELDS = {"movement_id", "_id", "created_at", "created_by"}
+
+
+@router.put("/inventory/movements/{movement_id}")
+async def update_movement(
+    movement_id: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Edición libre de un movimiento (solo admin).
+    Pensado para corrección de carga inicial. Registra audit trail con
+    valores antes/después de cada campo modificado."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden editar movimientos")
+
+    movement = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    if not movement:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+
+    # Filtrar campos protegidos y construir diff
+    incoming = {k: v for k, v in (body or {}).items() if k not in _MOVEMENT_PROTECTED_FIELDS}
+    if not incoming:
+        raise HTTPException(status_code=400, detail="No se enviaron campos editables")
+
+    changes = {}
+    for key, new_val in incoming.items():
+        old_val = movement.get(key)
+        # Normaliza serials list (acepta string CSV o lista)
+        if key == "serials" and isinstance(new_val, str):
+            new_val = [s.strip() for s in new_val.split(",") if s.strip()]
+        # Normaliza cantidad/costo a número
+        if key == "quantity" and new_val is not None:
+            try:
+                new_val = int(new_val)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="quantity debe ser numérico")
+        if key == "unit_cost" and new_val is not None:
+            try:
+                new_val = float(new_val)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="unit_cost debe ser numérico")
+        if old_val != new_val:
+            changes[key] = {"old": old_val, "new": new_val}
+
+    if not changes:
+        return {"message": "Sin cambios", "movement_id": movement_id, "changes_count": 0}
+
+    # Aplicar cambios al documento
+    update_payload = {k: v["new"] for k, v in changes.items()}
+    update_payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_payload["last_edited_by"] = current_user.get("user_id", "")
+    update_payload["last_edited_by_name"] = (
+        f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        or current_user.get("email", "")
+    )
+    await db.inventory_movements.update_one(
+        {"movement_id": movement_id}, {"$set": update_payload}
+    )
+
+    # Registrar audit log
+    audit_doc = {
+        "audit_id": f"aud_{uuid.uuid4().hex[:10]}",
+        "movement_id": movement_id,
+        "warehouse_id": movement.get("warehouse_id"),
+        "item_id": movement.get("item_id"),
+        "item_name": movement.get("item_name"),
+        "edited_by": current_user.get("user_id", ""),
+        "edited_by_name": update_payload["last_edited_by_name"],
+        "edited_by_email": current_user.get("email", ""),
+        "edited_at": datetime.now(timezone.utc).isoformat(),
+        "changes": changes,
+    }
+    await db.inventory_movement_audits.insert_one(audit_doc)
+    audit_doc.pop("_id", None)
+
+    updated = await db.inventory_movements.find_one({"movement_id": movement_id}, {"_id": 0})
+    logger.info(
+        f"[inventory] Movement {movement_id} edited by {current_user.get('email')} "
+        f"changes={list(changes.keys())}"
+    )
+    return {
+        "message": "Movimiento actualizado",
+        "movement": updated,
+        "changes_count": len(changes),
+        "audit": audit_doc,
+    }
+
+
+@router.get("/inventory/movements/{movement_id}/audit")
+async def get_movement_audit(
+    movement_id: str, authorization: Optional[str] = Header(None)
+):
+    """Historial de ediciones de un movimiento. Solo admin."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ver auditoría")
+    cursor = db.inventory_movement_audits.find(
+        {"movement_id": movement_id}, {"_id": 0}
+    ).sort("edited_at", -1)
+    audits = [a async for a in cursor]
+    return {"movement_id": movement_id, "total": len(audits), "audits": audits}
+
+
 
 # ==================== STOCK VIEW ====================
 
