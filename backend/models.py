@@ -630,6 +630,9 @@ class Quote(BaseModel):
     sent_to_implementation_at: Optional[datetime] = None
     repaired_at: Optional[datetime] = None  # Reparación completada (flujo repair)
     configured_at: Optional[datetime] = None  # Configuración completada (flujo fast_track)
+    # Custom actions ejecutadas: { action_id: timestamp_iso } — usado por el stepper
+    # para iluminar los pasos violeta de acciones personalizadas del catálogo.
+    custom_actions_executed: Optional[dict] = None
     # Preasignación de seriales (Fast Track / MPOS Imple+POS)
     preassigned_serials: Optional[List[str]] = None  # Lista de seriales reservados
     preassigned_at: Optional[datetime] = None  # Cuándo se preasignaron los seriales

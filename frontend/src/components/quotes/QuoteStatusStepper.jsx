@@ -172,7 +172,7 @@ const QuoteStatusStepper = memo(function QuoteStatusStepper({ quote, onOpenBitac
           // Colors per state
           const circleClass =
             state === 'completed'
-              ? (step.custom ? 'bg-violet-500 text-white' : 'bg-emerald-500 text-white')
+              ? (step.custom ? 'bg-violet-700 text-white' : 'bg-emerald-500 text-white')
               : state === 'current'
                 ? 'bg-emerald-100 border-2 border-emerald-500 text-emerald-700'
                 : state === 'bypassed'
@@ -183,10 +183,10 @@ const QuoteStatusStepper = memo(function QuoteStatusStepper({ quote, onOpenBitac
               ? 'bg-slate-200'
               : state === 'bypassed'
                 ? 'bg-red-300'
-                : (step.custom ? 'bg-violet-400' : 'bg-emerald-400');
+                : (step.custom ? 'bg-violet-600' : 'bg-emerald-400');
           const labelClass =
             state === 'completed'
-              ? (step.custom ? 'text-violet-600 font-semibold' : 'text-emerald-600 font-semibold')
+              ? (step.custom ? 'text-violet-700 font-semibold' : 'text-emerald-600 font-semibold')
               : state === 'current'
                 ? 'text-emerald-700 font-bold'
                 : state === 'bypassed'
