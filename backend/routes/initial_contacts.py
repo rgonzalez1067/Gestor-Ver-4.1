@@ -626,9 +626,10 @@ async def close_initial_contact(
     payload: InitialContactClose,
     authorization: Optional[str] = Header(None),
 ):
+    """Cierra la gestión de un contacto inicial. Disponible para todos los
+    usuarios con acceso al módulo (ya no es admin-only). El cierre queda
+    registrado automáticamente en la bitácora unificada con timestamp y autor."""
     current_user = await get_current_user(authorization)
-    if (current_user.get("role") or "").lower() != "admin":
-        raise HTTPException(403, "Solo administradores pueden cerrar gestiones")
     if not payload.reason or not payload.reason.strip():
         raise HTTPException(400, "El motivo de cierre es obligatorio")
 
@@ -671,20 +672,61 @@ async def close_initial_contact(
     return {"contact_id": contact_id, "status": "closed", "closed_at": now.isoformat()}
 
 
+class InitialContactReopen(BaseModel):
+    reason: Optional[str] = ""
+
+
 @router.post("/initial-contacts/{contact_id}/reopen")
 async def reopen_initial_contact(
-    contact_id: str, authorization: Optional[str] = Header(None)
+    contact_id: str,
+    payload: Optional[InitialContactReopen] = None,
+    authorization: Optional[str] = Header(None),
 ):
-    """Reabrir una gestión cerrada (admin only)."""
+    """Reabre una gestión cerrada. Disponible para todos los usuarios con
+    acceso al módulo. Cada reapertura genera entrada automática en bitácora."""
     current_user = await get_current_user(authorization)
-    if (current_user.get("role") or "").lower() != "admin":
-        raise HTTPException(403, "Solo administradores pueden reabrir gestiones")
     contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
     if not contact:
         raise HTTPException(404, "Contacto no encontrado")
+    if contact.get("status") != "closed":
+        raise HTTPException(400, "El contacto no está cerrado")
+
+    now = datetime.now(timezone.utc)
+    reopen_reason = (payload.reason if payload else "") or ""
+    reopen_reason = reopen_reason.strip()
+
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
-        {"$set": {"status": "active"}, "$unset": {"closed_at": "", "closed_by": "", "closed_by_name": "", "closed_reason": ""}},
+        {
+            "$set": {"status": "active"},
+            "$unset": {
+                "closed_at": "",
+                "closed_by": "",
+                "closed_by_name": "",
+                "closed_reason": "",
+            },
+        },
     )
-    return {"contact_id": contact_id, "status": "active"}
+    # Registrar la reapertura como entrada de bitácora para trazabilidad
+    detail = "[REAPERTURA DE GESTIÓN]"
+    if reopen_reason:
+        detail += f" {reopen_reason}"
+    await db.initial_contact_logs.insert_one({
+        "log_id": str(uuid.uuid4()),
+        "contact_id": contact_id,
+        "detail": detail,
+        "action": None,
+        "follow_up_date": None,
+        "contacted_person": None,
+        "contact_date": now.strftime("%Y-%m-%d"),
+        "created_at": now.isoformat(),
+        "created_by": current_user.get("user_id"),
+        "created_by_name": user_display(current_user),
+        "is_completed": True,
+        "origin": "initial_contact_reopen",
+    })
+    logger.info(
+        f"[initial_contacts] REOPENED {contact_id} by {current_user.get('email')}"
+    )
+    return {"contact_id": contact_id, "status": "active", "reopened_at": now.isoformat()}
 

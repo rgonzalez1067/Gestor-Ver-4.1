@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Phone, Mail, Building2, User, Search, BookOpen, UserPlus, ArrowRightLeft, Rocket, ChevronDown, ChevronUp, Filter, Trash2, Send, XCircle, MessageSquare } from 'lucide-react';
+import { Plus, Phone, Mail, Building2, User, Search, BookOpen, UserPlus, ArrowRightLeft, Rocket, ChevronDown, ChevronUp, Filter, Trash2, Send, XCircle, MessageSquare, RotateCcw } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
@@ -47,11 +47,17 @@ export const InitialContacts = () => {
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [bitacoraContact, setBitacoraContact] = useState(null);
 
-  // Cerrar gestión (admin only)
+  // Cerrar gestión (disponible para todos los usuarios con acceso)
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeContact, setCloseContact] = useState(null);
   const [closeReason, setCloseReason] = useState('');
   const [closing, setClosing] = useState(false);
+
+  // Reabrir gestión (disponible para todos los usuarios con acceso)
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenContact, setReopenContact] = useState(null);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopening, setReopening] = useState(false);
 
   // Filtro de status: active | closed | all
   const [filterStatus, setFilterStatus] = useState('active');
@@ -348,12 +354,19 @@ export const InitialContacts = () => {
                           onClick={() => { setNotifyContact(c); setNotifyOpen(true); }}>
                           <Send size={14} />
                         </Button>
-                        {isAdmin && c.status !== 'closed' && (
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-700"
-                            title="Cerrar Gestión (solo Admin)"
+                        {c.status !== 'closed' ? (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-blue-700"
+                            title="Cerrar Gestión"
                             onClick={() => { setCloseContact(c); setCloseReason(''); setCloseOpen(true); }}
                             data-testid={`close-btn-${c.contact_id}`}>
                             <XCircle size={14} />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-500 hover:text-emerald-600"
+                            title="Reabrir Gestión"
+                            onClick={() => { setReopenContact(c); setReopenReason(''); setReopenOpen(true); }}
+                            data-testid={`reopen-btn-${c.contact_id}`}>
+                            <RotateCcw size={14} />
                           </Button>
                         )}
                         {isAdmin && (
@@ -552,7 +565,7 @@ export const InitialContacts = () => {
           apiPrefix="initial-contacts"
         />
 
-        {/* Cerrar Gestión (admin only) */}
+        {/* Cerrar Gestión (todos los usuarios) */}
         <AlertDialog open={closeOpen} onOpenChange={setCloseOpen}>
           <AlertDialogContent data-testid="close-gestion-dialog">
             <AlertDialogHeader>
@@ -592,6 +605,53 @@ export const InitialContacts = () => {
                 data-testid="close-confirm-btn"
               >
                 {closing ? 'Cerrando...' : 'Cerrar Gestión'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reabrir Gestión (todos los usuarios) */}
+        <AlertDialog open={reopenOpen} onOpenChange={setReopenOpen}>
+          <AlertDialogContent data-testid="reopen-gestion-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-emerald-700 flex items-center gap-2">
+                <RotateCcw size={18} /> Reabrir Gestión
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                El contacto <strong>{reopenContact?.legal_name}</strong> volverá al estado <span className="font-semibold text-emerald-700">ACTIVO</span> y aparecerá nuevamente en la bandeja de gestión. Se registrará automáticamente en la bitácora.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 my-3">
+              <Label className="text-xs">Motivo de reapertura (opcional)</Label>
+              <Textarea
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                placeholder="Ej: Cliente retomó interés / Llegó nueva información / Negociación reactivada..."
+                rows={3}
+                data-testid="reopen-reason-input"
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={reopening}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={reopening}
+                onClick={async () => {
+                  setReopening(true);
+                  try {
+                    await api.post(`/initial-contacts/${reopenContact.contact_id}/reopen`, { reason: reopenReason.trim() });
+                    toast.success('Gestión reabierta');
+                    setReopenOpen(false);
+                    setReopenContact(null);
+                    setReopenReason('');
+                    fetchData();
+                  } catch (e) {
+                    toast.error(e.response?.data?.detail || 'Error al reabrir gestión');
+                  } finally { setReopening(false); }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700"
+                data-testid="reopen-confirm-btn"
+              >
+                {reopening ? 'Reabriendo...' : 'Reabrir Gestión'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

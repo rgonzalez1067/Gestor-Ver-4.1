@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, MessageSquare, UserPlus, Rocket, ArrowRightLeft, Trash2, Send } from 'lucide-react';
+import { FileText, Users, Building2, TrendingUp, CreditCard, Package, Bell, AlertTriangle, Clock, CalendarCheck, RefreshCw, FileWarning, FolderKanban, Phone, UserPlus, Rocket, ArrowRightLeft, Trash2, Send, BookOpen, XCircle, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -14,6 +14,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { RecentActivityCard } from '../components/RecentActivityCard';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
+import BitacoraModal from '../components/BitacoraModal';
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -31,9 +32,6 @@ export const Dashboard = () => {
   const [dashUsers, setDashUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   // Dashboard action modals
-  const [dashDocOpen, setDashDocOpen] = useState(false);
-  const [dashDocContact, setDashDocContact] = useState(null);
-  const [dashDocComment, setDashDocComment] = useState('');
   const [dashConvertOpen, setDashConvertOpen] = useState(false);
   const [dashConvertContact, setDashConvertContact] = useState(null);
   const [dashAssignOpen, setDashAssignOpen] = useState(false);
@@ -45,9 +43,20 @@ export const Dashboard = () => {
   const [dashTransferContact, setDashTransferContact] = useState(null);
   const [dashTransferUserId, setDashTransferUserId] = useState('');
   const [dashTransferReason, setDashTransferReason] = useState('');
-  // Bitacora
+  // Bitácora unificada (paridad funcional con la pantalla principal)
   const [dashBitacoraOpen, setDashBitacoraOpen] = useState(false);
   const [dashBitacoraContact, setDashBitacoraContact] = useState(null);
+
+  // Cerrar / Reabrir gestión (disponibles para todos los usuarios)
+  const [dashCloseOpen, setDashCloseOpen] = useState(false);
+  const [dashCloseContact, setDashCloseContact] = useState(null);
+  const [dashCloseReason, setDashCloseReason] = useState('');
+  const [dashClosing, setDashClosing] = useState(false);
+
+  const [dashReopenOpen, setDashReopenOpen] = useState(false);
+  const [dashReopenContact, setDashReopenContact] = useState(null);
+  const [dashReopenReason, setDashReopenReason] = useState('');
+  const [dashReopening, setDashReopening] = useState(false);
 
   const [dashNotifyOpen, setDashNotifyOpen] = useState(false);
   const [dashNotifyContact, setDashNotifyContact] = useState(null);
@@ -161,16 +170,6 @@ export const Dashboard = () => {
     const allowed = { Director: ['Gerente'], Gerente: ['Coordinador', 'Ejecutivo'], Coordinador: ['Ejecutivo'] };
     return (allowed[currentUser.cargo] || []).includes(u.cargo) && u.is_active !== false;
   });
-
-  const handleDashDocument = async () => {
-    if (!dashDocComment.trim()) { toast.error('Escriba un comentario'); return; }
-    try {
-      await api.post(`/initial-contacts/${dashDocContact.contact_id}/document`, { comment: dashDocComment });
-      toast.success('Gestion documentada');
-      setDashDocOpen(false); setDashDocComment('');
-      fetchDashboardData();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error'); }
-  };
 
   const handleDashConvert = async () => {
     try {
@@ -342,8 +341,9 @@ export const Dashboard = () => {
                   <tbody className="divide-y divide-slate-100">
                     {commitments.map(c => {
                       const sla = getSLAStatus(c.due_date);
+                      const isClosed = c.status === 'closed';
                       return (
-                        <tr key={c.contact_id} className={`${sla.color} hover:brightness-95 transition-colors`} data-testid={`commitment-${c.contact_id}`}>
+                        <tr key={c.contact_id} className={`${isClosed ? 'bg-blue-50 hover:bg-blue-100' : sla.color + ' hover:brightness-95'} transition-colors`} data-testid={`commitment-${c.contact_id}`}>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
                               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 border ${sla.border} ${sla.dot === 'bg-red-500' ? 'bg-red-100 text-red-700' : sla.dot === 'bg-yellow-500' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -368,9 +368,10 @@ export const Dashboard = () => {
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center justify-center gap-0.5">
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600" title="Documentar"
-                                onClick={() => { setDashDocContact(c); setDashDocComment(''); setDashDocOpen(true); }}>
-                                <MessageSquare size={13} />
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-blue-600" title="Bitácora (registrar gestión / seguimiento)"
+                                data-testid={`dash-bitacora-btn-${c.contact_id}`}
+                                onClick={() => { setDashBitacoraContact(c); setDashBitacoraOpen(true); }}>
+                                <BookOpen size={13} />
                               </Button>
                               {canDashAssign && (
                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-amber-600" title="Reasignar"
@@ -393,10 +394,19 @@ export const Dashboard = () => {
                                 onClick={() => { setDashNotifyContact(c); setDashNotifyOpen(true); }}>
                                 <Send size={13} />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-slate-700" title="Ver Bitácora"
-                                onClick={() => { setDashBitacoraContact(c); setDashBitacoraOpen(true); }}>
-                                <Clock size={13} />
-                              </Button>
+                              {c.status !== 'closed' ? (
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-blue-700" title="Cerrar Gestión"
+                                  data-testid={`dash-close-btn-${c.contact_id}`}
+                                  onClick={() => { setDashCloseContact(c); setDashCloseReason(''); setDashCloseOpen(true); }}>
+                                  <XCircle size={13} />
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-emerald-600" title="Reabrir Gestión"
+                                  data-testid={`dash-reopen-btn-${c.contact_id}`}
+                                  onClick={() => { setDashReopenContact(c); setDashReopenReason(''); setDashReopenOpen(true); }}>
+                                  <RotateCcw size={13} />
+                                </Button>
+                              )}
                               {currentUser?.role === 'admin' && (
                                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-500 hover:text-red-600"
                                   title="Eliminar (solo Admin)"
@@ -558,17 +568,19 @@ export const Dashboard = () => {
       </main>
 
       {/* Dashboard Action Modals */}
-      <Dialog open={dashDocOpen} onOpenChange={setDashDocOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><MessageSquare size={20} className="text-blue-600" /> Documentar Gestion</DialogTitle></DialogHeader>
-          {dashDocContact && <p className="text-sm text-slate-500">Contacto: <strong>{dashDocContact.legal_name}</strong></p>}
-          <Textarea placeholder="Describa la gestion realizada..." value={dashDocComment} onChange={(e) => setDashDocComment(e.target.value)} rows={4} data-testid="dash-doc-comment" />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDashDocOpen(false)}>Cancelar</Button>
-            <Button onClick={handleDashDocument} className="bg-blue-600 hover:bg-blue-700" data-testid="dash-doc-submit">Guardar</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Bitácora unificada — paridad con InitialContacts.jsx */}
+      <BitacoraModal
+        open={dashBitacoraOpen}
+        onOpenChange={setDashBitacoraOpen}
+        entityId={dashBitacoraContact?.contact_id}
+        entityName={dashBitacoraContact?.legal_name || ''}
+        contacts={dashBitacoraContact ? [{
+          id: dashBitacoraContact.contact_id,
+          name: dashBitacoraContact.contact_name || '',
+          role: 'Contacto principal',
+        }] : []}
+        apiPrefix="initial-contacts"
+      />
 
       <Dialog open={dashAssignOpen} onOpenChange={setDashAssignOpen}>
         <DialogContent className="max-w-md">
@@ -670,39 +682,99 @@ export const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dashboard: Bitácora viewer */}
-      <Dialog open={dashBitacoraOpen} onOpenChange={setDashBitacoraOpen}>
-        <DialogContent className="max-w-lg" data-testid="dash-bitacora-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock size={18} className="text-slate-600" />
-              Bitácora del Contacto
-            </DialogTitle>
-          </DialogHeader>
-          {dashBitacoraContact && (
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
-                <p className="font-semibold">{dashBitacoraContact.legal_name}</p>
-                <p className="text-xs text-slate-500">{dashBitacoraContact.contact_name}</p>
-              </div>
-              {(dashBitacoraContact.bitacora || []).length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">Sin entradas en bitácora aún.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {(dashBitacoraContact.bitacora || []).slice().reverse().map((b, idx) => (
-                    <li key={b.entry_id || idx} className="border-l-2 border-indigo-300 pl-3 py-1">
-                      <p className="text-xs text-slate-500">
-                        {b.timestamp ? new Date(b.timestamp).toLocaleString('es-VE') : ''} · <span className="font-medium text-slate-700">{b.user_name || 'Sistema'}</span>
-                      </p>
-                      <p className="text-sm text-slate-800">{b.description || b.action || ''}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Cerrar Gestión desde Dashboard (todos los usuarios) */}
+      <AlertDialog open={dashCloseOpen} onOpenChange={setDashCloseOpen}>
+        <AlertDialogContent data-testid="dash-close-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-blue-700 flex items-center gap-2">
+              <XCircle size={18} /> Cerrar Gestión
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El contacto <strong>{dashCloseContact?.legal_name}</strong> quedará marcado como GESTIONADO (fondo azul) y dejará de aparecer en la bandeja activa. La acción queda registrada en la bitácora.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 my-3">
+            <Label className="text-xs">Motivo del cierre (obligatorio)</Label>
+            <Textarea
+              value={dashCloseReason}
+              onChange={(e) => setDashCloseReason(e.target.value)}
+              placeholder="Ej: Cliente no interesado / Recursos suspendidos / Duplicado..."
+              rows={3}
+              data-testid="dash-close-reason-input"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={dashClosing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={dashClosing || !dashCloseReason.trim()}
+              onClick={async () => {
+                setDashClosing(true);
+                try {
+                  await api.post(`/initial-contacts/${dashCloseContact.contact_id}/close`, { reason: dashCloseReason.trim() });
+                  toast.success('Gestión cerrada');
+                  setDashCloseOpen(false);
+                  setDashCloseContact(null);
+                  setDashCloseReason('');
+                  fetchDashboardData();
+                } catch (e) {
+                  toast.error(e.response?.data?.detail || 'Error al cerrar gestión');
+                } finally { setDashClosing(false); }
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+              data-testid="dash-close-confirm-btn"
+            >
+              {dashClosing ? 'Cerrando...' : 'Cerrar Gestión'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reabrir Gestión desde Dashboard (todos los usuarios) */}
+      <AlertDialog open={dashReopenOpen} onOpenChange={setDashReopenOpen}>
+        <AlertDialogContent data-testid="dash-reopen-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-emerald-700 flex items-center gap-2">
+              <RotateCcw size={18} /> Reabrir Gestión
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              El contacto <strong>{dashReopenContact?.legal_name}</strong> volverá al estado <span className="font-semibold text-emerald-700">ACTIVO</span>. Se registrará automáticamente en la bitácora.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 my-3">
+            <Label className="text-xs">Motivo de reapertura (opcional)</Label>
+            <Textarea
+              value={dashReopenReason}
+              onChange={(e) => setDashReopenReason(e.target.value)}
+              placeholder="Ej: Cliente retomó interés / Negociación reactivada..."
+              rows={3}
+              data-testid="dash-reopen-reason-input"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={dashReopening}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={dashReopening}
+              onClick={async () => {
+                setDashReopening(true);
+                try {
+                  await api.post(`/initial-contacts/${dashReopenContact.contact_id}/reopen`, { reason: dashReopenReason.trim() });
+                  toast.success('Gestión reabierta');
+                  setDashReopenOpen(false);
+                  setDashReopenContact(null);
+                  setDashReopenReason('');
+                  fetchDashboardData();
+                } catch (e) {
+                  toast.error(e.response?.data?.detail || 'Error al reabrir gestión');
+                } finally { setDashReopening(false); }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              data-testid="dash-reopen-confirm-btn"
+            >
+              {dashReopening ? 'Reabriendo...' : 'Reabrir Gestión'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dashboard: Delete confirmation (admin only) */}
       <AlertDialog open={!!dashDeleteContact} onOpenChange={(o) => !o && setDashDeleteContact(null)}>

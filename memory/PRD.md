@@ -5,6 +5,31 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Contacto Inicial — Homologación Dashboard + Cierre/Reapertura democratizados (Feb 2026) — NUEVO
+
+**Objetivo**: Paridad funcional entre la pantalla maestra de Contacto Inicial y el Dashboard, y democratización de las acciones de cierre/reapertura (antes admin-only).
+
+**Cambios Backend** (`/app/backend/routes/initial_contacts.py`):
+- `POST /api/initial-contacts/{id}/close`: **removida la restricción `admin-only`**. Disponible para todos los usuarios autenticados con acceso al módulo. El cierre genera entrada automática en `initial_contact_logs` con `origin: "initial_contact_closure"`, timestamp, autor y motivo.
+- `POST /api/initial-contacts/{id}/reopen`: **removida la restricción `admin-only`** + se agregó payload opcional `{reason}` + log automático con `origin: "initial_contact_reopen"`.
+
+**Cambios Frontend — Dashboard** (`/app/frontend/src/pages/Dashboard.jsx`):
+- Eliminados los botones **"Documentar"** (MessageSquare) y **"Ver Bitácora"** (Clock) de la tabla de compromisos.
+- Eliminados los dialogs `dashDocOpen` (formulario simple) y `dashBitacoraOpen` (viewer de array legacy).
+- Reemplazados por **un solo botón** (icono BookOpen) que abre el `BitacoraModal` unificado con `apiPrefix="initial-contacts"` (paridad total con la pantalla principal: alta de gestiones, fecha de seguimiento, persona contactada, marcar completado).
+- Nuevos botones **Cerrar Gestión** (XCircle, azul) y **Reabrir Gestión** (RotateCcw, esmeralda) con AlertDialogs para confirmar y capturar motivo.
+- Fila de contacto cerrado se renderiza con fondo `bg-blue-50 hover:bg-blue-100` para señalizar visualmente el estado.
+
+**Cambios Frontend — InitialContacts** (`/app/frontend/src/pages/InitialContacts.jsx`):
+- Botón **Cerrar Gestión** ya no está gateado por `isAdmin` — disponible para todos los usuarios.
+- Nuevo botón **Reabrir Gestión** + AlertDialog con motivo opcional.
+- Lógica condicional: si `c.status === 'closed'` se muestra Reabrir; si activo, Cerrar.
+
+**Validación E2E con curl** (usuario `srubio@megasoft.com.ve` NO-admin):
+- ✅ Cierre: status 200 + entrada en bitácora `[CIERRE DE GESTIÓN]`.
+- ✅ Reapertura: status 200 + entrada en bitácora `[REAPERTURA DE GESTIÓN]`.
+- ✅ Ambos logs muestran al autor real (Sergio Rubio) y origin distintivo.
+
 ### Proyectos — Tooltip de Nombre de Fantasía (Feb 2026) — NUEVO
 
 **Objetivo**: Replicar la UX de Cotizaciones en la pantalla de Proyectos para ver rápidamente el Nombre de Fantasía del cliente al pasar el mouse sobre la Razón Social.
