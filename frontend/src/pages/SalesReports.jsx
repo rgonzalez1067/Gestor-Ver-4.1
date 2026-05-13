@@ -298,7 +298,7 @@ const SalesReports = () => {
                         <XAxis type="number" stroke="#64748b" />
                         <YAxis type="category" dataKey="stage" stroke="#64748b" width={90} />
                         <Tooltip
-                          formatter={(val, name) => name === 'count' ? [val, '# Cotizaciones'] : [fmtUSD(val), 'Monto USD']}
+                          formatter={(val) => [val, '# Cotizaciones']}
                           contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}
                         />
                         <Legend />

@@ -655,7 +655,13 @@ export const Quotes = () => {
         api.get('/pg-defaults').catch(() => ({ data: null }))
       ]);
       setQuotes(quotesRes.data);
-      setClients(clientsRes.data);
+      // Ordenar clientes alfabéticamente por fantasy_name (con fallback legal_name) para mejorar la búsqueda en el menú
+      const sortedClients = [...(clientsRes.data || [])].sort((a, b) => {
+        const an = (a.fantasy_name || a.legal_name || '').toLowerCase();
+        const bn = (b.fantasy_name || b.legal_name || '').toLowerCase();
+        return an.localeCompare(bn, 'es', { sensitivity: 'base' });
+      });
+      setClients(sortedClients);
       setBanks(banksRes.data);
       setServiceCatalog(servicesRes.data);
       setIntegrators(integratorsRes.data);

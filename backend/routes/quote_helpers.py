@@ -144,3 +144,92 @@ async def mark_quote_irregular(quote_id: str, action: str, reason: str, regulari
             )
     except Exception:
         pass
+
+
+# Mapeo acción → estado que la acción produce (estado al que SE LLEGA al ejecutarla).
+# Usado para auto-regularización: si la cotización ya alcanzó (en cualquier momento)
+# el estado producido por cada acción excepcional, se considera regularizada.
+ACTION_RESULT_STATUS = {
+    'approve': 'Aprobada',
+    'invoice': 'Facturada',
+    'collect': 'Pagada',
+    'deliver': 'Entregada',
+    'send_implementation': 'Enviada a Imple',
+}
+
+
+async def try_auto_regularize_quote(quote_id: str) -> bool:
+    """
+    Verifica si una cotización irregular ya completó (avanzó por) todos los
+    estados que originalmente "se saltó". Si sí, desmarca `is_irregular`.
+
+    Criterio (sin saltos):
+      Para cada `irregular_exception` con `action` en ACTION_RESULT_STATUS,
+      el `quote_status` actual debe estar en una posición >= a la del
+      estado producido por esa acción Y los estados intermedios entre el
+      estado actual y 'Borrador' deben estar presentes en `status_history`
+      (es decir, el stepper completó cada paso intermedio).
+
+    Devuelve True si la cotización fue regularizada en esta llamada.
+    """
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote or not quote.get("is_irregular"):
+        return False
+
+    current_status = quote.get("quote_status", "Borrador")
+    current_idx = get_status_index(current_status)
+    if current_idx <= 0:
+        return False  # 'Borrador' o desconocido
+
+    exceptions = quote.get("irregular_exceptions") or []
+    # Excepciones activas (excluyendo markers de auto-regularización previa)
+    active_excs = [
+        e for e in exceptions
+        if isinstance(e, dict) and not e.get("is_regularization_marker")
+    ]
+    if not active_excs:
+        return False
+
+    # 1) Toda excepción debe tener su estado-resultado <= current_status
+    for exc in active_excs:
+        action = exc.get("action")
+        result_status = ACTION_RESULT_STATUS.get(action)
+        if not result_status:
+            continue
+        result_idx = get_status_index(result_status)
+        if result_idx > current_idx:
+            return False  # aún no se ha llegado al estado de esa acción
+
+    # 2) Verificar stepper sin saltos: todos los estados intermedios deben
+    # aparecer en status_history (al menos uno con cada status).
+    history = quote.get("status_history") or []
+    visited = {h.get("status") for h in history if isinstance(h, dict) and h.get("status")}
+    visited.add(current_status)
+    # Estados requeridos: STATUS_ORDER[1..current_idx] (sin Borrador)
+    required = STATUS_ORDER[1:current_idx + 1]
+    missing = [s for s in required if s not in visited]
+    if missing:
+        return False
+
+    # Todos los criterios cumplidos → auto-regularizar
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.quotes.update_one(
+        {"quote_id": quote_id},
+        {
+            "$set": {
+                "is_irregular": False,
+                "regularized_at": now_iso,
+                "regularized_auto": True,
+            },
+            "$push": {
+                "irregular_exceptions": {
+                    "action": "_auto_regularize",
+                    "reason": "Stepper completo sin saltos — regularización automática",
+                    "regularization_date": now_iso[:10],
+                    "created_at": now_iso,
+                    "is_regularization_marker": True,
+                }
+            },
+        },
+    )
+    return True

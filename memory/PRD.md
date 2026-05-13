@@ -5,6 +5,29 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Ajustes Menores — UX Cotizaciones, Embudo, Auto-Regularización (Feb 2026) — NUEVO
+
+**4 ajustes solicitados y aplicados:**
+
+**1. Botón retorno en Configuración de Acciones de Cotizaciones**:
+- En `ActionNotificationsConfig.jsx` se añadió un botón **"← Configuración"** en la parte superior, mismo patrón que `NotificationConfig.jsx` y `EmailFooterConfig.jsx`. Usa `useNavigate('/settings')`. `data-testid="anc-back-btn"`.
+
+**2. Reporte Embudo de Ventas — Tooltip muestra cantidades, no montos**:
+- Bug: el `formatter` del `Tooltip` en `SalesReports.jsx` comparaba contra `name === 'count'`, pero el `name` del Bar era literal `"# Cotizaciones"`, por lo que siempre caía al `else` y mostraba `[fmtUSD(val), 'Monto USD']`.
+- Fix: simplificado a `formatter={(val) => [val, '# Cotizaciones']}` ya que la barra única solo grafica cantidad.
+
+**3. Lista de clientes en menú de cotizaciones — orden alfabético**:
+- En `Quotes.jsx` el setter `setClients(clientsRes.data)` ahora ordena alfabéticamente por `fantasy_name || legal_name` usando `localeCompare('es', { sensitivity: 'base' })` antes de setear. Esto afecta a todos los dropdowns y listas que consumen `clients` en la pantalla.
+
+**4. Auto-regularización de cotizaciones irregulares (cuando stepper queda completo sin saltos)**:
+- Nueva función `try_auto_regularize_quote(quote_id)` en `/app/backend/routes/quote_helpers.py`. Criterio: para cada `irregular_exception` activa, el `quote_status` actual debe estar `>=` al estado producido por su `action` (mapa `ACTION_RESULT_STATUS`) Y todos los estados intermedios (`STATUS_ORDER[1..idx]`) deben aparecer en `status_history` (sin saltos).
+- Si se cumplen ambos criterios → desmarca `is_irregular`, persiste `regularized_at` + `regularized_auto: True` y agrega un marker en `irregular_exceptions` para auditoría.
+- Hook integrado en `update_quote_status` (endpoint genérico `PUT /api/quotes/{id}/status`) que ahora también pushea a `status_history`. También se invoca después de cada push a `status_history` en las acciones específicas (`collect` legacy + motor dinámico).
+- Validado E2E con script Python:
+  - Stepper con salto (falta "Enviada" en history) → NO regulariza.
+  - Después de completar el paso "Enviada" → SÍ regulariza, `is_irregular: False`, `regularized_auto: True`.
+  - Idempotente (llamadas subsecuentes no re-procesan).
+
 ### Contacto Inicial — Fix Sede TBP + Reset SLA al Reabrir (Feb 2026) — NUEVO
 
 **Problemas resueltos**:

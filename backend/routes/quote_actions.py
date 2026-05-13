@@ -177,10 +177,31 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
     if status_update.new_status in timestamp_map:
         update_fields[timestamp_map[status_update.new_status]] = datetime.now(timezone.utc).isoformat()
 
+    # Registrar la transición en status_history (necesario para auto-regularización)
+    current_user_doc = await get_current_user(authorization)
+    user_label = f"{current_user_doc.get('first_name', '')} {current_user_doc.get('last_name', '')}".strip() or current_user_doc.get('email', 'Sistema')
     await db.quotes.update_one(
         {"quote_id": quote_id},
-        {"$set": update_fields}
+        {
+            "$set": update_fields,
+            "$push": {"status_history": {
+                "status": status_update.new_status,
+                "action": "update_status",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user": user_label,
+            }},
+        }
     )
+
+    # Si la cotización estaba marcada irregular, verificar si ya completó
+    # todos los pasos del stepper para desmarcarla automáticamente.
+    try:
+        from routes.quote_helpers import try_auto_regularize_quote
+        was_regularized = await try_auto_regularize_quote(quote_id)
+        if was_regularized:
+            logger.info(f"[quotes] {quote_id} auto-regularizada al alcanzar {status_update.new_status}")
+    except Exception as e:
+        logger.warning(f"[quotes] No se pudo verificar auto-regularización de {quote_id}: {e}")
 
     # === TRIGGER: Archivar en Histórico ANTES de crear proyecto (que borra la cotización) ===
     if status_update.new_status == "Enviada a Imple":
@@ -1451,6 +1472,12 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
                 "user": user_name_audit,
             }}}
         )
+        # Auto-regularización tras pushear nuevo status
+        try:
+            from routes.quote_helpers import try_auto_regularize_quote
+            await try_auto_regularize_quote(quote_id)
+        except Exception:
+            pass
         await _push_quote_event(
             "quote_collected", quote,
             title=f"Cotización {quote.get('quote_number','')} cobrada/pagada",
@@ -1634,6 +1661,12 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             "user": user_name_audit
         }}}
     )
+    # Auto-regularización tras pushear nuevo status
+    try:
+        from routes.quote_helpers import try_auto_regularize_quote
+        await try_auto_regularize_quote(quote_id)
+    except Exception:
+        pass
     
     # Push notification (evento #4 Cotización pagada/cobrada)
     await _push_quote_event(

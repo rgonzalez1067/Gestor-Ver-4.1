@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw, Edit2, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Save, ShieldCheck, Loader2, AlertCircle, Sparkles, Activity, RefreshCw, Edit2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
@@ -318,6 +319,7 @@ function BusinessTypeAccordion({ business, subCategories, actions, allowedMap, c
 }
 
 export default function ActionNotificationsConfig() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState(null);
   const [configs, setConfigs] = useState({});
@@ -374,6 +376,13 @@ export default function ActionNotificationsConfig() {
 
   return (
     <div className="max-w-6xl mx-auto p-6" data-testid="action-notifications-page">
+      <div className="flex items-center gap-3 mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/settings')} data-testid="anc-back-btn">
+          <ArrowLeft size={18} className="mr-1" />
+          Configuración
+        </Button>
+      </div>
+
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
