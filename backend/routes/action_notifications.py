@@ -40,6 +40,7 @@ PRODUCT_SUBCATEGORIES = [
     {"id": "mpos_tablet", "label": "MPOS Tablet"},
     {"id": "mpos_imple_pos", "label": "MPOS Imple+POS"},
     {"id": "payment_gateway", "label": "Payment Gateway"},
+    {"id": "link_pago", "label": "Link de Pago"},
 ]
 
 # Acciones disponibles. Cada acción tiene un id estable + label + lista de PDFs
@@ -80,6 +81,9 @@ ALLOWED_ACTIONS_BY_BIZ_SUB = {
     ("implementacion_pyme", "payment_gateway"): [
         "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
     ],
+    ("implementacion_pyme", "link_pago"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
     ("implementacion_pyme", "mpos_imple_pos"): [
         "send_to_client", "approve", "preassign_serials", "configure",
         "invoice", "collect", "deliver", "send_to_implementation",
@@ -91,6 +95,9 @@ ALLOWED_ACTIONS_BY_BIZ_SUB = {
         "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
     ],
     ("implementacion_corp", "payment_gateway"): [
+        "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
+    ],
+    ("implementacion_corp", "link_pago"): [
         "send_to_client", "approve", "invoice", "collect", "send_to_implementation",
     ],
     ("implementacion_corp", "mpos_imple_pos"): [

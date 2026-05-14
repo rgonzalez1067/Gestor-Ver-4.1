@@ -1,0 +1,33 @@
+{
+  "summary": "Iteración 3: Validación E2E completa de (a) Link de Pago integrado al motor dinámico de notificaciones (catálogo + PUT configs Pyme y Corp), (b) Reporte de Embudo con delivered_breakdown segmentado en 3 líneas (implementaciones/equipos/reparaciones), (c) endpoint admin POST /api/reports/sales/funnel/recalculate con bloqueo 403 para no-admins, (d) UI de SalesReports con barra segmentada + 3 leyendas y tarjeta FunnelRecalculateCard en /settings. Backend pytest 7/7 PASS (test_iteration3_funnel_linkpago.py). Frontend Playwright: navegación /reports/sales muestra tarjeta 'Cierre por línea de negocio (Entregadas / Pasaron al Histórico)' con barra segmentada y 3 leyendas con data-testids correctos (Equipos=4 $11.611,60; Reparaciones=8 $2.234,16; Implementaciones=0 $0,00). En /settings/action-notifications 'Link de Pago' aparece como sub-categoría tanto en 'Implementaciones Pyme' (6 acción(es), 1/6 configuradas) como en 'Implementaciones Corp'. En /settings la tarjeta 'Refresco del Reporte de Embudo' es visible con botón 'Ejecutar refresco' (data-testid funnel-recalculate-card / funnel-recalculate-run-btn); el click disparó POST /api/reports/sales/funnel/recalculate y devolvió 200 (no admin = 403 confirmado vía pytest).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes table / SalesReports (pre-existente)", "issues": ["Hydration warnings React: <span> dentro de <tr>/<tbody> debido a instrumentación x-ve-dynamic. Reportado en iteraciones previas, no rompe funcionalidad."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3_funnel_linkpago.py",
+    "/app/test_reports/pytest/iter3_funnel_linkpago.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existente: /app/backend/routes/quotes.py (>2200 lineas) y /app/frontend/src/pages/SalesReports.jsx ya rozan los 700+ lineas. Considerar split modular cuando se agreguen mas features.",
+    "Pre-existente (iter2): /api/quotes ignora query param quote_type (filtrado server-side ausente). No bloqueante para esta iteración pero queda pendiente."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3_funnel_linkpago.py (creado)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (9 validaciones UI OK)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) y srubio@megasoft.com.ve / Test1234! (no-admin) desde /app/memory/test_credentials.md",
+  "seed_data_creation": "Se persistieron 2 configs de notificaciones (Pyme link_pago/send_to_client y Corp link_pago/approve) via PUT /api/action-notifications/configs. Si requiere limpieza eliminar por business_type+product_subcategory+action_id. El POST /api/reports/sales/funnel/recalculate actualizó timestamps históricos del dataset existente (scanned=100, updated=0/9 en runs sucesivos).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Todos los criterios de la review_request (1-9) verificados PASS. delivered_breakdown actual del entorno: implementaciones={count:0, amount_usd:0}, equipos={count:4, amount_usd:11611.60}, reparaciones={count:8, amount_usd:2234.16}; stage 'Entregada' = 12 cotizaciones ($13.845,76) que coincide con la suma. Endpoint catalog: /api/action-notifications/catalog responde con product_subcategories incluyendo {id:'link_pago', label:'Link de Pago'} y allowed_actions_by_biz_sub conteniendo las claves 'implementacion_pyme|link_pago' y 'implementacion_corp|link_pago' con las 5+ acciones legacy. Tarjeta UI de refresco visible en /settings con 'Solo Admin · No sobrescribe datos existentes' y muestra 'Último refresco: 100 cotizaciones revisadas, 0 actualizadas, 0 timestamps añadidos' luego del click. Auto-accept de native dialog funciona correctamente.",
+  "rca_of_the_issue": "N/A - sin bugs. Implementación completa y funcional end-to-end."
+}

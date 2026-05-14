@@ -65,18 +65,76 @@ async def funnel_report(
     authorization: Optional[str] = Header(None),
 ):
     """Conteo y monto agregado por etapa del flujo (cumulativo histórico).
-    Una cotización aporta a cada etapa por la que pasó (timestamp != null)."""
+    Una cotización aporta a cada etapa por la que pasó (timestamp != null).
+
+    El estado "Entregada" cuenta TODAS las cotizaciones que culminaron su flujo
+    y pasaron al Histórico, segmentadas por categoría:
+      - Implementaciones (VPOS/MPOS/FT/GATEWAY/LINK_PAGO archivadas a Proyecto
+        o con delivered_at fijo).
+      - Equipos (delivered_at fijo, categoría equipment).
+      - Reparaciones (delivered_at fijo, categoría repair).
+    El conteo de la etapa "Entregada" en `stages` refleja el agregado de los 3
+    segmentos. Adicionalmente se expone `delivered_breakdown` con el detalle.
+    """
     await get_current_user(authorization)
     match = _build_match(date_from, date_to, segment, category)
 
     quotes = await db.quotes.find(match, {
         "_id": 0, "quote_id": 1, "total_usd": 1, "quote_status": 1,
+        "quote_category": 1, "archived": 1, "archived_trigger": 1,
         "sent_to_client_at": 1, "approved_at": 1,
         "invoiced_at": 1, "paid_at": 1, "delivered_at": 1,
+        "sent_to_implementation_at": 1,
     }).to_list(None)
+
+    # Helper: una cotización "culminó" su flujo si:
+    #  - Es implementación/FT y fue archivada (Enviada a Imple → Proyecto) o tiene delivered_at, o
+    #  - Es equipo/reparación con delivered_at fijo.
+    def _is_completed(q: dict) -> bool:
+        cat = (q.get("quote_category") or "").lower()
+        if cat in ("implementation", "fast_track"):
+            return bool(q.get("delivered_at") or q.get("sent_to_implementation_at") or q.get("archived"))
+        return bool(q.get("delivered_at"))
+
+    def _segment_of(q: dict) -> Optional[str]:
+        cat = (q.get("quote_category") or "").lower()
+        if cat in ("implementation", "fast_track"):
+            return "implementaciones"
+        if cat == "equipment":
+            return "equipos"
+        if cat == "repair":
+            return "reparaciones"
+        return None
+
+    # Construir breakdown de Entregada por segmento
+    delivered_breakdown = {
+        "implementaciones": {"count": 0, "amount_usd": 0.0},
+        "equipos": {"count": 0, "amount_usd": 0.0},
+        "reparaciones": {"count": 0, "amount_usd": 0.0},
+    }
+    for q in quotes:
+        if not _is_completed(q):
+            continue
+        seg = _segment_of(q)
+        if not seg:
+            continue
+        delivered_breakdown[seg]["count"] += 1
+        delivered_breakdown[seg]["amount_usd"] += float(q.get("total_usd") or 0)
+    for seg in delivered_breakdown.values():
+        seg["amount_usd"] = round(seg["amount_usd"], 2)
+
+    delivered_total = sum(s["count"] for s in delivered_breakdown.values())
+    delivered_amount = round(sum(s["amount_usd"] for s in delivered_breakdown.values()), 2)
 
     stages = []
     for stage_name, ts_field in FUNNEL_STAGES:
+        if stage_name == "Entregada":
+            stages.append({
+                "stage": stage_name,
+                "count": delivered_total,
+                "amount_usd": delivered_amount,
+            })
+            continue
         count = sum(1 for q in quotes if q.get(ts_field))
         amount = sum(float(q.get("total_usd") or 0) for q in quotes if q.get(ts_field))
         stages.append({
@@ -87,15 +145,88 @@ async def funnel_report(
 
     sent = stages[0]["count"] or 0
     paid = next((s["count"] for s in stages if s["stage"] == "Pagada"), 0)
-    delivered = next((s["count"] for s in stages if s["stage"] == "Entregada"), 0)
+    delivered = delivered_total
     return {
         "stages": stages,
+        "delivered_breakdown": delivered_breakdown,
         "totals": {
             "quotes_total": len(quotes),
             "amount_total_usd": round(sum(float(q.get("total_usd") or 0) for q in quotes), 2),
             "conversion_sent_to_paid": round((paid / sent * 100), 2) if sent else 0,
             "conversion_sent_to_delivered": round((delivered / sent * 100), 2) if sent else 0,
         },
+    }
+
+
+@router.post("/reports/sales/funnel/recalculate")
+async def funnel_recalculate(authorization: Optional[str] = Header(None)):
+    """[Admin] Refresco histórico del Reporte de Embudo.
+
+    Backfilla timestamps faltantes a partir de:
+      - `status_history` (entradas con `to_status` mapeado a una etapa).
+      - `archived_at` cuando la cotización fue archivada con trigger
+        `status_enviada_imple` → se usa como `sent_to_implementation_at`.
+
+    No sobrescribe timestamps existentes. Devuelve resumen por cotización.
+    """
+    user = await get_current_user(authorization)
+    if (user.get("role") or "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Solo admin puede ejecutar el refresco")
+
+    status_to_ts = {
+        "Enviada": "sent_to_client_at",
+        "Emitida": "sent_to_client_at",
+        "Aprobada": "approved_at",
+        "Facturada": "invoiced_at",
+        "Pagada": "paid_at",
+        "Entregada": "delivered_at",
+        "Enviada a Imple": "sent_to_implementation_at",
+    }
+
+    cursor = db.quotes.find({}, {
+        "_id": 0, "quote_id": 1, "status_history": 1, "archived": 1,
+        "archived_at": 1, "archived_trigger": 1,
+        "sent_to_client_at": 1, "approved_at": 1, "invoiced_at": 1,
+        "paid_at": 1, "delivered_at": 1, "sent_to_implementation_at": 1,
+    })
+    scanned, updated, fields_added = 0, 0, 0
+    async for q in cursor:
+        scanned += 1
+        updates: dict = {}
+        # Backfill desde status_history
+        for entry in (q.get("status_history") or []):
+            to_status = entry.get("to_status") or entry.get("new_status") or entry.get("status")
+            ts = entry.get("at") or entry.get("timestamp") or entry.get("changed_at")
+            field = status_to_ts.get(to_status)
+            if not (field and ts):
+                continue
+            if not q.get(field) and field not in updates:
+                updates[field] = ts
+        # Backfill desde archived_at cuando trigger = sent_to_implementation
+        if q.get("archived") and q.get("archived_trigger") == "status_enviada_imple":
+            if not q.get("sent_to_implementation_at") and "sent_to_implementation_at" not in updates:
+                if q.get("archived_at"):
+                    updates["sent_to_implementation_at"] = q["archived_at"]
+        if updates:
+            await db.quotes.update_one(
+                {"quote_id": q["quote_id"]},
+                {"$set": updates}
+            )
+            updated += 1
+            fields_added += len(updates)
+
+    # Bitácora
+    await db.bitacora.insert_one({
+        "action": "funnel_recalculate",
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+        "scanned": scanned, "updated": updated, "fields_added": fields_added,
+    })
+    return {
+        "message": "Refresco completado",
+        "scanned": scanned,
+        "updated": updated,
+        "fields_added": fields_added,
     }
 
 

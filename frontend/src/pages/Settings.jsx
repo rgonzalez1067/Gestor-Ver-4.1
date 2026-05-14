@@ -664,6 +664,9 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Refresco del Reporte de Embudo (Admin) */}
+          <FunnelRecalculateCard />
+
           {/* Plantillas de Correo Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
             <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
@@ -762,3 +765,67 @@ export const Settings = () => {
 };
 
 export default Settings;
+
+// ========================================================================
+// FunnelRecalculateCard — Herramienta admin para refrescar timestamps del
+// Reporte de Embudo a partir de status_history / archived_at.
+// ========================================================================
+function FunnelRecalculateCard() {
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  const handleRun = async () => {
+    if (!window.confirm('¿Refrescar la información del Reporte de Embudo? Este proceso recalcula timestamps históricos a partir del historial de estados. No sobrescribe datos existentes.')) return;
+    setRunning(true);
+    try {
+      const { data } = await api.post('/reports/sales/funnel/recalculate');
+      setLastResult(data);
+      toast.success(`Refresco completado: ${data.updated}/${data.scanned} cotizaciones actualizadas (${data.fields_added} timestamps)`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Error al ejecutar el refresco');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg border-2 border-amber-200 p-6 mb-6" data-testid="funnel-recalculate-card">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <RefreshCw size={24} className="text-amber-600 flex-shrink-0" />
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+              Refresco del Reporte de Embudo
+            </h2>
+            <p className="text-sm text-slate-600 max-w-2xl">
+              Herramienta administrativa para reconstruir los timestamps históricos del
+              Reporte de Embudo (Enviada / Aprobada / Facturada / Pagada / Entregada) a
+              partir del historial de estados y archivado. Útil tras un deploy o
+              corrección de fechas hacia atrás.
+            </p>
+            <Badge variant="secondary" className="bg-amber-100 text-amber-800 mt-2 text-xs">
+              Solo Admin · No sobrescribe datos existentes
+            </Badge>
+            {lastResult && (
+              <p className="text-xs text-slate-600 mt-2" data-testid="funnel-recalculate-last-result">
+                Último refresco: <strong>{lastResult.scanned}</strong> cotizaciones revisadas,
+                <strong> {lastResult.updated}</strong> actualizadas,
+                <strong> {lastResult.fields_added}</strong> timestamps añadidos.
+              </p>
+            )}
+          </div>
+        </div>
+        <Button
+          onClick={handleRun}
+          disabled={running}
+          variant="outline"
+          className="flex-shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
+          data-testid="funnel-recalculate-run-btn"
+        >
+          {running ? 'Procesando...' : 'Ejecutar refresco'}
+          <RefreshCw size={16} className={`ml-2 ${running ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+    </div>
+  );
+}

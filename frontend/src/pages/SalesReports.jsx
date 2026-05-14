@@ -27,6 +27,17 @@ const FUNNEL_COLORS = {
   Entregada: '#10b981',
 };
 
+const DELIVERED_SEGMENT_COLORS = {
+  implementaciones: '#3b82f6', // azul
+  equipos: '#f97316',          // naranja
+  reparaciones: '#ef4444',     // rojo
+};
+const DELIVERED_SEGMENT_LABELS = {
+  implementaciones: 'Implementaciones',
+  equipos: 'Equipos',
+  reparaciones: 'Reparaciones',
+};
+
 const BUCKET_COLORS = { '0-7': '#22c55e', '8-15': '#f59e0b', '16-30': '#f97316', '>30': '#ef4444' };
 
 const exportCSV = (rows, filename) => {
@@ -306,6 +317,68 @@ const SalesReports = () => {
                       </BarChart>
                     </ResponsiveContainer>
                   </Card>
+
+                  {funnelData.delivered_breakdown && (
+                    <Card className="p-5 border-emerald-200 mb-4" data-testid="delivered-breakdown-card">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            Cierre por línea de negocio (Entregadas / Pasaron al Histórico)
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Total: <strong>{funnelData.stages.find(s => s.stage === 'Entregada')?.count || 0}</strong> cotizaciones · <strong>{fmtUSD(funnelData.stages.find(s => s.stage === 'Entregada')?.amount_usd || 0)}</strong>
+                          </p>
+                        </div>
+                      </div>
+                      {(() => {
+                        const bd = funnelData.delivered_breakdown;
+                        const total = (bd.implementaciones?.count || 0) + (bd.equipos?.count || 0) + (bd.reparaciones?.count || 0);
+                        const segs = ['implementaciones', 'equipos', 'reparaciones'];
+                        return (
+                          <>
+                            <div className="flex w-full h-9 rounded-md overflow-hidden border border-slate-200 bg-slate-50" data-testid="delivered-segmented-bar">
+                              {total === 0 ? (
+                                <div className="flex-1 flex items-center justify-center text-xs text-slate-400">Sin cotizaciones culminadas en el rango</div>
+                              ) : (
+                                segs.map((key) => {
+                                  const seg = bd[key] || { count: 0, amount_usd: 0 };
+                                  const pct = total > 0 ? (seg.count / total) * 100 : 0;
+                                  if (pct === 0) return null;
+                                  return (
+                                    <div
+                                      key={key}
+                                      data-testid={`delivered-seg-${key}`}
+                                      title={`${DELIVERED_SEGMENT_LABELS[key]}: ${seg.count} · ${fmtUSD(seg.amount_usd)}`}
+                                      style={{ width: `${pct}%`, backgroundColor: DELIVERED_SEGMENT_COLORS[key] }}
+                                      className="flex items-center justify-center text-white text-[11px] font-semibold transition hover:opacity-90 cursor-default"
+                                    >
+                                      {pct >= 6 ? `${seg.count}` : ''}
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                              {segs.map((key) => {
+                                const seg = bd[key] || { count: 0, amount_usd: 0 };
+                                return (
+                                  <div key={key} className="flex items-center gap-2 p-2 rounded-md border border-slate-200 bg-white" data-testid={`delivered-legend-${key}`}>
+                                    <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: DELIVERED_SEGMENT_COLORS[key] }} />
+                                    <div className="flex-1">
+                                      <p className="text-[11px] uppercase tracking-wide text-slate-500">{DELIVERED_SEGMENT_LABELS[key]}</p>
+                                      <p className="text-sm font-semibold text-slate-900">
+                                        {seg.count} <span className="text-[11px] font-normal text-slate-500">({fmtUSD(seg.amount_usd)})</span>
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </Card>
+                  )}
 
                   <Card className="p-5 border-slate-200">
                     <p className="text-sm font-semibold text-slate-800 mb-3">Detalle por etapa</p>

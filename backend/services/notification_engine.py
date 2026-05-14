@@ -52,7 +52,9 @@ def _quote_to_biz_sub(quote: dict) -> tuple[Optional[str], Optional[str]]:
 
     qtype = (quote.get("quote_type") or "").upper()
     sub_quote_type = (quote.get("sub_quote_type") or "").upper()
-    if qtype == "GATEWAY" or "GATEWAY" in qtype:
+    if qtype in ("LINK_PAGO", "LINK"):
+        sub = "link_pago"
+    elif qtype == "GATEWAY" or "GATEWAY" in qtype:
         sub = "payment_gateway"
     elif qtype == "VPOS":
         sub = "vpos"
