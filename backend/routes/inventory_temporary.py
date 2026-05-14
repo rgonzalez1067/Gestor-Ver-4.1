@@ -57,15 +57,23 @@ async def create_temporary_assignment(body: dict, authorization: Optional[str] =
     quantity = int(body.get("quantity") or 0)
     serials: List[str] = body.get("serials") or []
     responsible_user_id = body.get("responsible_user_id")
+    responsible_external_name = (body.get("responsible_external_name") or "").strip()
+    is_external = bool(body.get("is_external_responsible")) or responsible_user_id == "external"
     assigned_date = body.get("assigned_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     reason = (body.get("reason") or "").strip()
 
     if not warehouse_id or not item_id or quantity <= 0:
         raise HTTPException(400, "warehouse_id, item_id y quantity > 0 son obligatorios")
-    if not responsible_user_id:
-        raise HTTPException(400, "Debe indicar el responsable")
+    if is_external:
+        if not responsible_external_name:
+            raise HTTPException(400, "Indique el nombre del responsable externo")
+    else:
+        if not responsible_user_id:
+            raise HTTPException(400, "Debe indicar el responsable")
     if not reason:
         raise HTTPException(400, "El motivo/descripción es obligatorio")
+    if len(reason) > 500:
+        raise HTTPException(400, "El motivo no puede exceder 500 caracteres")
 
     await validate_warehouse_jurisdiction(user, warehouse_id)
 
@@ -78,11 +86,18 @@ async def create_temporary_assignment(body: dict, authorization: Optional[str] =
         raise HTTPException(404, "Ítem no encontrado")
     requires_serial = is_serialized(item.get("type", ""))
 
-    responsible = await db.users.find_one({"user_id": responsible_user_id}, {"_id": 0})
-    if not responsible:
-        raise HTTPException(404, "Responsable no encontrado")
-    responsible_name = _user_display(responsible)
-    responsible_email = responsible.get("email", "")
+    responsible = None
+    responsible_name = ""
+    responsible_email = ""
+    if is_external:
+        responsible_name = responsible_external_name
+        responsible_email = ""
+    else:
+        responsible = await db.users.find_one({"user_id": responsible_user_id}, {"_id": 0})
+        if not responsible:
+            raise HTTPException(404, "Responsable no encontrado")
+        responsible_name = _user_display(responsible)
+        responsible_email = responsible.get("email", "")
 
     # Validar stock disponible (idéntico patrón a create_exit)
     stock = await _get_item_stock(warehouse_id, item_id)
@@ -131,9 +146,10 @@ async def create_temporary_assignment(body: dict, authorization: Optional[str] =
         "warehouse_name": wh.get("name", ""),
         "quantity": quantity,
         "serials": serials if requires_serial else [],
-        "responsible_user_id": responsible_user_id,
+        "responsible_user_id": None if is_external else responsible_user_id,
         "responsible_name": responsible_name,
         "responsible_email": responsible_email,
+        "is_external_responsible": is_external,
         "assigned_date": assigned_date,
         "reason": reason,
         "status": "asignado",

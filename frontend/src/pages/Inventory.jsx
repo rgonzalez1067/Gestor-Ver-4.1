@@ -48,7 +48,8 @@ export default function Inventory() {
   const [tempDialog, setTempDialog] = useState(false);
   const [tempForm, setTempForm] = useState({
     item_id: '', quantity: 1, serials: [],
-    responsible_user_id: '', assigned_date: new Date().toISOString().slice(0, 10),
+    responsible_user_id: '', responsible_external_name: '', is_external_responsible: false,
+    assigned_date: new Date().toISOString().slice(0, 10),
     reason: '',
   });
   // Modal de devolución
@@ -683,7 +684,7 @@ export default function Inventory() {
                   <PackagePlus size={14} className="mr-1.5" />Entrada
                 </Button>}
                 {canEdit && <Button size="sm" onClick={() => {
-                  setTempForm({ item_id: '', quantity: 1, serials: [], responsible_user_id: '', assigned_date: new Date().toISOString().slice(0, 10), reason: '' });
+                  setTempForm({ item_id: '', quantity: 1, serials: [], responsible_user_id: '', responsible_external_name: '', is_external_responsible: false, assigned_date: new Date().toISOString().slice(0, 10), reason: '' });
                   setTempDialog(true);
                 }}
                   data-testid="btn-temp-assign" className="bg-amber-500 hover:bg-amber-600 text-white">
@@ -959,8 +960,15 @@ export default function Inventory() {
                             </td>
                             <td className="px-4 py-2.5 text-center font-semibold">{a.quantity}</td>
                             <td className="px-4 py-2.5">
-                              <div className="text-slate-700">{a.responsible_name}</div>
-                              <div className="text-[10px] text-slate-400">{a.responsible_email}</div>
+                              <div className="text-slate-700 flex items-center gap-1.5">
+                                {a.responsible_name}
+                                {a.is_external_responsible && (
+                                  <span className="text-[9px] font-semibold bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">
+                                    EXTERNO
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400">{a.responsible_email || (a.is_external_responsible ? 'Ver motivo para contacto' : '')}</div>
                             </td>
                             <td className="px-4 py-2.5 text-center text-xs">
                               <div>{a.assigned_date}</div>
@@ -1896,9 +1904,19 @@ export default function Inventory() {
               )}
               <div>
                 <Label className="text-xs">Responsable *</Label>
-                <Select value={tempForm.responsible_user_id} onValueChange={v => setTempForm(p => ({ ...p, responsible_user_id: v }))}>
+                <Select value={tempForm.is_external_responsible ? '__external__' : tempForm.responsible_user_id}
+                  onValueChange={v => {
+                    if (v === '__external__') {
+                      setTempForm(p => ({ ...p, is_external_responsible: true, responsible_user_id: '' }));
+                    } else {
+                      setTempForm(p => ({ ...p, is_external_responsible: false, responsible_user_id: v, responsible_external_name: '' }));
+                    }
+                  }}>
                   <SelectTrigger data-testid="temp-responsible-select"><SelectValue placeholder="Seleccione responsable..." /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__external__" className="text-amber-700 font-semibold">
+                      👤 Persona externa (integrador, contratista...)
+                    </SelectItem>
                     {users.filter(u => u.is_active !== false).map(u => (
                       <SelectItem key={u.user_id} value={u.user_id}>
                         {(u.first_name || u.last_name) ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : (u.full_name || u.email)}
@@ -1907,6 +1925,17 @@ export default function Inventory() {
                     ))}
                   </SelectContent>
                 </Select>
+                {tempForm.is_external_responsible && (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                    <Label className="text-xs text-amber-800">Nombre del responsable externo *</Label>
+                    <Input value={tempForm.responsible_external_name}
+                      onChange={e => setTempForm(p => ({ ...p, responsible_external_name: e.target.value }))}
+                      placeholder="Ej: Juan Pérez (Integradora XYZ)"
+                      className="bg-white"
+                      data-testid="temp-external-name-input" />
+                    <p className="text-[10px] text-amber-700 mt-1">💡 Recuerde incluir empresa y teléfono en el campo de motivo abajo.</p>
+                  </div>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Fecha de asignación *</Label>
@@ -1914,10 +1943,15 @@ export default function Inventory() {
                   onChange={e => setTempForm(p => ({ ...p, assigned_date: e.target.value }))} data-testid="temp-date-input" />
               </div>
               <div>
-                <Label className="text-xs">Motivo / Descripción *</Label>
+                <Label className="text-xs">
+                  Motivo / Descripción * <span className="text-slate-400 font-normal">({tempForm.reason.length}/500)</span>
+                </Label>
                 <Textarea value={tempForm.reason}
-                  onChange={e => setTempForm(p => ({ ...p, reason: e.target.value }))}
-                  rows={3} placeholder="Ej: Pruebas de conectividad VPOS / Demo para cliente X / Configuración de campo..."
+                  onChange={e => setTempForm(p => ({ ...p, reason: e.target.value.slice(0, 500) }))}
+                  rows={5} maxLength={500}
+                  placeholder={tempForm.is_external_responsible
+                    ? "Empresa: Integradora XYZ C.A.\nTeléfono: +58 412 1234567\nMotivo: Pruebas de conectividad en sede del cliente Banesco / Demo POS..."
+                    : "Ej: Pruebas de conectividad VPOS / Demo para cliente X / Configuración de campo..."}
                   data-testid="temp-reason-input" />
               </div>
             </div>
@@ -1925,8 +1959,15 @@ export default function Inventory() {
               <Button variant="outline" onClick={() => setTempDialog(false)} data-testid="temp-cancel">Cancelar</Button>
               <Button className="bg-amber-600 hover:bg-amber-700"
                 onClick={async () => {
-                  if (!tempForm.item_id || !tempForm.responsible_user_id || !tempForm.reason.trim()) {
+                  if (!tempForm.item_id || !tempForm.reason.trim()) {
                     toast.error('Complete todos los campos obligatorios'); return;
+                  }
+                  if (tempForm.is_external_responsible) {
+                    if (!tempForm.responsible_external_name.trim()) {
+                      toast.error('Indique el nombre del responsable externo'); return;
+                    }
+                  } else if (!tempForm.responsible_user_id) {
+                    toast.error('Seleccione un responsable'); return;
                   }
                   if (tempForm._requires_serial && (tempForm.serials || []).length === 0) {
                     toast.error('Indique los seriales a asignar'); return;
@@ -1937,7 +1978,9 @@ export default function Inventory() {
                       item_id: tempForm.item_id,
                       quantity: tempForm.quantity,
                       serials: tempForm.serials,
-                      responsible_user_id: tempForm.responsible_user_id,
+                      responsible_user_id: tempForm.responsible_user_id || null,
+                      responsible_external_name: tempForm.responsible_external_name || null,
+                      is_external_responsible: tempForm.is_external_responsible,
                       assigned_date: tempForm.assigned_date,
                       reason: tempForm.reason,
                     });

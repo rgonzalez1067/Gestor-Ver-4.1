@@ -5,6 +5,30 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Asignaciones Temporales — Soporte para Personas Externas (Feb 2026) — NUEVO
+
+**Objetivo**: Permitir asignar ítems temporalmente no solo a personal interno (usuarios del sistema) sino también a personas externas (integradores, contratistas, técnicos de terceros), capturando empresa y contacto en el motivo.
+
+**Backend** (`/app/backend/routes/inventory_temporary.py`):
+- `POST /inventory/temporary-assignments` ahora acepta dos modos en el responsable:
+  - **Interno**: `responsible_user_id` (existing). Toma nombre/email del documento `users`.
+  - **Externo**: `is_external_responsible: true` + `responsible_external_name` (texto libre).
+- Validación: si externo, exige `responsible_external_name`; si no, exige `responsible_user_id`.
+- Nuevo campo en el documento `is_external_responsible: bool` + `responsible_user_id: null` cuando es externo.
+- Validación del motivo: máximo **500 caracteres** (antes sin límite explícito).
+
+**Frontend** (`Inventory.jsx`):
+- Selector "Responsable" muestra como **primera opción destacada en ámbar**: "👤 Persona externa (integrador, contratista...)".
+- Al elegirla, aparece bloque ámbar con input "Nombre del responsable externo" y tip recordatorio para incluir empresa/teléfono en el motivo.
+- Textarea de Motivo ahora con **5 filas, maxLength 500** y **contador `(X/500)`** visible junto al label.
+- Placeholder dinámico: si el responsable es externo sugiere formato `Empresa / Teléfono / Motivo`; si es interno mantiene el ejemplo original.
+- En la tabla de Asignaciones Temporales, los responsables externos se muestran con badge **"EXTERNO"** ámbar y subtítulo "Ver motivo para contacto" (en lugar del email).
+
+**Validación E2E con curl**:
+- ✅ Asignación con `is_external_responsible:true` + `responsible_external_name:"Juan Pérez (Integradora Andina C.A.)"` + motivo extenso (empresa+teléfono+motivo) → status 200.
+- ✅ Validación: sin nombre externo → 400.
+- ✅ Tabla muestra el badge "EXTERNO" cuando aplica.
+
 ### Inventario — Módulo de Asignaciones Temporales (Feb 2026) — NUEVO
 
 **Objetivo**: Controlar la salida transitoria de ítems del inventario (pruebas, demos, uso interno) con trazabilidad completa y devolución posterior.
