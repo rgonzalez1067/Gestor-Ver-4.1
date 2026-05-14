@@ -995,18 +995,39 @@ export default function Inventory() {
                               )}
                             </td>
                             <td className="px-4 py-2.5 text-right">
-                              {a.status === 'asignado' && canEdit && (
-                                <Button size="sm" variant="outline" className="h-7 text-xs border-teal-300 text-teal-700 hover:bg-teal-50"
-                                  onClick={() => { setReturnAssignment(a); setReturnNotes(''); setReturnDialog(true); }}
-                                  data-testid={`btn-return-${a.assignment_id}`}>
-                                  ↩ Devolver
-                                </Button>
-                              )}
-                              {a.status === 'devuelto' && (
-                                <span className="text-[10px] text-slate-400" title={`Devuelta el ${(a.returned_at || '').slice(0, 10)} por ${a.returned_by_name}`}>
-                                  {(a.returned_at || '').slice(0, 10)}
-                                </span>
-                              )}
+                              <div className="inline-flex items-center gap-1.5">
+                                <a
+                                  href={`${process.env.REACT_APP_BACKEND_URL}/api/inventory/temporary-assignments/${a.assignment_id}/pdf`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="text-[11px] px-2 py-1 rounded border border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-800 inline-flex items-center gap-1"
+                                  title="Descargar comprobante PDF"
+                                  data-testid={`btn-pdf-${a.assignment_id}`}
+                                  onClick={async (e) => {
+                                    // Acompañar con token (forzamos descarga inteligente con fetch+blob)
+                                    e.preventDefault();
+                                    try {
+                                      const res = await api.get(`/inventory/temporary-assignments/${a.assignment_id}/pdf`, { responseType: 'blob' });
+                                      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+                                      const w = window.open(url, '_blank');
+                                      if (!w) toast.error('Permita popups para ver el PDF');
+                                    } catch { toast.error('No se pudo generar el PDF'); }
+                                  }}
+                                >
+                                  📄 PDF
+                                </a>
+                                {a.status === 'asignado' && canEdit && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs border-teal-300 text-teal-700 hover:bg-teal-50"
+                                    onClick={() => { setReturnAssignment(a); setReturnNotes(''); setReturnDialog(true); }}
+                                    data-testid={`btn-return-${a.assignment_id}`}>
+                                    ↩ Devolver
+                                  </Button>
+                                )}
+                                {a.status === 'devuelto' && (
+                                  <span className="text-[10px] text-slate-400" title={`Devuelta el ${(a.returned_at || '').slice(0, 10)} por ${a.returned_by_name}`}>
+                                    {(a.returned_at || '').slice(0, 10)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ));
@@ -1973,7 +1994,7 @@ export default function Inventory() {
                     toast.error('Indique los seriales a asignar'); return;
                   }
                   try {
-                    await api.post('/inventory/temporary-assignments', {
+                    const res = await api.post('/inventory/temporary-assignments', {
                       warehouse_id: selectedWh,
                       item_id: tempForm.item_id,
                       quantity: tempForm.quantity,
@@ -1984,7 +2005,20 @@ export default function Inventory() {
                       assigned_date: tempForm.assigned_date,
                       reason: tempForm.reason,
                     });
-                    toast.success('Asignación temporal creada');
+                    const newId = res.data?.assignment_id;
+                    toast.success('Asignación temporal creada', {
+                      description: tempForm.is_external_responsible ? 'Recuerde imprimir el comprobante para firma del integrador' : undefined,
+                      action: newId ? {
+                        label: 'Ver PDF',
+                        onClick: async () => {
+                          try {
+                            const pr = await api.get(`/inventory/temporary-assignments/${newId}/pdf`, { responseType: 'blob' });
+                            const url = window.URL.createObjectURL(new Blob([pr.data], { type: 'application/pdf' }));
+                            window.open(url, '_blank');
+                          } catch { /* silent */ }
+                        }
+                      } : undefined,
+                    });
                     setTempDialog(false);
                     setTab('temporary');
                     fetchStock();

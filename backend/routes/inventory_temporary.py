@@ -18,10 +18,12 @@ Indicadores visuales:
   - Asignaciones con más de 15 días disparan alerta visual (overdue).
 """
 from fastapi import APIRouter, HTTPException, Header
+from fastapi.responses import StreamingResponse
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import logging
 import uuid
+import io
 
 from config import db, get_current_user
 from models import InventoryMovement
@@ -324,6 +326,34 @@ async def list_temporary_assignments(
         enriched.append(a)
 
     return enriched
+
+
+@router.get("/inventory/temporary-assignments/{assignment_id}/pdf")
+async def download_assignment_pdf(
+    assignment_id: str, authorization: Optional[str] = Header(None)
+):
+    """Genera y devuelve el PDF de comprobante de asignación temporal."""
+    await get_current_user(authorization)
+    assignment = await db.temporary_assignments.find_one(
+        {"assignment_id": assignment_id}, {"_id": 0}
+    )
+    if not assignment:
+        raise HTTPException(404, "Asignación temporal no encontrada")
+
+    from services.temporary_assignment_pdf import generate_temporary_assignment_pdf
+    try:
+        pdf_bytes = generate_temporary_assignment_pdf(assignment)
+    except Exception as e:
+        logger.error(f"[temp_assign] Error generando PDF {assignment_id}: {e}")
+        raise HTTPException(500, f"Error generando PDF: {e}")
+
+    filename = f"comprobante_asignacion_{assignment_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
 
 
 @router.get("/inventory/temporary-assignments/active-by-item")
