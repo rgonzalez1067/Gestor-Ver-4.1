@@ -544,17 +544,20 @@ class DynamicQuotePDFGenerator:
 
             base_pages = list(base_reader.pages)
             # El PDF base de PG tiene 5 páginas (Portada, Resumen, Setup, Recurrentes, Términos).
-            # Insertamos el anexo en la posición 5 (índice 4), desplazando Términos.
+            # Insertamos el anexo en la posición 5 (índice 4), desplazando Términos a la página 6.
+            # Solo se inyecta la 1ra página del anexo (la 2da página suele ser una hoja en blanco
+            # residual del export del documento original).
             insert_idx = 4 if len(base_pages) >= 5 else max(0, len(base_pages) - 1)
+            anexo_pages_to_insert = anexo_reader.pages[:1]
 
             for i, p in enumerate(base_pages):
                 if i == insert_idx:
-                    for ap in anexo_reader.pages:
+                    for ap in anexo_pages_to_insert:
                         writer.add_page(ap)
                 writer.add_page(p)
             # Edge case: si insert_idx >= len(base_pages), agregamos al final
             if insert_idx >= len(base_pages):
-                for ap in anexo_reader.pages:
+                for ap in anexo_pages_to_insert:
                     writer.add_page(ap)
 
             out = _io.BytesIO()
