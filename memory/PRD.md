@@ -1492,3 +1492,27 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 
 **Bloque 4 (UX Grilla)**:
 - `QuotesTable.jsx`: scrollbar superior espejo del inferior. Ambos sincronizados con refs + `onScroll` + `requestAnimationFrame` (evita loop). El top scrollbar tiene 14px de alto. Recalcula ancho con `useEffect` cuando cambian quotes/filtros.
+
+
+---
+
+## 2026-05-14 — Producto "Link de Pago" (LINK_PAGO) [COMPLETE]
+**Objetivo**: Nuevo tipo de cotización "Link de Pago", clon de Payment Gateway, con anexo PDF estático inyectado en página 5.
+
+**Implementado**:
+- `pdf_generator.py::_generate_link_pago` corregido: maneja BytesIO correctamente y retorna BytesIO consistente para encadenar `append_pg_static_pages`. Inserta `/app/backend/static/anexos/link_pago_anexo.pdf` (2 págs) en índice 4 → final: P1-4 PG dinámico, P5-6 anexo, P7 Términos, P8-10 anexo PG estático (10 págs totales).
+- `generate_pg` usa flag `_link_pago_mode` para mostrar subtítulo "Payment Gateway - Link de Pagos".
+- `quotes.py` línea 269: respeta `data.quote_type` (no hardcodea "GATEWAY") para preservar LINK_PAGO.
+- Frontend: `isPaymentGateway` incluye LINK_PAGO; `handleSubmitPGQuote` envía `quote_type` real; `templateTypeMap` mapea LINK_PAGO → 'payment_gateway'; Wizard `onValueChange` trata LINK_PAGO como PG-like (auto-carga "Persona Jurídica").
+- Carga de datos al editar (`setPgSetupItems`) ahora soporta GATEWAY y LINK_PAGO.
+
+**Verificación**:
+- Curl crea COT-2026-05-069-PYME tipo LINK_PAGO, genera PDF de 10 págs con anexo correctamente intercalado.
+- Wizard UI muestra "Link de Pago" en dropdown y al seleccionarlo oculta Cajas/Bancos/Modelo.
+- Testing agent: 6/6 PASS backend (pytest `/app/backend/tests/test_link_pago_flow.py`); frontend 100% (wizard + lista + regresión GATEWAY).
+
+**Notas técnicas**:
+- Anexo tiene 2 páginas → Términos termina en P7 (no P6 como decía plan original con anexo de 1 pág).
+- Filtro `?quote_type=` en `/api/quotes` NO filtra server-side (frontend filtra en cliente). Minor, sin impacto en este feature.
+
+
