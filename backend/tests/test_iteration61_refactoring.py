@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://bitacora-heredada.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://link-pago-flow.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "rgonzalez@megasoft.com.ve"

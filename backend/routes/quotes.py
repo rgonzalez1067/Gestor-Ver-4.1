@@ -41,7 +41,7 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         # Cotización de equipos/accesorios
         subtotal_usd = sum(item.total_usd for item in quote_data.equipment_items)
         total_usd = subtotal_usd
-    elif quote_data.quote_type == "GATEWAY" and quote_data.pg_setup_items:
+    elif quote_data.quote_type in ("GATEWAY", "LINK_PAGO") and quote_data.pg_setup_items:
         # Cotización Payment Gateway - total es suma de setup items
         subtotal_usd = sum(item.get("costo", 0) for item in quote_data.pg_setup_items)
         total_usd = subtotal_usd
@@ -214,7 +214,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 pdf_buffer = generator.generate()
                 
                 # Agregar páginas estáticas según tipo
-                if data.quote_type == 'GATEWAY':
+                if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
                     pdf_buffer = append_pg_static_pages(pdf_buffer)
                 elif pdf_request.client_segment == 'CORP':
                     pdf_buffer = append_corporate_static_pages(pdf_buffer)
@@ -236,8 +236,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             except Exception as e:
                 logging.error(f"Error generando PDF: {str(e)}")
                 # Continuar sin PDF si falla la generación
-        elif data.quote_type == "GATEWAY" and data.pg_setup_items:
-            # Generar PDF para Payment Gateway usando DynamicQuotePDFGenerator
+        elif data.quote_type in ("GATEWAY", "LINK_PAGO") and data.pg_setup_items:
+            # Generar PDF para Payment Gateway / Link de Pago usando DynamicQuotePDFGenerator
             try:
                 client = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0})
                 if client:
@@ -266,7 +266,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                         pg_rc_data = rc
                     
                     pdf_request = TemplateQuotePDFRequest(
-                        quote_type="GATEWAY",
+                        quote_type=data.quote_type or "GATEWAY",
                         quote_number=quote_number,
                         cliente_nombre=client.get('legal_name', client.get('fantasy_name', '')),
                         cliente_rif=client.get('rif', ''),
@@ -887,7 +887,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             integrator_app_name=quote.get("integrator_app_name", ""),
             pinpad_model=quote.get("pinpad_model", ""),
             sponsor_bank_name=quote.get("sponsor_bank_name", ""),
-            template_type="payment_gateway" if quote_type == "GATEWAY" else "vpos_pyme",
+            template_type="payment_gateway" if quote_type in ("GATEWAY", "LINK_PAGO") else "vpos_pyme",
             client_segment=client_segment,
             setup_items=setup_items,
             recurring_basic_items=recurring_basic_items,
@@ -923,8 +923,8 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
         generator = DynamicQuotePDFGenerator(pdf_request, logo_path)
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo
-        if quote_type == 'GATEWAY':
+        # Agregar páginas estáticas según tipo (LINK_PAGO reusa las de PG)
+        if quote_type in ('GATEWAY', 'LINK_PAGO'):
             pdf_buffer = append_pg_static_pages(pdf_buffer)
         elif client_segment == 'CORP':
             pdf_buffer = append_corporate_static_pages(pdf_buffer)
@@ -1031,7 +1031,8 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
         'VPOS_MPOS': 'VPOS/MPOS',
         'GATEWAY': 'Payment Gateway',
         'MPOS': 'VPOS/MPOS (Cajas y Tablet)',
-        'LINK': 'Link de Pago'
+        'LINK': 'Link de Pago',
+        'LINK_PAGO': 'Link de Pago'
     }
     pricing_model_names = {
         'conventional': 'Modelo Convencional',
@@ -1507,8 +1508,8 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo
-        if data.quote_type == 'GATEWAY':
+        # Agregar páginas estáticas según tipo (LINK_PAGO reusa PG)
+        if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
             pdf_buffer = append_pg_static_pages(pdf_buffer)
         elif data.client_segment == 'CORP':
             pdf_buffer = append_corporate_static_pages(pdf_buffer)
@@ -1559,8 +1560,8 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
         # Generar PDF
         pdf_buffer = generator.generate()
         
-        # Agregar páginas estáticas según tipo
-        if data.quote_type == 'GATEWAY':
+        # Agregar páginas estáticas según tipo (LINK_PAGO reusa PG)
+        if data.quote_type in ('GATEWAY', 'LINK_PAGO'):
             pdf_buffer = append_pg_static_pages(pdf_buffer)
         elif data.client_segment == 'CORP':
             pdf_buffer = append_corporate_static_pages(pdf_buffer)

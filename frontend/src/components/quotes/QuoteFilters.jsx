@@ -11,6 +11,7 @@ const QUOTE_FILTER_CATEGORIES = [
   { id: 'implementation:MPOS', name: '  · Implementación MPOS', indent: true },
   { id: 'implementation:FAST_TRACK', name: '  · Implementación MPOS Integrada', indent: true },
   { id: 'implementation:GATEWAY', name: '  · Implementación PG', indent: true },
+  { id: 'implementation:LINK_PAGO', name: '  · Implementación Link de Pago', indent: true },
   { id: 'equipment', name: 'Equipos y Accesorios' },
   { id: 'repair', name: 'Reparaciones' },
 ];

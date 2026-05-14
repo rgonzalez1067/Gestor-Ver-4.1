@@ -137,7 +137,13 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(Spacer(1, 6))
 
     quote_type = quote.get('quote_type', 'N/A')
-    tipo_display = 'VPOS / MPOS' if quote_type in ('VPOS_MPOS', 'VPOS') else 'Payment Gateway' if quote_type == 'GATEWAY' else 'MPOS (Imple + POS)' if quote_type == 'FAST_TRACK' else quote_type
+    tipo_display = (
+        'VPOS / MPOS' if quote_type in ('VPOS_MPOS', 'VPOS')
+        else 'Payment Gateway' if quote_type == 'GATEWAY'
+        else 'Link de Pago' if quote_type == 'LINK_PAGO'
+        else 'MPOS (Imple + POS)' if quote_type == 'FAST_TRACK'
+        else quote_type
+    )
 
     economic_group = quote.get('economic_group') or 'Sin Grupo Económico'
     fantasy_name = quote.get('fantasy_name') or client.get('fantasy_name') or client_name
@@ -256,7 +262,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     # N° / Concepto / Banco / Observación + fila TOTAL SETUP.
     quote_type_upper = (quote.get('quote_type') or '').upper()
     pg_setup_items = quote.get('pg_setup_items') or []
-    is_payment_gateway = quote_type_upper == 'GATEWAY' or (pg_setup_items and quote_type_upper != 'VPOS' and quote_type_upper != 'MPOS')
+    is_payment_gateway = quote_type_upper in ('GATEWAY', 'LINK_PAGO') or (pg_setup_items and quote_type_upper != 'VPOS' and quote_type_upper != 'MPOS')
 
     if is_payment_gateway and pg_setup_items:
         pg_header = [

@@ -1567,7 +1567,7 @@ export const Quotes = () => {
       const payload = {
         client_id: quoteData.client_id,
         quote_category: 'implementation',
-        quote_type: 'GATEWAY',
+        quote_type: quoteData.quote_type || 'GATEWAY',
         pricing_model: 'conventional',
         services: [],
         hardware: [],
@@ -1694,11 +1694,10 @@ export const Quotes = () => {
       // Preparar datos del PDF (mismos datos que exportCurrentQuoteToPDF)
       const templateTypeMap = {
         'VPOS': 'vpos_pyme',
-        'VPOS': 'vpos_pyme',
         'MPOS': 'mpos_pyme',
         'FAST_TRACK': 'mpos_pyme',
         'GATEWAY': 'payment_gateway',
-        'MPOS': 'mpos',
+        'LINK_PAGO': 'payment_gateway',
         'LINK': 'vpos_pyme'
       };
       const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
@@ -1894,6 +1893,7 @@ export const Quotes = () => {
       'VPOS': 'vpos_pyme',
       'VPOS_MPOS': 'vpos_pyme',
       'GATEWAY': 'payment_gateway',
+      'LINK_PAGO': 'payment_gateway',
       'MPOS': 'mpos',
       'LINK': 'vpos_pyme'
     };
@@ -3058,8 +3058,8 @@ export const Quotes = () => {
       sponsoring_bank_id: quote.sponsoring_bank_id || '',
     });
     
-    // Load PG data if it's a Payment Gateway quote
-    if (quote.quote_type === 'GATEWAY') {
+    // Load PG data if it's a Payment Gateway / Link de Pago quote
+    if (quote.quote_type === 'GATEWAY' || quote.quote_type === 'LINK_PAGO') {
       setPgSetupItems(quote.pg_setup_items || []);
       setPgTransactionRange(quote.pg_transaction_range || null);
     }
@@ -3426,8 +3426,8 @@ export const Quotes = () => {
     ? banks.find(b => b.bank_id === quoteData.sponsor_bank_id)
     : null;
   
-  // Detectar si es cotización Payment Gateway o MPOS
-  const isPaymentGateway = quoteData.quote_type === 'GATEWAY';
+  // Detectar si es cotización Payment Gateway (incluye Link de Pago) o MPOS
+  const isPaymentGateway = quoteData.quote_type === 'GATEWAY' || quoteData.quote_type === 'LINK_PAGO';
   const isVPOS = quoteData.quote_type === 'VPOS';
   const isMPOS = quoteData.quote_type === 'MPOS' || quoteData.quote_type === 'FAST_TRACK';
   const isFastTrackType = quoteData.quote_type === 'FAST_TRACK';

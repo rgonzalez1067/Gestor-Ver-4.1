@@ -5,7 +5,7 @@ export const QUOTE_TYPES = [
   { id: 'MPOS', name: 'MPOS (Tablet/Móvil)', icon: Smartphone, description: 'Terminales móviles POS' },
   { id: 'FAST_TRACK', name: 'MPOS (Imple + POS)', icon: Smartphone, description: 'Equipos autogestionados Pyme' },
   { id: 'GATEWAY', name: 'Payment Gateway', icon: Globe, description: 'Pasarela de pagos' },
-  { id: 'LINK', name: 'Link de Pago', icon: Link, description: 'Enlaces de cobro', disabled: true }
+  { id: 'LINK_PAGO', name: 'Link de Pago', icon: Link, description: 'Pasarela + Link de Pago (anexo en PDF)' }
 ];
 
 export const PRICING_MODELS = [

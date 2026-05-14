@@ -11,9 +11,12 @@ from reportlab.lib.units import inch, cm, mm
 from reportlab.pdfgen import canvas as canvas_module
 import io
 import os
+import logging
 from datetime import datetime, timedelta
 
 from models import QuotePDFItem
+
+logger = logging.getLogger(__name__)
 
 
 class NumberedCanvas(canvas_module.Canvas):
@@ -499,11 +502,69 @@ class DynamicQuotePDFGenerator:
     
     def generate(self):
         """Generar el PDF completo con flujo dinámico"""
+        if self.data.quote_type == 'LINK_PAGO':
+            return self._generate_link_pago()
         if self.data.quote_type == 'GATEWAY':
             return self.generate_pg()
         if self.data.client_segment == 'CORP':
             return self.generate_vpos_corp()
         return self.generate_vpos()
+
+    def _generate_link_pago(self):
+        """Genera el PDF de Link de Pago: reusa el flujo de Payment Gateway,
+        modifica el subtítulo de portada y posteriormente inserta el anexo
+        estático "Link de Pago" como página 5 (antes de los Términos de la
+        Cotización). Retorna un BytesIO compatible con append_pg_static_pages.
+        """
+        # 1) Marcar bandera para que generate_pg() use el subtítulo de Link de Pago
+        self._link_pago_mode = True
+        try:
+            pg_buffer = self.generate_pg()  # BytesIO (self.buffer)
+        finally:
+            self._link_pago_mode = False
+
+        # 2) Insertar el anexo en la posición 5 (índice 4)
+        try:
+            import os
+            import io as _io
+            from PyPDF2 import PdfReader, PdfWriter
+
+            anexo_path = os.path.join(
+                os.path.dirname(__file__), "..", "static", "anexos", "link_pago_anexo.pdf"
+            )
+            if not os.path.exists(anexo_path):
+                logger.warning(f"[pdf_generator] Anexo Link de Pago no encontrado: {anexo_path}")
+                return pg_buffer
+
+            # PdfReader acepta BytesIO directamente
+            pg_buffer.seek(0)
+            base_reader = PdfReader(pg_buffer)
+            anexo_reader = PdfReader(anexo_path)
+            writer = PdfWriter()
+
+            base_pages = list(base_reader.pages)
+            # El PDF base de PG tiene 5 páginas (Portada, Resumen, Setup, Recurrentes, Términos).
+            # Insertamos el anexo en la posición 5 (índice 4), desplazando Términos.
+            insert_idx = 4 if len(base_pages) >= 5 else max(0, len(base_pages) - 1)
+
+            for i, p in enumerate(base_pages):
+                if i == insert_idx:
+                    for ap in anexo_reader.pages:
+                        writer.add_page(ap)
+                writer.add_page(p)
+            # Edge case: si insert_idx >= len(base_pages), agregamos al final
+            if insert_idx >= len(base_pages):
+                for ap in anexo_reader.pages:
+                    writer.add_page(ap)
+
+            out = _io.BytesIO()
+            writer.write(out)
+            out.seek(0)
+            return out
+        except Exception as e:
+            logger.error(f"[pdf_generator] Error intercalando anexo Link de Pago: {e}")
+            pg_buffer.seek(0)
+            return pg_buffer
     
     def generate_vpos(self):
         
@@ -1339,7 +1400,11 @@ class DynamicQuotePDFGenerator:
         elements.append(Spacer(1, 10))
         elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
         elements.append(Spacer(1, 6))
-        elements.append(Paragraph("Payment Gateway", self.styles['Subtitulo']))
+        # Subtítulo dinámico: Payment Gateway vs Payment Gateway - Link de Pagos
+        if getattr(self, "_link_pago_mode", False):
+            elements.append(Paragraph("Payment Gateway - Link de Pagos", self.styles['Subtitulo']))
+        else:
+            elements.append(Paragraph("Payment Gateway", self.styles['Subtitulo']))
         elements.append(Spacer(1, 40))
         
         # Información del proyecto

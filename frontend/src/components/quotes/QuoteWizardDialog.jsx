@@ -114,6 +114,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         const isMposSelected = value === 'MPOS';
                         const isFastTrack = value === 'FAST_TRACK';
                         const isMposLike = isMposSelected || isFastTrack;
+                        const isPGLike = value === 'GATEWAY' || value === 'LINK_PAGO';
                         
                         // Buscar banco "Mega Soft" para default de Fast Track
                         const megaSoftBank = isFastTrack ? banks.find(b => b.name?.toLowerCase().includes('mega soft') || b.name?.toLowerCase().includes('megasoft')) : null;
@@ -123,7 +124,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         let newIntegratorId = '';
                         if (isFastTrack) {
                           newIntegratorId = (currentIntegrator?.integration_modality === 'MPOS') ? quoteData.integrator_id : 'sin_integrador';
-                        } else if (value === 'GATEWAY') {
+                        } else if (isPGLike) {
                           newIntegratorId = (currentIntegrator?.integration_modality === 'PG Universal' || currentIntegrator?.integration_modality === 'PG No universal') ? quoteData.integrator_id : '';
                         } else if (value === 'VPOS') {
                           newIntegratorId = (currentIntegrator?.integration_modality === 'REST') ? quoteData.integrator_id : '';
@@ -138,7 +139,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           ...quoteData, 
                           quote_type: value, 
                           medios_pago_items: [], 
-                          pricing_model: value === 'GATEWAY' ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
+                          pricing_model: isPGLike ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
                           requires_vpn: isFastTrack ? false : true,
                           requires_pinpad_config: true,
                           integrator_id: newIntegratorId,
@@ -151,7 +152,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         setPgTransactionRange(null);
                         setPgShowRecurringTable(false);
                         setPgFilteredProducts([]);
-                        if (value === 'GATEWAY') {
+                        if (isPGLike) {
                           const pjService = serviceCatalog.find(s => s.gateway_enabled && s.name?.toLowerCase().includes('persona jur'));
                           const pjCost = pjService?.setup_cost_outsourcing || pgDefaults?.costo || 240;
                           setPgSetupItems([{
