@@ -205,6 +205,10 @@ export const Quotes = () => {
 
   // Estado para flujo irregular (Protocolo de Excepción)
   const [irregularCount, setIrregularCount] = useState(0);
+  // Regularización masiva (admin)
+  const [regularizeBatchOpen, setRegularizeBatchOpen] = useState(false);
+  const [regularizeRunning, setRegularizeRunning] = useState(false);
+  const [regularizeResult, setRegularizeResult] = useState(null);
   const [exceptionModalOpen, setExceptionModalOpen] = useState(false);
   const [exceptionData, setExceptionData] = useState({ reason: '', regularization_date: '' });
   const exceptionReasonRef = useRef('');
@@ -3508,14 +3512,24 @@ export const Quotes = () => {
 
           {/* Widget de Cotizaciones Irregulares */}
           {irregularCount > 0 && (
-            <div className="mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 cursor-pointer hover:bg-orange-100 transition-colors"
-              onClick={() => { setFilterStatus('all'); /* Future: filter irregular only */ }}
+            <div className="mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3"
               data-testid="irregular-widget">
               <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shrink-0">{irregularCount}</div>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-semibold text-orange-800">Cotizaciones en Estado Irregular</p>
                 <p className="text-xs text-orange-600">Tienen pasos saltados pendientes de regularización</p>
               </div>
+              {currentUser?.role === 'admin' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-orange-400 text-orange-700 hover:bg-orange-100"
+                  onClick={() => setRegularizeBatchOpen(true)}
+                  data-testid="regularize-batch-btn"
+                >
+                  Regularizar masivo
+                </Button>
+              )}
             </div>
           )}
 
@@ -3709,6 +3723,150 @@ export const Quotes = () => {
               onClose={() => setBundleModalOpen(false)}
             />
           )}
+
+          {/* Regularización Masiva Retroactiva (Admin-only) */}
+          <Dialog open={regularizeBatchOpen} onOpenChange={(o) => { setRegularizeBatchOpen(o); if (!o) setRegularizeResult(null); }}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" data-testid="regularize-batch-dialog">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-orange-700">
+                  Regularización Masiva Retroactiva
+                </DialogTitle>
+                <p className="text-xs text-slate-500 mt-1">
+                  Completa el <code>status_history</code> faltante con timestamps reales y aplica la auto-regularización para cotizaciones que ya alcanzaron el estado-resultado de sus excepciones.
+                </p>
+              </DialogHeader>
+
+              {!regularizeResult ? (
+                <div className="space-y-3 py-2">
+                  <div className="text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded p-3">
+                    <strong>{irregularCount}</strong> cotización(es) irregular(es) en este momento. Recomendado: primero <em>previsualizar</em> (dry-run) y luego aplicar.
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      disabled={regularizeRunning}
+                      onClick={async () => {
+                        setRegularizeRunning(true);
+                        try {
+                          const res = await api.post('/admin/quotes/regularize-batch', { dry_run: true });
+                          setRegularizeResult({ ...res.data, _was_dry_run: true });
+                        } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
+                        finally { setRegularizeRunning(false); }
+                      }}
+                      data-testid="regularize-dry-run-btn"
+                    >
+                      {regularizeRunning ? 'Procesando...' : 'Previsualizar (dry-run)'}
+                    </Button>
+                    <Button
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                      disabled={regularizeRunning}
+                      onClick={async () => {
+                        if (!window.confirm(`Aplicar regularización masiva sobre ${irregularCount} cotización(es)? Esta operación modifica registros.`)) return;
+                        setRegularizeRunning(true);
+                        try {
+                          const res = await api.post('/admin/quotes/regularize-batch', { dry_run: false });
+                          setRegularizeResult({ ...res.data, _was_dry_run: false });
+                          // refrescar conteo
+                          try { const ic = await api.get('/quotes/irregular/count'); setIrregularCount(ic.data.count || 0); } catch {}
+                          fetchData();
+                        } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
+                        finally { setRegularizeRunning(false); }
+                      }}
+                      data-testid="regularize-apply-btn"
+                    >
+                      {regularizeRunning ? 'Aplicando...' : 'Aplicar regularización'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-3 py-2" data-testid="regularize-result">
+                  <div className={`rounded-lg border p-3 ${regularizeResult._was_dry_run ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <p className="text-sm font-semibold mb-2">
+                      {regularizeResult._was_dry_run ? '🔍 Previsualización (no se aplicaron cambios)' : '✅ Regularización aplicada'}
+                    </p>
+                    <ul className="text-xs space-y-0.5">
+                      <li>· Irregulares antes: <strong>{regularizeResult.total_irregular_before}</strong></li>
+                      <li>· Regularizadas: <strong>{regularizeResult.regularized_count}</strong></li>
+                      <li>· Backfill aplicado a: <strong>{regularizeResult.backfilled_count}</strong> cotización(es)</li>
+                      <li>· No regularizables (criterio insuficiente): <strong>{regularizeResult.cannot_regularize_count}</strong></li>
+                      {!regularizeResult._was_dry_run && (
+                        <li>· Irregulares después: <strong>{regularizeResult.total_irregular_after}</strong></li>
+                      )}
+                    </ul>
+                  </div>
+
+                  {regularizeResult.details?.regularized?.length > 0 && (
+                    <details open className="text-xs border border-emerald-100 rounded">
+                      <summary className="cursor-pointer p-2 font-semibold bg-emerald-50 text-emerald-800">
+                        Regularizadas ({regularizeResult.details.regularized.length})
+                      </summary>
+                      <ul className="p-2 space-y-0.5 max-h-40 overflow-y-auto">
+                        {regularizeResult.details.regularized.map((q, i) => (
+                          <li key={i}>· <span className="font-mono">{q.quote_number}</span> <span className="text-slate-500">({q.status})</span></li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  {regularizeResult.details?.backfilled?.length > 0 && (
+                    <details className="text-xs border border-slate-200 rounded">
+                      <summary className="cursor-pointer p-2 font-semibold bg-slate-50">
+                        Backfill aplicado ({regularizeResult.details.backfilled.length})
+                      </summary>
+                      <ul className="p-2 space-y-1 max-h-40 overflow-y-auto">
+                        {regularizeResult.details.backfilled.map((q, i) => (
+                          <li key={i}>· <span className="font-mono">{q.quote_number}</span> ({q.status}) ← <span className="text-slate-500">{q.added_steps.join(', ')}</span></li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  {regularizeResult.details?.cannot_regularize?.length > 0 && (
+                    <details className="text-xs border border-amber-200 rounded">
+                      <summary className="cursor-pointer p-2 font-semibold bg-amber-50 text-amber-800">
+                        No regularizables ({regularizeResult.details.cannot_regularize.length})
+                      </summary>
+                      <ul className="p-2 space-y-1 max-h-40 overflow-y-auto">
+                        {regularizeResult.details.cannot_regularize.map((q, i) => (
+                          <li key={i}>
+                            · <span className="font-mono">{q.quote_number}</span> ({q.status}) — {q.reason}
+                            {q.unmet && q.unmet.length > 0 && (
+                              <span className="text-amber-700"> · requiere: {q.unmet.map(u => `${u.action} → ${u.needs}`).join(', ')}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
+                  <div className="flex gap-2 justify-end pt-2 border-t border-slate-200">
+                    {regularizeResult._was_dry_run && (
+                      <Button
+                        className="bg-orange-600 hover:bg-orange-700 text-white"
+                        disabled={regularizeRunning}
+                        onClick={async () => {
+                          if (!window.confirm(`Aplicar regularización masiva real? Se modificarán ${regularizeResult.regularized_count} cotización(es).`)) return;
+                          setRegularizeRunning(true);
+                          try {
+                            const res = await api.post('/admin/quotes/regularize-batch', { dry_run: false });
+                            setRegularizeResult({ ...res.data, _was_dry_run: false });
+                            try { const ic = await api.get('/quotes/irregular/count'); setIrregularCount(ic.data.count || 0); } catch {}
+                            fetchData();
+                          } catch (e) { toast.error(e.response?.data?.detail || 'Error'); }
+                          finally { setRegularizeRunning(false); }
+                        }}
+                      >
+                        Aplicar ahora
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={() => { setRegularizeBatchOpen(false); setRegularizeResult(null); }}>
+                      Cerrar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
 
       </main>

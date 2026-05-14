@@ -5,6 +5,31 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Cotizaciones — Endpoint y UI de Regularización Masiva (Admin) (Feb 2026) — NUEVO
+
+**Objetivo**: Permitir al Administrador disparar la migración masiva de regularización **desde producción** tras el deploy (sin acceso a scripts manuales).
+
+**Backend** (`/app/backend/routes/quote_actions.py`):
+- `POST /api/admin/quotes/regularize-batch` (admin-only). Acepta `{ "dry_run": bool }`.
+- Lógica: por cada cotización con `is_irregular: True`:
+  1. Verifica criterio de cobertura (`current_status >= ACTION_RESULT_STATUS[exc.action]`). Si no cumple → reporta como "no regularizable".
+  2. Hace backfill de `status_history` con timestamps reales (`approved_at`, `invoiced_at`, etc.) — autor `"Sistema (backfill)"`, action `"_backfill"`.
+  3. Aplica `try_auto_regularize_quote()` y reporta resultado.
+- Respuesta detallada: `total_irregular_before/after`, `backfilled_count`, `regularized_count`, `cannot_regularize_count` y arrays con detalles por cotización.
+
+**Frontend** (`/app/frontend/src/pages/Quotes.jsx`):
+- Nuevo botón **"Regularizar masivo"** en el widget de Cotizaciones Irregulares (solo visible para admin).
+- Modal en dos fases:
+  - **Previsualización (dry-run)**: ejecuta el endpoint con `dry_run: true`, muestra resumen + secciones colapsables ("Regularizables", "Backfill propuesto", "No regularizables") sin tocar BD.
+  - **Aplicar**: requiere confirmación con `window.confirm` y luego ejecuta con `dry_run: false`. Refresca el conteo y la tabla.
+
+**Validado E2E**:
+- ✅ Admin: dry-run reporta 3 no regularizables (las 3 restantes legítimamente irregulares).
+- ✅ No-admin: 403.
+- ✅ Modal renderiza el resumen + sección expandible "No regularizables".
+
+**Uso en producción**: Tras el deploy, el admin entra a Cotizaciones → ve el widget naranja → clic en "Regularizar masivo" → "Previsualizar" → revisa el plan → "Aplicar ahora".
+
 ### Ajustes Menores — UX Cotizaciones, Embudo, Auto-Regularización (Feb 2026) — NUEVO
 
 **4 ajustes solicitados y aplicados:**

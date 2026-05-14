@@ -124,6 +124,172 @@ async def get_irregular_count(authorization: Optional[str] = Header(None)):
     count = await db.quotes.count_documents({"is_irregular": True})
     return {"count": count}
 
+
+@router.post("/admin/quotes/regularize-batch")
+async def admin_regularize_batch(
+    body: Optional[dict] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Regularización masiva retroactiva (admin-only).
+
+    Proceso:
+      1) Identifica todas las cotizaciones con `is_irregular: True`.
+      2) Para cada una, completa `status_history` con los estados intermedios
+         faltantes usando los timestamps reales de la cotización (approved_at,
+         invoiced_at, paid_at, etc.). Las entradas backfill se marcan con
+         `user: "Sistema (backfill)"` y `action: "_backfill"`.
+      3) Aplica `try_auto_regularize_quote()` para desmarcar las que cumplan
+         el criterio (current_status >= ACTION_RESULT_STATUS de cada excepción).
+
+    Body:
+      { "dry_run": true|false }   default: false
+
+    Respuesta:
+      { total_irregular_before, backfilled, regularized, still_irregular,
+        details: {...} }
+    """
+    current_user = await get_current_user(authorization)
+    if (current_user.get("role") or "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+
+    dry_run = bool((body or {}).get("dry_run", False))
+
+    from routes.quote_helpers import (
+        try_auto_regularize_quote,
+        ACTION_RESULT_STATUS,
+    )
+
+    STATUS_TIMESTAMP_FIELD = {
+        "Enviada": "sent_to_client_at",
+        "Aprobada": "approved_at",
+        "Reparada": "repaired_at",
+        "Facturada": "invoiced_at",
+        "Pagada": "paid_at",
+        "Entregada": "delivered_at",
+        "Enviada a Imple": "sent_to_implementation_at",
+    }
+
+    irregulars = await db.quotes.find({"is_irregular": True}).to_list(2000)
+    total_before = len(irregulars)
+
+    backfill_log = []
+    will_regularize = []
+    cannot_regularize = []
+
+    for q in irregulars:
+        qid = q["quote_id"]
+        current_status = q.get("quote_status", "Borrador")
+        idx = get_status_index(current_status)
+        if idx <= 0:
+            cannot_regularize.append({
+                "quote_number": q.get("quote_number"),
+                "status": current_status,
+                "reason": "Estado Borrador o desconocido",
+            })
+            continue
+
+        # 1) Verificar criterio (a): current_status >= result_status de cada excepción
+        active_excs = [
+            e for e in (q.get("irregular_exceptions") or [])
+            if isinstance(e, dict) and not e.get("is_regularization_marker")
+        ]
+        unmet = []
+        for exc in active_excs:
+            action = exc.get("action")
+            rs = ACTION_RESULT_STATUS.get(action)
+            if not rs:
+                continue
+            if get_status_index(rs) > idx:
+                unmet.append({"action": action, "needs": rs})
+        if unmet:
+            cannot_regularize.append({
+                "quote_number": q.get("quote_number"),
+                "status": current_status,
+                "reason": "current_status no alcanza el estado-resultado de la excepción",
+                "unmet": unmet,
+            })
+            continue
+
+        # 2) Construir entradas de backfill (estados faltantes en status_history)
+        history = q.get("status_history") or []
+        present = {h.get("status") for h in history if isinstance(h, dict) and h.get("status")}
+        present.add(current_status)
+        required = STATUS_ORDER[1:idx + 1]
+        missing = [s for s in required if s not in present]
+
+        created_at = q.get("created_at") or datetime.now(timezone.utc).isoformat()
+        new_entries = []
+        last_ts = created_at
+        for s in missing:
+            ts_field = STATUS_TIMESTAMP_FIELD.get(s)
+            ts = q.get(ts_field) if ts_field else None
+            if not ts:
+                ts = last_ts
+            last_ts = ts
+            new_entries.append({
+                "status": s,
+                "action": "_backfill",
+                "detail": "Backfill automático para regularización retroactiva",
+                "timestamp": ts,
+                "user": "Sistema (backfill)",
+            })
+
+        if missing and not dry_run:
+            await db.quotes.update_one(
+                {"quote_id": qid},
+                {"$push": {"status_history": {"$each": new_entries}}}
+            )
+            backfill_log.append({
+                "quote_number": q.get("quote_number"),
+                "status": current_status,
+                "added_steps": missing,
+            })
+        elif missing:
+            backfill_log.append({
+                "quote_number": q.get("quote_number"),
+                "status": current_status,
+                "added_steps": missing,
+                "dry_run": True,
+            })
+
+        will_regularize.append({
+            "quote_id": qid,
+            "quote_number": q.get("quote_number"),
+            "status": current_status,
+        })
+
+    # Aplicar regularización (omite la escritura si dry_run)
+    regularized = []
+    if not dry_run:
+        for w in will_regularize:
+            if await try_auto_regularize_quote(w["quote_id"]):
+                regularized.append({
+                    "quote_number": w["quote_number"],
+                    "status": w["status"],
+                })
+
+    final_count = (
+        total_before - len(regularized)
+        if not dry_run
+        else total_before
+    )
+
+    return {
+        "dry_run": dry_run,
+        "total_irregular_before": total_before,
+        "total_irregular_after": final_count,
+        "backfilled_count": len(backfill_log),
+        "regularized_count": len(regularized) if not dry_run else len(will_regularize),
+        "cannot_regularize_count": len(cannot_regularize),
+        "details": {
+            "backfilled": backfill_log,
+            "regularized": regularized if not dry_run else will_regularize,
+            "cannot_regularize": cannot_regularize,
+        },
+    }
+
+
 @router.get("/quotes/audit-log")
 async def get_audit_log(authorization: Optional[str] = Header(None)):
     """Devuelve el log de auditoría de excepciones de flujo."""
