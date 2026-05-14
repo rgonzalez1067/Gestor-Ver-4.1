@@ -1516,3 +1516,32 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 - Filtro `?quote_type=` en `/api/quotes` NO filtra server-side (frontend filtra en cliente). Minor, sin impacto en este feature.
 
 
+
+
+---
+
+## 2026-05-14 — Link de Pago en Motor Dinámico + Reporte de Embudo Acumulado [COMPLETE]
+
+**1) Link de Pago en matrices de acción (Pyme + Corp)**
+- `action_notifications.py`: agregado `{id:"link_pago"}` a `PRODUCT_SUBCATEGORIES`; agregadas entradas en `ALLOWED_ACTIONS_BY_BIZ_SUB` para `("implementacion_pyme","link_pago")` y `("implementacion_corp","link_pago")` con clon 1:1 de Payment Gateway (send_to_client, approve, invoice, collect, send_to_implementation).
+- `notification_engine.py::_quote_to_biz_sub`: mapea `LINK_PAGO`/`LINK` quote_type → sub `link_pago`.
+- UI auto-renderiza la pestaña "Link de Pago" en `/settings/action-notifications` (Matrix + Overrides + Custom Actions) sin cambios en el componente.
+
+**2) Reporte de Embudo — acumulado histórico**
+- `sales_reports.py::funnel_report` ahora retorna `delivered_breakdown` con 3 categorías:
+  - **implementaciones**: cotizaciones implementation/fast_track con `delivered_at` OR `sent_to_implementation_at` OR `archived=True` (pasaron a Proyecto).
+  - **equipos**: equipment con `delivered_at`.
+  - **reparaciones**: repair con `delivered_at`.
+- El stage "Entregada" en `stages` ahora refleja la SUMA de los 3 segmentos (antes solo contaba `delivered_at`, excluyendo implementaciones que pasaban a Proyecto).
+- Las etapas previas (Enviada/Aprobada/Facturada/Pagada) ya son cumulativas por timestamp, sin cambios.
+
+**3) Barra segmentada "Entregadas" (UI)**
+- `SalesReports.jsx`: nueva tarjeta "Cierre por línea de negocio (Entregadas / Pasaron al Histórico)" con barra horizontal multi-color (azul=Imple, naranja=Equipos, rojo=Reparaciones) + tooltip nativo (count + monto) + 3 tarjetas-leyenda con totales.
+
+**4) Herramienta admin de Refresco del Embudo**
+- Backend: `POST /api/reports/sales/funnel/recalculate` admin-only. Backfilla timestamps faltantes desde `status_history` (mapea `to_status` → ts field) y desde `archived_at` cuando `archived_trigger=status_enviada_imple`. NO sobrescribe valores existentes. Bitácora registrada.
+- Frontend: `Settings.jsx` muestra tarjeta `FunnelRecalculateCard` con botón "Ejecutar refresco", confirmación nativa, toast con resumen y registro del último resultado.
+
+**Testing**: iteration_3.json — Backend 7/7 PASS, Frontend 9/9 PASS, sin issues críticos.
+
+
