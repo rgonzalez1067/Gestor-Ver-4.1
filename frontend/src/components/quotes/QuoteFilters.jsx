@@ -5,7 +5,12 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 
 const QUOTE_FILTER_CATEGORIES = [
-  { id: 'implementation', name: 'Implementación (VPOS/MPOS/PG)' },
+  // Implementación desglosada por tipo de cotización
+  { id: 'implementation', name: 'Implementación (todas)' },
+  { id: 'implementation:VPOS', name: '  · Implementación VPOS', indent: true },
+  { id: 'implementation:MPOS', name: '  · Implementación MPOS', indent: true },
+  { id: 'implementation:FAST_TRACK', name: '  · Implementación MPOS Integrada', indent: true },
+  { id: 'implementation:GATEWAY', name: '  · Implementación PG', indent: true },
   { id: 'equipment', name: 'Equipos y Accesorios' },
   { id: 'repair', name: 'Reparaciones' },
 ];
@@ -71,6 +76,7 @@ export const QuoteFilters = ({
               <SelectItem value="Borrador">Borrador</SelectItem>
               <SelectItem value="Enviada">Enviada</SelectItem>
               <SelectItem value="Aprobada">Aprobada</SelectItem>
+              <SelectItem value="Reparada">Reparada</SelectItem>
               <SelectItem value="Facturada">Facturada</SelectItem>
               <SelectItem value="Pagada">Pagada</SelectItem>
               <SelectItem value="Entregada">Entregada (Equipos)</SelectItem>

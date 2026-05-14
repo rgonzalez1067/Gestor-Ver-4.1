@@ -141,10 +141,17 @@ export const QuotesTable = ({
     if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
     if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
     if (filterCategory && filterCategory !== 'all') {
-      // 3 categorías independientes: 'implementation' (VPOS/MPOS/PG),
-      // 'equipment' (Equipos y Accesorios), 'repair' (Reparaciones).
+      // Categorías: 'implementation' (Implementación), 'equipment', 'repair'.
+      // Adicionalmente se admite el sufijo ':<TYPE>' para filtrar dentro de
+      // Implementación por tipo de cotización (VPOS/MPOS/FAST_TRACK/GATEWAY).
       const cat = quote.quote_category || 'implementation';
-      if (filterCategory !== cat) return false;
+      const [baseCat, subType] = filterCategory.split(':');
+      if (baseCat !== cat) return false;
+      if (subType) {
+        // Normalizar el tipo de cotización
+        const qt = (quote.quote_type || '').toUpperCase();
+        if (qt !== subType.toUpperCase()) return false;
+      }
     }
     if (filterSegment && filterSegment !== 'all' && (quote.client_segment || 'PYME') !== filterSegment) return false;
     if (filterDateFrom) {
