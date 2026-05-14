@@ -24,6 +24,8 @@ const MOV_LABELS = {
   salida: { label: 'Salida', color: 'bg-red-100 text-red-700', icon: '-' },
   transferencia_entrada: { label: 'Transf. Recibida', color: 'bg-blue-100 text-blue-700', icon: '+' },
   transferencia_salida: { label: 'Transf. Enviada', color: 'bg-orange-100 text-orange-700', icon: '-' },
+  salida_temporal: { label: 'Asignación Temp.', color: 'bg-amber-100 text-amber-700', icon: '⤤' },
+  entrada_temporal: { label: 'Devolución Temp.', color: 'bg-teal-100 text-teal-700', icon: '⤣' },
 };
 
 export default function Inventory() {
@@ -36,7 +38,23 @@ export default function Inventory() {
   const [stock, setStock] = useState([]);
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('stock'); // stock | movements
+  const [tab, setTab] = useState('stock'); // stock | movements | temporary
+
+  // ==================== ASIGNACIÓN TEMPORAL ====================
+  const [tempAssignments, setTempAssignments] = useState([]); // lista
+  const [tempByItem, setTempByItem] = useState({}); // { item_id: [assignments_activas] }
+  const [tempFilter, setTempFilter] = useState('asignado'); // asignado | devuelto | overdue | all
+  // Modal de creación
+  const [tempDialog, setTempDialog] = useState(false);
+  const [tempForm, setTempForm] = useState({
+    item_id: '', quantity: 1, serials: [],
+    responsible_user_id: '', assigned_date: new Date().toISOString().slice(0, 10),
+    reason: '',
+  });
+  // Modal de devolución
+  const [returnDialog, setReturnDialog] = useState(false);
+  const [returnAssignment, setReturnAssignment] = useState(null);
+  const [returnNotes, setReturnNotes] = useState('');
 
   // Dialogs
   const [whDialog, setWhDialog] = useState(false);
@@ -173,12 +191,16 @@ export default function Inventory() {
   const fetchStock = useCallback(async () => {
     if (!selectedWh) return;
     try {
-      const [stockRes, movRes] = await Promise.all([
+      const [stockRes, movRes, tempRes, tempByItemRes] = await Promise.all([
         api.get(`/inventory/warehouses/${selectedWh}/stock`),
-        api.get(`/inventory/warehouses/${selectedWh}/movements`)
+        api.get(`/inventory/warehouses/${selectedWh}/movements`),
+        api.get(`/inventory/temporary-assignments?warehouse_id=${selectedWh}`).catch(() => ({ data: [] })),
+        api.get('/inventory/temporary-assignments/active-by-item').catch(() => ({ data: {} })),
       ]);
       setStock(stockRes.data);
       setMovements(movRes.data);
+      setTempAssignments(tempRes.data || []);
+      setTempByItem(tempByItemRes.data || {});
     } catch { /* silent */ }
   }, [selectedWh]);
 
@@ -660,8 +682,26 @@ export default function Inventory() {
                   data-testid="btn-entry" className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   <PackagePlus size={14} className="mr-1.5" />Entrada
                 </Button>}
-                <Button size="sm" variant="outline" onClick={() => setTab(tab === 'stock' ? 'movements' : 'stock')} data-testid="btn-toggle-tab">
-                  {tab === 'stock' ? <><History size={14} className="mr-1.5" />Movimientos</> : <><Box size={14} className="mr-1.5" />Stock</>}
+                {canEdit && <Button size="sm" onClick={() => {
+                  setTempForm({ item_id: '', quantity: 1, serials: [], responsible_user_id: '', assigned_date: new Date().toISOString().slice(0, 10), reason: '' });
+                  setTempDialog(true);
+                }}
+                  data-testid="btn-temp-assign" className="bg-amber-500 hover:bg-amber-600 text-white">
+                  <ArrowLeftRight size={14} className="mr-1.5" />Asignación Temporal
+                </Button>}
+                <Button size="sm" variant="outline" onClick={() => setTab('stock')} className={tab === 'stock' ? 'bg-slate-100 border-slate-300' : ''} data-testid="btn-tab-stock">
+                  <Box size={14} className="mr-1.5" />Stock
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setTab('movements')} className={tab === 'movements' ? 'bg-slate-100 border-slate-300' : ''} data-testid="btn-tab-movements">
+                  <History size={14} className="mr-1.5" />Movimientos
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setTab('temporary')} className={tab === 'temporary' ? 'bg-amber-100 border-amber-300 text-amber-800' : ''} data-testid="btn-tab-temporary">
+                  <ArrowLeftRight size={14} className="mr-1.5" />Asignaciones Temp.
+                  {(tempByItem && Object.keys(tempByItem).length > 0) && (
+                    <span className="ml-1 text-[10px] bg-amber-200 text-amber-800 px-1.5 rounded-full font-bold">
+                      {tempAssignments.filter(a => a.status === 'asignado').length}
+                    </span>
+                  )}
                 </Button>
               </div>
 
@@ -683,15 +723,25 @@ export default function Inventory() {
                     <tbody>
                       {stock.length === 0 ? (
                         <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">Sin stock en este almacén</td></tr>
-                      ) : stock.map(item => (
+                      ) : stock.map(item => {
+                        const tempActives = tempByItem[item.item_id] || [];
+                        const hasOverdueTemp = tempActives.some(t => t.is_overdue);
+                        const hasTemp = tempActives.length > 0;
+                        return (
                         <tr key={item.item_id}
-                          className={`border-b cursor-pointer transition-colors group ${item.below_min ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-teal-50/50'}`}
+                          className={`border-b cursor-pointer transition-colors group ${item.below_min ? 'bg-red-50 hover:bg-red-100/70' : hasTemp ? 'bg-amber-50 hover:bg-amber-100/70' : 'hover:bg-teal-50/50'}`}
                           onClick={() => openKardex(item)}
                           data-testid={`stock-row-${item.item_id}`}>
                           <td className="px-4 py-3 font-medium text-slate-900">
                             <span className="flex items-center gap-2">
                               {item.below_min && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
                               {item.item_name}
+                              {hasTemp && (
+                                <span title={`${tempActives.length} asignación(es) temporal(es) activa(s)`}
+                                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${hasOverdueTemp ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>
+                                  {hasOverdueTemp ? '⚠ ' : ''}{tempActives.reduce((s, t) => s + (t.quantity || 0), 0)} en uso
+                                </span>
+                              )}
                               <ChevronRight size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors" />
                             </span>
                           </td>
@@ -768,7 +818,8 @@ export default function Inventory() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -847,6 +898,111 @@ export default function Inventory() {
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ==================== TAB: Asignaciones Temporales ==================== */}
+              {tab === 'temporary' && (
+                <div className="bg-white rounded-lg border border-amber-200 overflow-hidden" data-testid="temp-table">
+                  <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-3">
+                    <p className="text-sm text-amber-900">
+                      <strong>Items asignados temporalmente</strong> a personal interno (pruebas, demos, uso interno). El stock está descontado mientras esté asignado.
+                    </p>
+                    <Select value={tempFilter} onValueChange={setTempFilter}>
+                      <SelectTrigger className="h-8 w-[170px] text-xs bg-white border-amber-300" data-testid="temp-filter">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="asignado">Activas</SelectItem>
+                        <SelectItem value="overdue">⚠ Vencidas (+15 días)</SelectItem>
+                        <SelectItem value="devuelto">Devueltas (histórico)</SelectItem>
+                        <SelectItem value="all">Todas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium text-slate-600 text-xs">Ítem</th>
+                        <th className="px-4 py-2 text-center font-medium text-slate-600 text-xs">Cant.</th>
+                        <th className="px-4 py-2 text-left font-medium text-slate-600 text-xs">Responsable</th>
+                        <th className="px-4 py-2 text-center font-medium text-slate-600 text-xs">Asignado</th>
+                        <th className="px-4 py-2 text-center font-medium text-slate-600 text-xs">Días</th>
+                        <th className="px-4 py-2 text-left font-medium text-slate-600 text-xs">Motivo</th>
+                        <th className="px-4 py-2 text-center font-medium text-slate-600 text-xs">Estado</th>
+                        <th className="px-4 py-2 text-right font-medium text-slate-600 text-xs">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const filtered = tempAssignments.filter(a => {
+                          if (tempFilter === 'all') return true;
+                          if (tempFilter === 'overdue') return a.status === 'asignado' && a.is_overdue;
+                          return a.status === tempFilter;
+                        });
+                        if (filtered.length === 0) {
+                          return <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-xs">Sin asignaciones temporales en este filtro.</td></tr>;
+                        }
+                        return filtered.map(a => (
+                          <tr key={a.assignment_id}
+                            className={`border-b ${a.is_overdue ? 'bg-red-50' : a.status === 'asignado' ? 'bg-amber-50/40' : 'bg-slate-50'}`}
+                            data-testid={`temp-row-${a.assignment_id}`}>
+                            <td className="px-4 py-2.5">
+                              <div className="font-medium text-slate-800">{a.item_name}</div>
+                              {a.serials && a.serials.length > 0 && (
+                                <div className="text-[10px] font-mono text-slate-500 truncate max-w-[200px]" title={a.serials.join(', ')}>
+                                  {a.serials.join(', ')}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-center font-semibold">{a.quantity}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="text-slate-700">{a.responsible_name}</div>
+                              <div className="text-[10px] text-slate-400">{a.responsible_email}</div>
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-xs">
+                              <div>{a.assigned_date}</div>
+                              <div className="text-[10px] text-slate-400">por {a.created_by_name}</div>
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              {a.days_out != null ? (
+                                <span className={`text-xs font-semibold ${a.is_overdue ? 'text-red-700' : a.days_out > 7 ? 'text-amber-700' : 'text-slate-600'}`}>
+                                  {a.days_out}d
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-slate-600 max-w-[250px]" title={a.reason}>
+                              <div className="truncate">{a.reason}</div>
+                              {a.return_notes && <div className="text-[10px] text-teal-700 truncate">Devolución: {a.return_notes}</div>}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              {a.status === 'asignado' ? (
+                                <span className={`px-2 py-0.5 text-[10px] rounded font-semibold ${a.is_overdue ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>
+                                  {a.is_overdue ? '⚠ VENCIDA' : 'ACTIVA'}
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-[10px] rounded font-semibold bg-emerald-100 text-emerald-700">DEVUELTA</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              {a.status === 'asignado' && canEdit && (
+                                <Button size="sm" variant="outline" className="h-7 text-xs border-teal-300 text-teal-700 hover:bg-teal-50"
+                                  onClick={() => { setReturnAssignment(a); setReturnNotes(''); setReturnDialog(true); }}
+                                  data-testid={`btn-return-${a.assignment_id}`}>
+                                  ↩ Devolver
+                                </Button>
+                              )}
+                              {a.status === 'devuelto' && (
+                                <span className="text-[10px] text-slate-400" title={`Devuelta el ${(a.returned_at || '').slice(0, 10)} por ${a.returned_by_name}`}>
+                                  {(a.returned_at || '').slice(0, 10)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1687,6 +1843,156 @@ export default function Inventory() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ==================== ASIGNACIÓN TEMPORAL — CREATE DIALOG ==================== */}
+        <Dialog open={tempDialog} onOpenChange={setTempDialog}>
+          <DialogContent className="max-w-lg" data-testid="temp-create-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-700">
+                <ArrowLeftRight size={18} /> Asignación Temporal
+              </DialogTitle>
+              <p className="text-xs text-slate-500 mt-1">
+                Registre la salida temporal de un ítem. El stock se descuenta automáticamente y queda registrado en el Kardex.
+              </p>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Ítem *</Label>
+                <Select value={tempForm.item_id} onValueChange={v => {
+                  const item = stock.find(s => s.item_id === v);
+                  setTempForm(p => ({ ...p, item_id: v, quantity: 1, serials: [], _requires_serial: !!item?.requires_serial, _available_serials: item?.serials || [], _max_qty: item?.quantity || 0 }));
+                }}>
+                  <SelectTrigger data-testid="temp-item-select"><SelectValue placeholder="Seleccione un ítem..." /></SelectTrigger>
+                  <SelectContent>
+                    {stock.filter(s => s.quantity > 0).map(s => (
+                      <SelectItem key={s.item_id} value={s.item_id}>
+                        {s.item_name} <span className="text-xs text-slate-400">(disp. {s.quantity})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {tempForm._requires_serial ? (
+                <div>
+                  <Label className="text-xs">Seriales a asignar * (separados por coma)</Label>
+                  <Textarea value={(tempForm.serials || []).join(', ')}
+                    onChange={e => {
+                      const list = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setTempForm(p => ({ ...p, serials: list, quantity: list.length }));
+                    }}
+                    rows={2} className="font-mono text-xs"
+                    placeholder={`Disponibles: ${(tempForm._available_serials || []).slice(0, 3).join(', ')}${(tempForm._available_serials || []).length > 3 ? '...' : ''}`}
+                    data-testid="temp-serials-input" />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Cantidad: {tempForm.serials?.length || 0}</p>
+                </div>
+              ) : (
+                <div>
+                  <Label className="text-xs">Cantidad *</Label>
+                  <Input type="number" min="1" max={tempForm._max_qty || 9999} value={tempForm.quantity}
+                    onChange={e => setTempForm(p => ({ ...p, quantity: parseInt(e.target.value || '0', 10) }))}
+                    data-testid="temp-qty-input" />
+                  <p className="text-[10px] text-slate-400 mt-0.5">Disponible: {tempForm._max_qty || 0}</p>
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Responsable *</Label>
+                <Select value={tempForm.responsible_user_id} onValueChange={v => setTempForm(p => ({ ...p, responsible_user_id: v }))}>
+                  <SelectTrigger data-testid="temp-responsible-select"><SelectValue placeholder="Seleccione responsable..." /></SelectTrigger>
+                  <SelectContent>
+                    {users.filter(u => u.is_active !== false).map(u => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {(u.first_name || u.last_name) ? `${u.first_name || ''} ${u.last_name || ''}`.trim() : (u.full_name || u.email)}
+                        <span className="text-xs text-slate-400 ml-1">({u.email})</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Fecha de asignación *</Label>
+                <Input type="date" value={tempForm.assigned_date}
+                  onChange={e => setTempForm(p => ({ ...p, assigned_date: e.target.value }))} data-testid="temp-date-input" />
+              </div>
+              <div>
+                <Label className="text-xs">Motivo / Descripción *</Label>
+                <Textarea value={tempForm.reason}
+                  onChange={e => setTempForm(p => ({ ...p, reason: e.target.value }))}
+                  rows={3} placeholder="Ej: Pruebas de conectividad VPOS / Demo para cliente X / Configuración de campo..."
+                  data-testid="temp-reason-input" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setTempDialog(false)} data-testid="temp-cancel">Cancelar</Button>
+              <Button className="bg-amber-600 hover:bg-amber-700"
+                onClick={async () => {
+                  if (!tempForm.item_id || !tempForm.responsible_user_id || !tempForm.reason.trim()) {
+                    toast.error('Complete todos los campos obligatorios'); return;
+                  }
+                  if (tempForm._requires_serial && (tempForm.serials || []).length === 0) {
+                    toast.error('Indique los seriales a asignar'); return;
+                  }
+                  try {
+                    await api.post('/inventory/temporary-assignments', {
+                      warehouse_id: selectedWh,
+                      item_id: tempForm.item_id,
+                      quantity: tempForm.quantity,
+                      serials: tempForm.serials,
+                      responsible_user_id: tempForm.responsible_user_id,
+                      assigned_date: tempForm.assigned_date,
+                      reason: tempForm.reason,
+                    });
+                    toast.success('Asignación temporal creada');
+                    setTempDialog(false);
+                    setTab('temporary');
+                    fetchStock();
+                  } catch (err) { toast.error(err.response?.data?.detail || 'Error al crear asignación'); }
+                }}
+                data-testid="temp-submit">
+                Asignar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== DEVOLUCIÓN DIALOG ==================== */}
+        <AlertDialog open={returnDialog} onOpenChange={setReturnDialog}>
+          <AlertDialogContent data-testid="temp-return-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-teal-700">
+                ↩ Devolución de Equipo
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Va a devolver al stock <strong>{returnAssignment?.item_name}</strong> (cantidad: {returnAssignment?.quantity}) que tenía asignado <strong>{returnAssignment?.responsible_name}</strong> desde el {returnAssignment?.assigned_date}.
+                {returnAssignment?.serials && returnAssignment.serials.length > 0 && (
+                  <span className="block mt-1 text-[10px] font-mono">Seriales: {returnAssignment.serials.join(', ')}</span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="my-3">
+              <Label className="text-xs">Notas de devolución (opcional)</Label>
+              <Textarea value={returnNotes} onChange={e => setReturnNotes(e.target.value)} rows={2}
+                placeholder="Ej: Equipo retornado en buen estado / Falla menor detectada..."
+                data-testid="temp-return-notes" />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className="bg-teal-600 hover:bg-teal-700"
+                onClick={async () => {
+                  try {
+                    await api.post(`/inventory/temporary-assignments/${returnAssignment.assignment_id}/return`,
+                      { return_notes: returnNotes });
+                    toast.success('Equipo devuelto al stock');
+                    setReturnDialog(false);
+                    setReturnAssignment(null);
+                    fetchStock();
+                  } catch (err) { toast.error(err.response?.data?.detail || 'Error al devolver'); }
+                }}
+                data-testid="temp-return-confirm">
+                Confirmar Devolución
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

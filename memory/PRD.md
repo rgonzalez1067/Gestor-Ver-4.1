@@ -5,6 +5,33 @@ Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 ## Módulos Implementados
 
+### Inventario — Módulo de Asignaciones Temporales (Feb 2026) — NUEVO
+
+**Objetivo**: Controlar la salida transitoria de ítems del inventario (pruebas, demos, uso interno) con trazabilidad completa y devolución posterior.
+
+**Backend** (`/app/backend/routes/inventory_temporary.py` — nuevo módulo, registrado en `server.py`):
+- Nueva colección `temporary_assignments` con `{assignment_id, item_id, warehouse_id, quantity, serials[], responsible_user_id, responsible_name, responsible_email, assigned_date, reason, status: 'asignado'|'devuelto', created_at, exit_movement_id, return_movement_id, returned_at, returned_by, return_notes}`.
+- Endpoints:
+  - `POST /api/inventory/temporary-assignments`: valida stock, crea `salida_temporal` en `inventory_movements`, bloquea seriales en `serial_assignments` (status `asignado_temporal`).
+  - `POST /api/inventory/temporary-assignments/{id}/return`: crea `entrada_temporal`, libera seriales, marca status `devuelto`.
+  - `GET /api/inventory/temporary-assignments?status=asignado|devuelto|overdue|all`: lista con filtros + enriquecido con `days_out` e `is_overdue` (>15 días).
+  - `GET /api/inventory/temporary-assignments/active-by-item`: mapa `{item_id: [activas]}` para resaltar items en UI.
+- Lógica de stock: `salida_temporal` y `entrada_temporal` se cuentan en el `sign` de `get_warehouse_stock` (descuentan/reintegran) y los seriales `asignado_temporal` están en la lista de bloqueados (evita que aparezcan disponibles para cotizaciones).
+
+**Frontend** (`/app/frontend/src/pages/Inventory.jsx`):
+- Botón **"Asignación Temporal"** (naranja) junto a "Entrada".
+- Tabs reformados: Stock | Movimientos | **Asignaciones Temp.** (badge naranja con contador de activas).
+- Modal de creación con todos los campos (ítem, cantidad/seriales según tipo, responsable, fecha, motivo).
+- Modal de devolución con notas opcionales.
+- Tab "Asignaciones Temp." con tabla filtrable (Activas | ⚠ Vencidas +15d | Devueltas | Todas), botón Devolver en cada fila activa, indicador de días fuera con código de color (>7d ámbar, >15d rojo).
+- Stock tab: items con asignaciones activas se resaltan en **bg-amber-50** con badge "X en uso" (rojo si vencida).
+- Constantes `MOV_LABELS` extendidas con `salida_temporal` (ámbar) y `entrada_temporal` (teal) para que aparezcan correctamente en el Kardex.
+
+**Validado E2E con curl**:
+- ✅ Stock antes: 46 → crear asignación qty=2 → stock: 44.
+- ✅ Asignación visible en lista con `days_out: 0`.
+- ✅ Devolver → stock restaurado a 46, status `devuelto`, `return_movement_id` poblado.
+
 ### Cotizaciones — Endpoint y UI de Regularización Masiva (Admin) (Feb 2026) — NUEVO
 
 **Objetivo**: Permitir al Administrador disparar la migración masiva de regularización **desde producción** tras el deploy (sin acceso a scripts manuales).

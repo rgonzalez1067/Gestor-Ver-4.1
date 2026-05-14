@@ -271,7 +271,7 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
             serial_dates_map[iid] = {}
 
         is_precarga = m.get("certification_status") == "precarga"
-        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada", "entrada_temporal") else -1
         acq_date = m.get("acquisition_date") or m.get("created_at", "")
 
         if is_precarga:
@@ -301,9 +301,10 @@ async def get_warehouse_stock(warehouse_id: str, authorization: Optional[str] = 
                         serial_dates_map[iid].pop(s, None)
 
     # Excluir seriales preasignados/asignados del stock disponible
+    # (incluye asignaciones temporales para que no aparezcan como disponibles)
     blocked_assignments = await db.serial_assignments.find(
-        {"status": {"$in": ["preasignado", "asignado"]}},
-        {"_id": 0, "serial": 1, "status": 1, "quote_number": 1, "client_name": 1, "item_id": 1}
+        {"status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+        {"_id": 0, "serial": 1, "status": 1, "quote_number": 1, "client_name": 1, "item_id": 1, "responsible_name": 1, "assignment_id_ref": 1}
     ).to_list(2000)
     blocked_serials = {b["serial"] for b in blocked_assignments}
     blocked_details = {b["serial"]: b for b in blocked_assignments}
@@ -867,7 +868,7 @@ async def get_kardex(warehouse_id: str, item_id: str, authorization: Optional[st
     kardex = []
     for m in movements:
         is_precarga = m.get("certification_status") == "precarga"
-        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada", "entrada_temporal") else -1
         if not is_precarga:
             saldo += sign * m["quantity"]
         kardex.append({
@@ -1078,7 +1079,7 @@ async def _get_item_stock(warehouse_id: str, item_id: str) -> dict:
         # Excluir precargas del stock disponible
         if m.get("certification_status") == "precarga":
             continue
-        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
+        sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada", "entrada_temporal") else -1
         qty += sign * m["quantity"]
         cost_total += sign * m["quantity"] * m.get("unit_cost", 0)
         acq_date = m.get("acquisition_date") or m.get("created_at", "")
@@ -1154,7 +1155,7 @@ async def get_accounting_report(authorization: Optional[str] = Header(None)):
         
         for mov in item_data["movements"]:
             qty = mov["quantity"]
-            is_entrada = mov["movement_type"] in ("entrada", "transferencia_entrada")
+            is_entrada = mov["movement_type"] in ("entrada", "transferencia_entrada", "entrada_temporal")
             
             if is_entrada:
                 batch_value = qty * mov["unit_cost"]
