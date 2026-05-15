@@ -64,3 +64,16 @@ tmp/
 **/.env.local
 **/.env.development.local
 **/.env.test.local
+
+# ============================================================================
+# Archivos generados / cache de Object Storage — NO deben viajar en deploy.
+# Estos PDFs y anexos viven en Emergent Object Storage; el filesystem local
+# es solo un cache que se rehidrata bajo demanda. Si se incluyen, el tar
+# copy del pod falla por tamaño/timeout cuando hay muchos archivos.
+# ============================================================================
+backend/uploads/COT-*.pdf
+backend/uploads/PRY-*.pdf
+backend/uploads/FACT-*.pdf
+backend/uploads/NotaEntrega_*.pdf
+backend/uploads/NotaEntrega_Reparacion_*.pdf
+backend/uploads/attachments/
