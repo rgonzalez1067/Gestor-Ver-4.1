@@ -1052,7 +1052,17 @@ async def quotes_bundle_import_attachment(
     try:
         local_path = UPLOADS_DIR / rel
         save_pdf_dual(local_path, raw, rel)
+        # Verificación de integridad: confirmar que el archivo quedó escrito en
+        # disco. Esto NO valida storage (su fallo es silencioso por diseño)
+        # pero al menos asegura que el binario llegó completo al filesystem.
+        if not local_path.exists():
+            raise IOError(f"archivo no presente tras write: {local_path}")
+        actual_size = local_path.stat().st_size
+        if actual_size != len(raw):
+            raise IOError(f"tamaño inconsistente tras write: esperado={len(raw)} actual={actual_size}")
     except Exception as e:
+        import logging as _log
+        _log.getLogger(__name__).error(f"[import-attachment] fallo guardando {rel}: {e}")
         raise HTTPException(status_code=500, detail=f"Error guardando {rel}: {e}")
 
     # Bitácora ligera (sin spam: una sola línea con el contador es suficiente

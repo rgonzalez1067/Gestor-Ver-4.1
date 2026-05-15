@@ -17,6 +17,10 @@ import * as XLSX from 'xlsx';
 export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 }) => {
   const [expanded, setExpanded] = useState(branches.length > 0);
   const fileRef = useRef(null);
+  // resetKey se incrementa cuando reemplazamos branches programáticamente
+  // (import Excel, reset, etc.) para forzar remount de los <Input>
+  // uncontrolled y que muestren los nuevos valores.
+  const [resetKey, setResetKey] = useState(0);
 
   const totalBranches = branches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0);
   const isValid = totalBranches === totalEquipment;
@@ -67,6 +71,9 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
         }
         // REEMPLAZA las filas existentes con las del Excel.
         onChange(imported);
+        // Forzar remount de los inputs para que reflejen los nuevos valores
+        // (defaultValue es uncontrolled y no se re-aplica sin remount).
+        setResetKey((k) => k + 1);
         const msg = `${imported.length} sucursales importadas (reemplazo total)`;
         if (invalidQtyRows > 0) {
           toast.warning(`${msg}. ${invalidQtyRows} fila(s) ignoradas por cantidad inválida.`);
@@ -164,7 +171,7 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
       {/* Rows */}
       <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
         {branches.map((branch, idx) => (
-          <div key={idx} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center" data-testid={`branch-row-${idx}`}>
+          <div key={`${resetKey}-${idx}`} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center" data-testid={`branch-row-${idx}`}>
             <Input
               defaultValue={branch.store_name}
               onBlur={(e) => updateRow(idx, 'store_name', e.target.value)}

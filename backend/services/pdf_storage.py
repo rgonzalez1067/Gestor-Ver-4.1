@@ -66,15 +66,22 @@ def get_pdf_from_storage(filename: str) -> Optional[Tuple[bytes, str]]:
 
 
 def save_pdf_dual(pdf_path: Path, pdf_bytes: bytes, filename: Optional[str] = None) -> Path:
-    """Escribe el PDF en disco (compat / cache) Y lo sube a Object Storage.
+    """Escribe el archivo en disco (compat / cache) Y lo sube a Object Storage.
 
     El upload a storage falla silenciosamente para no romper el flujo principal.
     Retorna el Path local (igual que antes) para que el código que lo necesite
     siga funcionando.
+
+    El content_type se infiere del nombre/extensión: si es .pdf, image/*, .xlsx,
+    .docx, etc. se mapea correctamente. Antes se hardcodeaba "application/pdf"
+    para todo, lo que corrompía anexos no-PDF (imágenes, hojas Excel, etc.) y
+    causaba que en producción no se descargaran adecuadamente.
     """
     pdf_path = Path(pdf_path)
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
     pdf_path.write_bytes(pdf_bytes)
     name = filename or pdf_path.name
-    save_pdf_to_storage(pdf_bytes, name)
+    # Detectar MIME real (override solo si es .pdf claro o si mimetypes resuelve)
+    ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    save_pdf_to_storage(pdf_bytes, name, content_type=ctype)
     return pdf_path

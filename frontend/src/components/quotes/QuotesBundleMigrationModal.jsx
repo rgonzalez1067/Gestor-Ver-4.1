@@ -144,43 +144,91 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
       zip.forEach((relPath, entry) => {
         if (entry.dir) return;
         if (relPath === 'manifest.json') return;
-        if (relPath.split('/').includes('..')) return;
-        entries.push({ relPath, entry });
+        // Normalizar path para el backend (siempre forward-slash)
+        const norm = relPath.replace(/\\/g, '/');
+        if (norm.split('/').includes('..')) return;
+        entries.push({ relPath: norm, entry });
       });
       const total = entries.length;
       if (total === 0) {
         toast.error('El ZIP no contiene archivos restaurables');
         return;
       }
+
+      // Subida con reintentos automáticos para sobrevivir a 502/504 y errores
+      // de red transitorios típicos del ingress en producción. Sin reintentos
+      // muchos anexos fallaban silenciosamente con "skipped".
+      const MAX_RETRIES = 3;
+      const BACKOFF_MS = [500, 1500, 3500];
+      const uploadOne = async ({ relPath, entry }) => {
+        let lastErr = null;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            const blob = await entry.async('blob');
+            const fd = new FormData();
+            fd.append('path', relPath);
+            fd.append('file', blob, relPath.split('/').pop() || 'file.bin');
+            await api.post('/admin/quotes-bundle-migration/import-attachment', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              timeout: 60000,
+            });
+            return { ok: true, path: relPath, retries: attempt };
+          } catch (err) {
+            lastErr = err;
+            const status = err.response?.status;
+            // 4xx (excepto 408/429) NO reintentamos — es error de cliente.
+            if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+              return { ok: false, path: relPath, error: err.response?.data?.detail || err.message, retries: attempt };
+            }
+            if (attempt < MAX_RETRIES) {
+              await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt] || 3500));
+            }
+          }
+        }
+        return { ok: false, path: relPath, error: lastErr?.response?.data?.detail || lastErr?.message || 'unknown', retries: MAX_RETRIES };
+      };
+
       let restored = 0;
       let skipped = 0;
+      let retriedCount = 0;
       const errors = [];
-      for (let i = 0; i < total; i++) {
-        const { relPath, entry } = entries[i];
-        setZipProgress(`Subiendo ${i + 1}/${total} · ${relPath.slice(-40)}`);
-        try {
-          const blob = await entry.async('blob');
-          const fd = new FormData();
-          fd.append('path', relPath);
-          fd.append('file', blob, relPath.split('/').pop() || 'file.bin');
-          await api.post('/admin/quotes-bundle-migration/import-attachment', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          restored += 1;
-        } catch (err) {
-          skipped += 1;
-          errors.push({ path: relPath, error: err.response?.data?.detail || err.message });
+      // Concurrencia controlada: 4 uploads simultáneos es buen balance entre
+      // velocidad e impacto en el ingress (evita gateway timeouts por overload).
+      const CONCURRENCY = 4;
+      let cursor = 0;
+      let done = 0;
+
+      const worker = async () => {
+        while (true) {
+          const i = cursor++;
+          if (i >= total) return;
+          const item = entries[i];
+          setZipProgress(`Subiendo ${done + 1}/${total} · ${item.relPath.slice(-40)}`);
+          const res = await uploadOne(item);
+          done += 1;
+          if (res.ok) {
+            restored += 1;
+            if (res.retries > 0) retriedCount += 1;
+          } else {
+            skipped += 1;
+            errors.push({ path: res.path, error: res.error });
+          }
+          setZipProgress(`Subiendo ${done}/${total} (${restored} OK · ${skipped} fallidos)`);
         }
-      }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
+
       const result = {
         module: 'quotes-bundle-attachments',
         restored,
         skipped,
-        errors: errors.slice(0, 20),
-        message: `Restauración completada: ${restored} archivo(s) restaurado(s), ${skipped} omitido(s).`,
+        retried: retriedCount,
+        errors: errors.slice(0, 50),
+        message: `Restauración completada: ${restored} restaurado(s), ${skipped} fallido(s)${retriedCount ? `, ${retriedCount} requirió reintento` : ''}.`,
       };
       setZipResult(result);
-      if (restored > 0) toast.success(result.message);
+      if (restored > 0 && skipped === 0) toast.success(result.message);
+      else if (skipped > 0 && restored > 0) toast.warning(result.message);
       else toast.error(result.message);
     } catch (e) {
       toast.error(e.response?.data?.detail || e.message || 'Error al restaurar anexos');
