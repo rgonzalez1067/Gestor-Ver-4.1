@@ -318,24 +318,51 @@ export const QuotesTable = ({
                     const fantasy = client?.fantasy_name || '';
                     const legal = client?.legal_name || '';
                     const display = fantasy || quote.client_name || legal || 'N/A';
-                    // Mostrar tooltip con Razón Social siempre que exista legal_name.
+                    const clientId = quote.client_id;
+                    // Hipervínculo a la ficha del cliente en nueva pestaña.
+                    const linkClass = "text-blue-700 hover:text-blue-900 hover:underline cursor-pointer";
                     if (!legal) {
-                      return <span data-testid={`quote-client-${quote.quote_id}`}>{display}</span>;
+                      return clientId ? (
+                        <a
+                          href={`/clients?open=${clientId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={linkClass}
+                          data-testid={`quote-client-link-${quote.quote_id}`}
+                        >
+                          {display}
+                        </a>
+                      ) : (
+                        <span data-testid={`quote-client-${quote.quote_id}`}>{display}</span>
+                      );
                     }
                     return (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
-                              data-testid={`quote-client-${quote.quote_id}`}
-                            >
-                              {display}
-                            </span>
+                            {clientId ? (
+                              <a
+                                href={`/clients?open=${clientId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`${linkClass} decoration-dotted underline-offset-2`}
+                                data-testid={`quote-client-link-${quote.quote_id}`}
+                              >
+                                {display}
+                              </a>
+                            ) : (
+                              <span
+                                className="cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500"
+                                data-testid={`quote-client-${quote.quote_id}`}
+                              >
+                                {display}
+                              </span>
+                            )}
                           </TooltipTrigger>
                           <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
                             <p className="font-semibold mb-0.5 text-slate-300">Razón Social</p>
                             <p className="font-normal">{legal}</p>
+                            {clientId && <p className="text-[10px] text-blue-300 mt-1">Click para abrir ficha</p>}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>

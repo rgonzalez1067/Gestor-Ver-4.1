@@ -9,7 +9,10 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
-import { AlertTriangle, CheckCircle, Mail, Plus, Send, Store, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import api from '../../utils/api';
+import { toast } from 'sonner';
 import { EquipmentQuoteWizard } from '../EquipmentQuoteWizard';
 import { AnexosModal } from '../AnexosModal';
 import { WorkflowUploadModal } from '../WorkflowUploadModal';
@@ -260,6 +263,7 @@ export const QuoteModals = ({ ctx }) => {
                     </div>
                   )}
                 </div>
+                <EmailManualAttachments ctx={ctx} />
                 <div className="flex justify-end gap-3 pt-3 border-t">
                   <Button variant="outline" onClick={() => { setEmailModalOpen(false); setPendingAction(null); }} data-testid="email-cancel-btn">Cancelar</Button>
                   <Button onClick={confirmEmailAndProceed}
@@ -939,3 +943,121 @@ export const QuoteModals = ({ ctx }) => {
     </>
   );
 };
+
+// ========================================================================
+// EmailManualAttachments — Adjuntos manuales para el modal de Personalizar
+// Comunicación. Sube cada archivo al endpoint `/quotes/manual-attachments/
+// upload`, almacena los IDs en `ctx.emailManualAttachmentIds` y muestra una
+// lista con tamaño total + botón de quitar. Límite total: 10 MB.
+// ========================================================================
+const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
+const fmtBytes = (b) => {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+function EmailManualAttachments({ ctx }) {
+  const { emailManualAttachments = [], setEmailManualAttachments } = ctx;
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const totalBytes = emailManualAttachments.reduce((s, a) => s + (a.size || 0), 0);
+
+  const handleSelectFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    // Validar peso total ANTES de subir
+    const newTotal = totalBytes + files.reduce((s, f) => s + f.size, 0);
+    if (newTotal > MAX_TOTAL_BYTES) {
+      toast.error(`El peso total excede 10 MB. Total previsto: ${fmtBytes(newTotal)}`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploaded = [];
+      for (const f of files) {
+        const fd = new FormData();
+        fd.append('file', f);
+        try {
+          const { data } = await api.post('/quotes/manual-attachments/upload', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          uploaded.push(data);
+        } catch (err) {
+          toast.error(`Error subiendo ${f.name}: ${err?.response?.data?.detail || err.message}`);
+        }
+      }
+      if (uploaded.length) {
+        setEmailManualAttachments([...(emailManualAttachments || []), ...uploaded]);
+        toast.success(`${uploaded.length} archivo(s) cargado(s)`);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (id) => {
+    setEmailManualAttachments(emailManualAttachments.filter((a) => a.attachment_id !== id));
+  };
+
+  return (
+    <div data-testid="email-manual-attachments">
+      <Label className="text-sm font-medium">
+        Adjuntos manuales{' '}
+        <span className="text-xs text-slate-400">(PDF, imágenes, Excel — máx 10 MB total)</span>
+      </Label>
+      <div className="flex items-center gap-2 mt-1">
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.xlsx,.xls,.docx,.doc"
+          className="hidden"
+          onChange={handleSelectFiles}
+          data-testid="email-attachment-input"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || totalBytes >= MAX_TOTAL_BYTES}
+          className="h-8 text-xs border-blue-300 text-blue-600"
+          data-testid="email-attachment-add-btn"
+        >
+          <Paperclip size={13} className="mr-1.5" />
+          {uploading ? 'Subiendo...' : 'Añadir archivo'}
+        </Button>
+        <span className="text-[11px] text-slate-500" data-testid="email-attachment-total">
+          {emailManualAttachments.length} archivo(s) · {fmtBytes(totalBytes)} / 10 MB
+        </span>
+      </div>
+      {emailManualAttachments.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {emailManualAttachments.map((a) => (
+            <div
+              key={a.attachment_id}
+              className="flex items-center justify-between text-xs bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5"
+              data-testid={`email-attachment-item-${a.attachment_id}`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Paperclip size={12} className="text-slate-400 shrink-0" />
+                <span className="truncate text-slate-700">{a.filename}</span>
+                <span className="text-slate-400 shrink-0">({fmtBytes(a.size || 0)})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeAttachment(a.attachment_id)}
+                className="text-slate-400 hover:text-red-500 shrink-0 ml-2"
+                title="Quitar"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../components/ui/command';
 import { Textarea } from '../components/ui/textarea';
+import { ClientBusinessSummary } from '../components/ClientBusinessSummary';
 import DebouncedInput from '../components/DebouncedInput';
-import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown, Briefcase } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { MigrationButtons } from '../components/MigrationButtons';
@@ -50,6 +51,7 @@ export const Clients = () => {
   const [categoriasComerciales, setCategoriasComerciales] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [clientDialogTab, setClientDialogTab] = useState('data');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteClientData, setDeleteClientData] = useState({ id: null, name: null });
   const [searchTerm, setSearchTerm] = useState('');
@@ -132,6 +134,15 @@ export const Clients = () => {
       const client = clients.find(c => c.client_id === bitacoraClientId);
       if (client) {
         openBitacora(client);
+        setSearchParams({});
+      }
+    }
+    // Deep-link desde cotizaciones: abre ficha del cliente
+    const openClientId = searchParams.get('open');
+    if (openClientId && clients.length > 0) {
+      const client = clients.find(c => c.client_id === openClientId);
+      if (client) {
+        openEditDialog(client);
         setSearchParams({});
       }
     }
@@ -306,6 +317,7 @@ export const Clients = () => {
 
   const openEditDialog = (client) => {
     setEditingClient(client);
+    setClientDialogTab('data');
     // Migrate legacy contacts to new format
     let contacts = client.contacts || [];
     if (contacts.length === 0 && (client.contact1 || client.contact2)) {
@@ -907,6 +919,27 @@ export const Clients = () => {
                       </Button>
                     </div>
                   </DialogHeader>
+                  {editingClient && (
+                    <div className="mt-2 mb-4 border-b border-slate-200">
+                      <div className="flex gap-1" role="tablist" data-testid="client-dialog-tabs">
+                        <button type="button"
+                          onClick={() => setClientDialogTab('data')}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${clientDialogTab === 'data' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                          data-testid="tab-client-data">
+                          <FileText size={14} className="inline mr-1.5" /> Datos del Cliente
+                        </button>
+                        <button type="button"
+                          onClick={() => setClientDialogTab('summary')}
+                          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${clientDialogTab === 'summary' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                          data-testid="tab-client-summary">
+                          <Briefcase size={14} className="inline mr-1.5" /> Resumen de Negocio
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {editingClient && clientDialogTab === 'summary' ? (
+                    <ClientBusinessSummary clientId={editingClient.client_id} />
+                  ) : (
                   <form onSubmit={handleSubmitWithHighlight} className="space-y-5">
                     {/* Banner de campos auto-completados */}
                     {rifHighlightFields.size > 0 && (
@@ -1421,6 +1454,7 @@ export const Clients = () => {
                       </Button>
                     </div>
                   </form>
+                  )}
                 </DialogContent>
               </Dialog>}
             </div>

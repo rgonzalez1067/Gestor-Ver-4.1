@@ -15,6 +15,15 @@ import os, uuid
 
 from config import db, get_current_user
 
+
+async def _resolve_manual_attachments_or_empty(ids_header: Optional[str]) -> list[dict]:
+    """Proxy a la función real en `quote_actions.py` para evitar imports cíclicos."""
+    if not ids_header:
+        return []
+    from routes.quote_actions import _resolve_manual_attachments
+    return await _resolve_manual_attachments(ids_header)
+
+
 router = APIRouter()
 
 # Acciones legacy permitidas para override (NO se pueden borrar, solo
@@ -175,6 +184,7 @@ async def dispatch_custom_action(
     action_id: str,
     payload: dict = None,
     authorization: Optional[str] = Header(None),
+    manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids"),
 ):
     """Dispara una acción custom: envía correos según la matriz del Motor de
     Notificaciones para la combinación (biz × sub × action_id).
@@ -252,6 +262,7 @@ async def dispatch_custom_action(
         action_id, quote, user,
         custom_message=custom_message,
         cc_emails=cc_emails,
+        extra_attachments=await _resolve_manual_attachments_or_empty(manual_attachment_ids),
     )
 
     if not dispatched:

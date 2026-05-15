@@ -225,6 +225,9 @@ export const Quotes = () => {
   const [emailAdditionalRecipients, setEmailAdditionalRecipients] = useState('');
   const [emailNewRecipient, setEmailNewRecipient] = useState('');
   const [emailRecipientsList, setEmailRecipientsList] = useState([]);
+  // Adjuntos manuales del modal de Personalizar Comunicación.
+  // Cada item: { attachment_id, filename, size, content_type }
+  const [emailManualAttachments, setEmailManualAttachments] = useState([]);
   const [bitacoraFlujoQuoteNumber, setBitacoraFlujoQuoteNumber] = useState('');
   const [bitacoraFlujoEntries, setBitacoraFlujoEntries] = useState([]);
   const [bitacoraFlujoLoading, setBitacoraFlujoLoading] = useState(false);
@@ -2230,6 +2233,7 @@ export const Quotes = () => {
     setEmailCustomMessage('');
     setEmailNewRecipient('');
     setEmailRecipientsList([]);
+    setEmailManualAttachments([]);
     setEmailModalOpen(true);
   };
 
@@ -2249,6 +2253,9 @@ export const Quotes = () => {
     const headers = {};
     if (emailCustomMessage.trim()) headers['x-custom-message'] = emailCustomMessage.trim().slice(0, 200);
     if (emailRecipientsList.length > 0) headers['x-additional-recipients'] = emailRecipientsList.join(',');
+    if (emailManualAttachments.length > 0) {
+      headers['x-manual-attachment-ids'] = emailManualAttachments.map(a => a.attachment_id).join(',');
+    }
     return headers;
   };
 
@@ -2279,7 +2286,7 @@ export const Quotes = () => {
     }
   };
 
-  // Ejecuta una custom action con mensaje personalizado + CCs del modal
+  // Ejecuta una custom action con mensaje personalizado + CCs + adjuntos del modal
   const executeCustomAction = async (quoteId, actionId, label) => {
     try {
       setActionLoading(quoteId);
@@ -2287,7 +2294,13 @@ export const Quotes = () => {
         custom_message: emailCustomMessage?.trim() || null,
         cc_emails: emailRecipientsList || [],
       };
-      const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, payload);
+      const headers = {};
+      if (emailManualAttachments.length > 0) {
+        headers['x-manual-attachment-ids'] = emailManualAttachments.map(a => a.attachment_id).join(',');
+      }
+      const res = await api.post(`/quotes/${quoteId}/custom-action/${actionId}`, payload, { headers });
+      // Limpiar adjuntos: ya fueron consumidos en el backend.
+      setEmailManualAttachments([]);
       toast.success(res.data?.message || `${label} ejecutada`);
     } catch (e) {
       toast.error(e.response?.data?.detail || `Error ejecutando ${label}`);
@@ -3651,6 +3664,7 @@ export const Quotes = () => {
             confirmException,
             emailModalOpen, setEmailModalOpen, emailModalConfig, emailCustomMessage, setEmailCustomMessage,
             emailNewRecipient, setEmailNewRecipient, emailRecipientsList, setEmailRecipientsList,
+            emailManualAttachments, setEmailManualAttachments,
             addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
             bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
             bitacoraFlujoEntries, bitacoraFlujoLoading,

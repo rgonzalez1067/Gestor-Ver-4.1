@@ -44,6 +44,99 @@ from services.notification_engine import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# ==================== Adjuntos manuales del modal "Personalizar Comunicación" ====================
+# Tamaño máximo total de adjuntos manuales por envío (SMTP-friendly)
+_MAX_MANUAL_ATTACHMENTS_BYTES = 10 * 1024 * 1024  # 10 MB
+_ALLOWED_MANUAL_MIME_PREFIXES = (
+    "application/pdf", "image/", "text/",
+    "application/vnd.openxmlformats-officedocument",
+    "application/vnd.ms-excel", "application/msword",
+    "application/octet-stream",  # genérico, validamos por extensión
+)
+
+
+async def _resolve_manual_attachments(ids_header: Optional[str]) -> list[dict]:
+    """Convierte el header `x-manual-attachment-ids` (CSV de IDs) en lista
+    [{filename, content (base64)}] consumible por _engine_or_legacy /
+    send_workflow_notification. Limpia los registros temporales tras leerlos.
+    """
+    if not ids_header:
+        return []
+    ids = [s.strip() for s in ids_header.split(",") if s.strip()]
+    if not ids:
+        return []
+    docs = await db.temp_manual_attachments.find(
+        {"attachment_id": {"$in": ids}}, {"_id": 0}
+    ).to_list(50)
+    out = []
+    total = 0
+    for d in docs:
+        total += int(d.get("size", 0) or 0)
+        if total > _MAX_MANUAL_ATTACHMENTS_BYTES:
+            logger.warning(f"[manual_attachments] tamaño total excedido ({total} > {_MAX_MANUAL_ATTACHMENTS_BYTES}). Truncando.")
+            break
+        out.append({
+            "filename": d.get("filename"),
+            "content": d.get("content_b64"),
+            "content_type": d.get("content_type"),
+        })
+    # Limpieza: borramos los temporales (one-shot).
+    if ids:
+        await db.temp_manual_attachments.delete_many({"attachment_id": {"$in": ids}})
+    return out
+
+
+@router.post("/quotes/manual-attachments/upload")
+async def upload_manual_attachment(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Sube un adjunto manual para asociarlo a un próximo envío de correo.
+
+    Valida tipo + tamaño individual. Devuelve un `attachment_id` que debe
+    incluirse en el header `x-manual-attachment-ids` (CSV) al ejecutar la
+    acción de envío. Los adjuntos temporales se borran tras consumirse o
+    quedan caducos (TTL = 1h).
+    """
+    user = await get_current_user(authorization)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
+    size = len(raw)
+    if size > _MAX_MANUAL_ATTACHMENTS_BYTES:
+        raise HTTPException(status_code=413, detail=f"Archivo supera el límite de 10 MB ({size} bytes)")
+    ct = (file.content_type or "application/octet-stream").lower()
+    if not any(ct.startswith(p) for p in _ALLOWED_MANUAL_MIME_PREFIXES):
+        # Permitimos por extensión también
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in (".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                       ".txt", ".csv", ".xlsx", ".xls", ".docx", ".doc"):
+            raise HTTPException(status_code=415, detail=f"Tipo no permitido: {ct}")
+
+    attachment_id = f"matt_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    doc = {
+        "attachment_id": attachment_id,
+        "filename": file.filename or "adjunto",
+        "content_type": ct,
+        "size": size,
+        "content_b64": base64.b64encode(raw).decode("ascii"),
+        "uploaded_by": user.get("email"),
+        "uploaded_at": now.isoformat(),
+        # `expires_at` se usa con TTL index si está configurado; el cleanup
+        # one-shot también ocurre en _resolve_manual_attachments.
+        "expires_at": now,
+    }
+    await db.temp_manual_attachments.insert_one(doc)
+    return {
+        "attachment_id": attachment_id,
+        "filename": doc["filename"],
+        "size": size,
+        "content_type": ct,
+    }
+
+
+
 
 async def _engine_or_legacy(
     action_id: str,
@@ -1026,7 +1119,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
 
 
 @router.post("/quotes/{quote_id}/send-to-client")
-async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Envía la cotización por email al cliente con el PDF adjunto"""
     current_user = await get_current_user(authorization)
     
@@ -1049,10 +1142,12 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
                 _engine_pdf_quote_bytes = open(_pdf_path, "rb").read()
         except Exception as _e:
             logger.warning(f"[send-to-client] No se pudo precargar PDF de cotización: {_e}")
+    _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
     _engine_result = await _engine_or_legacy(
         "send_to_client", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
         quote_pdf_bytes=_engine_pdf_quote_bytes,
+        extra_attachments=_manual_attachments or None,
     )
     if _engine_result is not None:
         await db.quotes.update_one(

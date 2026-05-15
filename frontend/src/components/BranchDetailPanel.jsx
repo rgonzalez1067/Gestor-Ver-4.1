@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Plus, Trash2, Upload, Store, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Upload, Store, AlertCircle, CheckCircle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 
@@ -43,29 +43,56 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
         const wb = XLSX.read(evt.target.result, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        
+
         const imported = [];
+        let invalidQtyRows = 0;
         for (let i = 0; i < data.length; i++) {
           const row = data[i];
           if (!row || row.length < 2) continue;
           const name = String(row[0] || '').trim();
-          const qty = parseInt(row[1]) || 0;
+          const rawQty = row[1];
           if (!name || name.toLowerCase() === 'nombre' || name.toLowerCase().includes('tienda')) continue;
-          if (qty > 0) imported.push({ store_name: name, quantity: qty });
+          // Validar numérico
+          const qty = parseInt(rawQty);
+          if (!Number.isFinite(qty) || qty <= 0) {
+            invalidQtyRows += 1;
+            continue;
+          }
+          imported.push({ store_name: name, quantity: qty });
         }
-        
+
         if (imported.length === 0) {
-          toast.error('No se encontraron datos válidos. Use columnas: Nombre Tienda | Cantidad');
+          toast.error('No se encontraron datos válidos. Use columnas: Nombre Tienda | Cantidad (numérica)');
           return;
         }
-        onChange([...branches, ...imported]);
-        toast.success(`${imported.length} sucursales importadas`);
+        // REEMPLAZA las filas existentes con las del Excel.
+        onChange(imported);
+        const msg = `${imported.length} sucursales importadas (reemplazo total)`;
+        if (invalidQtyRows > 0) {
+          toast.warning(`${msg}. ${invalidQtyRows} fila(s) ignoradas por cantidad inválida.`);
+        } else {
+          toast.success(msg);
+        }
       } catch {
         toast.error('Error al leer el archivo');
       }
     };
     reader.readAsBinaryString(file);
     e.target.value = '';
+  };
+
+  const downloadTemplate = () => {
+    const data = [
+      ['Nombre Tienda', 'Cantidad de Cajas'],
+      ['Sucursal Centro', 3],
+      ['Sucursal Norte', 2],
+      ['Sucursal Sur', 1],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 30 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tiendas');
+    XLSX.writeFile(wb, 'plantilla_tiendas.xlsx');
   };
 
   if (!expanded) {
@@ -99,8 +126,14 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
         </div>
         <div className="flex gap-2">
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} className="hidden" />
+          <Button type="button" size="sm" variant="outline" onClick={downloadTemplate}
+            className="h-7 text-xs border-blue-300 text-blue-600" data-testid="btn-download-branches-template"
+            title="Descargar plantilla Excel">
+            <Download size={12} className="mr-1" />Plantilla
+          </Button>
           <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}
-            className="h-7 text-xs border-purple-300 text-purple-600" data-testid="btn-import-branches">
+            className="h-7 text-xs border-purple-300 text-purple-600" data-testid="btn-import-branches"
+            title="Importar desde Excel (reemplaza el listado actual)">
             <Upload size={12} className="mr-1" />Excel
           </Button>
           <Button type="button" size="sm" variant="outline" onClick={addRow}
