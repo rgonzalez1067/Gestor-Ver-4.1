@@ -314,14 +314,15 @@ export const QuotesTable = ({
                 </td>
                 <td className="px-3 py-4 text-sm text-slate-900">
                   {(() => {
-                    // Preferir fantasy_name como display rápido; si no hay, usar client_name/legal_name.
-                    const fantasy = client?.fantasy_name || '';
+                    // Mostrar Razón Social (legal_name) en la celda. En el
+                    // hover mostramos el Nombre de Fantasía como dato
+                    // complementario.
                     const legal = client?.legal_name || '';
-                    const display = fantasy || quote.client_name || legal || 'N/A';
+                    const fantasy = client?.fantasy_name || '';
+                    const display = legal || quote.client_name || fantasy || 'N/A';
                     const clientId = quote.client_id;
-                    // Hipervínculo a la ficha del cliente en nueva pestaña.
                     const linkClass = "text-blue-700 hover:text-blue-900 hover:underline cursor-pointer";
-                    if (!legal) {
+                    if (!fantasy) {
                       return clientId ? (
                         <a
                           href={`/clients?open=${clientId}`}
@@ -360,8 +361,8 @@ export const QuotesTable = ({
                             )}
                           </TooltipTrigger>
                           <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
-                            <p className="font-semibold mb-0.5 text-slate-300">Razón Social</p>
-                            <p className="font-normal">{legal}</p>
+                            <p className="font-semibold mb-0.5 text-slate-300">Nombre de Fantasía</p>
+                            <p className="font-normal">{fantasy}</p>
                             {clientId && <p className="text-[10px] text-blue-300 mt-1">Click para abrir ficha</p>}
                           </TooltipContent>
                         </Tooltip>

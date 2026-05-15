@@ -59,7 +59,7 @@ export const QuoteFilters = ({
               <SelectItem value="all">Todos los clientes</SelectItem>
               {clients.map((client) => (
                 <SelectItem key={client.client_id} value={client.client_id}>
-                  {client.fantasy_name || client.legal_name}
+                  {client.legal_name || client.fantasy_name}
                 </SelectItem>
               ))}
             </SelectContent>
