@@ -1545,3 +1545,32 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 **Testing**: iteration_3.json — Backend 7/7 PASS, Frontend 9/9 PASS, sin issues críticos.
 
 
+
+
+---
+
+## 2026-05-15 — UX/Integración: Adjuntos + Deep-link Cliente + Resumen 360 + Import Excel [COMPLETE]
+
+**1) Adjuntos manuales en modal "Personalizar Comunicación" (límite 10MB)**
+- `quote_actions.py`: POST `/api/quotes/manual-attachments/upload` (multipart, ≤10MB, valida MIME/extensión, devuelve `attachment_id`). Helper `_resolve_manual_attachments(ids)` lee CSV de IDs, valida tamaño total y consume one-shot.
+- `quote_actions.py::send_quote_to_client`: nuevo header `x-manual-attachment-ids` → propaga a `_engine_or_legacy(extra_attachments=...)`.
+- `quote_action_customization.py::dispatch_custom_action`: igual integración.
+- Frontend `QuoteModals.jsx`: nuevo subcomponente `EmailManualAttachments` con upload múltiple, validación 10MB cliente, lista de adjuntos con tamaño y remover.
+- Frontend `Quotes.jsx`: state `emailManualAttachments`, `getEmailHeaders` inyecta header, `executeCustomAction` lo pasa también.
+
+**2) Hipervínculo Cliente → Ficha**
+- `QuotesTable.jsx`: celda "Cliente" envuelta en `<a href="/clients?open={id}" target="_blank">` con `data-testid="quote-client-link-{quote_id}"` y clases `text-blue-700 hover:text-blue-900 hover:underline`.
+- `Clients.jsx`: `useEffect` reacciona a `searchParams.get('open')` y abre `openEditDialog(client)` automáticamente.
+
+**3) Vista 360: pestaña "Resumen de Negocio" en ficha del cliente**
+- `Clients.jsx`: nuevas tabs `Datos del Cliente` / `Resumen de Negocio` (state `clientDialogTab`), sólo visible en modo edición.
+- `ClientBusinessSummary.jsx` (nuevo): carga `/quotes?client_id=X` + `/projects?client_id=X` en paralelo, muestra 3 KPIs (Cotizaciones Activas / Total / Proyectos) y dos tablas con scroll: cotizaciones activas (excluye Entregada/Completada/archivadas) y proyectos (TODOS — cualquier estado). Botón abrir en nueva pestaña para cotización; navegación in-app para proyecto.
+
+**4) Import Excel en "Detalle de Tiendas"**
+- `BranchDetailPanel.jsx`: nuevo botón **"Plantilla"** descarga un .xlsx con cabeceras `Nombre Tienda` | `Cantidad de Cajas` y 3 filas ejemplo. Botón "Excel" ahora **REEMPLAZA** las filas existentes (antes hacía append). Validación: filas con `qty` no numérico o ≤ 0 se ignoran y se reportan en toast.
+
+**Testing**: iteration_4.json — Backend pytest 8/8 PASS, Frontend 100% (5/5 features UI validadas + 1 via code review). Cero regresiones.
+
+**Mejora minor aplicada post-test**: `_resolve_manual_attachments` ahora borra sólo los IDs efectivamente consumidos (no los truncados por límite total).
+
+

@@ -69,6 +69,7 @@ async def _resolve_manual_attachments(ids_header: Optional[str]) -> list[dict]:
         {"attachment_id": {"$in": ids}}, {"_id": 0}
     ).to_list(50)
     out = []
+    consumed_ids = []
     total = 0
     for d in docs:
         total += int(d.get("size", 0) or 0)
@@ -80,9 +81,10 @@ async def _resolve_manual_attachments(ids_header: Optional[str]) -> list[dict]:
             "content": d.get("content_b64"),
             "content_type": d.get("content_type"),
         })
-    # Limpieza: borramos los temporales (one-shot).
-    if ids:
-        await db.temp_manual_attachments.delete_many({"attachment_id": {"$in": ids}})
+        consumed_ids.append(d.get("attachment_id"))
+    # Limpieza: borramos sólo los temporales efectivamente consumidos.
+    if consumed_ids:
+        await db.temp_manual_attachments.delete_many({"attachment_id": {"$in": consumed_ids}})
     return out
 
 
