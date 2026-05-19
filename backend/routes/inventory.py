@@ -1341,8 +1341,12 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     # los lotes ingresados a ese mismo almacén.
     for key, exit_list in exits_by_key.items():
         if key not in items_entries:
-            # Salida sin entrada previa en el mismo almacén → log y skip.
-            # No descontamos de otros almacenes (eso era el bug).
+            # Salida sin entrada previa en el mismo almacén → defensivo: NO
+            # descontamos de otros almacenes (eso era el bug original).
+            # Loggeamos warning para auditoría de potencial inconsistencia.
+            logger.warning(
+                f"[asset-ledger] Salida sin entradas en el mismo almacén — item={key[0]} warehouse={key[1]} qty={sum(exit_list)}. No se aplica PEPS cruzado."
+            )
             continue
         total_to_deduct = sum(exit_list)
         for lot in items_entries[key]["lots"]:
