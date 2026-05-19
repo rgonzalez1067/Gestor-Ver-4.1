@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Printer, ArrowLeft, Package, Download } from 'lucide-react';
@@ -153,9 +153,9 @@ export const AssetLedgerReport = () => {
                 </thead>
                 <tbody>
                   {items.map((item, itemIdx) => (
-                    <>
+                    <Fragment key={item.item_id || `item-${itemIdx}`}>
                       {/* Item Header */}
-                      <tr key={`h-${item.item_id}`} style={{backgroundColor: '#334155', color: '#fff'}}>
+                      <tr style={{backgroundColor: '#334155', color: '#fff'}}>
                         <td colSpan={3} className="px-3 py-1.5" style={{border: '1px solid #475569'}}>
                           <span className="font-bold text-sm">{item.item_name}</span>
                           {item.item_type && (
@@ -197,9 +197,9 @@ export const AssetLedgerReport = () => {
                       </tr>
                       {/* Spacer */}
                       {itemIdx < items.length - 1 && (
-                        <tr key={`sp-${item.item_id}`}><td colSpan={7} style={{height: '6px', border: 'none', backgroundColor: '#fff'}}></td></tr>
+                        <tr><td colSpan={7} style={{height: '6px', border: 'none', backgroundColor: '#fff'}}></td></tr>
                       )}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
