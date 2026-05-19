@@ -666,6 +666,9 @@ class Quote(BaseModel):
     # Flujo Irregular
     is_irregular: Optional[bool] = None  # True si tiene excepciones de flujo
     irregular_exceptions: Optional[List[dict]] = None  # Lista de excepciones registradas
+    # Token dinámico — concatena abreviaturas de medios de pago seleccionados,
+    # separadas por "/". Se recalcula al crear/actualizar la cotización.
+    abreviaturas_medios_pago: Optional[str] = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # Categorías de anexos
