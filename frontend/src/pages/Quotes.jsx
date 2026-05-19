@@ -1259,9 +1259,10 @@ export const Quotes = () => {
     toast.success('Concepto eliminado. Los totales han sido recalculados.');
   };
 
-  // Duplicar un concepto de Recurring Basic — habilitado para el item
-  // "Derecho de uso de plataforma MServer por PDV / Banco" (inheritBancos=true).
-  // La copia es editable en Bancos y Tarifa (se desvinculan las automatizaciones).
+  // Duplicar cualquier concepto de Recurring Basic (manual o auto-vinculado).
+  // La copia se desliga 100% del Setup que la generó (isAutoLinked=false,
+  // inheritBancos=false, autoTariff=null) para que sea editable libremente y
+  // no se elimine al recalcular las dependencias del Setup.
   const duplicateRecurringBasicItem = (index) => {
     const itemToDuplicate = quoteData.recurring_basic_items[index];
     if (!itemToDuplicate) return;
@@ -1270,7 +1271,10 @@ export const Quotes = () => {
       id: `recurring_basic_copy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       isDefault: false,
       isCopy: true,
-      // La copia es una fila manual editable: desvinculamos herencia y tarifas auto
+      // La copia es una fila manual editable: rompemos todos los vínculos auto.
+      isAutoLinked: false,
+      linkedSetupId: undefined,
+      sourceSetupId: undefined,
       inheritBancos: false,
       lockBancos: false,
       autoTariff: null,

@@ -1216,38 +1216,40 @@ async def get_accounting_report(authorization: Optional[str] = Header(None)):
 @router.get("/inventory/asset-ledger")
 async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     """Reporte Mayor de Activos — Valoración PEPS (FIFO).
-    
+
     Reglas:
-    - Solo costos de entradas al Almacén Principal (Los Chaguaramos - LCH).
+    - Incluye TODAS las entradas a cualquier almacén (algunos ítems como POS y
+      PinPads del segmento Pyme se reciben directamente en TBP sin pasar por
+      LCH; antes se filtraba `warehouse_id = lch_id` lo que los excluía).
     - Transferencias NO son salidas reales, solo movimientos físicos.
-    - Salidas reales (ventas) se descuentan del lote más antiguo.
+    - Salidas reales (ventas) se descuentan del lote más antiguo por item.
     - Solo muestra lotes con saldo > 0.
     """
     await get_current_user(authorization)
-    
-    # Identificar almacén principal (LCH)
+
+    # Identificar almacenes para el desglose por bodega
     warehouses = await db.warehouses.find({}, {"_id": 0}).to_list(50)
     lch_id = None
+    tbp_id = None
+    # Heurística mejorada para identificar LCH (Los Chaguaramos / Corporativo)
+    # y TBP (Torre Banco Plaza / Pyme). Antes el match de TBP era demasiado
+    # permisivo (`banco|plaza|tbp|pyme`) y podía agarrar el equivocado.
     for wh in warehouses:
         name_lower = (wh.get("name", "") or "").lower()
-        if "chaguaramos" in name_lower or "lch" in name_lower or "principal" in name_lower:
+        if lch_id is None and ("chaguaramos" in name_lower or "lch" in name_lower or "corporativ" in name_lower):
             lch_id = wh["warehouse_id"]
-            break
-    
+        if tbp_id is None and ("torre banco" in name_lower or "tbp" in name_lower or "pyme" in name_lower):
+            tbp_id = wh["warehouse_id"]
+    # Fallback: si solo hay 1 almacén lo asignamos a LCH.
     if not lch_id and warehouses:
         lch_id = warehouses[0]["warehouse_id"]
-    
-    # Obtener TODAS las entradas al almacén principal (cada una = un lote)
-    entries_query = {
-        "movement_type": "entrada",
-    }
-    if lch_id:
-        entries_query["warehouse_id"] = lch_id
-    
+
+    # FIX (bug crítico): NO filtramos por warehouse_id — POS/PinPads del
+    # segmento Pyme entran directamente al TBP y antes quedaban excluidos.
     all_entries = await db.inventory_movements.find(
-        entries_query, {"_id": 0}
+        {"movement_type": "entrada"}, {"_id": 0}
     ).sort("acquisition_date", 1).to_list(5000)
-    
+
     # Obtener TODAS las salidas reales (NO transferencias)
     all_exits = await db.inventory_movements.find(
         {"movement_type": "salida"}, {"_id": 0}
@@ -1308,15 +1310,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     
     # Mapear warehouses por ID
     wh_map = {w["warehouse_id"]: w.get("name", "") for w in warehouses}
-    
-    # Identificar LCH y TBP
-    tbp_id = None
-    for wh in warehouses:
-        name_lower = (wh.get("name", "") or "").lower()
-        if "banco" in name_lower or "plaza" in name_lower or "tbp" in name_lower or "pyme" in name_lower:
-            tbp_id = wh["warehouse_id"]
-            break
-    
+
     # Calcular stock por almacén por item
     stock_by_wh = {}  # item_id -> {warehouse_id -> qty}
     for m in all_movements:

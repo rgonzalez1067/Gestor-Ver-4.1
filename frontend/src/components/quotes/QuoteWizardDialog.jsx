@@ -1470,18 +1470,16 @@ export const QuoteWizardDialog = ({ ctx }) => {
                             </td>
                             <td className="px-3 py-2 text-center border border-slate-300">
                               <div className="flex items-center justify-center gap-1">
-                                {(item.inheritBancos || item.isCopy) && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => duplicateRecurringBasicItem(index)}
-                                    className="h-7 w-7 p-0 text-brand-blue-500 hover:text-brand-blue-700 hover:bg-blue-50"
-                                    title="Duplicar"
-                                    data-testid={`recurring-basic-duplicate-${index}`}
-                                  >
-                                    <Copy size={14} />
-                                  </Button>
-                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => duplicateRecurringBasicItem(index)}
+                                  className="h-7 w-7 p-0 text-brand-blue-500 hover:text-brand-blue-700 hover:bg-blue-50"
+                                  title="Duplicar este concepto"
+                                  data-testid={`recurring-basic-duplicate-${index}`}
+                                >
+                                  <Copy size={14} />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"

@@ -1,0 +1,32 @@
+{
+  "summary": "Iter5 — 2 cambios: (BUG) Mayor de Activos ahora incluye POS y PinPads recibidos directo en TBP, y (FEATURE) duplicar fila en Costos Recurrentes Básicos. Backend pytest 6/6 PASS validando GET /api/inventory/asset-ledger: 18 items, grand_total=Bs 24.865.161,81; aparecen Morefun MF360 (POS, 10u TBP), MF919 (POS, 13u TBP) y Verifone P200 (Pinpad, 50 LCH + 121 TBP = 171u). Asserts: shape, métodos PEPS (FIFO), solo saldos>0, grand_total = Σ(item_total), lch+tbp ≤ total_units, y desglose POS/PinPad>0 en TBP. Frontend /inventory/asset-ledger renderiza correctamente: 89 filas de detalle, 'Morefun', 'Verifone P200', 'POS', 'Pinpad' y 'PEPS' presentes en DOM. Feature de duplicar validada por CODE REVIEW exhaustivo: (a) QuoteWizardDialog.jsx:1471-1494 el botón <Copy/> con data-testid 'recurring-basic-duplicate-{index}' se renderiza sin condicional para TODAS las filas (manuales y auto-vinculadas) — antes era `inheritBancos || isCopy`; (b) Quotes.jsx:1266-1289 duplicateRecurringBasicItem ahora desliga: isAutoLinked=false, linkedSetupId=undefined, sourceSetupId=undefined, inheritBancos=false, lockBancos=false, autoTariff=null. Inserta en index+1 y muestra toast 'Concepto duplicado'. UI flow del wizard (Implementaciones→Clientes Pymes) abre el dialog correctamente — confirmado por screenshot.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes table y AssetLedgerReport", "issues": ["Hydration warnings React preexistentes: <span data-ve-dynamic> envuelve <tr>/<tbody> en QuotesTable y AssetLedgerReport. No bloquea funcionalidad. Reportado en iter4."]},
+      {"screen": "AssetLedgerReport", "issues": ["Console: 'Each child in a list should have a unique key prop' en AssetLedgerReport — sugerencia: revisar key en .map de lots/items. No bloquea."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5_asset_ledger.py",
+    "/app/test_reports/pytest/iter5_asset_ledger.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AssetLedgerReport.jsx: warning 'unique key prop' indica un .map sin key — añadir key={lot.movement_id || idx} en el render de lotes.",
+    "/app/backend/routes/inventory.py supera 1450 líneas; recomendado separar reportes (asset-ledger, kardex, salidas-facturadas) en módulos cuando se agreguen más reportes.",
+    "El cálculo de stock_by_wh hace pull de TODOS los movimientos sin proyección por almacén; para datasets grandes (>10k movs) considerar agregación con $group de MongoDB para evitar transferir todo a Python."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5_asset_ledger.py (creado)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (asset-ledger UI validada con DOM check; feature duplicar validada por code review — código sin condicional ni acoplamiento al setup)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 — /app/memory/test_credentials.md",
+  "seed_data_creation": "Ninguno. Los tests son read-only sobre /api/inventory/asset-ledger.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El wizard de cotización Pyme se abre desde botón 'Implementaciones' (dropdown) → menuitem 'Clientes Pymes' (data-testid='new-impl-pyme'). El paso 'Costos Recurrentes Básicos' está varios pasos adentro y requiere llenar cliente, modelo de precios, integrador, etc. Para test E2E end-to-end del duplicar conviene crear una cotización vía API directamente y luego abrir el wizard de 'Modificar' apuntando ya al step correcto (o agregar deep-link al step). El endpoint /api/inventory/asset-ledger devuelve 18 items reales con Morefun MF360/MF919 (POS, tbp>0) y Verifone P200 Pinpad (lch=50, tbp=121) — datos reales útiles para futuras regresiones.",
+  "rca_of_the_issue": "Causa raíz del bug Mayor de Activos: el query original filtraba `warehouse_id == lch_id` en inventory_movements, excluyendo entradas hechas directamente al almacén TBP (común para POS/PinPads del segmento Pyme). Fix: remover el filtro de warehouse_id y procesar TODAS las entradas con PEPS por item_id. Mejorada también la heurística de identificación LCH (chaguaramos|lch|corporativ) y TBP (torre banco|tbp|pyme) para evitar falsos positivos."
+}
