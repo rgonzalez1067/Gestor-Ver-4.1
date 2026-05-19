@@ -175,7 +175,14 @@ export const AssetLedgerReport = () => {
                       {/* Lot Rows */}
                       {item.lots.map((lot, lotIdx) => (
                         <tr key={`l-${item.item_id}-${lotIdx}`} style={{backgroundColor: lotIdx % 2 === 0 ? '#ffffff' : '#f8fafc'}}>
-                          <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{formatDate(lot.purchase_date)}</td>
+                          <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>
+                            {formatDate(lot.purchase_date)}
+                            {lot.warehouse_name && (
+                              <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded font-medium" style={{backgroundColor: '#dbeafe', color: '#1d4ed8'}} title={lot.warehouse_name}>
+                                {lot.warehouse_name.toLowerCase().includes('chaguaramos') ? 'LCH' : (lot.warehouse_name.toLowerCase().includes('banco plaza') || lot.warehouse_name.toLowerCase().includes('pyme')) ? 'TBP' : lot.warehouse_name.slice(0,4)}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{lot.supplier || '—'}</td>
                           <td className="px-3 py-1.5" style={{border: '1px solid #e2e8f0'}}>{lot.invoice_ref || '—'}</td>
                           <td className="px-3 py-1.5 text-right" style={{border: '1px solid #e2e8f0', color: '#64748b'}}>{lot.quantity_purchased}</td>

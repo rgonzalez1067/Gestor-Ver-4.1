@@ -1,0 +1,37 @@
+{
+  "summary": "Iter7 — Backend only. 12/12 PASS. Validated (1) FIFO SEGMENTADO POR ALMACÉN en /api/inventory/asset-ledger: cada lote retorna warehouse_id + warehouse_name; salida 1u en LCH descuenta del lote $10 (lote LCH más antiguo) y deja remaining=9 sin tocar lotes TBP; idéntico en TBP $20→remaining=9. Totales: total_units=58, units_lch=29, units_tbp=29, item_total=990 (90+120+140+180+220+240). grand_total consistente. (2) RESTRICCIÓN LCH: usuario sede=PYME con inventarios:edit recibe 403 con detail 'Operación rechazada. El Almacén Los Chaguaramos está restringido exclusivamente para usuarios del segmento Corp.' en POST /inventory/warehouses/LCH/exit, POST /inventory/transfer (source=LCH) y POST /inventory/temporary-assignments (warehouse=LCH). Mismo usuario PYME→TBP funciona (no se aplica la restricción cruzada). Usuario sede=CORP→LCH y admin (sede=TBP)→LCH funcionan (bypass admin verificado). Regresión OK: ledger devuelve lotes LCH y TBP correctamente para admin.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7_lch_fifo_segmented.py",
+    "/app/test_reports/pytest/iter7_lch_fifo.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "inventory.py:40 `_warehouse_is_lch` usa heurística por nombre ('chaguaramos'/'corporativo'/endswith ' lch'). Frágil si se renombra el almacén en otro ambiente. Sugerencia: agregar un flag explícito `restricted_to_sede` o `code='LCH'` al modelo Warehouse para mayor robustez.",
+    "validate_lch_corp_dispatch hace consulta DB extra por cada operación protegida — aceptable, pero podría cachearse el warehouse_id LCH al iniciar para evitar hit DB recurrente.",
+    "inventory.py:1342-1346: cuando hay salidas sin entrada en el mismo almacén el código hace `continue` silenciosamente. Esto era un bug previo; ahora es defensivo correcto, pero conviene loggear con logger.warning para auditoría (datos potencialmente inconsistentes).",
+    "El endpoint de transfer (/inventory/transfer) está mencionado como /api/inventory/transfers (plural) en la review_request — verificar consistencia. La ruta real en código es singular y los tests usaron singular OK.",
+    "inventory_temporary.py:53 — la validación LCH se ejecuta DESPUÉS de varias validaciones de payload (reason vacío, etc). Si el body es inválido el usuario recibe 400 sin enterarse del bloqueo LCH; está OK funcionalmente pero podría confundir UX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration7_lch_fifo_segmented.py (creado)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 passed)",
+    "frontend": "not tested (backend only per request)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin, sede=TBP) — /app/memory/test_credentials.md",
+  "seed_data_creation": "Creados durante setup y eliminados en teardown: 1 hardware TEST_hwr_*, 8 inventory_movements (6 entradas: 3 LCH costos 10/12/14, 3 TBP costos 20/22/24 + 2 salidas qty=1 cada una), 2 usuarios test (TEST_pyme_inv@megasoft.com.ve sede=PYME inventarios:edit, TEST_corp_inv@megasoft.com.ve sede=CORP inventarios:edit). Limpieza automática vía fixture autouse yield. Movimientos generados por los tests positivos (PYME→TBP, CORP→LCH, admin→LCH) NO se limpian explícitamente porque filtran por item_id=TEST_*, pero quedan asociados al item de prueba que sí se borra en teardown (los movements quedan huérfanos en DB con item_id=TEST_*). Estado tras correr: la teardown borra inventory_movements donde item_id==TEST_ITEM_ID, así que sí quedan limpios.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "FIFO segmentado + restricción LCH verified end-to-end via API real (no mocks). Test file usa fixtures autouse para seed/teardown idempotente — re-correr es seguro. Si en el futuro el almacén LCH cambia de nombre, el heurístico _warehouse_is_lch puede dejar de detectarlo; verificar primero. Tests cubren los 3 endpoints protegidos (exit, transfer, temporary-assignments) + casos positivos (CORP→LCH y admin→LCH y PYME→TBP).",
+  "rca_of_the_issue": "No hubo bugs nuevos detectados. La implementación pasa todos los criterios de aceptación: (a) lotes etiquetados por almacén, (b) PEPS segmentado matemáticamente correcto, (c) restricción LCH aplica en los 3 endpoints con mensaje en español exacto, (d) admin bypass funciona, (e) usuarios sede=CORP pasan, (f) regresión OK."
+}

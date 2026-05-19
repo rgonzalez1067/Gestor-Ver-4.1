@@ -30,6 +30,7 @@ from models import InventoryMovement
 from routes.inventory import (
     is_serialized,
     validate_warehouse_jurisdiction,
+    validate_lch_corp_dispatch,
     _get_item_stock,
     check_stock_alert,
 )
@@ -78,6 +79,8 @@ async def create_temporary_assignment(body: dict, authorization: Optional[str] =
         raise HTTPException(400, "El motivo no puede exceder 500 caracteres")
 
     await validate_warehouse_jurisdiction(user, warehouse_id)
+    # Asignación temporal = despacho físico del LCH → restringido a sede Corp.
+    await validate_lch_corp_dispatch(user, warehouse_id)
 
     wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
     if not wh:

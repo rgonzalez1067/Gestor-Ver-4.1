@@ -37,6 +37,38 @@ async def validate_warehouse_jurisdiction(user: dict, warehouse_id: str):
         )
 
 
+async def _warehouse_is_lch(warehouse_id: str) -> bool:
+    """Heurística para identificar el almacén Los Chaguaramos (Corporativo).
+    Cubre el caso donde el nombre cambia ligeramente entre ambientes.
+    """
+    if not warehouse_id:
+        return False
+    wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0, "name": 1})
+    if not wh:
+        return False
+    name = (wh.get("name") or "").lower()
+    return ("chaguaramos" in name) or ("corporativo" in name) or name.endswith(" lch")
+
+
+async def validate_lch_corp_dispatch(user: dict, warehouse_id: str):
+    """Bloquea salidas/despachos del Almacén Los Chaguaramos cuando el usuario
+    no pertenece a la sede Corp. Admin bypass.
+
+    Aplica a: salidas manuales, transferencias salida, asignaciones temporales
+    y cualquier operación que reduzca el stock físico del LCH.
+    """
+    if user.get("role") == "admin":
+        return
+    if not await _warehouse_is_lch(warehouse_id):
+        return
+    sede = (user.get("sede") or "").upper()
+    if sede != "CORP":
+        raise HTTPException(
+            status_code=403,
+            detail="Operación rechazada. El Almacén Los Chaguaramos está restringido exclusivamente para usuarios del segmento Corp.",
+        )
+
+
 # ==================== WAREHOUSES ====================
 
 @router.post("/inventory/warehouses")
@@ -620,6 +652,7 @@ async def create_exit(warehouse_id: str, body: dict, authorization: Optional[str
     """Registra salida manual de inventario."""
     user = await get_current_user(authorization)
     await validate_warehouse_jurisdiction(user, warehouse_id)
+    await validate_lch_corp_dispatch(user, warehouse_id)
 
     wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
     if not wh:
@@ -689,6 +722,8 @@ async def transfer_between_warehouses(body: dict, authorization: Optional[str] =
     source_id = body.get("source_warehouse_id")
     if source_id:
         await validate_warehouse_jurisdiction(user, source_id)
+        # Transferencia desde LCH es un despacho físico → aplica restricción Corp.
+        await validate_lch_corp_dispatch(user, source_id)
     dest_id = body.get("dest_warehouse_id")
     item_id = body.get("item_id")
     quantity = body.get("quantity", 0)
@@ -1255,54 +1290,67 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
         {"movement_type": "salida"}, {"_id": 0}
     ).sort("created_at", 1).to_list(5000)
     
-    # Agrupar por item_id
-    items_entries = {}  # item_id -> [list of entry lots ordered chronologically]
+    # Agrupar por (item_id, warehouse_id) — FIFO SEGMENTADO POR ALMACÉN.
+    # Cada almacén mantiene su propia capa de inventario. Una salida del
+    # almacén X descuenta exclusivamente de los lotes ingresados a X (nunca
+    # mezcla con LCH u otros). Esto preserva la integridad financiera del
+    # Mayor de Activos cuando el mismo SKU tiene costos distintos por sede.
+    items_entries = {}  # (item_id, warehouse_id) -> {item_name, item_type, lots:[]}
+    item_master = {}    # item_id -> (item_name, item_type) para el reporte final
     for entry in all_entries:
         iid = entry.get("item_id", "unknown")
-        if iid not in items_entries:
-            items_entries[iid] = {
+        wid = entry.get("warehouse_id", "")
+        key = (iid, wid)
+        if key not in items_entries:
+            items_entries[key] = {
                 "item_name": entry.get("item_name", "Sin nombre"),
                 "item_type": entry.get("item_type", ""),
-                "lots": []
+                "warehouse_id": wid,
+                "lots": [],
             }
-        items_entries[iid]["lots"].append({
+        if iid not in item_master:
+            item_master[iid] = (entry.get("item_name", "Sin nombre"), entry.get("item_type", ""))
+        items_entries[key]["lots"].append({
             "movement_id": entry.get("movement_id", ""),
             "purchase_date": entry.get("acquisition_date") or (entry.get("created_at", "")[:10] if isinstance(entry.get("created_at"), str) else ""),
             "supplier": entry.get("supplier", ""),
             "invoice_ref": entry.get("invoice_ref", ""),
             "quantity_purchased": entry.get("quantity", 0),
             "unit_cost": entry.get("unit_cost", 0),
-            "remaining": entry.get("quantity", 0),  # starts as full, will be decremented
+            "remaining": entry.get("quantity", 0),
+            "warehouse_id": wid,
             "created_at": entry.get("created_at", ""),
         })
-    
-    # Agrupar salidas por item_id
-    items_exits = {}  # item_id -> total_sold
-    exits_by_item = {}
-    
-    # Ordenar lotes dentro de cada item por fecha de compra (más antigua primero = PEPS)
-    for iid in items_entries:
-        items_entries[iid]["lots"].sort(key=lambda l: l.get("purchase_date") or l.get("created_at") or "")
+
+    # Agrupar salidas por (item_id, warehouse_id) — SOLO descuentan del
+    # almacén donde se generó la salida.
+    exits_by_key = {}
     for ex in all_exits:
         iid = ex.get("item_id", "unknown")
-        if iid not in exits_by_item:
-            exits_by_item[iid] = []
-        exits_by_item[iid].append(ex.get("quantity", 0))
-    
-    # Aplicar PEPS: descontar salidas del lote más antiguo
-    for iid, exit_list in exits_by_item.items():
-        if iid not in items_entries:
+        wid = ex.get("warehouse_id", "")
+        key = (iid, wid)
+        exits_by_key.setdefault(key, []).append(ex.get("quantity", 0))
+
+    # Ordenar lotes por fecha (PEPS) DENTRO de cada (item, warehouse).
+    for key in items_entries:
+        items_entries[key]["lots"].sort(
+            key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+        )
+
+    # Aplicar PEPS segmentado: la salida de un almacén descuenta sólo de
+    # los lotes ingresados a ese mismo almacén.
+    for key, exit_list in exits_by_key.items():
+        if key not in items_entries:
+            # Salida sin entrada previa en el mismo almacén → log y skip.
+            # No descontamos de otros almacenes (eso era el bug).
             continue
-        
         total_to_deduct = sum(exit_list)
-        
-        for lot in items_entries[iid]["lots"]:
+        for lot in items_entries[key]["lots"]:
             if total_to_deduct <= 0:
                 break
-            
-            deduct_from_lot = min(lot["remaining"], total_to_deduct)
-            lot["remaining"] -= deduct_from_lot
-            total_to_deduct -= deduct_from_lot
+            deduct = min(lot["remaining"], total_to_deduct)
+            lot["remaining"] -= deduct
+            total_to_deduct -= deduct
     
     # Construir reporte: solo lotes con saldo > 0
     # Calcular stock actual por almacén para cada item
@@ -1331,18 +1379,26 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     
     report_items = []
     grand_total = 0
-    
-    for iid, item_data in items_entries.items():
-        active_lots = [
-            lot for lot in item_data["lots"] if lot["remaining"] > 0
-        ]
-        
-        if not active_lots:
+
+    # Reagrupar los (item_id, warehouse_id) por item_id para el reporte final.
+    # Cada item muestra todos sus lotes activos, etiquetados con el almacén.
+    items_by_iid: dict = {}
+    for (iid, wid), data in items_entries.items():
+        items_by_iid.setdefault(iid, []).append(data)
+
+    for iid, group_list in items_by_iid.items():
+        active_lots_global = []
+        for data in group_list:
+            for lot in data["lots"]:
+                if lot["remaining"] > 0:
+                    active_lots_global.append(lot)
+        if not active_lots_global:
             continue
-        
+
+        item_name, item_type = item_master.get(iid, ("Sin nombre", ""))
         item_total = 0
         lot_details = []
-        for lot in active_lots:
+        for lot in active_lots_global:
             lot_value = round(lot["remaining"] * lot["unit_cost"], 2)
             item_total += lot_value
             lot_details.append({
@@ -1353,22 +1409,24 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
                 "remaining": lot["remaining"],
                 "unit_cost": lot["unit_cost"],
                 "lot_value": lot_value,
+                "warehouse_id": lot.get("warehouse_id", ""),
+                "warehouse_name": wh_map.get(lot.get("warehouse_id", ""), ""),
             })
-        
+
         grand_total += item_total
-        
-        # Desglose por almacén
+
+        # Desglose por almacén (basado en movimientos consolidados).
         item_stock = stock_by_wh.get(iid, {})
         units_lch = max(item_stock.get(lch_id, 0), 0) if lch_id else 0
         units_tbp = max(item_stock.get(tbp_id, 0), 0) if tbp_id else 0
-        
+
         report_items.append({
             "item_id": iid,
-            "item_name": item_data["item_name"],
-            "item_type": item_data["item_type"],
+            "item_name": item_name,
+            "item_type": item_type,
             "lots": lot_details,
             "item_total": round(item_total, 2),
-            "total_units": sum(l["remaining"] for l in active_lots),
+            "total_units": sum(l["remaining"] for l in active_lots_global),
             "units_lch": units_lch,
             "units_tbp": units_tbp,
         })
