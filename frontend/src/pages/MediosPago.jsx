@@ -50,6 +50,7 @@ export const MediosPago = () => {
   const [deleteMedioPagoData, setDeleteMedioPagoData] = useState({ id: null, name: null });
   const [formData, setFormData] = useState({
     name: '',
+    abreviatura: '',
     service_type: '',
     tipo_corp: '',
     application_type: '',
@@ -188,6 +189,7 @@ export const MediosPago = () => {
     setEditingMedioPago(medioPago);
     setFormData({
       name: medioPago.name,
+      abreviatura: medioPago.abreviatura || '',
       service_type: medioPago.service_type || 'Servicio',
       tipo_corp: medioPago.tipo_corp || '',
       application_type: medioPago.application_type || 'both',
@@ -208,6 +210,7 @@ export const MediosPago = () => {
   const resetForm = () => {
     setFormData({
       name: '',
+      abreviatura: '',
       service_type: '',
       tipo_corp: '',
       application_type: '',
@@ -480,16 +483,32 @@ export const MediosPago = () => {
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Nombre del Medio de Pago / Servicio</Label>
-                      <Input
-                        id="name"
-                        data-testid="medio-pago-name-input"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Ej: Tarjeta de Crédito, Débito Bancario, etc."
-                        required
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                      <div>
+                        <Label htmlFor="name">Nombre del Medio de Pago / Servicio</Label>
+                        <Input
+                          id="name"
+                          data-testid="medio-pago-name-input"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Ej: Tarjeta de Crédito, Débito Bancario, etc."
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="abreviatura">
+                          Abreviatura
+                          <span className="text-xs text-slate-400 font-normal ml-1">(opcional, máx 12)</span>
+                        </Label>
+                        <Input
+                          id="abreviatura"
+                          data-testid="medio-pago-abreviatura-input"
+                          value={formData.abreviatura}
+                          maxLength={12}
+                          onChange={(e) => setFormData({ ...formData, abreviatura: e.target.value.slice(0, 12) })}
+                          placeholder="Ej: TDC-TDD, P2C"
+                        />
+                      </div>
                     </div>
 
                     {/* Tipo: Producto o Servicio */}

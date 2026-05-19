@@ -218,6 +218,15 @@ async def _build_template_vars(quote: dict) -> dict:
     # 6) Direccion_Entrega — del cliente; si no existe usar address legal
     direccion_entrega = address or ""
 
+    # 7) abreviaturas_medios_pago — token dinámico que concatena las
+    # abreviaturas de los medios de pago seleccionados en la cotización
+    # separadas por "/". Si la cotización no tiene medios de pago, queda "".
+    try:
+        from services.medios_pago_abrev import compute_abreviaturas_medios_pago
+        abreviaturas_medios_pago = await compute_abreviaturas_medios_pago(quote)
+    except Exception:
+        abreviaturas_medios_pago = quote.get("abreviaturas_medios_pago", "") or ""
+
     return {
         # ----- Cotización -----
         "quote_number": quote_number,
@@ -228,6 +237,10 @@ async def _build_template_vars(quote: dict) -> dict:
         "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
         "invoice_number": invoice_number,
         "approved_date": approved_date,
+        # ----- Medios de Pago: abreviaturas concatenadas con "/" -----
+        "abreviaturas_medios_pago": abreviaturas_medios_pago,
+        "Abreviaturas_Medios_Pago": abreviaturas_medios_pago,
+        "medios_pago_abreviaturas": abreviaturas_medios_pago,
         # ----- Cliente -----
         "client_name": legal_name,
         "Nombre_Cliente": legal_name,

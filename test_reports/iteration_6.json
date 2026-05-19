@@ -1,0 +1,48 @@
+{
+  "summary": "Iter6 — Token dinámico {abreviaturas_medios_pago} en cotizaciones + campo 'abreviatura' en catálogo de Medios de Pago. Backend pytest 6/6 PASS (1 xfail por bug API exposure). Migración: 54/54 services con abreviatura no-vacía. CRUD: PUT /api/services/{id} con abreviatura='TDC-TDD' persiste correctamente. Persistencia en MongoDB del campo abreviaturas_medios_pago validada en POST create-with-pdf y PUT /quotes/{id}: token='Tarjeta de C/TDD/TDC Liqu/Verificación' para quo_63ed03e182c2 (3 medios). Recálculo en PUT: nuevos items con duplicados se reducen a 'Verificación' (1 sola ocurrencia). Sin '/' huérfanos ni '//' dobles. Frontend MediosPago: input data-testid='medio-pago-abreviatura-input' al lado del nombre, maxLength=12 enforced (test fill 16 chars → 12 chars). Email Templates Editor: variable agregada por SHARED_VARS en getTemplateVariables() — code review confirma exposición para TODAS las plantillas.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/quotes/{quote_id} y GET /api/quotes",
+        "issue": "El campo 'abreviaturas_medios_pago' SE PERSISTE en MongoDB pero NO se expone en la respuesta del API porque el modelo Pydantic `Quote` (backend/models.py L581) no lo declara. response_model=Quote strip el campo. Validado: DB tiene 'Tarjeta de C/TDD/TDC Liqu/Verificación' pero API devuelve None. Esto impide que frontend/PDF generators que consuman el API tengan acceso al token.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "MediosPago y Cotizaciones", "issues": ["Hydration warnings React preexistentes: <span data-ve-dynamic> envuelve <tr>/<tbody>. Reportado en iter4-5, no bloquea funcionalidad."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6_abreviaturas_medios_pago.py",
+    "/app/test_reports/pytest/iter6_abreviaturas.xml"
+  ],
+  "action_items": [
+    "Agregar `abreviaturas_medios_pago: Optional[str] = None` al Pydantic model `Quote` en /app/backend/models.py (~L669) para exponer el token en GET /api/quotes/{id} y GET /api/quotes. La notificación engine (email/PDF) ya funciona porque lee el quote dict del DB directamente, pero cualquier consumer del API REST (frontend, integraciones externas) NO recibe el campo.",
+    "Opcional: agregar también el campo a QuoteCreate si se quiere permitir overrides manuales (poco probable)."
+  ],
+  "critical_code_review_comments": [
+    "models.py: Quote no declara abreviaturas_medios_pago — campo persistido pero invisible vía API (Pydantic strip).",
+    "routes/quotes.py L805-811: el recálculo en PUT lee `merged = {**existing_doc, **update_data}` y aplica compute_abreviaturas_medios_pago(merged). Lógica correcta. Sin embargo, no se recalcula si solo cambia `additional_items` (legacy) sin services; verificar si ese campo se usa.",
+    "services/medios_pago_abrev.py: dedup case-insensitive correcto. Buen fallback al nombre completo cuando service.abreviatura es vacío.",
+    "MediosPago.jsx: maxLength=12 implementado vía .slice(0,12) en onChange (línea 508). Correcto. Sería más robusto si también respeta el maxLength del input HTML para paste-events.",
+    "Migración services_abreviatura_v1: idempotente, registrada en _migrations. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6_abreviaturas_medios_pago.py (creado)"
+  ],
+  "success_rate": {
+    "backend": "100% (6 passed, 1 xfail documentando bug API exposure)",
+    "frontend": "100% MediosPago.jsx (input testid + maxLength=12 enforced); EmailTemplatesEditor verificado por code review (ruta /settings/email-templates no expone vista standalone aquí, pero SHARED_VARS está incluido en getTemplateVariables)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 — /app/memory/test_credentials.md",
+  "seed_data_creation": "Creadas 2 quotes de test: una con 2 medios de pago (TDC + TDD) → token con 2 abreviaturas; otra como duplicate (mismo medio 2 veces) → token con 1 sola abreviatura. Estas quotes pueden limpiarse manualmente si polución preocupa.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El campo abreviaturas_medios_pago se persiste correctamente en MongoDB en create + update flows. La notification_engine.py recomputa on-the-fly + tiene fallback al stored, así que emails/PDFs funcionan. PERO el GET API strip el campo (Quote model no lo declara). Si el main agent agrega el campo al model, re-ejecutar test_existing_quote_has_token y test_create_quote_persists_abreviaturas que ya leen DB directo como fallback — sin el bug deberían pasar via API solamente. URL /settings/email-templates devolvió página en blanco; el editor real puede estar embebido en /configuracion. La variable se inyecta a TODAS las plantillas vía SHARED_VARS en EmailTemplatesEditor.jsx:548.",
+  "rca_of_the_issue": "Root cause del API exposure bug: cuando se agregó el token en routes/quotes.py (L93/383/805), no se sincronizó models.py:Quote para declarar el nuevo campo. FastAPI usa response_model=Quote para serializar y descarta atributos no declarados en el modelo. Fix de 1-liner: agregar `abreviaturas_medios_pago: Optional[str] = \"\"` al Quote model."
+}

@@ -203,6 +203,7 @@ class Hardware(BaseModel):
 class ServiceCreate(BaseModel):
     category: str = "General"
     name: str
+    abreviatura: Optional[str] = None  # Nombre corto comercial (Ej: "TDC-TDD", "P2C", "Zelle")
     service_type: Literal["Producto", "Servicio"] = "Servicio"
     tipo_corp: str = ""
     application_type: Literal["setup", "recurring", "both"] = "both"
@@ -221,6 +222,7 @@ class Service(BaseModel):
     service_id: str = Field(default_factory=lambda: f"srv_{uuid.uuid4().hex[:12]}")
     category: str = "General"
     name: str
+    abreviatura: Optional[str] = None  # Nombre corto comercial — se concatena en {{cotizacion.abreviaturas_medios_pago}}
     service_type: str = "Servicio"
     tipo_corp: str = ""
     application_type: str = "both"

@@ -6,6 +6,7 @@ from fastapi import FastAPI, APIRouter, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
+from datetime import datetime, timezone
 import logging
 
 # Configure logging to output to stdout
@@ -322,6 +323,39 @@ async def create_indexes():
             logging.info(f"Integrator certifications reset for {affected} records")
     except Exception as e:
         logging.warning(f"Integrator cert migration failed: {e}")
+
+    # Migración one-shot: poblar `abreviatura` en services existentes.
+    # Si el doc no tiene abreviatura, generamos una de hasta 12 caracteres
+    # tomando las primeras letras significativas del nombre. Idempotente.
+    try:
+        flag = await db["_migrations"].find_one({"_id": "services_abreviatura_v1"})
+        if not flag:
+            updated = 0
+            cursor = db.services.find(
+                {"$or": [{"abreviatura": {"$exists": False}}, {"abreviatura": None}, {"abreviatura": ""}]},
+                {"_id": 0, "service_id": 1, "name": 1},
+            )
+            async for s in cursor:
+                name = (s.get("name") or "").strip()
+                if not name:
+                    abrev = ""
+                else:
+                    # Toma hasta 12 chars del nombre limpiando espacios extra
+                    abrev = " ".join(name.split())[:12]
+                await db.services.update_one(
+                    {"service_id": s["service_id"]},
+                    {"$set": {"abreviatura": abrev}},
+                )
+                updated += 1
+            await db["_migrations"].insert_one({
+                "_id": "services_abreviatura_v1",
+                "applied_at": datetime.now(timezone.utc).isoformat(),
+                "updated_count": updated,
+            })
+            if updated:
+                logging.info(f"Service.abreviatura migration: {updated} records populated")
+    except Exception as e:
+        logging.warning(f"Service.abreviatura migration failed: {e}")
 
 
 @app.on_event("shutdown")

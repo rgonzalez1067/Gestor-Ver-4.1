@@ -543,7 +543,12 @@ const getTemplateVariables = (templateId) => {
   if (!templateId) return [];
   // Extraer el tipo base del template_id (ej: quote_sent_TBP -> quote_sent)
   const baseType = templateId.replace(/_PYME$|_CORP$/, '');
-  return BASE_TEMPLATE_VARIABLES[baseType] || [];
+  const baseVars = BASE_TEMPLATE_VARIABLES[baseType] || [];
+  // Variables comunes disponibles en TODAS las plantillas de cotización/proyecto
+  const SHARED_VARS = [
+    { key: 'abreviaturas_medios_pago', label: 'Medios de Pago (abreviaturas, separados por /)' },
+  ];
+  return [...baseVars, ...SHARED_VARS];
 };
 
 export const EmailTemplatesEditor = () => {

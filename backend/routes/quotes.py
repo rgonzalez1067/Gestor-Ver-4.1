@@ -90,6 +90,12 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
     
     doc = quote.model_dump()
     doc['created_at'] = doc['created_at'].isoformat()
+    # Token dinámico: abreviaturas concatenadas de medios de pago.
+    try:
+        from services.medios_pago_abrev import compute_abreviaturas_medios_pago
+        doc['abreviaturas_medios_pago'] = await compute_abreviaturas_medios_pago(doc)
+    except Exception:
+        doc['abreviaturas_medios_pago'] = ""
     await db.quotes.insert_one(doc)
     
     return quote
@@ -373,6 +379,11 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
         
         doc = quote.model_dump()
         doc['created_at'] = doc['created_at'].isoformat()
+        try:
+            from services.medios_pago_abrev import compute_abreviaturas_medios_pago
+            doc['abreviaturas_medios_pago'] = await compute_abreviaturas_medios_pago(doc)
+        except Exception:
+            doc['abreviaturas_medios_pago'] = ""
         await db.quotes.insert_one(doc)
         
         return {
@@ -791,6 +802,15 @@ async def update_quote(quote_id: str, quote_update: QuoteUpdate, authorization: 
         update_data["total_bs"] = update_data["total_usd"] * exchange_rate
     
     if update_data:
+        # Recalcular abreviaturas_medios_pago si cambian los services/additional
+        try:
+            services_changed = any(k in update_data for k in ("services", "additional_items"))
+            if services_changed:
+                from services.medios_pago_abrev import compute_abreviaturas_medios_pago
+                merged = {**existing_quote, **update_data}
+                update_data["abreviaturas_medios_pago"] = await compute_abreviaturas_medios_pago(merged)
+        except Exception:
+            pass
         result = await db.quotes.update_one(
             {"quote_id": quote_id},
             {"$set": update_data}
