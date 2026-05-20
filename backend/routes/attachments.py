@@ -128,27 +128,36 @@ async def delete_quote_attachment(quote_id: str, attachment_id: str, authorizati
 async def download_quote_attachment(quote_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
     """Descarga un anexo de una cotización.
 
-    Lee primero del Object Storage (fuente de verdad cross-deploy) y, si no
-    está, hace fallback al filesystem local. Esto garantiza disponibilidad en
-    Producción donde el FS del pod es efímero/read-only y los anexos viejos
-    sólo existen en Object Storage.
+    Estrategia optimizada para minimizar latencia:
+      1) Filesystem local primero (~10ms, sirve la mayoría de casos en
+         Preview y los recientes en Producción).
+      2) Object Storage solo como fallback (~500-2000ms de red) para los
+         anexos viejos que ya no están en el FS efímero del pod tras un deploy.
     """
     await get_current_user(authorization)
-    
+
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
     if not quote:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
-    
+
     attachment = next((a for a in quote.get("attachments", []) if a["attachment_id"] == attachment_id), None)
     if not attachment:
         raise HTTPException(status_code=404, detail="Anexo no encontrado")
-    
-    # Path relativo (sin /uploads/) — la misma key usada al guardar en Object Storage
+
     url_path = (attachment.get("url") or "").replace("/uploads/", "")
     ctype = attachment.get("content_type", "application/octet-stream")
     filename = attachment.get("filename", attachment_id)
 
-    # 1) Object Storage primero (persistente cross-deploy)
+    # 1) FS local primero — instantáneo cuando está disponible.
+    file_path = UPLOADS_DIR / url_path
+    if file_path.exists():
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type=ctype,
+        )
+
+    # 2) Fallback: Object Storage (persistente cross-deploy).
     obj = get_pdf_from_storage(url_path)
     if obj:
         content, stored_ctype = obj
@@ -158,16 +167,7 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    # 2) Fallback al filesystem local
-    file_path = UPLOADS_DIR / url_path
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
-
-    return FileResponse(
-        path=str(file_path),
-        filename=filename,
-        media_type=ctype,
-    )
+    raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
 
 async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
     """Genera un PDF de cotización y lo retorna como buffer"""

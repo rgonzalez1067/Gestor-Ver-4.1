@@ -468,20 +468,24 @@ async def download_history_attachment(history_id: str, attachment_id: str, autho
         raise HTTPException(status_code=404, detail="Anexo no encontrado")
 
     rel = (attachment.get("url") or "").replace("/uploads/", "")
-    # Intentar storage primero, fallback al filesystem local
-    obj = get_pdf_from_storage(rel)
-    if obj:
-        content, ctype = obj
-    else:
-        local_path = UPLOADS_DIR / rel
-        if not local_path.exists():
-            raise HTTPException(status_code=404, detail="Archivo no encontrado")
-        content = local_path.read_bytes()
-        ctype = attachment.get("content_type", "application/octet-stream")
-
     filename = attachment.get("filename", attachment_id)
+    declared_ctype = attachment.get("content_type", "application/octet-stream")
+
+    # 1) FS local primero — instantáneo. 2) Object Storage como fallback.
+    local_path = UPLOADS_DIR / rel
+    if local_path.exists():
+        return FileResponse(
+            path=str(local_path),
+            filename=filename,
+            media_type=declared_ctype,
+        )
+
+    obj = get_pdf_from_storage(rel)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    content, ctype = obj
     return StreamingResponse(
         io.BytesIO(content),
-        media_type=ctype,
+        media_type=ctype or declared_ctype,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

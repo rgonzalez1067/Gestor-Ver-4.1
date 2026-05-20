@@ -3,6 +3,27 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Optimización Velocidad Descarga Anexos (Feb 2026) — Bug fix
+
+**Síntoma**: Descargas de anexos PDF lentas (1-2s c/u), peor en Producción que en Preview.
+
+**Causa raíz**: El fix anterior priorizó Object Storage como fuente primaria de los endpoints `/quotes/{id}/attachments/{aid}/download` y `/quote-history/{id}/attachments/{aid}/download`. Eso agregaba latencia de red (~500-2000ms) en CADA descarga, incluso cuando el archivo estaba disponible localmente.
+
+**Fix**: Invertir orden de fallback:
+1. **FS local primero** → respuesta instantánea (~10ms `FileResponse` con streaming nativo).
+2. **Object Storage como fallback** → solo si el archivo no existe localmente.
+
+Esto mantiene la garantía de disponibilidad cross-deploy (archivos viejos siguen accesibles vía Object Storage) sin penalizar el caso común (archivo presente localmente).
+
+**Validación E2E** (curl 5 descargas en Preview):
+- Antes: ~1-2s por descarga.
+- Después: **180-375ms** por descarga (~5-7x más rápido).
+
+Aplicado a:
+- `/app/backend/routes/attachments.py` → `download_quote_attachment`
+- `/app/backend/routes/quote_history.py` → `download_history_attachment`
+
+
 ### Reporte Mayor de Activos: Histórico Colapsable + Deferred FIFO + Precargas (Feb 2026) — NUEVO
 
 **Objetivo**: Conservar trazabilidad histórica de movimientos en el Reporte Mayor sin saturar la vista financiera y resolver casos con datos cronológicamente inconsistentes.
