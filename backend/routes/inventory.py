@@ -1279,82 +1279,111 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     if not lch_id and warehouses:
         lch_id = warehouses[0]["warehouse_id"]
 
-    # FIX (bug crítico): NO filtramos por warehouse_id — POS/PinPads del
-    # segmento Pyme entran directamente al TBP y antes quedaban excluidos.
-    all_entries = await db.inventory_movements.find(
-        {"movement_type": "entrada"}, {"_id": 0}
-    ).sort("acquisition_date", 1).to_list(5000)
+    # FIFO segmentado por almacén: las TRANSFERENCIAS deben formar parte del
+    # ciclo FIFO del almacén destino. Antes el reporte solo procesaba
+    # `entrada` y `salida` (ignorando `transferencia_entrada` y
+    # `transferencia_salida`), lo que dejaba "lotes fantasma" en el almacén
+    # origen y subdescontaba las salidas en el almacén destino.
+    #
+    # Reglas:
+    #  - `entrada` y `transferencia_entrada` → crean lote en (item, warehouse).
+    #  - `salida` y `transferencia_salida`  → descuentan FIFO en (item, warehouse).
+    #  - Lotes en estado `precarga` (cuarentena técnica) NO entran al FIFO
+    #    hasta que se certifiquen.
+    movs_cursor = db.inventory_movements.find(
+        {
+            "movement_type": {"$in": [
+                "entrada", "transferencia_entrada",
+                "salida", "transferencia_salida",
+            ]},
+            "certification_status": {"$ne": "precarga"},
+        },
+        {"_id": 0},
+    ).sort("created_at", 1)
+    all_movs = await movs_cursor.to_list(10000)
 
-    # Obtener TODAS las salidas reales (NO transferencias)
-    all_exits = await db.inventory_movements.find(
-        {"movement_type": "salida"}, {"_id": 0}
-    ).sort("created_at", 1).to_list(5000)
-    
-    # Agrupar por (item_id, warehouse_id) — FIFO SEGMENTADO POR ALMACÉN.
-    # Cada almacén mantiene su propia capa de inventario. Una salida del
-    # almacén X descuenta exclusivamente de los lotes ingresados a X (nunca
-    # mezcla con LCH u otros). Esto preserva la integridad financiera del
-    # Mayor de Activos cuando el mismo SKU tiene costos distintos por sede.
-    items_entries = {}  # (item_id, warehouse_id) -> {item_name, item_type, lots:[]}
-    item_master = {}    # item_id -> (item_name, item_type) para el reporte final
-    for entry in all_entries:
-        iid = entry.get("item_id", "unknown")
-        wid = entry.get("warehouse_id", "")
+    # Separar para procesarlos en orden, manteniendo prioridad de entradas
+    # antes de salidas del mismo timestamp para evitar saldo negativo
+    # transitorio. Orden estable: created_at ASC + entradas (sign=1) primero.
+    def _mov_order_key(m: dict):
+        is_entry = m.get("movement_type") in ("entrada", "transferencia_entrada")
+        return (m.get("created_at") or "", 0 if is_entry else 1)
+    all_movs.sort(key=_mov_order_key)
+
+    # Agrupar lotes por (item_id, warehouse_id) — FIFO SEGMENTADO POR ALMACÉN.
+    # Cada almacén mantiene su propia capa de inventario. Una salida (incluso
+    # una transferencia_salida) descuenta exclusivamente de los lotes
+    # ingresados a ese almacén (sea por compra o por transferencia previa).
+    items_entries: dict = {}  # (item_id, warehouse_id) -> {item_name, item_type, lots:[]}
+    item_master: dict = {}    # item_id -> (item_name, item_type)
+
+    for m in all_movs:
+        iid = m.get("item_id", "unknown")
+        wid = m.get("warehouse_id", "")
         key = (iid, wid)
-        if key not in items_entries:
-            items_entries[key] = {
-                "item_name": entry.get("item_name", "Sin nombre"),
-                "item_type": entry.get("item_type", ""),
+        mtype = m.get("movement_type", "")
+        qty = m.get("quantity", 0)
+        if iid not in item_master:
+            item_master[iid] = (m.get("item_name", "Sin nombre"), m.get("item_type", ""))
+
+        if mtype in ("entrada", "transferencia_entrada"):
+            # Para entradas directas usamos acquisition_date (fecha de
+            # compra). Para transferencias usamos created_at (fecha de
+            # llegada física al almacén destino) porque ese es el orden FIFO
+            # operativo en el nuevo almacén.
+            if mtype == "transferencia_entrada":
+                lot_date = (m.get("created_at") or "")[:10] if isinstance(m.get("created_at"), str) else ""
+                supplier_label = m.get("reference", "") or "Transferencia recibida"
+            else:
+                lot_date = m.get("acquisition_date") or ((m.get("created_at") or "")[:10] if isinstance(m.get("created_at"), str) else "")
+                supplier_label = m.get("supplier", "")
+
+            items_entries.setdefault(key, {
+                "item_name": m.get("item_name", "Sin nombre"),
+                "item_type": m.get("item_type", ""),
                 "warehouse_id": wid,
                 "lots": [],
-            }
-        if iid not in item_master:
-            item_master[iid] = (entry.get("item_name", "Sin nombre"), entry.get("item_type", ""))
-        items_entries[key]["lots"].append({
-            "movement_id": entry.get("movement_id", ""),
-            "purchase_date": entry.get("acquisition_date") or (entry.get("created_at", "")[:10] if isinstance(entry.get("created_at"), str) else ""),
-            "supplier": entry.get("supplier", ""),
-            "invoice_ref": entry.get("invoice_ref", ""),
-            "quantity_purchased": entry.get("quantity", 0),
-            "unit_cost": entry.get("unit_cost", 0),
-            "remaining": entry.get("quantity", 0),
-            "warehouse_id": wid,
-            "created_at": entry.get("created_at", ""),
-        })
+            })["lots"].append({
+                "movement_id": m.get("movement_id", ""),
+                "purchase_date": lot_date,
+                "supplier": supplier_label,
+                "invoice_ref": m.get("invoice_ref", ""),
+                "quantity_purchased": qty,
+                "unit_cost": m.get("unit_cost", 0),
+                "remaining": qty,
+                "warehouse_id": wid,
+                "created_at": m.get("created_at", ""),
+                "is_transfer_in": (mtype == "transferencia_entrada"),
+            })
+        elif mtype in ("salida", "transferencia_salida"):
+            # Descontar FIFO en (item, warehouse) — ordenamos los lotes
+            # actuales por fecha ANTES de descontar.
+            if key not in items_entries:
+                logger.warning(
+                    f"[asset-ledger] {mtype} sin entradas previas — item={iid} warehouse={wid} qty={qty}"
+                )
+                continue
+            items_entries[key]["lots"].sort(
+                key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+            )
+            to_deduct = qty
+            for lot in items_entries[key]["lots"]:
+                if to_deduct <= 0:
+                    break
+                d = min(lot["remaining"], to_deduct)
+                lot["remaining"] -= d
+                to_deduct -= d
+            if to_deduct > 0:
+                logger.warning(
+                    f"[asset-ledger] {mtype} excede stock FIFO — item={iid} warehouse={wid} faltante={to_deduct}"
+                )
 
-    # Agrupar salidas por (item_id, warehouse_id) — SOLO descuentan del
-    # almacén donde se generó la salida.
-    exits_by_key = {}
-    for ex in all_exits:
-        iid = ex.get("item_id", "unknown")
-        wid = ex.get("warehouse_id", "")
-        key = (iid, wid)
-        exits_by_key.setdefault(key, []).append(ex.get("quantity", 0))
-
-    # Ordenar lotes por fecha (PEPS) DENTRO de cada (item, warehouse).
+    # Ordenar lotes finales por fecha (PEPS) DENTRO de cada (item, warehouse).
     for key in items_entries:
         items_entries[key]["lots"].sort(
             key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
         )
 
-    # Aplicar PEPS segmentado: la salida de un almacén descuenta sólo de
-    # los lotes ingresados a ese mismo almacén.
-    for key, exit_list in exits_by_key.items():
-        if key not in items_entries:
-            # Salida sin entrada previa en el mismo almacén → defensivo: NO
-            # descontamos de otros almacenes (eso era el bug original).
-            # Loggeamos warning para auditoría de potencial inconsistencia.
-            logger.warning(
-                f"[asset-ledger] Salida sin entradas en el mismo almacén — item={key[0]} warehouse={key[1]} qty={sum(exit_list)}. No se aplica PEPS cruzado."
-            )
-            continue
-        total_to_deduct = sum(exit_list)
-        for lot in items_entries[key]["lots"]:
-            if total_to_deduct <= 0:
-                break
-            deduct = min(lot["remaining"], total_to_deduct)
-            lot["remaining"] -= deduct
-            total_to_deduct -= deduct
     
     # Construir reporte: solo lotes con saldo > 0
     # Calcular stock actual por almacén para cada item

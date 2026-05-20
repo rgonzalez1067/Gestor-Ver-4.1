@@ -3,6 +3,31 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Fix Crítico FIFO: Transferencias Inter-Almacén Forman Parte del Ciclo FIFO del Destino (Feb 2026) — P0
+
+**Síntoma reportado** (caso Batería VX820):
+- El Reporte Mayor de Activos mostraba 3 lotes: 5 LCH + 60 LCH + 100 TBP, cuando físicamente las 65 uds de LCH ya habían sido transferidas a TBP (kardex LCH = 0, kardex TBP = 162).
+- Cuando se hacía una salida desde TBP, el FIFO descontaba del lote "entrada directa" (más reciente) en lugar del lote "transferencia recibida" (más antiguo). Resultado: lotes fantasma en LCH y FIFO incorrecto en TBP.
+
+**Causa raíz**: El endpoint `GET /api/inventory/asset-ledger` en `/app/backend/routes/inventory.py` SOLO procesaba `entrada` y `salida`, ignorando `transferencia_entrada` y `transferencia_salida`. Esto generaba:
+1. Lotes "fantasma" en el almacén origen tras una transferencia (no se descontaban).
+2. Ningún lote nuevo en el almacén destino (no se procesaba `transferencia_entrada`).
+3. Salidas FIFO desde el destino solo encontraban lotes de entrada directa (no transferidos).
+
+**Fix aplicado**: Refactor del algoritmo FIFO segmentado del asset-ledger:
+- Query ahora incluye los 4 tipos: `entrada` + `transferencia_entrada` (crean lotes) y `salida` + `transferencia_salida` (descuentan FIFO).
+- Excluye `certification_status='precarga'` (lotes en cuarentena).
+- Procesamiento cronológico estable: entradas antes que salidas del mismo timestamp para evitar saldos negativos transitorios.
+- `transferencia_entrada` usa `created_at[:10]` como purchase_date (fecha de llegada física al almacén destino, alineado con el ciclo FIFO operativo de ese almacén).
+- `transferencia_entrada` hereda el `unit_cost` del origen (ya existía en el código de transferencia, `services/inventory.transfer_between_warehouses`).
+
+**Validación E2E con curl** (Bateria VX820 — `hwr_f48c4cce83ca`):
+- ✅ Total 162 uds | LCH: 0 | TBP: 162 (alineado con kardex).
+- ✅ 2 lotes vivos en TBP: 62 (transferencia 15/abr) + 100 (entrada directa 28/abr).
+- ✅ FIFO correcto: la salida de 3 descontó del lote transferido más antiguo (65→62).
+- ✅ Auditoría general de 26 items: 0 inconsistencias header vs sum(lotes) por almacén.
+
+
 ### Auto-Recuperación de Anexos a Object Storage (Feb 2026) — NUEVO
 
 **Objetivo**: Garantizar que TODOS los anexos referenciados en `quotes.attachments` y `quote_history.attachments` estén replicados en el Object Storage persistente. Útil para entornos con filesystem efímero/read-only (Producción tras un deploy) y como salvaguarda contra anexos que solo viven localmente.
