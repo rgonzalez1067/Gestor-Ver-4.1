@@ -3,6 +3,28 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Reporte Mayor de Activos: Histórico Colapsable + Deferred FIFO + Precargas (Feb 2026) — NUEVO
+
+**Objetivo**: Conservar trazabilidad histórica de movimientos en el Reporte Mayor sin saturar la vista financiera y resolver casos con datos cronológicamente inconsistentes.
+
+**Backend** (`/app/backend/routes/inventory.py` → `get_asset_ledger`):
+1. **Histórico por item**: Cada item del response ahora incluye un array `history` con todos los movimientos (entradas/salidas/transferencias) con fecha, tipo, almacén, cantidad signada, costo y referencia.
+2. **Precargas incluidas en FIFO**: Las `transferencia_entrada` en estado `precarga` (cuarentena técnica de transferencias) ahora se cuentan en el FIFO, alineadas con `stock_by_wh`. Físicamente ya están en el almacén destino.
+3. **Deferred FIFO**: Si una salida ocurre cronológicamente antes que sus lotes (datos inconsistentes tras reconstrucciones de almacenes), se difiere y se aplica al final contra los lotes que aparezcan después. Resuelve casos como salida del 07/may sobre lotes regenerados el 20/may.
+
+**Frontend** (`AssetLedgerReport.jsx`):
+- Botón colapsable "Ver histórico de movimientos (N)" bajo cada subtotal de item.
+- Tabla anidada con: Fecha+hora, Tipo (badge colorido por tipo), Almacén (badge LCH/TBP), Cantidad signada, Costo unit., Referencia (cliente+cotización o proveedor+factura).
+- Helpers: `movementTypeLabel`, `movementTypeColor`, `warehouseBadge`, `formatDateTime`.
+- Botón oculto en impresión (`print:hidden`) para no inflar el PDF.
+
+**Validación E2E** (Bateria VX820 con datos reconstruidos):
+- ✅ Total: 162 uds (LCH:0, TBP:162) — coincide con kardex.
+- ✅ 3 lotes activos: 100→97 (entrada directa, salida FIFO aplicada) + 5 + 60 (transferencias precarga incluidas).
+- ✅ 8 movimientos en histórico (entradas, salidas, transferencias).
+- ✅ Auditoría 26 items: 0 inconsistencias header vs sum(lotes).
+
+
 ### Fix Crítico FIFO: Transferencias Inter-Almacén Forman Parte del Ciclo FIFO del Destino (Feb 2026) — P0
 
 **Síntoma reportado** (caso Batería VX820):

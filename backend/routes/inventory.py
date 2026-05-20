@@ -1288,15 +1288,15 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     # Reglas:
     #  - `entrada` y `transferencia_entrada` → crean lote en (item, warehouse).
     #  - `salida` y `transferencia_salida`  → descuentan FIFO en (item, warehouse).
-    #  - Lotes en estado `precarga` (cuarentena técnica) NO entran al FIFO
-    #    hasta que se certifiquen.
+    #  - Las precargas (cuarentena técnica de transferencias entrantes)
+    #    SE INCLUYEN en el FIFO porque físicamente ya están en el almacén
+    #    destino y forman parte del stock contable. Se marcan en el histórico.
     movs_cursor = db.inventory_movements.find(
         {
             "movement_type": {"$in": [
                 "entrada", "transferencia_entrada",
                 "salida", "transferencia_salida",
             ]},
-            "certification_status": {"$ne": "precarga"},
         },
         {"_id": 0},
     ).sort("created_at", 1)
@@ -1316,6 +1316,10 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     # ingresados a ese almacén (sea por compra o por transferencia previa).
     items_entries: dict = {}  # (item_id, warehouse_id) -> {item_name, item_type, lots:[]}
     item_master: dict = {}    # item_id -> (item_name, item_type)
+    # Salidas diferidas: salidas que ocurrieron cronológicamente ANTES de las
+    # entradas (datos inconsistentes tras reconstrucciones manuales). Se
+    # aplican al final, contra los lotes existentes en ese (item, warehouse).
+    deferred_exits: list = []  # [(key, qty, mtype, m)]
 
     for m in all_movs:
         iid = m.get("item_id", "unknown")
@@ -1358,10 +1362,11 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
         elif mtype in ("salida", "transferencia_salida"):
             # Descontar FIFO en (item, warehouse) — ordenamos los lotes
             # actuales por fecha ANTES de descontar.
-            if key not in items_entries:
-                logger.warning(
-                    f"[asset-ledger] {mtype} sin entradas previas — item={iid} warehouse={wid} qty={qty}"
-                )
+            if key not in items_entries or not items_entries[key]["lots"]:
+                # Salida huérfana: la difiero para aplicarla al final contra
+                # los lotes que aparezcan después (corrige datos
+                # inconsistentes tras reconstrucciones de almacenes).
+                deferred_exits.append((key, qty, mtype, m))
                 continue
             items_entries[key]["lots"].sort(
                 key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
@@ -1374,9 +1379,31 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
                 lot["remaining"] -= d
                 to_deduct -= d
             if to_deduct > 0:
-                logger.warning(
-                    f"[asset-ledger] {mtype} excede stock FIFO — item={iid} warehouse={wid} faltante={to_deduct}"
-                )
+                # Solo parcialmente descontada: difiero el remanente.
+                deferred_exits.append((key, to_deduct, mtype, m))
+
+    # Aplicar salidas diferidas al final (deferred FIFO) — útil cuando los
+    # datos no están cronológicamente consistentes pero el saldo agregado sí.
+    for key, qty, mtype, m in deferred_exits:
+        if key not in items_entries:
+            logger.warning(
+                f"[asset-ledger] Salida huérfana sin lotes — item={key[0]} warehouse={key[1]} qty={qty} type={mtype}"
+            )
+            continue
+        items_entries[key]["lots"].sort(
+            key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+        )
+        to_deduct = qty
+        for lot in items_entries[key]["lots"]:
+            if to_deduct <= 0:
+                break
+            d = min(lot["remaining"], to_deduct)
+            lot["remaining"] -= d
+            to_deduct -= d
+        if to_deduct > 0:
+            logger.warning(
+                f"[asset-ledger] {mtype} excede stock FIFO total — item={key[0]} warehouse={key[1]} faltante={to_deduct}"
+            )
 
     # Ordenar lotes finales por fecha (PEPS) DENTRO de cada (item, warehouse).
     for key in items_entries:
@@ -1419,6 +1446,32 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     for (iid, wid), data in items_entries.items():
         items_by_iid.setdefault(iid, []).append(data)
 
+    # Pre-calcular histórico de movimientos por item (para el panel
+    # colapsable "Movimientos históricos" del frontend). Mantiene
+    # trazabilidad completa incluso de lotes ya consumidos/transferidos.
+    history_by_iid: dict = {}
+    for m in all_movs:
+        iid = m.get("item_id")
+        wid = m.get("warehouse_id", "")
+        mtype = m.get("movement_type", "")
+        qty = m.get("quantity", 0)
+        sign = 1 if mtype in ("entrada", "transferencia_entrada") else -1
+        history_by_iid.setdefault(iid, []).append({
+            "date": (m.get("created_at") or "")[:19],
+            "movement_type": mtype,
+            "warehouse_id": wid,
+            "warehouse_name": wh_map.get(wid, ""),
+            "quantity": qty,
+            "signed_quantity": sign * qty,
+            "unit_cost": m.get("unit_cost", 0),
+            "supplier": m.get("supplier", ""),
+            "invoice_ref": m.get("invoice_ref", ""),
+            "reference": m.get("reference", ""),
+            "client_name": m.get("client_name", ""),
+            "quote_number": m.get("quote_number", ""),
+            "transfer_id": m.get("transfer_id", ""),
+        })
+
     for iid, group_list in items_by_iid.items():
         active_lots_global = []
         for data in group_list:
@@ -1458,6 +1511,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             "item_name": item_name,
             "item_type": item_type,
             "lots": lot_details,
+            "history": history_by_iid.get(iid, []),
             "item_total": round(item_total, 2),
             "total_units": sum(l["remaining"] for l in active_lots_global),
             "units_lch": units_lch,

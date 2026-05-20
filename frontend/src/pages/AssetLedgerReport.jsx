@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
-import { Printer, ArrowLeft, Package, Download } from 'lucide-react';
+import { Printer, ArrowLeft, Package, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -30,8 +30,50 @@ const formatDate = (iso) => {
 export const AssetLedgerReport = () => {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [expandedHistory, setExpandedHistory] = useState(new Set());
   const navigate = useNavigate();
   const printRef = useRef();
+
+  const toggleHistory = (iid) => {
+    setExpandedHistory((prev) => {
+      const next = new Set(prev);
+      if (next.has(iid)) next.delete(iid); else next.add(iid);
+      return next;
+    });
+  };
+
+  const movementTypeLabel = (t) => {
+    const map = {
+      'entrada': 'Entrada',
+      'salida': 'Salida',
+      'transferencia_entrada': 'Transf. Recibida',
+      'transferencia_salida': 'Transf. Enviada',
+    };
+    return map[t] || t;
+  };
+
+  const movementTypeColor = (t) => {
+    if (t === 'entrada') return { bg: '#d1fae5', fg: '#065f46' };
+    if (t === 'transferencia_entrada') return { bg: '#dbeafe', fg: '#1e40af' };
+    if (t === 'salida') return { bg: '#fee2e2', fg: '#991b1b' };
+    if (t === 'transferencia_salida') return { bg: '#ffedd5', fg: '#9a3412' };
+    return { bg: '#e5e7eb', fg: '#374151' };
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const warehouseBadge = (name) => {
+    if (!name) return '';
+    const lc = name.toLowerCase();
+    if (lc.includes('chaguaramos')) return 'LCH';
+    if (lc.includes('banco plaza') || lc.includes('pyme')) return 'TBP';
+    return name.slice(0, 4);
+  };
 
   useEffect(() => {
     const fetchReport = async () => {
@@ -202,6 +244,72 @@ export const AssetLedgerReport = () => {
                         <td className="px-3 py-1.5" style={{border: '1px solid #cbd5e1'}}></td>
                         <td className="px-3 py-1.5 text-right font-mono font-bold" style={{border: '1px solid #cbd5e1', color: '#047857'}}>{formatBs(item.item_total)}</td>
                       </tr>
+                      {/* Toggle Histórico de Movimientos */}
+                      {(item.history && item.history.length > 0) && (
+                        <tr key={`htog-${item.item_id}`} className="print:hidden">
+                          <td colSpan={7} className="px-3 py-1" style={{border: '1px solid #e2e8f0', backgroundColor: '#f8fafc'}}>
+                            <button
+                              type="button"
+                              onClick={() => toggleHistory(item.item_id)}
+                              data-testid={`history-toggle-${item.item_id}`}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 transition"
+                            >
+                              {expandedHistory.has(item.item_id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                              {expandedHistory.has(item.item_id) ? 'Ocultar' : 'Ver'} histórico de movimientos
+                              <span className="text-slate-400">({item.history.length})</span>
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                      {/* Historial expandido */}
+                      {expandedHistory.has(item.item_id) && item.history && item.history.length > 0 && (
+                        <tr key={`hist-${item.item_id}`}>
+                          <td colSpan={7} className="px-3 py-2" style={{border: '1px solid #e2e8f0', backgroundColor: '#fafbfc'}}>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">Movimientos históricos (incluye lotes ya consumidos/transferidos)</div>
+                            <table className="w-full text-[11px] border-collapse" style={{backgroundColor: '#fff'}}>
+                              <thead style={{backgroundColor: '#e2e8f0', color: '#475569'}}>
+                                <tr>
+                                  <th className="px-2 py-1 text-left" style={{border: '1px solid #cbd5e1'}}>Fecha</th>
+                                  <th className="px-2 py-1 text-left" style={{border: '1px solid #cbd5e1'}}>Tipo</th>
+                                  <th className="px-2 py-1 text-left" style={{border: '1px solid #cbd5e1'}}>Almacén</th>
+                                  <th className="px-2 py-1 text-right" style={{border: '1px solid #cbd5e1'}}>Cantidad</th>
+                                  <th className="px-2 py-1 text-right" style={{border: '1px solid #cbd5e1'}}>Costo Unit. (Bs)</th>
+                                  <th className="px-2 py-1 text-left" style={{border: '1px solid #cbd5e1'}}>Referencia</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {item.history.map((mv, mi) => {
+                                  const col = movementTypeColor(mv.movement_type);
+                                  const isOut = mv.signed_quantity < 0;
+                                  const refDetail = mv.client_name
+                                    ? `${mv.client_name}${mv.quote_number ? ' · ' + mv.quote_number : ''}`
+                                    : (mv.reference || mv.invoice_ref || mv.supplier || '—');
+                                  return (
+                                    <tr key={`h-${item.item_id}-${mi}`} style={{backgroundColor: mi % 2 === 0 ? '#fff' : '#f8fafc'}}>
+                                      <td className="px-2 py-1 text-slate-600" style={{border: '1px solid #e2e8f0'}}>{formatDateTime(mv.date)}</td>
+                                      <td className="px-2 py-1" style={{border: '1px solid #e2e8f0'}}>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{backgroundColor: col.bg, color: col.fg}}>
+                                          {movementTypeLabel(mv.movement_type)}
+                                        </span>
+                                      </td>
+                                      <td className="px-2 py-1" style={{border: '1px solid #e2e8f0'}}>
+                                        <span className="text-[9px] px-1 py-0.5 rounded font-medium" style={{backgroundColor: '#dbeafe', color: '#1d4ed8'}}>
+                                          {warehouseBadge(mv.warehouse_name)}
+                                        </span>
+                                      </td>
+                                      <td className="px-2 py-1 text-right font-semibold" style={{border: '1px solid #e2e8f0', color: isOut ? '#b91c1c' : '#065f46'}}>
+                                        {isOut ? '-' : '+'}{mv.quantity}
+                                      </td>
+                                      <td className="px-2 py-1 text-right font-mono text-slate-600" style={{border: '1px solid #e2e8f0'}}>{formatBs(mv.unit_cost)}</td>
+                                      <td className="px-2 py-1 text-slate-600" style={{border: '1px solid #e2e8f0'}}>{refDetail}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
                       {/* Spacer */}
                       {itemIdx < items.length - 1 && (
                         <tr><td colSpan={7} style={{height: '6px', border: 'none', backgroundColor: '#fff'}}></td></tr>
