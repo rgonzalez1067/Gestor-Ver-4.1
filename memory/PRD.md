@@ -3,6 +3,28 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix Crítico: Anexos de Cotizaciones Fallaban Aleatoriamente en Producción (Feb 2026) — P0
+
+**Síntoma**: En el ambiente de Deploy/Producción algunas cotizaciones mostraban su PDF anexo correctamente, otras aparecían vacías de forma aleatoria. La descarga del ZIP completo funcionaba (los archivos sí existen en Object Storage), pero la visualización individual desde el modal "Anexos" fallaba intermitentemente.
+
+**Causa raíz**: El endpoint `GET /api/quotes/{quote_id}/attachments/{attachment_id}/download` en `/app/backend/routes/attachments.py` SOLO leía del filesystem local (`UPLOADS_DIR`). En Producción el FS del pod es efímero/read-only, así que tras cada deploy:
+- Los anexos subidos *después* del último deploy → en FS del pod → se ven ✅
+- Los anexos subidos *antes* del último deploy → solo en Object Storage → 404 ❌
+
+El endpoint análogo del histórico (`/quote-history/.../attachments/.../download`) ya tenía fallback correcto a Object Storage, por eso ese flujo funcionaba bien.
+
+**Fix aplicado**: Replicar el patrón de fallback en `download_quote_attachment`:
+1. Intentar `get_pdf_from_storage(rel)` primero (Object Storage es la fuente de verdad cross-deploy).
+2. Si retorna `None`, fallback al FS local con `FileResponse`.
+3. Si tampoco existe → 404.
+
+**Validación E2E** (curl en Preview):
+- ✅ Descarga con archivo presente en FS → HTTP 200, 1.3 MB
+- ✅ Descarga simulando FS sin archivo (movido a /tmp) → HTTP 200, 1.3 MB **vía Object Storage**
+
+**Próximo paso**: Usuario debe redesplegar a Producción para que el fix surta efecto allí. Con esto se elimina la inconsistencia aleatoria en el módulo de cotizaciones.
+
+
 ### Recuperación de Inventario tras Borrado por Error (Feb 2026) — NUEVO
 
 **Contexto**: El usuario solicitó borrado total de Inventario (warehouses + hardware + movimientos) y al recrear los almacenes manualmente (con UUIDs nuevos), reimportó solo el JSON de `inventory-movements` exportado de Producción. Esto dejó 69 movimientos huérfanos (warehouse_id apuntando a almacenes inexistentes) y 26 items huérfanos (item_id sin entrada en `hardware`).

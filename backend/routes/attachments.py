@@ -10,7 +10,7 @@ import io
 import os
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, render_email_template
-from services.pdf_storage import save_pdf_dual
+from services.pdf_storage import save_pdf_dual, get_pdf_from_storage
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 
@@ -126,7 +126,13 @@ async def delete_quote_attachment(quote_id: str, attachment_id: str, authorizati
 
 @router.get("/quotes/{quote_id}/attachments/{attachment_id}/download")
 async def download_quote_attachment(quote_id: str, attachment_id: str, authorization: Optional[str] = Header(None)):
-    """Descarga un anexo de una cotización"""
+    """Descarga un anexo de una cotización.
+
+    Lee primero del Object Storage (fuente de verdad cross-deploy) y, si no
+    está, hace fallback al filesystem local. Esto garantiza disponibilidad en
+    Producción donde el FS del pod es efímero/read-only y los anexos viejos
+    sólo existen en Object Storage.
+    """
     await get_current_user(authorization)
     
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -137,17 +143,30 @@ async def download_quote_attachment(quote_id: str, attachment_id: str, authoriza
     if not attachment:
         raise HTTPException(status_code=404, detail="Anexo no encontrado")
     
-    # Construir path del archivo
-    url_path = attachment["url"].replace("/uploads/", "")
+    # Path relativo (sin /uploads/) — la misma key usada al guardar en Object Storage
+    url_path = (attachment.get("url") or "").replace("/uploads/", "")
+    ctype = attachment.get("content_type", "application/octet-stream")
+    filename = attachment.get("filename", attachment_id)
+
+    # 1) Object Storage primero (persistente cross-deploy)
+    obj = get_pdf_from_storage(url_path)
+    if obj:
+        content, stored_ctype = obj
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type=stored_ctype or ctype,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # 2) Fallback al filesystem local
     file_path = UPLOADS_DIR / url_path
-    
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor")
-    
+
     return FileResponse(
         path=str(file_path),
-        filename=attachment["filename"],
-        media_type=attachment.get("content_type", "application/octet-stream")
+        filename=filename,
+        media_type=ctype,
     )
 
 async def generate_quote_pdf_buffer(quote: dict, client: dict) -> io.BytesIO:
