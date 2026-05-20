@@ -14,7 +14,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://link-pago-flow.preview.emergentagent.com"
+    BASE_URL = "https://anexos-zip-fix.preview.emergentagent.com"
 
 class TestIteration53EditPersistence:
     """Tests for the edit/modify quote persistence bug fixes"""

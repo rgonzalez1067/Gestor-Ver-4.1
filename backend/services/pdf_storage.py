@@ -66,22 +66,40 @@ def get_pdf_from_storage(filename: str) -> Optional[Tuple[bytes, str]]:
 
 
 def save_pdf_dual(pdf_path: Path, pdf_bytes: bytes, filename: Optional[str] = None) -> Path:
-    """Escribe el archivo en disco (compat / cache) Y lo sube a Object Storage.
+    """Persiste el archivo. Prioridad: Object Storage (primary) + FS local (cache).
 
-    El upload a storage falla silenciosamente para no romper el flujo principal.
-    Retorna el Path local (igual que antes) para que el código que lo necesite
-    siga funcionando.
+    Comportamiento tolerante a entornos con filesystem ephemeral o read-only
+    (como algunos pods de Kubernetes en producción):
+      - Intenta Object Storage primero. Si tiene éxito → considerado OK.
+      - Intenta FS local como cache best-effort. Si falla por OSError
+        (PermissionError, ReadOnlyFileSystemError, etc.) se loggea y se ignora.
+      - Si AMBOS fallan, lanza la excepción para que el caller lo sepa.
 
-    El content_type se infiere del nombre/extensión: si es .pdf, image/*, .xlsx,
-    .docx, etc. se mapea correctamente. Antes se hardcodeaba "application/pdf"
-    para todo, lo que corrompía anexos no-PDF (imágenes, hojas Excel, etc.) y
-    causaba que en producción no se descargaran adecuadamente.
+    Retorna el Path local (puede o no existir físicamente, según el FS).
     """
     pdf_path = Path(pdf_path)
-    pdf_path.parent.mkdir(parents=True, exist_ok=True)
-    pdf_path.write_bytes(pdf_bytes)
     name = filename or pdf_path.name
-    # Detectar MIME real (override solo si es .pdf claro o si mimetypes resuelve)
     ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
-    save_pdf_to_storage(pdf_bytes, name, content_type=ctype)
+
+    # 1) Object Storage primero (primary). Importante: este es el storage
+    # persistente cross-deploy y es el que la app usa para servir descargas.
+    storage_ok = save_pdf_to_storage(pdf_bytes, name, content_type=ctype)
+
+    # 2) Filesystem local — best-effort. En producción con FS read-only
+    # este bloque puede fallar; lo toleramos siempre que storage_ok=True.
+    fs_ok = False
+    fs_err: Optional[Exception] = None
+    try:
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf_path.write_bytes(pdf_bytes)
+        fs_ok = True
+    except (OSError, PermissionError) as e:
+        fs_err = e
+        logger.warning(f"[pdf_storage] FS write skipped (likely read-only): {pdf_path} → {e}")
+
+    if not storage_ok and not fs_ok:
+        # Ningún backend pudo persistir → propagamos el error.
+        raise RuntimeError(
+            f"No se pudo persistir el archivo. ObjectStorage falló y FS también: {fs_err}"
+        )
     return pdf_path
