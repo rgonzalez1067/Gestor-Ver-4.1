@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from starlette.background import BackgroundTask
 
 from config import db, get_current_user, UPLOADS_DIR
-from services.pdf_storage import get_pdf_from_storage, save_pdf_dual
+from services.pdf_storage import get_pdf_from_storage, save_pdf_dual, save_pdf_to_storage
 
 logger = logging.getLogger(__name__)
 
@@ -1076,3 +1076,161 @@ async def quotes_bundle_import_attachment(
     })
 
     return {"ok": True, "path": rel, "size": len(raw)}
+
+
+
+# ==================== AUTO-RECOVERY: ATTACHMENTS → OBJECT STORAGE ====================
+
+@router.post("/admin/attachments/recover-to-storage")
+async def recover_attachments_to_storage(
+    dry_run: bool = False,
+    skip: int = 0,
+    limit: int = 50,
+    authorization: Optional[str] = Header(None),
+):
+    """Audita anexos en `quotes.attachments` y `quote_history.attachments`
+    y los sube al Object Storage si no están allí.
+
+    Paginado por defecto en lotes de 50 (skip/limit) para evitar timeouts del
+    proxy (K8s ingress ~60s). El frontend debe llamar repetidamente hasta que
+    `done=true`.
+
+    Params:
+      - dry_run=true: solo escanea y reporta, no sube nada.
+      - skip: offset para paginar (default 0).
+      - limit: tamaño del lote (default 50, max 200).
+
+    Returns: { scanned, already_in_storage, uploaded, missing_everywhere,
+               errors, total, processed_so_far, done, next_skip,
+               missing_details, by_collection }
+    """
+    import asyncio as _asyncio
+
+    user = await _require_admin(authorization)
+    limit = max(1, min(int(limit or 50), 200))
+    skip = max(0, int(skip or 0))
+
+    # 1) Recolectar TODOS los pares (ordenados de forma estable) para paginar
+    all_tasks: list = []  # (coll_name, parent_id, parent_number, attachment)
+
+    async for q in db.quotes.find(
+        {"attachments": {"$exists": True, "$ne": []}},
+        {"_id": 0, "quote_id": 1, "quote_number": 1, "attachments": 1},
+    ).sort("quote_id", 1):
+        for att in (q.get("attachments") or []):
+            all_tasks.append(("quotes", q.get("quote_id"), q.get("quote_number") or "", att))
+
+    async for h in db.quote_history.find(
+        {"attachments": {"$exists": True, "$ne": []}},
+        {"_id": 0, "history_id": 1, "quote_id": 1, "quote_number": 1, "attachments": 1},
+    ).sort("history_id", 1):
+        for att in (h.get("attachments") or []):
+            all_tasks.append(("quote_history", h.get("history_id"), h.get("quote_number") or "", att))
+
+    total = len(all_tasks)
+    batch = all_tasks[skip: skip + limit]
+
+    # 2) Procesar el lote con concurrencia controlada
+    sem = _asyncio.Semaphore(8)
+    missing_details: list = []
+    error_details: list = []
+    counters = {"scanned": 0, "already_ok": 0, "uploaded": 0,
+                "missing_everywhere": 0, "errors": 0}
+    by_collection = {"quotes": {"scanned": 0, "ok": 0, "uploaded": 0, "missing": 0},
+                     "quote_history": {"scanned": 0, "ok": 0, "uploaded": 0, "missing": 0}}
+
+    async def _process(coll_name: str, parent_id: str, parent_number: str, attachment: dict):
+        async with sem:
+            counters["scanned"] += 1
+            by_collection[coll_name]["scanned"] += 1
+
+            rel = (attachment.get("url") or "").replace("/uploads/", "").lstrip("/")
+            att_id = attachment.get("attachment_id", "?")
+            if not rel:
+                counters["errors"] += 1
+                error_details.append({"collection": coll_name, "parent_id": parent_id,
+                                       "attachment_id": att_id, "reason": "url vacía/inválida"})
+                return
+
+            try:
+                obj = await _asyncio.to_thread(get_pdf_from_storage, rel)
+            except Exception as e:
+                obj = None
+                logger.warning(f"[recover] get_pdf_from_storage error {rel}: {e}")
+
+            if obj:
+                counters["already_ok"] += 1
+                by_collection[coll_name]["ok"] += 1
+                return
+
+            local_path = UPLOADS_DIR / rel
+            if not local_path.exists():
+                counters["missing_everywhere"] += 1
+                by_collection[coll_name]["missing"] += 1
+                missing_details.append({
+                    "collection": coll_name, "parent_id": parent_id,
+                    "parent_number": parent_number, "attachment_id": att_id,
+                    "filename": attachment.get("filename"), "rel_path": rel,
+                })
+                return
+
+            if dry_run:
+                counters["uploaded"] += 1
+                by_collection[coll_name]["uploaded"] += 1
+                return
+
+            try:
+                content = await _asyncio.to_thread(local_path.read_bytes)
+                ctype = attachment.get("content_type") or "application/octet-stream"
+                ok = await _asyncio.to_thread(save_pdf_to_storage, content, rel, ctype)
+                if ok:
+                    counters["uploaded"] += 1
+                    by_collection[coll_name]["uploaded"] += 1
+                else:
+                    counters["errors"] += 1
+                    error_details.append({"collection": coll_name, "parent_id": parent_id,
+                                           "attachment_id": att_id, "reason": "put_object False"})
+            except Exception as e:
+                counters["errors"] += 1
+                error_details.append({"collection": coll_name, "parent_id": parent_id,
+                                       "attachment_id": att_id, "reason": str(e)})
+
+    await _asyncio.gather(*[_process(*t) for t in batch])
+
+    processed = skip + len(batch)
+    done = processed >= total
+
+    # Bitácora solo al final del último lote (evita spam)
+    if done:
+        await db.bitacora.insert_one({
+            "action": "attachments_recover_to_storage",
+            "dry_run": dry_run,
+            "total": total,
+            **counters,
+            "executed_by": user.get("email"),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    return {
+        "dry_run": dry_run,
+        "total": total,
+        "processed_so_far": processed,
+        "done": done,
+        "next_skip": processed if not done else None,
+        "scanned": counters["scanned"],
+        "already_in_storage": counters["already_ok"],
+        "uploaded": counters["uploaded"],
+        "missing_everywhere": counters["missing_everywhere"],
+        "errors": counters["errors"],
+        "by_collection": by_collection,
+        "missing_details": missing_details[:50],
+        "missing_details_total": len(missing_details),
+        "error_details": error_details[:20],
+        "message": (
+            f"{'[DRY-RUN] ' if dry_run else ''}"
+            f"Lote: {len(batch)} | Ya en storage: {counters['already_ok']} | "
+            f"{'A subir' if dry_run else 'Subidos'}: {counters['uploaded']} | "
+            f"Sin archivo: {counters['missing_everywhere']} | Errores: {counters['errors']}"
+        ),
+    }
+

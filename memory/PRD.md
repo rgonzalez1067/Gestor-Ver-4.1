@@ -3,6 +3,30 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Auto-Recuperación de Anexos a Object Storage (Feb 2026) — NUEVO
+
+**Objetivo**: Garantizar que TODOS los anexos referenciados en `quotes.attachments` y `quote_history.attachments` estén replicados en el Object Storage persistente. Útil para entornos con filesystem efímero/read-only (Producción tras un deploy) y como salvaguarda contra anexos que solo viven localmente.
+
+**Backend** (`/app/backend/routes/data_migration.py`):
+- Endpoint `POST /api/admin/attachments/recover-to-storage` (solo Admin).
+- **Paginado** (skip/limit, default 50) para evitar timeout del proxy K8s (60s).
+- **Concurrencia controlada** con `asyncio.Semaphore(8)` + `asyncio.to_thread` para llamadas síncronas al Object Storage.
+- Algoritmo: para cada anexo → ¿está en storage? sí → skip. ¿no? → ¿está en FS local? sí → subir. ¿no? → reportar como missing.
+- Parámetros: `dry_run=true|false`, `skip=int`, `limit=int (max 200)`.
+- Response: `{ total, processed_so_far, done, next_skip, scanned, already_in_storage, uploaded, missing_everywhere, errors, by_collection, missing_details, error_details }`.
+
+**Frontend** (`QuotesBundleMigrationModal.jsx`):
+- Nuevo panel "3. Auto-recuperación de anexos al Object Storage" en la tab Importar.
+- Botones: **Auditar (Dry-Run)** (no sube nada, solo reporta) y **Ejecutar Recuperación** (sube los faltantes).
+- Loop automático en frontend hasta `done=true` con barra de progreso visible.
+- Resumen final con stats por colección y detalle de anexos sin archivo (primeros 50).
+
+**Validación E2E**:
+- ✅ Test paginado: skip=0,limit=50 → HTTP 200 en 22s, total=327, processed=50, done=false.
+- ✅ Test final: skip=300,limit=50 → HTTP 200 en 10s, processed=327, done=true.
+- ✅ Preview: 327/327 anexos ya están en Object Storage (0 missing, 0 errors).
+
+
 ### Bug Fix Crítico: Anexos de Cotizaciones Fallaban Aleatoriamente en Producción (Feb 2026) — P0
 
 **Síntoma**: En el ambiente de Deploy/Producción algunas cotizaciones mostraban su PDF anexo correctamente, otras aparecían vacías de forma aleatoria. La descarga del ZIP completo funcionaba (los archivos sí existen en Object Storage), pero la visualización individual desde el modal "Anexos" fallaba intermitentemente.

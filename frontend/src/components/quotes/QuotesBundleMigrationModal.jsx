@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import {
   Database, Download, Upload, FileJson, FileArchive, Loader2,
-  AlertTriangle, CheckCircle2, FolderOpen,
+  AlertTriangle, CheckCircle2, FolderOpen, ShieldCheck,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
@@ -44,6 +44,85 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
   const dataFileRef = useRef(null);
   const zipFileRef = useRef(null);
   const previewFileRef = useRef(null);
+
+  // Auto-recovery: replica anexos del FS local al Object Storage
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [recoveryProgress, setRecoveryProgress] = useState(null); // { processed, total }
+
+  const handleRecoverToStorage = async (dryRun = false) => {
+    setRecovering(true);
+    setRecoveryResult(null);
+    setRecoveryProgress(null);
+
+    // Acumuladores globales sobre todos los lotes
+    const totals = {
+      scanned: 0, already_in_storage: 0, uploaded: 0,
+      missing_everywhere: 0, errors: 0,
+      by_collection: {
+        quotes: { scanned: 0, ok: 0, uploaded: 0, missing: 0 },
+        quote_history: { scanned: 0, ok: 0, uploaded: 0, missing: 0 },
+      },
+      missing_details: [],
+      error_details: [],
+    };
+    const BATCH = 50;
+    let skip = 0;
+    let total = null;
+
+    try {
+      // Loop hasta done=true (paginado para evitar timeout proxy K8s 60s)
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const res = await api.post(
+          `/admin/attachments/recover-to-storage?dry_run=${dryRun}&skip=${skip}&limit=${BATCH}`,
+          {},
+          { timeout: 90000 },
+        );
+        const d = res.data;
+        if (total === null) total = d.total;
+
+        totals.scanned += d.scanned;
+        totals.already_in_storage += d.already_in_storage;
+        totals.uploaded += d.uploaded;
+        totals.missing_everywhere += d.missing_everywhere;
+        totals.errors += d.errors;
+        ['quotes', 'quote_history'].forEach(c => {
+          totals.by_collection[c].scanned += d.by_collection[c].scanned;
+          totals.by_collection[c].ok += d.by_collection[c].ok;
+          totals.by_collection[c].uploaded += d.by_collection[c].uploaded;
+          totals.by_collection[c].missing += d.by_collection[c].missing;
+        });
+        totals.missing_details = [...totals.missing_details, ...(d.missing_details || [])];
+        totals.error_details = [...totals.error_details, ...(d.error_details || [])];
+
+        setRecoveryProgress({ processed: d.processed_so_far, total: d.total });
+
+        if (d.done) break;
+        skip = d.next_skip;
+        if (skip == null) break;
+      }
+
+      const finalMsg = `${dryRun ? '[DRY-RUN] ' : ''}` +
+        `Escaneados: ${totals.scanned} | Ya en storage: ${totals.already_in_storage} | ` +
+        `${dryRun ? 'A subir' : 'Subidos'}: ${totals.uploaded} | ` +
+        `Sin archivo: ${totals.missing_everywhere} | Errores: ${totals.errors}`;
+
+      setRecoveryResult({
+        dry_run: dryRun,
+        ...totals,
+        missing_details_total: totals.missing_details.length,
+        missing_details: totals.missing_details.slice(0, 50),
+        message: finalMsg,
+      });
+      toast.success(finalMsg);
+    } catch (e) {
+      toast.error(`Error en auto-recuperación: ${e.response?.data?.detail || e.message}`);
+    } finally {
+      setRecovering(false);
+      setRecoveryProgress(null);
+    }
+  };
 
   const handleExportData = async () => {
     setDownloadingData(true);
@@ -475,6 +554,117 @@ export function QuotesBundleMigrationModal({ open, onClose }) {
                   <p className="text-slate-600 mt-1">
                     Restaurados: <b className="text-emerald-700">{zipResult.restored}</b> · Omitidos: <b className="text-rose-700">{zipResult.skipped}</b>
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* AUTO-RECOVERY: anexos en FS local → Object Storage */}
+            <div className="rounded-lg border p-4 bg-indigo-50/40 border-indigo-200">
+              <div className="flex items-start gap-3">
+                <ShieldCheck size={20} className="text-indigo-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">3. Auto-recuperación de anexos al Object Storage</p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Audita todos los anexos referenciados en BD (<b>cotizaciones</b> + <b>histórico</b>) y sube al Object Storage
+                    los que solo existen en disco local. Garantiza disponibilidad cross-deploy en Producción.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRecoverToStorage(true)}
+                  disabled={recovering}
+                  data-testid="attachment-recovery-dryrun-btn"
+                  className="border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                >
+                  {recovering ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                  Auditar (Dry-Run)
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleRecoverToStorage(false)}
+                  disabled={recovering}
+                  data-testid="attachment-recovery-execute-btn"
+                  className="bg-indigo-600 hover:bg-indigo-700"
+                >
+                  {recovering ? <Loader2 size={14} className="animate-spin mr-1" /> : <Upload size={14} className="mr-1" />}
+                  Ejecutar Recuperación
+                </Button>
+              </div>
+              {recoveryProgress && (
+                <div className="mt-3 bg-white border rounded p-3 text-xs">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-slate-700">Procesando lote a lote…</span>
+                    <span className="font-mono text-indigo-700">
+                      {recoveryProgress.processed} / {recoveryProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-indigo-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (recoveryProgress.processed / Math.max(1, recoveryProgress.total)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {recoveryResult && (
+                <div className="mt-3 bg-white border rounded p-3 text-xs space-y-2">
+                  <p className={`font-semibold flex items-center gap-1.5 ${recoveryResult.missing_everywhere > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    <CheckCircle2 size={14} /> {recoveryResult.message}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                    <div className="bg-slate-50 rounded p-2">
+                      <div className="text-slate-500">Escaneados</div>
+                      <div className="text-base font-bold text-slate-800">{recoveryResult.scanned}</div>
+                    </div>
+                    <div className="bg-emerald-50 rounded p-2">
+                      <div className="text-emerald-700">Ya en storage</div>
+                      <div className="text-base font-bold text-emerald-800">{recoveryResult.already_in_storage}</div>
+                    </div>
+                    <div className="bg-indigo-50 rounded p-2">
+                      <div className="text-indigo-700">{recoveryResult.dry_run ? 'Por subir' : 'Subidos'}</div>
+                      <div className="text-base font-bold text-indigo-800">{recoveryResult.uploaded}</div>
+                    </div>
+                    <div className="bg-amber-50 rounded p-2">
+                      <div className="text-amber-700">Sin archivo</div>
+                      <div className="text-base font-bold text-amber-800">{recoveryResult.missing_everywhere}</div>
+                    </div>
+                    <div className="bg-rose-50 rounded p-2">
+                      <div className="text-rose-700">Errores</div>
+                      <div className="text-base font-bold text-rose-800">{recoveryResult.errors}</div>
+                    </div>
+                  </div>
+                  {recoveryResult.missing_details_total > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-amber-700 font-medium">
+                        Ver primeros {Math.min(recoveryResult.missing_details_total, 50)} de {recoveryResult.missing_details_total} anexos sin archivo
+                      </summary>
+                      <div className="max-h-40 overflow-y-auto mt-2 border rounded">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-100 sticky top-0">
+                            <tr>
+                              <th className="text-left px-2 py-1">Origen</th>
+                              <th className="text-left px-2 py-1">N° Cot</th>
+                              <th className="text-left px-2 py-1">Archivo</th>
+                              <th className="text-left px-2 py-1">Path</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recoveryResult.missing_details.map((m, i) => (
+                              <tr key={i} className="border-t">
+                                <td className="px-2 py-1 text-slate-700">{m.collection}</td>
+                                <td className="px-2 py-1 font-mono text-slate-600">{m.parent_number || '—'}</td>
+                                <td className="px-2 py-1 text-slate-700">{m.filename || '—'}</td>
+                                <td className="px-2 py-1 font-mono text-slate-500 truncate max-w-[200px]" title={m.rel_path}>{m.rel_path}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
             </div>
