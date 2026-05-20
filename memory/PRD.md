@@ -3,6 +3,21 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Recuperación de Inventario tras Borrado por Error (Feb 2026) — NUEVO
+
+**Contexto**: El usuario solicitó borrado total de Inventario (warehouses + hardware + movimientos) y al recrear los almacenes manualmente (con UUIDs nuevos), reimportó solo el JSON de `inventory-movements` exportado de Producción. Esto dejó 69 movimientos huérfanos (warehouse_id apuntando a almacenes inexistentes) y 26 items huérfanos (item_id sin entrada en `hardware`).
+
+**Solución aplicada** (script ad-hoc `/tmp/inv_rebuild.py`):
+1. **Remapeo de `warehouse_id`** en los 69 movimientos:
+   - `whs_bea89b61` → `whs_bdd845f6` (Los Chaguaramos): 41 movs
+   - `whs_f00b02f4` → `whs_40dfa046` (Torre Banco Plaza): 28 movs
+2. **Reconstrucción del catálogo `hardware`** desde los movimientos (aggregate por `item_id` tomando `item_name`, `item_type`, `unit_cost` del movimiento más reciente). Se crearon 26 items con flag `reconstructed_from_movements: true`. Por defecto: `asset_type='Bien'`, `price_usd=price_bs_usd=unit_cost`, `description=''`.
+
+**Resultado final**: 0 huérfanos, 26 hardware, 69 movimientos asociados correctamente a los 2 almacenes activos.
+
+**Pendiente conocido (Backlog P2)**: Agregar módulo `warehouses` al sistema de migración (`/app/backend/routes/data_migration.py` → `MODULES`) para futuro export/import. Hoy `MODULES` incluye: banks, payment-methods, hardware, commercial-categories, users, inventory-movements, clients, quote-history, taller-equipos. Falta `warehouses`.
+
+
 ## Módulos Implementados
 
 ### Asignaciones Temporales — Soporte para Personas Externas (Feb 2026) — NUEVO
