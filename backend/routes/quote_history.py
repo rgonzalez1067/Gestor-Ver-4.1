@@ -3,7 +3,7 @@ Snapshot inmutable de cotizaciones al alcanzar estado final o convertirse en Pro
 Solo lectura + descarga de PDF. Acceso: admin (Administrador del Sistema) o cargo='Director'.
 """
 from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from typing import Optional
 from datetime import datetime, timezone
 from pathlib import Path

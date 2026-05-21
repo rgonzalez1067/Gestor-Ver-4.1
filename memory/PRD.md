@@ -3,6 +3,21 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Bug Fix: Anexos del Histórico no Descargaban (FileResponse no importado) (Feb 2026) — P0
+
+**Síntoma**: Los anexos del Histórico de Cotizaciones aparecían listados pero al hacer clic en "Descargar" fallaba silenciosamente (HTTP 500 sin mensaje visible al usuario).
+
+**Causa raíz**: En el fix anterior de "FS local primero" en `/app/backend/routes/quote_history.py:454-477` reemplacé el `StreamingResponse` por `FileResponse` para el path local, pero **olvidé importar `FileResponse`** en los imports del archivo. Resultado: `NameError: name 'FileResponse' is not defined` al ejecutar el endpoint.
+
+**Fix**: Una línea: `from fastapi.responses import StreamingResponse, FileResponse`.
+
+**Validación E2E**:
+- ✅ Anexo COT-2026-05-001-CORP (att_57e852967455) → HTTP 200, 620KB, 212ms.
+- ✅ Anexo de un quote_id distinto → HTTP 200, 632KB, 205ms.
+
+**Lección**: Cuando se refactoriza el cuerpo de una función y se agrega/cambia una clase usada (FileResponse vs StreamingResponse), siempre revisar los imports del archivo. Lint manual del archivo modificado evita este tipo de errores (Python no advierte hasta runtime).
+
+
 ### Optimización Velocidad Descarga Anexos (Feb 2026) — Bug fix
 
 **Síntoma**: Descargas de anexos PDF lentas (1-2s c/u), peor en Producción que en Preview.
