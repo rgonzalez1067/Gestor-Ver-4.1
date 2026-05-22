@@ -1672,22 +1672,21 @@ async def admin_serials_by_item(
     if not item_id:
         raise HTTPException(status_code=400, detail="item_id requerido")
 
-    # 1) Reconstruir todos los seriales que han entrado a stock
-    serials_in_stock: set = set()
-    serials_left_stock: set = set()  # ventas/transferencias_salida
-    async for m in db.inventory_movements.find(
+    # 1) Reconstruir el estado físico de cada serial usando el ÚLTIMO movimiento
+    # (orden cronológico). Esto permite que una devolución (entrada posterior a
+    # una salida) restablezca el serial a "en stock" sin marcarlo como vendido.
+    last_mtype_by_serial: dict = {}
+    cursor = db.inventory_movements.find(
         {"item_id": item_id, "serials": {"$exists": True, "$ne": []}},
-        {"_id": 0, "movement_type": 1, "serials": 1},
-    ):
+        {"_id": 0, "movement_type": 1, "serials": 1, "created_at": 1},
+    ).sort("created_at", 1)  # asc → la última asignación sobreescribe
+    async for m in cursor:
         mtype = m.get("movement_type")
         for s in (m.get("serials") or []):
-            if mtype in ("entrada", "transferencia_entrada"):
-                serials_in_stock.add(s)
-            elif mtype in ("salida", "transferencia_salida"):
-                serials_left_stock.add(s)
+            last_mtype_by_serial[s] = mtype
 
-    # Seriales actualmente físicamente en algún almacén
-    physical_serials = serials_in_stock - serials_left_stock
+    physical_serials = {s for s, mt in last_mtype_by_serial.items() if mt in ("entrada", "transferencia_entrada")}
+    serials_left_stock = {s for s, mt in last_mtype_by_serial.items() if mt in ("salida", "transferencia_salida")}
 
     # 2) Asignaciones activas (preasignado/asignado/asignado_temporal)
     assignments_map: dict = {}
