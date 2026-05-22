@@ -1423,17 +1423,22 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
 
     # PASO 4: Crear Proyecto PRIMERO (transaccional a nivel de aplicación)
     # Si falla, NO se envía email ni se modifica la cotización
+    is_mpos_fast_track = (quote.get("quote_category") == "fast_track")
     try:
         quote_for_project = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
         if not quote_for_project:
             raise HTTPException(status_code=404, detail="Cotización no encontrada al crear proyecto")
 
         # === ARCHIVAR EN HISTÓRICO antes de crear el proyecto (que borra la cotización) ===
-        try:
-            from routes.quote_history import archive_quote_to_history
-            await archive_quote_to_history(quote_id, "status_enviada_imple", current_user)
-        except Exception as arch_err:
-            logger.error(f"Error archivando {quote_id} al histórico: {arch_err}")
+        # EXCEPCIÓN: Para MPOS Imple+POS (fast_track), la cotización se
+        # PRESERVA activa en la grilla principal hasta el "Marcar como
+        # Entregada" — por lo tanto NO se archiva aquí.
+        if not is_mpos_fast_track:
+            try:
+                from routes.quote_history import archive_quote_to_history
+                await archive_quote_to_history(quote_id, "status_enviada_imple", current_user)
+            except Exception as arch_err:
+                logger.error(f"Error archivando {quote_id} al histórico: {arch_err}")
 
         multistore_data = None
         if body and body.is_multistore and body.stores:
@@ -1448,7 +1453,11 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         eg = quote.get("economic_group")
         fn = quote.get("fantasy_name")
         ii = quote.get("implementation_instructions")
-        await _create_project_from_quote(quote_for_project, quote_id, multistore_data, equipment_data, pt_impl, srv_name, pp_serials, eg, fn, ii)
+        await _create_project_from_quote(
+            quote_for_project, quote_id, multistore_data, equipment_data,
+            pt_impl, srv_name, pp_serials, eg, fn, ii,
+            keep_quote_active=is_mpos_fast_track,
+        )
     except HTTPException:
         raise
     except Exception as e:

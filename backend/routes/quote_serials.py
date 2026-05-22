@@ -340,6 +340,19 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
         conflicting = [e["serial"] for e in existing]
         raise HTTPException(status_code=409, detail=f"Seriales ya reservados: {', '.join(conflicting)}")
 
+    # Validar que ninguno esté en la blacklist (marcado como NO asignable por
+    # falla de fábrica pendiente de reemplazo).
+    blacklisted = await db.serial_blacklist.find(
+        {"serial": {"$in": selected_serials}},
+        {"_id": 0, "serial": 1, "reason": 1},
+    ).to_list(500)
+    if blacklisted:
+        labels = [f"{b['serial']} ({b.get('reason','sin motivo')})" for b in blacklisted]
+        raise HTTPException(
+            status_code=409,
+            detail=f"Seriales bloqueados (no asignables): {'; '.join(labels)}",
+        )
+
     # Limpiar preasignaciones anteriores de esta cotización (permite re-prerregistrar)
     await db.serial_assignments.delete_many({"quote_id": quote_id, "status": "preasignado"})
 

@@ -15,6 +15,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { MigrationButtons } from '../components/MigrationButtons';
+import { AdminSerialManagementModal } from '../components/AdminSerialManagementModal';
 
 const SERIALIZED_TYPES = ['pos', 'pinpad', 'mpos'];
 const isSerializedType = (t) => SERIALIZED_TYPES.includes((t || '').toLowerCase());
@@ -39,6 +40,7 @@ export default function Inventory() {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('stock'); // stock | movements | temporary
+  const [openAdminSerialModal, setOpenAdminSerialModal] = useState(false);
 
   // ==================== ASIGNACIÓN TEMPORAL ====================
   const [tempAssignments, setTempAssignments] = useState([]); // lista
@@ -624,7 +626,19 @@ export default function Inventory() {
             </div>
           </div>
 
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end gap-2 mb-4">
+            {currentUser?.role === 'admin' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpenAdminSerialModal(true)}
+                data-testid="open-admin-serial-modal-btn"
+                className="border-rose-300 text-rose-700 hover:bg-rose-50"
+              >
+                <ShieldCheck size={14} className="mr-1.5" />
+                Gestionar Seriales (Admin)
+              </Button>
+            )}
             <MigrationButtons module="inventory-movements" label="Movimientos de Inventario" onImported={fetchAll} />
           </div>
 
@@ -2070,6 +2084,13 @@ export default function Inventory() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {currentUser?.role === 'admin' && (
+          <AdminSerialManagementModal
+            open={openAdminSerialModal}
+            onClose={() => setOpenAdminSerialModal(false)}
+          />
+        )}
       </main>
     </div>
   );

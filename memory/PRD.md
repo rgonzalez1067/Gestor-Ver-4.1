@@ -3,6 +3,39 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+### Iteration 8: Inventario Admin + Filtros + Flujo MPOS + Filtro Creador (Feb 2026)
+
+**A. Herramienta Admin de Seriales (POS/PINPAD)** — Solo rol `admin`:
+- Backend (`/app/backend/routes/inventory.py:1599+`): 6 endpoints nuevos:
+  - `GET /admin/inventory/serials/search?q=` — busca por serial parcial.
+  - `POST /admin/inventory/serials/{id}/replace` — reemplaza serial por falla; bloquea el viejo en blacklist si no se devuelve al stock; rechaza si el nuevo está en blacklist.
+  - `POST /admin/inventory/serials/{id}/reassign-client` — cambia cliente/cotización destino.
+  - `POST /admin/inventory/serials/{id}/unassign` — desasigna + opcional `mark_non_assignable`.
+  - `GET /admin/inventory/serials/blacklist` y `POST .../blacklist/{serial}/release`.
+- Validación: `quote_serials.preassign_serials` ahora rechaza con HTTP 409 si algún serial está en blacklist.
+- Frontend: `AdminSerialManagementModal.jsx` (nuevo) con pestañas Búsqueda y Blacklist; botón en Inventario visible solo si `currentUser.role==='admin'`.
+- Auditoría: Todos los cambios quedan en colección `bitacora` con `executed_by`, `executed_at`, `old_*`, `new_*`.
+
+**B. Optimización Filtros Cotizaciones**:
+- B.1 — De-duplicación cliente: `QuoteFilters.jsx` agrupa clients por `legal_name` normalizado; el value del Select contiene todos los `client_id` separados por coma. `QuotesTable.jsx` filtra con `allowedIds.includes(quote.client_id)`.
+- B.2 — Filtro Estado estricto: nuevo helper `getEffectiveStatus(q)` en `QuotesTable.jsx` calcula el estado real basado en timestamps (delivered_at > paid_at > invoiced_at > approved_at > sent_at). Resuelve el caso de 7 cotizaciones con `invoice_number` pero `quote_status='Aprobada'` (regularizaciones).
+- B.3 — Renombrado: `'Implementación MPOS Integrada'` → `'Implementación MPOS (Imple + POS)'`.
+
+**C. Reingeniería Flujo MPOS (fast_track)**:
+- `_create_project_from_quote` (`quote_transitions.py:1`) acepta `keep_quote_active: bool`. Si True: en lugar de borrar la cotización, la actualiza con `quote_status='Enviada a Imple'`, `sent_to_implementation_at`, `project_id`, `project_number`.
+- `send_quote_to_implementation` detecta `quote.quote_category=='fast_track'` y: (1) NO archiva al histórico, (2) pasa `keep_quote_active=True`. Cotización permanece activa en grilla.
+- `deliver_quote` archiva al histórico como antes y NO recrea proyecto (ya existía).
+- Frontend `QuotesTable.jsx`: para fast_track, "Enviar a Implementación" renderizado DESPUÉS de "Configuración" (no al final). Botón duplicado del final excluye fast_track.
+
+**D. Reportes de Ventas — Filtro Creador**:
+- Backend `sales_reports.py`: `_build_match` acepta `created_by`. Agregado el query param a 8 endpoints: funnel, aging, monthly, receivables, clients-ranking, repair-productivity, irregular-quotes, irregular-quotes/pdf, executive-summary.
+- Frontend `SalesReports.jsx`: nuevo state `createdBy` + carga `/admin/users`; nuevo `Select` "CREADOR" en la grilla de filtros, combinable con segmento/categoría/fechas/año; propagado a las llamadas API.
+
+**Testing**:
+- `/app/backend/tests/test_iteration8_admin_serials_mpos_reports.py` (27 tests): **25 passed, 2 skipped** (skipped requieren datos de prueba específicos para casos integrales).
+- Cobertura: gates de admin (403 para no-admin), validación de body (400), HTTP 404 ante IDs inexistentes, parámetro `created_by` aceptado en todos los reports, flujo MPOS legacy preservado.
+
+
 ### Bug Fix: Anexos del Histórico no Descargaban (FileResponse no importado) (Feb 2026) — P0
 
 **Síntoma**: Los anexos del Histórico de Cotizaciones aparecían listados pero al hacer clic en "Descargar" fallaba silenciosamente (HTTP 500 sin mensaje visible al usuario).

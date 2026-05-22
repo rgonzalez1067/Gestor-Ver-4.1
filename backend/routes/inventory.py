@@ -1595,3 +1595,282 @@ async def get_invoiced_exits_report(
         "warehouses": list(grouped.values()),
         "total_exits": sum(g["total_units"] for g in grouped.values()),
     }
+
+
+
+# ==================== HERRAMIENTAS ADMINISTRATIVAS DE SERIALES ====================
+# Solo Admin. Permite corregir asignaciones erróneas, reemplazar seriales por
+# falla de fábrica y desasignar/marcar como "no asignable" (a la espera de
+# reemplazo del proveedor). Todo cambio queda registrado en bitácora.
+
+
+async def _require_admin_user(authorization: Optional[str]) -> dict:
+    user = await get_current_user(authorization)
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo el rol Administrador puede ejecutar esta acción")
+    return user
+
+
+@router.get("/admin/inventory/serials/search")
+async def admin_search_serial(
+    q: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Busca asignaciones de serial por número exacto o parcial.
+    Devuelve datos completos (cliente, cotización, almacén, estado).
+    """
+    await _require_admin_user(authorization)
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Mínimo 2 caracteres")
+    qn = q.strip().upper()
+    cursor = db.serial_assignments.find(
+        {"serial": {"$regex": qn, "$options": "i"}},
+        {"_id": 0},
+    ).limit(50)
+    results = await cursor.to_list(50)
+    return {"count": len(results), "results": results}
+
+
+@router.post("/admin/inventory/serials/{assignment_id}/replace")
+async def admin_replace_serial(
+    assignment_id: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Reemplaza el número de serial en una asignación existente.
+    Caso de uso: falla de fábrica, llega reemplazo del proveedor.
+    body: { new_serial: str, reason: str, return_old_to_stock: bool }
+    """
+    user = await _require_admin_user(authorization)
+    new_serial = (body.get("new_serial") or "").strip().upper()
+    reason = (body.get("reason") or "").strip()
+    return_old = bool(body.get("return_old_to_stock", False))
+    if not new_serial:
+        raise HTTPException(status_code=400, detail="new_serial requerido")
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason requerido")
+
+    asg = await db.serial_assignments.find_one({"assignment_id": assignment_id}, {"_id": 0})
+    if not asg:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+    old_serial = asg["serial"]
+    if old_serial == new_serial:
+        raise HTTPException(status_code=400, detail="El nuevo serial debe ser distinto del actual")
+
+    conflict = await db.serial_assignments.find_one(
+        {"serial": new_serial, "status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+        {"_id": 0, "assignment_id": 1, "quote_number": 1, "client_name": 1},
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=f"El serial {new_serial} ya esta asignado en {conflict.get('quote_number', '')} ({conflict.get('client_name', '')})",
+        )
+
+    # El nuevo serial no debe estar en la blacklist (sería contradictorio
+    # reemplazar un serial defectuoso por otro marcado como no asignable).
+    in_blacklist = await db.serial_blacklist.find_one(
+        {"serial": new_serial}, {"_id": 0, "reason": 1}
+    )
+    if in_blacklist:
+        raise HTTPException(
+            status_code=409,
+            detail=f"El serial {new_serial} esta en la lista de NO asignables ({in_blacklist.get('reason','')}). Liberarlo primero o usar otro.",
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.serial_assignments.update_one(
+        {"assignment_id": assignment_id},
+        {"$set": {
+            "serial": new_serial,
+            "previous_serial": old_serial,
+            "replaced_at": now,
+            "replaced_by": user.get("user_id"),
+            "replaced_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+            "replacement_reason": reason,
+        }},
+    )
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_replace",
+        "assignment_id": assignment_id,
+        "old_serial": old_serial,
+        "new_serial": new_serial,
+        "reason": reason,
+        "return_old_to_stock": return_old,
+        "quote_number": asg.get("quote_number"),
+        "client_name": asg.get("client_name"),
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    if not return_old:
+        await db.serial_blacklist.update_one(
+            {"serial": old_serial},
+            {"$set": {
+                "serial": old_serial,
+                "reason": f"Reemplazado por falla en {asg.get('quote_number','')}: {reason}",
+                "blocked_at": now,
+                "blocked_by": user.get("email"),
+                "source_assignment_id": assignment_id,
+            }},
+            upsert=True,
+        )
+
+    return {
+        "ok": True,
+        "assignment_id": assignment_id,
+        "old_serial": old_serial,
+        "new_serial": new_serial,
+        "message": f"Serial reemplazado: {old_serial} -> {new_serial}",
+    }
+
+
+@router.post("/admin/inventory/serials/{assignment_id}/reassign-client")
+async def admin_reassign_serial_client(
+    assignment_id: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Reasigna un serial a otro cliente / cotizacion.
+    body: { new_client_id: str, new_quote_id?: str, reason: str }
+    """
+    user = await _require_admin_user(authorization)
+    new_client_id = (body.get("new_client_id") or "").strip()
+    new_quote_id = (body.get("new_quote_id") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not new_client_id or not reason:
+        raise HTTPException(status_code=400, detail="new_client_id y reason son requeridos")
+
+    asg = await db.serial_assignments.find_one({"assignment_id": assignment_id}, {"_id": 0})
+    if not asg:
+        raise HTTPException(status_code=404, detail="Asignacion no encontrada")
+
+    client = await db.clients.find_one({"client_id": new_client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente destino no encontrado")
+
+    update_set: dict = {
+        "previous_client_id": asg.get("client_id"),
+        "previous_client_name": asg.get("client_name"),
+        "previous_quote_id": asg.get("quote_id"),
+        "previous_quote_number": asg.get("quote_number"),
+        "client_id": new_client_id,
+        "client_name": client.get("fantasy_name") or client.get("legal_name") or "",
+        "client_rif": client.get("rif") or "",
+        "reassigned_at": datetime.now(timezone.utc).isoformat(),
+        "reassigned_by": user.get("user_id"),
+        "reassignment_reason": reason,
+    }
+    if new_quote_id:
+        new_quote = await db.quotes.find_one({"quote_id": new_quote_id}, {"_id": 0, "quote_number": 1})
+        if not new_quote:
+            raise HTTPException(status_code=404, detail="Cotizacion destino no encontrada")
+        update_set["quote_id"] = new_quote_id
+        update_set["quote_number"] = new_quote.get("quote_number", "")
+
+    await db.serial_assignments.update_one(
+        {"assignment_id": assignment_id},
+        {"$set": update_set},
+    )
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_reassign_client",
+        "assignment_id": assignment_id,
+        "serial": asg.get("serial"),
+        "old_client_id": asg.get("client_id"),
+        "new_client_id": new_client_id,
+        "old_quote_id": asg.get("quote_id"),
+        "new_quote_id": new_quote_id or asg.get("quote_id"),
+        "reason": reason,
+        "executed_by": user.get("email"),
+        "executed_at": update_set["reassigned_at"],
+    })
+
+    return {"ok": True, "message": f"Serial {asg.get('serial')} reasignado a {update_set['client_name']}"}
+
+
+@router.post("/admin/inventory/serials/{assignment_id}/unassign")
+async def admin_unassign_serial(
+    assignment_id: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Desasigna un serial y opcionalmente lo marca como NO asignable.
+    body: { reason: str, mark_non_assignable: bool }
+    """
+    user = await _require_admin_user(authorization)
+    reason = (body.get("reason") or "").strip()
+    mark_non_assignable = bool(body.get("mark_non_assignable", True))
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason requerido")
+
+    asg = await db.serial_assignments.find_one({"assignment_id": assignment_id}, {"_id": 0})
+    if not asg:
+        raise HTTPException(status_code=404, detail="Asignacion no encontrada")
+
+    serial = asg.get("serial")
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.serial_assignments.delete_one({"assignment_id": assignment_id})
+
+    if mark_non_assignable:
+        await db.serial_blacklist.update_one(
+            {"serial": serial},
+            {"$set": {
+                "serial": serial,
+                "reason": reason,
+                "blocked_at": now,
+                "blocked_by": user.get("email"),
+                "source_assignment_id": assignment_id,
+                "previous_client": asg.get("client_name"),
+                "previous_quote": asg.get("quote_number"),
+            }},
+            upsert=True,
+        )
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_unassign",
+        "assignment_id": assignment_id,
+        "serial": serial,
+        "client_name": asg.get("client_name"),
+        "quote_number": asg.get("quote_number"),
+        "reason": reason,
+        "mark_non_assignable": mark_non_assignable,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    msg = f"Serial {serial} desasignado"
+    if mark_non_assignable:
+        msg += " y marcado como NO ASIGNABLE (pendiente de reemplazo)"
+    return {"ok": True, "message": msg}
+
+
+@router.get("/admin/inventory/serials/blacklist")
+async def admin_list_blacklist(authorization: Optional[str] = Header(None)):
+    """Lista seriales marcados como no asignables (esperando reemplazo)."""
+    await _require_admin_user(authorization)
+    cursor = db.serial_blacklist.find({}, {"_id": 0}).sort("blocked_at", -1)
+    items = await cursor.to_list(500)
+    return {"count": len(items), "items": items}
+
+
+@router.post("/admin/inventory/serials/blacklist/{serial}/release")
+async def admin_release_blacklist(
+    serial: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Libera un serial de la blacklist (ya llego reemplazo o se aclaro el caso)."""
+    user = await _require_admin_user(authorization)
+    res = await db.serial_blacklist.delete_one({"serial": serial.upper()})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Serial no estaba en blacklist")
+    await db.bitacora.insert_one({
+        "action": "admin_serial_blacklist_release",
+        "serial": serial,
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True, "message": f"Serial {serial} liberado de blacklist"}

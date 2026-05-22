@@ -137,9 +137,32 @@ export const QuotesTable = ({
     ));
   };
 
+  // Estatus efectivo (estado real más avanzado del flujo) calculado a partir
+  // de los timestamps de cada fase. Resuelve el caso de cotizaciones
+  // facturadas via "regularización" cuyo `quote_status` no avanzó a
+  // "Facturada" (se quedó en "Aprobada"). El filtro y la grilla usan este
+  // valor calculado para reflejar el estatus instantáneo real del registro.
+  const getEffectiveStatus = (q) => {
+    if (q.delivered_at) return 'Entregada';
+    if (q.repaired_at) return 'Reparada';
+    if (q.implementation_completed_at) return 'Implementada';
+    if (q.collected_at || q.payment_at || q.paid_at) return 'Pagada';
+    if (q.invoice_number || q.invoiced_at) return 'Facturada';
+    if (q.configured_at) return 'Configurada';
+    if (q.approved_at) return 'Aprobada';
+    if (q.sent_at) return 'Enviada';
+    return q.quote_status || 'Borrador';
+  };
+
   const filteredQuotes = quotes.filter(quote => {
-    if (filterClient && filterClient !== 'all' && quote.client_id !== filterClient) return false;
-    if (filterStatus && filterStatus !== 'all' && (quote.quote_status || 'Borrador') !== filterStatus) return false;
+    if (filterClient && filterClient !== 'all') {
+      // Soporta multi-id (varios client_id agrupados por nombre, separados por coma)
+      // para que cuando el usuario filtra por un cliente con duplicados en BD,
+      // se traigan las cotizaciones de TODOS sus client_id.
+      const allowedIds = filterClient.split(',');
+      if (!allowedIds.includes(quote.client_id)) return false;
+    }
+    if (filterStatus && filterStatus !== 'all' && getEffectiveStatus(quote) !== filterStatus) return false;
     if (filterCategory && filterCategory !== 'all') {
       // Categorías: 'implementation' (Implementación), 'equipment', 'repair'.
       // Adicionalmente se admite el sufijo ':<TYPE>' para filtrar dentro de
@@ -533,6 +556,35 @@ export const QuotesTable = ({
                           );
                         })()}
 
+                        {/* ── ENVIAR A IMPLEMENTACIÓN (MPOS Imple+POS / fast_track) ──
+                            Reingeniería: para MPOS la acción "Enviar a Implementación"
+                            se posiciona DESPUÉS de Configuración. Crea el Proyecto
+                            pero la cotización permanece activa en la grilla; el cierre
+                            al histórico lo hace "Marcar como Entregada" posteriormente. */}
+                        {canEdit && isFastTrack && (() => {
+                          const m = getActionMeta(quote, 'send_to_implementation', 'Enviar a Implementación');
+                          if (m.hidden) return null;
+                          const alreadySent = !!quote.sent_to_implementation_at;
+                          const isDisabledByConfig = !quote.configured_at;
+                          const isDisabled = isDisabledByConfig || alreadySent || m.disabled;
+                          const tooltip = alreadySent
+                            ? 'Ya se envió a Implementación (proyecto creado)'
+                            : (isDisabledByConfig ? 'Debe completar la Configuración antes de enviar a Implementación' : (m.tooltip || ''));
+                          return (
+                            <DropdownMenuItem
+                              onSelect={() => !isDisabled && onSendToImplementation(quote.quote_id)}
+                              className={`cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={isDisabled}
+                              title={tooltip}
+                              data-testid={`send-to-impl-mpos-btn-${quote.quote_id}`}>
+                              <Send size={16} className={`mr-2 ${isDisabled ? 'text-slate-400' : 'text-amber-600'}`} />
+                              {m.label}
+                              {alreadySent && <span className="ml-auto text-xs text-amber-500">&#10003;</span>}
+                              {!alreadySent && quote.configured_at && <span className="ml-auto text-xs text-amber-500">&#x25CF;</span>}
+                            </DropdownMenuItem>
+                          );
+                        })()}
+
                         {/* ── FASE FINANCIERA ── */}
                         {canEdit && <DropdownMenuSeparator />}
                         {canEdit && (
@@ -566,13 +618,13 @@ export const QuotesTable = ({
                           </DropdownMenuItem>
                         )}
                         {canEdit && (isEquipment || isRepair || isFastTrack) && renderAnchoredCustomActions(quote, 'deliver', customByAnchor)}
-                        {canEdit && (!isEquipment && !isRepair) && (
+                        {canEdit && (!isEquipment && !isRepair && !isFastTrack) && (
                           <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer">
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
                             {isFastTrack && !quote.delivered_at && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Entregar primero</span>}
                           </DropdownMenuItem>
                         )}
-                        {canEdit && (!isEquipment && !isRepair) && renderAnchoredCustomActions(quote, 'send_to_implementation', customByAnchor)}
+                        {canEdit && (!isEquipment && !isRepair && !isFastTrack) && renderAnchoredCustomActions(quote, 'send_to_implementation', customByAnchor)}
                         <DropdownMenuSeparator />
                         {/* ── ACCIONES PERSONALIZADAS SIN ANCLA (Fase A) ── */}
                         {(() => {

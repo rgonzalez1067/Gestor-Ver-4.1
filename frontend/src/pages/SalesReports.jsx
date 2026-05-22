@@ -73,6 +73,8 @@ const SalesReports = () => {
   const [year, setYear] = useState(String(yyyy));
   const [segment, setSegment] = useState('all');
   const [category, setCategory] = useState('all');
+  const [createdBy, setCreatedBy] = useState('all');
+  const [creators, setCreators] = useState([]);  // [{user_id, full_name}]
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -94,6 +96,7 @@ const SalesReports = () => {
       const params = {};
       if (segment !== 'all') params.segment = segment;
       if (category !== 'all') params.category = category;
+      if (createdBy !== 'all') params.created_by = createdBy;
 
       const fp = { ...params };
       if (dateFrom) fp.date_from = dateFrom;
@@ -105,7 +108,7 @@ const SalesReports = () => {
         api.get('/reports/sales/monthly', { params: { ...params, year } }),
         api.get('/reports/sales/receivables', { params }),
         api.get('/reports/sales/clients-ranking', { params: { ...params, year, top_n: 20 } }),
-        api.get('/reports/sales/repair-productivity', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
+        api.get('/reports/sales/repair-productivity', { params: { ...(dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {}), ...(createdBy !== 'all' ? { created_by: createdBy } : {}) } }),
         api.get('/reports/sales/stock-vs-demand', { params: { months_back: 6 } }),
         api.get('/reports/sales/leads-funnel', { params: dateFrom || dateTo ? { date_from: dateFrom, date_to: dateTo } : {} }),
         api.get('/reports/sales/irregular-quotes', { params: fp }),
@@ -126,13 +129,35 @@ const SalesReports = () => {
     }
   };
 
-  useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [segment, category, year, dateFrom, dateTo]);
+  useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [segment, category, createdBy, year, dateFrom, dateTo]);
+
+  // Cargar la lista de creadores de cotizaciones (usuarios activos).
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/admin/users');
+        const list = (res.data || [])
+          .map(u => ({
+            user_id: u.user_id,
+            full_name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+            email: u.email,
+          }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name, 'es', { sensitivity: 'base' }));
+        setCreators(list);
+      } catch (err) {
+        // Si el endpoint /users no está accesible para el usuario actual, el
+        // filtro queda con "Todos" y no rompe la UI.
+        console.warn('No se pudo cargar la lista de creadores:', err.message);
+      }
+    })();
+  }, []);
 
   const downloadExecutiveSummary = async () => {
     try {
       const params = { year };
       if (segment !== 'all') params.segment = segment;
       if (category !== 'all') params.category = category;
+      if (createdBy !== 'all') params.created_by = createdBy;
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
       const res = await api.get('/reports/sales/executive-summary', { params, responseType: 'blob' });
@@ -155,6 +180,7 @@ const SalesReports = () => {
       const params = {};
       if (segment !== 'all') params.segment = segment;
       if (category !== 'all') params.category = category;
+      if (createdBy !== 'all') params.created_by = createdBy;
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
       const res = await api.get('/reports/sales/irregular-quotes/pdf', { params, responseType: 'blob' });
@@ -218,7 +244,7 @@ const SalesReports = () => {
               <Filter size={14} className="text-slate-500" />
               <span className="text-sm font-semibold text-slate-700">Filtros</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div>
                 <label className="text-[10px] uppercase text-slate-500 font-semibold">Segmento</label>
                 <Select value={segment} onValueChange={setSegment}>
@@ -240,6 +266,18 @@ const SalesReports = () => {
                     <SelectItem value="fast_track">Fast Track</SelectItem>
                     <SelectItem value="equipment">Equipos</SelectItem>
                     <SelectItem value="repair">Reparaciones</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase text-slate-500 font-semibold">Creador</label>
+                <Select value={createdBy} onValueChange={setCreatedBy}>
+                  <SelectTrigger data-testid="filter-created-by" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="all">Todos</SelectItem>
+                    {creators.map(c => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.full_name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -9,7 +9,7 @@ const QUOTE_FILTER_CATEGORIES = [
   { id: 'implementation', name: 'Implementación (todas)' },
   { id: 'implementation:VPOS', name: '  · Implementación VPOS', indent: true },
   { id: 'implementation:MPOS', name: '  · Implementación MPOS', indent: true },
-  { id: 'implementation:FAST_TRACK', name: '  · Implementación MPOS Integrada', indent: true },
+  { id: 'implementation:FAST_TRACK', name: '  · Implementación MPOS (Imple + POS)', indent: true },
   { id: 'implementation:GATEWAY', name: '  · Implementación PG', indent: true },
   { id: 'implementation:LINK_PAGO', name: '  · Implementación Link de Pago', indent: true },
   { id: 'equipment', name: 'Equipos y Accesorios' },
@@ -57,11 +57,27 @@ export const QuoteFilters = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los clientes</SelectItem>
-              {clients.map((client) => (
-                <SelectItem key={client.client_id} value={client.client_id}>
-                  {client.legal_name || client.fantasy_name}
-                </SelectItem>
-              ))}
+              {/*
+                De-duplicación por nombre legal: clientes duplicados en BD
+                (mismo legal_name distintos client_id) se agrupan en una sola
+                entrada. El value contiene todos los client_ids separados por
+                coma para que el filtro de la grilla considere las cotizaciones
+                de TODOS los duplicados.
+              */}
+              {Object.entries(
+                (clients || []).reduce((acc, c) => {
+                  const key = (c.legal_name || c.fantasy_name || '').trim().toUpperCase();
+                  if (!key) return acc;
+                  (acc[key] = acc[key] || { name: c.legal_name || c.fantasy_name, ids: [] }).ids.push(c.client_id);
+                  return acc;
+                }, {})
+              )
+                .sort(([, a], [, b]) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                .map(([key, group]) => (
+                  <SelectItem key={key} value={group.ids.join(',')}>
+                    {group.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

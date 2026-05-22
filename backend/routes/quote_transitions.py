@@ -26,8 +26,16 @@ async def _create_project_from_quote(
     economic_group: str = None,
     fantasy_name: str = None,
     implementation_instructions: str = None,
+    keep_quote_active: bool = False,
 ):
-    """Crea un proyecto a partir de una cotización enviada a implementación."""
+    """Crea un proyecto a partir de una cotización enviada a implementación.
+
+    Args:
+        keep_quote_active: Si True (caso MPOS Imple+POS / fast_track), la
+            cotización origen NO se elimina; permanece activa con
+            quote_status="Enviada a Imple" para ser cerrada posteriormente vía
+            "Marcar como Entregada". Default False (comportamiento legacy).
+    """
     existing = await db.projects.find_one({"quote_id": quote_id})
     if existing:
         logger.info(f"Proyecto ya existe para cotización {quote_id}")
@@ -319,9 +327,23 @@ async def _create_project_from_quote(
     except Exception as e:
         logger.warning(f"[notify] project_created failed: {e}")
 
-    # Eliminar la cotización origen
-    await db.quotes.delete_one({"quote_id": quote_id})
-    logger.info(f"Cotización {quote_id} eliminada tras conversión a proyecto {project_number}")
+    # Eliminar la cotización origen — EXCEPTO si `keep_quote_active=True`
+    # (caso MPOS Imple+POS / fast_track), donde la cotización se preserva
+    # activa para que el cierre operativo lo haga "Marcar como Entregada".
+    if keep_quote_active:
+        await db.quotes.update_one(
+            {"quote_id": quote_id},
+            {"$set": {
+                "quote_status": "Enviada a Imple",
+                "sent_to_implementation_at": datetime.now(timezone.utc).isoformat(),
+                "project_id": project["project_id"],
+                "project_number": project_number,
+            }},
+        )
+        logger.info(f"Cotización {quote_id} preservada activa (keep_quote_active=True), proyecto {project_number} vinculado.")
+    else:
+        await db.quotes.delete_one({"quote_id": quote_id})
+        logger.info(f"Cotización {quote_id} eliminada tras conversión a proyecto {project_number}")
 
     # Notificar al Gerente de Implementación
     try:

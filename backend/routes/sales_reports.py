@@ -27,7 +27,8 @@ FUNNEL_STAGES = [
 
 
 def _build_match(date_from: Optional[str], date_to: Optional[str],
-                 segment: Optional[str], category: Optional[str]) -> dict:
+                 segment: Optional[str], category: Optional[str],
+                 created_by: Optional[str] = None) -> dict:
     match = {}
     if date_from or date_to:
         rng = {}
@@ -40,6 +41,8 @@ def _build_match(date_from: Optional[str], date_to: Optional[str],
         match["client_segment"] = segment
     if category and category != "all":
         match["quote_category"] = category
+    if created_by and created_by != "all":
+        match["created_by_user_id"] = created_by
     return match
 
 
@@ -62,6 +65,7 @@ async def funnel_report(
     date_to: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Conteo y monto agregado por etapa del flujo (cumulativo histórico).
@@ -77,7 +81,7 @@ async def funnel_report(
     segmentos. Adicionalmente se expone `delivered_breakdown` con el detalle.
     """
     await get_current_user(authorization)
-    match = _build_match(date_from, date_to, segment, category)
+    match = _build_match(date_from, date_to, segment, category, created_by)
 
     quotes = await db.quotes.find(match, {
         "_id": 0, "quote_id": 1, "total_usd": 1, "quote_status": 1,
@@ -234,6 +238,7 @@ async def funnel_recalculate(authorization: Optional[str] = Header(None)):
 async def aging_report(
     segment: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Cotizaciones NO finalizadas (no Entregada y no archivadas) con días en estado actual.
@@ -248,6 +253,8 @@ async def aging_report(
         match["client_segment"] = segment
     if category and category != "all":
         match["quote_category"] = category
+    if created_by and created_by != "all":
+        match["created_by_user_id"] = created_by
 
     quotes = await db.quotes.find(match, {
         "_id": 0, "quote_id": 1, "quote_number": 1, "client_name": 1,
@@ -326,6 +333,7 @@ async def monthly_report(
     year: int = Query(...),
     category: Optional[str] = Query(None),
     segment: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Cotizado / Facturado / Cobrado por mes para el año dado.
@@ -340,6 +348,8 @@ async def monthly_report(
         base_match["quote_category"] = category
     if segment and segment != "all":
         base_match["client_segment"] = segment
+    if created_by and created_by != "all":
+        base_match["created_by_user_id"] = created_by
 
     quotes = await db.quotes.find(base_match, {
         "_id": 0, "total_usd": 1,
@@ -397,6 +407,7 @@ async def monthly_report(
 async def receivables_report(
     segment: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Cuentas por cobrar: cotizaciones facturadas pero no pagadas.
@@ -409,6 +420,8 @@ async def receivables_report(
         base["client_segment"] = segment
     if category and category != "all":
         base["quote_category"] = category
+    if created_by and created_by != "all":
+        base["created_by_user_id"] = created_by
 
     quotes = await db.quotes.find(
         {"$and": [base, {"invoiced_at": {"$exists": True, "$ne": None}}]},
@@ -500,6 +513,7 @@ async def clients_ranking_report(
     year: int = Query(...),
     segment: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     top_n: int = Query(20),
     authorization: Optional[str] = Header(None),
 ):
@@ -512,6 +526,8 @@ async def clients_ranking_report(
         base["client_segment"] = segment
     if category and category != "all":
         base["quote_category"] = category
+    if created_by and created_by != "all":
+        base["created_by_user_id"] = created_by
 
     quotes = await db.quotes.find(base, {
         "_id": 0, "client_id": 1, "client_name": 1, "client_segment": 1,
@@ -584,6 +600,7 @@ async def clients_ranking_report(
 async def repair_productivity_report(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Productividad del taller de reparaciones.
@@ -599,6 +616,8 @@ async def repair_productivity_report(
         if date_to:
             rng["$lte"] = date_to + "T23:59:59"
         match["created_at"] = rng
+    if created_by and created_by != "all":
+        match["created_by_user_id"] = created_by
 
     quotes = await db.quotes.find(match, {
         "_id": 0, "quote_id": 1, "quote_number": 1, "client_name": 1,
@@ -1133,12 +1152,13 @@ async def irregular_quotes_report(
     category: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Lista de cotizaciones con fases sin timestamp esperado.
     Acepta los mismos filtros que el resto del módulo: segmento, categoría, rango de fechas."""
     await get_current_user(authorization)
-    match = _build_match(date_from, date_to, segment, category)
+    match = _build_match(date_from, date_to, segment, category, created_by)
     items = await _collect_irregular_quotes(match)
 
     # KPIs
@@ -1170,11 +1190,12 @@ async def irregular_quotes_pdf(
     category: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """PDF elegante del reporte de cotizaciones irregulares."""
     user = await get_current_user(authorization)
-    match = _build_match(date_from, date_to, segment, category)
+    match = _build_match(date_from, date_to, segment, category, created_by)
     items = await _collect_irregular_quotes(match)
 
     passed_to_project = sum(1 for it in items if it.get("passed_to_project"))
@@ -1354,6 +1375,7 @@ async def executive_summary_pdf(
     category: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    created_by: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
     """Genera un PDF de resumen ejecutivo (1-2 páginas) consolidando los 8 reportes
@@ -1366,12 +1388,12 @@ async def executive_summary_pdf(
             raise HTTPException(status_code=403, detail="Requiere permiso especial 'Generar Resumen Ejecutivo PDF'.")
 
     # Reusar las funciones públicas (no las re-llamamos por HTTP, ejecutamos la lógica directa).
-    funnel = await funnel_report(date_from, date_to, segment, category, authorization)
-    aging = await aging_report(segment, category, authorization)
-    monthly = await monthly_report(year, category, segment, authorization)
-    receivables = await receivables_report(segment, category, authorization)
-    ranking = await clients_ranking_report(year, segment, category, 5, authorization)
-    productivity = await repair_productivity_report(date_from, date_to, authorization)
+    funnel = await funnel_report(date_from, date_to, segment, category, created_by, authorization)
+    aging = await aging_report(segment, category, created_by, authorization)
+    monthly = await monthly_report(year, category, segment, created_by, authorization)
+    receivables = await receivables_report(segment, category, created_by, authorization)
+    ranking = await clients_ranking_report(year, segment, category, created_by, 5, authorization)
+    productivity = await repair_productivity_report(date_from, date_to, created_by, authorization)
     stock = await stock_vs_demand_report(6, authorization)
     leads = await leads_funnel_report(date_from, date_to, authorization)
 

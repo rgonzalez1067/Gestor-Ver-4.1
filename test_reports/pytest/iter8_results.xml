@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="27" skipped="0" tests="27" time="4.790" timestamp="2026-05-22T00:52:58.712597+00:00" hostname="agent-env-943c8992-acf2-48bd-b27f-70d29409e654"><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialSearch" name="test_search_requires_admin" time="0.538"><failure message="AssertionError: expected 403 for non-admin got 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 403&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:46: in test_search_requires_admin
+    assert r.status_code == 403, f"expected 403 for non-admin got {r.status_code} {r.text}"
+E   AssertionError: expected 403 for non-admin got 401 {"detail":"Invalid session"}
+E   assert 401 == 403
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialSearch" name="test_search_admin_ok" time="0.224"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:50: in test_search_admin_ok
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialSearch" name="test_search_min_chars" time="0.138"><failure message="assert 401 == 400&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:57: in test_search_min_chars
+    assert r.status_code == 400
+E   assert 401 == 400
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_replace_404" time="0.176"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:65: in test_replace_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_replace_validation" time="0.167"><failure message="assert 401 == 400&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:70: in test_replace_validation
+    assert r.status_code == 400
+E   assert 401 == 400
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_replace_requires_admin" time="0.188"><failure message="assert 401 == 403&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:75: in test_replace_requires_admin
+    assert r.status_code == 403
+E   assert 401 == 403
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_reassign_client_404" time="0.188"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:81: in test_reassign_client_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_reassign_client_requires_admin" time="0.143"><failure message="assert 401 == 403&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:86: in test_reassign_client_requires_admin
+    assert r.status_code == 403
+E   assert 401 == 403
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_unassign_404" time="0.131"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:92: in test_unassign_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_unassign_validation" time="0.131"><failure message="assert 401 == 400&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:97: in test_unassign_validation
+    assert r.status_code == 400
+E   assert 401 == 400
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminSerialMutations" name="test_unassign_requires_admin" time="0.152"><failure message="assert 401 == 403&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:102: in test_unassign_requires_admin
+    assert r.status_code == 403
+E   assert 401 == 403
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminBlacklist" name="test_list_requires_admin" time="0.159"><failure message="assert 401 == 403&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:112: in test_list_requires_admin
+    assert r.status_code == 403
+E   assert 401 == 403
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminBlacklist" name="test_list_admin_ok" time="0.156"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:116: in test_list_admin_ok
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminBlacklist" name="test_release_unknown_404" time="0.150"><failure message="assert 401 == 404&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:125: in test_release_unknown_404
+    assert r.status_code == 404
+E   assert 401 == 404
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestAdminBlacklist" name="test_blacklist_blocks_preassign" time="0.123"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:138: in test_blacklist_blocks_preassign
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/funnel-extra0]" time="0.112"><failure message="AssertionError: /reports/sales/funnel -&gt; 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/funnel -&gt; 401 {"detail":"Invalid session"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/aging-extra1]" time="0.115"><failure message="AssertionError: /reports/sales/aging -&gt; 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/aging -&gt; 401 {"detail":"Invalid session"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/monthly-extra2]" time="0.113"><failure message="AssertionError: /reports/sales/monthly -&gt; 422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;missing&quot;,&quot;loc&quot;:[&quot;query&quot;,&quot;year&quot;],&quot;msg&quot;:&quot;Field required&quot;,&quot;input&quot;:null,&quot;url&quot;:&quot;https://errors.pydantic.dev/2.12/v/missing&quot;}]}&#10;assert 422 == 200&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/monthly -&gt; 422 {"detail":[{"type":"missing","loc":["query","year"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}
+E   assert 422 == 200
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/receivables-extra3]" time="0.120"><failure message="AssertionError: /reports/sales/receivables -&gt; 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/receivables -&gt; 401 {"detail":"Invalid session"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/clients-ranking-extra4]" time="0.128"><failure message="AssertionError: /reports/sales/clients-ranking -&gt; 422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;missing&quot;,&quot;loc&quot;:[&quot;query&quot;,&quot;year&quot;],&quot;msg&quot;:&quot;Field required&quot;,&quot;input&quot;:null,&quot;url&quot;:&quot;https://errors.pydantic.dev/2.12/v/missing&quot;}]}&#10;assert 422 == 200&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/clients-ranking -&gt; 422 {"detail":[{"type":"missing","loc":["query","year"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}
+E   assert 422 == 200
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/repair-productivity-extra5]" time="0.107"><failure message="AssertionError: /reports/sales/repair-productivity -&gt; 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/repair-productivity -&gt; 401 {"detail":"Invalid session"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/irregular-quotes-extra6]" time="0.138"><failure message="AssertionError: /reports/sales/irregular-quotes -&gt; 401 {&quot;detail&quot;:&quot;Invalid session&quot;}&#10;assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/irregular-quotes -&gt; 401 {"detail":"Invalid session"}
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_accepts_created_by_param[/reports/sales/executive-summary-extra7]" time="0.120"><failure message="AssertionError: /reports/sales/executive-summary -&gt; 422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;missing&quot;,&quot;loc&quot;:[&quot;query&quot;,&quot;year&quot;],&quot;msg&quot;:&quot;Field required&quot;,&quot;input&quot;:null,&quot;url&quot;:&quot;https://errors.pydantic.dev/2.12/v/missing&quot;}]}&#10;assert 422 == 200&#10; +  where 422 = &lt;Response [422]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:198: in test_accepts_created_by_param
+    assert r.status_code == 200, f"{path} -&gt; {r.status_code} {r.text[:300]}"
+E   AssertionError: /reports/sales/executive-summary -&gt; 422 {"detail":[{"type":"missing","loc":["query","year"],"msg":"Field required","input":null,"url":"https://errors.pydantic.dev/2.12/v/missing"}]}
+E   assert 422 == 200
+E    +  where 422 = &lt;Response [422]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestSalesReportsCreatedBy" name="test_funnel_created_by_all_no_break" time="0.128"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:202: in test_funnel_created_by_all_no_break
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestMposFastTrackFlow" name="test_active_fast_track_with_project_preserved" time="0.110"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:221: in test_active_fast_track_with_project_preserved
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports.TestMposFastTrackFlow" name="test_no_mpos_send_archives" time="0.114"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:237: in test_no_mpos_send_archives
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase><testcase classname="backend.tests.test_iteration8_admin_serials_mpos_reports" name="test_api_health" time="0.106"><failure message="assert 401 == 200&#10; +  where 401 = &lt;Response [401]&gt;.status_code">backend/tests/test_iteration8_admin_serials_mpos_reports.py:254: in test_api_health
+    assert r.status_code == 200
+E   assert 401 == 200
+E    +  where 401 = &lt;Response [401]&gt;.status_code</failure></testcase></testsuite></testsuites>
