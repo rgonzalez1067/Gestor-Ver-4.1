@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './ui/select';
-import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2 } from 'lucide-react';
+import { Search, RefreshCw, UserCog, Ban, ListX, ChevronLeft, Loader2, Undo2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../utils/api';
 
@@ -26,6 +26,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [actionState, setActionState] = useState(null); // {type, assignment}
   const [clients, setClients] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   // Tab "Por Modelo"
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
@@ -38,6 +39,7 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     if (!open) return;
     api.get('/clients').then(r => setClients(r.data || [])).catch(() => {});
     api.get('/admin/inventory/items').then(r => setModels(r.data?.items || [])).catch(() => {});
+    api.get('/inventory/warehouses').then(r => setWarehouses(r.data || [])).catch(() => {});
     if (tab === 'blacklist') loadBlacklist();
   }, [open, tab]);
 
@@ -249,6 +251,140 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
     );
   };
 
+  // ── Gestión de seriales VENDIDOS (sin assignment_id activo) ──
+  const SubReturnSold = ({ asg }) => {
+    const [warehouseId, setWarehouseId] = useState(asg.warehouse_id || '');
+    const [reason, setReason] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const submit = async () => {
+      if (!warehouseId || !reason.trim()) { toast.error('Almacén destino y motivo son requeridos'); return; }
+      setSubmitting(true);
+      try {
+        await api.post(`/admin/inventory/serials/sold/${encodeURIComponent(asg.serial)}/return-to-stock`, {
+          warehouse_id: warehouseId, reason: reason.trim(),
+        });
+        toast.success(`Serial ${asg.serial} devuelto al stock`);
+        setActionState(null);
+        refreshByModel();
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-emerald-50 border border-emerald-200 rounded">
+        <h4 className="text-sm font-semibold text-emerald-900">Devolver al stock asignable</h4>
+        <p className="text-xs text-slate-600">Serial: <b className="font-mono">{asg.serial}</b> · Estado actual: <span className="font-semibold">Vendido</span></p>
+        <div>
+          <label className="text-xs text-slate-600">Almacén destino *</label>
+          <Select value={warehouseId} onValueChange={setWarehouseId}>
+            <SelectTrigger data-testid="return-sold-warehouse-select"><SelectValue placeholder="Selecciona almacén" /></SelectTrigger>
+            <SelectContent>
+              {warehouses.map(w => (
+                <SelectItem key={w.id || w.warehouse_id} value={w.id || w.warehouse_id}>{w.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Motivo *</label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Cliente devolvió el equipo; reingresa a inventario" data-testid="return-sold-reason" />
+        </div>
+        <p className="text-[10px] text-slate-500 italic">Se generará un movimiento de <b>entrada</b> tipo "Devolución administrativa". La salida original se conserva para trazabilidad histórica.</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700" data-testid="return-sold-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Confirmar Devolución
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const SubUnassignSold = ({ asg }) => {
+    const [reason, setReason] = useState('');
+    const [markBlocked, setMarkBlocked] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const submit = async () => {
+      if (!reason.trim()) { toast.error('Motivo requerido'); return; }
+      setSubmitting(true);
+      try {
+        await api.post(`/admin/inventory/serials/sold/${encodeURIComponent(asg.serial)}/unassign`, {
+          reason: reason.trim(), mark_non_assignable: markBlocked,
+        });
+        toast.success(`Serial ${asg.serial} desasignado${markBlocked ? ' y bloqueado' : ''}`);
+        setActionState(null);
+        refreshByModel();
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-rose-50 border border-rose-200 rounded">
+        <h4 className="text-sm font-semibold text-rose-900">Desasignar serial vendido</h4>
+        <p className="text-xs text-slate-600">Serial: <b className="font-mono">{asg.serial}</b></p>
+        <label className="flex items-start gap-2 text-xs text-slate-700">
+          <input type="checkbox" checked={markBlocked} onChange={(e) => setMarkBlocked(e.target.checked)} data-testid="unassign-sold-mark-blocked" />
+          <span>Adicionalmente marcar como <b>NO asignable</b> (blacklist).</span>
+        </label>
+        <div>
+          <label className="text-xs text-slate-600">Motivo *</label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Corrección de asignación incorrecta del despacho" data-testid="unassign-sold-reason" />
+        </div>
+        <p className="text-[10px] text-slate-500 italic">Limpia cualquier rastro de asignación residual sin modificar el histórico de movimientos.</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting} className="bg-rose-600 hover:bg-rose-700" data-testid="unassign-sold-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Confirmar Desasignación
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const SubDeleteSold = ({ asg }) => {
+    const [reason, setReason] = useState('');
+    const [confirmText, setConfirmText] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const submit = async () => {
+      if (!reason.trim()) { toast.error('Motivo requerido'); return; }
+      if (confirmText !== 'ELIMINAR') { toast.error('Escribe ELIMINAR para confirmar'); return; }
+      setSubmitting(true);
+      try {
+        await api.delete(`/admin/inventory/serials/sold/${encodeURIComponent(asg.serial)}`, {
+          headers: { 'x-reason': reason.trim() },
+        });
+        toast.success(`Serial ${asg.serial} eliminado del sistema`);
+        setActionState(null);
+        refreshByModel();
+      } catch (e) {
+        toast.error(`Error: ${e.response?.data?.detail || e.message}`);
+      } finally { setSubmitting(false); }
+    };
+    return (
+      <div className="space-y-3 p-4 bg-red-50 border border-red-300 rounded">
+        <h4 className="text-sm font-semibold text-red-900">⚠ Eliminar serial vendido (acción destructiva)</h4>
+        <p className="text-xs text-slate-700">Serial: <b className="font-mono">{asg.serial}</b></p>
+        <div className="bg-red-100 border border-red-300 rounded p-2 text-[11px] text-red-900">
+          Esto removerá el serial de TODOS los movimientos de inventario (entradas, salidas y transferencias). Si algún movimiento contiene solo este serial, se borrará por completo. <b>No reversible</b>.
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Motivo *</label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Serial cargado por error en la importación inicial" data-testid="delete-sold-reason" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-600">Escribe <b>ELIMINAR</b> para confirmar *</label>
+          <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="ELIMINAR" data-testid="delete-sold-confirm" />
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setActionState(null)} disabled={submitting}>Cancelar</Button>
+          <Button size="sm" onClick={submit} disabled={submitting || confirmText !== 'ELIMINAR'} className="bg-red-700 hover:bg-red-800" data-testid="delete-sold-submit">
+            {submitting && <Loader2 size={14} className="animate-spin mr-1" />}Eliminar definitivamente
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="admin-serial-management-modal">
@@ -289,6 +425,9 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
             {actionState && actionState.type === 'replace' && <SubReplace asg={actionState.asg} />}
             {actionState && actionState.type === 'reassign' && <SubReassign asg={actionState.asg} />}
             {actionState && actionState.type === 'unassign' && <SubUnassign asg={actionState.asg} />}
+            {actionState && actionState.type === 'return-sold' && <SubReturnSold asg={actionState.asg} />}
+            {actionState && actionState.type === 'unassign-sold' && <SubUnassignSold asg={actionState.asg} />}
+            {actionState && actionState.type === 'delete-sold' && <SubDeleteSold asg={actionState.asg} />}
             {!actionState && modelSerials.length > 0 && (
               <div className="max-h-[50vh] overflow-y-auto border rounded">
                 <table className="w-full text-xs">
@@ -336,6 +475,19 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
                               <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => releaseFromBlacklist(r.serial).then(refreshByModel)} data-testid={`btn-bm-release-${r.serial}`}>
                                 <ListX size={10} className="mr-0.5" /> Liberar
                               </Button>
+                            )}
+                            {r.status === 'vendido' && (
+                              <div className="inline-flex gap-1">
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-emerald-700 border-emerald-300" onClick={() => setActionState({ type: 'return-sold', asg: { serial: r.serial, warehouse_id: r.warehouse_id } })} data-testid={`btn-bm-return-sold-${r.serial}`}>
+                                  <Undo2 size={10} className="mr-0.5" /> Devolver al Stock
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-rose-700 border-rose-300" onClick={() => setActionState({ type: 'unassign-sold', asg: { serial: r.serial } })} data-testid={`btn-bm-unassign-sold-${r.serial}`}>
+                                  <Ban size={10} className="mr-0.5" /> Desasignar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-red-700 border-red-400" onClick={() => setActionState({ type: 'delete-sold', asg: { serial: r.serial } })} data-testid={`btn-bm-delete-sold-${r.serial}`}>
+                                  <Trash2 size={10} className="mr-0.5" /> Eliminar
+                                </Button>
+                              </div>
                             )}
                           </td>
                         </tr>

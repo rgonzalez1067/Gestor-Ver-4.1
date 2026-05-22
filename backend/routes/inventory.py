@@ -1988,3 +1988,249 @@ async def admin_release_blacklist(
         "executed_at": datetime.now(timezone.utc).isoformat(),
     })
     return {"ok": True, "message": f"Serial {serial} liberado de blacklist"}
+
+
+# ==================== GESTIÓN DE SERIALES VENDIDOS ====================
+# Permite al Administrador devolver/desasignar/eliminar seriales que
+# físicamente salieron del stock (status "vendido" en la vista por modelo)
+# y que NO tienen `assignment_id` activo en `serial_assignments`.
+# Identificación: el serial aparece en algún `inventory_movements` con
+# movement_type ∈ {salida, transferencia_salida} y no figura en una
+# entrada/transferencia_entrada posterior.
+
+
+async def _find_sold_serial_movement(serial: str) -> Optional[dict]:
+    """Retorna el último movimiento de salida que contiene el serial."""
+    serial_u = (serial or "").strip()
+    if not serial_u:
+        return None
+    cursor = db.inventory_movements.find(
+        {
+            "movement_type": {"$in": ["salida", "transferencia_salida"]},
+            "serials": serial_u,
+        },
+        {"_id": 0},
+    ).sort("created_at", -1).limit(1)
+    docs = await cursor.to_list(1)
+    return docs[0] if docs else None
+
+
+@router.post("/admin/inventory/serials/sold/{serial}/return-to-stock")
+async def admin_return_sold_serial(
+    serial: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Devuelve un serial vendido al stock asignable.
+
+    Crea un movimiento de entrada (`entrada`) con el serial al almacén
+    indicado y limpia eventual entrada en blacklist. NO altera la salida
+    original (conserva trazabilidad histórica).
+
+    body: { warehouse_id?: str, reason: str }
+    Si no se especifica warehouse_id, se usa el del último movimiento de salida.
+    """
+    user = await _require_admin_user(authorization)
+    serial_norm = (serial or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason requerido")
+
+    last_out = await _find_sold_serial_movement(serial_norm)
+    if not last_out:
+        raise HTTPException(status_code=404, detail="No se encontró movimiento de salida para este serial")
+
+    warehouse_id = (body.get("warehouse_id") or last_out.get("warehouse_id") or "").strip()
+    if not warehouse_id:
+        raise HTTPException(status_code=400, detail="warehouse_id requerido")
+
+    # Si ya está actualmente en stock o asignado, abortar
+    active_asg = await db.serial_assignments.find_one(
+        {"serial": serial_norm, "status": {"$in": ["preasignado", "asignado", "asignado_temporal"]}},
+        {"_id": 0},
+    )
+    if active_asg:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Serial activo en asignación {active_asg.get('status')} (cotización {active_asg.get('quote_number')}). No se puede devolver al stock.",
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    movement_id = f"mov_{uuid.uuid4().hex[:12]}"
+    item_id = last_out.get("item_id")
+    item_name = last_out.get("item_name") or ""
+    unit_cost = last_out.get("unit_cost") or 0
+
+    entry_doc = {
+        "movement_id": movement_id,
+        "item_id": item_id,
+        "item_name": item_name,
+        "warehouse_id": warehouse_id,
+        "movement_type": "entrada",
+        "quantity": 1,
+        "unit_cost": unit_cost,
+        "serials": [serial_norm],
+        "supplier": "DEVOLUCIÓN ADMINISTRATIVA",
+        "invoice_number": "",
+        "notes": f"Devolución administrativa del serial {serial_norm}. Motivo: {reason}",
+        "reference": f"Devolución de venta (origen: {last_out.get('movement_id', 'N/A')})",
+        "created_at": now,
+        "created_by": user.get("email"),
+        "is_admin_return": True,
+        "origin_movement_id": last_out.get("movement_id"),
+    }
+    await db.inventory_movements.insert_one(entry_doc)
+
+    # Liberar de blacklist si estaba allí
+    await db.serial_blacklist.delete_one({"serial": serial_norm})
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_return_to_stock",
+        "serial": serial_norm,
+        "item_id": item_id,
+        "warehouse_id": warehouse_id,
+        "origin_movement_id": last_out.get("movement_id"),
+        "new_movement_id": movement_id,
+        "reason": reason,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    return {"ok": True, "message": f"Serial {serial_norm} devuelto al stock", "movement_id": movement_id}
+
+
+@router.post("/admin/inventory/serials/sold/{serial}/unassign")
+async def admin_unassign_sold_serial(
+    serial: str,
+    body: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """Desasigna un serial vendido (sin assignment_id activo) y opcionalmente
+    lo manda a blacklist. Esta acción NO toca los movimientos de inventario,
+    solo limpia rastros activos en `serial_assignments` (si quedó algún
+    registro archivado) y registra la blacklist.
+
+    body: { reason: str, mark_non_assignable: bool }
+    """
+    user = await _require_admin_user(authorization)
+    serial_norm = (serial or "").strip()
+    reason = (body.get("reason") or "").strip()
+    mark_non_assignable = bool(body.get("mark_non_assignable", False))
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason requerido")
+
+    last_out = await _find_sold_serial_movement(serial_norm)
+    if not last_out:
+        raise HTTPException(status_code=404, detail="No se encontró movimiento de salida para este serial")
+
+    # Limpiar asignaciones residuales (cualquier estado)
+    del_res = await db.serial_assignments.delete_many({"serial": serial_norm})
+
+    now = datetime.now(timezone.utc).isoformat()
+    if mark_non_assignable:
+        await db.serial_blacklist.update_one(
+            {"serial": serial_norm},
+            {"$set": {
+                "serial": serial_norm,
+                "reason": reason,
+                "blocked_at": now,
+                "blocked_by": user.get("email"),
+                "previous_client": last_out.get("client_name"),
+                "previous_quote": last_out.get("reference"),
+                "source": "sold_unassign",
+            }},
+            upsert=True,
+        )
+
+    await db.bitacora.insert_one({
+        "action": "admin_serial_sold_unassign",
+        "serial": serial_norm,
+        "item_id": last_out.get("item_id"),
+        "client_name": last_out.get("client_name"),
+        "reason": reason,
+        "mark_non_assignable": mark_non_assignable,
+        "removed_assignments": del_res.deleted_count,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    msg = f"Serial {serial_norm} desasignado"
+    if mark_non_assignable:
+        msg += " y marcado como NO ASIGNABLE"
+    return {"ok": True, "message": msg, "removed_assignments": del_res.deleted_count}
+
+
+@router.delete("/admin/inventory/serials/sold/{serial}")
+async def admin_delete_sold_serial(
+    serial: str,
+    reason: Optional[str] = Header(None, alias="x-reason"),
+    authorization: Optional[str] = Header(None),
+):
+    """Elimina un serial vendido del histórico: lo remueve de los movimientos
+    de salida/transferencia_salida que lo contengan. Si el movimiento queda
+    sin seriales y con cantidad 1, se borra; si contenía múltiples seriales,
+    solo se quita ese serial y se decrementa la cantidad.
+
+    Header: x-reason: <motivo>
+
+    Limpia también blacklist y asignaciones residuales para que el serial
+    desaparezca completamente del sistema.
+    """
+    user = await _require_admin_user(authorization)
+    serial_norm = (serial or "").strip()
+    motivo = (reason or "").strip()
+    if not motivo:
+        raise HTTPException(status_code=400, detail="x-reason header requerido")
+
+    # Buscar TODOS los movimientos que contengan el serial (entradas y salidas)
+    affected_movements = []
+    async for m in db.inventory_movements.find(
+        {"serials": serial_norm},
+        {"_id": 0},
+    ):
+        affected_movements.append(m)
+
+    if not affected_movements:
+        raise HTTPException(status_code=404, detail="Serial no encontrado en ningún movimiento")
+
+    deleted_movs = 0
+    updated_movs = 0
+    for m in affected_movements:
+        serials_list = [s for s in (m.get("serials") or []) if s != serial_norm]
+        if not serials_list and (m.get("quantity", 1) <= 1):
+            # Movimiento exclusivo de este serial → borrar
+            await db.inventory_movements.delete_one({"movement_id": m["movement_id"]})
+            deleted_movs += 1
+        else:
+            # Movimiento con varios seriales → recortar y reducir qty
+            new_qty = max(1, int(m.get("quantity", 1)) - 1)
+            await db.inventory_movements.update_one(
+                {"movement_id": m["movement_id"]},
+                {"$set": {"serials": serials_list, "quantity": new_qty}},
+            )
+            updated_movs += 1
+
+    # Limpiar rastros residuales
+    del_asg = await db.serial_assignments.delete_many({"serial": serial_norm})
+    del_bl = await db.serial_blacklist.delete_one({"serial": serial_norm})
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.bitacora.insert_one({
+        "action": "admin_serial_sold_delete",
+        "serial": serial_norm,
+        "movements_deleted": deleted_movs,
+        "movements_updated": updated_movs,
+        "assignments_removed": del_asg.deleted_count,
+        "blacklist_removed": del_bl.deleted_count,
+        "reason": motivo,
+        "executed_by": user.get("email"),
+        "executed_at": now,
+    })
+
+    return {
+        "ok": True,
+        "message": f"Serial {serial_norm} eliminado del sistema",
+        "movements_deleted": deleted_movs,
+        "movements_updated": updated_movs,
+    }
+

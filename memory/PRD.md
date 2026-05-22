@@ -4,6 +4,39 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 10: Gestión Admin de Seriales VENDIDOS (Feb 2026)
+
+**Objetivo**: Habilitar al Administrador a gestionar seriales que ya salieron físicamente del stock (estado "vendido" en la tab "Por Modelo" del modal de gestión). Antes estos seriales quedaban congelados — sin posibilidad de devolución, desasignación residual ni eliminación. Ahora se puede:
+
+**A. Backend (`inventory.py`)** — 3 nuevos endpoints admin-only:
+- `POST /admin/inventory/serials/sold/{serial}/return-to-stock`:
+  - Body: `{warehouse_id?, reason}`. Si no se pasa `warehouse_id`, se infiere del último movimiento de salida.
+  - Crea un `inventory_movements` tipo `entrada` con `is_admin_return=True` y referencia al movimiento original. **NO modifica la salida histórica** (trazabilidad preservada).
+  - Libera blacklist si el serial estaba bloqueado.
+  - 409 si el serial sigue con asignación activa (preasignado/asignado/asignado_temporal).
+- `POST /admin/inventory/serials/sold/{serial}/unassign`:
+  - Body: `{reason, mark_non_assignable: bool}`. Limpia cualquier asignación residual en `serial_assignments` (cualquier estado) y opcionalmente envía a blacklist. No toca los movimientos de inventario.
+- `DELETE /admin/inventory/serials/sold/{serial}` con header `x-reason`:
+  - Acción **destructiva**: barre el serial de TODOS los movimientos (entradas, salidas, transferencias). Si el movimiento contiene solo ese serial → borra el movimiento; si tiene varios → solo lo remueve y decrementa qty.
+  - Limpia asignaciones residuales y blacklist asociada.
+- Helper compartido `_find_sold_serial_movement(serial)` ubica el último `salida`/`transferencia_salida` que contenga el serial.
+- Todas las acciones generan entrada en `bitacora` con `executed_by`, `executed_at` y contadores.
+
+**B. Frontend (`AdminSerialManagementModal.jsx`)**:
+- 3 nuevos sub-componentes: `SubReturnSold`, `SubUnassignSold`, `SubDeleteSold`.
+- `SubReturnSold`: selector de almacén destino + motivo. Carga `/inventory/warehouses` al abrir el modal.
+- `SubUnassignSold`: motivo + checkbox opcional "marcar como no asignable" (blacklist).
+- `SubDeleteSold`: motivo + confirmación tipeada "ELIMINAR" (acción irreversible, paleta roja).
+- En la tabla "Por Modelo" cuando `r.status === 'vendido'` ahora se renderizan **3 botones**: "Devolver al Stock" (verde), "Desasignar" (rosa), "Eliminar" (rojo). Antes la fila no tenía acciones.
+- `data-testid`: `btn-bm-return-sold-{serial}`, `btn-bm-unassign-sold-{serial}`, `btn-bm-delete-sold-{serial}`.
+
+**Validación E2E** (script con serial sintético `TEST-RGZ-VENDIDO-E2E`):
+- ✅ `return-to-stock` → HTTP 200, crea movimiento `entrada` con `is_admin_return=True`, conserva la salida original.
+- ✅ `delete-sold` → HTTP 200, `movements_deleted=2`, asignaciones residuales = 0.
+- ✅ Validaciones: 400 sin reason, 404 si serial no existe, 409 si serial activo en asignación, 403 para no-admin (gating por `_require_admin_user`).
+
+
+
 ### Iteration 9: Estabilización Flujo MPOS + Filtros Validar Pago/Preasign + Mapeo de Variables (Feb 2026)
 
 **Objetivo**: Resolver el feedback del usuario sobre MPOS Imple+POS — habilitar acciones desde el inicio, eliminar alerta falsa de ruptura, precargar seriales preasignados, normalizar variables dinámicas y agregar dos estados nuevos al filtro de cotizaciones.
