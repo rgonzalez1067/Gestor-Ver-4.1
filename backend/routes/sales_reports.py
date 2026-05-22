@@ -59,6 +59,53 @@ def _days_since(iso_str: str) -> int:
         return 0
 
 
+@router.get("/reports/sales/creators")
+async def list_quote_creators(authorization: Optional[str] = Header(None)):
+    """Lista de usuarios que han creado al menos UNA cotización (activa o histórico).
+    Util para el filtro 'Creador' de los Reportes de Venta, en lugar de listar
+    todos los usuarios del sistema. Devuelve dropdown ya ordenado alfabéticamente.
+    """
+    await get_current_user(authorization)
+
+    creator_ids: set = set()
+    async for q in db.quotes.find(
+        {"created_by_user_id": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "created_by_user_id": 1},
+    ):
+        cid = q.get("created_by_user_id")
+        if cid:
+            creator_ids.add(cid)
+    async for h in db.quote_history.find(
+        {"created_by_user_id": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "created_by_user_id": 1},
+    ):
+        cid = h.get("created_by_user_id")
+        if cid:
+            creator_ids.add(cid)
+
+    if not creator_ids:
+        return {"count": 0, "creators": []}
+
+    users = await db.users.find(
+        {"user_id": {"$in": list(creator_ids)}},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1},
+    ).to_list(500)
+
+    creators = sorted(
+        [
+            {
+                "user_id": u.get("user_id"),
+                "full_name": f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", ""),
+                "email": u.get("email", ""),
+            }
+            for u in users
+        ],
+        key=lambda x: x["full_name"].lower(),
+    )
+    return {"count": len(creators), "creators": creators}
+
+
+
 @router.get("/reports/sales/funnel")
 async def funnel_report(
     date_from: Optional[str] = Query(None),

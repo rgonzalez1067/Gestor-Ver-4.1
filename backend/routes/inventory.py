@@ -1631,6 +1631,120 @@ async def admin_search_serial(
     return {"count": len(results), "results": results}
 
 
+@router.get("/admin/inventory/items")
+async def admin_list_models(authorization: Optional[str] = Header(None)):
+    """Lista de modelos POS/Pinpad con seriales en inventario.
+    Devuelve solo los items que han tenido movimientos con seriales.
+    """
+    await _require_admin_user(authorization)
+
+    # Items que han tenido entradas con seriales en movimientos
+    item_ids_with_serials = await db.inventory_movements.distinct(
+        "item_id",
+        {"serials": {"$exists": True, "$ne": []}, "movement_type": {"$in": ["entrada", "transferencia_entrada"]}},
+    )
+    if not item_ids_with_serials:
+        return {"count": 0, "items": []}
+
+    hw_docs = await db.hardware.find(
+        {"hardware_id": {"$in": item_ids_with_serials}},
+        {"_id": 0, "hardware_id": 1, "name": 1, "type": 1},
+    ).to_list(500)
+
+    items = sorted(
+        [{"item_id": h["hardware_id"], "name": h["name"], "type": h.get("type", "")} for h in hw_docs],
+        key=lambda x: x["name"].lower(),
+    )
+    return {"count": len(items), "items": items}
+
+
+@router.get("/admin/inventory/serials/by-item")
+async def admin_serials_by_item(
+    item_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Lista TODOS los seriales de un modelo (item_id) con su estado actual.
+    Estados posibles: 'en_stock' (sin asignar), 'asignado', 'preasignado',
+    'asignado_temporal', 'blacklist' (no asignable por falla).
+    Permite al admin ver el inventario completo del modelo para gestionarlo.
+    """
+    await _require_admin_user(authorization)
+    if not item_id:
+        raise HTTPException(status_code=400, detail="item_id requerido")
+
+    # 1) Reconstruir todos los seriales que han entrado a stock
+    serials_in_stock: set = set()
+    serials_left_stock: set = set()  # ventas/transferencias_salida
+    async for m in db.inventory_movements.find(
+        {"item_id": item_id, "serials": {"$exists": True, "$ne": []}},
+        {"_id": 0, "movement_type": 1, "serials": 1},
+    ):
+        mtype = m.get("movement_type")
+        for s in (m.get("serials") or []):
+            if mtype in ("entrada", "transferencia_entrada"):
+                serials_in_stock.add(s)
+            elif mtype in ("salida", "transferencia_salida"):
+                serials_left_stock.add(s)
+
+    # Seriales actualmente físicamente en algún almacén
+    physical_serials = serials_in_stock - serials_left_stock
+
+    # 2) Asignaciones activas (preasignado/asignado/asignado_temporal)
+    assignments_map: dict = {}
+    async for a in db.serial_assignments.find(
+        {"item_id": item_id},
+        {"_id": 0},
+    ):
+        assignments_map[a["serial"]] = a
+
+    # 3) Blacklist
+    blacklist_map: dict = {}
+    async for b in db.serial_blacklist.find({}, {"_id": 0}):
+        blacklist_map[b["serial"]] = b
+
+    # 4) Combinar todos los seriales conocidos
+    all_serials = set(physical_serials) | set(assignments_map.keys()) | set(serials_left_stock)
+    rows: list = []
+    for s in sorted(all_serials):
+        asg = assignments_map.get(s)
+        bl = blacklist_map.get(s)
+        if bl:
+            status = "blacklist"
+        elif asg:
+            status = asg.get("status", "asignado")
+        elif s in physical_serials:
+            status = "en_stock"
+        elif s in serials_left_stock:
+            status = "vendido"
+        else:
+            status = "desconocido"
+
+        rows.append({
+            "serial": s,
+            "status": status,
+            "assignment_id": asg.get("assignment_id") if asg else None,
+            "client_id": asg.get("client_id") if asg else None,
+            "client_name": asg.get("client_name") if asg else None,
+            "quote_id": asg.get("quote_id") if asg else None,
+            "quote_number": asg.get("quote_number") if asg else None,
+            "warehouse_id": asg.get("warehouse_id") if asg else None,
+            "blacklist_reason": bl.get("reason") if bl else None,
+            "previous_serial": asg.get("previous_serial") if asg else None,
+            "replacement_reason": asg.get("replacement_reason") if asg else None,
+        })
+
+    counts = {
+        "total": len(rows),
+        "en_stock": sum(1 for r in rows if r["status"] == "en_stock"),
+        "asignado": sum(1 for r in rows if r["status"] == "asignado"),
+        "preasignado": sum(1 for r in rows if r["status"] == "preasignado"),
+        "asignado_temporal": sum(1 for r in rows if r["status"] == "asignado_temporal"),
+        "blacklist": sum(1 for r in rows if r["status"] == "blacklist"),
+        "vendido": sum(1 for r in rows if r["status"] == "vendido"),
+    }
+    return {"item_id": item_id, "counts": counts, "serials": rows}
+
+
 @router.post("/admin/inventory/serials/{assignment_id}/replace")
 async def admin_replace_serial(
     assignment_id: str,

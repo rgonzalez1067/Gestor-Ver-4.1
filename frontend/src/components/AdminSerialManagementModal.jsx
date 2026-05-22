@@ -19,21 +19,49 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 
 export const AdminSerialManagementModal = ({ open, onClose }) => {
-  const [tab, setTab] = useState('search'); // 'search' | 'blacklist'
+  const [tab, setTab] = useState('by-model'); // 'by-model' | 'search' | 'blacklist'
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [blacklist, setBlacklist] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionState, setActionState] = useState(null); // {type, assignment}
   const [clients, setClients] = useState([]);
+  // Tab "Por Modelo"
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [modelSerials, setModelSerials] = useState([]);
+  const [modelCounts, setModelCounts] = useState(null);
 
   const reset = () => { setActionState(null); setQuery(''); setResults([]); };
 
   useEffect(() => {
     if (!open) return;
     api.get('/clients').then(r => setClients(r.data || [])).catch(() => {});
+    api.get('/admin/inventory/items').then(r => setModels(r.data?.items || [])).catch(() => {});
     if (tab === 'blacklist') loadBlacklist();
   }, [open, tab]);
+
+  // Cargar seriales cuando se selecciona un modelo
+  useEffect(() => {
+    if (!selectedModel) { setModelSerials([]); setModelCounts(null); return; }
+    setLoading(true);
+    api.get('/admin/inventory/serials/by-item', { params: { item_id: selectedModel } })
+      .then(r => {
+        setModelSerials(r.data?.serials || []);
+        setModelCounts(r.data?.counts || null);
+      })
+      .catch(e => toast.error(`Error: ${e.response?.data?.detail || e.message}`))
+      .finally(() => setLoading(false));
+  }, [selectedModel]);
+
+  const refreshByModel = () => {
+    if (!selectedModel) return;
+    api.get('/admin/inventory/serials/by-item', { params: { item_id: selectedModel } })
+      .then(r => {
+        setModelSerials(r.data?.serials || []);
+        setModelCounts(r.data?.counts || null);
+      });
+  };
 
   const handleSearch = async () => {
     if (query.trim().length < 2) {
@@ -62,6 +90,8 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
 
   const refreshSearch = async () => {
     if (query.trim().length >= 2) await handleSearch();
+    // Si estamos en tab by-model, refrescar también esa vista
+    refreshByModel();
   };
 
   const releaseFromBlacklist = async (serial) => {
@@ -227,10 +257,99 @@ export const AdminSerialManagementModal = ({ open, onClose }) => {
           <p className="text-xs text-slate-500">Solo Administrador · Reemplazo, reasignación y desasignación con auditoría completa.</p>
         </DialogHeader>
 
-        <div className="flex gap-2 border-b pb-2">
-          <button onClick={() => { setTab('search'); reset(); }} className={`px-3 py-1.5 text-sm rounded ${tab==='search'?'bg-slate-800 text-white':'text-slate-600 hover:bg-slate-100'}`} data-testid="tab-serial-search">Buscar / Editar Serial</button>
+        <div className="flex gap-2 border-b pb-2 flex-wrap">
+          <button onClick={() => { setTab('by-model'); reset(); }} className={`px-3 py-1.5 text-sm rounded ${tab==='by-model'?'bg-slate-800 text-white':'text-slate-600 hover:bg-slate-100'}`} data-testid="tab-serial-by-model">Por Modelo</button>
+          <button onClick={() => { setTab('search'); reset(); }} className={`px-3 py-1.5 text-sm rounded ${tab==='search'?'bg-slate-800 text-white':'text-slate-600 hover:bg-slate-100'}`} data-testid="tab-serial-search">Buscar Serial</button>
           <button onClick={() => setTab('blacklist')} className={`px-3 py-1.5 text-sm rounded ${tab==='blacklist'?'bg-slate-800 text-white':'text-slate-600 hover:bg-slate-100'}`} data-testid="tab-serial-blacklist">Lista no asignables ({blacklist.length})</button>
         </div>
+
+        {tab === 'by-model' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-slate-600 mb-1 block">Selecciona modelo de POS / PINPAD</label>
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger data-testid="admin-serial-model-select"><SelectValue placeholder="Elige un modelo..." /></SelectTrigger>
+                <SelectContent className="max-h-72 overflow-y-auto">
+                  {models.map(m => (
+                    <SelectItem key={m.item_id} value={m.item_id}>{m.name} {m.type ? `· ${m.type}` : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {modelCounts && (
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-[11px]">
+                <div className="bg-slate-100 rounded p-2 text-center"><div className="text-slate-500">Total</div><div className="font-bold text-slate-800">{modelCounts.total}</div></div>
+                <div className="bg-emerald-50 rounded p-2 text-center"><div className="text-emerald-700">En Stock</div><div className="font-bold text-emerald-800">{modelCounts.en_stock}</div></div>
+                <div className="bg-indigo-50 rounded p-2 text-center"><div className="text-indigo-700">Preasignado</div><div className="font-bold text-indigo-800">{modelCounts.preasignado}</div></div>
+                <div className="bg-amber-50 rounded p-2 text-center"><div className="text-amber-700">Asignado</div><div className="font-bold text-amber-800">{modelCounts.asignado}</div></div>
+                <div className="bg-rose-50 rounded p-2 text-center"><div className="text-rose-700">No asignable</div><div className="font-bold text-rose-800">{modelCounts.blacklist}</div></div>
+                <div className="bg-slate-50 rounded p-2 text-center"><div className="text-slate-500">Vendido</div><div className="font-bold text-slate-700">{modelCounts.vendido}</div></div>
+              </div>
+            )}
+            {actionState && actionState.type === 'replace' && <SubReplace asg={actionState.asg} />}
+            {actionState && actionState.type === 'reassign' && <SubReassign asg={actionState.asg} />}
+            {actionState && actionState.type === 'unassign' && <SubUnassign asg={actionState.asg} />}
+            {!actionState && modelSerials.length > 0 && (
+              <div className="max-h-[50vh] overflow-y-auto border rounded">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100 text-slate-600 sticky top-0">
+                    <tr>
+                      <th className="px-2 py-1.5 text-left">Serial</th>
+                      <th className="px-2 py-1.5 text-left">Estado</th>
+                      <th className="px-2 py-1.5 text-left">Cliente</th>
+                      <th className="px-2 py-1.5 text-left">Cotización</th>
+                      <th className="px-2 py-1.5 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modelSerials.map(r => {
+                      const statusColors = {
+                        'en_stock': 'bg-emerald-100 text-emerald-700',
+                        'asignado': 'bg-amber-100 text-amber-700',
+                        'preasignado': 'bg-indigo-100 text-indigo-700',
+                        'asignado_temporal': 'bg-violet-100 text-violet-700',
+                        'blacklist': 'bg-rose-100 text-rose-700',
+                        'vendido': 'bg-slate-100 text-slate-600',
+                      };
+                      const canEdit = ['asignado', 'preasignado', 'asignado_temporal'].includes(r.status);
+                      return (
+                        <tr key={r.serial} className="border-t hover:bg-slate-50">
+                          <td className="px-2 py-1.5 font-mono">{r.serial}</td>
+                          <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[10px] ${statusColors[r.status] || 'bg-slate-100'}`}>{r.status}</span></td>
+                          <td className="px-2 py-1.5 text-slate-700">{r.client_name || '—'}</td>
+                          <td className="px-2 py-1.5 text-slate-700">{r.quote_number || '—'}</td>
+                          <td className="px-2 py-1.5 text-right">
+                            {canEdit && r.assignment_id && (
+                              <div className="inline-flex gap-1">
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-amber-700 border-amber-300" onClick={() => setActionState({ type: 'replace', asg: { ...r, assignment_id: r.assignment_id, serial: r.serial } })} data-testid={`btn-bm-replace-${r.serial}`}>
+                                  <RefreshCw size={10} className="mr-0.5" /> Reemplazar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-blue-700 border-blue-300" onClick={() => setActionState({ type: 'reassign', asg: { ...r, assignment_id: r.assignment_id, serial: r.serial } })} data-testid={`btn-bm-reassign-${r.serial}`}>
+                                  <UserCog size={10} className="mr-0.5" /> Reasignar
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5 text-rose-700 border-rose-300" onClick={() => setActionState({ type: 'unassign', asg: { ...r, assignment_id: r.assignment_id, serial: r.serial } })} data-testid={`btn-bm-unassign-${r.serial}`}>
+                                  <Ban size={10} className="mr-0.5" /> Desasignar
+                                </Button>
+                              </div>
+                            )}
+                            {r.status === 'blacklist' && (
+                              <Button size="sm" variant="outline" className="h-6 text-[10px] px-1.5" onClick={() => releaseFromBlacklist(r.serial).then(refreshByModel)} data-testid={`btn-bm-release-${r.serial}`}>
+                                <ListX size={10} className="mr-0.5" /> Liberar
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!actionState && selectedModel && modelSerials.length === 0 && !loading && (
+              <p className="text-sm text-slate-500 text-center py-8">No hay seriales registrados para este modelo.</p>
+            )}
+          </div>
+        )}
 
         {tab === 'search' && (
           <div className="space-y-3">

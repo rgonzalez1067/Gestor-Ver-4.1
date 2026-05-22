@@ -131,22 +131,14 @@ const SalesReports = () => {
 
   useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, [segment, category, createdBy, year, dateFrom, dateTo]);
 
-  // Cargar la lista de creadores de cotizaciones (usuarios activos).
+  // Cargar la lista de creadores de cotizaciones (usuarios que efectivamente
+  // han creado al menos una cotización, no toda la lista de usuarios).
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get('/admin/users');
-        const list = (res.data || [])
-          .map(u => ({
-            user_id: u.user_id,
-            full_name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-            email: u.email,
-          }))
-          .sort((a, b) => a.full_name.localeCompare(b.full_name, 'es', { sensitivity: 'base' }));
-        setCreators(list);
+        const res = await api.get('/reports/sales/creators');
+        setCreators(res.data?.creators || []);
       } catch (err) {
-        // Si el endpoint /users no está accesible para el usuario actual, el
-        // filtro queda con "Todos" y no rompe la UI.
         console.warn('No se pudo cargar la lista de creadores:', err.message);
       }
     })();

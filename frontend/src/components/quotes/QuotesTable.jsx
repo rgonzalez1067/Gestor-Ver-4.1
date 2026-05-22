@@ -169,11 +169,19 @@ export const QuotesTable = ({
       // Implementación por tipo de cotización (VPOS/MPOS/FAST_TRACK/GATEWAY).
       const cat = quote.quote_category || 'implementation';
       const [baseCat, subType] = filterCategory.split(':');
-      if (baseCat !== cat) return false;
-      if (subType) {
-        // Normalizar el tipo de cotización
+
+      // Caso especial: 'implementation:FAST_TRACK' (MPOS Imple+POS) debe
+      // coincidir tanto con cotizaciones nuevas (quote_category='fast_track')
+      // como con las legacy (quote_category='implementation' + quote_type='FAST_TRACK').
+      if (subType === 'FAST_TRACK') {
         const qt = (quote.quote_type || '').toUpperCase();
-        if (qt !== subType.toUpperCase()) return false;
+        if (cat !== 'fast_track' && !(cat === 'implementation' && qt === 'FAST_TRACK')) return false;
+      } else {
+        if (baseCat !== cat) return false;
+        if (subType) {
+          const qt = (quote.quote_type || '').toUpperCase();
+          if (qt !== subType.toUpperCase()) return false;
+        }
       }
     }
     if (filterSegment && filterSegment !== 'all' && (quote.client_segment || 'PYME') !== filterSegment) return false;
@@ -541,7 +549,11 @@ export const QuotesTable = ({
                             <DropdownMenuItem
                               onSelect={() => {
                                 if (isDisabled) return;
-                                quote.quote_status === 'Aprobada' ? onConfigure(quote.quote_id) : onOpenFtConfig(quote);
+                                // Para MPOS (fast_track), la acción "Configuración"
+                                // siempre debe abrir el modal de correo y ejecutar
+                                // handleConfigure (marca verde en grilla + email),
+                                // NO el modal de edición de la cotización.
+                                onConfigure(quote.quote_id);
                               }}
                               className={`cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                               disabled={isDisabled}
