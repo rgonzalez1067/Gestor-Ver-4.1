@@ -2007,18 +2007,28 @@ async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None
         stock_by_item = stock
 
     # Enrich items with stock info
+    # `requires_serial` se calcula desde el catálogo `hardware` (no desde el
+    # snapshot guardado en la cotización ni desde stock), para asegurar
+    # consistencia con `deliver_quote` y evitar el bug en el que el frontend
+    # mostraba el ítem como no-serializado y el backend lo exigía serializado.
     items_with_stock = []
+    hw_ids = [item.get("hardware_id", "") for item in equipment_items if item.get("hardware_id")]
+    hw_map = {}
+    if hw_ids:
+        async for h in db.hardware.find({"hardware_id": {"$in": hw_ids}}, {"_id": 0, "hardware_id": 1, "type": 1}):
+            hw_map[h["hardware_id"]] = h.get("type", "")
     for item in equipment_items:
         hw_id = item.get("hardware_id", "")
         st = stock_by_item.get(hw_id, {})
+        canonical_type = hw_map.get(hw_id) or st.get("item_type", "") or item.get("hardware_type", "")
         items_with_stock.append({
             "hardware_id": hw_id,
             "name": item.get("name", ""),
-            "hardware_type": item.get("hardware_type", ""),
+            "hardware_type": canonical_type,
             "quantity_quoted": item.get("quantity", 1),
             "stock_available": st.get("quantity", 0),
             "serials_available": st.get("serials", []),
-            "requires_serial": (st.get("item_type", "") or item.get("hardware_type", "")).lower() in SERIALIZED_TYPES,
+            "requires_serial": (canonical_type or "").lower() in SERIALIZED_TYPES,
         })
 
     return {
@@ -2099,14 +2109,21 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
 
         warehouse_name = wh.get("name", "")
 
+        # ============================================================
+        # FASE 1 — PRE-VALIDACIÓN ATÓMICA
+        # Recorrer TODOS los items y validar stock + seriales ANTES de
+        # insertar cualquier movimiento. Si algún item falla, abortamos
+        # sin modificar la BD (evita descontar parcialmente del inventario
+        # y dejar la cotización en estado inconsistente).
+        # ============================================================
+        validated_items: list = []  # [{hw, hw_type, requires_serial, qty, serials, avg_cost}]
         for d_item in delivery_items:
             hw_id = d_item.get("hardware_id", "")
             qty = d_item.get("quantity", 0)
-            serials = d_item.get("serials", [])
+            serials = d_item.get("serials", []) or []
             if not hw_id or qty <= 0:
                 continue
 
-            # Get hardware info
             hw = await db.hardware.find_one({"hardware_id": hw_id}, {"_id": 0})
             if not hw:
                 raise HTTPException(status_code=404, detail=f"Producto {hw_id} no encontrado en catálogo")
@@ -2114,12 +2131,12 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             hw_type = hw.get("type", "General")
             requires_serial = hw_type.lower() in SERIALIZED_TYPES
 
-            # Calculate current stock
+            # Stock + seriales disponibles
             movements = await db.inventory_movements.find(
                 {"warehouse_id": warehouse_id, "item_id": hw_id}, {"_id": 0}
             ).to_list(2000)
             stock_qty = 0
-            stock_serials = []
+            stock_serials: list = []
             cost_total = 0
             for m in movements:
                 sign = 1 if m["movement_type"] in ("entrada", "transferencia_entrada") else -1
@@ -2138,16 +2155,37 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
                 raise HTTPException(status_code=400, detail=f"Stock insuficiente de '{hw['name']}'. Disponible: {stock_qty}, Solicitado: {qty}")
 
             if requires_serial:
+                # Compatibilidad: el frontend puede haber enviado serials=[]
+                # si `delivery-prep` clasificó el ítem como no-serializado
+                # (desalineación entre catálogo y snapshot de la cotización).
+                # Cuando el usuario sí seleccionó seriales, deben coincidir
+                # con la cantidad. Cuando no, exigirlos.
                 if len(serials) != qty:
                     raise HTTPException(status_code=400, detail=f"Debe seleccionar {qty} serial(es) para '{hw['name']}'")
                 for s in serials:
                     if s not in stock_serials:
                         raise HTTPException(status_code=400, detail=f"Serial '{s}' no disponible en almacén")
 
-            # Create exit movement
+            validated_items.append({
+                "hw": hw, "hw_type": hw_type, "requires_serial": requires_serial,
+                "qty": qty, "serials": serials, "avg_cost": avg_cost,
+            })
+
+        # ============================================================
+        # FASE 2 — EJECUCIÓN (inserts)
+        # Todas las validaciones pasaron → procesar inserts.
+        # ============================================================
+        for v in validated_items:
+            hw = v["hw"]
+            hw_type = v["hw_type"]
+            requires_serial = v["requires_serial"]
+            qty = v["qty"]
+            serials = v["serials"]
+            avg_cost = v["avg_cost"]
+
             exit_mov = InventoryMovement(
                 warehouse_id=warehouse_id,
-                item_id=hw_id,
+                item_id=hw["hardware_id"],
                 item_name=hw["name"],
                 item_type=hw_type,
                 movement_type="salida",
@@ -2169,7 +2207,7 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
 
             # Trigger CheckStock alert
             from routes.inventory import check_stock_alert
-            await check_stock_alert(warehouse_id, hw_id, hw["name"])
+            await check_stock_alert(warehouse_id, hw["hardware_id"], hw["name"])
 
             delivered_pdf_items.append({
                 "name": hw["name"],
