@@ -120,7 +120,11 @@ async def _build_template_vars(quote: dict) -> dict:
              "address": 1, "contacts": 1, "contact1": 1},
         )
         if c:
-            legal_name = c.get("fantasy_name") or c.get("legal_name") or legal_name
+            # Reglas de mapeo de variables dinámicas (Feb 2026):
+            # - {client_name} / {Nombre_Cliente} → SIEMPRE Razón Social
+            #   (legal_name). Antes se priorizaba fantasy_name, lo que generaba
+            #   confusión legal en emails y documentos institucionales.
+            legal_name = c.get("legal_name") or c.get("fantasy_name") or legal_name
             rif = rif or c.get("rif", "")
             address = c.get("address") or ""
             contacts = c.get("contacts") or []

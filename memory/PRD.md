@@ -3,6 +3,43 @@
 ## Descripción General
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
+
+### Iteration 9: Estabilización Flujo MPOS + Filtros Validar Pago/Preasign + Mapeo de Variables (Feb 2026)
+
+**Objetivo**: Resolver el feedback del usuario sobre MPOS Imple+POS — habilitar acciones desde el inicio, eliminar alerta falsa de ruptura, precargar seriales preasignados, normalizar variables dinámicas y agregar dos estados nuevos al filtro de cotizaciones.
+
+**A. UI MPOS — Acciones siempre habilitadas (`QuotesTable.jsx`)**:
+- "Configuración" y "Enviar a Implementación" ya no se renderizan deshabilitadas en MPOS por falta de preasignación/configuración. El usuario decide el orden; un badge informativo "Sin preasignación" sigue presente como ayuda visual pero NO bloquea el flujo.
+- La única condición de bloqueo de "Enviar a Implementación" es `sent_to_implementation_at` (ya creado el proyecto).
+
+**B. Backend — Eliminar falsa alerta "Ruptura del proceso regular" (`quote_actions.py`)**:
+- `send_quote_to_implementation` ahora detecta `quote_category == 'fast_track'` (o `quote_type == 'FAST_TRACK'`) y considera VÁLIDOS los estados `Aprobada`, `Configurada`, `Facturada`, `Pagada`. La secuencia Configuración → Enviar a Implementación es flujo institucional, no excepción.
+- Para todos los demás tipos (VPOS/PG/LINK) se preserva la regla legacy `is_irregular = current_status != "Pagada"`.
+
+**C. Modal de Búsqueda de Seriales — Precarga de Preasignados**:
+- Backend `quote_serials.py` (`GET /quotes/{id}/inventory-serials`): ahora consulta `serial_assignments` con `status=preasignado` para el `client_id`/RIF normalizado del cliente ANTES de la búsqueda histórica en `inventory_movements`. Resultado: los preasignados aparecen al tope con flag `from_preassign=True`.
+- Frontend `Quotes.jsx`: al entrar a la fase `pinpad_selection`, consulta `/quotes/{id}/preassigned-serials`; si hay preasignación previa, auto-selecciona el modelo (`item_id`) y carga los seriales automáticamente.
+- Frontend `QuoteModals.jsx`: cada serial preasignado se renderiza con badge índigo "PREASIGNADO" y fila resaltada en `bg-indigo-50/40`.
+
+**D. Mapeo de Variables Dinámicas (`notification_engine.py`)**:
+- `{client_name}` / `{Nombre_Cliente}` / `{nombre_cliente}` ahora resuelven SIEMPRE con `legal_name` (Razón Social) como prioridad y `fantasy_name` como fallback (antes era al revés, lo que producía nombres comerciales en correos institucionales).
+- `{Datos_Contacto}` / `{Contacto_Principal}` ya estaba correctamente poblado desde `contacts[0].full_name` (sin cambios).
+- PDF Ficha Técnica (`implementation_pdf.py`): el banner de la sección C ahora dice "SERIALES DE LOS EQUIPOS" (antes "MODELO Y SERIALES DE EQUIPOS"), alineado al requerimiento del usuario.
+
+**E. Filtro de Estados — Validar Pago + Preasign (`QuoteFilters.jsx` + `QuotesTable.jsx`)**:
+- 2 nuevas opciones en el dropdown "Estado": `Preasign (Seriales Reservados)` y `Validar Pago`.
+- `getEffectiveStatus()` en `QuotesTable.jsx`: retorna `'Preasign'` cuando hay `preassigned_at` o `preassigned_serials[]` pero todavía no `configured_at`. Devuelve `'Validar Pago'` cuando `custom_actions_executed.pago_validado*` está marcado pero aún no hay `paid_at` (ya estaba).
+
+**Testing**:
+- `/app/backend/tests/test_iteration9_mpos_filters.py`: **6/6 PASSED**:
+  - `client_name` con legal_name primero (con cliente real con ambos campos).
+  - `inventory-serials` retorna preasignados con `from_preassign=True` al tope.
+  - Banner PDF "SERIALES DE LOS EQUIPOS" presente, viejo banner removido.
+  - Código fast_track regular flow contiene set de estados naturales.
+  - Filtro UI incluye Validar Pago y Preasign.
+  - getEffectiveStatus retorna 'Preasign'.
+
+
 ### Iteration 8: Inventario Admin + Filtros + Flujo MPOS + Filtro Creador (Feb 2026)
 
 **A. Herramienta Admin de Seriales (POS/PINPAD)** — Solo rol `admin`:

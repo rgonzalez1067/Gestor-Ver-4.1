@@ -147,8 +147,15 @@ export const QuotesTable = ({
     if (q.repaired_at) return 'Reparada';
     if (q.implementation_completed_at) return 'Implementada';
     if (q.collected_at || q.payment_at || q.paid_at) return 'Pagada';
+    // "Validar Pago": custom_action ejecutada (pago_validado / *_eq / *_rep)
+    // pero todavía sin paid_at. Fase intermedia entre Facturada y Pagada.
+    const ex = q.custom_actions_executed || {};
+    if (ex.pago_validado || ex.pago_validado_eq || ex.pago_validado_rep) return 'Validar Pago';
     if (q.invoice_number || q.invoiced_at) return 'Facturada';
     if (q.configured_at) return 'Configurada';
+    // "Preasign": seriales reservados (preasignados) pero aún sin Configuración técnica.
+    // Aplica al flujo MPOS (fast_track) entre Aprobada y Configurada.
+    if (q.preassigned_at || (q.preassigned_serials && q.preassigned_serials.length > 0)) return 'Preasign';
     if (q.approved_at) return 'Aprobada';
     if (q.sent_at) return 'Enviada';
     return q.quote_status || 'Borrador';
@@ -533,7 +540,6 @@ export const QuotesTable = ({
                         )}
                         {canEdit && isFastTrack && (() => {
                           const hasPreassigned = quote.preassigned_serials?.length > 0;
-                          const isDisabledByPreassign = !hasPreassigned;
                           const defaultLabel = quote.quote_status === 'Aprobada' ? 'Marcar como Configurada' : 'Configuración';
                           // Aplicar overrides del catálogo (action_id = 'configure'):
                           // permite renombrar el botón, ocultarlo o restringir
@@ -541,10 +547,11 @@ export const QuotesTable = ({
                           // hidden=true y no se renderiza.
                           const m = getActionMeta(quote, 'configure', defaultLabel);
                           if (m.hidden) return null;
-                          const isDisabled = isDisabledByPreassign || m.disabled;
-                          const tooltip = isDisabledByPreassign
-                            ? 'Debe preasignar los seriales de los equipos antes de proceder con la configuración técnica'
-                            : (m.tooltip || '');
+                          // MPOS (Imple + POS): "Configuración" siempre habilitada por
+                          // defecto. El sistema no fuerza el orden Preasign→Configuración;
+                          // el usuario decide la secuencia.
+                          const isDisabled = m.disabled;
+                          const tooltip = m.tooltip || '';
                           return (
                             <DropdownMenuItem
                               onSelect={() => {
@@ -562,8 +569,8 @@ export const QuotesTable = ({
                               <Settings size={16} className={`mr-2 ${isDisabled ? 'text-slate-400' : 'text-indigo-600'}`} />
                               {m.label}
                               {quote.configured_at && <span className="ml-auto text-xs text-indigo-500">&#10003;</span>}
-                              {!quote.configured_at && !isDisabled && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
-                              {isDisabledByPreassign && <span className="ml-auto text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Requiere seriales</span>}
+                              {!quote.configured_at && !isDisabled && <span className="ml-auto text-xs text-indigo-500">&#x25CF;</span>}
+                              {!hasPreassigned && !quote.configured_at && <span className="ml-auto text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Sin preasignación</span>}
                             </DropdownMenuItem>
                           );
                         })()}
@@ -577,11 +584,13 @@ export const QuotesTable = ({
                           const m = getActionMeta(quote, 'send_to_implementation', 'Enviar a Implementación');
                           if (m.hidden) return null;
                           const alreadySent = !!quote.sent_to_implementation_at;
-                          const isDisabledByConfig = !quote.configured_at;
-                          const isDisabled = isDisabledByConfig || alreadySent || m.disabled;
+                          // MPOS (Imple + POS): "Enviar a Implementación" siempre habilitada
+                          // por defecto (no se exige Configuración previa). La única razón
+                          // para deshabilitarla es que ya se haya enviado (proyecto creado).
+                          const isDisabled = alreadySent || m.disabled;
                           const tooltip = alreadySent
                             ? 'Ya se envió a Implementación (proyecto creado)'
-                            : (isDisabledByConfig ? 'Debe completar la Configuración antes de enviar a Implementación' : (m.tooltip || ''));
+                            : (m.tooltip || '');
                           return (
                             <DropdownMenuItem
                               onSelect={() => !isDisabled && onSendToImplementation(quote.quote_id)}
@@ -592,7 +601,7 @@ export const QuotesTable = ({
                               <Send size={16} className={`mr-2 ${isDisabled ? 'text-slate-400' : 'text-amber-600'}`} />
                               {m.label}
                               {alreadySent && <span className="ml-auto text-xs text-amber-500">&#10003;</span>}
-                              {!alreadySent && quote.configured_at && <span className="ml-auto text-xs text-amber-500">&#x25CF;</span>}
+                              {!alreadySent && <span className="ml-auto text-xs text-amber-500">&#x25CF;</span>}
                             </DropdownMenuItem>
                           );
                         })()}

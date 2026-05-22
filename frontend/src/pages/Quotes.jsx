@@ -2690,6 +2690,20 @@ export const Quotes = () => {
       try {
         const res = await api.get(`/quotes/${multistoreQuoteId}/pinpad-models`);
         setPymePinpadModels(res.data.models || []);
+        // ── Precarga automática de seriales PREASIGNADOS ──
+        // Si la cotización tiene seriales preasignados en una fase previa,
+        // auto-seleccionamos el modelo correspondiente (item_id) para que
+        // el usuario vea de inmediato los seriales reservados al cliente,
+        // sin tener que recorrer todo el catálogo manualmente.
+        try {
+          const pre = await api.get(`/quotes/${multistoreQuoteId}/preassigned-serials`);
+          const preassignedItemId = pre.data?.assignments?.[0]?.item_id;
+          if (preassignedItemId) {
+            await handlePymePinpadModelSelect(preassignedItemId);
+          }
+        } catch {
+          // Si no hay preasignación o falla, el usuario selecciona modelo manualmente.
+        }
       } catch (err) {
         toast.error('Error cargando modelos de POS/Pinpad');
       } finally {

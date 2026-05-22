@@ -1366,7 +1366,21 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
     current_status = quote.get("quote_status", "Borrador")
-    is_irregular = current_status != "Pagada"
+    # MPOS (Imple + POS / fast_track): el flujo institucional es
+    # Aprobada → (Preasign) → Configurada → Enviar a Implementación → Entregada,
+    # SIN paso obligatorio por Facturada/Pagada. No marcar como irregular
+    # cuando el usuario sigue este camino feliz.
+    is_fast_track = (quote.get("quote_category") == "fast_track") or (
+        (quote.get("quote_type") or "").upper() == "FAST_TRACK"
+    )
+    if is_fast_track:
+        # Estados válidos sin disparar ruptura: Aprobada, Configurada, o
+        # cualquier estado posterior a Aprobada en el orden natural.
+        is_irregular = current_status not in (
+            "Aprobada", "Configurada", "Facturada", "Pagada"
+        )
+    else:
+        is_irregular = current_status != "Pagada"
     
     if is_irregular:
         if not exception_reason:

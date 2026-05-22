@@ -604,13 +604,18 @@ export const QuoteModals = ({ ctx }) => {
                           </thead>
                           <tbody>
                             {pymePinpadSerials.map(s => (
-                              <tr key={s.serial} className="border-b last:border-0 hover:bg-emerald-50/30">
+                              <tr key={s.serial} className={`border-b last:border-0 ${s.from_preassign ? 'bg-indigo-50/40 hover:bg-indigo-50' : 'hover:bg-emerald-50/30'}`} data-testid={`pinpad-serial-row-${s.serial}`}>
                                 <td className="px-2 py-1.5">
                                   <input type="checkbox" checked={!!pymePinpadSerialsSelected[s.serial]}
                                     onChange={e => setPymePinpadSerialsSelected(prev => ({...prev, [s.serial]: e.target.checked}))}
                                     data-testid={`pinpad-serial-${s.serial}`} />
                                 </td>
-                                <td className="px-2 py-1.5 font-mono text-slate-800">{s.serial}</td>
+                                <td className="px-2 py-1.5 font-mono text-slate-800">
+                                  {s.serial}
+                                  {s.from_preassign && (
+                                    <span className="ml-2 text-[9px] font-semibold bg-indigo-600 text-white px-1.5 py-0.5 rounded uppercase tracking-wide" data-testid={`preassign-badge-${s.serial}`}>Preasignado</span>
+                                  )}
+                                </td>
                                 <td className="px-2 py-1.5 text-slate-600">{s.modelo}</td>
                                 <td className="px-2 py-1.5 text-slate-500">{s.date ? new Date(s.date).toLocaleDateString('es-VE') : '—'}</td>
                               </tr>

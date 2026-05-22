@@ -16,7 +16,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://anexos-zip-fix.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://meganexus-crm-admin.preview.emergentagent.com')
 
 class TestPDFGenerationFix:
     """Tests for PDF generation fix in create_quote_with_pdf endpoint"""

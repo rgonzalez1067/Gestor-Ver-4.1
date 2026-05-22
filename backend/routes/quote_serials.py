@@ -73,6 +73,34 @@ async def get_inventory_serials(quote_id: str, model_id: str, authorization: Opt
 
     # Buscar salidas de inventario que coincidan
     serials_found = []
+    seen_serials = set()
+
+    # === PRIORIDAD 1: Seriales PREASIGNADOS para este cliente/modelo ===
+    # Cuando el usuario abre el Modal de Búsqueda de Seriales durante
+    # "Enviar a Implementación", se anteponen los seriales que ya fueron
+    # preasignados (reservados) en una fase previa para este cliente.
+    preassigned_q = {
+        "item_id": model_id,
+        "status": "preasignado",
+        "$or": [
+            {"client_id": {"$in": all_client_ids}},
+        ],
+    }
+    async for asg in db.serial_assignments.find(preassigned_q, {"_id": 0}):
+        srl = asg.get("serial", "")
+        if not srl or srl in seen_serials:
+            continue
+        seen_serials.add(srl)
+        serials_found.append({
+            "serial": srl,
+            "modelo": asg.get("item_name", ""),
+            "movement_id": "",
+            "warehouse": asg.get("warehouse_id", ""),
+            "date": asg.get("preassigned_at", ""),
+            "reference": f"Preasignado · COT {asg.get('quote_number','')}",
+            "from_preassign": True,
+        })
+
     query = {
         "movement_type": "salida",
         "item_id": model_id,
@@ -95,6 +123,9 @@ async def get_inventory_serials(quote_id: str, model_id: str, authorization: Opt
 
     async for mov in db.inventory_movements.find(query, {"_id": 0}):
         for serial in mov.get("serials", []):
+            if serial in seen_serials:
+                continue
+            seen_serials.add(serial)
             serials_found.append({
                 "serial": serial,
                 "modelo": mov.get("item_name", ""),
@@ -102,6 +133,7 @@ async def get_inventory_serials(quote_id: str, model_id: str, authorization: Opt
                 "warehouse": mov.get("warehouse_id", ""),
                 "date": mov.get("created_at", ""),
                 "reference": mov.get("reference", ""),
+                "from_preassign": False,
             })
 
     return {"serials": serials_found, "client_rif": client_rif}

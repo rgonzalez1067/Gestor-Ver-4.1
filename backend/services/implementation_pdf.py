@@ -179,7 +179,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     equipments = quote.get("equipments") or []
     all_serials = pinpad_serials + equipments
     if all_serials:
-        elements.append(_section_banner("C. MODELO Y SERIALES DE EQUIPOS", styles))
+        elements.append(_section_banner("C. SERIALES DE LOS EQUIPOS", styles))
         elements.append(Spacer(1, 6))
         eq_data = [
             [Paragraph("<b>Modelo</b>", styles['SmallWhite']),
