@@ -279,12 +279,17 @@ def generate_nota_entrega_pdf(
     # ==================== 3. DETALLE DE BIENES ====================
     elements.append(Paragraph("3. Detalle de Bienes y Equipos", s_section))
 
+    # Estilo para encabezados blancos sobre fondo azul (mejora de contraste)
+    s_cell_white = ParagraphStyle("NECellWhite", parent=styles["Normal"],
+        fontSize=8, textColor=colors.white, leading=10, wordWrap="CJK",
+        fontName="Helvetica-Bold", alignment=TA_CENTER)
+
     items_header = [
-        Paragraph("<b>Item</b>", s_cell),
-        Paragraph("<b>Descripcion del Bien / Servicio</b>", s_cell),
-        Paragraph("<b>Cant.</b>", s_cell),
-        Paragraph("<b>Tipo</b>", s_cell),
-        Paragraph("<b>Seriales (Solo POS/Pinpad)</b>", s_cell),
+        Paragraph("Item", s_cell_white),
+        Paragraph("Descripcion del Bien / Servicio", s_cell_white),
+        Paragraph("Cant.", s_cell_white),
+        Paragraph("Tipo", s_cell_white),
+        Paragraph("Seriales (Solo POS/Pinpad)", s_cell_white),
     ]
     # Anchos fijos: Item=1, Descripcion=5.5, Cant=1.2, Tipo=2, Seriales=restante
     w_item = 1 * cm

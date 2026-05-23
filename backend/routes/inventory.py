@@ -1582,6 +1582,7 @@ async def get_invoiced_exits_report(
             "unit_cost": mov.get("unit_cost", 0),
             "invoice_number": invoice,
             "reference": ref,
+            "serials": mov.get("serials", []),
             "client_name": mov.get("client_name", ""),
             "quote_number": mov.get("quote_number", ""),
             "notes": mov.get("notes", ""),

@@ -212,6 +212,29 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         elements.append(eq_table)
         elements.append(Spacer(1, 14))
 
+    # ==================== C.1 MODELO DE IMPRESORA FISCAL ====================
+    # Bloque ubicado justo detrás de "Seriales de los Equipos" (Feb 2026):
+    # imprime el modelo de impresora fiscal capturado en el wizard al
+    # enviar a implementación, o tomado de la ficha del cliente.
+    fiscal_printer_model = (quote.get("fiscal_printer_model") or client.get("modelo_impresora_fiscal") or "").strip()
+    if fiscal_printer_model:
+        elements.append(Paragraph("<b>Modelo de Impresora Fiscal</b>", styles['BlockLabel']))
+        elements.append(Spacer(1, 4))
+        fp_table = Table(
+            [[Paragraph(fiscal_printer_model, styles['SmallText'])]],
+            colWidths=[480],
+        )
+        fp_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_GRIS),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        elements.append(fp_table)
+        elements.append(Spacer(1, 14))
+
     # ==================== 5. RESUMEN COMERCIAL ====================
     section_letter = "D" if all_serials else "C"
     elements.append(_section_banner(f"{section_letter}. RESUMEN COMERCIAL", styles))

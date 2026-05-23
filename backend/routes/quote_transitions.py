@@ -27,6 +27,7 @@ async def _create_project_from_quote(
     fantasy_name: str = None,
     implementation_instructions: str = None,
     keep_quote_active: bool = False,
+    fiscal_printer_model: str = None,
 ):
     """Crea un proyecto a partir de una cotización enviada a implementación.
 
@@ -268,6 +269,11 @@ async def _create_project_from_quote(
     # Se persiste en la tabla de proyectos. Si viene vacío/None, se fuerza a None
     # para limpiar cualquier contenido previo (importante en re-envíos/regeneraciones).
     project["implementation_instructions"] = implementation_instructions if implementation_instructions else None
+
+    # Modelo de impresora fiscal (capturado en el wizard, Feb 2026).
+    # Se persiste en el proyecto para imprimirlo en la Ficha Técnica de la
+    # Implementación bajo la etiqueta "Modelo de Impresora Fiscal".
+    project["fiscal_printer_model"] = (fiscal_printer_model or "").strip() or None
 
     # Pinpad seriales seleccionados (flujo PYME)
     if pinpad_serials and isinstance(pinpad_serials, list):

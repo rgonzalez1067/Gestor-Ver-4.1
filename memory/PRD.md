@@ -4,6 +4,49 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 12: Reportes Admin + Filtro Predictivo + Reingeniería Modales Impl + Impresora Fiscal (Feb 2026)
+
+**Objetivo**: 5 mejoras transversales — gestión admin embebida en Salidas Facturadas, buscador predictivo de clientes, contraste/Razón Social en Nota de Entrega, eliminación del modal de equipos y nuevo modal de Impresora Fiscal con propagación a la Ficha Técnica.
+
+**A. Reporte Salidas Facturadas — Gestión Admin embebida** (`InvoicedExitsReport.jsx` + `inventory.py`):
+- Botón "Admin: Gestión de Salidas" visible solo para `role === 'admin'` (vía `usePermission`).
+- Nueva columna "Acciones" con botón "Gestionar" por fila (solo admin).
+- Modal `admin-edit-exit-modal`: editar cualquier campo (item, tipo, cantidad, factura, cliente, seriales, costo, referencia, notas) o eliminar el registro completo. Reusa endpoints existentes `PUT/DELETE /inventory/movements/{id}` con audit log.
+- Endpoint `get_invoiced_exits_report` ahora retorna `movement_id` y `serials` por fila para alimentar el modal.
+
+**B. Buscador Predictivo de Clientes** (`QuoteFilters.jsx`):
+- Nuevo componente `ClientSearchableSelect` (Popover + Input + lista filtrada) reemplaza el Select nativo.
+- Búsqueda en tiempo real por substring (case-insensitive), de-duplicación por `legal_name`.
+- `data-testid`: `filter-client`, `filter-client-search`, `filter-client-option-{id}`, `filter-client-option-all`.
+
+**C. Nota de Entrega** (`hoja_ruta_pdf.py` + `quote_actions.py`):
+- Estilo `s_cell_white` (texto blanco, fontSize 8, bold) para los encabezados de la sección 3 (Detalle de Bienes) → contraste 100% legible sobre el fondo azul.
+- Mapeo "Razón Social": `deliver_quote` ahora prioriza `client.legal_name` sobre `fantasy_name` cuando arma `client_name` → la nota imprime el nombre jurídico real.
+
+**D. Reingeniería Modales "Enviar a Implementación"** (`Quotes.jsx` + `QuoteModals.jsx` + `quote_actions.py` + `quote_transitions.py` + `implementation_pdf.py` + `clients.py`):
+- **Eliminado** el modal "Equipos Entregados al Cliente" (fase `equipment` removida del JSX). Los equipos vinculados a la cotización se auto-seleccionan en background al elegir tipo de proyecto.
+- **Mantenido** el modal "¿La implementación requiere Pinpads?" sin cambios.
+- **Nuevo modal `fiscal_printer`**: aparece después de pinpad (flujo PYME) o después de project_type (flujo no-PYME). Lee `client.modelo_impresora_fiscal`:
+  - Si tiene valor → muestra informativamente y avanza al confirmar.
+  - Si vacío → exige al usuario ingresar el modelo (input obligatorio).
+- Si el cliente no tenía el dato, se persiste vía `PATCH /clients/{id}` (nuevo endpoint con whitelist de campos seguros incluyendo `modelo_impresora_fiscal`).
+- El valor capturado viaja en `SendToImplementationRequest.fiscal_printer_model` → se persiste en `quote.fiscal_printer_model` y `project.fiscal_printer_model`.
+- **Ficha Técnica PDF** (`implementation_pdf.py`): nueva sección "Modelo de Impresora Fiscal" colocada **justo después** del banner "C. SERIALES DE LOS EQUIPOS" y **antes** del Resumen Comercial. Lee `quote.fiscal_printer_model` con fallback a `client.modelo_impresora_fiscal`.
+
+**E. Testing** (`/app/backend/tests/test_iteration12_reports_filters_fiscal.py` — **10/10 PASS**):
+- Reporte incluye `movement_id` y `serials`.
+- PDF Nota de Entrega usa `s_cell_white` para contraste.
+- `deliver_quote` mapea legal_name como Razón Social.
+- Ficha Técnica imprime "Modelo de Impresora Fiscal" en posición correcta (entre Seriales y Resumen).
+- `_create_project_from_quote` acepta y persiste `fiscal_printer_model`.
+- Wizard tiene fase `fiscal_printer` y NO tiene `equipment-phase`.
+- Filtro tiene `ClientSearchableSelect` con `filter-client-search`.
+- Reporte tiene `admin-edit-exit-modal` con `isAdmin` gating y botón "report-admin-tools-btn".
+- Modelo Client tiene `modelo_impresora_fiscal` Optional.
+- Endpoint `PATCH /clients/{id}` validado via curl E2E: setea y refleja el campo correctamente.
+
+
+
 ### Iteration 10: Gestión Admin de Seriales VENDIDOS (Feb 2026)
 
 **Objetivo**: Habilitar al Administrador a gestionar seriales que ya salieron físicamente del stock (estado "vendido" en la tab "Por Modelo" del modal de gestión). Antes estos seriales quedaban congelados — sin posibilidad de devolución, desasignación residual ni eliminación. Ahora se puede:

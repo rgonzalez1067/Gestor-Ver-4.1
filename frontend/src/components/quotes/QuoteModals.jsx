@@ -76,6 +76,8 @@ export const QuoteModals = ({ ctx }) => {
     pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
     pymePinpadLoading, handlePymeServerContinue, handlePymePinpadAnswer,
     handlePymePinpadModelSelect, handlePymePinpadConfirm,
+    // Fiscal Printer phase
+    fiscalPrinterFromClient, fiscalPrinterModel, setFiscalPrinterModel, handleFiscalPrinterContinue,
     // Equipment phase
     projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
     equipmentSelected, setEquipmentSelected,
@@ -652,105 +654,64 @@ export const QuoteModals = ({ ctx }) => {
                 </div>
               )}
 
-              {/* Fase Equipment: Selección de equipos */}
-              {multistorePhase === 'equipment' && (
-                <div className="space-y-3 py-2" data-testid="equipment-phase">
+              {/* Fase Equipment ELIMINADA (Feb 2026):
+                  El modal "Equipos Entregados al Cliente" fue removido para
+                  agilizar el flujo. La selección automática de equipos
+                  vinculados a la cotización se hace en backend al recibir
+                  send-to-implementation. */}
+
+              {/* Fase Impresora Fiscal: solicita o muestra el modelo registrado.
+                  Posicionado después del paso de Pinpads y antes del modal
+                  consolidado, para que el dato esté disponible en la Ficha
+                  Técnica de la Implementación. */}
+              {multistorePhase === 'fiscal_printer' && (
+                <div className="space-y-4 py-2" data-testid="fiscal-printer-phase">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-700">
-                      {projectTypeImpl === 'pos_fast_track' ? 'Equipos de la Cotización' : 'Equipos Entregados al Cliente'}
-                    </p>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                      {projectTypeImpl === 'pos_fast_track' ? 'MPOS (Imple + POS)' : 'VPOS / MPOS'}
+                    <p className="text-sm font-medium text-slate-700">Impresora Fiscal del Cliente</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                      Ficha Técnica
                     </span>
                   </div>
-
-                  {equipmentLoading ? (
-                    <div className="text-center py-8 text-sm text-slate-400">Buscando equipos...</div>
+                  {fiscalPrinterFromClient ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800">
+                      <p className="font-semibold mb-1">Modelo registrado en ficha del cliente:</p>
+                      <p className="font-mono text-base text-emerald-900" data-testid="fiscal-printer-existing">
+                        {fiscalPrinterFromClient}
+                      </p>
+                      <p className="text-[10px] text-emerald-600 mt-2">
+                        Este modelo se imprimirá en la Ficha Técnica como "Modelo de Impresora Fiscal".
+                      </p>
+                    </div>
                   ) : (
-                    <>
-                      {/* Equipos de la cotización */}
-                      {equipmentAvailable.quote_equipment?.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-blue-700 mb-1">Vinculados a esta cotización</p>
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-blue-50 border-b">
-                                  <th className="w-8 px-2 py-1.5"><input type="checkbox" checked={equipmentAvailable.quote_equipment.every(eq => equipmentSelected[eq.equipo_id])} onChange={e => { const s = {...equipmentSelected}; equipmentAvailable.quote_equipment.forEach(eq => { s[eq.equipo_id] = e.target.checked; }); setEquipmentSelected(s); }} /></th>
-                                  <th className="text-left px-2 py-1.5 text-slate-600">Modelo</th>
-                                  <th className="text-left px-2 py-1.5 text-slate-600">Serial</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {equipmentAvailable.quote_equipment.map(eq => (
-                                  <tr key={eq.equipo_id} className="border-b last:border-0 hover:bg-blue-50/30">
-                                    <td className="px-2 py-1.5"><input type="checkbox" checked={!!equipmentSelected[eq.equipo_id]} onChange={e => setEquipmentSelected(s => ({...s, [eq.equipo_id]: e.target.checked}))} /></td>
-                                    <td className="px-2 py-1.5 font-medium text-slate-800">{eq.modelo}</td>
-                                    <td className="px-2 py-1.5 font-mono text-slate-600">{eq.serial}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Equipos del cliente (por RIF) — solo para VPOS/MPOS */}
-                      {projectTypeImpl === 'vpos_mpos' && equipmentAvailable.rif_equipment?.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold text-violet-700 mb-1">Otros equipos del cliente (RIF: {equipmentAvailable.client_rif})</p>
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-violet-50 border-b">
-                                  <th className="w-8 px-2 py-1.5"><input type="checkbox" checked={equipmentAvailable.rif_equipment.every(eq => equipmentSelected[eq.equipo_id])} onChange={e => { const s = {...equipmentSelected}; equipmentAvailable.rif_equipment.forEach(eq => { s[eq.equipo_id] = e.target.checked; }); setEquipmentSelected(s); }} /></th>
-                                  <th className="text-left px-2 py-1.5 text-slate-600">Modelo</th>
-                                  <th className="text-left px-2 py-1.5 text-slate-600">Serial</th>
-                                  <th className="text-left px-2 py-1.5 text-slate-600">Cotización</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {equipmentAvailable.rif_equipment.map(eq => (
-                                  <tr key={eq.equipo_id} className="border-b last:border-0 hover:bg-violet-50/30">
-                                    <td className="px-2 py-1.5"><input type="checkbox" checked={!!equipmentSelected[eq.equipo_id]} onChange={e => setEquipmentSelected(s => ({...s, [eq.equipo_id]: e.target.checked}))} /></td>
-                                    <td className="px-2 py-1.5 font-medium text-slate-800">{eq.modelo}</td>
-                                    <td className="px-2 py-1.5 font-mono text-slate-600">{eq.serial}</td>
-                                    <td className="px-2 py-1.5 text-slate-500">{eq.quote_number || '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Sin equipos encontrados */}
-                      {(equipmentAvailable.quote_equipment?.length === 0 && equipmentAvailable.rif_equipment?.length === 0) && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-                          <p className="text-sm text-amber-800 font-medium">No se encontraron equipos entregados</p>
-                          <p className="text-xs text-amber-600 mt-1">Puede continuar sin vincular equipos o verificar las Notas de Entrega.</p>
-                        </div>
-                      )}
-
-                      {/* Resumen de selección */}
-                      {Object.values(equipmentSelected).filter(Boolean).length > 0 && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                          <p className="text-xs text-emerald-700 font-medium">{Object.values(equipmentSelected).filter(Boolean).length} equipo(s) seleccionado(s)</p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-3 justify-between pt-2 border-t">
-                        <Button variant="outline" size="sm" onClick={() => setMultistoreDialogOpen(false)} data-testid="equipment-back-btn">
-                          Cancelar
-                        </Button>
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm" onClick={advanceToMultistorePhase} data-testid="equipment-continue-btn">
-                          Continuar
-                        </Button>
-                      </div>
-                    </>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs text-amber-800 mb-2">
+                        La ficha del cliente no tiene registrado el modelo de impresora fiscal.
+                        <b> Indique el modelo</b> para imprimirlo en la Ficha Técnica.
+                      </p>
+                      <Input
+                        value={fiscalPrinterModel}
+                        onChange={(e) => setFiscalPrinterModel(e.target.value)}
+                        placeholder="Ej: BIXOLON SRP-330, EPSON TM-T20III"
+                        className="bg-white"
+                        data-testid="fiscal-printer-input" />
+                    </div>
                   )}
+                  <div className="flex gap-3 justify-between pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setMultistoreDialogOpen(false)} data-testid="fiscal-printer-cancel-btn">
+                      Cancelar
+                    </Button>
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      size="sm"
+                      onClick={handleFiscalPrinterContinue}
+                      disabled={!fiscalPrinterFromClient && !fiscalPrinterModel.trim()}
+                      data-testid="fiscal-printer-continue-btn">
+                      Continuar
+                    </Button>
+                  </div>
                 </div>
               )}
+                {/* Bloque de selección de equipos removido (Feb 2026) */}
 
               {/* Fase 1: Pregunta Multitienda (solo si NO hay distribución previa) */}
               {multistorePhase === 'ask' && (

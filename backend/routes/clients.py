@@ -549,6 +549,31 @@ async def update_client(client_id: str, client_data: ClientCreate, authorization
         raise HTTPException(status_code=404, detail="Client not found")
     return await get_client(client_id, authorization)
 
+@router.patch("/clients/{client_id}")
+async def patch_client(client_id: str, body: dict, authorization: Optional[str] = Header(None)):
+    """Actualización parcial de campos del cliente.
+    Útil cuando solo se quiere modificar un campo (ej: modelo_impresora_fiscal
+    desde el wizard de envío a implementación) sin requerir el payload completo
+    del modelo ClientCreate. Solo permite campos seguros editables.
+    """
+    await require_permission(authorization, "clientes", "edit")
+    # Whitelist de campos permitidos para PATCH parcial
+    allowed_fields = {
+        "modelo_impresora_fiscal", "aplicativo", "integrador_id", "integrador_name",
+        "coordinator_user_id", "coordinator_name", "implementer_user_id", "implementer_name",
+        "fantasy_name", "address", "branch_address", "categoria_comercial",
+        "grupo_economico", "cantidad_tiendas", "cantidad_cajas",
+    }
+    payload = {k: v for k, v in (body or {}).items() if k in allowed_fields}
+    if not payload:
+        raise HTTPException(status_code=400, detail="No se enviaron campos editables")
+    result = await db.clients.update_one({"client_id": client_id}, {"$set": payload})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"ok": True, "updated": list(payload.keys())}
+
+
+
 @router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, authorization: Optional[str] = Header(None)):
     await require_permission(authorization, "clientes", "edit")

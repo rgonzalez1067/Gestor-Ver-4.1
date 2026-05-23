@@ -279,6 +279,10 @@ export const Quotes = () => {
   const [pymePinpadSerials, setPymePinpadSerials] = useState([]); // [{serial, modelo, movement_id, ...}]
   const [pymePinpadSerialsSelected, setPymePinpadSerialsSelected] = useState({}); // Map serial -> boolean
   const [pymePinpadLoading, setPymePinpadLoading] = useState(false);
+  // Fase Impresora Fiscal (Feb 2026): se solicita después de pinpad y antes
+  // de consolidated_data, para imprimir en la Ficha Técnica de la Implementación.
+  const [fiscalPrinterFromClient, setFiscalPrinterFromClient] = useState(''); // valor pre-existente en cliente
+  const [fiscalPrinterModel, setFiscalPrinterModel] = useState(''); // valor capturado en el modal
   // Modal 2 — Confirmación de Implementador (heredado desde ficha de cliente)
   const [confirmImplementerInfo, setConfirmImplementerInfo] = useState({ loading: false, name: '', user_id: '' });
   // Instrucciones adicionales para el Implementador (HTML rich-text, máx 500 chars)
@@ -2516,6 +2520,11 @@ export const Quotes = () => {
           movement_id: s.movement_id || '',
         }));
       }
+      // Modelo de impresora fiscal (Feb 2026): se imprime en la Ficha Técnica.
+      const finalFiscalModel = (fiscalPrinterFromClient || fiscalPrinterModel || '').trim();
+      if (finalFiscalModel) {
+        body.fiscal_printer_model = finalFiscalModel;
+      }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
       if (response.data.status === 'simulated') {
@@ -2584,29 +2593,79 @@ export const Quotes = () => {
     }
 
     if (type === 'payment_gateway') {
-      // Payment Gateway: skip equipment, go to multistore question
-      advanceToMultistorePhase();
+      // Payment Gateway: skip equipment, go to fiscal printer
+      goToFiscalPrinterPhase();
     } else {
-      // POS or VPOS/MPOS: load equipment
-      setMultistorePhase('equipment');
+      // POS or VPOS/MPOS: auto-cargar equipos vinculados a la cotización (sin modal),
+      // luego avanzar al modal de Impresora Fiscal.
       setEquipmentLoading(true);
       try {
         const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation?project_type=${type}`);
         setEquipmentAvailable(res.data);
-        // Auto-select all quote equipment
+        // Auto-select all quote equipment (decisión Feb 2026: ya no se muestra el modal de selección)
         const sel = {};
         (res.data.quote_equipment || []).forEach(eq => { sel[eq.equipo_id] = true; });
-        if (type === 'pos_fast_track') {
-          // POS Fast Track: auto-select ALL quote equipment
-          // (already done above)
-        }
         setEquipmentSelected(sel);
+        // Construir equipmentList directamente desde la selección automática
+        setEquipmentList(res.data.quote_equipment || []);
       } catch (err) {
         toast.error('Error cargando equipos');
         setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
       } finally {
         setEquipmentLoading(false);
       }
+      goToFiscalPrinterPhase();
+    }
+  };
+
+  // ── Impresora Fiscal: posicionada antes del consolidated/multistore ──
+  const goToFiscalPrinterPhase = async () => {
+    // Cargar el modelo actual del cliente (si está registrado).
+    try {
+      const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+      if (quote?.client_id) {
+        const c = await api.get(`/clients/${quote.client_id}`);
+        const existing = (c.data?.modelo_impresora_fiscal || '').trim();
+        setFiscalPrinterFromClient(existing);
+        setFiscalPrinterModel(existing);
+      } else {
+        setFiscalPrinterFromClient('');
+        setFiscalPrinterModel('');
+      }
+    } catch {
+      setFiscalPrinterFromClient('');
+      setFiscalPrinterModel('');
+    }
+    setMultistorePhase('fiscal_printer');
+  };
+
+  const handleFiscalPrinterContinue = async () => {
+    const finalModel = (fiscalPrinterFromClient || fiscalPrinterModel || '').trim();
+    if (!finalModel) {
+      toast.error('Indique el modelo de impresora fiscal');
+      return;
+    }
+    // Si el cliente no tenía el modelo registrado, persistirlo en su ficha.
+    if (!fiscalPrinterFromClient && fiscalPrinterModel.trim()) {
+      try {
+        const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+        if (quote?.client_id) {
+          await api.patch(`/clients/${quote.client_id}`, { modelo_impresora_fiscal: fiscalPrinterModel.trim() });
+        }
+      } catch {
+        // No bloquea el flujo si la actualización del cliente falla
+      }
+    }
+    // Avanzar al siguiente paso del wizard según el flujo (PYME vs no-PYME).
+    // PYME: fiscal_printer es POST-pinpad → siguiente es consolidated_data.
+    // No-PYME: fiscal_printer es POST-project_type → siguiente es multistore (ask/inherited).
+    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    const segment = (quote?.client_segment || '').toLowerCase();
+    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
+    if (isPyme) {
+      setMultistorePhase('consolidated_data');
+    } else {
+      advanceToMultistorePhase();
     }
   };
 
@@ -2681,8 +2740,8 @@ export const Quotes = () => {
   const handlePymePinpadAnswer = async (needsPinpads) => {
     setPymeNeedsPinpads(needsPinpads);
     if (!needsPinpads) {
-      // No pinpads → avanzar al modal consolidado (Paso 2)
-      setMultistorePhase('consolidated_data');
+      // No pinpads → avanzar a Impresora Fiscal (luego sigue al modal consolidado)
+      goToFiscalPrinterPhase();
     } else {
       // Sí pinpads: cargar modelos disponibles
       setMultistorePhase('pinpad_selection');
@@ -2734,8 +2793,8 @@ export const Quotes = () => {
   };
 
   const handlePymePinpadConfirm = () => {
-    // Avanzar al modal consolidado (server + grupo + fantasía + instrucciones)
-    setMultistorePhase('consolidated_data');
+    // Tras confirmar pinpads → Impresora Fiscal → modal consolidado
+    goToFiscalPrinterPhase();
   };
 
   // Avanzar desde consolidado: cargar implementer heredado del cliente → fase confirm
@@ -3705,6 +3764,8 @@ export const Quotes = () => {
             pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
             pymePinpadLoading, handlePymeServerContinue, handlePymePinpadAnswer,
             handlePymePinpadModelSelect, handlePymePinpadConfirm,
+            // Fiscal Printer phase
+            fiscalPrinterFromClient, fiscalPrinterModel, setFiscalPrinterModel, handleFiscalPrinterContinue,
             projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
             equipmentSelected, setEquipmentSelected,
           }} />

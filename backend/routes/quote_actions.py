@@ -1327,6 +1327,7 @@ class SendToImplementationRequest(BaseModel):
     fantasy_name: Optional[str] = None    # Nombre de Fantasía (texto libre)
     pinpad_serials: Optional[list] = None  # [{modelo, serial, movement_id}]
     implementation_instructions: Optional[str] = None  # HTML rich-text (máx 500 chars de texto visible)
+    fiscal_printer_model: Optional[str] = None  # Modelo de impresora fiscal (capturado en el modal del wizard)
 
 
 def _validate_instructions_length(html: Optional[str], max_chars: int = 500) -> Optional[str]:
@@ -1467,10 +1468,20 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         eg = quote.get("economic_group")
         fn = quote.get("fantasy_name")
         ii = quote.get("implementation_instructions")
+        # Modelo de impresora fiscal (capturado en el wizard) → persistir en
+        # la cotización y propagar al proyecto para que aparezca en la Ficha Técnica.
+        fp_model = (body.fiscal_printer_model if body else None) or ""
+        if fp_model:
+            quote["fiscal_printer_model"] = fp_model
+            await db.quotes.update_one(
+                {"quote_id": quote_id},
+                {"$set": {"fiscal_printer_model": fp_model}},
+            )
         await _create_project_from_quote(
             quote_for_project, quote_id, multistore_data, equipment_data,
             pt_impl, srv_name, pp_serials, eg, fn, ii,
             keep_quote_active=is_mpos_fast_track,
+            fiscal_printer_model=fp_model,
         )
     except HTTPException:
         raise
@@ -2080,7 +2091,10 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
 
     # Get client info
     client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0})
-    client_name = (client.get("fantasy_name") or client.get("legal_name", "") or "") if client else (quote.get("client_name") or "")
+    # Para Nota de Entrega: "Razón Social" debe ser SIEMPRE el legal_name (Nombre Jurídico).
+    # Antes se usaba fantasy_name como fallback primario, causando que la nota imprimiera
+    # el nombre de fantasía bajo la etiqueta "Razón Social".
+    client_name = (client.get("legal_name") or client.get("fantasy_name", "") or "") if client else (quote.get("client_name") or "")
     client_rif = (client.get("rif") or "") if client else ""
     client_address = (client.get("address") or "") if client else ""
 
