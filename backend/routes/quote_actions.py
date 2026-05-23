@@ -502,6 +502,7 @@ async def approve_quote(
     regularization_date: Optional[str] = Header(None, alias="x-regularization-date"),
     custom_message: Optional[str] = Header(None, alias="x-custom-message"),
     additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"),
+    manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids"),
 ):
     """Aprobar una cotización con instrucción de facturación.
 
@@ -649,6 +650,11 @@ async def approve_quote(
             except Exception as _e:
                 logger.warning(f"[Approve] No se pudo leer payment_file {_pf.filename}: {_e}")
 
+    # Anexos manuales del modal "Personalizar Comunicación" (CSV de IDs en header).
+    _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
+    if _manual_attachments:
+        _engine_extra_attachments.extend(_manual_attachments)
+
     _engine_result = await _engine_or_legacy(
         "approve", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
@@ -701,6 +707,11 @@ async def approve_quote(
             })
             logger.info(f"[Approve/FastTrack] Cálculos Definitivos adjunto para {quote.get('quote_number')}")
 
+        # Mergear adjuntos ya computados (payment_files + manual_attachments) con los de Fast Track.
+        merged_ft_attachments = list(ft_attachments)
+        if _engine_extra_attachments:
+            merged_ft_attachments.extend(_engine_extra_attachments)
+
         email_results = await send_workflow_notification(
             action="approve",
             quote=quote,
@@ -708,7 +719,7 @@ async def approve_quote(
             custom_message=custom_message,
             cc_emails=cc_emails,
             pdf_buffer=_engine_pdf_quote_bytes,
-            extra_attachments=ft_attachments if ft_attachments else None,
+            extra_attachments=merged_ft_attachments if merged_ft_attachments else None,
             template_base_override="fast_track_approved",
             override_recipients=ft_recipients,
         )
@@ -787,6 +798,12 @@ async def approve_quote(
         # Workflow centralizado: approve → Administración + Ventas (sede) + PDF adjunto
         # Para equipos, usar plantilla específica de equipos
         eq_template_override = "equipment_approved" if quote.get("quote_category") == "equipment" else None
+        # Mergear approval_attachments con los _engine_extra_attachments
+        # (payment_files + manual_attachments del modal Personalizar Comunicación)
+        merged_approval = list(approval_attachments_b64 or [])
+        if _engine_extra_attachments:
+            merged_approval.extend(_engine_extra_attachments)
+
         email_results = await send_workflow_notification(
             action="approve",
             quote=quote,
@@ -794,7 +811,7 @@ async def approve_quote(
             custom_message=custom_message,
             cc_emails=cc_emails,
             pdf_buffer=pdf_buffer,
-            extra_attachments=approval_attachments_b64 if approval_attachments_b64 else None,
+            extra_attachments=merged_approval if merged_approval else None,
             template_base_override=eq_template_override,
         )
 
@@ -820,7 +837,7 @@ async def approve_quote(
 
 
 @router.post("/quotes/{quote_id}/configure")
-async def configure_quote(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def configure_quote(quote_id: str, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Marcar cotización Fast Track como Configurada y notificar a Administración para facturar."""
     current_user = await get_current_user(authorization)
 
@@ -853,10 +870,14 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
+    # Anexos manuales subidos en el modal "Personalizar Comunicación"
+    _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
+
     # === Notification Engine (Phase 2) ===
     _engine_result = await _engine_or_legacy(
         "configure", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
+        extra_attachments=_manual_attachments or None,
     )
     if _engine_result is not None:
         return {
@@ -920,7 +941,7 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
 
 
 @router.post("/quotes/{quote_id}/repair-complete")
-async def repair_complete(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def repair_complete(quote_id: str, body: dict = None, authorization: Optional[str] = Header(None), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Marcar reparación como completada y notificar a Administración para facturar."""
     current_user = await get_current_user(authorization)
     if body is None:
@@ -973,6 +994,7 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
         "repair_complete", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
         billing_pdf_bytes=_engine_billing_pdf_bytes,
+        extra_attachments=(await _resolve_manual_attachments(manual_attachment_ids)) or None,
     )
     if _engine_result is not None:
         await _push_quote_event(
@@ -1358,7 +1380,7 @@ def _validate_instructions_length(html: Optional[str], max_chars: int = 500) -> 
     return safe.strip()
 
 @router.post("/quotes/{quote_id}/send-to-implementation")
-async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImplementationRequest] = None, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Envía la cotización al equipo de implementación. Soporta flujo irregular."""
     current_user = await get_current_user(authorization)
     
@@ -1492,11 +1514,15 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     # PASO 5: Solo enviar email si el proyecto se creó exitosamente
     cc_emails = [e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()]
 
+    # Anexos manuales del modal "Personalizar Comunicación"
+    _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
+
     # === Notification Engine (Phase 2) ===
     _engine_result = await _engine_or_legacy(
         "send_to_implementation", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
         implementation_pdf_bytes=impl_pdf_bytes,
+        extra_attachments=_manual_attachments or None,
     )
     if _engine_result is not None:
         return {"message": "Enviado a implementación", "new_status": "Enviada a Imple", "emails": _engine_result}
@@ -1508,6 +1534,7 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         custom_message=custom_message,
         pdf_buffer=impl_pdf_bytes,
         cc_emails=cc_emails,
+        extra_attachments=_manual_attachments or None,
     )
 
     return {"message": "Enviado a implementación", "new_status": "Enviada a Imple", "emails": email_results}
@@ -1516,7 +1543,7 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
 # ==================== FLUJO DE FACTURACIÓN Y COBRO ====================
 
 @router.post("/quotes/{quote_id}/invoice")
-async def invoice_quote(quote_id: str, invoice_number: str = Form(None), exception_reason: str = Form(None), regularization_date: str = Form(None), authorization: Optional[str] = Header(None), x_exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), x_regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def invoice_quote(quote_id: str, invoice_number: str = Form(None), exception_reason: str = Form(None), regularization_date: str = Form(None), authorization: Optional[str] = Header(None), x_exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), x_regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Facturar cotización - Requiere anexo de 'Factura'. Soporta flujo irregular y mensaje personalizado."""
     current_user = await get_current_user(authorization)
     
@@ -1570,6 +1597,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         "invoice", quote, current_user,
         custom_message=custom_message, cc_emails=cc_emails,
         invoice_pdf_bytes=_engine_invoice_pdf_bytes,
+        extra_attachments=(await _resolve_manual_attachments(manual_attachment_ids)) or None,
     )
     if _engine_result is not None:
         await _push_quote_event(
@@ -1700,7 +1728,7 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
 
 
 @router.post("/quotes/{quote_id}/collect")
-async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients")):
+async def collect_quote(quote_id: str, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Marcar cotización como Pagada - Requiere anexos en categoría 'Pagos'. Soporta flujo irregular y mensaje personalizado."""
     current_user = await get_current_user(authorization)
     
@@ -1749,6 +1777,11 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
                     })
         except Exception as _e:
             logger.warning(f"[collect] No se pudo leer comprobante de pago {_pp.get('name')}: {_e}")
+
+    # Anexos manuales del modal "Personalizar Comunicación"
+    _manual_attachments = await _resolve_manual_attachments(manual_attachment_ids)
+    if _manual_attachments:
+        _engine_extra.extend(_manual_attachments)
 
     _engine_result = await _engine_or_legacy(
         "collect", quote, current_user,
@@ -2052,7 +2085,7 @@ async def delivery_preparation(quote_id: str, warehouse_id: Optional[str] = None
 
 
 @router.post("/quotes/{quote_id}/deliver")
-async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Marcar cotización de equipos o reparaciones como Entregada, con deducción automática de inventario y generación de Hoja de Ruta."""
     current_user = await get_current_user(authorization)
 
@@ -2414,8 +2447,10 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
             logger.warning(f"[deliver] No se pudo precargar Nota de Entrega para engine: {_e}")
     _engine_result = await _engine_or_legacy(
         "deliver", quote, current_user,
-        custom_message=None, cc_emails=[],
+        custom_message=custom_message,
+        cc_emails=[e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()],
         delivery_note_pdf_bytes=_engine_ne_pdf_bytes,
+        extra_attachments=(await _resolve_manual_attachments(manual_attachment_ids)) or None,
     )
     if _engine_result is not None:
         await _push_quote_event(
@@ -2563,7 +2598,7 @@ async def repair_delivery_prep(quote_id: str, authorization: Optional[str] = Hea
 
 
 @router.post("/quotes/{quote_id}/repair-deliver")
-async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date")):
+async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional[str] = Header(None), exception_reason: Optional[str] = Header(None, alias="x-exception-reason"), regularization_date: Optional[str] = Header(None, alias="x-regularization-date"), custom_message: Optional[str] = Header(None, alias="x-custom-message"), additional_recipients: Optional[str] = Header(None, alias="x-additional-recipients"), manual_attachment_ids: Optional[str] = Header(None, alias="x-manual-attachment-ids")):
     """Entregar equipos reparados: actualiza taller_equipos, genera Nota de Entrega, cambia estado."""
     current_user = await get_current_user(authorization)
 
@@ -2834,8 +2869,10 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         try:
             _engine_result_rd = await _engine_or_legacy(
                 "repair-deliver", quote, current_user,
-                custom_message=None, cc_emails=[],
+                custom_message=custom_message,
+                cc_emails=[e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()],
                 delivery_note_pdf_bytes=ne_bytes_for_engine,
+                extra_attachments=(await _resolve_manual_attachments(manual_attachment_ids)) or None,
             )
         except Exception as _e:
             logger.warning(f"[Repair Delivery] Motor dinámico falló, fallback legacy: {_e}")
