@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 
 const COURIERS = ['ZOOM (Oficina)', 'ZOOM (Casillero)', 'MRW', 'Tealca', 'Domesa'];
 
-export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onDelivered }) {
+export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onDelivered, emailHeaders = null }) {
   const [loading, setLoading] = useState(false);
   const [prepData, setPrepData] = useState(null);
   const [warehouseId, setWarehouseId] = useState('');
@@ -160,7 +160,7 @@ export function DeliveryDialog({ open, onOpenChange, quoteId, exceptionInfo, onD
     if (!isValid) return;
     setSubmitting(true);
     try {
-      const headers = {};
+      const headers = { ...(emailHeaders || {}) };
       if (exceptionInfo) {
         headers['x-exception-reason'] = exceptionInfo.reason;
         headers['x-regularization-date'] = exceptionInfo.regularization_date;

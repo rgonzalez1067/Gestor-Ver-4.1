@@ -243,6 +243,11 @@ export const Quotes = () => {
   const [preassignModal, setPreassignModal] = useState({ open: false, quote: null });
   const [deliveryQuoteId, setDeliveryQuoteId] = useState(null);
   const [deliveryExceptionInfo, setDeliveryExceptionInfo] = useState(null);
+  // Headers de personalización de correo (mensaje, CCs, anexos manuales) que
+  // se capturan al confirmar el modal de envío y se propagan al diálogo de
+  // delivery para que el POST /deliver los incluya. Antes los anexos manuales
+  // se perdían entre el cierre del modal de correo y el envío real.
+  const [deliveryEmailHeaders, setDeliveryEmailHeaders] = useState(null);
 
   // Estado para flujo Multitienda
   const [multistoreDialogOpen, setMultistoreDialogOpen] = useState(false);
@@ -2287,7 +2292,9 @@ export const Quotes = () => {
     } else if (action === 'send-to-implementation') {
       openMultistoreDialog(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'deliver') {
-      handleDeliverQuote(quoteId, pendingAction?.exceptionHeaders || null);
+      // Capturar los headers ANTES de cerrar el modal de email para no perder
+      // los anexos manuales ni el mensaje personalizado.
+      handleDeliverQuote(quoteId, pendingAction?.exceptionHeaders || null, getEmailHeaders());
     } else if (action && action.startsWith('custom:')) {
       // Custom action (override de catálogo): action="custom:<action_id>"
       const actionId = action.slice('custom:'.length);
@@ -3494,12 +3501,14 @@ export const Quotes = () => {
     setWorkflowModalOpen(true);
   };
 
-  // Entregar cotización — abre dialog correspondiente según categoría
-  const handleDeliverQuote = async (quoteId, exceptionInfo) => {
+  // Entregar cotización — abre dialog correspondiente según categoría.
+  // emailHeaders: contiene x-manual-attachment-ids, x-custom-message y x-additional-recipients.
+  const handleDeliverQuote = async (quoteId, exceptionInfo, emailHeaders = null) => {
     const quote = quotes.find(q => q.quote_id === quoteId);
     const isRepairQuote = quote?.quote_category === 'repair';
     setDeliveryQuoteId(quoteId);
     setDeliveryExceptionInfo(exceptionInfo || null);
+    setDeliveryEmailHeaders(emailHeaders || null);
     if (isRepairQuote) {
       setRepairDeliveryDialogOpen(true);
     } else {
@@ -3749,7 +3758,7 @@ export const Quotes = () => {
             addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
             bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
             bitacoraFlujoEntries, bitacoraFlujoLoading,
-            deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo,
+            deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo, deliveryEmailHeaders,
             repairDeliveryDialogOpen, setRepairDeliveryDialogOpen,
             preassignModal, setPreassignModal,
             multistoreDialogOpen, setMultistoreDialogOpen, multistoreSending,

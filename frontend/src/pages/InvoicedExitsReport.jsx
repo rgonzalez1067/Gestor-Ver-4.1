@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Building2, Calendar, Download, Printer, ArrowRight, Package, FileText, Loader2, Pencil, Trash2, ShieldAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Building2, Calendar, Download, Printer, ArrowRight, ArrowLeft, Package, FileText, Loader2, Pencil, Trash2, ShieldAlert } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 
 const InvoicedExitsReport = () => {
+  const navigate = useNavigate();
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -128,9 +130,22 @@ const InvoicedExitsReport = () => {
     <div className="space-y-6" data-testid="invoiced-exits-report">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Relacion de Salidas Facturadas</h1>
-          <p className="text-sm text-slate-500">Auditoria contable de inventario despachado por almacen</p>
+        <div className="flex items-center gap-3">
+          {/* Botón "Volver" embebido en la app (no depende del navegador) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="border-slate-300 hover:bg-slate-100 print:hidden"
+            data-testid="report-back-btn"
+            title="Volver al módulo anterior">
+            <ArrowLeft size={14} className="mr-1.5" />
+            <span className="text-xs">Volver</span>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Relacion de Salidas Facturadas</h1>
+            <p className="text-sm text-slate-500">Auditoria contable de inventario despachado por almacen</p>
+          </div>
         </div>
         <div className="flex items-end gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-wrap">
           <div>

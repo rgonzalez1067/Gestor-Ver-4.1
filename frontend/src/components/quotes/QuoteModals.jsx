@@ -54,7 +54,7 @@ export const QuoteModals = ({ ctx }) => {
     bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
     bitacoraFlujoEntries, bitacoraFlujoLoading,
     // Delivery
-    deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo,
+    deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo, deliveryEmailHeaders,
     // Repair Delivery
     repairDeliveryDialogOpen, setRepairDeliveryDialogOpen,
     // Preassign
@@ -347,6 +347,7 @@ export const QuoteModals = ({ ctx }) => {
             onOpenChange={setDeliveryDialogOpen}
             quoteId={deliveryQuoteId}
             exceptionInfo={deliveryExceptionInfo}
+            emailHeaders={deliveryEmailHeaders}
             onDelivered={() => fetchData()}
           />
 
