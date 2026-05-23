@@ -1689,6 +1689,13 @@ async def invoice_quote(quote_id: str, invoice_number: str = Form(None), excepti
         descriptive_name = f"Factura_{quote.get('quote_number', 'SN')}_{safe_client}.{ext}"
         invoice_attachments = [{"filename": descriptive_name, "content": factura_b64}]
 
+    # Mergear con anexos manuales del modal Personalizar Comunicación
+    _manual_attachments_legacy = await _resolve_manual_attachments(manual_attachment_ids)
+    if _manual_attachments_legacy:
+        if invoice_attachments is None:
+            invoice_attachments = []
+        invoice_attachments.extend(_manual_attachments_legacy)
+
     email_results = []
     # Para equipos y fast_track: enviar SOLO a Ventas sede. Para reparaciones: a Operaciones sede. Para implementación: a Admin + Ventas
     if is_equipment_quote or is_fast_track_quote:
@@ -1840,6 +1847,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             cc_emails=cc_emails,
             template_base_override="equipment_collect",
             override_recipients=[warehouse_email],
+            extra_attachments=_engine_extra or None,
         )
     elif quote_category == "fast_track":
         # Fast Track: Notificar a Almacén con plantilla Orden de Entrega de Equipos
@@ -1864,6 +1872,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             cc_emails=cc_emails,
             template_base_override="equipment_delivery",
             override_recipients=[warehouse_email],
+            extra_attachments=_engine_extra or None,
         )
     elif quote_category == "repair":
         # Reparaciones: Enviar ORDEN DE DESPACHO al Almacén + CC al ejecutivo
@@ -1964,6 +1973,7 @@ async def collect_quote(quote_id: str, authorization: Optional[str] = Header(Non
             current_user=current_user,
             custom_message=custom_message,
             cc_emails=cc_emails,
+            extra_attachments=_engine_extra or None,
         )
     
     # Registrar audit trail en la cotización (status_history)
