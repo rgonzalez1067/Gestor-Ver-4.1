@@ -2588,26 +2588,15 @@ export const Quotes = () => {
   const handleProjectTypeSelect = async (type) => {
     setProjectTypeImpl(type);
 
-    // Detectar si es PYME para flujo extendido
-    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
-    const segment = (quote?.client_segment || '').toLowerCase();
-    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
-
-    if (isPyme) {
-      // Flujo PYME: pinpad → fiscal_printer → consolidated (server+econ+instructions) → confirm → send
-      setMultistorePhase('pinpad_question');
-      return;
-    }
-
-    // No-PYME: TAMBIÉN debe pasar por pinpad_question. El modal de Pinpads
-    // es indispensable para la trazabilidad de hardware. Antes se omitía
-    // para no-PYME (causando ruptura del proceso de asignación).
+    // ── PRIMER MODAL: Multitienda ──
+    // Independientemente de PYME/no-PYME, el flujo arranca SIEMPRE con la
+    // validación de Multitienda. El usuario debe ratificar (o cambiar) la
+    // condición de multi-sucursal antes de continuar a Pinpads/Fiscal.
     if (type === 'payment_gateway') {
-      // Payment Gateway: sin equipos POS, pero el modal de pinpads sigue siendo válido
-      // (puede haber pinpads/PG asociados). Mostrar pinpad_question.
-      setMultistorePhase('pinpad_question');
+      // Payment Gateway no requiere precarga de equipos pero también pasa por multistore.
+      advanceToMultistorePhase();
     } else {
-      // POS o VPOS/MPOS: auto-cargar equipos en background y mostrar pinpad_question.
+      // POS o VPOS/MPOS: auto-cargar equipos en background y mostrar multistore.
       setEquipmentLoading(true);
       try {
         const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation?project_type=${type}`);
@@ -2622,7 +2611,7 @@ export const Quotes = () => {
       } finally {
         setEquipmentLoading(false);
       }
-      setMultistorePhase('pinpad_question');
+      advanceToMultistorePhase();
     }
   };
 
@@ -2667,15 +2656,20 @@ export const Quotes = () => {
       }
     }
     // Avanzar al siguiente paso del wizard según el flujo (PYME vs no-PYME).
-    // PYME: fiscal_printer es POST-pinpad → siguiente es consolidated_data.
-    // No-PYME: fiscal_printer es POST-project_type → siguiente es multistore (ask/inherited).
+    // Multitienda ya se procesó al inicio → desde aquí:
+    // - PYME: pasa a consolidated_data (server + grupo económico + instrucciones).
+    // - No-PYME: envía directamente la cotización a Implementación con los datos recogidos.
     const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
     const segment = (quote?.client_segment || '').toLowerCase();
     const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
     if (isPyme) {
       setMultistorePhase('consolidated_data');
     } else {
-      advanceToMultistorePhase();
+      // No-PYME: cierra el wizard y dispara el envío. Si el usuario marcó
+      // Multitienda, se incluye la lista de tiendas; si no, se envía vacío.
+      setMultistoreDialogOpen(false);
+      const storesData = isMultistore ? multistoreStores : null;
+      await handleSendToImplementation(multistoreQuoteId, null, storesData);
     }
   };
 
@@ -2685,17 +2679,14 @@ export const Quotes = () => {
     const selected = allEquip.filter(eq => equipmentSelected[eq.equipo_id]);
     setEquipmentList(selected);
 
-    // Check PYME: if PYME, skip multistore — go straight to confirm/send
+    // PRIMER MODAL OBLIGATORIO (Multitienda) — válido para PYME y no-PYME.
+    // Antes el flujo PYME saltaba este paso; ahora también pasa por aquí
+    // para que el operador pueda ratificar o cambiar la condición Multitienda
+    // antes de continuar a Pinpads y Fiscal.
     const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
-    const segment = (quote?.client_segment || '').toLowerCase();
-    const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
-    if (isPyme) {
-      // PYME flow: skip multistore — go straight to pinpad → consolidated → confirm
-      setMultistorePhase('pinpad_question');
-      return;
-    }
 
-    // Pre-check branch data for multistore
+    // Pre-check branch data → si hay distribución guardada, fase 'inherited';
+    // si no, fase 'ask' (pregunta directa Sí/No).
     const branchData = (quote?.branch_details || []).filter(b => b.store_name && b.quantity > 0);
     if (branchData.length > 0) {
       setMultistoreStores(branchData.map(b => ({ name: b.store_name, box_count: parseInt(b.quantity) || 0 })));
