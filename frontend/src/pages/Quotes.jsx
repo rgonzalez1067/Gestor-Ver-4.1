@@ -2587,26 +2587,27 @@ export const Quotes = () => {
     const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
 
     if (isPyme) {
-      // Flujo PYME simplificado: pinpad → consolidated (server+econ+instructions) → confirm → send
+      // Flujo PYME: pinpad → fiscal_printer → consolidated (server+econ+instructions) → confirm → send
       setMultistorePhase('pinpad_question');
       return;
     }
 
+    // No-PYME: TAMBIÉN debe pasar por pinpad_question. El modal de Pinpads
+    // es indispensable para la trazabilidad de hardware. Antes se omitía
+    // para no-PYME (causando ruptura del proceso de asignación).
     if (type === 'payment_gateway') {
-      // Payment Gateway: skip equipment, go to fiscal printer
-      goToFiscalPrinterPhase();
+      // Payment Gateway: sin equipos POS, pero el modal de pinpads sigue siendo válido
+      // (puede haber pinpads/PG asociados). Mostrar pinpad_question.
+      setMultistorePhase('pinpad_question');
     } else {
-      // POS or VPOS/MPOS: auto-cargar equipos vinculados a la cotización (sin modal),
-      // luego avanzar al modal de Impresora Fiscal.
+      // POS o VPOS/MPOS: auto-cargar equipos en background y mostrar pinpad_question.
       setEquipmentLoading(true);
       try {
         const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation?project_type=${type}`);
         setEquipmentAvailable(res.data);
-        // Auto-select all quote equipment (decisión Feb 2026: ya no se muestra el modal de selección)
         const sel = {};
         (res.data.quote_equipment || []).forEach(eq => { sel[eq.equipo_id] = true; });
         setEquipmentSelected(sel);
-        // Construir equipmentList directamente desde la selección automática
         setEquipmentList(res.data.quote_equipment || []);
       } catch (err) {
         toast.error('Error cargando equipos');
@@ -2614,27 +2615,29 @@ export const Quotes = () => {
       } finally {
         setEquipmentLoading(false);
       }
-      goToFiscalPrinterPhase();
+      setMultistorePhase('pinpad_question');
     }
   };
 
-  // ── Impresora Fiscal: posicionada antes del consolidated/multistore ──
+  // ── Impresora Fiscal: posicionada después de Pinpad y antes del consolidated/multistore ──
   const goToFiscalPrinterPhase = async () => {
-    // Cargar el modelo actual del cliente (si está registrado).
+    // Reset explícito de los states para evitar arrastrar valores del wizard anterior.
+    setFiscalPrinterFromClient('');
+    setFiscalPrinterModel('');
     try {
       const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
       if (quote?.client_id) {
         const c = await api.get(`/clients/${quote.client_id}`);
-        const existing = (c.data?.modelo_impresora_fiscal || '').trim();
-        setFiscalPrinterFromClient(existing);
-        setFiscalPrinterModel(existing);
-      } else {
-        setFiscalPrinterFromClient('');
-        setFiscalPrinterModel('');
+        // Forzar lectura del campo del cliente. Si está registrado, precargarlo
+        // como informativo; si está vacío, el modal exigirá input al usuario.
+        const existing = (c.data?.modelo_impresora_fiscal || '').toString().trim();
+        if (existing) {
+          setFiscalPrinterFromClient(existing);
+          setFiscalPrinterModel(existing);
+        }
       }
     } catch {
-      setFiscalPrinterFromClient('');
-      setFiscalPrinterModel('');
+      // Mantiene strings vacíos → modal solicitará input.
     }
     setMultistorePhase('fiscal_printer');
   };

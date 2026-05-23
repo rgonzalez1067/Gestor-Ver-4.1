@@ -4,6 +4,38 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 13: Estabilización "Validar Pago" + Pinpads + Precarga Impresora Fiscal (Feb 2026)
+
+**3 fixes críticos**:
+
+**A. "Validar Pago" — Bug WriteError MongoDB + acción bloqueada por email faltante**
+(`quote_action_customization.py`)
+- **Causa raíz (descubierta vía logs)**: cotizaciones legacy con `custom_actions_executed: null` rompían el `$set` anidado de MongoDB con `WriteError: Cannot create field 'pago_validado' in element {custom_actions_executed: null}`. Toda invocación a `dispatch_custom_action` retornaba 500 → frontend mostraba "Error ejecutando Validar Pago".
+- **Causa raíz #2**: si `try_dispatch` retornaba False (sin destinatarios configurados o error SMTP), el endpoint lanzaba HTTPException 400 → frontend lo trataba como error → el flujo NO avanzaba aunque la acción ya estuviera lista para ejecutarse.
+- **Fix**:
+  1. Normalización defensiva: antes del `$set` anidado, si `custom_actions_executed` es null o no existe, lo inicializa como `{}`.
+  2. `try_dispatch` envuelto en try/except: si falla, se loggea pero NO se retorna 4xx. El flujo avanza siempre.
+  3. Respuesta incluye `email_sent: bool` para que el frontend sepa si se envió correo.
+  4. Fallback de búsqueda extendido a 3 niveles: `config_key` exacto → `biz+action_id+sub=None` → `action_id+enabled=True` (cualquier biz). Útil cuando la acción está configurada bajo `implementacion_pyme` pero la cot es `implementacion_corp`.
+
+**B. Modal "¿Requiere Pinpads?" RESTAURADO para TODOS los flujos** (`Quotes.jsx`)
+- **Causa raíz**: la iteración 12 conectó `handleProjectTypeSelect` directamente a `goToFiscalPrinterPhase()` para flujos no-PYME, omitiendo `pinpad_question`. El modal de pinpads sólo se mostraba en PYME.
+- **Fix**: `handleProjectTypeSelect` ahora SIEMPRE transiciona a `pinpad_question` (PYME, payment_gateway, pos_fast_track, vpos_mpos). El modal es indispensable para indexar seriales de hardware en cualquier proyecto.
+- Después de pinpad → `goToFiscalPrinterPhase` (ya existente) → `handleFiscalPrinterContinue` decide flujo: PYME → `consolidated_data`, no-PYME → `advanceToMultistorePhase` (ask/inherited/collect).
+
+**C. Modal Impresora Fiscal — Precarga garantizada** (`Quotes.jsx`)
+- **Causa raíz**: el state `fiscalPrinterFromClient` arrastraba valores de wizard previos, y si el GET `/clients/{id}` retornaba antes del render del modal pero con valor vacío para un cliente sin dato, no diferenciaba entre "cliente sin dato" y "fetch pendiente".
+- **Fix**: reset explícito de `fiscalPrinterFromClient` y `fiscalPrinterModel` a `''` ANTES del `try`, luego sólo se setean si el GET retorna un valor no vacío. Garantiza que el modal lea fresh el campo del cliente cada vez que se abre.
+
+**Validación** (`/app/backend/tests/test_iteration13_validar_pago_pinpads_fiscal.py` — **4/4 PASS**):
+- ✅ Cotización con `custom_actions_executed: null` → ejecuta sin error, persiste objeto.
+- ✅ Acción sin destinatarios → ok=True, marca ejecución, NO lanza 400.
+- ✅ `handleProjectTypeSelect` transiciona a `pinpad_question` ≥2 veces (PYME + no-PYME).
+- ✅ `goToFiscalPrinterPhase` resetea states antes del try del fetch.
+- ✅ E2E curl: `POST /quotes/{id}/custom-action/pago_validado` → `{ok:true, email_sent:true, label:"Validar Pago"}` y `custom_actions_executed.pago_validado` persistido en BD.
+
+
+
 ### Iteration 12: Reportes Admin + Filtro Predictivo + Reingeniería Modales Impl + Impresora Fiscal (Feb 2026)
 
 **Objetivo**: 5 mejoras transversales — gestión admin embebida en Salidas Facturadas, buscador predictivo de clientes, contraste/Razón Social en Nota de Entrega, eliminación del modal de equipos y nuevo modal de Impresora Fiscal con propagación a la Ficha Técnica.

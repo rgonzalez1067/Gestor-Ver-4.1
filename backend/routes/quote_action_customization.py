@@ -210,9 +210,17 @@ async def dispatch_custom_action(
     config_key = _build_key(biz, sub, action_id)
     custom = await db.quote_custom_actions.find_one({"config_key": config_key}, {"_id": 0})
     if not custom:
-        # También aceptamos coincidencia por sub=None (acción global del biz)
+        # Fallback nivel 1: coincidencia por business_type + action_id (sub global)
         custom = await db.quote_custom_actions.find_one(
             {"action_id": action_id, "business_type": biz, "product_subcategory": None}, {"_id": 0}
+        )
+    if not custom:
+        # Fallback nivel 2: coincidencia por action_id puro (cualquier biz). Útil para
+        # acciones globales que el admin configuró bajo otro biz pero aplican
+        # transversalmente (ej: pago_validado sólo bajo implementacion_pyme aplica
+        # también a implementacion_corp con las mismas reglas operativas).
+        custom = await db.quote_custom_actions.find_one(
+            {"action_id": action_id, "enabled": True}, {"_id": 0}
         )
     if not custom or not custom.get("enabled", True):
         raise HTTPException(404, f"Acción custom '{action_id}' no encontrada o inactiva para esta cotización")
@@ -250,32 +258,60 @@ async def dispatch_custom_action(
         cc_emails = [e.strip() for e in additional_recipients.split(",") if e.strip() and "@" in e.strip()]
 
     # Marcar la ejecución en la cotización para que el stepper la refleje.
-    # Usamos `custom_actions_executed.{action_id}` con timestamp ISO.
+    # IMPORTANTE: hacerlo ANTES de try_dispatch para que el flujo avance
+    # aunque el envío de correos falle (faltan destinatarios configurados,
+    # error de SMTP, etc.). Antes, una falla de email bloqueaba la acción.
     from datetime import datetime, timezone as _tz
     exec_ts = datetime.now(_tz.utc).isoformat()
+    # Normalizar `custom_actions_executed` si está en null/missing en BD legacy
+    # (MongoDB falla con "Cannot create field 'X' in element {custom_actions_executed: null}"
+    # cuando se usa $set anidado sobre un valor null). Primero forzamos a objeto vacío.
+    await db.quotes.update_one(
+        {
+            "quote_id": quote_id,
+            "$or": [
+                {"custom_actions_executed": None},
+                {"custom_actions_executed": {"$exists": False}},
+            ],
+        },
+        {"$set": {"custom_actions_executed": {}}},
+    )
     await db.quotes.update_one(
         {"quote_id": quote_id},
         {"$set": {f"custom_actions_executed.{action_id}": exec_ts}},
     )
 
-    dispatched = await try_dispatch(
-        action_id, quote, user,
-        custom_message=custom_message,
-        cc_emails=cc_emails,
-        extra_attachments=await _resolve_manual_attachments_or_empty(manual_attachment_ids),
-    )
+    try:
+        dispatched = await try_dispatch(
+            action_id, quote, user,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+            extra_attachments=await _resolve_manual_attachments_or_empty(manual_attachment_ids),
+        )
+    except Exception as e:
+        # Si el motor falla, NO revertimos la ejecución — el cambio de estado
+        # ya quedó persistido. Solo loggeamos para diagnóstico.
+        import logging
+        logging.getLogger(__name__).warning(f"try_dispatch falló para {action_id} ({quote_id}): {e}")
+        dispatched = False
 
-    if not dispatched:
-        raise HTTPException(
-            400,
-            f"No se ha configurado destinatarios para la acción '{custom.get('label', action_id)}'. "
-            "Configúralos primero en el Motor de Notificaciones."
+    label_human = custom.get("label", action_id)
+    if dispatched:
+        message = f"Acción '{label_human}' ejecutada correctamente"
+    else:
+        # No se envió correo (sin destinatarios configurados o error transitorio),
+        # pero el flujo ya avanzó. El usuario puede configurar destinatarios
+        # en el Motor de Notificaciones para emails futuros.
+        message = (
+            f"Acción '{label_human}' marcada como ejecutada. "
+            "No se envió correo (configura destinatarios en el Motor de Notificaciones para activarlos)."
         )
 
     return {
         "ok": True,
         "action_id": action_id,
-        "label": custom.get("label", action_id),
+        "label": label_human,
         "executed_at": exec_ts,
-        "message": f"Acción '{custom.get('label', action_id)}' ejecutada correctamente",
+        "email_sent": dispatched,
+        "message": message,
     }
