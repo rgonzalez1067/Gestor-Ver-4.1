@@ -14,6 +14,7 @@ import re
 from config import db, get_current_user
 from models import PROJECT_STATUSES
 from services.email_service import send_email
+from services.assignment_notifications import notify_project_assigned
 from services.project_template_vars import resolve_project_template_vars
 from services.object_storage import init_storage, put_object, get_object
 from services.pdf_storage import save_pdf_dual
@@ -190,19 +191,19 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
 
     await db.projects.update_one({"project_id": project_id}, {"$set": update_data, "$push": {"notes": note}})
 
-    # Notificar al implementador
-    impl_email = implementer.get("email")
-    if impl_email:
-        try:
-            await send_email(
-                to=[impl_email],
-                subject=f"Proyecto Asignado: {project.get('project_number', project_id)}",
-                html=f"<h2>Nuevo proyecto asignado</h2><p><strong>Proyecto:</strong> {project.get('project_number')}</p><p><strong>Cliente:</strong> {project.get('client_name')} ({project.get('client_rif')})</p><p><strong>Asignado por:</strong> {assigner_name}</p>",
-                action="assign_project",
-                quote_id=project.get("quote_id")
-            )
-        except Exception as e:
-            logger.warning(f"Error notificando implementador: {e}")
+    # Notificar al implementador con la nueva plantilla MegaNexus (asíncrono,
+    # no bloquea la respuesta HTTP)
+    try:
+        # Refrescamos el proyecto con los datos de asignación recién aplicados
+        # para que la plantilla muestre fecha_asignacion correcta.
+        project_for_email = {**project, **update_data}
+        await notify_project_assigned(
+            project=project_for_email,
+            target_user=implementer,
+            assigner_name=assigner_name,
+        )
+    except Exception as e:
+        logger.warning(f"[email] notify_project_assigned failed: {e}")
 
     # Push notification (evento #7 Proyecto asignado a mí)
     try:

@@ -10,6 +10,7 @@ import uuid
 
 from config import db
 from services.email_service import send_email
+from services.assignment_notifications import notify_project_assigned
 
 
 logger = logging.getLogger(__name__)
@@ -314,6 +315,23 @@ async def _create_project_from_quote(
     await db.projects.insert_one(project)
     project.pop("_id", None)
     logger.info(f"Proyecto {project_number} creado desde cotización {quote_id}")
+
+    # Email asíncrono al implementador SI hubo auto-asignación desde la ficha
+    # del cliente. (La asignación manual posterior dispara el correo desde
+    # `PUT /projects/{id}/assign`.)
+    if project.get("auto_assigned_from_client") and project.get("assigned_to_user_id"):
+        try:
+            impl_user = await db.users.find_one(
+                {"user_id": project["assigned_to_user_id"]}, {"_id": 0}
+            )
+            if impl_user:
+                await notify_project_assigned(
+                    project=project,
+                    target_user=impl_user,
+                    assigner_name="Sistema (auto-asignación)",
+                )
+        except Exception as e:
+            logger.warning(f"[email] notify_project_assigned (auto) failed: {e}")
 
     # Push notification (evento #6 Proyecto creado desde cotización)
     try:

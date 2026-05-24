@@ -7,6 +7,9 @@ import uuid
 import logging
 
 from config import db, get_current_user
+from services.assignment_notifications import (
+    notify_initial_contact_assigned,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -150,6 +153,16 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
         }
         await db.notifications.insert_one(notification)
 
+        # Email asíncrono al ejecutivo asignado (fire-and-forget, no bloquea UI)
+        try:
+            await notify_initial_contact_assigned(
+                contact=contact,
+                target_user=assigned_user_doc or await get_user_by_id(assigned_user_id),
+                assigner_name=creator_name,
+            )
+        except Exception as e:
+            logger.warning(f"[email] notify_initial_contact_assigned (create) failed: {e}")
+
     # Push notification WebSocket (evento #16 Contacto inicial registrado)
     try:
         from services.notification_service import notify as _push_notify
@@ -235,7 +248,20 @@ async def assign_initial_contact(contact_id: str, data: InitialContactAssign, au
         "created_at": now
     }
     await db.notifications.insert_one(notification)
-    
+
+    # Email asíncrono al ejecutivo (NO bloquea la respuesta HTTP)
+    try:
+        # Refrescamos el contacto con los datos asignados frescos para que la
+        # plantilla incluya nombre/sla actualizados.
+        contact_for_email = {**contact, "assigned_to_user_id": target_user["user_id"], "assigned_to_name": target_name}
+        await notify_initial_contact_assigned(
+            contact=contact_for_email,
+            target_user=target_user,
+            assigner_name=assigner_name,
+        )
+    except Exception as e:
+        logger.warning(f"[email] notify_initial_contact_assigned (assign) failed: {e}")
+
     return {"message": f"Contacto asignado a {target_name}", "assigned_to": target_name}
 
 
@@ -325,7 +351,18 @@ async def transfer_initial_contact(contact_id: str, data: InitialContactTransfer
         "created_at": now
     }
     await db.notifications.insert_one(notification)
-    
+
+    # Email asíncrono al nuevo responsable (mismo template que asignación)
+    try:
+        contact_for_email = {**contact, "assigned_to_user_id": target_user["user_id"], "assigned_to_name": to_name, "sede": new_sede}
+        await notify_initial_contact_assigned(
+            contact=contact_for_email,
+            target_user=target_user,
+            assigner_name=from_name,
+        )
+    except Exception as e:
+        logger.warning(f"[email] notify_initial_contact_assigned (transfer) failed: {e}")
+
     return {"message": f"Contacto transferido a {to_name} (Sede {new_sede})"}
 
 

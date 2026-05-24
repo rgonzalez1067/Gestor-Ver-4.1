@@ -98,7 +98,13 @@ async def _send_in_background(*, to: list, subject: str, html: str, action: str,
     error_msg = None
     try:
         result = await send_email(to=to, subject=subject, html=html, action=action)
-        ok = bool(result) and result is not False
+        # send_email returns a dict with status='sent'|'simulated'|'failed'.
+        if isinstance(result, dict):
+            ok = result.get("status") in ("sent", "simulated")
+            if not ok:
+                error_msg = result.get("error") or result.get("message")
+        else:
+            ok = bool(result)
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}"
         logger.warning(f"[assignment_email] {action} → {to} fallido: {e}")
