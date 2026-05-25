@@ -1815,7 +1815,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
             </div>
             <div class="info-block" style="text-align:right">
                 <h3>Emitido por:</h3>
-                <strong>Mega Soft, C.A.</strong><br>
+                <strong>Mega Soft Computación, C.A.</strong><br>
                 <span>Sistema de Cotizaciones</span>
             </div>
         </div>
@@ -2104,7 +2104,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
         <span style="font-size:12px;color:#64748b">RIF: {cliente_rif or 'N/A'}</span><br>
         <span style="font-size:12px;color:#64748b">{cliente_address or ''}</span></div>
         <div style="flex:1;text-align:right"><h3 style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin:0 0 6px 0">Emitido por:</h3>
-        <strong style="color:#1e293b;font-size:14px">Mega Soft, C.A.</strong></div>
+        <strong style="color:#1e293b;font-size:14px">Mega Soft Computación, C.A.</strong></div>
     </div>
     {repair_section}
     <table><thead><tr>
