@@ -9,7 +9,6 @@ import logging
 import uuid
 
 from config import db
-from services.email_service import send_email
 from services.assignment_notifications import notify_project_assigned
 
 
@@ -369,29 +368,12 @@ async def _create_project_from_quote(
         await db.quotes.delete_one({"quote_id": quote_id})
         logger.info(f"Cotización {quote_id} eliminada tras conversión a proyecto {project_number}")
 
-    # Notificar al Gerente de Implementación
-    try:
-        config = await db.config.find_one({"type": "app_settings"}, {"_id": 0})
-        impl_manager_email = config.get("implementation_manager_email") if config else None
-        if impl_manager_email:
-            notif_subject = f"Nuevo Proyecto: {project_number} - {client_name}"
-            notif_html = f"""
-            <h2>Nuevo Proyecto Pendiente de Asignación</h2>
-            <p><strong>Proyecto:</strong> {project_number}</p>
-            <p><strong>Cliente:</strong> {client_name} ({client_rif})</p>
-            <p><strong>Sede:</strong> {client_sede}</p>
-            <p><strong>Cotización origen:</strong> {quote.get('quote_number', '')}</p>
-            <p><strong>Tipo:</strong> {quote.get('quote_type', 'VPOS')}</p>
-            <p><strong>Total USD:</strong> ${quote.get('total_usd', 0):,.2f}</p>
-            <hr>
-            <p>Ingrese al sistema para asignar este proyecto a un implementador.</p>
-            """
-            await send_email(
-                to=[impl_manager_email],
-                subject=notif_subject,
-                html=notif_html,
-                action="new_project_notification",
-                quote_id=quote_id,
-            )
-    except Exception as e:
-        logger.warning(f"Error notificando gerente de implementación: {e}")
+    # NOTA (Feb 2026): se eliminó el correo legacy "Nuevo Proyecto Pendiente
+    # de Asignación" que se enviaba automáticamente al `implementation_manager_email`
+    # de `app_settings`. Ese envío no estaba formateado bajo el Motor de
+    # Notificaciones / Configuración de Acciones de Cotizaciones, por lo
+    # que generaba un correo no controlado por el usuario. Las notificaciones
+    # de asignación se manejan ahora exclusivamente vía:
+    #   - `notify_project_assigned` (auto-asignación desde la ficha del cliente).
+    #   - `_engine_or_legacy("send_to_implementation", ...)` en quote_actions.py
+    #     (motor dinámico con destinatarios y plantillas configurables por admin).
