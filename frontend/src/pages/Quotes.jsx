@@ -2606,7 +2606,10 @@ export const Quotes = () => {
         setEquipmentSelected(sel);
         setEquipmentList(res.data.quote_equipment || []);
       } catch (err) {
-        toast.error('Error cargando equipos');
+        // Pre-carga en background: la fase "Equipos" del wizard fue eliminada
+        // (Feb 2026). Si el endpoint falla, seguimos el flujo con listas vacías;
+        // no debemos emitir un toast que confunda al usuario.
+        console.warn('[send-to-impl] precarga de equipos falló (no crítico):', err);
         setEquipmentAvailable({ quote_equipment: [], rif_equipment: [] });
       } finally {
         setEquipmentLoading(false);
