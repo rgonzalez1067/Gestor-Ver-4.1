@@ -267,95 +267,108 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 async def create_indexes():
-    try:
-        await db.clients.create_index([("fantasy_name", 1)])
-        await db.clients.create_index([("legal_name", 1)])
-        await db.clients.create_index([("rif", 1)])
-        await db.clients.create_index([("client_id", 1)], unique=True)
-        await db.quotes.create_index([("quote_id", 1)], unique=True)
-        await db.quotes.create_index([("client_id", 1)])
-        await db.quotes.create_index([("quote_number", 1)])
-        await db.projects.create_index([("project_id", 1)], unique=True)
-        await db.projects.create_index([("quote_id", 1)])
-        await db.projects.create_index([("status", 1)])
-        await db.uploaded_images.create_index([("image_id", 1)], unique=True)
-        logging.info("MongoDB indexes created successfully")
-    except Exception as e:
-        logging.warning(f"Error creating indexes: {e}")
+    """Inicialización post-startup. Se ejecuta en BACKGROUND (asyncio.create_task)
+    para que el endpoint `/api/health` responda de inmediato y los pods en K8s
+    pasen el readiness probe sin esperar a que terminen migraciones pesadas
+    sobre colecciones grandes (Atlas/Producción).
 
-    # Initialize object storage
-    try:
-        from services.object_storage import init_storage
-        init_storage()
-    except Exception as e:
-        logging.warning(f"Object storage init failed (images will not work): {e}")
+    Si una de las tareas falla, sólo se logguea — la app sigue saludable.
+    """
 
-    # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
-    try:
-        from routes.seed_and_templates import generate_email_templates_by_sede
-        defaults = generate_email_templates_by_sede()
-        synced = 0
-        for tpl_id, tpl_data in defaults.items():
-            exists = await db.email_templates.find_one({"template_id": tpl_id})
-            if not exists:
-                doc = {"template_id": tpl_id, **tpl_data, "is_active": True}
-                await db.email_templates.insert_one(doc)
-                synced += 1
-        if synced > 0:
-            logging.info(f"Synced {synced} default email templates to MongoDB")
-    except Exception as e:
-        logging.warning(f"Template sync failed: {e}")
+    async def _bg_init():
+        try:
+            await db.clients.create_index([("fantasy_name", 1)])
+            await db.clients.create_index([("legal_name", 1)])
+            await db.clients.create_index([("rif", 1)])
+            await db.clients.create_index([("client_id", 1)], unique=True)
+            await db.quotes.create_index([("quote_id", 1)], unique=True)
+            await db.quotes.create_index([("client_id", 1)])
+            await db.quotes.create_index([("quote_number", 1)])
+            await db.projects.create_index([("project_id", 1)], unique=True)
+            await db.projects.create_index([("quote_id", 1)])
+            await db.projects.create_index([("status", 1)])
+            await db.uploaded_images.create_index([("image_id", 1)], unique=True)
+            logging.info("MongoDB indexes created successfully")
+        except Exception as e:
+            logging.warning(f"Error creating indexes: {e}")
 
-    # Seed de perfiles base (idempotente)
-    try:
-        from seed_profiles import seed_profiles_if_needed
-        created = await seed_profiles_if_needed()
-        if created:
-            logging.info(f"Seeded {created} default user profiles")
-    except Exception as e:
-        logging.warning(f"Profile seed failed: {e}")
+        # Initialize object storage
+        try:
+            from services.object_storage import init_storage
+            init_storage()
+        except Exception as e:
+            logging.warning(f"Object storage init failed (images will not work): {e}")
 
-    # Migración one-shot: resetear certifications de integradores al nuevo schema (19 productos).
-    try:
-        from routes.integrators import migrate_integrator_certifications_if_needed
-        affected = await migrate_integrator_certifications_if_needed()
-        if affected:
-            logging.info(f"Integrator certifications reset for {affected} records")
-    except Exception as e:
-        logging.warning(f"Integrator cert migration failed: {e}")
+        # Sincronizar plantillas de correo por defecto a MongoDB (sin sobreescribir las editadas)
+        try:
+            from routes.seed_and_templates import generate_email_templates_by_sede
+            defaults = generate_email_templates_by_sede()
+            synced = 0
+            for tpl_id, tpl_data in defaults.items():
+                exists = await db.email_templates.find_one({"template_id": tpl_id})
+                if not exists:
+                    doc = {"template_id": tpl_id, **tpl_data, "is_active": True}
+                    await db.email_templates.insert_one(doc)
+                    synced += 1
+            if synced > 0:
+                logging.info(f"Synced {synced} default email templates to MongoDB")
+        except Exception as e:
+            logging.warning(f"Template sync failed: {e}")
 
-    # Migración one-shot: poblar `abreviatura` en services existentes.
-    # Si el doc no tiene abreviatura, generamos una de hasta 12 caracteres
-    # tomando las primeras letras significativas del nombre. Idempotente.
-    try:
-        flag = await db["_migrations"].find_one({"_id": "services_abreviatura_v1"})
-        if not flag:
-            updated = 0
-            cursor = db.services.find(
-                {"$or": [{"abreviatura": {"$exists": False}}, {"abreviatura": None}, {"abreviatura": ""}]},
-                {"_id": 0, "service_id": 1, "name": 1},
-            )
-            async for s in cursor:
-                name = (s.get("name") or "").strip()
-                if not name:
-                    abrev = ""
-                else:
-                    # Toma hasta 12 chars del nombre limpiando espacios extra
-                    abrev = " ".join(name.split())[:12]
-                await db.services.update_one(
-                    {"service_id": s["service_id"]},
-                    {"$set": {"abreviatura": abrev}},
+        # Seed de perfiles base (idempotente)
+        try:
+            from seed_profiles import seed_profiles_if_needed
+            created = await seed_profiles_if_needed()
+            if created:
+                logging.info(f"Seeded {created} default user profiles")
+        except Exception as e:
+            logging.warning(f"Profile seed failed: {e}")
+
+        # Migración one-shot: resetear certifications de integradores al nuevo schema (19 productos).
+        try:
+            from routes.integrators import migrate_integrator_certifications_if_needed
+            affected = await migrate_integrator_certifications_if_needed()
+            if affected:
+                logging.info(f"Integrator certifications reset for {affected} records")
+        except Exception as e:
+            logging.warning(f"Integrator cert migration failed: {e}")
+
+        # Migración one-shot: poblar `abreviatura` en services existentes.
+        # Si el doc no tiene abreviatura, generamos una de hasta 12 caracteres
+        # tomando las primeras letras significativas del nombre. Idempotente.
+        try:
+            flag = await db["_migrations"].find_one({"_id": "services_abreviatura_v1"})
+            if not flag:
+                updated = 0
+                cursor = db.services.find(
+                    {"$or": [{"abreviatura": {"$exists": False}}, {"abreviatura": None}, {"abreviatura": ""}]},
+                    {"_id": 0, "service_id": 1, "name": 1},
                 )
-                updated += 1
-            await db["_migrations"].insert_one({
-                "_id": "services_abreviatura_v1",
-                "applied_at": datetime.now(timezone.utc).isoformat(),
-                "updated_count": updated,
-            })
-            if updated:
-                logging.info(f"Service.abreviatura migration: {updated} records populated")
-    except Exception as e:
-        logging.warning(f"Service.abreviatura migration failed: {e}")
+                async for s in cursor:
+                    name = (s.get("name") or "").strip()
+                    if not name:
+                        abrev = ""
+                    else:
+                        # Toma hasta 12 chars del nombre limpiando espacios extra
+                        abrev = " ".join(name.split())[:12]
+                    await db.services.update_one(
+                        {"service_id": s["service_id"]},
+                        {"$set": {"abreviatura": abrev}},
+                    )
+                    updated += 1
+                await db["_migrations"].insert_one({
+                    "_id": "services_abreviatura_v1",
+                    "applied_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_count": updated,
+                })
+                if updated:
+                    logging.info(f"Service.abreviatura migration: {updated} records populated")
+        except Exception as e:
+            logging.warning(f"Service.abreviatura migration failed: {e}")
+
+    # Fire-and-forget — el startup retorna de inmediato, K8s pasa el readiness.
+    import asyncio as _asyncio
+    _asyncio.create_task(_bg_init())
 
 
 @app.on_event("shutdown")
