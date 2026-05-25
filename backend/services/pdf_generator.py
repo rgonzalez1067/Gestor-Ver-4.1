@@ -156,6 +156,193 @@ class DynamicQuotePDFGenerator:
         
         return styles
     
+    def _build_modern_cover(self, subtitle: str, info_pairs: list, fecha_actual: str, eyebrow: str = "PROPUESTA COMERCIAL"):
+        """Construye la portada moderna y profesional (página 1).
+
+        Diseño:
+        - Hero card en azul corporativo con eyebrow + título + subtítulo.
+        - Línea de acento dorada.
+        - Bloque "Preparado para" con datos clave del cliente y proyecto en
+          tabla zebra (filas pares grises) y columnas etiquetada / valor.
+        - Tarjeta inferior con # Cotización y Fecha destacados.
+        - Sello "Documento confidencial" sutil al pie del bloque.
+        Mantiene EXACTAMENTE los mismos datos previos — solo cambia el diseño.
+
+        Args:
+            subtitle: línea bajo el título (ej. "Merchant Server - Plataforma de Pagos").
+            info_pairs: [(label, value), ...] — sin filtros, se renderiza tal cual.
+            fecha_actual: fecha legible en español.
+            eyebrow: tagline en mayúsculas pequeñas (default "PROPUESTA COMERCIAL").
+        """
+        elements = []
+        usable_w = self.page_width - 2 * self.margin
+        cover_accent = colors.HexColor("#D4A017")  # dorado MegaNexus
+
+        # 1) Espaciado superior tras el encabezado del logo
+        elements.append(Spacer(1, 30))
+
+        # 2) Hero card (bloque azul oscuro con título centrado en blanco)
+        eyebrow_style = ParagraphStyle(
+            'CoverEyebrow', fontName='Helvetica-Bold', fontSize=10,
+            textColor=colors.HexColor("#A8C5E0"), alignment=1,
+            spaceAfter=8, letterSpacing=3,
+        )
+        hero_title_style = ParagraphStyle(
+            'CoverHeroTitle', fontName='Helvetica-Bold', fontSize=30,
+            textColor=colors.white, alignment=1, leading=34, spaceAfter=6,
+        )
+        hero_sub_style = ParagraphStyle(
+            'CoverHeroSub', fontName='Helvetica', fontSize=13,
+            textColor=colors.HexColor("#E8F0F8"), alignment=1, leading=16,
+        )
+        hero_inner = [
+            [Paragraph(eyebrow, eyebrow_style)],
+            [Paragraph("COTIZACIÓN DE SERVICIOS", hero_title_style)],
+            [Paragraph(subtitle, hero_sub_style)],
+        ]
+        hero_tbl = Table(hero_inner, colWidths=[usable_w])
+        hero_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), self.COLOR_AZUL),
+            ('TOPPADDING', (0, 0), (-1, 0), 22),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 0),
+            ('TOPPADDING', (0, 1), (-1, 1), 2),
+            ('BOTTOMPADDING', (0, 1), (-1, 1), 2),
+            ('TOPPADDING', (0, 2), (-1, 2), 0),
+            ('BOTTOMPADDING', (0, 2), (-1, 2), 26),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 30),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 30),
+        ]))
+        elements.append(hero_tbl)
+
+        # 3) Línea de acento dorada (separador delgado)
+        accent = Table([[""]], colWidths=[usable_w], rowHeights=[3])
+        accent.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), cover_accent),
+        ]))
+        elements.append(accent)
+
+        elements.append(Spacer(1, 32))
+
+        # 4) Encabezado de la sección de datos
+        section_label_style = ParagraphStyle(
+            'CoverSectionLabel', fontName='Helvetica-Bold', fontSize=11,
+            textColor=self.COLOR_AZUL, leading=13, spaceAfter=10,
+            letterSpacing=2,
+        )
+        elements.append(Paragraph("PREPARADO PARA", section_label_style))
+
+        # 5) Tabla zebra de datos del cliente / proyecto
+        label_style = ParagraphStyle(
+            'CoverInfoLabel', fontName='Helvetica-Bold', fontSize=9,
+            textColor=colors.HexColor("#5C6B7A"), leading=12, letterSpacing=1,
+        )
+        value_style = ParagraphStyle(
+            'CoverInfoValue', fontName='Helvetica-Bold', fontSize=12,
+            textColor=colors.HexColor("#0F2A47"), leading=15,
+        )
+        info_rows = []
+        for label, value in info_pairs:
+            info_rows.append([
+                Paragraph(str(label).upper(), label_style),
+                Paragraph(str(value) if value else "—", value_style),
+            ])
+
+        info_tbl = Table(info_rows, colWidths=[usable_w * 0.34, usable_w * 0.66])
+        info_style = [
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 14),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 14),
+            ('TOPPADDING', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 9),
+            ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor("#E2E8F0")),
+            ('BOX', (0, 0), (-1, -1), 0.75, colors.HexColor("#CBD5E1")),
+            ('LINEBEFORE', (0, 0), (0, -1), 3, self.COLOR_AZUL),
+        ]
+        # zebra: filas impares con fondo gris muy suave
+        for idx in range(len(info_rows)):
+            if idx % 2 == 1:
+                info_style.append(
+                    ('BACKGROUND', (0, idx), (-1, idx), colors.HexColor("#F8FAFC"))
+                )
+        info_tbl.setStyle(TableStyle(info_style))
+        elements.append(info_tbl)
+
+        elements.append(Spacer(1, 28))
+
+        # 6) Tarjeta inferior: # Cotización + Fecha (2 columnas)
+        meta_label = ParagraphStyle(
+            'CoverMetaLabel', fontName='Helvetica-Bold', fontSize=9,
+            textColor=colors.HexColor("#94A3B8"), leading=12, letterSpacing=2,
+        )
+        meta_value_big = ParagraphStyle(
+            'CoverMetaValue', fontName='Helvetica-Bold', fontSize=16,
+            textColor=self.COLOR_AZUL, leading=20,
+        )
+        meta_value_med = ParagraphStyle(
+            'CoverMetaValueMed', fontName='Helvetica-Bold', fontSize=13,
+            textColor=colors.HexColor("#0F2A47"), leading=16,
+        )
+        col_quote = [
+            [Paragraph("NÚMERO DE COTIZACIÓN", meta_label)],
+            [Paragraph(self.data.quote_number or "—", meta_value_big)],
+        ]
+        col_date = [
+            [Paragraph("FECHA DE EMISIÓN", meta_label)],
+            [Paragraph(fecha_actual, meta_value_med)],
+        ]
+        inner_quote = Table(col_quote)
+        inner_quote.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, 0), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('TOPPADDING', (0, 1), (-1, 1), 0),
+            ('BOTTOMPADDING', (0, 1), (-1, 1), 0),
+        ]))
+        inner_date = Table(col_date)
+        inner_date.setStyle(TableStyle([
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, 0), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+            ('TOPPADDING', (0, 1), (-1, 1), 0),
+            ('BOTTOMPADDING', (0, 1), (-1, 1), 0),
+        ]))
+
+        meta_card = Table(
+            [[inner_quote, inner_date]],
+            colWidths=[usable_w * 0.55, usable_w * 0.45],
+        )
+        meta_card.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
+            ('LINEBEFORE', (0, 0), (0, -1), 4, cover_accent),
+            ('LEFTPADDING', (0, 0), (-1, -1), 18),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 18),
+            ('TOPPADDING', (0, 0), (-1, -1), 16),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 16),
+            ('LINEABOVE', (0, 0), (-1, 0), 0.5, colors.HexColor("#CBD5E1")),
+            ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ]))
+        elements.append(meta_card)
+
+        elements.append(Spacer(1, 18))
+
+        # 7) Sello de confidencialidad sutil
+        seal_style = ParagraphStyle(
+            'CoverSeal', fontName='Helvetica-Oblique', fontSize=8,
+            textColor=colors.HexColor("#94A3B8"), alignment=1, leading=11,
+        )
+        elements.append(Paragraph(
+            "Documento confidencial • Mega Soft Computación C.A. • "
+            "Esta propuesta es exclusiva para el destinatario indicado.",
+            seal_style,
+        ))
+
+        elements.append(PageBreak())
+        return elements
+
     def _header_footer(self, canvas, doc):
         """Añadir encabezado y pie de página a cada página"""
         canvas.saveState()
@@ -594,14 +781,7 @@ class DynamicQuotePDFGenerator:
         now = datetime.now()
         fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
         
-        # ==================== PÁGINA 1: PORTADA ====================
-        elements.append(Spacer(1, 80))
-        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
-        elements.append(Spacer(1, 10))  # Salto de línea entre título y subtítulo
-        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
-        elements.append(Spacer(1, 40))
-        
-        # Información del proyecto
+        # ==================== PÁGINA 1: PORTADA (diseño moderno) ====================
         info_portada = [
             ("Cliente", self.data.cliente_nombre),
             ("RIF", self.data.cliente_rif),
@@ -611,18 +791,11 @@ class DynamicQuotePDFGenerator:
             ("Modelo Pinpad", self.data.pinpad_model),
             ("Banco Patrocinador", self.data.sponsor_bank_name),
         ]
-        elements.append(self._create_info_table(info_portada))
-        elements.append(Spacer(1, 30))
-        
-        # Número de cotización (autogenerado) y fecha en español
-        elements.append(Paragraph(
-            f"<b>Número de Cotización:</b> {self.data.quote_number}", 
-            self.styles['TextoNormal']
+        elements.extend(self._build_modern_cover(
+            subtitle="Merchant Server · Plataforma de Pagos",
+            info_pairs=info_portada,
+            fecha_actual=fecha_actual,
         ))
-        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
-        
-        # Salto de página
-        elements.append(PageBreak())
         
         # ==================== PÁGINA 2: CUERPO DEL DOCUMENTO ====================
         # Carta de presentación
@@ -1165,13 +1338,7 @@ class DynamicQuotePDFGenerator:
         now = datetime.now()
         fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
         
-        # ==================== PÁGINA 1: PORTADA (igual que VPOS estándar) ====================
-        elements.append(Spacer(1, 80))
-        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
-        elements.append(Spacer(1, 10))
-        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
-        elements.append(Spacer(1, 40))
-        
+        # ==================== PÁGINA 1: PORTADA (diseño moderno, igual a VPOS) ====================
         info_portada = [
             ("Cliente", self.data.cliente_nombre),
             ("RIF", self.data.cliente_rif),
@@ -1181,16 +1348,11 @@ class DynamicQuotePDFGenerator:
             ("Modelo Pinpad", self.data.pinpad_model),
             ("Banco Patrocinador", self.data.sponsor_bank_name),
         ]
-        elements.append(self._create_info_table(info_portada))
-        elements.append(Spacer(1, 30))
-        
-        elements.append(Paragraph(
-            f"<b>Número de Cotización:</b> {self.data.quote_number}",
-            self.styles['TextoNormal']
+        elements.extend(self._build_modern_cover(
+            subtitle="Merchant Server · Plataforma de Pagos",
+            info_pairs=info_portada,
+            fecha_actual=fecha_actual,
         ))
-        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
-        
-        elements.append(PageBreak())
         
         # ==================== PÁGINA 2: RESUMEN EJECUTIVO (igual que VPOS estándar) ====================
         carta_header = f"""
@@ -1397,36 +1559,24 @@ class DynamicQuotePDFGenerator:
         now = datetime.now()
         fecha_actual = f"{now.day} de {MESES_ES[now.month]} de {now.year}"
         
-        # ==================== PÁGINA 1: PORTADA (Base VPOS) ====================
-        elements.append(Spacer(1, 80))
-        elements.append(Paragraph("COTIZACIÓN DE SERVICIOS", self.styles['TituloPortada']))
-        elements.append(Spacer(1, 10))
-        elements.append(Paragraph("Merchant Server - Plataforma de Pagos", self.styles['Subtitulo']))
-        elements.append(Spacer(1, 6))
+        # ==================== PÁGINA 1: PORTADA (diseño moderno) ====================
         # Subtítulo dinámico: Payment Gateway vs Payment Gateway - Link de Pagos
         if getattr(self, "_link_pago_mode", False):
-            elements.append(Paragraph("Payment Gateway - Link de Pagos", self.styles['Subtitulo']))
+            pg_subtitle = "Payment Gateway · Link de Pagos"
         else:
-            elements.append(Paragraph("Payment Gateway", self.styles['Subtitulo']))
-        elements.append(Spacer(1, 40))
-        
-        # Información del proyecto
+            pg_subtitle = "Payment Gateway · Plataforma de Pagos"
+
         info_portada = [
             ("Cliente", self.data.cliente_nombre),
             ("RIF", self.data.cliente_rif),
             ("Integrador", self.data.integrator_name or "Sin integrador por el momento"),
             ("Aplicativo", self.data.integrator_app_name),
         ]
-        elements.append(self._create_info_table(info_portada))
-        elements.append(Spacer(1, 30))
-        
-        elements.append(Paragraph(
-            f"<b>Número de Cotización:</b> {self.data.quote_number}", 
-            self.styles['TextoNormal']
+        elements.extend(self._build_modern_cover(
+            subtitle=pg_subtitle,
+            info_pairs=info_portada,
+            fecha_actual=fecha_actual,
         ))
-        elements.append(Paragraph(f"<b>Fecha:</b> {fecha_actual}", self.styles['TextoNormal']))
-        
-        elements.append(PageBreak())
         
         # ==================== PÁGINA 2: RESUMEN EJECUTIVO ====================
         # Carta de presentación (idéntica a VPOS)
