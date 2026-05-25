@@ -142,15 +142,28 @@ export const QuotesTable = ({
   // facturadas via "regularización" cuyo `quote_status` no avanzó a
   // "Facturada" (se quedó en "Aprobada"). El filtro y la grilla usan este
   // valor calculado para reflejar el estatus instantáneo real del registro.
+  //
+  // Orden de prioridad (de más avanzado a menos):
+  //   Entregada > Reparada > Implementada >
+  //   Validar Pago (custom action post-Cobrar) > Pagada > Facturada >
+  //   Configurada > Preasign > Aprobada > Enviada > quote_status (fallback)
+  //
+  // NOTA Validar Pago (Feb 2026): la acción `pago_validado*` se ejecuta
+  // OPERATIVAMENTE DESPUÉS de "Cobrar" (paid_at) como una validación
+  // financiera adicional del pago. Por eso se considera un estado MÁS
+  // avanzado que Pagada — un quote con paid_at+pago_validado está
+  // "en Validar Pago", no "en Pagada".
   const getEffectiveStatus = (q) => {
     if (q.delivered_at) return 'Entregada';
     if (q.repaired_at) return 'Reparada';
     if (q.implementation_completed_at) return 'Implementada';
-    if (q.collected_at || q.payment_at || q.paid_at) return 'Pagada';
-    // "Validar Pago": custom_action ejecutada (pago_validado / *_eq / *_rep)
-    // pero todavía sin paid_at. Fase intermedia entre Facturada y Pagada.
+    // "Validar Pago": custom_action ejecutada (pago_validado / *_eq / *_rep).
+    // Está DESPUÉS de Pagada porque la validación bancaria ocurre tras
+    // el cobro. Si existe la marca, el estado actual es Validar Pago aunque
+    // paid_at también esté presente.
     const ex = q.custom_actions_executed || {};
     if (ex.pago_validado || ex.pago_validado_eq || ex.pago_validado_rep) return 'Validar Pago';
+    if (q.paid_at) return 'Pagada';
     if (q.invoice_number || q.invoiced_at) return 'Facturada';
     if (q.configured_at) return 'Configurada';
     // "Preasign": seriales reservados (preasignados) pero aún sin Configuración técnica.
@@ -183,6 +196,11 @@ export const QuotesTable = ({
       if (subType === 'FAST_TRACK') {
         const qt = (quote.quote_type || '').toUpperCase();
         if (cat !== 'fast_track' && !(cat === 'implementation' && qt === 'FAST_TRACK')) return false;
+      } else if (baseCat === 'implementation' && !subType) {
+        // "Implementación (todas)" — incluye TODOS los tipos de implementación,
+        // incluidas las MPOS (Imple + POS) que viven en `quote_category='fast_track'`.
+        // Antes la condición `baseCat !== cat` dejaba a las fast_track fuera.
+        if (cat !== 'implementation' && cat !== 'fast_track') return false;
       } else {
         if (baseCat !== cat) return false;
         if (subType) {
