@@ -2142,14 +2142,34 @@ export const Quotes = () => {
         client_segment: quoteData.client_segment || 'PYME',
         integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
         integrator_app_name: quoteData.integrator_app_name || '',
-        pinpad_model: '',
-        sponsor_bank_name: '',
-        setup_items: quoteData.setup_items.map(item => ({
-          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0, bank_name: item.bank_name || null,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
+        pinpad_model: (quoteData.pinpad_id && quoteData.pinpad_id !== 'none')
+          ? ([...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)?.name || '')
+          : '',
+        sponsor_bank_name: (quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none')
+          ? (banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '')
+          : '',
+        // Setup: concepto base + items por medio de pago/banco (igual que Exportar PDF).
+        // Sin esta concatenación la sección "COSTOS DE IMPLEMENTACIÓN" sólo
+        // muestra las 4 tarifas auto-default y omite los medios de pago × banco
+        // que el usuario seleccionó (bug Feb 2026).
+        setup_items: [
+          ...quoteData.setup_items.map(item => ({
+            concepto: item.medio_pago_name,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+            tarifa: parseFloat(item.tarifa) || 0,
+            bank_name: item.bank_name || null,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
+          })),
+          ...quoteData.additional_items.map(item => ({
+            concepto: `${item.medio_pago_name} - ${item.bank_name}`,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+            tarifa: parseFloat(item.tarifa_setup) || 0,
+            bank_name: item.bank_name || null,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
+          })),
+        ],
         recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
           concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
           cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
@@ -2162,7 +2182,20 @@ export const Quotes = () => {
           tarifa: parseFloat(item.tarifa) || 0,
           tipo_corp: findServiceTipoCorp(item.medio_pago_name)
         })),
-        additional_items: [],
+        // `additional_items` también se manda por separado: el Resumen Ejecutivo
+        // (página 2) usa este array para poblar la tabla "Bancos / Productos /
+        // Cajas". Si va vacío, la página 2 muestra "No hay medios de pago
+        // seleccionados" (bug Feb 2026).
+        additional_items: quoteData.additional_items
+          .filter(item => item.bank_name)
+          .map(item => ({
+            concepto: item.medio_pago_name,
+            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+            tarifa: parseFloat(item.tarifa_setup) || 0,
+            bank_name: item.bank_name,
+            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
+          })),
         pg_setup_items: pgSetupItems.map(item => ({
           concepto: item.concepto, costo: item.costo || 0, banco: item.banco || '', observacion: item.observacion || ''
         })),
