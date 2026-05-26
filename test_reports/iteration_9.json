@@ -1,0 +1,38 @@
+{
+  "summary": "Iter9 — Backend only. 14/14 PASS. Validated: (1) GET /api/quotes con usuario Operaciones devuelve SOLO PYME+fast_track/FAST_TRACK (verificado item-por-item: cero quotes fuera de scope). (2) Admin SIGUE viendo todo: cuenta admin > cuenta ops y existen quotes admin-visibles non-PYME o non-FT (regresión OK). (3) POST /api/quotes/{id}/configure por usuario Operaciones NO retorna 403 (operación 200/400 según estado real de la cotización — el permiso ya no bloquea). (4) repair-deliver dispara _engine_or_legacy con action_id 'deliver' (verificación estática en quote_actions.py: la llamada dentro de la función repair_deliver contiene literal \"deliver\" y NO contiene \"repair-deliver\"). (5) _build_template_vars expone Cantidad_Cajas / Integrador / Aplicativo_Integracion / Modelo_Pinpad / Banco_Patrocinador (introspección de fuente). (6) format_rif: 7 casos parametrizados pasan (V12345 → V-000012345, V-1234567-8 → V-001234567-8, '', None, N/A). (7) Carga múltiple POST /api/quotes/{id}/attachments — 2 facturas subidas de forma independiente; el endpoint las indexa con nombres distintos (suffix _N) y retorna attachment_id único. GET subsiguiente confirma +2. (8) GET /api/projects/{id}/suggested-contacts responde 200 (no regresión vs iter8).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9_ops_dept_filters.py",
+    "/app/test_reports/pytest/iter9_ops_filters.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/quotes.py:467-469 — La detección is_ops_dept usa substring 'operaciones' en lowercase del departamento. Bien defensivo, pero podría matchear falsos positivos si un día existe 'Operaciones Comerciales' u 'Operaciones de Cobranza'. Considerar usar match exacto: depto_norm == 'operaciones'.",
+    "routes/quotes.py:481-485 — El $or sobre quote_category='fast_track' y quote_type='FAST_TRACK' es correcto, pero combinado con query['client_segment']='PYME' fuerza ambos. Asegurar que NUNCA existan cotizaciones MPOS PYME sin uno de esos dos campos (de lo contrario serían invisibles para Operaciones). El branch legacy quote_type='FAST_TRACK' protege ante migraciones incompletas.",
+    "routes/quotes.py:468 — is_admin_dept y is_ops_dept se evalúan INDEPENDIENTEMENTE pero el if-elif los hace mutuamente exclusivos. Si un día llega un usuario con departamento='Administración de Operaciones', el orden actual (is_ops_dept primero por elif) hará que sea tratado como Ops y NO como Admin. Documentar prioridad.",
+    "routes/attachments.py:69-71 — El sufijo `existing_in_cat + 1` se calcula en POST único; en una carga múltiple concurrente (dos uploads simultáneos), ambos podrían leer existing_in_cat=N y generar el mismo display_filename (_N+1). attachment_id es UUID así que no hay colisión en BD, pero el display_filename podría duplicarse. Si el frontend lanza N peticiones en paralelo, considerar serializar o agregar timestamp al sufijo.",
+    "routes/quote_actions.py:2886-2895 — Try/except sobre _engine_or_legacy silencia cualquier excepción del motor y cae a legacy. Bueno para resiliencia, pero pierde stack trace en logs (solo warning). Considerar logger.exception en el except para auditoría completa cuando admin reporte 'el motor no envió el correo'.",
+    "services/rif_formatter.py — format_rif maneja correctamente los placeholders ('N/A', '-', 'SIN RIF'). Considerar también 'PENDIENTE' y string puramente alfabético (devuelve s sin formatear, que es OK pero podría retornar '' para claridad)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9_ops_dept_filters.py (creado)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 passed)",
+    "frontend": "not tested (backend only per request)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 — y un usuario TEST_ Operaciones efímero creado en el fixture (test_ops_<rand>@megasoft.com.ve / TestOps1234!) y eliminado al teardown.",
+  "seed_data_creation": "Fixture module-scope inserta directamente en MongoDB un usuario TEST con departamento='Operaciones', cargo='Analista', sede='PYME' y permisos { cotizaciones:edit, taller_equipos:edit, configuracion:none } + special_permissions ['cotizaciones:equipos','cotizaciones:reparaciones'] para emular el perfil real (basado en kgonzalez@megasoft.com.ve). password_hash usa el esquema sha256+salt de config.py. Teardown elimina users + user_sessions por user_id. Verificado post-run: 0 usuarios residuales con prefijo test_ops_.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El filtro Operaciones está en routes/quotes.py:474-485. Operaciones SOLO ve PYME+FT (fast_track o FAST_TRACK). NO afecta a Admin/Director (verificado). Para futuras iteraciones sobre estos flujos, reutilizar este test (crea/destruye usuario test). La verificación de action_id='deliver' en repair_deliver es STATIC (lee el fichero); si refactorizan _engine_or_legacy(...), actualizar el regex. Las tareas (1) RIF padding en PDFs/pantallas/reportes, (2) color de botón estado en Proyectos, (4) persistencia de acción personalizada visible para todos, (5) permiso Operaciones de UI sobre 'solo Configuración habilitado', y (7) Auditoría destinatarios/plantillas son frontend-driven o requieren PDFs reales/seeded — NO incluidas aquí porque el request fue backend-only-shape; el usuario las validará manualmente.",
+  "rca_of_the_issue": "No hay bugs. Los 7 criterios solicitados están implementados correctamente: el branch is_ops_dept filtra MPOS PYME, configure no exige rol admin (solo categoría fast_track + estado Aprobada), repair-deliver corrige el action_id de 'repair-deliver' a 'deliver' (bug fix confirmado), template engine expone las 5 nuevas variables, format_rif normaliza a 9 dígitos, upload de attachments persiste cada archivo de forma independiente, y suggested-contacts no regresiona."
+}

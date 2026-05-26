@@ -20,12 +20,23 @@ export function useQuoteRbac({ currentUser, canEdit, quotes }) {
     const hasReparaciones = isAdm || sp.includes('cotizaciones:reparaciones');
     const hasAnyImpl = hasImplPyme || hasImplCorp;
     const hasAnyCotPerm = sp.some(p => p.startsWith('cotizaciones:'));
-    const showButtons = canEdit && (isAdm || hasAnyImpl || hasEquipos || hasReparaciones);
-    return { hasImplPyme, hasImplCorp, hasEquipos, hasReparaciones, hasAnyImpl, hasAnyCotPerm, showButtons, isAdm };
+    // Departamento Operaciones (Feb 2026): lectura sobre MPOS PYME + acción
+    // EXCLUSIVA "Configuración". Si el usuario es admin, no aplica el modo.
+    const depto = ((currentUser?.departamento) || '').trim().toLowerCase();
+    const isOpsReadonly = !isAdm && depto === 'operaciones';
+    // showButtons activa la columna de acciones cuando el usuario tiene
+    // CUALQUIER tipo de facultad operativa (incluido Operaciones para Configurar).
+    const showButtons = (canEdit && (isAdm || hasAnyImpl || hasEquipos || hasReparaciones)) || isOpsReadonly;
+    return { hasImplPyme, hasImplCorp, hasEquipos, hasReparaciones, hasAnyImpl, hasAnyCotPerm, showButtons, isAdm, isOpsReadonly };
   }, [currentUser, canEdit]);
 
   const rbacFilteredQuotes = useMemo(() => {
-    if (rbac.isAdm || !rbac.hasAnyCotPerm) return quotes;
+    if (rbac.isAdm || !rbac.hasAnyCotPerm) {
+      // Operaciones puede ver MPOS PYME aunque NO tenga special_permissions.
+      // El backend ya filtra por categoría y segmento, así que aquí solo nos
+      // aseguramos de no aplicar filtros adicionales que oculten el listado.
+      return quotes;
+    }
     const allowed = [];
     if (rbac.hasImplPyme || rbac.hasImplCorp) allowed.push('implementation', 'fast_track');
     if (rbac.hasEquipos) allowed.push('equipment');

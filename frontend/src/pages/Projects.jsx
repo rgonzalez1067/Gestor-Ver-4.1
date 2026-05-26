@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
+import { formatRif } from '../utils/rifFormatter';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -371,7 +372,7 @@ const Projects = () => {
                               </TooltipProvider>
                             );
                           })()}
-                          <p className="text-xs font-mono text-slate-400">{project.client_rif}</p>
+                          <p className="text-xs font-mono text-slate-400">{formatRif(project.client_rif)}</p>
                           {project.ticket_number && (
                             <p className="text-xs text-indigo-600 flex items-center gap-1 mt-0.5" data-testid={`ticket-${project.project_id}`}>
                               <Ticket size={11} />{project.ticket_number}
@@ -395,8 +396,11 @@ const Projects = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border ${stCfg.color}`}>
-                            <StIcon size={12} />{project.status}
+                          {/* Badge de estado: color de fondo SINCRONIZADO con la
+                              barra de avance/SLA (slaColor) y texto blanco
+                              forzado para máximo contraste. Feb 2026. */}
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${slaColor} text-white shadow-sm`}>
+                            <StIcon size={12} className="text-white" />{project.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
@@ -588,7 +592,7 @@ const Projects = () => {
               <div className="space-y-4">
                 <div className="bg-slate-50 border rounded-lg p-3">
                   <p className="font-semibold text-sm">{assignProject.project_number}</p>
-                  <p className="text-xs text-slate-500">{assignProject.client_name} — {assignProject.client_rif}</p>
+                  <p className="text-xs text-slate-500">{assignProject.client_name} — {formatRif(assignProject.client_rif)}</p>
                 </div>
 
                 {/* Current assignee (only for reassignment) */}

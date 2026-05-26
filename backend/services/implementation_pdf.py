@@ -11,6 +11,8 @@ from reportlab.lib.units import inch
 import io
 from datetime import datetime
 
+from services.rif_formatter import format_rif
+
 
 # Colores corporativos
 COLOR_AZUL = colors.HexColor("#00447C")
@@ -152,7 +154,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         ("Tipo de Proyecto", tipo_display),
         ("Grupo Económico", economic_group),
         ("Nombre del Comercio", client_name),
-        ("RIF", client.get('rif', 'N/A')),
+        ("RIF", format_rif(client.get('rif', 'N/A')) or 'N/A'),
         ("Nombre de Fantasía", fantasy_name),
     ], styles))
     elements.append(Spacer(1, 14))

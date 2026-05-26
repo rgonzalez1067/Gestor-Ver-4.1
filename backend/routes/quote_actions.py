@@ -2871,14 +2871,20 @@ async def repair_deliver(quote_id: str, body: dict = {}, authorization: Optional
         )
     else:
         # --- Motor dinámico primero, con SOLO la Nota de Entrega ---
-        # Si el admin configuró destinatarios para `repair-deliver` en el
-        # catálogo, el motor despacha. Si no, fallback al envío legacy a
-        # cliente. El motor NO inyecta ningún otro PDF (gracias a que solo
+        # Si el admin configuró destinatarios para `deliver` en el catálogo de
+        # "Configuración de Acciones de Cotizaciones – Reparaciones – Marcar
+        # como Entregada", el motor despacha. Si no, fallback al envío legacy
+        # a cliente. El motor NO inyecta ningún otro PDF (gracias a que solo
         # pasamos `delivery_note_pdf_bytes` y NO otros *_pdf_bytes).
+        #
+        # IMPORTANTE Feb 2026 — Bug fix: antes pasábamos `"repair-deliver"`
+        # como action_id, pero el catálogo usa `"deliver"` para Reparaciones
+        # (igual que Equipos). El mismatch hacía que el motor NUNCA encontrara
+        # la configuración del admin y caía siempre al fallback legacy.
         ne_bytes_for_engine = base64.b64decode(nota_entrega_b64)
         try:
             _engine_result_rd = await _engine_or_legacy(
-                "repair-deliver", quote, current_user,
+                "deliver", quote, current_user,
                 custom_message=custom_message,
                 cc_emails=[e.strip() for e in (additional_recipients or "").split(",") if e.strip() and "@" in e.strip()],
                 delivery_note_pdf_bytes=ne_bytes_for_engine,

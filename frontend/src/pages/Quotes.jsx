@@ -3510,9 +3510,9 @@ export const Quotes = () => {
     setWorkflowQuoteId(quoteId);
     setWorkflowConfig({
       title: 'Factura / Proforma',
-      description: 'Para registrar la facturación, debe cargar el documento fiscal (Factura o Proforma). Este archivo se guardará automáticamente en los anexos.',
+      description: 'Para registrar la facturación, debe cargar el documento fiscal (Factura o Proforma). Puede adjuntar MÁS DE UN archivo si el caso requiere fraccionamiento o soporte documental extenso. Todos se guardarán como anexos independientes.',
       category: 'Factura',
-      acceptMultiple: false,
+      acceptMultiple: true,
       acceptTypes: '.pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg',
       actionLabel: 'Confirmar Factura / Proforma',
       actionColor: 'bg-purple-600 hover:bg-purple-700',
@@ -3693,7 +3693,8 @@ export const Quotes = () => {
             filterDateFrom={filterDateFrom}
             filterDateTo={filterDateTo}
             actionLoading={actionLoading}
-            canEdit={canEdit}
+            canEdit={canEdit || rbac.isOpsReadonly}
+            opsReadonly={rbac.isOpsReadonly}
             highlightedQuoteNumber={highlightedQuote}
             onOpenAnexos={(quote) => {
               setAnexosQuoteId(quote.quote_id);

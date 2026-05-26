@@ -209,6 +209,10 @@ async def send_workflow_notification(
                 if not contact_phone:
                     contact_phone = primary.get("phone") or primary.get("telefono") or ""
 
+    # Normalización fiscal: RIF padding a 9 dígitos (Feb 2026).
+    from services.rif_formatter import format_rif
+    client_rif_val = format_rif(client_rif_val)
+
     template_vars = {
         "quote_number": quote_number,
         "Cotizacion_Nro": quote_number,

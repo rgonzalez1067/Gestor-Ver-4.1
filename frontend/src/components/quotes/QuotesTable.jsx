@@ -45,6 +45,7 @@ export const QuotesTable = ({
   onApprove, onInvoice, onCollect, onDeliver, onSendToImplementation, onRepairComplete, onConfigure, onDelete,
   onOpenBitacoraFlujo, onOpenFtConfig, onPreassignSerials,
   actionOverrides = {}, customActions = [], currentUserId = '', currentUserCargo = '', currentUserRole = '', onCustomAction,
+  opsReadonly = false,
   clearFilters,
 }) => {
   // Helper: mapea quote → (biz_type, sub_cat) para resolver overrides.
@@ -86,7 +87,9 @@ export const QuotesTable = ({
     return { label: ov.custom_label || defaultLabel, hidden: false, disabled: false, tooltip: null };
   };
 
-  // Helper: lista de acciones custom aplicables a una cotización
+  // Helper: lista de acciones custom EJECUTABLES por el usuario actual
+  // (filtra por allowed_user_ids/required_cargos). Se usa para el dropdown
+  // de acciones donde el usuario realmente puede disparar la acción.
   const getCustomActionsFor = (quote) => {
     const { biz, sub } = resolveBizSub(quote);
     const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
@@ -102,6 +105,23 @@ export const QuotesTable = ({
       // Fallback legacy
       const cargosReq = ca.required_cargos || [];
       if (cargosReq.length && !isAdmin && !cargosReq.includes(currentUserCargo)) return false;
+      return true;
+    });
+  };
+
+  // Helper: lista de acciones custom VISIBLES en el stepper para trazabilidad.
+  // Feb 2026 — Requerimiento: las acciones personalizadas asignadas a un usuario
+  // específico NO deben desaparecer de la grilla para el resto del equipo.
+  // Los demás usuarios pierden la facultad de ejecutarlas (no aparecen en su
+  // dropdown) pero conservan visibilidad del estado actual en el stepper.
+  // Por eso este filtro IGNORA allowed_user_ids/required_cargos — solo aplica
+  // criterios de aplicabilidad por tipo de negocio/subcategoría.
+  const getCustomActionsForVisualization = (quote) => {
+    const { biz, sub } = resolveBizSub(quote);
+    return customActions.filter((ca) => {
+      if (!ca.enabled) return false;
+      if (ca.business_type !== biz) return false;
+      if (ca.product_subcategory && ca.product_subcategory !== sub) return false;
       return true;
     });
   };
@@ -291,6 +311,11 @@ export const QuotesTable = ({
             const isEquipment = quote.quote_category === 'equipment';
             const isRepair = quote.quote_category === 'repair';
             const isFastTrack = quote.quote_category === 'fast_track';
+            // Modo Operaciones (Feb 2026): solo el botón "Configuración" debe
+            // permanecer habilitado para usuarios del Departamento Operaciones.
+            // Definimos un canEdit alterno que se aplica a TODO el resto de
+            // acciones (Aprobar, Enviar, Facturar, Cobrar, Entregar, etc.).
+            const canEditNonConfig = canEdit && !opsReadonly;
             const displayType = isRepair ? 'Reparación' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
             const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isFastTrack ? 'bg-violet-100 text-violet-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
             const typeColor = isEquipment
@@ -437,7 +462,7 @@ export const QuotesTable = ({
                     <QuoteStatusStepper
                       quote={quote}
                       onOpenBitacoraFlujo={onOpenBitacoraFlujo}
-                      customActions={getCustomActionsFor(quote)}
+                      customActions={getCustomActionsForVisualization(quote)}
                     />
                     {quote.is_irregular && (
                       <Popover>
@@ -506,43 +531,43 @@ export const QuotesTable = ({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
-                        {canEdit && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer" data-testid={`modify-quote-btn-${quote.quote_id}`}>
+                        {canEditNonConfig && <DropdownMenuItem onSelect={() => onEditQuote(quote)} className="cursor-pointer" data-testid={`modify-quote-btn-${quote.quote_id}`}>
                           <RefreshCw size={16} className="mr-2 text-slate-500" /> Modificar Cotización
                         </DropdownMenuItem>}
 
                         {/* ── FASE COMERCIAL ── */}
-                        {canEdit && <DropdownMenuSeparator />}
-                        {canEdit && (
+                        {canEditNonConfig && <DropdownMenuSeparator />}
+                        {canEditNonConfig && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Comercial</p>
                         )}
-                        {(() => { const m = getActionMeta(quote, 'send_to_client', 'Enviar al Cliente'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onSendToClient(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer"
+                        {(() => { const m = getActionMeta(quote, 'send_to_client', 'Enviar al Cliente'); return canEditNonConfig && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onSendToClient(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer"
                           data-testid={`send-to-client-btn-${quote.quote_id}`}>
                           <Mail size={16} className="mr-2 text-blue-500" /> {m.label}
                           {quote.sent_to_client_at && <span className="ml-auto text-xs text-blue-500">&#10003;</span>}
                         </DropdownMenuItem>; })()}
                         {renderAnchoredCustomActions(quote, 'send_to_client', customByAnchor)}
-                        {(() => { const m = getActionMeta(quote, 'approve', 'Aprobación'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onApprove(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                        {(() => { const m = getActionMeta(quote, 'approve', 'Aprobación'); return canEditNonConfig && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onApprove(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
                           <CheckCircle size={16} className="mr-2 text-green-500" /> {m.label}
                           {quote.approved_at && <span className="ml-auto text-xs text-green-500">&#10003;</span>}
                           {!quote.approved_at && quote.quote_status === 'Enviada' && <span className="ml-auto text-xs text-green-500">&#x25CF;</span>}
                           {!quote.approved_at && quote.quote_status !== 'Enviada' && quote.quote_status !== 'Borrador' && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>; })()}
                         {renderAnchoredCustomActions(quote, 'approve', customByAnchor)}
-                        {canEdit && isRepair && quote.quote_status === 'Aprobada' && (
+                        {canEditNonConfig && isRepair && quote.quote_status === 'Aprobada' && (
                           <DropdownMenuItem onSelect={() => onRepairComplete(quote.quote_id)} className="cursor-pointer"
                             data-testid={`repair-complete-btn-${quote.quote_id}`}>
                             <Wrench size={16} className="mr-2 text-cyan-600" /> Reparada
                             <span className="ml-auto text-xs text-cyan-500">&#x25CF;</span>
                           </DropdownMenuItem>
                         )}
-                        {canEdit && isRepair && renderAnchoredCustomActions(quote, 'repair_complete', customByAnchor)}
+                        {canEditNonConfig && isRepair && renderAnchoredCustomActions(quote, 'repair_complete', customByAnchor)}
 
                         {/* ── FASE LOGÍSTICA (Fast Track) ── */}
-                        {canEdit && isFastTrack && <DropdownMenuSeparator />}
-                        {canEdit && isFastTrack && (
+                        {canEditNonConfig && isFastTrack && <DropdownMenuSeparator />}
+                        {canEditNonConfig && isFastTrack && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Logística</p>
                         )}
-                        {canEdit && isFastTrack && (
+                        {canEditNonConfig && isFastTrack && (
                           <DropdownMenuItem onSelect={() => onPreassignSerials(quote)} className="cursor-pointer"
                             data-testid={`preassign-btn-${quote.quote_id}`}>
                             <Package size={16} className="mr-2 text-blue-600" /> Preasignación de Seriales
@@ -598,7 +623,7 @@ export const QuotesTable = ({
                             se posiciona DESPUÉS de Configuración. Crea el Proyecto
                             pero la cotización permanece activa en la grilla; el cierre
                             al histórico lo hace "Marcar como Entregada" posteriormente. */}
-                        {canEdit && isFastTrack && (() => {
+                        {canEditNonConfig && isFastTrack && (() => {
                           const m = getActionMeta(quote, 'send_to_implementation', 'Enviar a Implementación');
                           if (m.hidden) return null;
                           const alreadySent = !!quote.sent_to_implementation_at;
@@ -625,18 +650,18 @@ export const QuotesTable = ({
                         })()}
 
                         {/* ── FASE FINANCIERA ── */}
-                        {canEdit && <DropdownMenuSeparator />}
-                        {canEdit && (
+                        {canEditNonConfig && <DropdownMenuSeparator />}
+                        {canEditNonConfig && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Financiera</p>
                         )}
-                        {(() => { const m = getActionMeta(quote, 'invoice', 'Factura / Proforma'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onInvoice(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                        {(() => { const m = getActionMeta(quote, 'invoice', 'Factura / Proforma'); return canEditNonConfig && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onInvoice(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
                           <Receipt size={16} className="mr-2 text-purple-500" /> {m.label}
                           {quote.invoiced_at && <span className="ml-auto text-xs text-purple-500">&#10003;</span>}
                           {!quote.invoiced_at && quote.quote_status === 'Aprobada' && <span className="ml-auto text-xs text-purple-500">&#x25CF;</span>}
                           {!quote.invoiced_at && !['Borrador', 'Enviada', 'Aprobada'].includes(quote.quote_status) && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Regularizar</span>}
                         </DropdownMenuItem>; })()}
                         {renderAnchoredCustomActions(quote, 'invoice', customByAnchor)}
-                        {(() => { const m = getActionMeta(quote, 'collect', 'Cobranza'); return canEdit && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onCollect(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
+                        {(() => { const m = getActionMeta(quote, 'collect', 'Cobranza'); return canEditNonConfig && !m.hidden && <DropdownMenuItem onSelect={() => !m.disabled && onCollect(quote.quote_id)} disabled={m.disabled} title={m.tooltip} className="cursor-pointer">
                           <Banknote size={16} className="mr-2 text-emerald-500" /> {m.label}
                           {quote.paid_at && <span className="ml-auto text-xs text-emerald-500">&#10003;</span>}
                           {!quote.paid_at && quote.quote_status === 'Facturada' && <span className="ml-auto text-xs text-emerald-500">&#x25CF;</span>}
@@ -645,25 +670,25 @@ export const QuotesTable = ({
                         {renderAnchoredCustomActions(quote, 'collect', customByAnchor)}
 
                         {/* ── ENTREGA / IMPLEMENTACIÓN ── */}
-                        {canEdit && <DropdownMenuSeparator />}
-                        {canEdit && (isEquipment || isRepair || isFastTrack) && (
+                        {canEditNonConfig && <DropdownMenuSeparator />}
+                        {canEditNonConfig && (isEquipment || isRepair || isFastTrack) && (
                           <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">Entrega</p>
                         )}
-                        {canEdit && (isEquipment || isRepair || isFastTrack) && (
+                        {canEditNonConfig && (isEquipment || isRepair || isFastTrack) && (
                           <DropdownMenuItem onSelect={() => onDeliver(quote.quote_id)} className="cursor-pointer">
                             <Truck size={16} className="mr-2 text-teal-500" /> Marcar como Entregada
                             {quote.delivered_at && <span className="ml-auto text-xs text-teal-500">&#10003;</span>}
                             {!quote.delivered_at && quote.quote_status === 'Pagada' && <span className="ml-auto text-xs text-teal-500">&#x25CF;</span>}
                           </DropdownMenuItem>
                         )}
-                        {canEdit && (isEquipment || isRepair || isFastTrack) && renderAnchoredCustomActions(quote, 'deliver', customByAnchor)}
-                        {canEdit && (!isEquipment && !isRepair && !isFastTrack) && (
+                        {canEditNonConfig && (isEquipment || isRepair || isFastTrack) && renderAnchoredCustomActions(quote, 'deliver', customByAnchor)}
+                        {canEditNonConfig && (!isEquipment && !isRepair && !isFastTrack) && (
                           <DropdownMenuItem onSelect={() => onSendToImplementation(quote.quote_id)} className="cursor-pointer">
                             <Send size={16} className="mr-2 text-amber-500" /> Enviar a Implementación
                             {isFastTrack && !quote.delivered_at && <span className="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1 rounded">Entregar primero</span>}
                           </DropdownMenuItem>
                         )}
-                        {canEdit && (!isEquipment && !isRepair && !isFastTrack) && renderAnchoredCustomActions(quote, 'send_to_implementation', customByAnchor)}
+                        {canEditNonConfig && (!isEquipment && !isRepair && !isFastTrack) && renderAnchoredCustomActions(quote, 'send_to_implementation', customByAnchor)}
                         <DropdownMenuSeparator />
                         {/* ── ACCIONES PERSONALIZADAS SIN ANCLA (Fase A) ── */}
                         {(() => {
@@ -687,7 +712,7 @@ export const QuotesTable = ({
                             </>
                           );
                         })()}
-                        {canEdit && <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
+                        {canEditNonConfig && <DropdownMenuItem onSelect={() => onDelete(quote.quote_id, quote.quote_number)}
                           className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
                           <Trash2 size={16} className="mr-2" /> Eliminar Cotización
                         </DropdownMenuItem>}

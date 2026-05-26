@@ -15,6 +15,7 @@ import { ClientBusinessSummary } from '../components/ClientBusinessSummary';
 import DebouncedInput from '../components/DebouncedInput';
 import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, UserPlus, X, CheckCircle, Circle, Search, FileDown, AlertCircle, CheckCircle2, ScanLine, FileUp, Download, ArrowRight, RefreshCw, MoreHorizontal, Copy, Mail, Layout, Check, ChevronsUpDown, Briefcase } from 'lucide-react';
 import api from '../utils/api';
+import { formatRif } from '../utils/rifFormatter';
 import { toast } from 'sonner';
 import { MigrationButtons } from '../components/MigrationButtons';
 import { usePermission } from '../hooks/usePermission';
@@ -801,7 +802,7 @@ export const Clients = () => {
       const blob = await response.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = client.rif_document_filename || `RIF_${client.rif}.pdf`;
+      a.download = client.rif_document_filename || `RIF_${formatRif(client.rif)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -838,7 +839,7 @@ export const Clients = () => {
   const exportToCSV = () => {
     const headers = ['RIF', 'Sucursal', 'Nombre Jurídico', 'Nombre Fantasía', 'Segmento'];
     const csvContent = [headers.join(','), ...clients.map(c => [
-      `"${c.rif}"`, `"${c.sucursal || 'Principal'}"`, `"${c.legal_name}"`, `"${c.fantasy_name}"`, `"${c.segment || ''}"`
+      `"${formatRif(c.rif)}"`, `"${c.sucursal || 'Principal'}"`, `"${c.legal_name}"`, `"${c.fantasy_name}"`, `"${c.segment || ''}"`
     ].join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'clientes.csv'; link.click();
@@ -1098,7 +1099,7 @@ export const Clients = () => {
                                     .map(c => (
                                       <SelectItem key={c.id} value={c.id}>
                                         <span className="truncate">{c.name}</span>
-                                        <span className="ml-1 text-xs text-slate-400">({c.rif})</span>
+                                        <span className="ml-1 text-xs text-slate-400">({formatRif(c.rif)})</span>
                                       </SelectItem>
                                     ))
                                   }
@@ -1519,7 +1520,7 @@ export const Clients = () => {
                   return (
                     <tr key={client.client_id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-sm font-mono text-slate-700 whitespace-nowrap">
-                          {client.rif}
+                          {formatRif(client.rif)}
                           {client.condicion && (
                             <span className={`ml-2 inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded ${
                               client.condicion === 'Cliente' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
@@ -1757,7 +1758,7 @@ export const Clients = () => {
                       <span className="font-medium text-green-800">Datos extraídos exitosamente</span>
                     </div>
                     <div className="space-y-2 text-sm">
-                      <div className="flex"><span className="font-medium text-slate-700 w-28">RIF:</span><span className="text-slate-900">{rifResult.rif}</span></div>
+                      <div className="flex"><span className="font-medium text-slate-700 w-28">RIF:</span><span className="text-slate-900">{formatRif(rifResult.rif)}</span></div>
                       <div className="flex"><span className="font-medium text-slate-700 w-28">Razón Social:</span><span className="text-slate-900">{rifResult.legal_name}</span></div>
                       <div className="flex flex-col"><span className="font-medium text-slate-700">Dirección Fiscal:</span><span className="text-slate-900 mt-0.5">{rifResult.address}</span></div>
                     </div>
@@ -1776,7 +1777,7 @@ export const Clients = () => {
                       <div className="space-y-1 mb-3">
                         {rifResult.existing_clients.map((ec, i) => (
                           <div key={i} className="text-sm text-orange-900 bg-orange-100 rounded px-2 py-1">
-                            <strong>{ec.rif}</strong> — {ec.legal_name || ec.fantasy_name} ({ec.sucursal || 'Principal'})
+                            <strong>{formatRif(ec.rif)}</strong> — {ec.legal_name || ec.fantasy_name} ({ec.sucursal || 'Principal'})
                           </div>
                         ))}
                       </div>
@@ -1959,7 +1960,7 @@ export const Clients = () => {
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                   <p className="text-sm text-slate-600">Cliente seleccionado:</p>
                   <p className="font-semibold text-slate-900">{updateRifClient.legal_name || updateRifClient.fantasy_name}</p>
-                  <p className="text-sm font-mono text-slate-500">{updateRifClient.rif} — {updateRifClient.sucursal || 'Principal'}</p>
+                  <p className="text-sm font-mono text-slate-500">{formatRif(updateRifClient.rif)} — {updateRifClient.sucursal || 'Principal'}</p>
                 </div>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">

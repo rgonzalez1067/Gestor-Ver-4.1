@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2, FileText } from 'lucide-react';
 import api from '../utils/api';
+import { formatRif } from '../utils/rifFormatter';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
 import { MigrationButtons } from '../components/MigrationButtons';
@@ -556,7 +557,7 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <span className="text-slate-500">RIF:</span>
-                  <p className="font-medium text-slate-800">{destData.client_rif || '—'}</p>
+                  <p className="font-medium text-slate-800">{formatRif(destData.client_rif) || '—'}</p>
                 </div>
                 <div>
                   <span className="text-slate-500">Cotización:</span>

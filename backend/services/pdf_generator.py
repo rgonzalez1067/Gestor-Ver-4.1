@@ -79,6 +79,15 @@ class DynamicQuotePDFGenerator:
     
     def __init__(self, data: TemplateQuotePDFRequest, logo_path: Optional[str] = None):
         self.data = data
+        # Normalización fiscal: RIF a 9 dígitos con padding de ceros para
+        # TODOS los PDFs (portada, resumen ejecutivo, totales). Feb 2026.
+        try:
+            from services.rif_formatter import format_rif
+            if self.data.cliente_rif:
+                self.data.cliente_rif = format_rif(self.data.cliente_rif)
+        except Exception:
+            # Si la utilidad falla por algún motivo, dejamos el RIF como vino.
+            pass
         self.logo_path = logo_path
         self.buffer = io.BytesIO()
         self.page_width, self.page_height = letter

@@ -10,6 +10,7 @@ import os
 
 from config import db, get_current_user, get_resend_api_key, hash_password, verify_password, UPLOADS_DIR, SENDER_EMAIL, RESEND_AVAILABLE, generate_quote_number, append_vpos_static_pages, append_pg_static_pages, append_corporate_static_pages, append_equipment_conditions, stamp_header_footer_on_all_pages, render_email_template
 from services.pdf_storage import save_pdf_dual
+from services.rif_formatter import format_rif
 from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 from reportlab.lib.pagesizes import letter
@@ -462,13 +463,26 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             (p or "").startswith("cotizaciones:") for p in sp
         )
 
-        # Normalizar departamento para detectar "Administración"
+        # Normalizar departamento para detectar "Administración" y "Operaciones"
         depto_norm = (user_depto or "").strip().lower()
         is_admin_dept = "administración" in depto_norm or "administracion" in depto_norm
+        is_ops_dept = "operaciones" in depto_norm
 
         if "director" in cargo:
             # Director (cualquier sede/depto): visibilidad total, sin filtros.
             pass
+        elif is_ops_dept:
+            # Departamento de Operaciones (Feb 2026): visibilidad de LECTURA sobre
+            # cotizaciones MPOS (Imple + POS) creadas por la sede Ventas Pyme.
+            # El frontend restringe acciones a solo "Marcar como Configurada".
+            # Soportamos tanto el campo nuevo `quote_category='fast_track'` como
+            # cotizaciones legacy `quote_type='FAST_TRACK'` con
+            # `quote_category='implementation'`.
+            query["client_segment"] = "PYME"
+            query["$or"] = [
+                {"quote_category": "fast_track"},
+                {"quote_type": "FAST_TRACK"},
+            ]
         elif is_admin_dept:
             # Administración: visibilidad por SEDE (PYME/CORP/TBP) sin importar
             # qué usuario creó la cotización. Permite que todo el equipo de
@@ -1810,7 +1824,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
             <div class="info-block">
                 <h3>Preparado para:</h3>
                 <strong>{data.cliente_nombre}</strong><br>
-                <span>RIF: {data.cliente_rif or 'N/A'}</span><br>
+                <span>RIF: {format_rif(data.cliente_rif) or 'N/A'}</span><br>
                 <span>{data.cliente_address or ''}</span>
             </div>
             <div class="info-block" style="text-align:right">
@@ -2101,7 +2115,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     <div style="display:flex;justify-content:space-between;gap:40px;margin:30px 0">
         <div style="flex:1"><h3 style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin:0 0 6px 0">Preparado para:</h3>
         <strong style="color:#1e293b;font-size:14px">{cliente_nombre}</strong><br>
-        <span style="font-size:12px;color:#64748b">RIF: {cliente_rif or 'N/A'}</span><br>
+        <span style="font-size:12px;color:#64748b">RIF: {format_rif(cliente_rif) or 'N/A'}</span><br>
         <span style="font-size:12px;color:#64748b">{cliente_address or ''}</span></div>
         <div style="flex:1;text-align:right"><h3 style="font-size:10px;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin:0 0 6px 0">Emitido por:</h3>
         <strong style="color:#1e293b;font-size:14px">Mega Soft Computación, C.A.</strong></div>

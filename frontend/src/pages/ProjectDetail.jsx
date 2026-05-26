@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import api from '../utils/api';
+import { formatRif } from '../utils/rifFormatter';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -992,7 +993,7 @@ const ProjectDetail = () => {
                 <div>
                   <p className="text-xs text-slate-500">Cliente</p>
                   <p className="text-sm font-semibold text-slate-700">{project.client_name}</p>
-                  <p className="text-xs text-slate-400">{project.client_rif} — {project.client_sede}</p>
+                  <p className="text-xs text-slate-400">{formatRif(project.client_rif)} — {project.client_sede}</p>
                 </div>
                 {/* Datos Comerciales: Grupo Económico + Nombre de Fantasía */}
                 <div className="pt-2 mt-2 border-t border-slate-100 space-y-2">

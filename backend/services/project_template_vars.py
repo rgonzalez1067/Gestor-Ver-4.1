@@ -11,6 +11,7 @@ Variables:
 """
 import logging
 from config import db
+from services.rif_formatter import format_rif
 
 logger = logging.getLogger(__name__)
 
@@ -366,7 +367,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "quote_number": quote_number,
         "ticket_number": ticket,
         "client_name": client_name,
-        "client_rif": project.get("client_rif", ""),
+        "client_rif": format_rif(project.get("client_rif", "")),
         "client_segment": project.get("client_segment", ""),
         "quote_type": project.get("quote_type", ""),
         "integrator_name": integrador,

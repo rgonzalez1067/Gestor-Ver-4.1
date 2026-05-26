@@ -17,6 +17,8 @@ import io
 import os
 from datetime import datetime, timezone
 
+from services.rif_formatter import format_rif
+
 
 COLOR_AZUL = colors.HexColor("#00447C")
 COLOR_GRIS = colors.HexColor("#6B7280")
@@ -162,11 +164,14 @@ def generate_nota_entrega_pdf(
     fecha_str = now.strftime("%d/%m/%Y")
 
     # Header info for persistent headers on pages 2+
+    # Normalizamos RIF a 9 dígitos (padding de ceros) para todos los puntos
+    # donde se imprima en el PDF (encabezado persistente y bloque cliente).
+    rif_fmt = format_rif(client_rif)
     header_info = {
         "correlativo": correlativo,
         "fecha": fecha_str,
         "client_name": client_name or "",
-        "client_rif": client_rif or "",
+        "client_rif": rif_fmt,
         "logo_path": logo_path,
     }
 
@@ -256,7 +261,7 @@ def generate_nota_entrega_pdf(
     cw2 = [CONTENT_W * 0.22, CONTENT_W * 0.32, CONTENT_W * 0.16, CONTENT_W * 0.30]
     client_data = [
         [Paragraph("Razon Social:", s_label), Paragraph(client_name or "—", s_value),
-         Paragraph("RIF:", s_label), Paragraph(client_rif or "—", s_value)],
+         Paragraph("RIF:", s_label), Paragraph(rif_fmt or "—", s_value)],
         [Paragraph("Direccion de Entrega:", s_label), address_para, "", ""],
         [Paragraph("Contacto:", s_label), Paragraph(client_contact_name or "—", s_value),
          Paragraph("Telefono:", s_label), Paragraph(client_contact_phone or "—", s_value)],

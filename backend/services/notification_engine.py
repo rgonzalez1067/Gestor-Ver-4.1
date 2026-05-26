@@ -136,6 +136,12 @@ async def _build_template_vars(quote: dict) -> dict:
                 contact_email = contact_email or primary.get("email") or ""
                 contact_phone = contact_phone or primary.get("phone") or primary.get("telefono") or ""
 
+    # Normalización fiscal: RIF a 9 dígitos con padding de ceros a la izquierda.
+    # Feb 2026 — Requerimiento de integridad de datos: previene casos como
+    # `V12345` que en realidad es `V-000012345`.
+    from services.rif_formatter import format_rif
+    rif = format_rif(rif)
+
     raw_segment = quote.get("sede", quote.get("client_segment", "PYME"))
     norm_segment = (
         "PYME" if raw_segment in ("TBP", "PYME", "Pymes", "pyme")
