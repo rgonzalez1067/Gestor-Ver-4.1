@@ -1,0 +1,39 @@
+{
+  "summary": "Iter11 — Retest del bug Textarea no definido en Integradores + verificación de Proyectos. RESULTADO: AMBOS PASS. (1) /integrators/communications ahora abre el modal 'Nueva Plantilla' SIN crash; el RichTextEditor 'entity-tpl-editor-INTEGRADORES' renderiza con TODOS los 15 testids de toolbar (bold/italic/underline/strike/bullet/ordered/align-*/color/highlight/link/preview-btn/counter). Se creó TEST_INT_RICH_AUTO_ITER11 con bold + lista + alineación centrada (counter 1269/20000), preview substituyó todos los tokens demo ({nombre_integrador}->Integrador Demo, {razon_social}->Integrador Demo C.A., {rif}->J-12345678-9, {aplicativo}->Demo App POS, {estado}->Homologado, {fase}->Producción, {email}->contacto@clientedemo.com), se guardó y persistió (card visible tras reload), y se eliminó vía UI. (2) /projects/prj_a4448c1ba875 botón 'Plantillas' (data-testid='manage-templates-btn') visible cerca del bloque Notificaciones; abre TemplatesAdminDialog; editor 'project-tpl-editor' renderiza con los 15 testids; counter 386/20000; preview substituye tokens con datos demo ({Contacto_Principal}->María Pérez, {Nombre_Cliente}->CLIENTE DEMO S.A., {Nombre_Implementador}->Carlos Rodríguez, {Integrador}->A2 Softway C.A.); guardar funciona; al re-editar la plantilla creada el HTML enriquecido SE PRESERVA (<strong>:true, <ul>:true, text-align:center:true). (3) Regresión backend OK: GET /api/quotes y GET /api/email-templates?context=INTEGRADORES → 200.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "TemplatesAdminDialog.jsx — insertVar()",
+        "issue": "Al hacer clic en una variable del panel derecho (p.ej. var-token-Integrador), la llamada `navigator.clipboard.writeText(tag)` falla con 'NotAllowedError: Failed to execute writeText on Clipboard: Write permission denied' en navegadores donde clipboard requiere user gesture/HTTPS permission. La promesa rechaza sin .catch(), por lo que React DevServer levanta el overlay 'Uncaught runtime errors' sobre toda la UI (visible en screenshot). FUNCIONALMENTE la variable SÍ se inserta en el body (setTemplateForm append funciona), pero el overlay tapa el modal y obliga al usuario a cerrarlo. Reproducible 100% en /projects/:id → Plantillas → Variables Disponibles → click cualquier token.",
+        "selector": "/app/frontend/src/components/projects/TemplatesAdminDialog.jsx:55 (insertVar)",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration22_rich_text_templates.py"
+  ],
+  "action_items": [
+    "[MEDIUM] TemplatesAdminDialog.jsx insertVar: envolver `navigator.clipboard.writeText(tag)` en try/catch ASYNC y NO levantar promesa unhandled. Patrón sugerido: `navigator.clipboard?.writeText?.(tag).catch(()=>{}); toast.success('Insertado: ${tag}'); setTemplateForm(...)`. Esto elimina el overlay 'Uncaught runtime errors' al insertar variables en plantillas de proyectos."
+  ],
+  "critical_code_review_comments": [
+    "EntityTemplatesConfig.jsx (líneas 184-198) — Fix de Iter10 aplicado correctamente. <RichTextEditor> con testid dinámico `entity-tpl-editor-${context}` produce los 30+ testids hijos esperados (toolbar, counter, content, preview). Sin regresiones.",
+    "TemplatesAdminDialog.jsx — insertVar tiene rejection no manejada en la chain de Promise (`.then` sin `.catch`). Esto se manifiesta como overlay rojo de Create-React-App. Recomendación: agregar `.catch(()=>{})` o usar try/await dentro de un wrapper async.",
+    "Tokens en preview de Proyectos sin demo value se renderizan como `[Token_Name]` (brackets cuadrados). Está bien para QA pero podría confundir al usuario final que pruebe la Vista Previa. Considerar ocultar tokens sin demo o mostrar '—'.",
+    "RichTextEditor — Persistencia de formato (negrita, listas, alineación) confirmada en ambos contextos (INTEGRADORES con dialog modal + Proyectos con TemplatesAdminDialog). El round-trip HTML está intacto byte-a-byte."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (regresión GET /api/quotes y /api/email-templates → 200)",
+    "frontend": "100% — Integradores PASS end-to-end; Proyectos PASS end-to-end (con caveat clipboard overlay no bloqueante)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "TEST_INT_RICH_AUTO_ITER11 (Integradores) y TEST_PROJ_RICH_AUTO_ITER11 (Proyectos) creadas y eliminadas vía UI durante el test. No quedó data residual.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter11 cerró el bug bloqueante de Integradores (Iter10). Pipeline TipTap completo en los 3 contextos (Clientes ya validado en Iter10, Integradores e Integradores+Proyectos en Iter11). Único pendiente menor: overlay clipboard en insertVar de TemplatesAdminDialog.jsx — fix de 1 línea (agregar .catch).",
+  "rca_of_the_issue": "Bug overlay clipboard: navigator.clipboard.writeText() retorna Promise; cuando el origen no es 'secure context' (iframes preview) o sin user-activation reciente, la promesa rechaza con NotAllowedError. En insertVar (TemplatesAdminDialog.jsx:55) el try/catch envuelve sólo el setup pero el .then() no tiene .catch(), entonces React's unhandledrejection handler dispara el ErrorOverlay del dev server. Fix: `navigator.clipboard?.writeText?.(tag).catch(() => {});` evita la promesa pendiente."
+}

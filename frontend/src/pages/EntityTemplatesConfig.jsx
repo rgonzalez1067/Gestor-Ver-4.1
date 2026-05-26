@@ -183,7 +183,17 @@ export const EntityTemplatesConfig = ({
                   <div><Label className="text-xs">Asunto</Label><Input value={tplForm.subject} onChange={e => setTplForm({...tplForm, subject: e.target.value})} /></div>
                   <div>
                     <Label className="text-xs">Cuerpo del Mensaje</Label>
-                    <Textarea value={tplForm.body_html} onChange={e => setTplForm({...tplForm, body_html: e.target.value})} rows={8} />
+                    <RichTextEditor
+                      value={tplForm.body_html}
+                      onChange={(html) => setTplForm({ ...tplForm, body_html: html })}
+                      maxChars={20000}
+                      hardLimit={false}
+                      placeholder="Redacte aquí el cuerpo del correo..."
+                      testid={`entity-tpl-editor-${context}`}
+                      showPreview
+                      minHeight={240}
+                      maxHeight={400}
+                    />
                     {variablesHint && <p className="text-[10px] text-slate-400 mt-1">Variables: {variablesHint}</p>}
                   </div>
                 </div>
