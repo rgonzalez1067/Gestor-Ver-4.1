@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { ArrowLeft, FileText, Upload, Trash2, Plus, Save, Pencil, FileUp } from 'lucide-react';
+import { RichTextEditor } from '../components/RichTextEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -158,7 +158,7 @@ export const ClientTemplatesConfig = () => {
                     </div>
                   </div>
                   <p className="text-xs text-blue-600 font-medium mb-1">Asunto: {tpl.subject || '—'}</p>
-                  <p className="text-xs text-slate-500 line-clamp-3">{tpl.body_html || tpl.body || '—'}</p>
+                  <p className="text-xs text-slate-500 line-clamp-3">{(tpl.body_html || tpl.body || '—').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '—'}</p>
                 </div>
               ))}
               {templates.length === 0 && (
@@ -171,7 +171,7 @@ export const ClientTemplatesConfig = () => {
 
             {/* Template Dialog */}
             <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
-              <DialogContent className="max-w-lg" data-testid="template-dialog">
+              <DialogContent className="max-w-3xl" data-testid="template-dialog">
                 <DialogHeader>
                   <DialogTitle>{editingTpl ? 'Editar' : 'Nueva'} Plantilla</DialogTitle>
                   <DialogDescription>Las plantillas de Clientes son independientes de las de Proyectos.</DialogDescription>
@@ -181,7 +181,17 @@ export const ClientTemplatesConfig = () => {
                   <div><Label className="text-xs">Asunto</Label><Input value={tplForm.subject} onChange={e => setTplForm({...tplForm, subject: e.target.value})} placeholder="Ej: Bienvenido {{nombre}}" /></div>
                   <div>
                     <Label className="text-xs">Cuerpo del Mensaje</Label>
-                    <Textarea value={tplForm.body_html} onChange={e => setTplForm({...tplForm, body_html: e.target.value})} rows={8} placeholder="Estimado {{contacto}},&#10;&#10;Es un placer..." />
+                    <RichTextEditor
+                      value={tplForm.body_html}
+                      onChange={(html) => setTplForm({ ...tplForm, body_html: html })}
+                      maxChars={20000}
+                      hardLimit={false}
+                      placeholder="Estimado {{contacto}}, es un placer..."
+                      testid="cli-tpl-editor"
+                      showPreview
+                      minHeight={240}
+                      maxHeight={400}
+                    />
                     <p className="text-[10px] text-slate-400 mt-1">Variables: {VARIABLES_HINT}</p>
                   </div>
                 </div>

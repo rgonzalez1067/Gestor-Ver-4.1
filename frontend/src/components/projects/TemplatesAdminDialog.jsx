@@ -4,7 +4,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { ClipboardList, Building2, FileText, Server, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
-import { TemplateBodyEditor } from './TemplateBodyEditor';
+import { RichTextEditor } from '../RichTextEditor';
 
 const VAR_GROUPS = [
   { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
@@ -110,9 +110,16 @@ export const TemplatesAdminDialog = ({
               </div>
               <div>
                 <Label className="text-sm">Cuerpo del mensaje</Label>
-                <TemplateBodyEditor
+                <RichTextEditor
                   value={templateForm.body}
-                  onChange={val => setTemplateForm(p => ({ ...p, body: val }))}
+                  onChange={(html) => setTemplateForm(p => ({ ...p, body: html }))}
+                  maxChars={20000}
+                  hardLimit={false}
+                  placeholder="Redacte aquí el contenido del correo. Use el panel lateral para insertar variables."
+                  testid="project-tpl-editor"
+                  showPreview
+                  minHeight={240}
+                  maxHeight={420}
                 />
               </div>
               <div className="flex gap-2 pt-2">

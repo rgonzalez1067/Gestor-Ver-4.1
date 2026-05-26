@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
 import { ArrowLeft, FileText, Upload, Trash2, Plus, Save, Pencil, FileUp } from 'lucide-react';
+import { RichTextEditor } from '../components/RichTextEditor';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -161,7 +161,7 @@ export const EntityTemplatesConfig = ({
                     </div>
                   </div>
                   <p className="text-xs text-blue-600 font-medium mb-1">Asunto: {tpl.subject || '—'}</p>
-                  <p className="text-xs text-slate-500 line-clamp-3">{tpl.body_html || tpl.body || '—'}</p>
+                  <p className="text-xs text-slate-500 line-clamp-3">{(tpl.body_html || tpl.body || '—').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '—'}</p>
                 </div>
               ))}
               {templates.length === 0 && (
@@ -173,7 +173,7 @@ export const EntityTemplatesConfig = ({
             </div>
 
             <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
-              <DialogContent className="max-w-lg" data-testid="entity-template-dialog">
+              <DialogContent className="max-w-3xl" data-testid="entity-template-dialog">
                 <DialogHeader>
                   <DialogTitle>{editingTpl ? 'Editar' : 'Nueva'} Plantilla</DialogTitle>
                   <DialogDescription>Estas plantillas son específicas del módulo y no interfieren con otros.</DialogDescription>

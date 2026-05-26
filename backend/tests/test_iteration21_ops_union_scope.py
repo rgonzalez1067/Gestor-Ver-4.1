@@ -28,21 +28,25 @@ def _run(coro):
 
 def _build_ops_query_like_endpoint(user_id, dept_user_ids, user_sede):
     """Reproduce la construcción del query del endpoint /api/quotes para
-    un usuario Analista del Departamento Operaciones (sin cargo gerencial)."""
+    un usuario Analista del Departamento Operaciones.
+
+    Feb 2026 v3 — Operaciones es un dept de soporte transversal con
+    lectura universal sobre repair + equipment + MPOS PYME, sin filtro de
+    creator (cubre cotizaciones legacy con created_by_user_id huérfanos).
+    """
     query = {"archived": {"$ne": True}}
     cargo = "analista"
     is_ops_dept = True
 
-    # Default branch (else block del endpoint)
     if "director" not in cargo:
         query["client_segment"] = user_sede
         query["created_by_user_id"] = {"$in": dept_user_ids}
 
-    # Ampliación OPS (UNION) — Feb 2026 versión 2: scope inter-sede.
     if is_ops_dept and "director" not in cargo:
         scope_keys = ("created_by_user_id", "client_segment")
         ops_dept_scope = {k: query.pop(k) for k in scope_keys if k in query}
-        ops_inter_scope = {"created_by_user_id": {"$in": dept_user_ids}}
+        ops_repair_scope = {"quote_category": "repair"}
+        ops_equipment_scope = {"quote_category": "equipment"}
         ops_mpos_scope = {
             "client_segment": "PYME",
             "$or": [
@@ -55,8 +59,7 @@ def _build_ops_query_like_endpoint(user_id, dept_user_ids, user_sede):
             if "$or" in query:
                 ops_dept_scope["$or"] = query.pop("$or")
             or_branches.append(ops_dept_scope)
-        or_branches.append(ops_inter_scope)
-        or_branches.append(ops_mpos_scope)
+        or_branches.extend([ops_repair_scope, ops_equipment_scope, ops_mpos_scope])
         query["$or"] = or_branches
     return query
 
@@ -217,43 +220,80 @@ def test_ops_no_ve_equipos_de_otros_departamentos():
     _run(runner())
 
 
-def test_ops_pyme_ve_cotizacion_creada_por_ops_corp_inter_sede():
-    """Feb 2026 — Fix iter 2: Operaciones tiene gente en ambas sedes.
-    Un usuario Ops PYME debe ver una cotización CREADA POR Ops CORP, aunque
-    la cotización esté en `client_segment='CORP'` (que normalmente filtra)."""
+def test_ops_ve_cotizaciones_legacy_con_creator_huerfano():
+    """Feb 2026 v3 — Las cotizaciones legacy importadas vía CSV tienen
+    `created_by_user_id` sintético (orphan: no existe en `users`). Operaciones
+    debe verlas igualmente porque coordina ese trabajo, independientemente
+    de quién las creó. Aplica a categorías: repair, equipment, fast_track."""
     suffix = uuid.uuid4().hex[:8]
-    ops_user_pyme = f"usr_ops_pyme_{suffix}"
-    ops_user_corp = f"usr_ops_corp_{suffix}"
+    ops_user_id = f"usr_ops_{suffix}"
+    fantasma = f"user_orphan_{suffix}"
 
     async def runner():
-        # Reparación CORP creada por un Ops user en sede CORP
-        corp_repair_id = f"q_corp_rep_{suffix}"
+        # 3 cotizaciones legacy con creator huérfano
+        repair_id = f"q_legacy_rep_{suffix}"
+        equip_id = f"q_legacy_eq_{suffix}"
+        ft_id = f"q_legacy_ft_{suffix}"
         await db.quotes.insert_one({
-            "quote_id": corp_repair_id,
-            "quote_number": f"COT-TEST-{suffix}-REP-CORP",
-            "client_segment": "CORP",  # CORP, diferente al usuario PYME
-            "quote_category": "repair",
-            "quote_type": "REPAIR",
-            "created_by_user_id": ops_user_corp,
-            "quote_status": "Aprobada",
-            "archived": False,
+            "quote_id": repair_id, "quote_number": f"COT-LEGACY-{suffix}-REP",
+            "client_segment": "PYME", "quote_category": "repair", "quote_type": "REPAIR",
+            "created_by_user_id": fantasma, "quote_status": "Aprobada",
+            "archived": False, "imported_by": "admin@megasoft.com.ve",
+        })
+        await db.quotes.insert_one({
+            "quote_id": equip_id, "quote_number": f"COT-LEGACY-{suffix}-EQ",
+            "client_segment": "PYME", "quote_category": "equipment", "quote_type": "EQUIPMENT",
+            "created_by_user_id": fantasma, "quote_status": "Aprobada",
+            "archived": False, "imported_by": "admin@megasoft.com.ve",
+        })
+        await db.quotes.insert_one({
+            "quote_id": ft_id, "quote_number": f"COT-LEGACY-{suffix}-FT",
+            "client_segment": "PYME", "quote_category": "fast_track", "quote_type": "FAST_TRACK",
+            "created_by_user_id": fantasma, "quote_status": "Aprobada",
+            "archived": False, "imported_by": "admin@megasoft.com.ve",
         })
 
         try:
             query = _build_ops_query_like_endpoint(
-                user_id=ops_user_pyme,
-                dept_user_ids=[ops_user_pyme, ops_user_corp],  # ambos en el dept
-                user_sede="PYME",
+                user_id=ops_user_id, dept_user_ids=[ops_user_id], user_sede="PYME",
             )
             visible_ids = set()
             async for q in db.quotes.find(query, {"_id": 0, "quote_id": 1}):
                 visible_ids.add(q["quote_id"])
+            assert repair_id in visible_ids, f"REGRESIÓN: Reparación legacy con orphan creator no visible. visible_ids={visible_ids}"
+            assert equip_id in visible_ids, f"REGRESIÓN: Equipo legacy con orphan creator no visible. visible_ids={visible_ids}"
+            assert ft_id in visible_ids, f"REGRESIÓN: MPOS legacy con orphan creator no visible. visible_ids={visible_ids}"
+        finally:
+            await db.quotes.delete_many({"quote_id": {"$in": [repair_id, equip_id, ft_id]}})
 
-            assert corp_repair_id in visible_ids, (
-                "REGRESIÓN: usuario Ops PYME no ve cotización CORP creada por un "
-                f"colega Ops. visible_ids={visible_ids}"
+    _run(runner())
+
+
+def test_ops_no_ve_implementation_de_otros_departamentos():
+    """Las cotizaciones `implementation` (VPOS/PG no MPOS) creadas por otros
+    departamentos NO deben aparecer para Operaciones (no es su ámbito)."""
+    suffix = uuid.uuid4().hex[:8]
+    ops_user_id = f"usr_ops_{suffix}"
+
+    async def runner():
+        foreign_impl = f"q_foreign_impl_{suffix}"
+        await db.quotes.insert_one({
+            "quote_id": foreign_impl, "quote_number": f"COT-VP-{suffix}",
+            "client_segment": "PYME", "quote_category": "implementation",
+            "quote_type": "VPOS", "created_by_user_id": "usr_ventas_pyme_xyz",
+            "quote_status": "Aprobada", "archived": False,
+        })
+        try:
+            query = _build_ops_query_like_endpoint(
+                user_id=ops_user_id, dept_user_ids=[ops_user_id], user_sede="PYME",
+            )
+            visible_ids = set()
+            async for q in db.quotes.find(query, {"_id": 0, "quote_id": 1}):
+                visible_ids.add(q["quote_id"])
+            assert foreign_impl not in visible_ids, (
+                "VPOS de Ventas Pyme NO debe ser visible para Ops. visible_ids contiene impl_id"
             )
         finally:
-            await db.quotes.delete_many({"quote_id": corp_repair_id})
+            await db.quotes.delete_one({"quote_id": foreign_impl})
 
     _run(runner())

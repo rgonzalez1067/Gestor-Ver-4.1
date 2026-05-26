@@ -12,7 +12,7 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://notif-assign.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://rif-sync-portal.preview.emergentagent.com')
 
 # Session token from previous test iteration
 TEST_SESSION_TOKEN = "P9AVoJzHOYxuqit3lai9Vz5t2QaHxeGWUnVh3hBtZIo"

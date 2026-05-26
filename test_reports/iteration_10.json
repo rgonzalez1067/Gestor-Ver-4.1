@@ -1,0 +1,51 @@
+{
+  "summary": "Iter10 — Rich Text Editor (TipTap) migration. Backend 5/5 PASS. Frontend Clientes PASS end-to-end (toolbar, counter, preview con substitución de tokens). Frontend Integradores BLOQUEADO por bug crítico: la página /integrators/communications CRASHEA con 'ReferenceError: Textarea is not defined' al abrir el modal 'Nueva Plantilla' (la migración a RichTextEditor en EntityTemplatesConfig.jsx quedó incompleta — línea 186 sigue usando <Textarea> pero el import fue removido). Frontend Proyectos no verificado (botón 'Gestionar Plantillas' no visible en el proyecto inspeccionado).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "EntityTemplatesConfig.jsx",
+        "issue": "CRITICAL — Página /integrators/communications (y /nuevos-productos/communications) crashea al abrir 'Nueva Plantilla' con 'ReferenceError: Textarea is not defined' (Uncaught runtime error). Migración a TipTap incompleta: import de RichTextEditor agregado pero el JSX en línea 186 sigue renderizando <Textarea value={tplForm.body_html} ... /> sin import. Esto bloquea TODA la edición de plantillas de Integradores y Nuevos Productos.",
+        "selector": "/app/frontend/src/pages/EntityTemplatesConfig.jsx:186",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Project detail — Gestionar Plantillas",
+        "issue": "No se encontró el botón 'Gestionar Plantillas de Correo' en la página de detalle del primer proyecto (prj_a4448c1ba875). No se pudo verificar visualmente el editor project-tpl-editor. Puede requerir un proyecto en estado específico o estar en una tab diferente. Verificar con main agent.",
+        "selector": "/projects/:id",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration22_rich_text_templates.py",
+    "/app/test_reports/pytest/iter22_rich_text.xml"
+  ],
+  "action_items": [
+    "[CRITICAL] EntityTemplatesConfig.jsx línea 186: reemplazar <Textarea ... /> por <RichTextEditor value={tplForm.body_html} onChange={(html)=>setTplForm({...tplForm, body_html: html})} testid={`entity-tpl-editor-${context}`} showPreview hardLimit={false} maxChars={20000} placeholder='Cuerpo del mensaje...' />. Esta es la única causa raíz del crash en /integrators/communications.",
+    "Verificar dónde se expone 'Gestionar Plantillas de Correo' en /projects/:id — no aparece en el detalle del primer proyecto (prj_a4448c1ba875). Documentar cuál proyecto/estado lo habilita, o revisar permisos del botón."
+  ],
+  "critical_code_review_comments": [
+    "EntityTemplatesConfig.jsx — Migración a RichTextEditor incompleta. Se agregó el import pero no se sustituyó el JSX. Resultado: TODO el módulo de plantillas de Integradores y Nuevos Productos rompe el rendering del modal. Test rápido sugerido: en /clients/communications funciona PERFECTO; replicar el mismo patrón en EntityTemplatesConfig.jsx.",
+    "RichTextEditor.jsx — Bien diseñado: hardLimit configurable, testid dinámico, exampleValues prop por pantalla, substituteTokens soporta {var} y {{var}}. La onUpdate llama editor.commands.undo() si excede maxChars (con hardLimit=true) — esto puede tener side effects si el usuario pega texto largo (pierde TODA la edición previa al pegado). Considerar truncar el insertContent en lugar de undo en una próxima iteración.",
+    "RichTextEditor.jsx línea 290 — El placeholder se renderiza con CSS '-mt-10 pointer-events-none' por encima del editor solo si plainLen === 0; pero si el HTML inicial es '<p></p>' (vacío TipTap) y el counter dice 0, se muestra el placeholder PERO el cursor ya está dentro del <p>. Validado visualmente OK en Clientes (placeholder 'Estimado {{contacto}}...' visible)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration22_rich_text_templates.py (creado)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 passed)",
+    "frontend": "33% — Clientes OK; Integradores BLOQUEADO por bug; Proyectos no verificado"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Plantillas TEST_ creadas y eliminadas en cada test backend (TEST_rich_long_*, TEST_rich_upd_*, TEST_ctx_cli_*). Una plantilla TEST_QA_RICH_AUTO fue creada vía UI en /clients/communications durante el flujo y NO fue eliminada — debería limpiarse con DELETE /api/email-templates/{id}.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend body_html acepta strings largos con HTML — verificado hasta 2500+ chars con <p><strong><em><u><s><ul><li><a> preservados byte-a-byte. El bug está SOLO en /app/frontend/src/pages/EntityTemplatesConfig.jsx:186 — un reemplazo de 1 línea (Textarea → RichTextEditor con testid dinámico) lo arregla. Después de fixear, retestear /integrators/communications y /nuevos-productos/communications con los testids 'entity-tpl-editor-INTEGRADORES-*' y 'entity-tpl-editor-NUEVOS_PRODUCTOS-*'.",
+  "rca_of_the_issue": "ROOT CAUSE del crash en Integradores: EntityTemplatesConfig.jsx fue parcialmente migrado a TipTap. Se agregó `import { RichTextEditor } from '../components/RichTextEditor'` en línea 8, pero el JSX del modal (línea 186) sigue usando el componente legacy `<Textarea>` cuyo import fue removido. React intenta resolver el símbolo `Textarea` y lanza ReferenceError, lo que vuela el árbol de componentes desde EntityTemplatesConfig hacia arriba y muestra el ErrorBoundary de 'Uncaught runtime errors'. REPRODUCCIÓN: 1) login admin, 2) ir a /integrators/communications, 3) click 'Plantillas' tab, 4) click 'Nueva Plantilla' → crash inmediato. MITIGACIÓN: reemplazar <Textarea value={tplForm.body_html} onChange={e => setTplForm({...tplForm, body_html: e.target.value})} rows={8} /> por <RichTextEditor value={tplForm.body_html} onChange={(html)=>setTplForm({...tplForm, body_html: html})} testid={`entity-tpl-editor-${context}`} showPreview hardLimit={false} maxChars={20000} placeholder='Escriba el cuerpo del mensaje...' />."
+}

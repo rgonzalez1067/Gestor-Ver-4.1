@@ -540,34 +540,28 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
                 query["created_by_user_id"] = user_id
 
     # ========= AMPLIACIÓN DE ALCANCE: Departamento OPERACIONES =========
-    # Feb 2026 — Requerimiento ajustado (2 iteraciones): los usuarios del
-    # Departamento de Operaciones deben ver:
-    #   (a) TODAS las cotizaciones creadas por usuarios de Operaciones,
-    #       SIN importar la sede del creador (Operaciones tiene gente en PYME y
-    #       CORP que se coordina internamente).
-    #   (b) MPOS (Imple + POS) creadas por la sede Ventas Pyme (lectura).
+    # Feb 2026 — Operaciones es un departamento de SOPORTE TRANSVERSAL:
+    # coordina Reparaciones, Ventas de Equipos/Accesorios y la fase técnica
+    # de MPOS (Imple+POS) sin generar ventas propiamente. Por eso necesita
+    # LECTURA UNIVERSAL sobre estas categorías independientemente del
+    # creador de la cotización (clave porque mucho del histórico fue
+    # importado y tiene `created_by_user_id` sintéticos que no matchean con
+    # usuarios actuales — orphan IDs).
     #
-    # Esta es una UNIÓN aditiva: no quita visibilidad previa.
+    # Categorías con acceso ABIERTO para Operaciones (lectura):
+    #   - `repair` (Reparaciones) — coordinación de servicio técnico.
+    #   - `equipment` (Equipos / Accesorios) — entregas y configuración.
+    #   - `fast_track` (MPOS Imple + POS) — fase técnica, sólo PYME.
+    #
+    # El frontend restringe acciones (solo Configuración para MPOS, etc.).
     if is_ops_dept and "director" not in cargo:
-        # Lista de IDs de TODOS los usuarios del departamento Operaciones.
-        ops_dept_users = await db.users.find(
-            {"departamento": {"$regex": "^operaciones$", "$options": "i"}, "is_active": {"$ne": False}},
-            {"_id": 0, "user_id": 1},
-        ).to_list(500)
-        ops_dept_user_ids = [u["user_id"] for u in ops_dept_users]
-        if current_user.get("user_id") and current_user["user_id"] not in ops_dept_user_ids:
-            ops_dept_user_ids.append(current_user["user_id"])
-
-        # Capturamos cualquier scope departamental previo (created_by_user_id
-        # y client_segment definidos por la rama default/coordinador/etc.).
+        # Capturamos el scope departamental previo (created_by + sede).
         scope_keys = ("created_by_user_id", "client_segment")
         ops_dept_scope = {k: query.pop(k) for k in scope_keys if k in query}
 
-        # Scope ADICIONAL 1: TODAS las cotizaciones de cualquier Ops user
-        # (sin restricción de sede — coordinación inter-sede).
-        ops_inter_scope = {"created_by_user_id": {"$in": ops_dept_user_ids}}
-
-        # Scope ADICIONAL 2: MPOS PYME (lectura) sin importar quién las creó.
+        # Lectura universal por categoría
+        ops_repair_scope = {"quote_category": "repair"}
+        ops_equipment_scope = {"quote_category": "equipment"}
         ops_mpos_scope = {
             "client_segment": "PYME",
             "$or": [
@@ -576,17 +570,14 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             ],
         }
 
-        # Componer la unión final.
         or_branches = []
         if ops_dept_scope:
-            # Conservar el scope original (departamental con sede) por si la rama
-            # padre tenía reglas adicionales — pero el ops_inter_scope ya
-            # cubre todo eso sin la restricción de sede.
+            # Conserva acceso a sus propias cotizaciones (incluido implementation
+            # PYME/CORP creadas por algún Ops user, si las hubiera).
             if "$or" in query:
                 ops_dept_scope["$or"] = query.pop("$or")
             or_branches.append(ops_dept_scope)
-        or_branches.append(ops_inter_scope)
-        or_branches.append(ops_mpos_scope)
+        or_branches.extend([ops_repair_scope, ops_equipment_scope, ops_mpos_scope])
         query["$or"] = or_branches
 
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
