@@ -231,6 +231,24 @@ async def _build_template_vars(quote: dict) -> dict:
     except Exception:
         abreviaturas_medios_pago = quote.get("abreviaturas_medios_pago", "") or ""
 
+    # 8) Variables específicas del flujo de Implementación / técnicas de la
+    # cotización. Antes solo se exponía `integrator_name` y `pinpad_model`,
+    # dejando huérfanos los aliases en español documentados al usuario.
+    # Feb 2026: agregamos Cantidad_Cajas (el usuario reportó que esta variable
+    # NO se cargaba en la acción "Enviar a Implementación") + resto de aliases.
+    cantidad_cajas_val = quote.get("cantidad_cajas")
+    if cantidad_cajas_val is None or cantidad_cajas_val == "":
+        cantidad_cajas_str = ""
+    else:
+        try:
+            cantidad_cajas_str = str(int(cantidad_cajas_val))
+        except (TypeError, ValueError):
+            cantidad_cajas_str = str(cantidad_cajas_val)
+    integrator_name_val = quote.get("integrator_name", "") or ""
+    integrator_app_name_val = quote.get("integrator_app_name", "") or ""
+    pinpad_model_val = quote.get("pinpad_model", "") or ""
+    sponsor_bank_name_val = quote.get("sponsor_bank_name", "") or ""
+
     return {
         # ----- Cotización -----
         "quote_number": quote_number,
@@ -266,8 +284,22 @@ async def _build_template_vars(quote: dict) -> dict:
         "Email_Ejecutivo": creator_email,
         # ----- Empresa / Integración -----
         "company_name": quote.get("company_name", "Merchant Server"),
-        "integrator_name": quote.get("integrator_name", ""),
-        "pinpad_model": quote.get("pinpad_model", ""),
+        "integrator_name": integrator_name_val,
+        "Integrador": integrator_name_val,
+        "integrator_app_name": integrator_app_name_val,
+        "Aplicativo_Integracion": integrator_app_name_val,
+        "Aplicativo": integrator_app_name_val,
+        "pinpad_model": pinpad_model_val,
+        "Modelo_Pinpad": pinpad_model_val,
+        "Pinpad": pinpad_model_val,
+        "sponsor_bank_name": sponsor_bank_name_val,
+        "Banco_Patrocinador": sponsor_bank_name_val,
+        # ----- Volumen / Cantidades -----
+        # Variable usada por la plantilla de "Enviar a Implementación":
+        # antes no se exponía y aparecía vacía al renderizar.
+        "cantidad_cajas": cantidad_cajas_str,
+        "Cantidad_Cajas": cantidad_cajas_str,
+        "cajas": cantidad_cajas_str,
         # ----- Sede -----
         "sede_name": norm_segment,
         "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
