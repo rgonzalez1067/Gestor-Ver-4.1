@@ -12,10 +12,11 @@ export const MultistoreBankSection = ({ bankName, products, rollupBankData, bank
         </td>
         <td className="px-3 py-2 text-center">
           <Button size="sm" variant="outline" onClick={onOpenNotif}
-            className={`h-7 text-xs ${bankExecutedLevels.length >= 4 ? 'border-emerald-300 text-emerald-700' : bankExecutedLevels.length > 0 ? 'border-blue-300 text-blue-700' : 'border-amber-300 text-amber-700'}`}
-            data-testid={`notif-bank-btn-${bankName}`}>
+            className={`h-7 text-xs ${bankExecutedLevels.length >= 4 ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}
+            data-testid={`notif-bank-btn-${bankName}`}
+            title={bankExecutedLevels.length > 0 ? `${bankExecutedLevels.length}/4 envío(s) realizados` : 'Sin envíos aún'}>
             {bankExecutedLevels.length >= 4 ? <CheckCircle2 size={12} className="mr-1" /> : <Bell size={12} className="mr-1" />}
-            {bankExecutedLevels.length > 0 ? `${bankExecutedLevels.length}/4` : 'Notificaciones'}
+            Notificaciones
           </Button>
         </td>
       </tr>
