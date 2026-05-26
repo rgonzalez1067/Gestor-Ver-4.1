@@ -28,8 +28,7 @@ def _run(coro):
 
 def _build_ops_query_like_endpoint(user_id, dept_user_ids, user_sede):
     """Reproduce la construcción del query del endpoint /api/quotes para
-    un usuario Analista del Departamento Operaciones (sin cargo gerencial).
-    """
+    un usuario Analista del Departamento Operaciones (sin cargo gerencial)."""
     query = {"archived": {"$ne": True}}
     cargo = "analista"
     is_ops_dept = True
@@ -39,23 +38,26 @@ def _build_ops_query_like_endpoint(user_id, dept_user_ids, user_sede):
         query["client_segment"] = user_sede
         query["created_by_user_id"] = {"$in": dept_user_ids}
 
-    # Ampliación OPS (UNION)
+    # Ampliación OPS (UNION) — Feb 2026 versión 2: scope inter-sede.
     if is_ops_dept and "director" not in cargo:
         scope_keys = ("created_by_user_id", "client_segment")
         ops_dept_scope = {k: query.pop(k) for k in scope_keys if k in query}
-        ops_extra_scope = {
+        ops_inter_scope = {"created_by_user_id": {"$in": dept_user_ids}}
+        ops_mpos_scope = {
             "client_segment": "PYME",
             "$or": [
                 {"quote_category": "fast_track"},
                 {"quote_type": "FAST_TRACK"},
             ],
         }
+        or_branches = []
         if ops_dept_scope:
             if "$or" in query:
                 ops_dept_scope["$or"] = query.pop("$or")
-            query["$or"] = [ops_dept_scope, ops_extra_scope]
-        else:
-            query.update(ops_extra_scope)
+            or_branches.append(ops_dept_scope)
+        or_branches.append(ops_inter_scope)
+        or_branches.append(ops_mpos_scope)
+        query["$or"] = or_branches
     return query
 
 
@@ -211,5 +213,47 @@ def test_ops_no_ve_equipos_de_otros_departamentos():
             )
         finally:
             await db.quotes.delete_many({"quote_id": foreign_id})
+
+    _run(runner())
+
+
+def test_ops_pyme_ve_cotizacion_creada_por_ops_corp_inter_sede():
+    """Feb 2026 — Fix iter 2: Operaciones tiene gente en ambas sedes.
+    Un usuario Ops PYME debe ver una cotización CREADA POR Ops CORP, aunque
+    la cotización esté en `client_segment='CORP'` (que normalmente filtra)."""
+    suffix = uuid.uuid4().hex[:8]
+    ops_user_pyme = f"usr_ops_pyme_{suffix}"
+    ops_user_corp = f"usr_ops_corp_{suffix}"
+
+    async def runner():
+        # Reparación CORP creada por un Ops user en sede CORP
+        corp_repair_id = f"q_corp_rep_{suffix}"
+        await db.quotes.insert_one({
+            "quote_id": corp_repair_id,
+            "quote_number": f"COT-TEST-{suffix}-REP-CORP",
+            "client_segment": "CORP",  # CORP, diferente al usuario PYME
+            "quote_category": "repair",
+            "quote_type": "REPAIR",
+            "created_by_user_id": ops_user_corp,
+            "quote_status": "Aprobada",
+            "archived": False,
+        })
+
+        try:
+            query = _build_ops_query_like_endpoint(
+                user_id=ops_user_pyme,
+                dept_user_ids=[ops_user_pyme, ops_user_corp],  # ambos en el dept
+                user_sede="PYME",
+            )
+            visible_ids = set()
+            async for q in db.quotes.find(query, {"_id": 0, "quote_id": 1}):
+                visible_ids.add(q["quote_id"])
+
+            assert corp_repair_id in visible_ids, (
+                "REGRESIÓN: usuario Ops PYME no ve cotización CORP creada por un "
+                f"colega Ops. visible_ids={visible_ids}"
+            )
+        finally:
+            await db.quotes.delete_many({"quote_id": corp_repair_id})
 
     _run(runner())

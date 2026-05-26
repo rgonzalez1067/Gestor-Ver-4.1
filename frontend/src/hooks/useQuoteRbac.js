@@ -32,15 +32,19 @@ export function useQuoteRbac({ currentUser, canEdit, quotes }) {
 
   const rbacFilteredQuotes = useMemo(() => {
     if (rbac.isAdm || !rbac.hasAnyCotPerm) {
-      // Operaciones puede ver MPOS PYME aunque NO tenga special_permissions.
-      // El backend ya filtra por categoría y segmento, así que aquí solo nos
-      // aseguramos de no aplicar filtros adicionales que oculten el listado.
       return quotes;
     }
     const allowed = [];
     if (rbac.hasImplPyme || rbac.hasImplCorp) allowed.push('implementation', 'fast_track');
     if (rbac.hasEquipos) allowed.push('equipment');
     if (rbac.hasReparaciones) allowed.push('repair');
+    // Operaciones (Feb 2026): la sede tiene acceso de lectura sobre MPOS PYME
+    // aunque su perfil no incluya `cotizaciones:impl_pyme`. Sin esta excepción
+    // el filtro descartaba las cotizaciones `fast_track` que el backend ya
+    // había incluido en su scope, dejando al usuario "ciego" en esa categoría.
+    if (rbac.isOpsReadonly && !allowed.includes('fast_track')) {
+      allowed.push('fast_track');
+    }
     return quotes.filter(q => allowed.includes(q.quote_category));
   }, [quotes, rbac]);
 
