@@ -444,11 +444,16 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
     # Construir filtro jerárquico basado en cargo del usuario
     query = {"archived": {"$ne": True}}  # Excluir cotizaciones archivadas en Histórico
     user_sede = current_user.get("sede", "PYME")
+    cargo = (current_user.get("cargo") or "").lower()
+    user_depto = current_user.get("departamento", "")
+    depto_norm = (user_depto or "").strip().lower()
+    # Detectado a nivel raíz para que la unión de alcance Operaciones (más
+    # abajo, post-construcción del query) tenga acceso a la flag incluso
+    # cuando el usuario sea admin (no aplica) o pase por otras ramas.
+    is_ops_dept = "operaciones" in depto_norm
 
     if current_user.get("role") != "admin":
-        cargo = (current_user.get("cargo") or "").lower()
         user_id = current_user.get("user_id")
-        user_depto = current_user.get("departamento", "")
         # Special permissions efectivos: union(perfil, usuario)
         sp = list(current_user.get("special_permissions") or [])
         if current_user.get("profile_id"):
@@ -463,26 +468,12 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             (p or "").startswith("cotizaciones:") for p in sp
         )
 
-        # Normalizar departamento para detectar "Administración" y "Operaciones"
-        depto_norm = (user_depto or "").strip().lower()
+        # Normalizar departamento para detectar "Administración"
         is_admin_dept = "administración" in depto_norm or "administracion" in depto_norm
-        is_ops_dept = "operaciones" in depto_norm
 
         if "director" in cargo:
             # Director (cualquier sede/depto): visibilidad total, sin filtros.
             pass
-        elif is_ops_dept:
-            # Departamento de Operaciones (Feb 2026): visibilidad de LECTURA sobre
-            # cotizaciones MPOS (Imple + POS) creadas por la sede Ventas Pyme.
-            # El frontend restringe acciones a solo "Marcar como Configurada".
-            # Soportamos tanto el campo nuevo `quote_category='fast_track'` como
-            # cotizaciones legacy `quote_type='FAST_TRACK'` con
-            # `quote_category='implementation'`.
-            query["client_segment"] = "PYME"
-            query["$or"] = [
-                {"quote_category": "fast_track"},
-                {"quote_type": "FAST_TRACK"},
-            ]
         elif is_admin_dept:
             # Administración: visibilidad por SEDE (PYME/CORP/TBP) sin importar
             # qué usuario creó la cotización. Permite que todo el equipo de
@@ -547,7 +538,40 @@ async def get_quotes(authorization: Optional[str] = Header(None)):
             else:
                 # Usuario sin departamento asignado → solo ve sus propias cotizaciones
                 query["created_by_user_id"] = user_id
-    
+
+    # ========= AMPLIACIÓN DE ALCANCE: Departamento OPERACIONES =========
+    # Feb 2026 — Requerimiento ajustado: los usuarios del Departamento de
+    # Operaciones conservan TODA su visibilidad departamental por defecto
+    # (sus propias cotizaciones de Equipos, Reparaciones y las de sus
+    # colegas de Operaciones) Y ADEMÁS obtienen acceso de LECTURA sobre
+    # las cotizaciones MPOS (Imple + POS) creadas por Ventas Pyme.
+    #
+    # No reemplazamos el filtro existente — lo UNIMOS con un OR a nivel
+    # MongoDB conservando los demás filtros (archived, search, etc.).
+    if is_ops_dept and "director" not in cargo:
+        # Captura la parte del query que representa la visibilidad
+        # departamental (created_by_user_id + client_segment, si los hubo).
+        # El resto (archived, búsqueda) se mantiene a nivel raíz.
+        scope_keys = ("created_by_user_id", "client_segment")
+        ops_dept_scope = {k: query.pop(k) for k in scope_keys if k in query}
+        ops_extra_scope = {
+            "client_segment": "PYME",
+            "$or": [
+                {"quote_category": "fast_track"},
+                {"quote_type": "FAST_TRACK"},
+            ],
+        }
+        if ops_dept_scope:
+            # Si ya había un $or previo en query, lo movemos dentro del
+            # scope departamental para que la unión funcione correctamente.
+            if "$or" in query:
+                ops_dept_scope["$or"] = query.pop("$or")
+            query["$or"] = [ops_dept_scope, ops_extra_scope]
+        else:
+            # Caso director-ops o similar (sin scope previo): solo añade el
+            # alcance extra como filtro positivo.
+            query.update(ops_extra_scope)
+
     quotes = await db.quotes.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
     # Cache de clientes para resolver nombres
