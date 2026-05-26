@@ -875,7 +875,7 @@ const ProjectDetail = () => {
                     <FileBarChart size={12} />Reporte de Avance
                   </Button>
                   <Button variant="outline" size="sm" onClick={openEmailDialog} className="text-xs gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50 h-7 px-2" data-testid="adhoc-email-btn">
-                    <Megaphone size={12} />Notificaciones
+                    <Megaphone size={12} />Otras Notificaciones
                   </Button>
                   {(() => {
                     const isAssignedImpl = currentUser.user_id && currentUser.user_id === project.assigned_to_user_id;
@@ -1239,7 +1239,7 @@ const ProjectDetail = () => {
                 {!(!isMultistore && bankNames.length === 1) && (
                   <Button onClick={() => openNotifDialog('client')} disabled={isLocked} className={`gap-2 ${isLocked ? 'bg-slate-300 cursor-not-allowed' : clientNotified ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white`} data-testid="notifications-btn">
                     {clientNotified ? <BellRing size={16} /> : <Bell size={16} />}
-                    Notificaciones
+                    Notificaciones a Cliente
                   </Button>
                 )}
               </div>
