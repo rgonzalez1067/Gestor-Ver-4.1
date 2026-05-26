@@ -52,7 +52,12 @@ export const TemplatesAdminDialog = ({
 }) => {
   const insertVar = (token) => {
     const tag = `{${token}}`;
-    try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch (e) { toast.success(`Insertado: ${tag}`); }
+    try {
+      navigator.clipboard?.writeText?.(tag).then(
+        () => toast.success(`Copiado: ${tag}`),
+        () => toast.success(`Insertado: ${tag}`),
+      );
+    } catch (e) { toast.success(`Insertado: ${tag}`); }
     setTemplateForm(p => ({ ...p, body: p.body + tag }));
   };
 

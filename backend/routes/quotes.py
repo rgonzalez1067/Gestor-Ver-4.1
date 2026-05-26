@@ -126,6 +126,8 @@ class QuoteCreateWithPDF(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Cliente exento de IVA — suprime impuesto en cálculos y facturación
+    iva_exempt: Optional[bool] = False
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
     # Datos para el PDF (diccionario flexible)
@@ -207,6 +209,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 # Convertir dict a TemplateQuotePDFRequest
                 pdf_request = TemplateQuotePDFRequest(**data.pdf_data)
                 pdf_request.quote_number = quote_number
+                # Asegurar herencia del flag iva_exempt desde la cotización
+                pdf_request.iva_exempt = bool(data.iva_exempt)
                 
                 # Obtener logo si existe
                 logo_path = None
@@ -286,6 +290,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                         recurring_other_items=rec_other,
                         production_items=[],
                         notes=data.notes or '',
+                        iva_exempt=bool(data.iva_exempt),
                     )
                     
                     logo_path = None
@@ -359,6 +364,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             sponsored_implementation=bool(data.sponsored_implementation),
             sponsoring_bank_id=data.sponsoring_bank_id if data.sponsored_implementation else None,
             sponsoring_bank_name=data.sponsoring_bank_name if data.sponsored_implementation else None,
+            iva_exempt=bool(data.iva_exempt),
             cantidad_cajas=data.cantidad_cajas,
             cantidad_bancos=data.cantidad_bancos,
             pg_setup_items=data.pg_setup_items,
@@ -795,6 +801,8 @@ class QuoteUpdate(BaseModel):
     sponsored_implementation: Optional[bool] = None
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Cliente exento de IVA
+    iva_exempt: Optional[bool] = None
     subtotal_usd: Optional[float] = None
     total_usd: Optional[float] = None
     recurring_total_usd: Optional[float] = None
@@ -975,7 +983,8 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
                 for it in (quote.get("ft_equipment_items") or [])
             ],
             branch_details=quote.get("branch_details") or [],
-            include_recurring=quote.get("include_recurring", True)
+            include_recurring=quote.get("include_recurring", True),
+            iva_exempt=bool(quote.get("iva_exempt", False)),
         )
         
         # Enriquecer tipo_corp
@@ -1351,13 +1360,14 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
                 f"${total_item:,.2f}"
             ])
         
-        # IVA y Total
-        iva_rate = 0.16
-        iva_amount = equip_subtotal * iva_rate
+        # IVA y Total (cero si cliente exento)
+        _ft_iva_rate = 0.0 if getattr(data, "iva_exempt", False) else 0.16
+        iva_amount = equip_subtotal * _ft_iva_rate
         equip_total_con_iva = equip_subtotal + iva_amount
+        _ft_iva_label = "IVA (Exento):" if getattr(data, "iva_exempt", False) else f"IVA ({int(_ft_iva_rate*100)}%):"
         
         equip_rows.append(["", "", "", "", "Subtotal:", f"${equip_subtotal:,.2f}"])
-        equip_rows.append(["", "", "", "", f"IVA ({int(iva_rate*100)}%):", f"${iva_amount:,.2f}"])
+        equip_rows.append(["", "", "", "", _ft_iva_label, f"${iva_amount:,.2f}"])
         equip_rows.append(["", "", "", "", "TOTAL:", f"${equip_total_con_iva:,.2f}"])
         
         equip_table = Table(equip_rows, colWidths=[0.4*inch, 2.2*inch, 0.9*inch, 0.8*inch, 1.2*inch, 1.2*inch])
@@ -1696,6 +1706,7 @@ class EquipmentQuotePDFRequest(BaseModel):
     estimated_delivery_date: str = ""
     bulk_serials: List[str] = []
     repair_models: List[RepairModelEntry] = []
+    iva_exempt: Optional[bool] = False
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
@@ -1723,8 +1734,10 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     type_title = type_labels.get(data.equipment_type, data.equipment_type)
 
     subtotal = sum(item.quantity * item.unit_price_usd for item in data.items)
-    iva = round(subtotal * 0.16, 2)
+    iva_rate = 0.0 if getattr(data, "iva_exempt", False) else 0.16
+    iva = round(subtotal * iva_rate, 2)
     total = round(subtotal + iva, 2)
+    iva_label = "IVA (Exento)" if getattr(data, "iva_exempt", False) else "IVA (16%)"
 
     items_html = ""
     for item in data.items:
@@ -1890,7 +1903,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         </div>
         <div class="totals">
             <div class="total-row"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
-            <div class="total-row"><span>IVA (16%):</span><span>${iva:,.2f}</span></div>
+            <div class="total-row"><span>{iva_label}:</span><span>${iva:,.2f}</span></div>
             <div class="total-row grand-total"><span>TOTAL:</span><span>${total:,.2f}</span></div>
         </div>
     </div>
@@ -2010,6 +2023,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "equipment_serial_number": data.equipment_serial_number or None,
         "estimated_delivery_date": data.estimated_delivery_date or None,
         "repair_models": [m.dict() for m in data.repair_models] if data.repair_models else [],
+        "iva_exempt": bool(getattr(data, "iva_exempt", False)),
         "quote_status": "Borrador",
         "quote_pdf_url": quote_pdf_url,
         "attachments": [attachment_entry],
@@ -2083,8 +2097,10 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     type_title = type_labels.get(equipment_type, equipment_type)
 
     subtotal = sum((i.get("quantity", 1) * i.get("unit_price_usd", 0)) for i in items)
-    iva = round(subtotal * 0.16, 2)
+    iva_rate = 0.0 if quote.get("iva_exempt") else 0.16
+    iva = round(subtotal * iva_rate, 2)
     total = round(subtotal + iva, 2)
+    iva_label = "IVA (Exento)" if quote.get("iva_exempt") else "IVA (16%)"
 
     items_html = ""
     for item in items:
@@ -2168,7 +2184,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
         </div>
         <div style="background:#1e293b;color:white;padding:20px;border-radius:8px;min-width:250px">
             <div style="display:flex;justify-content:space-between;margin:6px 0;font-size:13px"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
-            <div style="display:flex;justify-content:space-between;margin:6px 0;font-size:13px"><span>IVA (16%):</span><span>${iva:,.2f}</span></div>
+            <div style="display:flex;justify-content:space-between;margin:6px 0;font-size:13px"><span>{iva_label}:</span><span>${iva:,.2f}</span></div>
             <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:bold;border-top:1px solid #334155;padding-top:10px;margin-top:10px"><span>TOTAL:</span><span>${total:,.2f}</span></div>
         </div>
     </div></body></html>"""

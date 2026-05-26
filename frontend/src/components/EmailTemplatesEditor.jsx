@@ -1217,7 +1217,7 @@ export const EmailTemplatesEditor = () => {
                               hover:bg-[#BEE3F8] hover:border-[#90CDF4] hover:text-[#2A4365]"
                             onClick={() => {
                               const tag = `{${v.key}}`;
-                              try { navigator.clipboard.writeText(tag).then(() => toast.success(`Copiado: ${tag}`)); } catch(e) { /* fallback */ }
+                              try { navigator.clipboard?.writeText?.(tag).then(() => toast.success(`Copiado: ${tag}`), () => {}); } catch(e) { /* fallback */ }
                               insertVariable(v.key, 'body');
                             }}
                           >

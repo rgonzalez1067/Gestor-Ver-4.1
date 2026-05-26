@@ -4,6 +4,39 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 22: Editor WYSIWYG en Plantillas (Clientes / Proyectos / Integradores) — Feb 2026
+
+**Objetivo**: Evolucionar el motor de plantillas de texto plano a un editor de texto enriquecido (TipTap), garantizar almacenamiento holgado (>1000 chars) y proveer Vista Previa con sustitución de tokens.
+
+**Componentes**:
+- `/app/frontend/src/components/RichTextEditor.jsx` — Editor TipTap reutilizable (Bold, Italic, Underline, Strike, Color, Highlight, Align L/C/R/Justify, listas, link, Undo/Redo) con:
+  - Contador de caracteres (visible texto plano vs `maxChars`).
+  - Prop `hardLimit` (default true) — para plantillas largas usar `hardLimit={false}` con `maxChars=20000`.
+  - Botón "Vista Previa" (`showPreview` prop) que abre modal con HTML renderizado y tokens sustituidos por valores demo (mapa interno + extensible por prop `exampleValues`).
+  - `substituteTokens(html, extra)` exportado: reemplaza `{{var}}` y `{var}` con valores reales o `[var]` fallback.
+- Pantallas migradas:
+  - `pages/ClientTemplatesConfig.jsx` (Clientes — `/clients/communications`).
+  - `pages/EntityTemplatesConfig.jsx` (Integradores y Nuevos Productos — `/integrators/communications`, `/new-products/communications`).
+  - `components/projects/TemplatesAdminDialog.jsx` (Proyectos — modal "Plantillas" en `/projects/:id`).
+- Backend: `EmailTemplate.body_html: str` (sin maxlen), MongoDB almacena strings hasta 16MB — sin cambios necesarios.
+
+**Test IDs disponibles por instancia del editor** (prefix dinámico):
+- `cli-tpl-editor-*` (Clientes), `entity-tpl-editor-INTEGRADORES-*`, `entity-tpl-editor-NUEVOS_PRODUCTOS-*`, `project-tpl-editor-*`.
+- Sub-testids: `-bold|-italic|-underline|-strike|-bullet|-ordered|-align-left|-align-center|-align-right|-align-justify|-color|-highlight-toggle|-link|-preview-btn|-counter|-content|-preview-dialog|-preview-body`.
+
+**Test reports**: `/app/test_reports/iteration_10.json`, `/app/test_reports/iteration_11.json`, `/app/backend/tests/test_iteration22_rich_text_templates.py`.
+
+**Fixes complementarios**:
+- `TemplatesAdminDialog.insertVar` y `EmailTemplatesEditor` (sidebar de variables): el `navigator.clipboard.writeText()` ahora maneja la rejection (`.then(ok, err)`) para no levantar el overlay rojo "Uncaught runtime error" en contextos sin permiso de clipboard.
+
+**Dependencias añadidas (yarn)**: `@tiptap/extension-link@3.23`, `@tiptap/extension-highlight@3.23`, `@tiptap/extension-character-count@3.23` (no usado en final). Resto del stack tiptap alineado a 3.23.x.
+
+**Pendientes / oportunidades**:
+- Migrar también el Master `EmailTemplatesEditor.jsx` (plantillas legacy de Cotizaciones por sede) al WYSIWYG — requiere validación para que TipTap respete las tablas HTML inline-styled extensas de los correos transaccionales.
+- Insertar variables en posición del cursor dentro de TipTap (hoy se hace append simple en TemplatesAdminDialog).
+
+
+
 ### Iteration 13: Estabilización "Validar Pago" + Pinpads + Precarga Impresora Fiscal (Feb 2026)
 
 **3 fixes críticos**:

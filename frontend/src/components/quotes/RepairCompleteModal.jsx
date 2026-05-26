@@ -73,7 +73,8 @@ export function RepairCompleteModal({ open, onClose, onSuccess, quoteId, quotes,
   const rateNum = parseFloat(exchangeRate) || 0;
   const grandTotalUsd = consolidated.reduce((sum, c) => sum + c.total_usd, 0);
   const grandTotalBs = grandTotalUsd * rateNum;
-  const ivaRate = 0.16;
+  const isIvaExempt = !!quote?.iva_exempt;
+  const ivaRate = isIvaExempt ? 0 : 0.16;
   const ivaUsd = grandTotalUsd * ivaRate;
   const ivaBs = grandTotalBs * ivaRate;
   const grandTotalConIvaUsd = grandTotalUsd + ivaUsd;
@@ -215,7 +216,7 @@ export function RepairCompleteModal({ open, onClose, onSuccess, quoteId, quotes,
               </div>
             )}
 
-            <p className="text-xs text-slate-500 mb-3">Conceptos de la cotizacion de reparacion. IVA 16% calculado automaticamente.</p>
+            <p className="text-xs text-slate-500 mb-3">{isIvaExempt ? 'Cliente EXENTO de IVA — el impuesto se forzó a $0.00.' : 'Conceptos de la cotizacion de reparacion. IVA 16% calculado automaticamente.'}</p>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm" data-testid="repair-billing-table">
@@ -252,8 +253,8 @@ export function RepairCompleteModal({ open, onClose, onSuccess, quoteId, quotes,
                     <td colSpan={2}></td>
                     <td className="px-3 py-2 text-right font-mono text-xs font-semibold whitespace-nowrap">Bs. {grandTotalBs.toFixed(2)}</td>
                   </tr>
-                  <tr className="bg-slate-50">
-                    <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>IVA (16%)</td>
+                  <tr className="bg-slate-50" data-testid="repair-iva-row">
+                    <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>{isIvaExempt ? 'IVA (Exento)' : 'IVA (16%)'}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">${ivaUsd.toFixed(2)}</td>
                     <td colSpan={2}></td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600 whitespace-nowrap">Bs. {ivaBs.toFixed(2)}</td>

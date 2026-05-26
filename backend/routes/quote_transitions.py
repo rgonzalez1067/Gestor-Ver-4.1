@@ -167,6 +167,8 @@ async def _create_project_from_quote(
         "sponsored_implementation": bool(quote.get("sponsored_implementation", False)),
         "sponsoring_bank_id": quote.get("sponsoring_bank_id") or None,
         "sponsoring_bank_name": quote.get("sponsoring_bank_name") or None,
+        # Cliente exento de IVA (heredado para que facturación respete el régimen fiscal)
+        "iva_exempt": bool(quote.get("iva_exempt", False)),
         "total_usd": quote.get("total_usd", 0),
         "total_bs": quote.get("total_bs", 0),
         "status": "Pendiente por Asignar",

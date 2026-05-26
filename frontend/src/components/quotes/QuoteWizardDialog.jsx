@@ -447,7 +447,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
 
                 {/* Implementación Patrocinada — aplica a TODOS los tipos de cotización */}
                 <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg" data-testid="sponsored-impl-block">
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4 flex-wrap">
                     <div className="flex-shrink-0">
                       <Label className="text-sm font-semibold text-slate-800 block mb-2">
                         Implementación Patrocinada
@@ -516,6 +516,51 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         )}
                       </div>
                     )}
+
+                    {/* Cliente exento de IVA — selector binario al lado de Implementación Patrocinada */}
+                    <div className="flex-shrink-0 border-l border-slate-200 pl-4" data-testid="iva-exempt-block">
+                      <Label className="text-sm font-semibold text-slate-800 block mb-2">
+                        ¿Cliente exento de IVA?
+                      </Label>
+                      <p className="text-[11px] text-slate-500 mb-2 leading-tight max-w-[220px]">
+                        Si el cliente está exento, se omite el IVA en cotización y facturación.
+                      </p>
+                      <div className="flex gap-1.5" role="radiogroup" aria-label="Cliente exento de IVA">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.iva_exempt === true}
+                          onClick={() => setQuoteData({ ...quoteData, iva_exempt: true })}
+                          data-testid="iva-exempt-yes"
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            quoteData.iva_exempt
+                              ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-400'
+                          }`}
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.iva_exempt === false || quoteData.iva_exempt === undefined}
+                          onClick={() => setQuoteData({ ...quoteData, iva_exempt: false })}
+                          data-testid="iva-exempt-no"
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            !quoteData.iva_exempt
+                              ? 'bg-slate-700 text-white border-slate-800 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
+                      {quoteData.iva_exempt && (
+                        <p className="text-[11px] text-emerald-700 font-semibold mt-1.5 flex items-center gap-1" data-testid="iva-exempt-active-note">
+                          IVA forzado a $0.00
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

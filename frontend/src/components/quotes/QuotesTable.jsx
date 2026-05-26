@@ -371,6 +371,23 @@ export const QuotesTable = ({
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    {quote.iva_exempt && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default"
+                              data-testid={`iva-exempt-badge-${quote.quote_id}`}
+                            >
+                              Exento IVA
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">Cliente exento de IVA — el impuesto se omite en cotización y facturación</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     {quote.creator_initials && (
                       <TooltipProvider delayDuration={200}>
                         <Tooltip>

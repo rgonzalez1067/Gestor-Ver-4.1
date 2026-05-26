@@ -152,6 +152,8 @@ export const Quotes = () => {
     // Implementación Patrocinada (radio Sí/No + dropdown banco condicional)
     sponsored_implementation: false,
     sponsoring_bank_id: '',
+    // Cliente exento de IVA (radio Sí/No)
+    iva_exempt: false,
   });
   
   // Estado para agregar nuevo medio de pago
@@ -1004,6 +1006,7 @@ export const Quotes = () => {
       include_recurring: true,
       sponsored_implementation: false,
       sponsoring_bank_id: '',
+      iva_exempt: false,
     });
     setSelectedBankId('');
     setSelectedMedioPagoId('');
@@ -1858,6 +1861,8 @@ export const Quotes = () => {
         sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
           ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
           : '',
+        // Cliente exento de IVA
+        iva_exempt: !!quoteData.iva_exempt,
         // Total USD = Total Setup Neto + Equipment (calculado por el wizard)
         override_total_usd: totalNetoSetup + ftHardwareSubtotal,
         descuento_setup: quoteData.descuento_setup || 0,
@@ -3184,6 +3189,7 @@ export const Quotes = () => {
       notes: quote.notes || '',
       sponsored_implementation: !!quote.sponsored_implementation,
       sponsoring_bank_id: quote.sponsoring_bank_id || '',
+      iva_exempt: !!quote.iva_exempt,
     });
     
     // Load PG data if it's a Payment Gateway / Link de Pago quote
@@ -3371,6 +3377,8 @@ export const Quotes = () => {
         sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
           ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
           : '',
+        // Cliente exento de IVA
+        iva_exempt: !!quoteData.iva_exempt,
       });
       
       toast.success(`Nueva versión ${duplicateResponse.data.new_quote_number} creada exitosamente`);

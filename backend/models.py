@@ -510,6 +510,8 @@ class QuoteCreate(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Cliente exento de IVA (impacta cálculo de impuestos en cotización y facturación)
+    iva_exempt: Optional[bool] = False
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
@@ -609,6 +611,8 @@ class Quote(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Cliente exento de IVA (heredado al proyecto/facturación)
+    iva_exempt: Optional[bool] = False
     # Campos de cantidades a nivel de cotización
     cantidad_cajas: Optional[int] = None
     cantidad_bancos: Optional[int] = None
@@ -751,6 +755,8 @@ class Project(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Cliente exento de IVA (heredado desde la cotización)
+    iva_exempt: Optional[bool] = False
     total_usd: float = 0
     total_bs: float = 0
     # Estado y asignación

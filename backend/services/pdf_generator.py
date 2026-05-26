@@ -61,6 +61,8 @@ class TemplateQuotePDFRequest(BaseModel):
     branch_details: List[dict] = []  # [{store_name, quantity}]
     # Segmento del cliente para determinar el tipo de PDF
     client_segment: str = "PYME"  # "PYME" o "CORP"
+    # Cliente exento de IVA — suprime impuesto en cálculos del PDF y herencia a facturación
+    iva_exempt: bool = False
 
 
 # ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================
@@ -483,12 +485,14 @@ class DynamicQuotePDFGenerator:
         
         # Tabla de totales fiscales (si show_tax es True)
         if show_tax:
-            iva = subtotal * 0.16
+            _iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
+            _iva_label = "IVA (Exento):" if getattr(self.data, 'iva_exempt', False) else "IVA (16%):"
+            iva = subtotal * _iva_rate
             total_con_iva = subtotal + iva
             
             totals_data = [
                 ['Subtotal:', f"${subtotal:.2f}"],
-                ['IVA (16%):', f"${iva:.2f}"],
+                [_iva_label, f"${iva:.2f}"],
                 ['Total:', f"${total_con_iva:.2f}"]
             ]
             
@@ -869,9 +873,12 @@ class DynamicQuotePDFGenerator:
         elements.append(Paragraph("RESUMEN DE LA INVERSIÓN", self.styles['TituloPortada']))
         elements.append(Spacer(1, 20))
         
-        # Calcular totales con IVA
-        iva_setup = subtotal_setup * 0.16
-        iva_recurrente = subtotal_recurrente * 0.16
+        # Calcular totales con IVA (cero si cliente exento)
+        _iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
+        _iva_label_setup = "IVA Setup (Exento)" if getattr(self.data, 'iva_exempt', False) else "IVA Setup (16%)"
+        _iva_label_recurrente = "IVA Recurrente (Exento)" if getattr(self.data, 'iva_exempt', False) else "IVA Recurrente (16%)"
+        iva_setup = subtotal_setup * _iva_rate
+        iva_recurrente = subtotal_recurrente * _iva_rate
         
         # Manejar descuentos independientes
         desc_setup_val = getattr(self.data, 'descuento_setup', 0) or 0
@@ -882,13 +889,13 @@ class DynamicQuotePDFGenerator:
         # Setup discount (percentage-based)
         monto_desc_setup = subtotal_setup * (desc_setup_val / 100) if desc_setup_val <= 100 else desc_setup_val
         subtotal_setup_con_descuento = subtotal_setup - monto_desc_setup
-        iva_setup_con_descuento = subtotal_setup_con_descuento * 0.16
+        iva_setup_con_descuento = subtotal_setup_con_descuento * _iva_rate
         total_setup_final = subtotal_setup_con_descuento + iva_setup_con_descuento
         
         # Recurrente discount (percentage-based)
         monto_desc_recurrente = subtotal_recurrente * (desc_recurrente_val / 100) if desc_recurrente_val <= 100 else desc_recurrente_val
         subtotal_recurrente_con_descuento = subtotal_recurrente - monto_desc_recurrente
-        iva_recurrente_con_descuento = subtotal_recurrente_con_descuento * 0.16
+        iva_recurrente_con_descuento = subtotal_recurrente_con_descuento * _iva_rate
         total_recurrente_final = subtotal_recurrente_con_descuento + iva_recurrente_con_descuento
         
         # Construir tabla de resumen
@@ -899,9 +906,9 @@ class DynamicQuotePDFGenerator:
         if monto_desc_setup > 0:
             resumen_data.append([f'Descuento Setup ({desc_setup_val}%)', f"-${monto_desc_setup:.2f}"])
             resumen_data.append(['Subtotal con Descuento', f"${subtotal_setup_con_descuento:.2f}"])
-            resumen_data.append(['IVA Setup (16%)', f"${iva_setup_con_descuento:.2f}"])
+            resumen_data.append([_iva_label_setup, f"${iva_setup_con_descuento:.2f}"])
         else:
-            resumen_data.append(['IVA Setup (16%)', f"${iva_setup:.2f}"])
+            resumen_data.append([_iva_label_setup, f"${iva_setup:.2f}"])
         resumen_data.append(['TOTAL SETUP (Pago Unico)', f"${total_setup_final:.2f}"])
         
         # Recurrentes (solo si include_recurring es True)
@@ -911,9 +918,9 @@ class DynamicQuotePDFGenerator:
             if monto_desc_recurrente > 0:
                 resumen_data.append([f'Descuento Recurrente ({desc_recurrente_val}%)', f"-${monto_desc_recurrente:.2f}"])
                 resumen_data.append(['Subtotal con Descuento', f"${subtotal_recurrente_con_descuento:.2f}"])
-                resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente_con_descuento:.2f}"])
+                resumen_data.append([_iva_label_recurrente, f"${iva_recurrente_con_descuento:.2f}"])
             else:
-                resumen_data.append(['IVA Recurrente (16%)', f"${iva_recurrente:.2f}"])
+                resumen_data.append([_iva_label_recurrente, f"${iva_recurrente:.2f}"])
             resumen_data.append(['TOTAL MENSUAL', f"${total_recurrente_final:.2f}"])
         
         # Gran total
@@ -995,8 +1002,10 @@ class DynamicQuotePDFGenerator:
                     Paragraph(f"${total:,.2f}", ParagraphStyle('EqTotal', parent=self.styles['TextoNormal'], alignment=2)),
                 ])
             
-            # Subtotal, IVA, Total
-            eq_iva = eq_subtotal * 0.16
+            # Subtotal, IVA, Total (PYME)
+            _eq_iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
+            _eq_iva_label = "<b>IVA (Exento):</b>" if getattr(self.data, 'iva_exempt', False) else "<b>IVA (16%):</b>"
+            eq_iva = eq_subtotal * _eq_iva_rate
             eq_grand_total = eq_subtotal + eq_iva
             
             eq_rows.append([
@@ -1010,7 +1019,7 @@ class DynamicQuotePDFGenerator:
                 Paragraph("", self.styles['TextoNormal']),
                 Paragraph("", self.styles['TextoNormal']),
                 Paragraph("", self.styles['TextoNormal']),
-                Paragraph("<b>IVA (16%):</b>", ParagraphStyle('EqIVA', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(_eq_iva_label, ParagraphStyle('EqIVA', parent=self.styles['TextoNormal'], alignment=2)),
                 Paragraph(f"<b>${eq_iva:,.2f}</b>", ParagraphStyle('EqIVAv', parent=self.styles['TextoNormal'], alignment=2)),
             ])
             eq_rows.append([
@@ -1454,7 +1463,9 @@ class DynamicQuotePDFGenerator:
                     Paragraph(f"${total:,.2f}", ParagraphStyle('CorpEqTotal', parent=self.styles['TextoNormal'], alignment=2)),
                 ])
             
-            eq_iva = eq_subtotal * 0.16
+            _corp_iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
+            _corp_iva_label = "<b>IVA (Exento):</b>" if getattr(self.data, 'iva_exempt', False) else "<b>IVA (16%):</b>"
+            eq_iva = eq_subtotal * _corp_iva_rate
             eq_grand_total = eq_subtotal + eq_iva
             
             eq_rows.append(['', '', '',
@@ -1462,7 +1473,7 @@ class DynamicQuotePDFGenerator:
                 Paragraph(f"<b>${eq_subtotal:,.2f}</b>", ParagraphStyle('CorpEqSTv', parent=self.styles['TextoNormal'], alignment=2)),
             ])
             eq_rows.append(['', '', '',
-                Paragraph("<b>IVA (16%):</b>", ParagraphStyle('CorpEqIVA', parent=self.styles['TextoNormal'], alignment=2)),
+                Paragraph(_corp_iva_label, ParagraphStyle('CorpEqIVA', parent=self.styles['TextoNormal'], alignment=2)),
                 Paragraph(f"<b>${eq_iva:,.2f}</b>", ParagraphStyle('CorpEqIVAv', parent=self.styles['TextoNormal'], alignment=2)),
             ])
             eq_rows.append(['', '', '',

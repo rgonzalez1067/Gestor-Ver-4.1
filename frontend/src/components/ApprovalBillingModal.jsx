@@ -165,7 +165,8 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
   const rateNum = parseFloat(exchangeRate) || 0;
   const grandTotalUsd = consolidated.reduce((sum, c) => sum + c.total_usd, 0);
   const grandTotalBs = grandTotalUsd * rateNum;
-  const ivaRate = 0.16;
+  const isIvaExempt = !!quote?.iva_exempt;
+  const ivaRate = isIvaExempt ? 0 : 0.16;
   const ivaUsd = grandTotalUsd * ivaRate;
   const ivaBs = grandTotalBs * ivaRate;
   const grandTotalConIvaUsd = grandTotalUsd + ivaUsd;
@@ -454,9 +455,11 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
             )}
 
             <p className="text-xs text-slate-500 mb-3">
-              {isEquipmentQuote
-                ? 'Equipos y accesorios cotizados. IVA 16% calculado automáticamente.'
-                : 'Conceptos de Setup y Productos (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.'}
+              {isIvaExempt
+                ? 'Cliente EXENTO de IVA — el impuesto se forzó a $0.00 conforme al régimen fiscal del cliente.'
+                : (isEquipmentQuote
+                  ? 'Equipos y accesorios cotizados. IVA 16% calculado automáticamente.'
+                  : 'Conceptos de Setup y Productos (excluye mantenimiento mensual/recurrentes). Consolidados por similitud. IVA 16% calculado automáticamente.')}
             </p>
 
             <div className="overflow-x-auto">
@@ -503,8 +506,8 @@ export function ApprovalBillingModal({ open, onClose, onSuccess, quoteId, quotes
                     <td className="px-3 py-2"></td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-slate-800 font-semibold whitespace-nowrap">Bs. {grandTotalBs.toFixed(2)}</td>
                   </tr>
-                  <tr className="bg-slate-50">
-                    <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>IVA (16%)</td>
+                  <tr className="bg-slate-50" data-testid="billing-iva-row">
+                    <td className="px-3 py-1.5 text-xs text-slate-600" colSpan={2}>{isIvaExempt ? 'IVA (Exento)' : 'IVA (16%)'}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs text-slate-600">${ivaUsd.toFixed(2)}</td>
                     <td className="px-3 py-1.5"></td>
                     <td className="px-3 py-1.5"></td>
