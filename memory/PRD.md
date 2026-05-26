@@ -4,6 +4,37 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 23: Control de Exención de IVA en Cotizaciones — Feb 2026
+
+**Objetivo**: Identificar tempranamente clientes con régimen fiscal exento de IVA y automatizar la supresión del impuesto en cálculos, PDFs y facturación posterior.
+
+**UI/UX (Frontend)**:
+- Selector binario **"¿Cliente exento de IVA?"** (Sí/No, **default NO**) en `QuoteWizardDialog.jsx`, posicionado al lado del bloque "Implementación Patrocinada" (separador vertical `border-l`). Color verde esmeralda al activarse, gris en estado normal.
+- Al elegir "Sí" se muestra nota inmediata `IVA forzado a $0.00` (testid `iva-exempt-active-note`).
+- Insignia **"Exento IVA"** en `QuotesTable.jsx` para identificar de un vistazo las cotizaciones bajo este régimen.
+
+**Lógica de cálculo (Backend + Frontend)**:
+- `iva_rate = 0` cuando `iva_exempt=True`, en lugar del 16% estándar. Aplica a:
+  - PDF cotizaciones VPOS/MPOS/Equipos/Reparaciones (`services/pdf_generator.py` páginas Setup, Recurrente, Equipment PYME, Equipment CORP).
+  - PDF Fast Track / Equipos / Reparaciones (`routes/quotes.py` `generate-equipment-pdf` + `regenerate-equipment-pdf`).
+  - Modal `ApprovalBillingModal.jsx` (facturación) — fila `billing-iva-row` con label dinámico "IVA (Exento)".
+  - Modal `RepairCompleteModal.jsx`.
+- Etiquetas de IVA cambian a "IVA (Exento)" cuando aplica.
+
+**Persistencia + Herencia**:
+- Modelo Pydantic: `iva_exempt: Optional[bool] = False` en `QuoteCreate`, `Quote`, `Project` (`models.py`), `QuoteCreateWithPDF` y `QuoteUpdate` (`routes/quotes.py`), y `TemplateQuotePDFRequest` + `EquipmentQuotePDFRequest`.
+- `routes/quote_transitions.py`: el campo se copia del quote al proyecto al "enviar a implementación" para que la facturación lo respete.
+- Duplicate quote (`quote_actions.py`) preserva `iva_exempt` automáticamente vía `{**original_quote, ...}`.
+
+**Verificación**:
+- ✅ Backend curl: `PUT /api/quotes/{id} {"iva_exempt": true}` persiste correctamente, `GET /api/quotes` retorna el campo en cada documento.
+- ✅ UI Playwright: wizard renderiza nuevo bloque, default=No, clic en "Sí" muestra nota, persistencia verificada en estado React.
+- 🟡 Static review por agente: implementación consistente en todas las pantallas y modelos.
+
+**Pendiente / próximo retest**: ejecutar suite Playwright completa (crear cotización exenta, ver insignia en grid, abrir ApprovalBillingModal, verificar fila "IVA (Exento)" con monto $0.00) + grep en bytes de PDF para validar etiquetas. El agente de testing se quedó sin contexto antes de poder hacerlo en Iter12.
+
+
+
 ### Iteration 22: Editor WYSIWYG en Plantillas (Clientes / Proyectos / Integradores) — Feb 2026
 
 **Objetivo**: Evolucionar el motor de plantillas de texto plano a un editor de texto enriquecido (TipTap), garantizar almacenamiento holgado (>1000 chars) y proveer Vista Previa con sustitución de tokens.
