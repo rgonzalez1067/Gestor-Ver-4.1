@@ -1,0 +1,37 @@
+{
+  "summary": "Iter8 — Backend only. 12/12 PASS. Validated /api/projects/{id}/suggested-contacts response shape (email/label/name/contact_type/source/bank_name) and contact_type rules for ALL paths: client top-level email → 'Principal'; CRM contact → role (e.g. 'Administrativo', 'Compras'); legacy contact1 sin role → 'Contacto'; legacy contact2 con role → role; bank.contacts[].contact_type → tipo (Principal/Técnico). DEDUP correcto: el mismo email (shared@…) presente en cliente (CRM contact) Y banco (contact_type Técnico) aparece DOS veces en la respuesta — la clave de dedup es (email_lower, source, bank_name) que permite cross-source. Ninguna duplicación within same source+bank. POST /api/projects/{id}/send-notification con to_override=['override1@…','override2@…'] retorna recipients igual a los emails seleccionados (= SMTP TO). to_override=[] (vacío) hace fallback al TO resuelto desde DB sin crashear. Validado además contra proyecto real prj_5ba35430ddcb: contactos cliente devuelven name+contact_type ('Administrativo'/'Contacto') correctamente.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration8_suggested_contacts_shape.py",
+    "/app/test_reports/pytest/iter8_suggested_contacts.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "projects.py:1587 — `_name_` extraction usa `c.get('full_name') or f\"{first} {last}\".strip() or 'Contacto'`. Si el contacto CRM tiene solo first_name='' y last_name='' (todos vacíos), el f-string produce ' ' que tras .strip() es '', y cae a 'Contacto'. OK. Sin embargo, el `name` retornado podría ser inconsistente con `label` si full_name existe pero está vacío; aceptable.",
+    "projects.py:1588 — `role = c.get('role') or c.get('contact_type') or 'Otro'`. Para contactos CRM del cliente se usa fallback a contact_type (campo típico de bancos). Está bien defensivamente, pero podría causar confusión si un día se introducen contact_type en clientes con valores tipo-banco; documentar la prioridad role > contact_type.",
+    "projects.py:1605 — Legacy contact1/contact2: `legacy.get('role') or 'Contacto'`. Asume que el role siempre viene como 'role' key; si en algún cliente legacy viene como 'cargo' o 'position', se devolverá 'Contacto' por defecto (probablemente OK, pero conviene verificar el modelo legacy real).",
+    "projects.py:1652 — Dedup key=(email_lower, source, bank_name or ''). Para source=client siempre bank_name='', así que dos contactos del cliente con el MISMO email (ej. top-level email == CRM email) se colapsarán en uno. Esto NO se testea pero es el comportamiento esperado/documentado: dedup permite cross-source, no within-source. Verificado test test_no_duplicate_within_same_source_and_bank.",
+    "projects.py:651-656 — `if to_override: ... if valid_to: to_list=valid_to else: to_list=email_data['to_list']`. Caso edge: to_override=['invalid_no_at'] → valid_to=[] → fallback. ✓ correcto. to_override=[] → `if to_override` evalúa False (lista vacía) → fallback. ✓ verificado en test_to_override_empty_falls_back. Sin embargo, sería más explícito usar `if to_override is not None` para distinguir 'no envió override' vs 'envió override vacío'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration8_suggested_contacts_shape.py (creado)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 passed)",
+    "frontend": "not tested (backend only per request)"
+  },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) — /app/memory/test_credentials.md",
+  "seed_data_creation": "Seed directo via motor (MongoDB) en fixture module-scope. Inserta TEST_CLIENT_{suffix} (con top-level email='Principal', 2 CRM contacts con roles 'Administrativo' y 'Compras', y 2 legacy contact1/contact2 — uno sin role, otro con role='Operaciones'), TEST_Bank_{suffix} (con 2 contacts: Principal y Técnico), y prj_TEST_{suffix} con implementation_matrix={bank: {'Pago Móvil': {}}} y notification_history.client pre-poblado para permitir envío bancario. El email SHARED_EMAIL aparece tanto en CRM contact del cliente como en bank.contacts para validar dedup cross-source. Teardown automático elimina las 3 colecciones (clients/banks/projects) por _id determinístico. El test de send-notification con to_override SÍ envía email real vía SMTP — el endpoint registra en bitácora y notification_history; el cleanup elimina el proyecto completo, así que no quedan residuos.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El endpoint /api/projects/{id}/suggested-contacts cumple 100% el spec (name + contact_type para cliente, bank_name + contact_type para banco, dedup cross-source). El send-notification respeta to_override. Frontend modal NO se testeó (el usuario lo validará manualmente). Si en el futuro se cambia el dedup key, considerar si dos contactos del MISMO cliente con email idéntico (top-level == contacts[0]) deben colapsar o no — actualmente colapsan (1ª aparición gana, que es el top-level con contact_type='Principal').",
+  "rca_of_the_issue": "No hay bugs. Implementación verifica todos los criterios del spec. Seed sintético en MongoDB cubre los 5 paths de contact_type (Principal top-level, CRM role, CRM role secundario, legacy sin role → 'Contacto', legacy con role) y el caso de dedup cross-source. Validación adicional contra proyecto real prj_5ba35430ddcb confirma que data en producción ya tiene name y contact_type devueltos correctamente."
+}

@@ -1574,17 +1574,37 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
             client_label = project.get("client_name", client.get("fantasy_name", "Cliente"))
             # Email principal del cliente (si existe)
             if client.get("email"):
-                contacts.append({"email": client["email"], "label": client_label, "source": "client"})
+                contacts.append({
+                    "email": client["email"],
+                    "label": client_label,
+                    "name": client_label,
+                    "contact_type": "Principal",
+                    "source": "client",
+                })
             # Contactos CRM del cliente (array contacts)
             for c in client.get("contacts", []):
                 if c.get("email"):
                     name = c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}".strip() or "Contacto"
-                    contacts.append({"email": c["email"], "label": name, "source": "client"})
+                    role = c.get("role") or c.get("contact_type") or "Otro"
+                    contacts.append({
+                        "email": c["email"],
+                        "label": name,
+                        "name": name,
+                        "contact_type": role,
+                        "source": "client",
+                    })
             # Contactos legacy (contact1, contact2)
             for key in ["contact1", "contact2"]:
                 legacy = client.get(key)
                 if legacy and isinstance(legacy, dict) and legacy.get("email"):
-                    contacts.append({"email": legacy["email"], "label": legacy.get('name', key), "source": "client"})
+                    legacy_name = legacy.get('name', key)
+                    contacts.append({
+                        "email": legacy["email"],
+                        "label": legacy_name,
+                        "name": legacy_name,
+                        "contact_type": legacy.get("role") or "Contacto",
+                        "source": "client",
+                    })
 
     # Contactos de bancos del proyecto
     matrix = project.get("implementation_matrix", {})

@@ -1567,15 +1567,23 @@ const ProjectDetail = () => {
 
         {/* ==================== NOTIFICATION DIALOG ==================== */}
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
-          <DialogContent className="max-w-lg" data-testid="notif-dialog">
+          <DialogContent
+            className={`${notifTarget?.type === 'bank_client' ? 'max-w-5xl' : 'max-w-3xl'} max-h-[90vh] overflow-y-auto`}
+            data-testid="notif-dialog"
+          >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Bell size={20} className="text-amber-500" />Notificaciones — {notifTarget?.type === 'client' ? 'Cliente' : notifTarget?.type === 'bank_client' ? `Cliente + ${notifTarget?.bankName}` : notifTarget?.bankName}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {/* Mostrar contactos relevantes con acción rápida "Agregar como destinatario principal (TO)" */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-slate-500 uppercase">Contactos del Proyecto</p>
+              {/* ============ DESTINATARIOS: Selección directa por checkbox ============
+                  Cada contacto se muestra como una fila con casilla, Nombre, Email y Rol.
+                  Al tildar la casilla el correo se añade automáticamente a mainRecipients
+                  (TO). Esta es la fuente única de verdad antes del despacho SMTP.
+                  Cuando el target es "bank_client" (banco único + cliente conjunto), se
+                  renderizan DOS secciones lado a lado para aprovechar el ancho. */}
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Destinatarios del Proyecto</p>
                   {(() => {
                     const tType = notifTarget?.type;
                     const tBank = notifTarget?.bankName;
@@ -1586,18 +1594,25 @@ const ProjectDetail = () => {
                       return true;
                     });
                     if (filtered.length === 0) return null;
+                    const allEmails = filtered.map(c => (c.email || '').toLowerCase());
+                    const allSelected = allEmails.every(e => mainRecipients.map(x => x.toLowerCase()).includes(e));
                     return (
                       <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
-                        data-testid="add-all-contacts-to-btn"
+                        data-testid="toggle-all-contacts-btn"
                         onClick={() => {
-                          const existing = mainRecipients.map(x => x.toLowerCase());
-                          const toAdd = filtered.map(c => c.email).filter(e => e && !existing.includes(e.toLowerCase()));
-                          if (toAdd.length === 0) { toast.info('Todos los contactos ya están agregados'); return; }
-                          setMainRecipients([...mainRecipients, ...toAdd]);
-                          toast.success(`${toAdd.length} contacto(s) agregado(s)`);
+                          if (allSelected) {
+                            // Deseleccionar todos los del scope actual
+                            setMainRecipients(mainRecipients.filter(e => !allEmails.includes(e.toLowerCase())));
+                            toast.info('Selección limpiada');
+                          } else {
+                            const existing = mainRecipients.map(x => x.toLowerCase());
+                            const toAdd = filtered.map(c => c.email).filter(e => e && !existing.includes(e.toLowerCase()));
+                            setMainRecipients([...mainRecipients, ...toAdd]);
+                            toast.success(`${toAdd.length} contacto(s) seleccionado(s)`);
+                          }
                         }}
                       >
-                        <Plus size={12} className="mr-1" />Agregar todos
+                        {allSelected ? <><X size={12} className="mr-1" />Limpiar</> : <><CheckCircle2 size={12} className="mr-1" />Seleccionar todos</>}
                       </Button>
                     );
                   })()}
@@ -1613,47 +1628,84 @@ const ProjectDetail = () => {
                   if (!hasAny) {
                     return <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>;
                   }
-                  const renderRow = (c, i, prefix) => {
-                    const inTO = mainRecipients.map(x => x.toLowerCase()).includes((c.email || '').toLowerCase());
+                  const toggleContact = (email) => {
+                    const lower = (email || '').toLowerCase();
+                    if (!lower) return;
+                    const idx = mainRecipients.map(x => x.toLowerCase()).indexOf(lower);
+                    if (idx >= 0) {
+                      setMainRecipients(mainRecipients.filter((_, j) => j !== idx));
+                    } else {
+                      setMainRecipients([...mainRecipients, email]);
+                    }
+                  };
+                  const renderContactsTable = (rows, prefix, accent) => (
+                    <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
+                      <table className="w-full text-sm" data-testid={`contacts-table-${prefix}`}>
+                        <thead className={`${accent} text-[10px] uppercase tracking-wide`}>
+                          <tr>
+                            <th className="px-3 py-2 text-left w-10"></th>
+                            <th className="px-3 py-2 text-left font-semibold">Nombre y Apellido</th>
+                            <th className="px-3 py-2 text-left font-semibold">Email</th>
+                            <th className="px-3 py-2 text-left font-semibold">Rol / Cargo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((c, i) => {
+                            const checked = mainRecipients.map(x => x.toLowerCase()).includes((c.email || '').toLowerCase());
+                            return (
+                              <tr
+                                key={`${prefix}-${i}`}
+                                className={`border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${checked ? 'bg-emerald-50/40' : ''}`}
+                                data-testid={`contact-row-${prefix}-${i}`}
+                                onClick={() => toggleContact(c.email)}
+                              >
+                                <td className="px-3 py-2.5 align-middle">
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => toggleContact(c.email)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`contact-checkbox-${prefix}-${i}`}
+                                  />
+                                </td>
+                                <td className="px-3 py-2.5 align-middle text-slate-800 font-medium whitespace-normal break-words">
+                                  {c.name || c.label || '—'}
+                                </td>
+                                <td className="px-3 py-2.5 align-middle text-slate-600 font-mono text-xs whitespace-normal break-all">
+                                  {c.email}
+                                </td>
+                                <td className="px-3 py-2.5 align-middle text-slate-500 whitespace-normal break-words">
+                                  {c.contact_type || '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                  const sectionWrap = (label, color, content) => (
+                    <div>
+                      <p className={`text-[10px] font-semibold ${color} uppercase mb-1.5 tracking-wide`}>{label}</p>
+                      {content}
+                    </div>
+                  );
+                  // Layout: bank_client → grid 2 cols full-width. Otros → stacked.
+                  if (tType === 'bank_client') {
                     return (
-                      <div key={`${prefix}-${i}`} className="flex items-center justify-between gap-2 text-sm py-1 border-b border-slate-200/60 last:border-b-0" data-testid={`contact-row-${prefix}-${i}`}>
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Mail size={12} className={prefix === 'client' ? 'text-indigo-400 shrink-0' : 'text-blue-400 shrink-0'} />
-                          <span className="text-slate-700 truncate">{c.email}</span>
-                          <span className="text-[10px] text-slate-400 truncate">({c.label})</span>
-                        </div>
-                        <Button type="button" size="sm" variant={inTO ? 'ghost' : 'outline'} className="h-6 text-[11px] px-2 shrink-0"
-                          disabled={inTO}
-                          data-testid={`add-to-main-${prefix}-${i}`}
-                          onClick={() => {
-                            if (inTO) return;
-                            setMainRecipients([...mainRecipients, c.email]);
-                            toast.success('Agregado a destinatarios principales');
-                          }}
-                        >
-                          {inTO ? '✓ Agregado' : <><Plus size={10} className="mr-0.5" />Agregar</>}
-                        </Button>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {clientContacts.length > 0
+                          ? sectionWrap('Contactos del Cliente', 'text-indigo-700', renderContactsTable(clientContacts, 'client', 'bg-indigo-50 text-indigo-700'))
+                          : <div><p className="text-[10px] font-semibold text-indigo-700 uppercase mb-1.5">Contactos del Cliente</p><p className="text-xs text-slate-400 p-3 bg-white rounded-md border border-slate-200">Sin contactos registrados</p></div>}
+                        {bankContacts.length > 0
+                          ? sectionWrap(`Contactos del Banco: ${tBank}`, 'text-blue-700', renderContactsTable(bankContacts, 'bank', 'bg-blue-50 text-blue-700'))
+                          : <div><p className="text-[10px] font-semibold text-blue-700 uppercase mb-1.5">Contactos del Banco: {tBank}</p><p className="text-xs text-slate-400 p-3 bg-white rounded-md border border-slate-200">Sin contactos registrados</p></div>}
                       </div>
                     );
-                  };
+                  }
                   return (
                     <div className="space-y-3">
-                      {showClient && clientContacts.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-indigo-600 uppercase mb-1">Cliente</p>
-                          <div className="bg-white rounded border border-indigo-100 px-2">
-                            {clientContacts.map((c, i) => renderRow(c, i, 'client'))}
-                          </div>
-                        </div>
-                      )}
-                      {showBank && bankContacts.length > 0 && (
-                        <div>
-                          <p className="text-[10px] font-semibold text-blue-600 uppercase mb-1">{tBank ? `Banco: ${tBank}` : 'Bancos'}</p>
-                          <div className="bg-white rounded border border-blue-100 px-2">
-                            {bankContacts.map((c, i) => renderRow(c, i, 'bank'))}
-                          </div>
-                        </div>
-                      )}
+                      {showClient && clientContacts.length > 0 && sectionWrap('Contactos del Cliente', 'text-indigo-700', renderContactsTable(clientContacts, 'client', 'bg-indigo-50 text-indigo-700'))}
+                      {showBank && bankContacts.length > 0 && sectionWrap(tBank ? `Contactos del Banco: ${tBank}` : 'Contactos del Banco', 'text-blue-700', renderContactsTable(bankContacts, 'bank', 'bg-blue-50 text-blue-700'))}
                     </div>
                   );
                 })()}
@@ -1687,15 +1739,17 @@ const ProjectDetail = () => {
                       </div>
                     )}
 
-                    {/* Próximo envío */}
-                    <div className={`p-4 rounded-lg border-2 transition-all ${
-                      sendCount === 0 ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
-                    }`} data-testid="next-send-block">
+                    {/* Próximo envío — Estilo VISUAL UNIFICADO para Primer Envío y
+                        Recordatorios (homologación visual: el modal de la primera
+                        notificación y el de los recordatorios son idénticos
+                        excepto por el badge textual "[Primer Envío]" vs
+                        "[Primer Recordatorio]" / "[Segundo Recordatorio]" etc.). */}
+                    <div className="p-4 rounded-lg border-2 bg-blue-50 border-blue-200 transition-all" data-testid="next-send-block">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                            sendCount === 0 ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'
-                          }`}>{sendCount + 1}</div>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-blue-500 text-white">
+                            {sendCount + 1}
+                          </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-800">Próximo envío: [{nextPrefix}]</p>
                             <p className="text-xs text-slate-500">
@@ -1773,9 +1827,7 @@ const ProjectDetail = () => {
                           data-testid="preview-next-notif">
                           <Eye size={12} className="mr-1" />{previewLoading ? '...' : 'Vista Previa'}
                         </Button>
-                        <Button size="sm" className={`h-8 text-xs text-white ${
-                          sendCount === 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-amber-500 hover:bg-amber-600'
-                        }`}
+                        <Button size="sm" className="h-8 text-xs text-white bg-blue-500 hover:bg-blue-600"
                           disabled={!!notifSending} onClick={sendNotification}
                           data-testid="send-next-notif">
                           <Send size={12} className="mr-1" />{notifSending ? 'Enviando...' : 'Enviar'}
