@@ -1,0 +1,47 @@
+{
+  "summary": "Iter37 re-test of stale closure fix (multistoreQuoteId passed explicitly). All 3 critical scenarios PASS. Cotización COT-2026-05-016-PYME (quo_30a1eb8e762b) opens DIRECTAMENTE en fase 'inherited' al PRIMER intento. 0 GETs a /api/quotes/null. UX inputs, add/remove, total reactivity y confirm-disabled validation funcionan correctamente. Excel parser verificado por código (xlsx del usuario tiene header 'Nombre Tienda|Cantidad' + 7 filas 'Tienda ...'). isHeaderRow ahora solo descarta por col B no numérica — col A 'Tienda' ya no se descarta.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "test_1_inherited_phase_first_attempt": {
+      "status": "PASS",
+      "evidence": "data-testid='multistore-inherited-phase' count=1, 'multistore-ask-phase' count=0; network log → 0 GETs a /quotes/null, 2 GETs a /api/quotes/quo_30a1eb8e762b (incl. equipment-for-implementation?project_type=vpos_mpos). El modal renderiza 'Distribución de sucursales detectada' con las 2 sucursales heredadas (Sucursal Test 1 qty=2, Sucursal Test 2 qty=3, total=5)."
+    },
+    "test_2_inherited_ux_testids": {
+      "status": "PASS",
+      "evidence": "Todos los data-testid presentes: inherited-name-0=1, inherited-qty-0=1, inherited-add-row-btn=1, inherited-remove-0=1, inherited-total=1, inherited-confirm-btn=1."
+    },
+    "test_3_inherited_interactividad": {
+      "status": "PASS",
+      "evidence": "qty-0 cambiado de 2 → 7 actualizó total de 5 → 10 (reactivo). name-0 editable. Agregar fila: 2 → 3 rows. Eliminar fila 0: 3 → 2 rows. Conformar Distribución button está correctamente DESHABILITADO cuando hay filas con name vacío (validación '!s.name?.trim() || !s.box_count' en QuoteModals.jsx L835) — no advance al siguiente paso porque la fila agregada quedó sin nombre. Esto es comportamiento correcto, no bug.",
+      "note": "Para verificar el advance al next phase (pinpad/fiscal/consolidated) el main agent puede rellenar name + qty en TODAS las filas antes de Confirmar."
+    },
+    "test_4_excel_parser": {
+      "status": "PASS (verified by code + file inspection)",
+      "evidence": "Archivo del usuario descargado: 'Hoja1' con header ['Nombre Tienda','Cantidad'] + 7 filas ('Tienda Los Chaguramos','Tienda Av. Urdaneta','Tienda Sambile Chacao','Tienda Sambil Porlamar','Tienda el Tolon','Tienda El Hatillo','Tienda Av. Bolivar' — todas con qty=1). Lógica isHeaderRow en BranchDetailPanel.jsx L55-61 valida col B (parseFloat 'Cantidad' = NaN → header) y NO descarta col A — las 7 'Tienda *' se importan. El fix de feb-2026 está aplicado correctamente."
+    }
+  },
+  "stale_closure_fix_verification": {
+    "status": "VERIFIED",
+    "details": "openMultistoreDialog (Quotes.jsx ~L2623) ahora pasa quoteId EXPLÍCITO al setTimeout → handleProjectTypeSelect(inferred, quoteId) → advanceToMultistorePhase(quoteId, ...). effectiveQuoteId = overrideQuoteId || multistoreQuoteId. Network log demuestra 0 hits a /api/quotes/null. El bug de iter14 (stale closure → GET /quotes/null/equipment-for-implementation → 404 → fallback a fase 'ask') YA NO ocurre."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Confirmar Distribución button (QuoteModals.jsx L835) correctamente deshabilitado con validación. Considera mostrar un tooltip explicativo cuando esté disabled (UX hint).",
+    "Quotes.jsx tiene 4040 líneas — recomiendo split en módulos más pequeños (multistore flow, alerts, etc.) para mantenibilidad.",
+    "Console reporta hydration warning: '<span> cannot be a child of <tbody>' / '<tr>' — no afecta funcionalidad pero limpia el render. Buscar misnesting en tabla de Quotes."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend only)", "frontend": "100% (3/3 escenarios críticos + parser verificado)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna — se usó cotización existente COT-2026-05-016-PYME (quo_30a1eb8e762b) con branch_details de 2 sucursales.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Stale closure fix está OK. La cotización quo_30a1eb8e762b abre directamente en fase 'inherited' (cuenta=1, ask=0). Si próximo agente quiere validar el advance al next phase (pinpad/fiscal/consolidated_data), debe asegurar que TODAS las filas inherited tengan name+qty válidos antes de clicar 'Conformar Distribución' (botón se deshabilita si alguna fila tiene name vacío o box_count=0). El Excel del usuario se descarga sin auth (URL pública customer-assets.emergentagent.com).",
+  "rca of the issue": "N/A — fix verificado, no hay nuevo bug."
+}

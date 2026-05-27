@@ -2618,12 +2618,17 @@ export const Quotes = () => {
     if (qt === 'VPOS') inferred = 'vpos_mpos';
     else if (qt === 'GATEWAY' || qt === 'LINK') inferred = 'payment_gateway';
     else if (qt === 'MPOS' || qt === 'FAST_TRACK') inferred = 'pos_fast_track';
-    // Ejecutamos la selección a continuación (handleProjectTypeSelect usa multistoreQuoteId
-    // que acabamos de fijar; llamada asíncrona no bloquea el render del Dialog).
-    setTimeout(() => { handleProjectTypeSelect(inferred); }, 0);
+    // Ejecutamos la selección a continuación. Pasamos `quoteId` EXPLÍCITO para
+    // evitar el stale closure de `multistoreQuoteId` (setState asíncrono no
+    // está committed cuando dispara el setTimeout). Fix iter37.
+    setTimeout(() => { handleProjectTypeSelect(inferred, quoteId); }, 0);
   };
 
-  const handleProjectTypeSelect = async (type) => {
+  const handleProjectTypeSelect = async (type, overrideQuoteId) => {
+    // FIX iter37: el `overrideQuoteId` toma precedencia para evitar leer
+    // `multistoreQuoteId` del closure stale (puede ser null durante el primer
+    // ciclo si openMultistoreDialog acaba de disparar el setTimeout).
+    const effectiveQuoteId = overrideQuoteId || multistoreQuoteId;
     setProjectTypeImpl(type);
 
     // ── PRIMER MODAL: Multitienda ──
@@ -2632,12 +2637,12 @@ export const Quotes = () => {
     // condición de multi-sucursal antes de continuar a Pinpads/Fiscal.
     if (type === 'payment_gateway') {
       // Payment Gateway no requiere precarga de equipos pero también pasa por multistore.
-      advanceToMultistorePhase();
+      await advanceToMultistorePhase(effectiveQuoteId);
     } else {
       // POS o VPOS/MPOS: auto-cargar equipos en background y mostrar multistore.
       setEquipmentLoading(true);
       try {
-        const res = await api.get(`/quotes/${multistoreQuoteId}/equipment-for-implementation?project_type=${type}`);
+        const res = await api.get(`/quotes/${effectiveQuoteId}/equipment-for-implementation?project_type=${type}`);
         setEquipmentAvailable(res.data);
         const sel = {};
         (res.data.quote_equipment || []).forEach(eq => { sel[eq.equipo_id] = true; });
@@ -2652,7 +2657,7 @@ export const Quotes = () => {
       } finally {
         setEquipmentLoading(false);
       }
-      advanceToMultistorePhase();
+      await advanceToMultistorePhase(effectiveQuoteId);
     }
   };
 
@@ -2714,7 +2719,10 @@ export const Quotes = () => {
     }
   };
 
-  const advanceToMultistorePhase = async () => {
+  const advanceToMultistorePhase = async (overrideQuoteId) => {
+    // FIX iter37: aceptar `overrideQuoteId` explícito para evitar leer el state
+    // `multistoreQuoteId` que puede no estar committed durante el primer ciclo.
+    const effectiveQuoteId = overrideQuoteId || multistoreQuoteId;
     // Build final equipment list from selections
     const allEquip = [...(equipmentAvailable.quote_equipment || []), ...(equipmentAvailable.rif_equipment || [])];
     const selected = allEquip.filter(eq => equipmentSelected[eq.equipo_id]);
@@ -2730,9 +2738,9 @@ export const Quotes = () => {
     // leer del state `quotes` (que podía estar desactualizado y forzaba al
     // usuario a pulsar "Volver" para refrescar). Esto garantiza que la
     // grilla heredada se cargue al primer intento.
-    let quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    let quote = quotes.find(q => q.quote_id === effectiveQuoteId);
     try {
-      const fresh = await api.get(`/quotes/${multistoreQuoteId}`);
+      const fresh = await api.get(`/quotes/${effectiveQuoteId}`);
       if (fresh?.data) quote = fresh.data;
     } catch (err) {
       console.warn('[multistore] no se pudo refrescar cotización, usando caché:', err);
