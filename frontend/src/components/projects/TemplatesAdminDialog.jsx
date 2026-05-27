@@ -19,7 +19,7 @@ const VAR_GROUPS = [
   ]},
   { cat: 'Proyecto', icon: <FileText size={14} className="text-violet-500" />, vars: [
     { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
-    { token: 'Ticket_Nro', desc: 'Número de ticket' },
+    { token: 'Ticket_Nro', desc: 'Número de ticket (se carga al desbloquear el proyecto)' },
     { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
     { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
     { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },

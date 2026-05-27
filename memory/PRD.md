@@ -4,6 +4,23 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 29: Variable `{Ticket_Nro}` para Notificaciones de Proyectos — Feb 2026
+
+**Bug latente corregido + Mejora**: La cápsula `Ticket_Nro` (y otras PascalCase Spanish: `Nro_Proyecto`, `Tipo_Proyecto`, `Fecha_Asignacion`, `Rif_Cliente`) aparecía en el panel de variables del editor pero **no se sustituía** al enviar el correo porque el backend solo exponía las versiones snake_case (`ticket_number`, `project_number`, etc.). Quedaban como literal en el body — bug silencioso desde forks previos.
+
+**Implementación**:
+- `services/project_template_vars.py`: agregados aliases PascalCase Spanish en el dict consolidado:
+  - `Ticket_Nro` ← `project.ticket_number` (se carga al desbloquear el proyecto vía `PUT /api/projects/{id}/ticket`).
+  - `Nro_Ticket` (segundo alias por compatibilidad).
+  - `Nro_Proyecto`, `Tipo_Proyecto`, `Rif_Cliente`, `Fecha_Asignacion`, `Fecha_Desbloqueo_Ticket` (formateadas como `dd/mm/yyyy`).
+- `EmailTemplatesEditor.jsx` (Configuración > Notificaciones): añadido `Ticket_Nro` a `VARIABLE_CATEGORIES.Implementación` y a las tres `BASE_TEMPLATE_VARIABLES` de proyectos (`project_notify_client`, `project_notify_bank`, `project_notify_bank_client`) — con etiqueta explícita "se carga al desbloquear el proyecto".
+- `TemplatesAdminDialog.jsx` (per-project): descripción actualizada para `Ticket_Nro`.
+- `RichTextEditor.jsx`: demo values para `Ticket_Nro=56785`, `Nro_Proyecto`, `Tipo_Proyecto`, `Fecha_Asignacion`, `Fecha_Desbloqueo_Ticket` — el mini-preview hover ahora muestra el valor demo correcto.
+
+**Test (`/app/backend/tests/test_iteration29_ticket_nro_variable.py`)**: 2/2 PASS — `{Ticket_Nro}` resuelve a `"55512"` cuando el proyecto está desbloqueado, y a `""` cuando aún no se ha asignado ticket (proyecto bloqueado). Aliases en español y snake_case ambos funcionan.
+
+
+
 ### Iteration 28: Ranking COMPLETO de Implementadores en Reporte de Carga PDF — Feb 2026
 
 **Cambio**: El ranking visual ahora lista a **todos los implementadores** (no solo el top 3), ordenados por cajas asignadas. Las medallas oro/plata/bronce siguen aplicándose a las primeras 3 posiciones; las restantes (4°+) usan un disco gris pizarra (`#475569`) con texto blanco. Layout grid de 3 columnas que envuelve automáticamente.

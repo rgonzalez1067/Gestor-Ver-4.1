@@ -341,10 +341,32 @@ async def resolve_project_template_vars(project: dict) -> dict:
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
 
+    # === Fecha de Asignación + Fecha de Desbloqueo (Ticket) ===
+    def _fmt_date(value):
+        if not value:
+            return ""
+        try:
+            from datetime import datetime as _dt
+            if isinstance(value, str):
+                # Try ISO
+                try:
+                    dt = _dt.fromisoformat(value.replace("Z", "+00:00"))
+                except ValueError:
+                    return value
+            else:
+                dt = value
+            return dt.strftime("%d/%m/%Y")
+        except Exception:
+            return str(value)
+
+    fecha_asignacion = _fmt_date(project.get("assigned_at"))
+    fecha_desbloqueo_ticket = _fmt_date(project.get("unblocked_at"))
+
     # === Variables consolidadas ===
     variables = {
         # Variables nuevas (Diccionario Técnico)
         "Nombre_Cliente": razon_social,
+        "Rif_Cliente": format_rif(project.get("client_rif", "")),
         "Contacto_Principal": contacto_principal,
         "Datos_Contacto": f"{contacto_principal} | Tel: {contacto_telefono} | Email: {contacto_email}" if contacto_principal else "—",
         "Telefono_Contacto": contacto_telefono,
@@ -362,7 +384,15 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Modelo_Seriales_POS": modelo_seriales_pos_html,
         "Servidor_Instalacion": servidor_instalacion or "No asignado",
 
-        # Variables estándar del proyecto
+        # === Alias en PascalCase español (lo que muestra el panel lateral del editor) ===
+        "Nro_Proyecto": project_number or "",
+        "Ticket_Nro": ticket or "",
+        "Nro_Ticket": ticket or "",  # alias adicional por si se inserta como "Nro_Ticket"
+        "Tipo_Proyecto": project.get("quote_type", "") or "",
+        "Fecha_Asignacion": fecha_asignacion,
+        "Fecha_Desbloqueo_Ticket": fecha_desbloqueo_ticket,
+
+        # Variables estándar del proyecto (snake_case — alias en inglés)
         "project_number": project_number,
         "quote_number": quote_number,
         "ticket_number": ticket,
