@@ -4,6 +4,39 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 34: Módulo "Proyectos Directos" — Creación de proyectos sin cotización previa — Feb 2026
+
+**Objetivo (P0)**: Operaciones puede crear proyectos de implementación directos saltando las fases de Contacto Inicial y Cotización, todo desde una sola UI sin modales intermedios.
+
+**Backend** (`/app/backend/routes/direct_projects.py` — nuevo módulo):
+- `POST /api/direct-projects`: endpoint principal. Recibe payload completo (cliente, definición comercial, HW, multitienda, grilla [Caja+Banco+Producto]), construye una "cotización fantasma" en memoria (NO se persiste en `quotes`), reutiliza `_create_project_from_quote` para armar el proyecto y luego sobreescribe el `project_number` al formato **`PRD-YYYY-MM-NNN-SEDE`** (secuencia separada de `PRY-`). Genera Ficha Técnica PDF via `generate_implementation_pdf` y dispara notificación automática vía el motor dinámico.
+- `GET /api/direct-projects/excel-templates/{serials|branches}`: plantillas Excel descargables.
+- `POST /api/direct-projects/excel-parse/{serials|branches}`: parsea Excel y devuelve JSON.
+- Validaciones: VPOS/MPOS requiere `pinpad_model`; grilla debe tener exactamente `cantidad_cajas` filas; en multitienda la suma de cajas por sucursal debe coincidir con `cantidad_cajas`.
+- Marca el proyecto con `origin='direct'`, `direct_project=true`, persiste `boxes_grid` para auditoría.
+
+**Catálogo de permisos** (`permissions_catalog.py`):
+- Nuevo módulo granular `proyectos_directos` bajo `gestion_implementacion`. Asignable independiente vía Permisos de Usuarios.
+
+**Motor de notificaciones**:
+- `action_notifications.py`: nuevo `BUSINESS_TYPES` entry `proyectos_directos` (sin sub-categoría) con allowed action `send_to_implementation`. La pestaña Matriz de Configuración de Acciones lo expone automáticamente para que el admin mapee destinatarios/plantilla.
+- `notification_engine._quote_to_biz_sub`: reconoce `quote_category='direct_project'` y lo mapea a `proyectos_directos`.
+
+**Frontend** (`/app/frontend/src/pages/DirectProjectCreation.jsx` — nueva página):
+- Ruta `/direct-projects` (link en Sidebar bajo "Gestión de Implementación"), gateado por permiso `proyectos_directos`.
+- Cards: Datos Cliente (autocompleta Grupo Económico + Fantasía editables al seleccionar cliente), Definición Comercial, Hardware (condicional VPOS/MPOS), Multitienda, Grilla Dinámica de Cajas, Instrucciones.
+- `ClientCombobox` con búsqueda por substring.
+- `ExcelUploader`: botones "Plantilla" (download) + "Cargar Excel" en seriales Pinpad, seriales Equipos y sucursales multitienda.
+- Grilla se auto-ajusta al cambiar Cantidad de Cajas.
+- Lista de errores en tiempo real; submit deshabilitado mientras haya errores.
+- Tras enviar, redirige a `/projects/{id}` con toast confirmando si la notificación fue dispatched o no había config configurada.
+
+**Testing E2E** (`/app/backend/tests/test_iteration190_direct_projects.py` + Playwright):
+- Backend 11/11 PASS: creación PRD-YYYY-MM-NNN, validaciones 400, GATEWAY sin pinpad, templates Excel descargables, parseo Excel, catálogo expone proyectos_directos, RBAC 403 para usuario sin permiso.
+- Frontend: renderiza todas las secciones, autofill cliente funciona, Hardware desaparece para GATEWAY/LINK_PAGO, grilla se sincroniza con cantidad_cajas, errores visibles, submit deshabilitado con errores, sidebar muestra link bajo Gestión de Implementación.
+
+
+
 ### Iteration 33: ZIP Paginado por LOTES — Garantía operativa para deploy — Feb 2026
 
 **Decisión arquitectónica**: dado que el dataset productivo creció a 422 anexos (~250 MB) y solo va a crecer, el ZIP Paginado pasó de "ZIP único grande con streaming" a **"N ZIPs pequeños secuenciales"** para garantizar 0% riesgo de OOM independientemente del crecimiento del dataset.
