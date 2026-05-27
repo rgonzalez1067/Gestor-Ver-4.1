@@ -4,6 +4,30 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 37: Bug Fixes Multitienda + Reingeniería UX modal "inherited" — Feb 2026
+
+**Tres fixes coordinados en el flujo de Multitienda del cotizador**:
+
+**A. BUG FIX — Parser Excel "Detalle de Tiendas"** (`BranchDetailPanel.jsx`):
+- **Root cause**: línea 58 descartaba TODA fila cuyo nombre contuviera "tienda" → bloqueaba nombres legítimos como "Tienda Los Chaguaramos", "Tienda Av. Urdaneta", etc. Heurística rota.
+- **Fix**: detección de cabecera por COLUMNA B (Cantidad debe ser número válido > 0). Nunca por columna A. También: soporte para floats (3.0), strings con espacios y comas decimales.
+- **Validado** con el Excel real del usuario (7 filas, todas con prefijo "Tienda") → 7/7 importadas correctamente.
+
+**B. BUG FIX — Asincronía modal "Control Multitienda"** (`Quotes.jsx`):
+- **Root cause**: stale closure de `multistoreQuoteId`. El `setTimeout(() => handleProjectTypeSelect(inferred), 0)` se ejecutaba antes de que React committeara el `setMultistoreQuoteId(quoteId)` → cuando `advanceToMultistorePhase` leía el state, era `null` → GET `/quotes/null` → 404 → fallback a fase `ask` (incorrecto). Esto forzaba al usuario a pulsar "Volver" para refrescar.
+- **Fix**: `openMultistoreDialog` ahora pasa `quoteId` EXPLÍCITO al setTimeout. `handleProjectTypeSelect` y `advanceToMultistorePhase` aceptan `overrideQuoteId` como primer parámetro y lo usan en cascada (`effectiveQuoteId = overrideQuoteId || multistoreQuoteId`). Adicionalmente, `advanceToMultistorePhase` ahora hace **GET fresco** a `/api/quotes/{id}` en lugar de leer del state `quotes` cacheado.
+
+**C. REINGENIERÍA UX — Fase "inherited" editable** (`QuoteModals.jsx`):
+- Eliminados los botones binarios "No, Modificar" + "Sí, Confirmar y Enviar".
+- La grilla ahora muestra **inputs editables inline** (nombre + cantidad de cajas).
+- Nuevos controles: botón **"+ Agregar Sucursal"** (agrega fila en blanco), botón **Eliminar** (`Trash2`) por fila, total recalculado en vivo en el footer.
+- Botón único final: **"Conformar Distribución"** (habilitado solo cuando todas las filas tienen nombre + cantidad).
+- Esto homologa el comportamiento del módulo Proyectos Directos y permite modificaciones de última hora sin reiniciar el wizard.
+
+**Testing**: Frontend E2E iter15 → 100% PASS (3/3 escenarios + parser validado).
+
+
+
 ### Iteration 36: Bug Fix RBAC — Operaciones recupera acciones en Reparaciones (regla restrictiva ahora SOLO aplica a MPOS Imple+POS) — Feb 2026
 
 **Bug reportado**: la implementación previa bloqueó al Departamento de Operaciones para ejecutar acciones en TODAS sus cotizaciones (Reparaciones, Equipos, Implementación). La regla "solo Configuración" debía aplicar exclusivamente a cotizaciones `fast_track` (MPOS Imple+POS) originadas por Ventas Pyme.
