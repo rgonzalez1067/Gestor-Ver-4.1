@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, Database, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -54,6 +54,8 @@ export const Settings = () => {
   const [savingResendKey, setSavingResendKey] = useState(false);
   const [emailLogs, setEmailLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  // Collapsible state para secciones de Correos por Sede (PYME / CORP) — inicia colapsado
+  const [openSedes, setOpenSedes] = useState({ PYME: false, CORP: false });
   const fileInputRef = useRef(null);
   const templateInputRefs = useRef({});
 
@@ -386,17 +388,6 @@ export const Settings = () => {
             </div>
           </div>
 
-          {/* Database Section */}
-          <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
-            <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-4 flex items-center gap-2">
-              <Database size={24} />
-              Base de Datos
-            </h2>
-            <p className="text-slate-600 mb-6">
-              Inicialice la base de datos con información predeterminada.
-            </p>
-          </div>
-
           {/* Contingencia: Export Streaming de Anexos (Admin) */}
           <ContingencyAttachmentsExport />
 
@@ -411,19 +402,32 @@ export const Settings = () => {
               Cada sede recibirá sus propias alertas según el flujo de trabajo de las cotizaciones.
             </p>
 
-            <div className="space-y-6">
-              {/* Correos por Sede */}
-              {SEDES.map((sede) => (
-                <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden">
-                  {/* Header de la Sede */}
-                  <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+            <div className="space-y-3">
+              {/* Correos por Sede — botones desplegables independientes */}
+              {SEDES.map((sede) => {
+                const isOpen = !!openSedes[sede.id];
+                return (
+                <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden" data-testid={`sede-block-${sede.id}`}>
+                  {/* Header colapsable */}
+                  <button
+                    type="button"
+                    onClick={() => setOpenSedes((p) => ({ ...p, [sede.id]: !p[sede.id] }))}
+                    aria-expanded={isOpen}
+                    data-testid={`sede-toggle-${sede.id}`}
+                    className="w-full flex items-center justify-between gap-2 bg-slate-100 hover:bg-slate-200 transition-colors px-4 py-3 border-b border-slate-200 text-left"
+                  >
                     <div className="flex items-center gap-2">
                       <MapPin size={18} className="text-slate-600" />
                       <span className="font-semibold text-slate-800">Sede {sede.name} ({sede.shortName})</span>
                     </div>
-                  </div>
-                  
-                  <div className="p-4 space-y-4">
+                    <ChevronDown
+                      size={18}
+                      className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                  <div className="p-4 space-y-4" data-testid={`sede-content-${sede.id}`}>
                     {/* Email de Administración - Sede */}
                     <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex items-center gap-2 mb-2">
@@ -510,8 +514,10 @@ export const Settings = () => {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
 
               {/* Email de Implementación (General - no por sede) */}
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">

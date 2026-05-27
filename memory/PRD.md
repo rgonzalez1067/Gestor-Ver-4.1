@@ -4,6 +4,29 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 30: Limpieza Visual del Menú de Configuración — Feb 2026
+
+**Objetivo**: Depurar la pantalla `/settings` removiendo funciones obsoletas y encapsulando bloques masivos en acordeones colapsables para descargar visualmente la página.
+
+**Depuración**:
+- 🗑️ Removido el bloque "Base de Datos / Inicialice la base de datos con información predeterminada" (`Settings.jsx`).
+- 🗑️ Removidos los botones de migración por Streaming (`JSON Streaming (1 request)` y `ZIP de Anexos (Streaming)`) y sus handlers (`_streamedDownload`, `handleDownloadData`, `handleDownloadAttachments`) de `ContingencyAttachmentsExport.jsx`. Solo permanecen los métodos paginados (estables en producción).
+- Título actualizado a "Contingencia · Migración Cotizaciones" (sin sufijo "Streaming").
+
+**Acordeones colapsables** (estado inicial CERRADO):
+- **Settings.jsx**: cada Sede (PYME / CORP) en *Configuración de Correos de Notificación* es ahora un botón desplegable independiente. Test IDs: `sede-toggle-PYME`, `sede-content-PYME`, idem CORP.
+- **EmailTemplatesEditor.jsx**: las 5 categorías de plantillas (Personalizadas, Sede Pyme, Sede Corp, Proyecto, Generales/Sin sede) son acordeones independientes con contador en píldora y chevron rotativo. Test IDs: `tpl-section-toggle-custom`, `tpl-section-toggle-sede-PYME`, `tpl-section-toggle-sede-CORP`, `tpl-section-toggle-project`, `tpl-section-toggle-legacy`.
+
+**Estética**: chevron `lucide-react`, gradientes existentes preservados (violet/fuchsia para Personalizadas, orange/teal para Proyecto, amber para Sin Sede), hover backgrounds aplicados.
+
+**Verificación E2E (Playwright)**:
+- DB block removido (`'Inicialice la base de datos' not in body.innerText`).
+- 2 botones streaming `count = 0`, 2 botones paginados visibles.
+- `sede-content-PYME` inicia oculto → click → visible.
+- Los 5 toggles de plantillas presentes (count=1 cada uno), todos cerrados al cargar, abrir/cerrar independiente.
+
+
+
 ### Iteration 29: Variable `{Ticket_Nro}` para Notificaciones de Proyectos — Feb 2026
 
 **Bug latente corregido + Mejora**: La cápsula `Ticket_Nro` (y otras PascalCase Spanish: `Nro_Proyecto`, `Tipo_Proyecto`, `Fecha_Asignacion`, `Rif_Cliente`) aparecía en el panel de variables del editor pero **no se sustituía** al enviar el correo porque el backend solo exponía las versiones snake_case (`ticket_number`, `project_number`, etc.). Quedaban como literal en el body — bug silencioso desde forks previos.

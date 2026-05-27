@@ -19,8 +19,6 @@ import JSZip from 'jszip';
  * (botón "Migración (Admin) ZIP de Anexos") y permanece sin cambios.
  */
 export const ContingencyAttachmentsExport = () => {
-  const [downloading, setDownloading] = useState(false);
-  const [downloadingData, setDownloadingData] = useState(false);
   const [downloadingPaged, setDownloadingPaged] = useState(false);
   const [pagedProgress, setPagedProgress] = useState('');
   const [downloadingPagedZip, setDownloadingPagedZip] = useState(false);
@@ -35,68 +33,6 @@ export const ContingencyAttachmentsExport = () => {
     isAdmin = false;
   }
   if (!isAdmin) return null;
-
-  const _streamedDownload = async (path, fallbackName, onSuccessHeaders) => {
-    // Usar axios (api) en lugar de fetch nativo: en producción algunos
-    // service workers / interceptores del ingress consumen el body de Response
-    // antes de que podamos leerlo, generando "body stream already read".
-    // axios usa XHR y devuelve un Blob completo sin re-streamings problemáticos.
-    const res = await api.get(path, { responseType: 'blob' });
-    const blob = res.data;
-    const cd = res.headers?.['content-disposition'] || '';
-    const m = cd.match(/filename="?([^"]+)"?/);
-    const filename = (m && m[1]) || fallbackName;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    if (onSuccessHeaders) onSuccessHeaders(res.headers || {});
-  };
-
-  const handleDownloadAttachments = async () => {
-    setDownloading(true);
-    try {
-      await _streamedDownload(
-        '/admin/quotes-bundle-migration/export-attachments-streamed',
-        'quotes_bundle_attachments_streamed.zip',
-        (h) => {
-          const inc = h['x-files-included'] || h['X-Files-Included'] || '?';
-          const miss = h['x-files-missing'] || h['X-Files-Missing'] || '0';
-          toast.success(`ZIP descargado (${inc} archivos, ${miss} no encontrados)`);
-        },
-      );
-    } catch (e) {
-      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
-      toast.error(`Error al exportar (contingencia anexos): ${msg}`);
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const handleDownloadData = async () => {
-    setDownloadingData(true);
-    try {
-      await _streamedDownload(
-        '/admin/quotes-bundle-migration/export-data-streamed',
-        'quotes_bundle_data_streamed.json',
-        (h) => {
-          const q = h['x-counts-quotes'] || h['X-Counts-Quotes'] || '?';
-          const hi = h['x-counts-history'] || h['X-Counts-History'] || '?';
-          const p = h['x-counts-projects'] || h['X-Counts-Projects'] || '?';
-          toast.success(`JSON descargado · ${q} cotizaciones, ${hi} históricos, ${p} proyectos`);
-        },
-      );
-    } catch (e) {
-      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
-      toast.error(`Error al exportar (contingencia datos): ${msg}`);
-    } finally {
-      setDownloadingData(false);
-    }
-  };
 
   // Descarga PAGINADA: itera por (colección, página) y arma el JSON localmente.
   // Inmune al 504 Gateway Timeout en producción porque cada request es pequeña (<2s).
@@ -228,7 +164,7 @@ export const ContingencyAttachmentsExport = () => {
     >
       <h2 className="text-xl font-semibold text-amber-900 font-manrope mb-2 flex items-center gap-2">
         <ShieldAlert size={24} />
-        Contingencia · Migración Cotizaciones (Streaming)
+        Contingencia · Migración Cotizaciones
       </h2>
       <p className="text-amber-800 text-sm mb-4 leading-relaxed">
         Modo alternativo de exportación del bundle de cotizaciones diseñado para
@@ -238,8 +174,8 @@ export const ContingencyAttachmentsExport = () => {
         chunks pequeños (100 docs/pág) y arma el archivo final localmente. Inmune a
         timeouts del ingress. Compatible con la importación estándar.
         <br />
-        <span className="font-medium">JSON Streaming / ZIP Streaming:</span> construyen el
-        archivo en disco del backend en una sola request. Útiles si la paginación no aplica.
+        <strong className="text-cyan-800">ZIP paginado de Anexos:</strong> lista todos los
+        archivos, los descarga uno a uno y empaqueta el ZIP final en el navegador.
         <br />
         <span className="font-medium">Las opciones estándar de Cotizaciones permanecen sin cambios.</span>
       </p>
@@ -277,43 +213,6 @@ export const ContingencyAttachmentsExport = () => {
             <>
               <Download size={16} className="mr-2" />
               Descargar ZIP Paginado de Anexos (Recomendado)
-            </>
-          )}
-        </Button>
-        <Button
-          onClick={handleDownloadData}
-          disabled={downloadingData}
-          variant="outline"
-          className="border-amber-600 text-amber-800 hover:bg-amber-100"
-          data-testid="contingency-export-data-btn"
-        >
-          {downloadingData ? (
-            <>
-              <Loader2 size={16} className="mr-2 animate-spin" />
-              Generando JSON en disco...
-            </>
-          ) : (
-            <>
-              <Download size={16} className="mr-2" />
-              JSON Streaming (1 request)
-            </>
-          )}
-        </Button>
-        <Button
-          onClick={handleDownloadAttachments}
-          disabled={downloading}
-          className="bg-amber-600 hover:bg-amber-700 text-white"
-          data-testid="contingency-export-attachments-btn"
-        >
-          {downloading ? (
-            <>
-              <Loader2 size={16} className="mr-2 animate-spin" />
-              Generando ZIP en disco...
-            </>
-          ) : (
-            <>
-              <Download size={16} className="mr-2" />
-              ZIP de Anexos (Streaming)
             </>
           )}
         </Button>

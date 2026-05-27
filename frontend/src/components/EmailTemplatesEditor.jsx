@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles, ChevronDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
@@ -563,6 +563,15 @@ export const EmailTemplatesEditor = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
   const [saving, setSaving] = useState(false);
+  // Colapsables del catálogo de plantillas — inician CERRADOS para descargar visualmente la página
+  const [openSections, setOpenSections] = useState({
+    custom: false,
+    sede_PYME: false,
+    sede_CORP: false,
+    project: false,
+    legacy: false,
+  });
+  const toggleSection = (key) => setOpenSections((p) => ({ ...p, [key]: !p[key] }));
 
   // Crear nueva plantilla personalizada
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -859,14 +868,25 @@ export const EmailTemplatesEditor = () => {
 
       {/* ===== Sección: Plantillas Personalizadas ===== */}
       {customTemplates.length > 0 && (
-        <div className="border border-violet-200 rounded-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-violet-50 to-fuchsia-50 px-4 py-3 border-b border-violet-200">
+        <div className="border border-violet-200 rounded-lg overflow-hidden" data-testid="tpl-section-custom">
+          <button
+            type="button"
+            onClick={() => toggleSection('custom')}
+            aria-expanded={openSections.custom}
+            data-testid="tpl-section-toggle-custom"
+            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-violet-50 to-fuchsia-50 hover:from-violet-100 hover:to-fuchsia-100 transition-colors px-4 py-3 border-b border-violet-200 text-left"
+          >
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-violet-600" />
               <span className="font-semibold text-slate-800">Plantillas Personalizadas</span>
               <span className="text-xs text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">{customTemplates.length}</span>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
+            <ChevronDown size={18} className={`text-violet-500 transition-transform ${openSections.custom ? 'rotate-180' : ''}`} />
+          </button>
+          {openSections.custom && (
+          <>
+          <div className="px-4 pt-3 bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50 border-b border-violet-100">
+            <p className="text-xs text-slate-600">
               Plantillas creadas manualmente. Disponibles en el Motor Dinámico de Notificaciones para asignar a cualquier acción del flujo.
             </p>
           </div>
@@ -922,20 +942,30 @@ export const EmailTemplatesEditor = () => {
               </div>
             ))}
           </div>
+          </>
+          )}
         </div>
       )}
 
       {/* Plantillas agrupadas por sede */}
       {SEDES.map((sede) => (
-        <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden">
-          {/* Header de la Sede */}
-          <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
+        <div key={sede.id} className="border border-slate-200 rounded-lg overflow-hidden" data-testid={`tpl-section-sede-${sede.id}`}>
+          <button
+            type="button"
+            onClick={() => toggleSection(`sede_${sede.id}`)}
+            aria-expanded={!!openSections[`sede_${sede.id}`]}
+            data-testid={`tpl-section-toggle-sede-${sede.id}`}
+            className="w-full flex items-center justify-between gap-2 bg-slate-100 hover:bg-slate-200 transition-colors px-4 py-3 border-b border-slate-200 text-left"
+          >
             <div className="flex items-center gap-2">
               <MapPin size={18} className="text-slate-600" />
               <span className="font-semibold text-slate-800">Plantillas Sede {sede.name}</span>
+              <span className="text-xs text-slate-600 bg-white border border-slate-300 px-2 py-0.5 rounded-full">{templatesBySede[sede.id]?.length || 0}</span>
             </div>
-          </div>
+            <ChevronDown size={18} className={`text-slate-500 transition-transform ${openSections[`sede_${sede.id}`] ? 'rotate-180' : ''}`} />
+          </button>
           
+          {openSections[`sede_${sede.id}`] && (
           <div className="p-4 space-y-3">
             {templatesBySede[sede.id]?.length > 0 ? (
               templatesBySede[sede.id].map((template) => {
@@ -992,18 +1022,31 @@ export const EmailTemplatesEditor = () => {
               </p>
             )}
           </div>
+          )}
         </div>
       ))}
 
       {/* ===== Sección: Plantillas de Proyecto (Implementación) ===== */}
       {projectTemplates.length > 0 && (
-        <div className="border border-orange-200 rounded-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-orange-50 to-teal-50 px-4 py-3 border-b border-orange-200">
+        <div className="border border-orange-200 rounded-lg overflow-hidden" data-testid="tpl-section-project">
+          <button
+            type="button"
+            onClick={() => toggleSection('project')}
+            aria-expanded={openSections.project}
+            data-testid="tpl-section-toggle-project"
+            className="w-full flex items-center justify-between gap-2 bg-gradient-to-r from-orange-50 to-teal-50 hover:from-orange-100 hover:to-teal-100 transition-colors px-4 py-3 border-b border-orange-200 text-left"
+          >
             <div className="flex items-center gap-2">
               <Settings2 size={18} className="text-orange-600" />
               <span className="font-semibold text-slate-800">Plantillas de Proyecto (Implementación)</span>
+              <span className="text-xs text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">{projectTemplates.length}</span>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
+            <ChevronDown size={18} className={`text-orange-500 transition-transform ${openSections.project ? 'rotate-180' : ''}`} />
+          </button>
+          {openSections.project && (
+          <>
+          <div className="px-4 pt-3 bg-gradient-to-r from-orange-50/50 to-teal-50/50 border-b border-orange-100">
+            <p className="text-xs text-slate-600">
               Plantillas para las comunicaciones secuenciales con clientes y bancos durante el proceso de implementación.
               Las variables se resuelven automáticamente desde los datos del proyecto.
             </p>
@@ -1058,18 +1101,32 @@ export const EmailTemplatesEditor = () => {
               );
             })}
           </div>
+          </>
+          )}
         </div>
       )}
 
       {/* Plantillas legacy (sin sede) - mostrar si existen */}
       {legacyTemplates.length > 0 && (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
-          <div className="bg-amber-50 px-4 py-3 border-b border-amber-200">
+        <div className="border border-slate-200 rounded-lg overflow-hidden" data-testid="tpl-section-legacy">
+          <button
+            type="button"
+            onClick={() => toggleSection('legacy')}
+            aria-expanded={openSections.legacy}
+            data-testid="tpl-section-toggle-legacy"
+            className="w-full flex items-center justify-between gap-2 bg-amber-50 hover:bg-amber-100 transition-colors px-4 py-3 border-b border-amber-200 text-left"
+          >
             <div className="flex items-center gap-2">
               <AlertCircle size={18} className="text-amber-600" />
               <span className="font-semibold text-amber-800">Plantillas Generales (Sin Sede)</span>
+              <span className="text-xs text-amber-700 bg-white border border-amber-300 px-2 py-0.5 rounded-full">{legacyTemplates.length}</span>
             </div>
-            <p className="text-xs text-amber-700 mt-1">Estas plantillas se migrarán a plantillas por sede.</p>
+            <ChevronDown size={18} className={`text-amber-500 transition-transform ${openSections.legacy ? 'rotate-180' : ''}`} />
+          </button>
+          {openSections.legacy && (
+          <>
+          <div className="px-4 pt-2 pb-1 bg-amber-50/50 border-b border-amber-100">
+            <p className="text-xs text-amber-700">Estas plantillas se migrarán a plantillas por sede.</p>
           </div>
           
           <div className="p-4 space-y-3">
@@ -1109,6 +1166,8 @@ export const EmailTemplatesEditor = () => {
               );
             })}
           </div>
+          </>
+          )}
         </div>
       )}
 
