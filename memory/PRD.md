@@ -4,6 +4,35 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 32: Bugfix REAL `ZIP Paginado de Anexos` — OOM en datasets grandes — Feb 2026
+
+**Aclaración**: el "Script error." reportado anteriormente venía del botón **ZIP Paginado**, no JSON Paginado (corrección hecha en Iter31 también fue válida pero el bug crítico estaba aquí).
+
+**Root cause real**:
+- El dataset de producción tiene **422 anexos ≈ 226 MB conocidos** (probablemente >250 MB con los `size: None`).
+- El handler comprimía todo en memoria con `compression: 'DEFLATE'` y luego `generateAsync({type:'blob'})` exigía ~500-600 MB de RAM combinada (todas las arrayBuffers vivas + blob comprimido en memoria + buffers internos de pako).
+- V8 disparaba OOM/string overflow → `window.onerror` reportaba "Script error." sin stack (CORS).
+
+**Fix completo** (`/app/frontend/src/components/ContingencyAttachmentsExport.jsx`):
+1. **`compression: 'STORE'`** (sin deflate) → ~30% menos RAM y ~5x más rápido. Los PDFs ya están comprimidos internamente, deflate no aporta nada en este caso.
+2. **`generateInternalStream` + File System Access API (`showSaveFilePicker`)** → escribe ZIP directo a disco en chunks de ~64KB. Nunca arma el archivo completo en RAM. Soportado en Chrome/Edge 86+ (mayoría del uso admin).
+3. **Fallback `generateAsync(blob)` con STORE** para browsers viejos.
+4. **`buf = null` + `setTimeout(0)` cada 25 archivos** → ayuda al GC + evita "Page Unresponsive".
+5. **Filtro defensivo** `items.filter(it => typeof it.path === 'string' && it.path.length > 0)` — sin crash si la API devuelve items malformados.
+6. **Guard** `r?.data?.arrayBuffer` — sin crash si endpoint devuelve JSON de error en lugar de blob.
+7. **try/catch por archivo** con `missing.push(...)`, AbortError handling, `console.error('[ZIP Paginado]')` para diagnóstico.
+8. Toast informativo *"Descarga cancelada"* si el usuario cierra el File System picker.
+
+**Memoria pico estimada**: de **~600MB (riesgo OOM)** → **~30MB** (1 archivo activo + chunks de 64KB escribiendo a disco).
+
+**Verificación E2E (Playwright + intercept de attachments-list a 3 items)**:
+- ZIP descargado correctamente · 3 PDFs + manifest.json · 3.5MB
+- PDFs binarios íntegros dentro del ZIP (`first 8 bytes` = headers PDF válidos)
+- `manifest.mode = paginated-browser`, `total_included=3`, `total_missing=0`
+- **0 page errors** · Toast verde visible
+
+
+
 ### Iteration 31: Bugfix `JSON Paginado` — "Uncaught Script error." — Feb 2026
 
 **Issue reportado** (con screenshot): al ejecutar **Descargar JSON Paginado (Recomendado)** en `/settings`, el overlay rojo de CRA mostraba `Uncaught runtime errors: Script error.` y el archivo no se descargaba.

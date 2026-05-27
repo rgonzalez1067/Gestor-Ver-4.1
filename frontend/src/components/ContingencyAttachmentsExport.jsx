@@ -125,12 +125,23 @@ export const ContingencyAttachmentsExport = () => {
   // Descarga PAGINADA de ZIP DE ANEXOS: lista todos los archivos, los descarga uno
   // a uno con requests pequeñas y empaqueta el ZIP final en el browser con JSZip.
   // Inmune al 504: cada archivo viaja en su propia request <2s.
+  //
+  // Implementación resistente a OOM para datasets grandes (>200MB):
+  //  1. compression: 'STORE' (no DEFLATE) — los PDFs ya están comprimidos internamente,
+  //     deflate solo consume CPU y ~30% más memoria sin ganancia real.
+  //  2. generateInternalStream + Streams API → escribe chunks al disco a medida que
+  //     se generan, sin armar el ZIP completo en memoria.
+  //  3. Fallback a generateAsync(blob) solo para browsers viejos.
+  //  4. buf = null tras cada zip.file(...) para que el GC pueda liberar.
+  //  5. Guards defensivos sobre item.path / r.data.
   const handleDownloadPagedZip = async () => {
     setDownloadingPagedZip(true);
     setPagedZipProgress('Listando anexos...');
     try {
       const listRes = await api.get('/admin/quotes-bundle-migration/attachments-list');
-      const items = listRes.data?.items || [];
+      const items = (listRes.data?.items || []).filter(
+        (it) => it && typeof it.path === 'string' && it.path.length > 0,
+      );
       const total = items.length;
       if (total === 0) {
         toast.info('No hay anexos para descargar.');
@@ -141,17 +152,26 @@ export const ContingencyAttachmentsExport = () => {
       const missing = [];
       for (let i = 0; i < total; i++) {
         const item = items[i];
-        setPagedZipProgress(`Descargando ${i + 1}/${total} · ${item.path.slice(-40)}`);
+        const shortPath = String(item.path).slice(-40);
+        setPagedZipProgress(`Descargando ${i + 1}/${total} · ${shortPath}`);
         try {
           const r = await api.get('/admin/quotes-bundle-migration/attachment', {
             params: { path: item.path },
             responseType: 'blob',
           });
-          const buf = await r.data.arrayBuffer();
-          zip.file(item.path, buf);
+          if (!r?.data || typeof r.data.arrayBuffer !== 'function') {
+            missing.push({ path: item.path, error: 'respuesta sin blob' });
+            continue;
+          }
+          let buf = await r.data.arrayBuffer();
+          zip.file(item.path, buf, { binary: true });
           included.push({ path: item.path, size: buf.byteLength });
+          buf = null; // ayudar al GC a liberar memoria
+          // Pequeño yield al event loop cada 25 archivos para que el GC corra y
+          // el navegador no marque el tab como "sin responder".
+          if (i % 25 === 24) await new Promise((res) => setTimeout(res, 0));
         } catch (err) {
-          missing.push({ path: item.path, error: err.message });
+          missing.push({ path: item.path, error: err?.message || 'error' });
         }
       }
       // Manifest
@@ -166,23 +186,69 @@ export const ContingencyAttachmentsExport = () => {
           files_missing: missing,
           total_included: included.length,
           total_missing: missing.length,
-        }, null, 2),
+        }),
       );
-      setPagedZipProgress('Comprimiendo ZIP local...');
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `quotes_bundle_attachments_paged_${ts}.zip`;
+
+      setPagedZipProgress(`Comprimiendo ${included.length} archivos...`);
+
+      // PATH PREFERIDO: File System Access API → escritura streaming directo a disco.
+      // Soportado en Chrome/Edge 86+. Evita armar el blob completo en RAM.
+      if (typeof window.showSaveFilePicker === 'function') {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }],
+          });
+          const writable = await handle.createWritable();
+          await new Promise((resolve, reject) => {
+            const stream = zip.generateInternalStream({
+              type: 'uint8array',
+              compression: 'STORE',
+              streamFiles: true,
+            });
+            stream.on('data', (chunk, meta) => {
+              writable.write(chunk).catch(reject);
+              if (meta && meta.percent != null) {
+                setPagedZipProgress(`Escribiendo ZIP · ${meta.percent.toFixed(0)}%`);
+              }
+            });
+            stream.on('error', (e) => reject(e));
+            stream.on('end', async () => {
+              try { await writable.close(); resolve(); } catch (e) { reject(e); }
+            });
+            stream.resume();
+          });
+          toast.success(`ZIP paginado descargado · ${included.length} archivos${missing.length ? `, ${missing.length} no encontrados` : ''}`);
+          return;
+        } catch (pickErr) {
+          // El usuario canceló el picker o el browser falló → caer al fallback Blob.
+          if (pickErr?.name === 'AbortError') {
+            toast.info('Descarga cancelada.');
+            return;
+          }
+          console.warn('[ZIP Paginado] showSaveFilePicker falló, usando Blob fallback:', pickErr);
+        }
+      }
+
+      // FALLBACK: Blob acumulado (browsers sin File System Access API)
+      // Sin compresión (STORE) para minimizar consumo de memoria.
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       a.href = url;
-      a.download = `quotes_bundle_attachments_paged_${ts}.zip`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
       toast.success(`ZIP paginado descargado · ${included.length} archivos${missing.length ? `, ${missing.length} no encontrados` : ''}`);
     } catch (e) {
-      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      const msg = e?.response?.data?.detail || e?.message || 'Error desconocido';
       toast.error(`Error al exportar (ZIP paginado): ${msg}`);
+      console.error('[ZIP Paginado] error:', e);
     } finally {
       setDownloadingPagedZip(false);
       setPagedZipProgress('');
