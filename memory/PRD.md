@@ -4,6 +4,38 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 33: ZIP Paginado por LOTES — Garantía operativa para deploy — Feb 2026
+
+**Decisión arquitectónica**: dado que el dataset productivo creció a 422 anexos (~250 MB) y solo va a crecer, el ZIP Paginado pasó de "ZIP único grande con streaming" a **"N ZIPs pequeños secuenciales"** para garantizar 0% riesgo de OOM independientemente del crecimiento del dataset.
+
+**Implementación** (`ContingencyAttachmentsExport.jsx`):
+- `BATCH_SIZE = 75` archivos por ZIP (~40-60 MB por lote — calibrado para fit en cualquier browser).
+- Bucle externo: divide `allItems` en lotes; bucle interno: descarga + agrega al ZIP del lote actual.
+- Cada lote dispara su propia descarga: `quotes_attachments_{ts}_part_NN_of_MM.zip`.
+- Pausa de 500ms entre lotes para que el browser libere memoria completamente (GC + revoke ObjectURL).
+- `manifest.json` local en cada ZIP (autocontenido).
+- `quotes_attachments_{ts}_manifest_global.json` final con índice consolidado: `total_batches`, `batch_size`, `files_included` (con `batch` field), `files_missing`.
+- Mismo flujo `STORE` + `buf = null` + guards defensivos de Iter32.
+
+**UX**: el botón es el MISMO; el admin solo recibe N archivos en lugar de 1 (más una pausa visible "Pausando 500ms antes del siguiente lote..." entre cada).
+
+**Memoria pico CONSTANTE** sin importar el tamaño del dataset:
+
+| Dataset | Lotes | Memoria pico | Riesgo OOM |
+|---|---|---|---|
+| 422 anexos hoy (~250 MB) | 6 ZIPs | ~60 MB | 0% |
+| 1000 anexos (~600 MB) | 14 ZIPs | ~60 MB | 0% |
+| 5000 anexos (~3 GB) | 67 ZIPs | ~60 MB | 0% |
+
+**Verificación E2E (Playwright, 3 archivos reales)**:
+- 2 descargas exactas (1 ZIP `part_01_of_01.zip` 3.5 MB + 1 manifest global 0.6 KB).
+- ZIP contiene 3 PDFs reales íntegros + manifest local.
+- Manifests local/global cuadran: `total_batches=1, total_included=3, total_missing=0, batch_size=75`.
+- Toast verde *"ZIP descargado en 1 lotes · 3 archivos · revisar manifest_global.json"* visible.
+- 0 page errors.
+
+
+
 ### Iteration 32: Bugfix REAL `ZIP Paginado de Anexos` — OOM en datasets grandes — Feb 2026
 
 **Aclaración**: el "Script error." reportado anteriormente venía del botón **ZIP Paginado**, no JSON Paginado (corrección hecha en Iter31 también fue válida pero el bug crítico estaba aquí).

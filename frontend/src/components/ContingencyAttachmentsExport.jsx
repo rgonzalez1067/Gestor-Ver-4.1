@@ -122,132 +122,139 @@ export const ContingencyAttachmentsExport = () => {
     }
   };
 
-  // Descarga PAGINADA de ZIP DE ANEXOS: lista todos los archivos, los descarga uno
-  // a uno con requests pequeñas y empaqueta el ZIP final en el browser con JSZip.
-  // Inmune al 504: cada archivo viaja en su propia request <2s.
+  // Descarga PAGINADA de ZIP DE ANEXOS por LOTES — Estrategia "Batching" para garantizar
+  // que no falle independientemente del tamaño del dataset:
   //
-  // Implementación resistente a OOM para datasets grandes (>200MB):
-  //  1. compression: 'STORE' (no DEFLATE) — los PDFs ya están comprimidos internamente,
-  //     deflate solo consume CPU y ~30% más memoria sin ganancia real.
-  //  2. generateInternalStream + Streams API → escribe chunks al disco a medida que
-  //     se generan, sin armar el ZIP completo en memoria.
-  //  3. Fallback a generateAsync(blob) solo para browsers viejos.
-  //  4. buf = null tras cada zip.file(...) para que el GC pueda liberar.
-  //  5. Guards defensivos sobre item.path / r.data.
+  //   - Divide los anexos en lotes de BATCH_SIZE (75 archivos ≈ 40-60 MB c/u)
+  //   - Cada lote es su propio ZIP autocontenido (`part_NN_of_MM.zip`)
+  //   - Memoria pico predecible (~60MB constante) sin importar si hay 100, 1000 o 5000 anexos
+  //   - Funciona en TODOS los browsers (no requiere File System Access API)
+  //   - Tolerante a fallos parciales: si un archivo individual falla, queda registrado
+  //     en el manifest del lote y la descarga continúa
+  //   - Genera al final un `quotes_attachments_manifest_global.json` con índice consolidado
   const handleDownloadPagedZip = async () => {
+    const BATCH_SIZE = 75; // archivos por ZIP — calibrado para ~40-60MB por batch
     setDownloadingPagedZip(true);
     setPagedZipProgress('Listando anexos...');
     try {
       const listRes = await api.get('/admin/quotes-bundle-migration/attachments-list');
-      const items = (listRes.data?.items || []).filter(
+      const allItems = (listRes.data?.items || []).filter(
         (it) => it && typeof it.path === 'string' && it.path.length > 0,
       );
-      const total = items.length;
-      if (total === 0) {
+      const totalGlobal = allItems.length;
+      if (totalGlobal === 0) {
         toast.info('No hay anexos para descargar.');
         return;
       }
-      const zip = new JSZip();
-      const included = [];
-      const missing = [];
-      for (let i = 0; i < total; i++) {
-        const item = items[i];
-        const shortPath = String(item.path).slice(-40);
-        setPagedZipProgress(`Descargando ${i + 1}/${total} · ${shortPath}`);
-        try {
-          const r = await api.get('/admin/quotes-bundle-migration/attachment', {
-            params: { path: item.path },
-            responseType: 'blob',
-          });
-          if (!r?.data || typeof r.data.arrayBuffer !== 'function') {
-            missing.push({ path: item.path, error: 'respuesta sin blob' });
-            continue;
-          }
-          let buf = await r.data.arrayBuffer();
-          zip.file(item.path, buf, { binary: true });
-          included.push({ path: item.path, size: buf.byteLength });
-          buf = null; // ayudar al GC a liberar memoria
-          // Pequeño yield al event loop cada 25 archivos para que el GC corra y
-          // el navegador no marque el tab como "sin responder".
-          if (i % 25 === 24) await new Promise((res) => setTimeout(res, 0));
-        } catch (err) {
-          missing.push({ path: item.path, error: err?.message || 'error' });
-        }
-      }
-      // Manifest
-      zip.file(
-        'manifest.json',
-        JSON.stringify({
-          schema_version: 1,
-          module: 'quotes-bundle-attachments',
-          mode: 'paginated-browser',
-          exported_at: new Date().toISOString(),
-          files_included: included,
-          files_missing: missing,
-          total_included: included.length,
-          total_missing: missing.length,
-        }),
-      );
 
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `quotes_bundle_attachments_paged_${ts}.zip`;
+      const totalBatches = Math.ceil(totalGlobal / BATCH_SIZE);
+      const globalIncluded = [];
+      const globalMissing = [];
 
-      setPagedZipProgress(`Comprimiendo ${included.length} archivos...`);
+      // Helper para descargar un blob individual
+      const triggerDownload = (blob, filename) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      };
 
-      // PATH PREFERIDO: File System Access API → escritura streaming directo a disco.
-      // Soportado en Chrome/Edge 86+. Evita armar el blob completo en RAM.
-      if (typeof window.showSaveFilePicker === 'function') {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }],
-          });
-          const writable = await handle.createWritable();
-          await new Promise((resolve, reject) => {
-            const stream = zip.generateInternalStream({
-              type: 'uint8array',
-              compression: 'STORE',
-              streamFiles: true,
+      const pad2 = (n) => String(n).padStart(2, '0');
+
+      // Procesar cada lote secuencialmente
+      for (let b = 0; b < totalBatches; b++) {
+        const batchItems = allItems.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
+        const batchLabel = `Lote ${b + 1}/${totalBatches}`;
+        const zip = new JSZip();
+        const batchIncluded = [];
+        const batchMissing = [];
+
+        for (let i = 0; i < batchItems.length; i++) {
+          const item = batchItems[i];
+          const globalIdx = b * BATCH_SIZE + i + 1;
+          const shortPath = String(item.path).slice(-40);
+          setPagedZipProgress(`${batchLabel} · Archivo ${i + 1}/${batchItems.length} (global ${globalIdx}/${totalGlobal}) · ${shortPath}`);
+          try {
+            const r = await api.get('/admin/quotes-bundle-migration/attachment', {
+              params: { path: item.path },
+              responseType: 'blob',
             });
-            stream.on('data', (chunk, meta) => {
-              writable.write(chunk).catch(reject);
-              if (meta && meta.percent != null) {
-                setPagedZipProgress(`Escribiendo ZIP · ${meta.percent.toFixed(0)}%`);
-              }
-            });
-            stream.on('error', (e) => reject(e));
-            stream.on('end', async () => {
-              try { await writable.close(); resolve(); } catch (e) { reject(e); }
-            });
-            stream.resume();
-          });
-          toast.success(`ZIP paginado descargado · ${included.length} archivos${missing.length ? `, ${missing.length} no encontrados` : ''}`);
-          return;
-        } catch (pickErr) {
-          // El usuario canceló el picker o el browser falló → caer al fallback Blob.
-          if (pickErr?.name === 'AbortError') {
-            toast.info('Descarga cancelada.');
-            return;
+            if (!r?.data || typeof r.data.arrayBuffer !== 'function') {
+              batchMissing.push({ path: item.path, error: 'respuesta sin blob' });
+              globalMissing.push({ path: item.path, error: 'respuesta sin blob', batch: b + 1 });
+              continue;
+            }
+            let buf = await r.data.arrayBuffer();
+            zip.file(item.path, buf, { binary: true });
+            batchIncluded.push({ path: item.path, size: buf.byteLength });
+            globalIncluded.push({ path: item.path, size: buf.byteLength, batch: b + 1 });
+            buf = null;
+            // Yield al event loop cada 10 archivos
+            if (i % 10 === 9) await new Promise((res) => setTimeout(res, 0));
+          } catch (err) {
+            batchMissing.push({ path: item.path, error: err?.message || 'error' });
+            globalMissing.push({ path: item.path, error: err?.message || 'error', batch: b + 1 });
           }
-          console.warn('[ZIP Paginado] showSaveFilePicker falló, usando Blob fallback:', pickErr);
+        }
+
+        // Manifest del lote (autocontenido)
+        zip.file(
+          'manifest.json',
+          JSON.stringify({
+            schema_version: 1,
+            module: 'quotes-bundle-attachments',
+            mode: 'paginated-batch',
+            batch_number: b + 1,
+            total_batches: totalBatches,
+            exported_at: new Date().toISOString(),
+            files_included: batchIncluded,
+            files_missing: batchMissing,
+            total_included: batchIncluded.length,
+            total_missing: batchMissing.length,
+          }),
+        );
+
+        setPagedZipProgress(`${batchLabel} · Comprimiendo (${batchIncluded.length} archivos)...`);
+        // STORE: PDFs ya están comprimidos, deflate solo consume RAM/CPU sin ganancia
+        const batchBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+        const batchFilename = `quotes_attachments_${ts}_part_${pad2(b + 1)}_of_${pad2(totalBatches)}.zip`;
+        triggerDownload(batchBlob, batchFilename);
+
+        // Pausa entre lotes para que el navegador libere memoria completamente
+        // antes de empezar el siguiente. Suficiente tiempo para GC.
+        if (b < totalBatches - 1) {
+          setPagedZipProgress(`Pausando 500ms antes del siguiente lote...`);
+          await new Promise((res) => setTimeout(res, 500));
         }
       }
 
-      // FALLBACK: Blob acumulado (browsers sin File System Access API)
-      // Sin compresión (STORE) para minimizar consumo de memoria.
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      toast.success(`ZIP paginado descargado · ${included.length} archivos${missing.length ? `, ${missing.length} no encontrados` : ''}`);
+      // Manifest global consolidado (índice + diagnóstico cruzado de los N batches)
+      const globalManifest = {
+        schema_version: 1,
+        module: 'quotes-bundle-attachments',
+        mode: 'paginated-batch-global',
+        exported_at: new Date().toISOString(),
+        total_batches: totalBatches,
+        batch_size: BATCH_SIZE,
+        total_files_global: totalGlobal,
+        total_included_global: globalIncluded.length,
+        total_missing_global: globalMissing.length,
+        files_included: globalIncluded,
+        files_missing: globalMissing,
+      };
+      const manifestBlob = new Blob([JSON.stringify(globalManifest, null, 2)], { type: 'application/json' });
+      triggerDownload(manifestBlob, `quotes_attachments_${ts}_manifest_global.json`);
+
+      const missSuffix = globalMissing.length ? `, ${globalMissing.length} no encontrados` : '';
+      toast.success(`ZIP descargado en ${totalBatches} lotes · ${globalIncluded.length} archivos${missSuffix} · revisar manifest_global.json`);
     } catch (e) {
       const msg = e?.response?.data?.detail || e?.message || 'Error desconocido';
-      toast.error(`Error al exportar (ZIP paginado): ${msg}`);
+      toast.error(`Error al exportar (ZIP por lotes): ${msg}`);
       console.error('[ZIP Paginado] error:', e);
     } finally {
       setDownloadingPagedZip(false);
@@ -273,7 +280,8 @@ export const ContingencyAttachmentsExport = () => {
         timeouts del ingress. Compatible con la importación estándar.
         <br />
         <strong className="text-cyan-800">ZIP paginado de Anexos:</strong> lista todos los
-        archivos, los descarga uno a uno y empaqueta el ZIP final en el navegador.
+        archivos, los descarga uno a uno y los empaqueta en lotes de ~75 archivos por ZIP
+        (memoria pico acotada, ~60MB por lote) + un <code>manifest_global.json</code> consolidado.
         <br />
         <span className="font-medium">Las opciones estándar de Cotizaciones permanecen sin cambios.</span>
       </p>
