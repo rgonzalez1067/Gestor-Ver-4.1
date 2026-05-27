@@ -311,11 +311,14 @@ export const QuotesTable = ({
             const isEquipment = quote.quote_category === 'equipment';
             const isRepair = quote.quote_category === 'repair';
             const isFastTrack = quote.quote_category === 'fast_track';
-            // Modo Operaciones (Feb 2026): solo el botón "Configuración" debe
-            // permanecer habilitado para usuarios del Departamento Operaciones.
-            // Definimos un canEdit alterno que se aplica a TODO el resto de
-            // acciones (Aprobar, Enviar, Facturar, Cobrar, Entregar, etc.).
-            const canEditNonConfig = canEdit && !opsReadonly;
+            // Modo Operaciones (Feb 2026, ajuste Iter36):
+            // La restricción de "solo Configuración" para usuarios del Departamento
+            // de Operaciones aplica EXCLUSIVAMENTE a cotizaciones MPOS (Imple+POS)
+            // — categoría `fast_track` — originadas por Ventas Pyme.
+            // Para Reparaciones, Equipos e Implementaciones nativas, el usuario de
+            // Operaciones se rige por el comportamiento estándar (overrides según
+            // estado del registro) igual que el resto de usuarios del sistema.
+            const canEditNonConfig = canEdit && !(opsReadonly && isFastTrack);
             const displayType = isRepair ? 'Reparación' : isFastTrack ? 'MPOS (Imple + POS)' : isEquipment ? (quote.equipment_type || 'Equipos') : getQuoteTypeName(quote.quote_type);
             const categoryColor = isRepair ? 'bg-orange-100 text-orange-700' : isFastTrack ? 'bg-violet-100 text-violet-700' : isEquipment ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
             const typeColor = isEquipment

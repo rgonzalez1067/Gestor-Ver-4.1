@@ -4,6 +4,89 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 36: Bug Fix RBAC — Operaciones recupera acciones en Reparaciones (regla restrictiva ahora SOLO aplica a MPOS Imple+POS) — Feb 2026
+
+**Bug reportado**: la implementación previa bloqueó al Departamento de Operaciones para ejecutar acciones en TODAS sus cotizaciones (Reparaciones, Equipos, Implementación). La regla "solo Configuración" debía aplicar exclusivamente a cotizaciones `fast_track` (MPOS Imple+POS) originadas por Ventas Pyme.
+
+**Causa raíz** (`/app/frontend/src/components/quotes/QuotesTable.jsx` L318):
+```js
+const canEditNonConfig = canEdit && !opsReadonly;  // ← incorrecto: aplicaba a todo
+```
+
+**Fix mínimo** (cambio quirúrgico de 1 línea):
+```js
+const canEditNonConfig = canEdit && !(opsReadonly && isFastTrack);
+```
+
+Ahora la matriz de comportamiento queda alineada con el requerimiento:
+
+| Categoría | Origen / Sede | Acciones para Operaciones |
+|---|---|---|
+| MPOS (Imple+POS) — `fast_track` | Ventas Pyme | **Solo "Configuración"** (resto deshabilitado) |
+| Reparaciones — `repair` | Operaciones | **Override estándar** según estado del registro |
+| Equipos — `equipment` | Cualquier sede | **Override estándar** según estado del registro |
+| Implementación — `implementation` | Cualquier sede | **Override estándar** según estado del registro |
+
+**Validación E2E** (Playwright con `ragg1008@hotmail.com` / Operaciones / Coordinador):
+- Reparación COT-2026-05-240-PYME: menú dropdown muestra los 8 ítems estándar habilitables según override (Modificar, Enviar al Cliente, Aprobación, Factura, Registrar pago, Pago validado, Entregada, Eliminar) ✅
+- MPOS Imple+POS COT-2026-05-192-PYME: menú restringido a 2 ítems técnicos (Configuración + Validar Pago) ✅
+- Equipos: sin restricción ✅
+
+**Tests pytest**: `/app/backend/tests/test_iteration36_ops_dept_actions.py` — 11/11 PASS validando el invariant `canEditNonConfig` para repair/equipment/implementation/fast_track × ops/non-ops × can_edit true/false.
+
+**Persistencia auditoría**: el cambio es puramente de visibilidad/habilitación UI. No altera bitácora, históricos ni datos persistidos. Las acciones ya ejecutadas previamente permanecen intactas (criterio de aceptación 3).
+
+
+
+### Iteration 35: Proyectos Directos v2 — Cascada Integrador→App, dropdown Pinpad, reel rediseñado, Excel robusto — Feb 2026
+
+**Refinamientos sobre Iter34** según requerimiento del usuario:
+
+**A. Cascada Integrador → Aplicación** (`DirectProjectCreation.jsx`):
+- Dropdown 1: nombres únicos de integradores (`distinct name`). 242 opciones.
+- Dropdown 2: "Aplicación" se habilita solo cuando hay integrador elegido; muestra exclusivamente las apps de ese integrador (agrupa por nombre, separa por app_name). Header indica cuántas apps existen (ej. "Aplicación (2)").
+- Persiste el `integrator_id` del documento específico (apto+integrador exacto).
+
+**B. Depuración**:
+- ❌ Eliminado campo "Link Payment Gateway (opcional)".
+- ❌ Eliminada sección "Seriales Equipos (otros)" — solo queda Seriales Pinpad.
+
+**C. Modelo Pinpad como dropdown** filtrado:
+- Carga `/api/hardware` y filtra `type ∈ {Pinpad, POS}` AND `asset_type = 'Bien'`.
+- En el ambiente actual: **16 modelos válidos** disponibles.
+
+**D. Seriales Pinpad — carga interactiva**:
+- Tras parsear el Excel, las filas se renderizan en una grilla editable con `Modelo + Serial` por fila, botón Eliminar individual y botón "Vaciar" para limpiar todo.
+- Bullet visual explicativo: *"Tras cargar el Excel se listan aquí — puedes auditar y eliminar registros erróneos antes de enviar."*
+- Counter badge muestra cantidad total cargada.
+
+**E. Bug Fix Excel multitienda** (`direct_projects.py` → `excel_parse_branches`):
+- Lector ahora es **read_only** (`load_workbook(..., read_only=True)`) → no falla con archivos grandes / corruptos parcialmente.
+- **Auto-detección de cabecera**: si la fila 1 tiene un entero válido > 0 en columna B, se procesa como data (no como header).
+- Maneja: floats (3.0), strings ("3"), espacios alrededor, filas vacías intercaladas, comas decimales.
+- Excel sin cabecera ✅ + con cabecera ✅ ambos casos testeados E2E.
+- Tras subir, la UI renderiza **inmediatamente** una grilla con `# / Sucursal / Cantidad Cajas / Eliminar` (no solo lista plana) — homologa el patrón de la grilla principal.
+
+**F. Reel de Distribución de Cajas — reingeniería**:
+- Cada fila ahora es: `{quantity, bank_name, product_name, store_name?}` (antes era 1 fila estática por caja).
+- Suma de `quantity` debe coincidir con `cantidad_cajas` (validación frontend + backend, 400 si no).
+- Counter visible en el header: `{totalEnGrilla}/{cantidadCajas}` (verde si match, rojo si no).
+- **Filtro condicional dinámico de Productos**: al elegir el banco en una fila, el dropdown de productos muestra solo los productos del banco que tienen activo el flag de availability según el `quote_type` (`vpos_available` / `mpos_available` / `gateway_available` / `link_available`) — homologa la lógica del cotizador principal.
+- Al cambiar el banco de una fila, el producto se auto-limpia (puede no existir en el nuevo banco).
+- Al cambiar el `quote_type` (VPOS → GATEWAY), todos los productos de la grilla se limpian (cambia el filtro de availability).
+
+**G. Backend changes** (`direct_projects.py`):
+- Modelo `DirectProjectBox`: `quantity` (≥1) en lugar de `caja_nro`.
+- Modelo `DirectProjectCreate`: removidos `payment_gateway_link` y `equipment_serials`.
+- Validación: suma de `boxes_grid[*].quantity` debe igualar `cantidad_cajas` (400 si no).
+- Parsers de Excel (branches + serials) robustos a cabecera ausente, espacios, floats.
+
+**Testing**:
+- Backend: 8/8 PASS (`/app/backend/tests/test_iteration191_direct_projects_v2.py`).
+- Frontend E2E (Playwright): confirmadas las opciones del Pinpad dropdown (16), Integrator cascade (242 → 2 al elegir Spartan Tech C.A.), reel funcionando con cantidad.
+
+
+
 ### Iteration 34: Módulo "Proyectos Directos" — Creación de proyectos sin cotización previa — Feb 2026
 
 **Objetivo (P0)**: Operaciones puede crear proyectos de implementación directos saltando las fases de Contacto Inicial y Cotización, todo desde una sola UI sin modales intermedios.

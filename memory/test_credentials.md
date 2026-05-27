@@ -1,5 +1,14 @@
 # Test Credentials
 
+## Usuario de Operaciones (Reparaciones + Equipos)
+- Email: ragg1008@hotmail.com
+- Password: Test1234!
+- Role: user
+- Departamento: Operaciones
+- Cargo: Coordinador
+- Special permissions: cotizaciones:equipos, cotizaciones:reparaciones
+- Nota: válido para probar el fix Iter36 (acciones libres en repair/equipos, restricción solo en fast_track MPOS).
+
 ## Admin principal
 - Email: rgonzalez@megasoft.com.ve
 - Password: admin123
