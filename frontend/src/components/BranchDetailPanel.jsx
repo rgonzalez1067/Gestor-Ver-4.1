@@ -48,16 +48,31 @@ export const BranchDetailPanel = ({ branches = [], onChange, totalEquipment = 0 
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
+        // Detectar cabecera de forma SEGURA: la fila 0 se ignora únicamente
+        // si la columna B (Cantidad) NO contiene un número válido. NUNCA
+        // descartar por contenido de la columna A — eso bloqueaba nombres
+        // legítimos como "Tienda Los Chaguarmos" (bug reportado feb 2026).
+        const isHeaderRow = (row) => {
+          if (!row || row.length < 2) return true;
+          const v = row[1];
+          if (v === null || v === undefined || v === '') return true;
+          const n = parseFloat(String(v).trim().replace(',', '.'));
+          return !Number.isFinite(n) || n <= 0;
+        };
+
+        const startIdx = isHeaderRow(data[0]) ? 1 : 0;
+
         const imported = [];
         let invalidQtyRows = 0;
-        for (let i = 0; i < data.length; i++) {
+        for (let i = startIdx; i < data.length; i++) {
           const row = data[i];
           if (!row || row.length < 2) continue;
-          const name = String(row[0] || '').trim();
+          const name = String(row[0] ?? '').trim();
           const rawQty = row[1];
-          if (!name || name.toLowerCase() === 'nombre' || name.toLowerCase().includes('tienda')) continue;
-          // Validar numérico
-          const qty = parseInt(rawQty);
+          // Saltar fila completamente vacía
+          if (!name && (rawQty === null || rawQty === undefined || rawQty === '')) continue;
+          if (!name) continue;
+          const qty = parseInt(String(rawQty).trim().replace(',', '.'));
           if (!Number.isFinite(qty) || qty <= 0) {
             invalidQtyRows += 1;
             continue;

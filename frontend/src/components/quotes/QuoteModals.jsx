@@ -731,56 +731,112 @@ export const QuoteModals = ({ ctx }) => {
                 </div>
               )}
 
-              {/* Fase Herencia: Distribución pre-definida detectada */}
+              {/* Fase Herencia: Distribución pre-definida detectada — VISTA DE VALIDACIÓN EDITABLE.
+                  FIX Iter37 (feb 2026): la grilla ahora permite editar/agregar/eliminar tiendas
+                  directamente; el botón único "Conformar Distribución" cierra la fase. */}
               {multistorePhase === 'inherited' && (
                 <div className="space-y-4 py-2" data-testid="multistore-inherited-phase">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-1">
                       <CheckCircle size={16} className="text-blue-600" />
                       <span className="text-sm font-medium text-blue-800">Distribución de sucursales detectada</span>
                     </div>
                     <p className="text-xs text-blue-600">
-                      Se encontró una distribución previa de sucursales en esta cotización. ¿Desea utilizar esta misma configuración para el proyecto?
+                      Se encontró una distribución previa. Revisa los datos y modifícalos si lo necesitas antes de conformar.
                     </p>
                   </div>
 
-                  {/* Tabla resumen de sucursales heredadas */}
+                  {/* Grilla EDITABLE de sucursales heredadas */}
                   <div className="border rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-slate-50 border-b">
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">#</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600 w-10">#</th>
                           <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Sucursal</th>
-                          <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600">Cajas</th>
+                          <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-28">Cajas</th>
+                          <th className="text-center px-3 py-2 text-xs font-semibold text-slate-600 w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {multistoreStores.map((store, idx) => (
                           <tr key={idx} className="border-b last:border-0" data-testid={`inherited-row-${idx}`}>
-                            <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
-                            <td className="px-3 py-2 font-medium text-slate-800">{store.name}</td>
-                            <td className="px-3 py-2 text-center text-slate-700">{store.box_count}</td>
+                            <td className="px-3 py-1.5 text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="px-3 py-1.5">
+                              <input
+                                type="text"
+                                value={store.name}
+                                onChange={(e) => {
+                                  const next = [...multistoreStores];
+                                  next[idx] = { ...next[idx], name: e.target.value };
+                                  setMultistoreStores(next);
+                                }}
+                                className="w-full h-8 px-2 text-sm border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
+                                data-testid={`inherited-name-${idx}`}
+                              />
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <input
+                                type="number"
+                                min="1"
+                                value={store.box_count}
+                                onChange={(e) => {
+                                  const next = [...multistoreStores];
+                                  next[idx] = { ...next[idx], box_count: Math.max(1, parseInt(e.target.value) || 1) };
+                                  setMultistoreStores(next);
+                                }}
+                                className="w-full h-8 px-2 text-sm text-center border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
+                                data-testid={`inherited-qty-${idx}`}
+                              />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setMultistoreStores(multistoreStores.filter((_, i) => i !== idx))}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Eliminar sucursal"
+                                data-testid={`inherited-remove-${idx}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="bg-slate-50 border-t">
                           <td colSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Total:</td>
-                          <td className="px-3 py-2 text-center font-bold text-slate-900">
-                            {multistoreStores.reduce((sum, s) => sum + (s.box_count || 0), 0)}
+                          <td className="px-3 py-2 text-center font-bold text-slate-900" data-testid="inherited-total">
+                            {multistoreStores.reduce((sum, s) => sum + (parseInt(s.box_count) || 0), 0)}
                           </td>
+                          <td />
                         </tr>
                       </tfoot>
                     </table>
                   </div>
 
-                  <div className="flex gap-3 justify-end pt-2 border-t">
-                    <Button variant="outline" onClick={modifyInheritedStores} data-testid="inherited-modify-btn">
-                      No, Modificar
+                  <div className="flex items-center justify-between">
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      onClick={() => setMultistoreStores([...multistoreStores, { name: '', box_count: 1 }])}
+                      className="text-xs"
+                      data-testid="inherited-add-row-btn"
+                    >
+                      + Agregar Sucursal
                     </Button>
-                    <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={confirmInheritedStores} data-testid="inherited-confirm-btn">
+                    <p className="text-xs text-slate-500">
+                      {multistoreStores.length} sucursal(es)
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2 border-t">
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={confirmInheritedStores}
+                      disabled={multistoreStores.length === 0 || multistoreStores.some(s => !s.name?.trim() || !s.box_count)}
+                      data-testid="inherited-confirm-btn"
+                    >
                       <CheckCircle size={14} className="mr-1.5" />
-                      Sí, Confirmar y Enviar
+                      Conformar Distribución
                     </Button>
                   </div>
                 </div>

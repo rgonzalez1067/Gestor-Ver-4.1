@@ -1,0 +1,33 @@
+{
+  "summary": "Iter37 frontend validation — 3 fixes coordinados. (1) BUG FIX Excel BranchDetailPanel parser: VERIFIED via code review (líneas 41-100 OK, detección por col B numérica, ya no se descarta por contener 'tienda'). (2) BUG FIX Asincronía Modal Multitienda: NO FUNCIONA — la cotización COT-2026-05-016-PYME (quo_30a1eb8e762b) sigue abriendo el modal en fase 'ask' en el PRIMER intento; el GET fresco se ejecuta contra /api/quotes/null (HTTP 404) porque `multistoreQuoteId` está stale (null) en el closure de handleProjectTypeSelect/advanceToMultistorePhase. (3) Reingeniería UX inherited: testids y JSX existen en QuoteModals.jsx (multistore-inherited-phase, inherited-name-N, inherited-qty-N, inherited-remove-N, inherited-add-row-btn, inherited-confirm-btn, inherited-total, '+ Agregar Sucursal', 'Conformar Distribución', sin botones binarios). No se pudo validar interactivamente por bug (2).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Quotes.jsx → openMultistoreDialog/handleProjectTypeSelect/advanceToMultistorePhase", "issue": "BUG iter37 #2 NO RESUELTO: al hacer Acciones → Enviar a Implementación sobre COT-2026-05-016-PYME (que tiene branch_details con 2 sucursales en backend, verificado vía curl), el modal abre en fase 'ask' en el primer intento. Network logs muestran GETs a /api/quotes/null/equipment-for-implementation?project_type=vpos_mpos (404) y /api/quotes/null (404). Root cause: `multistoreQuoteId` está null en el closure cuando se ejecuta el setTimeout(()=>handleProjectTypeSelect(inferred),0); setMultistoreQuoteId(quoteId) en openMultistoreDialog es asíncrono y el setTimeout dispara con el closure viejo. El advanceToMultistorePhase intenta GET a /quotes/null → 404 → fallback a quotes.find(... === null) → undefined → branchData=[] → setMultistorePhase('ask').", "selector": "[data-testid='multistore-inherited-phase'] vs [data-testid='multistore-ask-phase']", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [
+      {"flow": "Enviar a Implementación → multistore inherited phase", "issue": "Fix asíncrono (GET fresco) NO compensa el closure stale de multistoreQuoteId. Solución sugerida: (a) pasar `quoteId` como argumento explícito a handleProjectTypeSelect y a advanceToMultistorePhase, evitando depender de multistoreQuoteId del state; o (b) usar useRef multistoreQuoteIdRef.current = quoteId en openMultistoreDialog y leer el ref en advanceToMultistorePhase. La opción (a) es la más limpia.", "affected_selectors": ["[data-testid='multistore-inherited-phase']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_14.json"],
+  "action_items": [
+    "FIX CRÍTICO: Resolver stale closure de multistoreQuoteId. En openMultistoreDialog, después de setMultistoreQuoteId(quoteId), pasar quoteId explícitamente al setTimeout(() => handleProjectTypeSelect(inferred, quoteId), 0) y propagar quoteId a advanceToMultistorePhase(quoteId). Reemplazar todos los usos internos de `multistoreQuoteId` por el parámetro en estas funciones (al menos durante el primer ciclo). Alternativa: useRef.",
+    "Una vez resuelto el bug del closure, re-verificar (a) que COT-2026-05-016-PYME abre en fase 'inherited' al primer intento, (b) que se pueden editar nombre/cantidad inline, (c) que +Agregar y Eliminar funcionan, (d) que 'Conformar Distribución' avanza al siguiente paso del wizard.",
+    "Revisar otros lugares del flujo que también dependen de multistoreQuoteId vía closure (handleEconomicDataContinue, handleConfirmImplementerAdvance, etc.) — algunos hacen `quotes.find(q => q.quote_id === multistoreQuoteId)` y podrían tener el mismo problema en condiciones de timing distintas (aunque normalmente son llamados desde modales ya renderizados, lo que sí asegura el commit del state)."
+  ],
+  "critical_code_review_comments": [
+    "Quotes.jsx (~2615-2623): openMultistoreDialog hace `setMultistoreQuoteId(quoteId)` y luego `setTimeout(() => handleProjectTypeSelect(inferred), 0)`. handleProjectTypeSelect lee `multistoreQuoteId` de su closure del render actual (donde el state aún es el viejo). Esto rompe el fix de iter37 al hacer GETs a /quotes/null.",
+    "Quotes.jsx (~2640, 2735): los `await api.get(...)` deben recibir quoteId vía parámetro, no leer del state, para garantizar correctitud al primer intento.",
+    "BranchDetailPanel.jsx (líneas 41-100): el parser ahora correcto — detecta header por col B numérica, no descarta por col A. Fix bien implementado.",
+    "QuoteModals.jsx (líneas 736-840): UX inherited bien reimplementada (grid editable con inputs, +Agregar, Eliminar por fila, botón único 'Conformar Distribución'). Testids correctos. No validado runtime debido al bug bloqueante."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "33% (1 de 3 fixes verificados; #2 falla bloqueando #3)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Se reusó COT-2026-05-016-PYME (quo_30a1eb8e762b) que ya tenía branch_details con 2 sucursales [Sucursal Test 1 (2 cajas), Sucursal Test 2 (3 cajas)] verificado vía curl /api/quotes/quo_30a1eb8e762b.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reproducción del bug: login admin → /quotes → buscar COT-2026-05-016-PYME (paginado, scroll hasta encontrar) → kebab Acciones → 'Enviar a Implementación' → 'Confirmar Acción' en Alerta de Flujo Irregular (motivo + fecha) → 'Continuar' en Personalizar Comunicación → modal muestra fase 'ask' con botones 'No, tienda única' / 'Sí, Multitienda'. Network tab muestra 404 en /api/quotes/null y /api/quotes/null/equipment-for-implementation. Una vez E1 aplique el fix de pasar quoteId por argumento, re-ejecutar el script para validar fase 'inherited' + edición inline + +Agregar + Eliminar + Conformar Distribución → siguiente fase wizard. Excel parser ya verificado por código.",
+  "rca of the issue": "Stale closure en handleProjectTypeSelect/advanceToMultistorePhase: openMultistoreDialog llama setMultistoreQuoteId(quoteId) (async) y dispara setTimeout(handleProjectTypeSelect,0). Cuando el setTimeout ejecuta, handleProjectTypeSelect referencia la función definida en el render previo (con multistoreQuoteId=null en su scope). El api.get(`/quotes/${multistoreQuoteId}/...`) hace GET a /quotes/null → 404. advanceToMultistorePhase también lee multistoreQuoteId del mismo closure stale → 404 en /quotes/null → fallback a quotes.find(...===null)→undefined → branchData=[] → fase='ask'. MITIGACIÓN: propagar quoteId por argumentos explícitos en lugar de leerlo del state."
+}

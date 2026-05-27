@@ -2714,7 +2714,7 @@ export const Quotes = () => {
     }
   };
 
-  const advanceToMultistorePhase = () => {
+  const advanceToMultistorePhase = async () => {
     // Build final equipment list from selections
     const allEquip = [...(equipmentAvailable.quote_equipment || []), ...(equipmentAvailable.rif_equipment || [])];
     const selected = allEquip.filter(eq => equipmentSelected[eq.equipo_id]);
@@ -2724,7 +2724,19 @@ export const Quotes = () => {
     // Antes el flujo PYME saltaba este paso; ahora también pasa por aquí
     // para que el operador pueda ratificar o cambiar la condición Multitienda
     // antes de continuar a Pinpads y Fiscal.
-    const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+
+    // FIX Iter37 (feb 2026): para detectar la distribución previa de forma
+    // SÍNCRONA y reactiva, hacemos un GET fresco de la cotización en vez de
+    // leer del state `quotes` (que podía estar desactualizado y forzaba al
+    // usuario a pulsar "Volver" para refrescar). Esto garantiza que la
+    // grilla heredada se cargue al primer intento.
+    let quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+    try {
+      const fresh = await api.get(`/quotes/${multistoreQuoteId}`);
+      if (fresh?.data) quote = fresh.data;
+    } catch (err) {
+      console.warn('[multistore] no se pudo refrescar cotización, usando caché:', err);
+    }
 
     // Pre-check branch data → si hay distribución guardada, fase 'inherited';
     // si no, fase 'ask' (pregunta directa Sí/No).
