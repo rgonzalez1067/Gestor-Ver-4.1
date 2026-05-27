@@ -34,6 +34,9 @@ def _quote_to_biz_sub(quote: dict) -> tuple[Optional[str], Optional[str]]:
       - Otros → (None, None) → no aplica config dinámico, fallback legacy.
     """
     cat = (quote.get("quote_category") or "").lower()
+    if cat == "direct_project":
+        # Proyectos creados desde el módulo "Proyectos Directos" — sin sub-categoría.
+        return "proyectos_directos", None
     if cat == "equipment":
         return "equipos", None
     if cat == "repair":

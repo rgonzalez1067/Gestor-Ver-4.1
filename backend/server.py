@@ -50,6 +50,7 @@ from routes.quote_action_customization import router as quote_action_customizati
 from routes.profiles import router as profiles_router
 from routes.data_migration import router as data_migration_router
 from routes.project_reports import router as project_reports_router
+from routes.direct_projects import router as direct_projects_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(title="Cotizador Merchant Server API")
@@ -123,6 +124,7 @@ ROUTE_MODULE_MAP = {
     "/api/integrators": "integradores",
     "/api/config": "configuracion",
     "/api/projects": "proyectos",
+    "/api/direct-projects": "proyectos_directos",
     "/api/inventory": "inventarios",
     "/api/taller-equipos": "taller_equipos",
     "/api/new-products": "nuevos_productos",
@@ -261,6 +263,7 @@ api_router.include_router(notifications_router)
 api_router.include_router(profiles_router)
 api_router.include_router(data_migration_router)
 api_router.include_router(project_reports_router)
+api_router.include_router(direct_projects_router)
 
 app.include_router(api_router)
 

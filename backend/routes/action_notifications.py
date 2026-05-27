@@ -33,6 +33,7 @@ BUSINESS_TYPES = [
     {"id": "implementacion_corp", "label": "Implementaciones Corp", "has_sub": True},
     {"id": "equipos", "label": "Equipos", "has_sub": False},
     {"id": "reparaciones", "label": "Reparaciones", "has_sub": False},
+    {"id": "proyectos_directos", "label": "Proyectos Directos", "has_sub": False},
 ]
 
 PRODUCT_SUBCATEGORIES = [
@@ -109,6 +110,9 @@ ALLOWED_ACTIONS_BY_BIZ_SUB = {
     ],
     ("reparaciones", None): [
         "send_to_client", "approve", "repair_complete", "invoice", "collect", "deliver",
+    ],
+    ("proyectos_directos", None): [
+        "send_to_implementation",
     ],
 }
 

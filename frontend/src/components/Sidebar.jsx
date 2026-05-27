@@ -27,6 +27,7 @@ import {
   Briefcase,
   Phone,
   Tag,
+  Plus,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
@@ -62,6 +63,7 @@ const menuItems = [
     icon: FolderKanban, label: 'Gestión de Implementación', isGroup: true, groupId: 'gestion_implementacion',
     children: [
       { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
+      { path: '/direct-projects', icon: Plus, label: 'Proyectos Directos' },
       { path: '/integrators', icon: UserCheck, label: 'Integradores' },
     ]
   },
