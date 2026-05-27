@@ -2223,6 +2223,42 @@ async def projects_workload_pdf(
     total = sum(len(v) for v in groups.values())
     total_cajas = sum(cajas_by_impl.values())
 
+    # --- Mini Ranking visual: Top 3 implementadores por cantidad de cajas (excluye "Sin asignar")
+    ranking_items = [
+        (impl, cajas_by_impl.get(impl, 0), len(groups.get(impl, [])))
+        for impl in groups.keys()
+        if impl != "Sin asignar"
+    ]
+    ranking_items.sort(key=lambda x: (-x[1], -x[2], x[0]))  # cajas desc, proyectos desc, nombre asc
+    top3 = ranking_items[:3]
+    ranking_html = ""
+    if top3:
+        max_cajas = max((b for _, b, _ in top3), default=0) or 1
+        medals = ["#FFD700", "#C0C0C0", "#CD7F32"]  # oro, plata, bronce
+        cards = []
+        for idx, (impl, cajas, n_proj) in enumerate(top3):
+            bar_pct = int(round((cajas / max_cajas) * 100)) if max_cajas else 0
+            medal_color = medals[idx]
+            position_label = ["1ro", "2do", "3ro"][idx]
+            cards.append(f"""
+            <div class="rank-card">
+              <div class="rank-pos" style="background:{medal_color};">{position_label}</div>
+              <div class="rank-body">
+                <div class="rank-impl">{impl}</div>
+                <div class="rank-bar-bg"><div class="rank-bar" style="width:{bar_pct}%;"></div></div>
+                <div class="rank-stats"><strong>{cajas}</strong> caja(s) · {n_proj} proyecto(s)</div>
+              </div>
+            </div>
+            """)
+        ranking_html = f"""
+        <div class="ranking">
+          <div class="ranking-title">Top 3 — Implementadores con Mayor Carga (cajas)</div>
+          <div class="ranking-grid">
+            {''.join(cards)}
+          </div>
+        </div>
+        """
+
     # Construir resumen de filtros aplicados (si los hay)
     filters_chips: list[str] = []
     if assigned_to:
@@ -2292,6 +2328,39 @@ async def projects_workload_pdf(
         margin-top: 20px; padding-top: 8px; border-top: 1px solid #e2e8f0;
         color: #94a3b8; font-size: 9px; display: flex; justify-content: space-between;
       }}
+      /* Mini ranking */
+      .ranking {{
+        margin-top: 22px; padding: 12px 14px; background: #0f172a; border-radius: 8px;
+        color: #f8fafc; break-inside: avoid;
+      }}
+      .ranking-title {{
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.5px; color: #fbbf24; margin-bottom: 10px;
+      }}
+      .ranking-grid {{ display: flex; gap: 10px; }}
+      .rank-card {{
+        flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+        padding: 8px 10px; display: flex; gap: 8px; align-items: stretch;
+      }}
+      .rank-pos {{
+        flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%;
+        font-weight: 800; font-size: 11px; color: #0f172a;
+        display: flex; align-items: center; justify-content: center;
+        align-self: center;
+      }}
+      .rank-body {{ flex: 1; min-width: 0; }}
+      .rank-impl {{
+        font-size: 11px; font-weight: 700; color: #f1f5f9;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;
+      }}
+      .rank-bar-bg {{
+        height: 4px; background: #334155; border-radius: 2px; overflow: hidden; margin-bottom: 4px;
+      }}
+      .rank-bar {{
+        height: 100%; background: linear-gradient(90deg, #4f46e5, #6366f1);
+      }}
+      .rank-stats {{ font-size: 9px; color: #cbd5e1; }}
+      .rank-stats strong {{ color: #fbbf24; font-size: 11px; }}
     </style>
     </head>
     <body>
@@ -2299,6 +2368,7 @@ async def projects_workload_pdf(
       <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · {total_cajas} caja(s) · Generado: {now_str} · Por: {exec_name}</div>
       {filters_html}
       {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
+      {ranking_html}
       <div class="footer">
         <span>MegaNexus · Departamento de Implementación</span>
         <span>{now_str}</span>

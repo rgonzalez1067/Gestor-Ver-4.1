@@ -4,6 +4,25 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 27: Mini Ranking visual Top 3 por Cajas en Reporte de Carga PDF — Feb 2026
+
+**Cambio**: Al final del PDF "Reporte de Carga y Estatus" se agrega una tarjeta visual con los **3 implementadores con mayor carga real (cajas)**, no por proyectos. Resuelve un sesgo del dato: un implementador con pocos proyectos pero muchas cajas (configuraciones reales) puede estar más cargado que uno con muchos proyectos pequeños.
+
+**Implementación**: `/app/backend/routes/projects.py`
+- `ranking_items` = lista (impl, cajas, n_proyectos), excluye `"Sin asignar"`. Ordenado por `(-cajas, -proyectos, nombre)`.
+- Top 3 → tarjetas oscuras (fondo `#0f172a`) con:
+  - Medallas circulares: oro `#FFD700` (1ro), plata `#C0C0C0` (2do), bronce `#CD7F32` (3ro).
+  - Barra de progreso azul-índigo proporcional al líder (líder = 100%).
+  - Métricas: `N caja(s) · M proyecto(s)` con N resaltado en ámbar.
+- Layout flex 3 columnas, `break-inside: avoid` para no partir entre páginas.
+
+**Verificación (curl + pdfplumber)**: PDF 40KB. Ranking real extraído:
+- 🥇 1ro: Omar Jiménez — 40 caja(s) · 6 proyecto(s)
+- 🥈 2do: Yulimarys Rivas — 38 caja(s) · 7 proyecto(s) *(más proyectos pero menos cajas — el ordenamiento por cajas corrigió el sesgo)*
+- 🥉 3ro: Bryan Claro — 16 caja(s) · 5 proyecto(s)
+
+
+
 ### Iteration 26: Total de Cajas por Implementador en Reporte de Carga PDF — Feb 2026
 
 **Cambio**: La cabecera de cada grupo del PDF "Reporte de Carga y Estatus" ahora muestra en la misma línea `Nro de Proyectos X · Nro de Cajas Y`, y el subtítulo global suma todas las cajas (`Total: N proyecto(s) · M caja(s)`).
