@@ -4,6 +4,24 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 25: Mini-Preview de Variables (Tooltip Hover) — Feb 2026
+
+**Objetivo**: Mostrar al pasar el mouse sobre cada variable del panel lateral un tooltip con (a) descripción funcional, (b) token literal y (c) **valor demo** que aparecerá en el correo — sin necesidad de abrir Vista Previa.
+
+**Implementación**:
+- `RichTextEditor.jsx`: nuevo helper exportado `getExampleValue(token, extra)` que consulta el mapa interno `DEFAULT_EXAMPLE_VALUES`.
+- `TemplatesAdminDialog.jsx`:
+  - Cada cápsula del diccionario ahora se envuelve en `<Tooltip>` (shadcn) con `delayDuration={150}`.
+  - El `TooltipContent` (`side="left"`, fondo `slate-900`) muestra: header con descripción + token (azul `#blue-300`); body con etiqueta "✨ VISTA PREVIA" (ámbar) y el demo value resaltado.
+  - Si no hay valor demo, se indica "Se mostrará el valor real al enviar el correo."
+- Test IDs nuevos: `var-tooltip-{token}`, `var-demo-{token}`.
+
+**Verificación E2E (Playwright)**:
+- Hover en `{Nombre_Cliente}` → `var-tooltip-Nombre_Cliente` visible, `var-demo-Nombre_Cliente` contiene `"CLIENTE DEMO S.A."` ✅.
+- Hover en `{Datos_Contacto}` → cápsula resalta y tooltip muestra `"María Pérez · +58 212 555-0100 · contacto@clientedemo.com"`.
+
+
+
 ### Iteration 24: Inserción de Variables en Posición del Cursor — Feb 2026
 
 **Objetivo (P2 cerrado)**: Las variables del panel lateral en `TemplatesAdminDialog` ahora se insertan **exactamente donde está el cursor** dentro del editor TipTap, en lugar de hacer un append simple al final del HTML.

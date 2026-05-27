@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { ClipboardList, Building2, FileText, Server, CreditCard } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { ClipboardList, Building2, FileText, Server, CreditCard, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { RichTextEditor } from '../RichTextEditor';
+import { RichTextEditor, getExampleValue } from '../RichTextEditor';
 
 const VAR_GROUPS = [
   { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
@@ -149,29 +150,64 @@ export const TemplatesAdminDialog = ({
           {/* Diccionario de variables */}
           <div className="col-span-3 border-l border-slate-200 pl-4">
             <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Variables Disponibles</p>
-            <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para copiarla al portapapeles e insertarla en el editor.</p>
-            <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
-              {VAR_GROUPS.map(group => (
-                <div key={group.cat}>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    {group.icon}
-                    <span className="text-xs font-bold text-slate-700">{group.cat}</span>
+            <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para insertarla en el editor. Pasa el cursor sobre ella para ver una vista previa del dato.</p>
+            <TooltipProvider delayDuration={150}>
+              <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
+                {VAR_GROUPS.map(group => (
+                  <div key={group.cat}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      {group.icon}
+                      <span className="text-xs font-bold text-slate-700">{group.cat}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {group.vars.map(v => {
+                        const demo = getExampleValue(v.token);
+                        return (
+                          <Tooltip key={v.token}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                data-testid={`var-token-${v.token}`}
+                                className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-blue-100 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md cursor-pointer transition-all group"
+                                onClick={() => insertVar(v.token)}
+                              >
+                                <span className="text-slate-500 group-hover:text-blue-500">{'{'}</span>
+                                <span>{v.token}</span>
+                                <span className="text-slate-500 group-hover:text-blue-500">{'}'}</span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="left"
+                              align="start"
+                              className="max-w-[260px] p-0 overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl"
+                              data-testid={`var-tooltip-${v.token}`}
+                            >
+                              <div className="px-3 pt-2 pb-1.5 border-b border-slate-700">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{v.desc}</p>
+                                <p className="text-[11px] font-mono text-blue-300 mt-0.5">{'{'}{v.token}{'}'}</p>
+                              </div>
+                              <div className="px-3 py-2 bg-slate-950">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Sparkles size={10} className="text-amber-300" />
+                                  <span className="text-[9px] uppercase tracking-wider text-amber-300 font-bold">Vista previa</span>
+                                </div>
+                                {demo ? (
+                                  <p className="text-[12px] text-white leading-snug break-words" data-testid={`var-demo-${v.token}`}>
+                                    {demo}
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-slate-400 italic">Se mostrará el valor real al enviar el correo.</p>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {group.vars.map(v => (
-                      <button key={v.token} title={v.desc}
-                        data-testid={`var-token-${v.token}`}
-                        className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-blue-100 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md cursor-pointer transition-all group"
-                        onClick={() => insertVar(v.token)}>
-                        <span className="text-slate-500 group-hover:text-blue-500">{'{'}</span>
-                        <span>{v.token}</span>
-                        <span className="text-slate-500 group-hover:text-blue-500">{'}'}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </TooltipProvider>
           </div>
         </div>
       </DialogContent>

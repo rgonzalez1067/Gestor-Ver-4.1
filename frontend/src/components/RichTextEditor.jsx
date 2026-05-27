@@ -89,6 +89,12 @@ export function substituteTokens(html, extra = {}) {
   return out;
 }
 
+/** Devuelve el valor demo asociado a un token (o null si no existe). */
+export function getExampleValue(token, extra = {}) {
+  const values = { ...DEFAULT_EXAMPLE_VALUES, ...(extra || {}) };
+  return values[token] !== undefined ? String(values[token]) : null;
+}
+
 const BG_COLORS = ['#FEF3C7', '#FECACA', '#BBF7D0', '#BFDBFE', '#E9D5FF', '#FCE7F3', '#FED7AA'];
 
 /**
