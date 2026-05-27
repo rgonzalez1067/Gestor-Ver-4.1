@@ -4,6 +4,22 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 26: Total de Cajas por Implementador en Reporte de Carga PDF — Feb 2026
+
+**Cambio**: La cabecera de cada grupo del PDF "Reporte de Carga y Estatus" ahora muestra en la misma línea `Nro de Proyectos X · Nro de Cajas Y`, y el subtítulo global suma todas las cajas (`Total: N proyecto(s) · M caja(s)`).
+
+**Implementación**: `/app/backend/routes/projects.py` workload-pdf endpoint
+- Nuevo dict `cajas_by_impl` sumando `cantidad_cajas` / `box_count` solo de proyectos VPOS/MPOS (mismo criterio que la columna "Cajas").
+- `group-head` ahora renderiza `<span class="count">Nro de Proyectos {count} · Nro de Cajas {boxes}</span>`.
+- Subtítulo global ahora suma `total_cajas = sum(cajas_by_impl.values())`.
+
+**Verificación (curl + pdfplumber)**: Generado `GET /api/projects/reports/workload-pdf` → PDF de 36KB con todos los implementadores mostrando ambos contadores. Ejemplos extraídos del PDF real:
+- Yulimarys Rivas — Nro de Proyectos 7 · Nro de Cajas 38
+- Omar Jiménez — Nro de Proyectos 6 · Nro de Cajas 40
+- Total global: 42 proyecto(s) · 197 caja(s) ✅
+
+
+
 ### Iteration 25: Mini-Preview de Variables (Tooltip Hover) — Feb 2026
 
 **Objetivo**: Mostrar al pasar el mouse sobre cada variable del panel lateral un tooltip con (a) descripción funcional, (b) token literal y (c) **valor demo** que aparecerá en el correo — sin necesidad de abrir Vista Previa.

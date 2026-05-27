@@ -2137,9 +2137,19 @@ async def projects_workload_pdf(
 
     # Agrupar por implementador asignado
     groups: dict = {}
+    cajas_by_impl: dict = {}
     for p in projects:
         impl = p.get("assigned_to_name") or "Sin asignar"
         groups.setdefault(impl, []).append(p)
+        # Sumar cajas solo de VPOS/MPOS (igual criterio que la columna "Cajas" del PDF)
+        qt = (p.get("quote_type") or "").upper()
+        if qt in ("VPOS", "MPOS"):
+            try:
+                cajas_by_impl[impl] = cajas_by_impl.get(impl, 0) + int(p.get("cantidad_cajas") or p.get("box_count") or 0)
+            except (TypeError, ValueError):
+                pass
+        else:
+            cajas_by_impl.setdefault(impl, 0)
 
     # Orden: primero implementadores con más proyectos, "Sin asignar" al final
     ordered = sorted(groups.keys(), key=lambda k: (k == "Sin asignar", -len(groups[k]), k))
@@ -2184,7 +2194,7 @@ async def projects_workload_pdf(
         <div class="group">
           <div class="group-head">
             <span class="impl">{impl}</span>
-            <span class="count">{len(items)} proyecto(s)</span>
+            <span class="count">Nro de Proyectos {len(items)} &nbsp;·&nbsp; Nro de Cajas {cajas_by_impl.get(impl, 0)}</span>
           </div>
           <table class="rep">
             <colgroup>
@@ -2211,6 +2221,7 @@ async def projects_workload_pdf(
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
     exec_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get('email','')
     total = sum(len(v) for v in groups.values())
+    total_cajas = sum(cajas_by_impl.values())
 
     # Construir resumen de filtros aplicados (si los hay)
     filters_chips: list[str] = []
@@ -2285,7 +2296,7 @@ async def projects_workload_pdf(
     </head>
     <body>
       <h1>Reporte de Carga y Estatus de Proyectos</h1>
-      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · Generado: {now_str} · Por: {exec_name}</div>
+      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · {total_cajas} caja(s) · Generado: {now_str} · Por: {exec_name}</div>
       {filters_html}
       {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
       <div class="footer">
