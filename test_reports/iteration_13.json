@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 191 (Proyectos Directos v2). Backend: 8/8 pytest pass — new boxes_grid.quantity model, sum validation, removed equipment_serials/payment_gateway_link, Excel header-less parsing, floats/strings/spaces, serial-float→int, hardware catalog. Frontend: code-review via grep confirms all UI requirements implemented; the public preview URL displayed a 'Wake up servers' splash and could not be programmatically interacted with after multiple attempts (60s+120s timeouts). Recommend main agent run the playwright UI smoke once preview is awake.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration191_direct_projects_v2.py",
+    "/app/test_reports/pytest/iter191_direct_projects_v2.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Main agent may run the playwright UI flow on the awake preview to confirm cascade (Integrador→App), pinpad dropdown population, and the quantity reel end-to-end. Code review shows everything is wired correctly."
+  ],
+  "critical_code_review_comments": [
+    "OK — DirectProjectCreation.jsx line 245: updateBox resets product_name on bank change (correct).",
+    "OK — line 417: quote_type change clears product_name in all rows (correct).",
+    "OK — line 678: product Select disabled when no bank or products.length==0; placeholder shows 'Sin productos disponibles' when applicable.",
+    "OK — boxes_grid uses {quantity, bank_name, product_name, store_name?}; addBoxRow defaults quantity=1.",
+    "OK — No occurrences of 'Link Payment Gateway', 'Seriales Equipos (otros)' or 'payment_gateway_link' in DirectProjectCreation.jsx.",
+    "OK — Cascade implemented: integratorNames filter (line 290-293), appsForIntegrator filter by name (line 296-298), app dropdown disabled when no integrator (line 470).",
+    "OK — Pinpad dropdown driven by GET /api/hardware filtered by type ∈ Pinpad/POS and asset_type=Bien (verified by data-testid dp-pinpad-model wiring).",
+    "MINOR (info): Backend /api/direct-projects accepts unknown fields equipment_serials/payment_gateway_link silently (ignored) instead of returning 422. If strict rejection desired, set model config extra='forbid'. Current behaviour is acceptable for backward-compat with stale clients."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration191_direct_projects_v2.py"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "Code-review only (preview asleep)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "Test created PRD-2026-* projects in MongoDB via POST /api/direct-projects (used existing client_id). No special seeds required.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend regression file: /app/backend/tests/test_iteration191_direct_projects_v2.py. Reuse it for future iterations of Proyectos Directos v2. The preview URL (https://crm-update-1.preview.emergentagent.com) sleeps and requires manual 'Wake up servers' click — playwright cannot trigger it reliably. For UI testing, prefer running locally against the active backend.",
+  "rca of the issue": "N/A — no bugs found. All Iteration 191 requirements verified via API tests + code inspection."
+}

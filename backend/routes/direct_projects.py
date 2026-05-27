@@ -56,8 +56,8 @@ async def _require_direct_projects_access(authorization: Optional[str], write: b
 
 # =================== Models ===================
 class DirectProjectBox(BaseModel):
-    """Una fila de la grilla: [Nro Caja] + [Banco] + [Producto]."""
-    caja_nro: int
+    """Una fila del reel de cajas: [Cantidad] + [Banco] + [Producto]."""
+    quantity: int = Field(ge=1)
     bank_name: str
     product_name: str
     store_name: Optional[str] = None  # solo para multitienda
@@ -85,18 +85,16 @@ class DirectProjectCreate(BaseModel):
     cantidad_cajas: int = Field(ge=1)
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
-    payment_gateway_link: Optional[str] = None
 
-    # Integrador
+    # Integrador (cascada Integrador → App)
     integrator_id: Optional[str] = None
     integrator_name: Optional[str] = None
     integrator_app_name: Optional[str] = None
 
-    # Hardware (solo VPOS / MPOS)
+    # Hardware (solo VPOS / MPOS) — pinpad_model ahora viene del catálogo de hardware
     pinpad_model: Optional[str] = None
     pinpad_bank: Optional[str] = None
     fiscal_printer_model: Optional[str] = None
-    equipment_serials: list[DirectProjectSerial] = Field(default_factory=list)
     pinpad_serials: list[DirectProjectSerial] = Field(default_factory=list)
 
     # Multitienda
@@ -172,16 +170,22 @@ async def create_direct_project(
                 detail=f"La suma de cajas por sucursal ({total_boxes}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
             )
 
-    if len(payload.boxes_grid) != payload.cantidad_cajas:
+    if len(payload.boxes_grid) == 0:
         raise HTTPException(
             status_code=400,
-            detail=f"La grilla debe tener exactamente {payload.cantidad_cajas} fila(s); recibidas {len(payload.boxes_grid)}.",
+            detail="La grilla debe contener al menos una fila (cantidad + banco + producto).",
+        )
+    total_grid_qty = sum(int(b.quantity) for b in payload.boxes_grid)
+    if total_grid_qty != payload.cantidad_cajas:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La suma de cajas en la grilla ({total_grid_qty}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
         )
     for i, box in enumerate(payload.boxes_grid):
         if not (box.bank_name or "").strip():
-            raise HTTPException(status_code=400, detail=f"Caja #{i+1}: banco requerido")
+            raise HTTPException(status_code=400, detail=f"Fila #{i+1}: banco requerido")
         if not (box.product_name or "").strip():
-            raise HTTPException(status_code=400, detail=f"Caja #{i+1}: producto requerido")
+            raise HTTPException(status_code=400, detail=f"Fila #{i+1}: producto requerido")
 
     sede = (payload.sede or client.get("client_segment") or "PYME").upper()
     if sede not in {"PYME", "CORP"}:
@@ -193,7 +197,7 @@ async def create_direct_project(
     grid_pairs: dict[tuple[str, str], int] = {}
     for box in payload.boxes_grid:
         key = (box.bank_name.strip(), box.product_name.strip())
-        grid_pairs[key] = grid_pairs.get(key, 0) + 1
+        grid_pairs[key] = grid_pairs.get(key, 0) + int(box.quantity)
 
     services = []
     for (bank, product), qty in grid_pairs.items():
@@ -251,7 +255,6 @@ async def create_direct_project(
         "cantidad_cajas": payload.cantidad_cajas,
         "economic_group": payload.economic_group or "Sin Grupo Económico",
         "fantasy_name": payload.fantasy_name or client.get("fantasy_name") or client.get("legal_name") or "",
-        "payment_gateway_link": payload.payment_gateway_link,
         "total_usd": 0,
         "total_bs": 0,
         "iva_exempt": bool(client.get("iva_exempt", False)),
@@ -263,7 +266,7 @@ async def create_direct_project(
         "attachments": [],
         "preassigned_serials": [],
         "pinpad_serials": [pp.model_dump() for pp in payload.pinpad_serials],
-        "equipments": [eq.model_dump() for eq in payload.equipment_serials],
+        "equipments": [],
     }
 
     # ---- Reservar número PRD-XXXX antes de crear el proyecto ----
@@ -279,7 +282,7 @@ async def create_direct_project(
             "stores": [{"name": s.name, "box_count": int(s.box_count)} for s in payload.stores],
         }
 
-    equipment_data = [eq.model_dump() for eq in payload.equipment_serials] or None
+    equipment_data = None
     pp_serials = [pp.model_dump() for pp in payload.pinpad_serials] or None
 
     try:
@@ -313,7 +316,6 @@ async def create_direct_project(
             "project_number": prd_number,
             "origin": "direct",
             "direct_project": True,
-            "payment_gateway_link": payload.payment_gateway_link,
             "pinpad_bank": payload.pinpad_bank,
             # Persistir la grilla original para auditoría / re-emisión
             "boxes_grid": [b.model_dump() for b in payload.boxes_grid],
@@ -445,30 +447,64 @@ async def excel_parse_serials(
     file: UploadFile = File(...),
     authorization: Optional[str] = Header(None),
 ):
-    """Parsea un Excel con columnas Modelo + Serial. Retorna lista JSON."""
+    """Parsea un Excel con columnas Modelo + Serial. Retorna lista JSON.
+
+    Robusto frente a:
+      - Cabecera opcional (auto-detectada).
+      - Filas vacías intercaladas.
+      - Espacios y tipos numéricos en serial (ej. seriales 100% numéricos).
+      - Archivos .xlsx (LibreOffice/Excel/Google Sheets).
+    """
     await _require_direct_projects_access(authorization)
     from openpyxl import load_workbook
     raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
     try:
-        wb = load_workbook(BytesIO(raw), data_only=True)
+        wb = load_workbook(BytesIO(raw), data_only=True, read_only=True)
         ws = wb.active
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Excel inválido: {e}")
+        raise HTTPException(status_code=400, detail=f"Excel inválido o corrupto: {e}")
+
+    if ws is None:
+        return {"items": [], "errors": ["El archivo no tiene hojas activas"], "total": 0}
 
     rows = list(ws.iter_rows(values_only=True))
-    if not rows or len(rows) < 2:
-        return {"items": [], "errors": ["El archivo está vacío o solo contiene cabecera"]}
+    if not rows:
+        return {"items": [], "errors": ["El archivo está vacío"], "total": 0}
+
+    # Detectar cabecera: si la fila 1 tiene "modelo"/"serial" (case insensitive) en alguna columna.
+    first = rows[0]
+    header_tokens = {"modelo", "serial", "model", "serie", "número"}
+    has_header = False
+    if first:
+        for cell in first:
+            if cell is None:
+                continue
+            s = str(cell).strip().lower()
+            if any(tok in s for tok in header_tokens):
+                has_header = True
+                break
+    data_rows = rows[1:] if has_header else rows
 
     out, errors = [], []
-    for idx, row in enumerate(rows[1:], start=2):  # saltar cabecera
-        if not row or all(c is None or str(c).strip() == "" for c in row):
+    for idx, row in enumerate(data_rows, start=(2 if has_header else 1)):
+        if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
             continue
-        modelo = str(row[0] or "").strip() if len(row) > 0 else ""
-        serial = str(row[1] or "").strip() if len(row) > 1 else ""
+        modelo = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ""
+        serial_raw = row[1] if len(row) > 1 else None
+        if isinstance(serial_raw, float) and serial_raw.is_integer():
+            serial = str(int(serial_raw))
+        else:
+            serial = str(serial_raw).strip() if serial_raw is not None else ""
         if not modelo or not serial:
             errors.append(f"Fila {idx}: Modelo y Serial son obligatorios")
             continue
         out.append({"modelo": modelo, "serial": serial})
+
+    if not out and not errors:
+        errors.append("No se detectaron filas con datos válidos")
+
     return {"items": out, "errors": errors, "total": len(out)}
 
 
@@ -477,32 +513,82 @@ async def excel_parse_branches(
     file: UploadFile = File(...),
     authorization: Optional[str] = Header(None),
 ):
-    """Parsea un Excel con columnas Nombre + Cantidad Cajas. Retorna lista JSON."""
+    """Parsea un Excel con columnas Nombre + Cantidad Cajas. Retorna lista JSON.
+
+    Robusto frente a:
+      - Filas vacías intercaladas
+      - Cabeceras con texto distinto al estándar (acepta cualquier valor en la fila 1
+        siempre que no se confunda con un dato real: si la primera fila contiene un
+        número entero > 0 en la columna B, se asume que NO hay cabecera y se procesa
+        desde la fila 1).
+      - Hojas vacías
+      - Tipos numéricos float (ej. 3.0) o string ("3") en cantidad_cajas
+      - Espacios y mayúsculas/minúsculas en el header
+      - Archivos .xlsx generados por LibreOffice / Excel / Google Sheets
+    """
     await _require_direct_projects_access(authorization)
     from openpyxl import load_workbook
     raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Archivo vacío")
     try:
-        wb = load_workbook(BytesIO(raw), data_only=True)
+        wb = load_workbook(BytesIO(raw), data_only=True, read_only=True)
         ws = wb.active
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Excel inválido: {e}")
+        raise HTTPException(status_code=400, detail=f"Excel inválido o corrupto: {e}")
+
+    if ws is None:
+        return {"items": [], "errors": ["El archivo no tiene hojas activas"], "total": 0}
 
     rows = list(ws.iter_rows(values_only=True))
-    if not rows or len(rows) < 2:
-        return {"items": [], "errors": ["El archivo está vacío o solo contiene cabecera"]}
+    if not rows:
+        return {"items": [], "errors": ["El archivo está vacío"], "total": 0}
+
+    # Detectar si la primera fila es cabecera: si la columna B contiene un entero válido
+    # asumimos que es data desde la fila 1 (sin cabecera).
+    first = rows[0]
+    def _is_header(r):
+        if not r or len(r) < 2:
+            return True
+        b = r[1]
+        if b is None:
+            return True
+        try:
+            v = int(float(str(b).strip()))
+            return v <= 0  # si es un número válido > 0, no es cabecera
+        except (TypeError, ValueError):
+            return True
+    skip_first = _is_header(first)
+    data_rows = rows[1:] if skip_first else rows
 
     out, errors = [], []
-    for idx, row in enumerate(rows[1:], start=2):
-        if not row or all(c is None or str(c).strip() == "" for c in row):
+    for idx, row in enumerate(data_rows, start=(2 if skip_first else 1)):
+        if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
             continue
-        name = str(row[0] or "").strip() if len(row) > 0 else ""
+        name = ""
+        box_count = 0
         try:
-            box_count = int(row[1]) if len(row) > 1 and row[1] is not None else 0
+            if len(row) > 0 and row[0] is not None:
+                name = str(row[0]).strip()
+            if len(row) > 1 and row[1] is not None:
+                # Acepta "3", 3, 3.0, " 3 "
+                raw_v = row[1]
+                if isinstance(raw_v, (int, float)):
+                    box_count = int(raw_v)
+                else:
+                    box_count = int(float(str(raw_v).strip().replace(",", ".")))
         except (TypeError, ValueError):
-            errors.append(f"Fila {idx}: Cantidad de Cajas no es un número entero")
+            errors.append(f"Fila {idx}: Cantidad de Cajas no es un número válido ({row[1] if len(row) > 1 else 'vacío'})")
             continue
-        if not name or box_count <= 0:
-            errors.append(f"Fila {idx}: Nombre y Cantidad Cajas (>0) son obligatorios")
+        if not name:
+            errors.append(f"Fila {idx}: Nombre de sucursal vacío")
+            continue
+        if box_count <= 0:
+            errors.append(f"Fila {idx} ({name}): Cantidad de Cajas debe ser >= 1")
             continue
         out.append({"name": name, "box_count": box_count})
+
+    if not out and not errors:
+        errors.append("No se detectaron filas con datos válidos")
+
     return {"items": out, "errors": errors, "total": len(out)}
