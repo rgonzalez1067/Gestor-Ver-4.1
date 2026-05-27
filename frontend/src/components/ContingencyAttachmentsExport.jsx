@@ -36,6 +36,8 @@ export const ContingencyAttachmentsExport = () => {
 
   // Descarga PAGINADA: itera por (colección, página) y arma el JSON localmente.
   // Inmune al 504 Gateway Timeout en producción porque cada request es pequeña (<2s).
+  // Construye el JSON como múltiples Blob parts para evitar el límite de string V8
+  // (~512MB) cuando hay muchos documentos con history embebido.
   const handleDownloadPaged = async () => {
     setDownloadingPaged(true);
     setPagedProgress('Consultando totales...');
@@ -44,32 +46,61 @@ export const ContingencyAttachmentsExport = () => {
       const countsRes = await api.get('/admin/quotes-bundle-migration/counts');
       const counts = countsRes.data?.counts || {};
       const collections = countsRes.data?.collections || [];
-      const result = {
+
+      // Cabecera y metadata del JSON
+      const meta = {
         schema_version: 1,
         module: 'quotes-bundle',
         mode: 'paginated',
         exported_at: new Date().toISOString(),
-        collections: {},
         counts,
       };
-      for (const col of collections) {
+      // Construimos el JSON como array de Blob parts. Cada documento se serializa
+      // individualmente — evita explotar el heap con un solo JSON.stringify masivo.
+      const parts = [];
+      parts.push('{');
+      parts.push(`"schema_version":${meta.schema_version},`);
+      parts.push(`"module":"quotes-bundle",`);
+      parts.push(`"mode":"paginated",`);
+      parts.push(`"exported_at":${JSON.stringify(meta.exported_at)},`);
+      parts.push(`"counts":${JSON.stringify(counts)},`);
+      parts.push('"collections":{');
+
+      for (let ci = 0; ci < collections.length; ci++) {
+        const col = collections[ci];
         const total = counts[col] || 0;
-        result.collections[col] = [];
+        if (ci > 0) parts.push(',');
+        parts.push(`${JSON.stringify(col)}:[`);
         let skip = 0;
         let pageNo = 1;
+        let docsInCol = 0;
         while (skip < total) {
           setPagedProgress(`${col} · página ${pageNo} (${skip}/${total})`);
           const r = await api.get('/admin/quotes-bundle-migration/page', {
             params: { collection: col, skip, limit: PAGE_SIZE },
           });
           const docs = r.data?.docs || [];
-          result.collections[col].push(...docs);
+          if (docs.length === 0) break;
+          for (const d of docs) {
+            if (docsInCol > 0) parts.push(',');
+            try {
+              parts.push(JSON.stringify(d));
+            } catch (serErr) {
+              console.warn('No se pudo serializar documento', d?._id || d?.quote_id, serErr);
+              parts.push('null');
+            }
+            docsInCol += 1;
+          }
           skip += docs.length;
           pageNo += 1;
-          if (docs.length === 0) break;
         }
+        parts.push(']');
       }
-      const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+      parts.push('}}');
+
+      setPagedProgress('Generando archivo...');
+      // Pasar las parts directamente al Blob — no construye un string intermedio masivo.
+      const blob = new Blob(parts, { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -82,8 +113,9 @@ export const ContingencyAttachmentsExport = () => {
       const summary = Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ');
       toast.success(`JSON paginado descargado · ${summary}`);
     } catch (e) {
-      const msg = e.response?.data?.detail || e.message || 'Error desconocido';
+      const msg = e?.response?.data?.detail || e?.message || 'Error desconocido';
       toast.error(`Error al exportar (paginado): ${msg}`);
+      console.error('[JSON Paginado] error:', e);
     } finally {
       setDownloadingPaged(false);
       setPagedProgress('');

@@ -4,6 +4,29 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 31: Bugfix `JSON Paginado` — "Uncaught Script error." — Feb 2026
+
+**Issue reportado** (con screenshot): al ejecutar **Descargar JSON Paginado (Recomendado)** en `/settings`, el overlay rojo de CRA mostraba `Uncaught runtime errors: Script error.` y el archivo no se descargaba.
+
+**Root cause**:
+- `handleDownloadPaged` armaba un objeto JS gigante con TODAS las colecciones (`quotes`+`quote_history`+`projects`) y luego ejecutaba `JSON.stringify(result, null, 2)`. La serialización monolítica con indentado consume ~3-4x el tamaño final del archivo.
+- Cuando el dataset crecía (151 quotes con history extenso), V8 lanzaba `RangeError: Invalid string length` u OOM. El error era **asíncrono** y escapaba al `try/catch` propio, propagándose a `window.onerror` como **"Script error."** genérico (sin stack por CORS).
+
+**Fix** (`/app/frontend/src/components/ContingencyAttachmentsExport.jsx`):
+1. **Serialización por documento**: cada `doc` se `JSON.stringify` individualmente y se push a un array de Blob parts; nunca existe un string JS completo del bundle.
+2. **Sin indentado** (`JSON.stringify(d)` plano) → ~40% menos memoria.
+3. **`new Blob(parts, …)`** recibe el array directamente y une los chunks a nivel de bytes nativos — sin string intermedio masivo.
+4. **try/catch por documento**: si uno tiene referencia circular, se sustituye por `null` con `console.warn`, sin abortar el bundle completo.
+5. Mejor logging: `console.error('[JSON Paginado] error:', e)` para diagnóstico futuro.
+
+**Verificación E2E (Playwright)**:
+- Descarga exitosa: `quotes_bundle_data_paged_2026-05-27T01-24-51.json` (2.1 MB).
+- Contenido: 151 quotes + 67 quote_history + 42 projects, schema_version=1, JSON válido `json.load` sin error.
+- **0 errores en `page.on('pageerror')`** — el overlay rojo ya no aparece.
+- Toast verde: *"JSON paginado descargado · 151 quotes, 67 quote_history, 42 projects"* visible.
+
+
+
 ### Iteration 30: Limpieza Visual del Menú de Configuración — Feb 2026
 
 **Objetivo**: Depurar la pantalla `/settings` removiendo funciones obsoletas y encapsulando bloques masivos en acordeones colapsables para descargar visualmente la página.
