@@ -4,6 +4,24 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 24: Inserción de Variables en Posición del Cursor — Feb 2026
+
+**Objetivo (P2 cerrado)**: Las variables del panel lateral en `TemplatesAdminDialog` ahora se insertan **exactamente donde está el cursor** dentro del editor TipTap, en lugar de hacer un append simple al final del HTML.
+
+**Implementación**:
+- `RichTextEditor.jsx`: convertido a `forwardRef` + `useImperativeHandle`, exponiendo:
+  - `insertText(text)` → `editor.chain().focus().insertContent(text).run()` (inserción nativa de TipTap en la selección actual).
+  - `focus()` → enfoca el editor.
+  - `getHTML()` → devuelve HTML actual.
+- `TemplatesAdminDialog.jsx`: `editorRef = useRef(null)` pasado al `<RichTextEditor ref={editorRef}>`. `insertVar(token)` ahora llama `editorRef.current.insertText('{token}')`. Fallback al append previo si el editor aún no está montado.
+
+**Verificación E2E (Playwright)**:
+- Login → `/projects/{id}` → modal "Plantillas" → escribir `"Estimado "` → click variable `Nombre_Cliente` → continuar tipeo `", su proyecto es importante."`.
+- HTML final: `<p>Estimado {Nombre_Cliente}, su proyecto es importante.</p>` ✅ (variable inyectada exactamente en la posición del caret, no al final).
+- Contador del editor sincronizado: `53/20000`.
+
+
+
 ### Iteration 23: Control de Exención de IVA en Cotizaciones — Feb 2026
 
 **Objetivo**: Identificar tempranamente clientes con régimen fiscal exento de IVA y automatizar la supresión del impuesto en cálculos, PDFs y facturación posterior.

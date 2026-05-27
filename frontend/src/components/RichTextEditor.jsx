@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -102,7 +102,7 @@ const BG_COLORS = ['#FEF3C7', '#FECACA', '#BBF7D0', '#BFDBFE', '#E9D5FF', '#FCE7
  *  - showPreview (default false): muestra botón Vista Previa con substitución de tokens
  *  - exampleValues: objeto con tokens custom de la pantalla actual
  */
-export function RichTextEditor({
+export const RichTextEditor = forwardRef(function RichTextEditor({
   value,
   onChange,
   maxChars = 500,
@@ -113,7 +113,7 @@ export function RichTextEditor({
   exampleValues = null,
   minHeight = 110,
   maxHeight = 260,
-}) {
+}, ref) {
   const [showHighlights, setShowHighlights] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -156,6 +156,17 @@ export function RichTextEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
+  // Exponemos métodos imperativos para que el padre pueda insertar texto
+  // (ej. variables {token}) en la posición exacta del cursor.
+  useImperativeHandle(ref, () => ({
+    insertText: (text) => {
+      if (!editor || !text) return;
+      editor.chain().focus().insertContent(String(text)).run();
+    },
+    focus: () => editor?.chain().focus().run(),
+    getHTML: () => editor?.getHTML() || '',
+  }), [editor]);
 
   if (!editor) return null;
 
@@ -330,7 +341,7 @@ export function RichTextEditor({
       )}
     </div>
   );
-}
+});
 
 /** Longitud de texto visible en un HTML. Sanitiza removiendo tags. */
 export function htmlPlainLength(html) {

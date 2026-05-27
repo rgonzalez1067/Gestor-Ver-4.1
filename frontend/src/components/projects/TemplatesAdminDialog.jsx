@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -50,15 +51,19 @@ export const TemplatesAdminDialog = ({
   templateSaving,
   handleSaveTemplate, handleDeleteTemplate,
 }) => {
+  const editorRef = useRef(null);
+
   const insertVar = (token) => {
     const tag = `{${token}}`;
-    try {
-      navigator.clipboard?.writeText?.(tag).then(
-        () => toast.success(`Copiado: ${tag}`),
-        () => toast.success(`Insertado: ${tag}`),
-      );
-    } catch (e) { toast.success(`Insertado: ${tag}`); }
-    setTemplateForm(p => ({ ...p, body: p.body + tag }));
+    // Inserta el token EN LA POSICIÓN DEL CURSOR del editor TipTap.
+    if (editorRef.current?.insertText) {
+      editorRef.current.insertText(tag);
+      toast.success(`Insertado: ${tag}`);
+      return;
+    }
+    // Fallback: append al final (en caso de que el editor aún no esté listo)
+    setTemplateForm(p => ({ ...p, body: (p.body || '') + tag }));
+    toast.success(`Insertado: ${tag}`);
   };
 
   return (
@@ -116,6 +121,7 @@ export const TemplatesAdminDialog = ({
               <div>
                 <Label className="text-sm">Cuerpo del mensaje</Label>
                 <RichTextEditor
+                  ref={editorRef}
                   value={templateForm.body}
                   onChange={(html) => setTemplateForm(p => ({ ...p, body: html }))}
                   maxChars={20000}
