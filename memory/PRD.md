@@ -4,6 +4,20 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 28: Ranking COMPLETO de Implementadores en Reporte de Carga PDF — Feb 2026
+
+**Cambio**: El ranking visual ahora lista a **todos los implementadores** (no solo el top 3), ordenados por cajas asignadas. Las medallas oro/plata/bronce siguen aplicándose a las primeras 3 posiciones; las restantes (4°+) usan un disco gris pizarra (`#475569`) con texto blanco. Layout grid de 3 columnas que envuelve automáticamente.
+
+**Implementación**: `/app/backend/routes/projects.py`
+- Eliminada la cota `top3 = ranking_items[:3]`; ahora se itera sobre la lista completa.
+- `medals = {0:#FFD700, 1:#C0C0C0, 2:#CD7F32}`, fallback `#475569` para resto.
+- CSS `.ranking-grid` cambiado a `display:grid; grid-template-columns: repeat(3, 1fr); gap:8px;`.
+- Título actualizado: *"Ranking de Carga — Implementadores por Cajas Asignadas"*.
+
+**Verificación (curl + pdfplumber)**: PDF 46KB. Los 10 implementadores listados con sus métricas correctas, ordenados por cajas desc (Omar Jiménez 40 → Rafael González Respaldo 7). Excluye "Sin asignar" del ranking.
+
+
+
 ### Iteration 27: Mini Ranking visual Top 3 por Cajas en Reporte de Carga PDF — Feb 2026
 
 **Cambio**: Al final del PDF "Reporte de Carga y Estatus" se agrega una tarjeta visual con los **3 implementadores con mayor carga real (cajas)**, no por proyectos. Resuelve un sesgo del dato: un implementador con pocos proyectos pero muchas cajas (configuraciones reales) puede estar más cargado que uno con muchos proyectos pequeños.

@@ -2223,26 +2223,27 @@ async def projects_workload_pdf(
     total = sum(len(v) for v in groups.values())
     total_cajas = sum(cajas_by_impl.values())
 
-    # --- Mini Ranking visual: Top 3 implementadores por cantidad de cajas (excluye "Sin asignar")
+    # --- Ranking visual: TODOS los implementadores ordenados por carga (cajas)
+    # Excluye "Sin asignar" para no comparar un grupo huérfano contra personas reales.
     ranking_items = [
         (impl, cajas_by_impl.get(impl, 0), len(groups.get(impl, [])))
         for impl in groups.keys()
         if impl != "Sin asignar"
     ]
     ranking_items.sort(key=lambda x: (-x[1], -x[2], x[0]))  # cajas desc, proyectos desc, nombre asc
-    top3 = ranking_items[:3]
     ranking_html = ""
-    if top3:
-        max_cajas = max((b for _, b, _ in top3), default=0) or 1
-        medals = ["#FFD700", "#C0C0C0", "#CD7F32"]  # oro, plata, bronce
+    if ranking_items:
+        max_cajas = max((b for _, b, _ in ranking_items), default=0) or 1
+        medals = {0: "#FFD700", 1: "#C0C0C0", 2: "#CD7F32"}  # oro, plata, bronce
         cards = []
-        for idx, (impl, cajas, n_proj) in enumerate(top3):
+        for idx, (impl, cajas, n_proj) in enumerate(ranking_items):
             bar_pct = int(round((cajas / max_cajas) * 100)) if max_cajas else 0
-            medal_color = medals[idx]
-            position_label = ["1ro", "2do", "3ro"][idx]
+            medal_color = medals.get(idx, "#475569")  # gris pizarra para posiciones 4+
+            text_color = "#0f172a" if idx < 3 else "#e2e8f0"
+            position_label = f"{idx + 1}°"
             cards.append(f"""
             <div class="rank-card">
-              <div class="rank-pos" style="background:{medal_color};">{position_label}</div>
+              <div class="rank-pos" style="background:{medal_color}; color:{text_color};">{position_label}</div>
               <div class="rank-body">
                 <div class="rank-impl">{impl}</div>
                 <div class="rank-bar-bg"><div class="rank-bar" style="width:{bar_pct}%;"></div></div>
@@ -2252,7 +2253,7 @@ async def projects_workload_pdf(
             """)
         ranking_html = f"""
         <div class="ranking">
-          <div class="ranking-title">Top 3 — Implementadores con Mayor Carga (cajas)</div>
+          <div class="ranking-title">Ranking de Carga — Implementadores por Cajas Asignadas</div>
           <div class="ranking-grid">
             {''.join(cards)}
           </div>
@@ -2337,7 +2338,11 @@ async def projects_workload_pdf(
         font-size: 11px; font-weight: 700; text-transform: uppercase;
         letter-spacing: 0.5px; color: #fbbf24; margin-bottom: 10px;
       }}
-      .ranking-grid {{ display: flex; gap: 10px; }}
+      .ranking-grid {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }}
       .rank-card {{
         flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px;
         padding: 8px 10px; display: flex; gap: 8px; align-items: stretch;
