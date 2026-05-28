@@ -4,6 +4,44 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 38: Refinamientos finales Proyectos Directos — Reglas de Validación, UX Carga Continua y Nomenclatura PRY-XXXX — Feb 2026
+
+**Cambios solicitados por el usuario tras pruebas de campo**:
+
+**A. Seriales Pinpad — Modelo OPCIONAL** (backend + frontend):
+- Modelo `DirectProjectSerial.modelo` ahora es `Optional[str] = ""`.
+- La grilla de seriales en UI ahora muestra **solo el campo Serial** (eliminado input Modelo por fila).
+- Nuevo **TextArea de carga rápida** (`data-testid='dp-bulk-serials-text'`): el operador pega seriales separados por línea, coma, ; o tab → botón "Agregar al lote" los integra en bloque.
+- Plantilla Excel simplificada a una sola columna `Serial`.
+- Excel parser **acepta dos layouts**: (a) legacy `[Modelo, Serial]` o (b) simplificado `[Serial]` solamente. Auto-detección por columnas presentes.
+
+**B. Reglas de Consistencia — Reingeniería**:
+- ❌ **Eliminada**: validación `suma(boxes_grid[*].quantity) == cantidad_cajas`. La grilla ahora es **INDEPENDIENTE** de la cabecera (refleja la realidad comercial: un banco puede tener más productos que cajas físicas).
+- ✅ **Mantiene** (multitienda): `suma(stores[*].box_count) == cantidad_cajas`.
+- ✅ **Nueva validación HARD** (VPOS/MPOS): `len(pinpad_serials) == cantidad_cajas`. Consistencia de inventario simétrica.
+- Badge dinámico junto a "Seriales Pinpad" muestra `N / cantidad_cajas` (verde si match, rojo si no).
+- El header del Reel ya no muestra `X/Y` relativo a la cabecera — solo `Total grilla: X` informativo.
+
+**C. UX Carga Continua post-submit**:
+- Tras un POST exitoso, el sistema **NO redirige** a `/projects/{id}`.
+- Se ejecuta **reset integral del formulario** (`setForm(INITIAL_FORM)` + `setBulkSerialsText('')`).
+- El foco del cursor regresa automáticamente al **combobox Cliente** vía `useImperativeHandle(.focus)` exposed en `ClientCombobox`.
+- **Banner verde sticky** (`data-testid='dp-last-created-banner'`) muestra el `PRY-XXXX` recién creado, indica si el correo se envió o no, ofrece botón **Ver Proyecto** + botón cerrar.
+- Optimizado para captura consecutiva sin recargar pantalla.
+
+**D. Numeración estándar PRY-XXXX** (cambio sobre Iter34/35):
+- Eliminada la sobreescritura a `PRD-XXXX`. Ahora los proyectos directos comparten la **secuencia estándar `PRY-YYYY-MM-NNN-SEDE`** del resto del sistema.
+- `_create_project_from_quote` asigna PRY- internamente; el endpoint mantiene `origin='direct'` y `direct_project=true` como flags de auditoría.
+
+**E. Backend completo**:
+- POST `/api/direct-projects` → crea PRY-, genera Ficha Técnica PDF (reusando `generate_implementation_pdf` del flujo regular), dispara notificación vía motor dinámico leyendo configuración de `Configuración de Acciones → Proyectos Directos → send_to_implementation`.
+
+**Testing**:
+- Backend pytest 9/10 PASS → corregido el caso del Excel solo-Serial → 10/10 verificado manualmente con curl.
+- Frontend E2E iter16: 11/11 escenarios PASS (combobox reset+focus, banner PRY-2026-05-035-PRI, URL no redirige, form reseteado, badge dinámico, validaciones visibles, grilla independiente).
+
+
+
 ### Iteration 37: Bug Fixes Multitienda + Reingeniería UX modal "inherited" — Feb 2026
 
 **Tres fixes coordinados en el flujo de Multitienda del cotizador**:

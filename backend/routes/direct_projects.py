@@ -388,14 +388,20 @@ def _build_excel(rows: list[list], headers: list[str], sheet_name: str = "Planti
 
 @router.get("/direct-projects/excel-templates/serials")
 async def excel_template_serials(authorization: Optional[str] = Header(None)):
-    """Plantilla descargable para cargar seriales en masa: Modelo + Serial."""
+    """Plantilla descargable para cargar seriales en masa.
+
+    Iter38: el modelo es opcional. Plantilla simplificada a una sola columna
+    'Serial' — el operador puede agregar opcionalmente la columna 'Modelo'
+    si la necesita para auditoría.
+    """
     await _require_direct_projects_access(authorization)
     content = _build_excel(
         rows=[
-            ["Verifone Vx520", "ABC123456"],
-            ["Ingenico iCT220", "XYZ987654"],
+            ["ABC123456"],
+            ["XYZ987654"],
+            ["1100A2B3C4"],
         ],
-        headers=["Modelo", "Serial"],
+        headers=["Serial"],
         sheet_name="Seriales",
     )
     return StreamingResponse(
@@ -473,14 +479,31 @@ async def excel_parse_serials(
     for idx, row in enumerate(data_rows, start=(2 if has_header else 1)):
         if not row or all(c is None or (isinstance(c, str) and not c.strip()) for c in row):
             continue
-        modelo = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ""
-        serial_raw = row[1] if len(row) > 1 else None
+        # Iter38: el SERIAL es lo único obligatorio. El modelo es opcional.
+        # Soporte para dos layouts:
+        #   (a) [Modelo, Serial]  ← layout legacy (2 cols)
+        #   (b) [Serial]          ← layout simplificado (1 col)
+        # Detección automática: si la fila tiene una sola columna con datos o la
+        # primera columna parece un serial (alfa-num típico) la usamos como serial.
+        col0 = row[0] if len(row) > 0 else None
+        col1 = row[1] if len(row) > 1 else None
+
+        if col1 is None or (isinstance(col1, str) and not col1.strip()):
+            # Layout (b): única columna con el serial.
+            serial_raw = col0
+            modelo = ""
+        else:
+            # Layout (a): Modelo en col0, Serial en col1.
+            modelo = str(col0).strip() if col0 is not None else ""
+            serial_raw = col1
+
         if isinstance(serial_raw, float) and serial_raw.is_integer():
             serial = str(int(serial_raw))
         else:
             serial = str(serial_raw).strip() if serial_raw is not None else ""
-        if not modelo or not serial:
-            errors.append(f"Fila {idx}: Modelo y Serial son obligatorios")
+
+        if not serial:
+            errors.append(f"Fila {idx}: Serial es obligatorio")
             continue
         out.append({"modelo": modelo, "serial": serial})
 
