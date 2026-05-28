@@ -480,8 +480,8 @@ export default function DirectProjectCreation() {
       )}
 
       {/* Card 1: Cliente */}
-      <Card className="overflow-hidden border-blue-100 shadow-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-blue-50/30 border-b border-blue-100">
+      <Card className="border-blue-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-blue-50/30 border-b border-blue-100 rounded-t-lg">
           <CardTitle className="text-base flex items-center gap-2 text-blue-900">
             <div className="bg-blue-500 rounded-md p-1.5"><Building2 size={14} className="text-white" /></div>
             Datos del Cliente
@@ -507,8 +507,8 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 2: Definición comercial */}
-      <Card className="overflow-hidden border-indigo-100 shadow-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-indigo-50 to-indigo-50/30 border-b border-indigo-100">
+      <Card className="border-indigo-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-indigo-50 to-indigo-50/30 border-b border-indigo-100 rounded-t-lg">
           <CardTitle className="text-base flex items-center gap-2 text-indigo-900">
             <div className="bg-indigo-500 rounded-md p-1.5"><ShoppingBag size={14} className="text-white" /></div>
             Definición Comercial
@@ -587,8 +587,8 @@ export default function DirectProjectCreation() {
 
       {/* Card 3: HW (solo VPOS/MPOS) */}
       {REQUIRES_HW(form.quote_type) && (
-        <Card className="overflow-hidden border-emerald-100 shadow-sm">
-          <CardHeader className="pb-3 bg-gradient-to-r from-emerald-50 to-emerald-50/30 border-b border-emerald-100">
+        <Card className="border-emerald-100 shadow-sm">
+          <CardHeader className="pb-3 bg-gradient-to-r from-emerald-50 to-emerald-50/30 border-b border-emerald-100 rounded-t-lg">
             <CardTitle className="text-base flex items-center gap-2 text-emerald-900">
               <div className="bg-emerald-500 rounded-md p-1.5"><Cpu size={14} className="text-white" /></div>
               Hardware <span className="text-xs font-normal text-emerald-700/70">(solo VPOS/MPOS)</span>
@@ -686,8 +686,8 @@ export default function DirectProjectCreation() {
       )}
 
       {/* Card 4: Multitienda */}
-      <Card className="overflow-hidden border-violet-100 shadow-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-violet-50 to-violet-50/30 border-b border-violet-100">
+      <Card className="border-violet-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-violet-50 to-violet-50/30 border-b border-violet-100 rounded-t-lg">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2 text-violet-900">
               <div className="bg-violet-500 rounded-md p-1.5"><Store size={14} className="text-white" /></div>
@@ -749,8 +749,8 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 5: Reel de distribución de cajas */}
-      <Card className="overflow-hidden border-amber-100 shadow-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-amber-50/30 border-b border-amber-100">
+      <Card className="border-amber-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-amber-50/30 border-b border-amber-100 rounded-t-lg">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base flex items-center gap-2 text-amber-900">
@@ -844,8 +844,8 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 6: Instrucciones */}
-      <Card className="overflow-hidden border-slate-200 shadow-sm">
-        <CardHeader className="pb-3 bg-gradient-to-r from-slate-50 to-slate-50/30 border-b border-slate-200">
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-slate-50 to-slate-50/30 border-b border-slate-200 rounded-t-lg">
           <CardTitle className="text-base flex items-center gap-2 text-slate-900">
             <div className="bg-slate-600 rounded-md p-1.5"><FileText size={14} className="text-white" /></div>
             Instrucciones para el Implementador <span className="text-xs font-normal text-slate-500">(opcional)</span>
