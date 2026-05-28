@@ -4,6 +4,29 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 45: Fix definitivo "Script error" + iframe sandbox para HTML de correos — Feb 2026
+
+**Diagnóstico real** (gracias al feedback iterativo del usuario y a capturar `pageerror` con Playwright):
+
+1. **El cuerpo HTML del correo es un documento completo** (`<!DOCTYPE><html><head><body>`). Inyectarlo dentro de un `<div>` vía `dangerouslySetInnerHTML` producía HTML inválido y posibles errores de hidratación.
+2. **Causa raíz del "Script error." opaco**: axios tenía un bug interno al procesar respuestas de error 4xx cuando `responseType: 'blob'`:
+   ```
+   Failed to read the 'responseText' property from 'XMLHttpRequest':
+   The value is only accessible if the object's 'responseType' is '' or 'text' (was 'blob').
+   ```
+   El TypeError rebotaba a `window.onerror` y la React Error Overlay lo reportaba como "Script error." sin contexto.
+
+**Fixes** (`InboxCenter.jsx`):
+- **Render del body**: nuevo componente `EmailHtmlFrame.jsx` que monta el HTML en un **`<iframe srcDoc sandbox="allow-same-origin">`**. Aísla los estilos del email, elimina hidratación inválida, bloquea cualquier JS embebido y mide el `scrollHeight` para ajustar altura dinámica (mín 120px, máx 1600px).
+- **Descarga del adjunto**: reemplazo de `axios.get({responseType: 'blob'})` por **`fetch()` nativo**. Manejo explícito de 410/404/401 con toasts amigables. Limpieza diferida del blob URL.
+
+**Validación e2e**:
+- Caso descarga válida → `Cotizacion_OK.pdf` descargado correctamente.
+- Caso mensaje legacy (410) → toast amigable "*Este adjunto pertenece a un mensaje antiguo y ya no está disponible.*", **sin runtime error**.
+- Console limpia: solo el `Failed to load resource: 410` informativo de red, ya no aparece `Script error.`.
+
+
+
 ### Iteration 44: Fix descarga PDF + Header llamativo + Banner post-login — Feb 2026
 
 **Bug fix — Descarga de adjuntos rompía con "Script error"** (`InboxCenter.jsx::handleDownloadAttachment`):

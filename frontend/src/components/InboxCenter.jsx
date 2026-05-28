@@ -14,6 +14,7 @@ import {
 } from './ui/alert-dialog';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { EmailHtmlFrame } from './EmailHtmlFrame';
 
 /**
  * Centro de Mensajes — Bandeja Interna del Usuario.
@@ -153,13 +154,33 @@ export function InboxCenter() {
     let blobUrl = null;
     let anchor = null;
     try {
-      const res = await api.get(`/inbox/${messageId}/attachments/${index}`, {
-        responseType: 'blob',
+      // Usar fetch directo (no axios) — axios tiene un bug conocido al
+      // procesar respuestas de error 4xx cuando `responseType` es 'blob':
+      // intenta leer `responseText` del XHR y lanza un TypeError que rebota
+      // a `window.onerror` como "Script error." opaco. fetch nos da control
+      // total y maneja blobs correctamente.
+      const token = localStorage.getItem('session_token') || '';
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/inbox/${messageId}/attachments/${index}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const mime = res.headers?.['content-type'] || 'application/octet-stream';
-      // Re-envolver en un Blob nativo (axios a veces entrega ArrayBuffer o Blob
-      // según versión; new Blob() lo normaliza) y descargar via anchor temporal.
-      const blob = new Blob([res.data], { type: mime });
+      if (!res.ok) {
+        if (res.status === 410) {
+          toast.error('Este adjunto pertenece a un mensaje antiguo y ya no está disponible.');
+        } else if (res.status === 404) {
+          toast.error('Adjunto no encontrado.');
+        } else if (res.status === 401) {
+          toast.error('Sesión expirada. Vuelve a iniciar sesión.');
+        } else {
+          toast.error(`No se pudo descargar (HTTP ${res.status})`);
+        }
+        return;
+      }
+      const mime = res.headers.get('content-type') || 'application/octet-stream';
+      const data = await res.arrayBuffer();
+      const blob = new Blob([data], { type: mime });
       blobUrl = window.URL.createObjectURL(blob);
       anchor = document.createElement('a');
       anchor.style.display = 'none';
@@ -170,18 +191,9 @@ export function InboxCenter() {
       anchor.click();
       toast.success(`Descargando ${filename}`);
     } catch (err) {
-      const status = err?.response?.status;
-      if (status === 410) {
-        toast.error('Este adjunto pertenece a un mensaje antiguo y ya no está disponible.');
-      } else if (status === 404) {
-        toast.error('Adjunto no encontrado.');
-      } else {
-        const detail = err?.response?.data?.detail || err?.message || 'Error';
-        toast.error(`No se pudo descargar: ${detail}`);
-      }
+      toast.error(`No se pudo descargar: ${err?.message || 'Error de red'}`);
     } finally {
-      // Limpieza asíncrona — algunos navegadores rompen si revocamos el blob URL
-      // mientras el click del anchor aún se está procesando.
+      // Limpieza diferida — el navegador todavía está procesando el click.
       setTimeout(() => {
         if (blobUrl) {
           try { window.URL.revokeObjectURL(blobUrl); } catch { /* noop */ }
@@ -328,10 +340,10 @@ export function InboxCenter() {
                 </div>
                 {isExpanded && (
                   <div className="px-6 pb-5 pt-1">
-                    <div
-                      className="bg-white rounded-lg border border-slate-200 p-5 text-sm text-slate-800 leading-relaxed prose prose-sm max-w-none"
-                      data-testid={`inbox-msg-body-${msg.message_id}`}
-                      dangerouslySetInnerHTML={{ __html: msg.body_html || '' }}
+                    <EmailHtmlFrame
+                      html={msg.body_html || ''}
+                      title={msg.subject}
+                      testId={`inbox-msg-body-${msg.message_id}`}
                     />
                     {msg.attachments_meta && msg.attachments_meta.length > 0 && (
                       <div className="mt-4">
