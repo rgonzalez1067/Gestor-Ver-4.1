@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
@@ -71,6 +71,18 @@ function formatDate(iso) {
   }
 }
 
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let v = bytes;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
 export function InboxCenter() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +141,32 @@ export function InboxCenter() {
       toast.error(`No se pudo eliminar: ${detail}`);
     } finally {
       setDeletingTarget(null);
+    }
+  };
+
+  const handleDownloadAttachment = async (messageId, index, filename) => {
+    try {
+      const res = await api.get(`/inbox/${messageId}/attachments/${index}`, {
+        responseType: 'blob',
+      });
+      // Forzar descarga conservando el filename original
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || `adjunto-${index}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const detail = err.response?.data?.detail || err.message || 'Error';
+      // Para 410 (mensaje legacy sin contenido), aviso amable
+      const status = err.response?.status;
+      if (status === 410) {
+        toast.error('Este adjunto pertenece a un mensaje antiguo y ya no está disponible.');
+      } else {
+        toast.error(`No se pudo descargar: ${detail}`);
+      }
     }
   };
 
@@ -264,9 +302,31 @@ export function InboxCenter() {
                       dangerouslySetInnerHTML={{ __html: msg.body_html || '' }}
                     />
                     {msg.attachments_meta && msg.attachments_meta.length > 0 && (
-                      <div className="mt-3 text-xs text-slate-500">
-                        <span className="font-semibold">Adjuntos originales:</span>{' '}
-                        {msg.attachments_meta.map((a) => a.filename).join(', ')}
+                      <div className="mt-4">
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                          <Paperclip size={12} />
+                          Adjuntos ({msg.attachments_meta.length})
+                        </div>
+                        <div className="flex flex-wrap gap-2" data-testid={`inbox-msg-attachments-${msg.message_id}`}>
+                          {msg.attachments_meta.map((a, idx) => (
+                            <button
+                              key={`${msg.message_id}-att-${idx}`}
+                              type="button"
+                              onClick={() => handleDownloadAttachment(msg.message_id, idx, a.filename)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors group"
+                              data-testid={`inbox-att-download-${msg.message_id}-${idx}`}
+                              title={`Descargar ${a.filename}`}
+                            >
+                              <Download size={14} className="text-slate-400 group-hover:text-blue-600" />
+                              <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700 truncate max-w-[260px]">
+                                {a.filename}
+                              </span>
+                              {a.size_bytes > 0 && (
+                                <span className="text-[10px] text-slate-400">{formatBytes(a.size_bytes)}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

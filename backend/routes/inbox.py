@@ -1,18 +1,22 @@
 """Centro de Mensajes — Bandeja Interna.
 
 Endpoints user-facing (NO admin-only) que permiten a cada usuario consultar
-sus mensajes, marcarlos como leídos y eliminarlos (soft-delete).
+sus mensajes, marcarlos como leídos, eliminarlos (soft-delete) y descargar
+los adjuntos originales.
 
-- GET    /api/inbox/me          → lista de mensajes activos del usuario.
-- GET    /api/inbox/me/summary  → contadores (unread, total, by_sla).
-- PATCH  /api/inbox/{id}/read   → marca como leído (idempotente).
-- DELETE /api/inbox/{id}        → soft-delete del mensaje.
+- GET    /api/inbox/me                              → lista de mensajes activos.
+- GET    /api/inbox/me/summary                      → contadores.
+- PATCH  /api/inbox/{id}/read                       → marca como leído.
+- DELETE /api/inbox/{id}                            → soft-delete del mensaje.
+- GET    /api/inbox/{id}/attachments/{idx}          → descarga del adjunto N.
 """
+import base64
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Response
+from urllib.parse import quote
 
 from config import db, get_current_user
 
@@ -67,6 +71,17 @@ async def list_my_inbox(
     items = []
     async for m in cur:
         m["sla_color"] = _sla_color(m.get("created_at", ""))
+        # Aliviar payload: nunca devolver el contenido base64 en el listado.
+        # Solo metadatos visibles para que el frontend muestre los adjuntos
+        # y consulte el endpoint de descarga bajo demanda.
+        slim_atts = []
+        for a in (m.get("attachments_meta") or []):
+            slim_atts.append({
+                "filename": a.get("filename"),
+                "size_bytes": a.get("size_bytes", 0),
+                "mime_type": a.get("mime_type", "application/octet-stream"),
+            })
+        m["attachments_meta"] = slim_atts
         items.append(m)
     return {"items": items, "total": len(items), "user_id": user_id}
 
@@ -118,3 +133,54 @@ async def delete_message(message_id: str, authorization: Optional[str] = Header(
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Mensaje no encontrado o ya eliminado")
     return {"status": "deleted", "message_id": message_id}
+
+
+
+@router.get("/inbox/{message_id}/attachments/{index}")
+async def download_attachment(
+    message_id: str,
+    index: int,
+    authorization: Optional[str] = Header(None),
+):
+    """Descarga del adjunto en la posición `index` (0-based) del mensaje.
+
+    Validaciones:
+      - El mensaje debe pertenecer al usuario autenticado y no estar eliminado.
+      - `index` debe ser válido para la lista `attachments_meta`.
+      - El adjunto debe tener `content_b64` (mensajes legacy sin contenido
+        almacenado devolverán 410 Gone).
+    """
+    user = await get_current_user(authorization)
+    msg = await db.inbox_messages.find_one(
+        {"message_id": message_id, "user_id": user["user_id"], "deleted_at": None},
+        {"_id": 0, "attachments_meta": 1},
+    )
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    atts = msg.get("attachments_meta") or []
+    if index < 0 or index >= len(atts):
+        raise HTTPException(status_code=404, detail="Adjunto no encontrado")
+    att = atts[index]
+    b64 = att.get("content_b64")
+    if not b64:
+        raise HTTPException(
+            status_code=410,
+            detail="El contenido de este adjunto no está disponible (mensaje legacy)",
+        )
+    try:
+        data = base64.b64decode(b64)
+    except Exception as e:
+        logger.error(f"[inbox] Decodificación base64 falló msg={message_id} idx={index}: {e}")
+        raise HTTPException(status_code=500, detail="Adjunto corrupto")
+
+    filename = att.get("filename") or f"adjunto-{index}"
+    mime = att.get("mime_type") or "application/octet-stream"
+    # RFC 5987: filename* permite caracteres no-ASCII (acentos en PDFs típicos).
+    disposition = (
+        f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}"
+    )
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={"Content-Disposition": disposition},
+    )

@@ -4,6 +4,25 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 43: Descarga de Adjuntos en el Centro de Mensajes — Feb 2026
+
+**Mejora UX del Centro de Mensajes** (Iter42): los anexos enviados con cada notificación ahora son **descargables** desde la bandeja interna.
+
+**Backend** (`/app/backend/`):
+- `services/inbox_service.py` — `deliver_to_inbox()` ahora persiste por cada anexo: `filename`, `size_bytes`, `mime_type` (auto-inferido por extensión: pdf/jpg/png/xlsx/csv) y **`content_b64`** (el binario original codificado).
+- `routes/inbox.py`:
+  - `GET /api/inbox/me` — **aliviado**: nunca devuelve `content_b64` en el listado (sólo metadatos).
+  - `GET /api/inbox/{id}/attachments/{idx}` — nuevo endpoint que devuelve el binario con `Content-Type` correcto y `Content-Disposition: attachment` (soporta nombres UTF-8 vía RFC 5987). Devuelve **410 Gone** si el mensaje es legacy sin `content_b64`.
+
+**Frontend** (`/app/frontend/src/components/InboxCenter.jsx`):
+- Sección **"Adjuntos (N)"** dentro de cada mensaje expandido con botones pill clickeables (icono `Download`, nombre, tamaño humanizado KB/MB).
+- Descarga via blob (`responseType: 'blob'` + `URL.createObjectURL`) preservando el filename original.
+- Toast amigable cuando el adjunto no está disponible (mensajes legacy).
+
+**Tests** (`/app/backend/tests/test_iteration42_inbox_center.py`) consolidados en **1/1 PASSED**: cubren los 4 escenarios end-to-end (smoke, SLA + soft-delete, persistencia `delivery_channel`, descarga de adjuntos con 200/404/410).
+
+
+
 ### Iteration 42: Centro de Mensajes — Bandeja Interna del Usuario — Feb 2026
 
 **Nuevo módulo** que reemplaza el correo electrónico como canal de despacho cuando el admin lo decide en la matriz de configuración.

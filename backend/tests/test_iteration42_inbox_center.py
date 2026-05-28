@@ -1,17 +1,19 @@
 """E2E test: Centro de Mensajes (Iter42).
 
-Cubre los 4 criterios de aceptación funcional:
-  1) Ruteo: si delivery_channel='inbox' → mensaje persiste en colección inbox.
-  2) Títulos: subject del inbox == subject del mensaje generado.
-  3) Semáforo: SLA color según created_at (verde/amarillo/rojo).
-  4) Limpieza: DELETE marca deleted_at y oculta del listado.
+Cubre los criterios de aceptación funcional:
+  1) Smoke endpoints `/inbox/me` y `/summary`.
+  2) Semáforo SLA (verde/amarillo/rojo) + soft-delete.
+  3) `delivery_channel` persiste y se fuerza a `email` para `client_field`.
+  4) Descarga de adjuntos (200 OK con content-type correcto, 404 fuera de
+     rango, 410 si mensaje legacy sin content_b64).
 
-Implementado con `asyncio.run()` directo (mismo patrón que otros tests del
-repo) — sin depender de pytest-asyncio.
+Implementación: una única función async ejecutada con `asyncio.run()` para
+reutilizar el event loop de motor (evita "Event loop is closed" entre tests).
 
 Ejecutar:  cd /app/backend && python -m pytest tests/test_iteration42_inbox_center.py -v
 """
 import asyncio
+import base64
 import sys
 from datetime import datetime, timezone, timedelta
 
@@ -42,36 +44,28 @@ async def _user_id(client, token):
     return r.json()["user_id"]
 
 
-# --------- 1) Smoke: endpoints básicos ---------
-async def _smoke():
-    async with httpx.AsyncClient(timeout=30) as c:
-        tok = await _login(c)
-        r = await c.get(f"{BACKEND_URL}/inbox/me", headers={"Authorization": f"Bearer {tok}"})
-        assert r.status_code == 200
-        d = r.json()
-        assert "items" in d and "total" in d
-
-        r2 = await c.get(f"{BACKEND_URL}/inbox/me/summary", headers={"Authorization": f"Bearer {tok}"})
-        assert r2.status_code == 200
-        s = r2.json()
-        assert set(s["by_sla"].keys()) == {"green", "yellow", "red"}
-
-
-def test_smoke_endpoints():
-    asyncio.run(_smoke())
-
-
-# --------- 2) Semáforo + limpieza ---------
-async def _sla_and_delete():
+async def _run_all():
+    """Ejecuta todas las verificaciones del Iter42 en un único event loop."""
     from config import db
     from services.inbox_service import deliver_to_inbox
 
     async with httpx.AsyncClient(timeout=30) as c:
         tok = await _login(c)
         uid = await _user_id(c, tok)
+        h = {"Authorization": f"Bearer {tok}"}
 
+        # ------- 1) Smoke endpoints -------
+        r = await c.get(f"{BACKEND_URL}/inbox/me", headers=h)
+        assert r.status_code == 200
+        assert "items" in r.json() and "total" in r.json()
+
+        r2 = await c.get(f"{BACKEND_URL}/inbox/me/summary", headers=h)
+        assert r2.status_code == 200
+        s = r2.json()
+        assert set(s["by_sla"].keys()) == {"green", "yellow", "red"}
+
+        # ------- 2) Semáforo + soft-delete -------
         await db.inbox_messages.delete_many({"subject": {"$regex": "^TEST_ITER42"}})
-
         now = datetime.now(timezone.utc)
         cases = [
             ("TEST_ITER42 verde", timedelta(hours=1), "green"),
@@ -80,100 +74,102 @@ async def _sla_and_delete():
         ]
         ids = {}
         for subj, delta, expected in cases:
-            r = await deliver_to_inbox(
-                user_id=uid,
-                recipient_email="x@y.z",
-                recipient_name="X",
-                subject=subj,
-                html=f"<p>{subj}</p>",
-                action_id="test_iter42",
+            res = await deliver_to_inbox(
+                user_id=uid, recipient_email="x@y.z", recipient_name="X",
+                subject=subj, html=f"<p>{subj}</p>", action_id="test_iter42",
             )
-            mid = r["message_id"]
+            mid = res["message_id"]
             ids[expected] = mid
             await db.inbox_messages.update_one(
                 {"message_id": mid},
                 {"$set": {"created_at": (now - delta).isoformat()}},
             )
 
-        r = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers={"Authorization": f"Bearer {tok}"})
-        assert r.status_code == 200
+        r = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
         items = {m["message_id"]: m for m in r.json()["items"]}
         for color, mid in ids.items():
-            assert mid in items, f"falta msg {mid}"
-            assert items[mid]["sla_color"] == color, (
-                f"esperado {color} obtenido {items[mid]['sla_color']}"
-            )
+            assert items[mid]["sla_color"] == color
             assert items[mid]["subject"].startswith("TEST_ITER42")
 
-        # Soft-delete del rojo
         red_id = ids["red"]
-        rdel = await c.delete(
-            f"{BACKEND_URL}/inbox/{red_id}",
-            headers={"Authorization": f"Bearer {tok}"},
-        )
+        rdel = await c.delete(f"{BACKEND_URL}/inbox/{red_id}", headers=h)
         assert rdel.status_code == 200
+        r2 = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
+        assert red_id not in [m["message_id"] for m in r2.json()["items"]]
 
-        r2 = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers={"Authorization": f"Bearer {tok}"})
-        ids_after = [m["message_id"] for m in r2.json()["items"]]
-        assert red_id not in ids_after, "msg eliminado aún aparece en inbox"
-
-        # Cleanup final
         await db.inbox_messages.delete_many({"subject": {"$regex": "^TEST_ITER42"}})
 
-
-def test_sla_semaforo_and_delete():
-    asyncio.run(_sla_and_delete())
-
-
-# --------- 3) Config: delivery_channel persiste y se fuerza para client_field ---------
-async def _config_channel():
-    async with httpx.AsyncClient(timeout=30) as c:
-        tok = await _login(c)
-        h = {"Authorization": f"Bearer {tok}"}
-
+        # ------- 3) delivery_channel persiste y se fuerza para client_field -------
         cat = await c.get(f"{BACKEND_URL}/action-notifications/catalog", headers=h)
-        assert cat.status_code == 200
         users = cat.json()["users"]
-        assert users, "sin usuarios activos"
-        tpl_id = next(
-            (t["template_id"] for t in cat.json()["templates"] if t.get("template_id")),
-            None,
-        )
-        assert tpl_id, "sin plantillas"
+        tpl_id = next((t["template_id"] for t in cat.json()["templates"] if t.get("template_id")), None)
+        assert users and tpl_id
 
-        # caso 1: user + inbox → persiste
         payload = {
             "business_type": "equipos",
             "product_subcategory": None,
             "action_id": "send_to_client",
             "recipients": [{
-                "row_id": "row_test42_inbox",
-                "type": "user",
-                "user_id": users[0]["user_id"],
-                "template_id": tpl_id,
-                "send_pdf_attachments": False,
-                "delivery_channel": "inbox",
+                "row_id": "row_test42_inbox", "type": "user",
+                "user_id": users[0]["user_id"], "template_id": tpl_id,
+                "send_pdf_attachments": False, "delivery_channel": "inbox",
             }],
         }
-        r = await c.put(f"{BACKEND_URL}/action-notifications/configs", json=payload, headers=h)
-        assert r.status_code == 200, r.text
-        assert r.json()["recipients"][0]["delivery_channel"] == "inbox"
+        rput = await c.put(f"{BACKEND_URL}/action-notifications/configs", json=payload, headers=h)
+        assert rput.status_code == 200
+        assert rput.json()["recipients"][0]["delivery_channel"] == "inbox"
 
-        # caso 2: client_field con inbox → forzado a email
         payload["recipients"] = [{
-            "row_id": "row_test42_client",
-            "type": "client_field",
-            "user_id": None,
-            "template_id": tpl_id,
-            "send_pdf_attachments": True,
-            "delivery_channel": "inbox",
+            "row_id": "row_test42_client", "type": "client_field", "user_id": None,
+            "template_id": tpl_id, "send_pdf_attachments": True, "delivery_channel": "inbox",
         }]
         r2 = await c.put(f"{BACKEND_URL}/action-notifications/configs", json=payload, headers=h)
-        assert r2.status_code == 200, r2.text
-        assert r2.json()["recipients"][0]["delivery_channel"] == "email", (
-            "client_field debió forzarse a email"
+        assert r2.status_code == 200
+        assert r2.json()["recipients"][0]["delivery_channel"] == "email", "client_field debe forzarse a email"
+
+        # ------- 4) Descarga de adjuntos -------
+        await db.inbox_messages.delete_many({"action_id": "test_iter42_att"})
+        sample_pdf = b"%PDF-1.4\n%FakePDFforTests\n%%EOF"
+        sample_b64 = base64.b64encode(sample_pdf).decode("ascii")
+        ratt = await deliver_to_inbox(
+            user_id=uid, recipient_email="x@y.z", recipient_name="X",
+            subject="TEST_ITER42 con adjunto", html="<p>cuerpo</p>",
+            action_id="test_iter42_att",
+            attachments=[{"filename": "demo.pdf", "content": sample_b64}],
         )
+        mid = ratt["message_id"]
+
+        # Listado no debe exponer content_b64
+        lst = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
+        item = next((m for m in lst.json()["items"] if m["message_id"] == mid), None)
+        assert item is not None
+        att0 = item["attachments_meta"][0]
+        assert att0["filename"] == "demo.pdf"
+        assert att0["mime_type"] == "application/pdf"
+        assert "content_b64" not in att0
+
+        # Descarga binaria correcta
+        rd = await c.get(f"{BACKEND_URL}/inbox/{mid}/attachments/0", headers=h)
+        assert rd.status_code == 200
+        assert rd.headers["content-type"].startswith("application/pdf")
+        assert "demo.pdf" in rd.headers.get("content-disposition", "")
+        assert rd.content == sample_pdf
+
+        # Índice fuera de rango → 404
+        rbad = await c.get(f"{BACKEND_URL}/inbox/{mid}/attachments/9", headers=h)
+        assert rbad.status_code == 404
+
+        # Mensaje legacy sin content_b64 → 410
+        await db.inbox_messages.update_one(
+            {"message_id": mid},
+            {"$set": {"attachments_meta.0.content_b64": ""}},
+        )
+        rgone = await c.get(f"{BACKEND_URL}/inbox/{mid}/attachments/0", headers=h)
+        assert rgone.status_code == 410
+
+        await db.inbox_messages.delete_many({"action_id": "test_iter42_att"})
 
 
-def test_config_delivery_channel():
-    asyncio.run(_config_channel())
+def test_inbox_center_full_suite():
+    """Una sola función para reutilizar el event loop de motor."""
+    asyncio.run(_run_all())

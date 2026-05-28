@@ -73,14 +73,38 @@ async def deliver_to_inbox(
     for att in (attachments or []):
         content = att.get("content")
         size = 0
+        content_b64 = ""
         if isinstance(content, (bytes, bytearray)):
+            import base64 as _b64
+            content_b64 = _b64.b64encode(content).decode("ascii")
             size = len(content)
         elif isinstance(content, str):
-            # base64 string aprox bytes
+            # Asumimos que viene base64-encoded (formato Resend usado por el motor)
+            content_b64 = content
+            # Tamaño aproximado en bytes del payload original
             size = int(len(content) * 3 / 4)
+        fname = att.get("filename", "adjunto")
+        # MIME: explícito si vino, sino inferido por extensión
+        mime = att.get("content_type") or att.get("mime_type") or ""
+        if not mime:
+            lower = fname.lower()
+            if lower.endswith(".pdf"):
+                mime = "application/pdf"
+            elif lower.endswith((".jpg", ".jpeg")):
+                mime = "image/jpeg"
+            elif lower.endswith(".png"):
+                mime = "image/png"
+            elif lower.endswith((".xlsx", ".xls")):
+                mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            elif lower.endswith(".csv"):
+                mime = "text/csv"
+            else:
+                mime = "application/octet-stream"
         attachments_meta.append({
-            "filename": att.get("filename", "adjunto"),
+            "filename": fname,
             "size_bytes": size,
+            "mime_type": mime,
+            "content_b64": content_b64,
         })
 
     msg = {
