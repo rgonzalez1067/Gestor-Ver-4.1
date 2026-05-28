@@ -1,0 +1,63 @@
+{
+  "summary": "Iter39 PVV + Direct projects + Workload PDF — 8/8 escenarios PASS (7 backend pytest + 1 frontend E2E). Backend: GET /api/projects retorna pvv_count entero no-null en los 52 proyectos; fórmula validada contra implementation_matrix (cajas × n_combos; cajas si vacía); /api/projects/{id} incluye pvv_count; /api/projects/reports/workload-pdf retorna application/pdf con header %PDF-. Frontend: 9 filas direct con data-direct-project='true' + bg-amber-50/70 + badge 'Directo' con icono Zap; 10 botones Eye disabled (data-detail-enabled='false', disabled attr presente, click no navega) y 42 enabled (navegación OK); en ProjectDetail.jsx se muestran 'Nro de Cajas'=10 y 'Nro de PVV'=40 (PVV>=Cajas) con data-testid project-nro-cajas y project-nro-pvv.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Projects / QuotesTable / ProjectDetail",
+        "issues": ["Hydration warning persistente (arrastrado iter15/16): '<span data-ve-dynamic> cannot be a child of <tbody>/<tr>/<thead>'. Es instrumentación visual-editor; no afecta funcionalidad pero contamina la consola en /projects, /quotes y /projects/{id}."]
+      }
+    ]
+  },
+  "tests_executed": {
+    "backend_iter39": {
+      "TestProjectsListPvv::test_projects_list_includes_pvv_count": "PASS — 52 proyectos, todos con pvv_count int no-null",
+      "TestProjectsListPvv::test_pvv_formula_matches_helper": "PASS — pvv_count = cajas × n_combos (matrix); cajas si matriz vacía",
+      "TestProjectsListPvv::test_pvv_at_least_equals_cajas": "PASS — invariante PVV >= cajas",
+      "TestProjectDetailPvv::test_detail_includes_pvv": "PASS — /api/projects/{id} retorna pvv_count entero",
+      "TestDirectProjects::test_direct_projects_exist": "PASS — 9 direct_project=true en BD",
+      "TestDirectProjects::test_unassigned_projects_exist": "PASS — 10 sin assigned_to_user_id",
+      "TestWorkloadPdf::test_workload_pdf_returns_pdf": "PASS — HTTP 200, content-type application/pdf, %PDF-1.7"
+    },
+    "frontend_e2e": {
+      "9_direct_rows_with_data_direct_project_true": "PASS",
+      "9_directo_badges_with_zap_icon": "PASS — badge text='Directo', svg(Zap) presente",
+      "direct_rows_bg_amber_50_70": "PASS — class contiene 'bg-amber-50/70'",
+      "10_disabled_eye_buttons_data_detail_enabled_false": "PASS — disabled attr presente",
+      "disabled_button_click_no_navigation": "PASS — URL inalterada",
+      "42_enabled_eye_buttons_navigate_to_projects_id": "PASS — navegó a /projects/prj_243108a75dcb",
+      "project_detail_nro_cajas_and_nro_pvv_visible": "PASS — Cajas=10, PVV=40 (PVV>=Cajas)"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration193_pvv_direct_projects.py",
+    "/app/test_reports/pytest/iter193_pvv.xml"
+  ],
+  "action_items": [
+    "(Opcional / arrastrado iter15/16) Limpiar hydration warning de <span data-ve-dynamic> envolviendo <tr>/<th>/<tbody>: filtra el wrapper visual-editor para elementos de tabla — no es bug funcional pero ensucia la consola en todas las tablas."
+  ],
+  "critical_code_review_comments": [
+    "services/project_pvv.py: helper claro y defensivo (try/except int, dict-check sobre matrix.items()). Fórmula homologada con cotizador comercial ('Total de Terminales Virtuales'). Correcto.",
+    "GET /api/projects: pvv_count está poblado en los 52 proyectos sin nulls — buena cobertura.",
+    "Botón Eye disabled: además del atributo data-detail-enabled='false' tiene `disabled` HTML real, lo que correctamente bloquea click. Buen diseño defensivo.",
+    "Verificado manualmente prj_243108a75dcb: matriz tiene 4 combos banco/producto × 10 cajas = 40 PVV. Coincide con backend y UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration193_pvv_direct_projects.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "100% (7/7)",
+    "frontend": "100% (7/7 aserciones E2E)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (validado, retorna session_token)",
+  "seed_data_creation": "Ninguna — sólo lectura sobre la BD existente (52 proyectos, 9 direct, 10 sin asignar).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El campo del token en login es session_token (no token). El id de proyecto en list es project_id (no id). El campo de cajas en list es box_count (no cantidad_cajas). El test file iter193 es reutilizable: pytest /app/backend/tests/test_iteration193_pvv_direct_projects.py. Proyecto con matriz poblada para PVV: prj_243108a75dcb (Rosdely Pereira, 4 combos × 10 cajas = 40 PVV).",
+  "rca_of_the_issue": "N/A — todas las features Iter39 implementadas correctamente y verificadas en backend+frontend."
+}

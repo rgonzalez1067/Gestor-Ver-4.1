@@ -1073,6 +1073,22 @@ const ProjectDetail = () => {
                       <p className="text-xs text-slate-500">Aplicativo</p>
                       <p className="text-sm font-semibold text-slate-700" data-testid="application-name">{project.integrator_app_name || project.application_name || '—'}</p>
                     </div>
+                    {/* Iter39: Nro de Cajas + Nro de PVV — informativos read-only.
+                        PVV es el mismo valor del Resumen Ejecutivo bajo "Total de Terminales Virtuales". */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <p className="text-xs text-slate-500">Nro de Cajas</p>
+                        <p className="text-sm font-semibold text-slate-700" data-testid="project-nro-cajas">
+                          {project.cantidad_cajas || project.box_count || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Nro de PVV <span className="text-[10px] text-slate-400">(Cajas × Bancos × Productos)</span></p>
+                        <p className="text-sm font-bold text-indigo-700" data-testid="project-nro-pvv">
+                          {project.pvv_count ?? 0}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
                 <div className="flex items-center gap-3">

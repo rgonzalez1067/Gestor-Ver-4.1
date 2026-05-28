@@ -103,6 +103,11 @@ NOTIFICATION_SUBJECTS = {
 async def get_projects(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
     projects = await db.projects.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    # Iter39: inyectar pvv_count para que la lista pueda mostrarlo / ordenarlo
+    # sin un GET adicional por proyecto.
+    from services.project_pvv import compute_project_pvv
+    for p in projects:
+        p["pvv_count"] = compute_project_pvv(p)
     return projects
 
 
@@ -137,6 +142,10 @@ async def get_project(project_id: str, authorization: Optional[str] = Header(Non
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    # Iter39: incluir pvv_count (Nro de PVV) — métrica oficial homologada con
+    # "Total de Terminales Virtuales" del Resumen Ejecutivo.
+    from services.project_pvv import compute_project_pvv
+    project["pvv_count"] = compute_project_pvv(project)
     return project
 
 
@@ -2101,8 +2110,14 @@ async def projects_workload_pdf(
             "last_contact_at": 1, "last_contact_by": 1,
             "reassigned_from_name": 1, "reassignment_history": 1,
             "fantasy_name": 1,
+            "implementation_matrix": 1,  # Iter39: necesario para calcular PVV
         },
     ).to_list(5000)
+
+    # Iter39: pre-calcular PVV por proyecto para no recalcular en cada uso.
+    from services.project_pvv import compute_project_pvv
+    for _p in projects:
+        _p["_pvv"] = compute_project_pvv(_p)
 
     # Aplicar filtros en memoria (dataset pequeño <5k)
     def _matches(p: dict) -> bool:
@@ -2138,6 +2153,7 @@ async def projects_workload_pdf(
     # Agrupar por implementador asignado
     groups: dict = {}
     cajas_by_impl: dict = {}
+    pvv_by_impl: dict = {}  # Iter39: sumatoria PVV por implementador
     for p in projects:
         impl = p.get("assigned_to_name") or "Sin asignar"
         groups.setdefault(impl, []).append(p)
@@ -2150,9 +2166,15 @@ async def projects_workload_pdf(
                 pass
         else:
             cajas_by_impl.setdefault(impl, 0)
+        # PVV se acumula SIEMPRE (todos los tipos de proyecto generan terminales virtuales).
+        pvv_by_impl[impl] = pvv_by_impl.get(impl, 0) + int(p.get("_pvv") or 0)
 
-    # Orden: primero implementadores con más proyectos, "Sin asignar" al final
-    ordered = sorted(groups.keys(), key=lambda k: (k == "Sin asignar", -len(groups[k]), k))
+    # Iter39: orden de implementadores por PVV total descendente (en lugar de cantidad de proyectos).
+    # "Sin asignar" siempre al final independientemente de su volumen.
+    ordered = sorted(
+        groups.keys(),
+        key=lambda k: (k == "Sin asignar", -pvv_by_impl.get(k, 0), -len(groups[k]), k),
+    )
 
     # HTML
     section_html_parts = []
@@ -2175,6 +2197,9 @@ async def projects_workload_pdf(
                 cajas = str(c) if c else "—"
             else:
                 cajas = "—"
+            # Iter39: PVV por proyecto (se aplica a todos los tipos de proyecto).
+            pvv_val = int(p.get("_pvv") or 0)
+            pvv_cell = str(pvv_val) if pvv_val > 0 else "—"
             # Implementador original (solo si reasignado)
             orig = p.get("reassigned_from_name") or ""
             is_reassigned = (p.get("status") == "En proceso/reasignado") or bool(orig)
@@ -2184,6 +2209,7 @@ async def projects_workload_pdf(
               <td>{p.get('client_name') or '—'}<div class="rif">{p.get('client_rif') or ''}</div></td>
               <td>{type_badge}</td>
               <td class="num">{cajas}</td>
+              <td class="num pvv">{pvv_cell}</td>
               <td class="state">{p.get('status') or '—'}</td>
               <td>{orig_html}</td>
               <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
@@ -2194,13 +2220,14 @@ async def projects_workload_pdf(
         <div class="group">
           <div class="group-head">
             <span class="impl">{impl}</span>
-            <span class="count">Nro de Proyectos {len(items)} &nbsp;·&nbsp; Nro de Cajas {cajas_by_impl.get(impl, 0)}</span>
+            <span class="count">Nro de Proyectos {len(items)} &nbsp;·&nbsp; Nro de Cajas {cajas_by_impl.get(impl, 0)} &nbsp;·&nbsp; <strong>Total PVV {pvv_by_impl.get(impl, 0)}</strong></span>
           </div>
           <table class="rep">
             <colgroup>
               <col class="c-cliente" />
               <col class="c-tipo" />
               <col class="c-cajas" />
+              <col class="c-pvv" />
               <col class="c-estado" />
               <col class="c-orig" />
               <col class="c-fasign" />
@@ -2208,7 +2235,7 @@ async def projects_workload_pdf(
             </colgroup>
             <thead>
               <tr>
-                <th>Cliente</th><th>Tipo</th><th>Cajas</th>
+                <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
                 <th>Estado</th><th>Implementador Original</th>
                 <th>Fecha Asignación</th><th>Último Contacto</th>
               </tr>
@@ -2222,23 +2249,25 @@ async def projects_workload_pdf(
     exec_name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or user.get('email','')
     total = sum(len(v) for v in groups.values())
     total_cajas = sum(cajas_by_impl.values())
+    total_pvv = sum(pvv_by_impl.values())  # Iter39
 
-    # --- Ranking visual: TODOS los implementadores ordenados por carga (cajas)
+    # --- Ranking visual: TODOS los implementadores ordenados por PVV (Iter39).
     # Excluye "Sin asignar" para no comparar un grupo huérfano contra personas reales.
     ranking_items = [
-        (impl, cajas_by_impl.get(impl, 0), len(groups.get(impl, [])))
+        (impl, pvv_by_impl.get(impl, 0), len(groups.get(impl, [])), cajas_by_impl.get(impl, 0))
         for impl in groups.keys()
         if impl != "Sin asignar"
     ]
-    ranking_items.sort(key=lambda x: (-x[1], -x[2], x[0]))  # cajas desc, proyectos desc, nombre asc
+    # Orden estricto descendente por PVV; desempate por #proyectos desc, luego cajas desc, luego nombre.
+    ranking_items.sort(key=lambda x: (-x[1], -x[2], -x[3], x[0]))
     ranking_html = ""
     if ranking_items:
-        max_cajas = max((b for _, b, _ in ranking_items), default=0) or 1
+        max_pvv = max((p for _, p, _, _ in ranking_items), default=0) or 1
         medals = {0: "#FFD700", 1: "#C0C0C0", 2: "#CD7F32"}  # oro, plata, bronce
         cards = []
-        for idx, (impl, cajas, n_proj) in enumerate(ranking_items):
-            bar_pct = int(round((cajas / max_cajas) * 100)) if max_cajas else 0
-            medal_color = medals.get(idx, "#475569")  # gris pizarra para posiciones 4+
+        for idx, (impl, pvv, n_proj, cajas) in enumerate(ranking_items):
+            bar_pct = int(round((pvv / max_pvv) * 100)) if max_pvv else 0
+            medal_color = medals.get(idx, "#475569")
             text_color = "#0f172a" if idx < 3 else "#e2e8f0"
             position_label = f"{idx + 1}°"
             cards.append(f"""
@@ -2247,13 +2276,13 @@ async def projects_workload_pdf(
               <div class="rank-body">
                 <div class="rank-impl">{impl}</div>
                 <div class="rank-bar-bg"><div class="rank-bar" style="width:{bar_pct}%;"></div></div>
-                <div class="rank-stats"><strong>{cajas}</strong> caja(s) · {n_proj} proyecto(s)</div>
+                <div class="rank-stats"><strong>{pvv}</strong> PVV · {n_proj} proyecto(s) · {cajas} caja(s)</div>
               </div>
             </div>
             """)
         ranking_html = f"""
         <div class="ranking">
-          <div class="ranking-title">Ranking de Carga — Implementadores por Cajas Asignadas</div>
+          <div class="ranking-title">Ranking de Carga — Implementadores por PVV</div>
           <div class="ranking-grid">
             {''.join(cards)}
           </div>
@@ -2304,13 +2333,15 @@ async def projects_workload_pdf(
       .group-head .count {{ font-size: 10px; color: #4338ca; font-weight: 600; }}
       table.rep {{ width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }}
       /* Anchos fijos por columna para que TODAS las tablas (por implementador) queden alineadas */
-      table.rep col.c-cliente  {{ width: 22%; }}
-      table.rep col.c-tipo     {{ width: 9%; }}
+      table.rep col.c-cliente  {{ width: 20%; }}
+      table.rep col.c-tipo     {{ width: 8%; }}
       table.rep col.c-cajas    {{ width: 6%; }}
-      table.rep col.c-estado   {{ width: 17%; }}
-      table.rep col.c-orig     {{ width: 16%; }}
-      table.rep col.c-fasign   {{ width: 15%; }}
+      table.rep col.c-pvv      {{ width: 7%; }}
+      table.rep col.c-estado   {{ width: 15%; }}
+      table.rep col.c-orig     {{ width: 15%; }}
+      table.rep col.c-fasign   {{ width: 14%; }}
       table.rep col.c-ultcont  {{ width: 15%; }}
+      table.rep td.pvv {{ font-weight: 700; color: #4f46e5; }}
       table.rep th {{
         background: #f8fafc; color: #475569; text-transform: uppercase; font-size: 8px;
         padding: 5px 6px; border-bottom: 1px solid #e2e8f0; text-align: left;
@@ -2370,7 +2401,7 @@ async def projects_workload_pdf(
     </head>
     <body>
       <h1>Reporte de Carga y Estatus de Proyectos</h1>
-      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · {total_cajas} caja(s) · Generado: {now_str} · Por: {exec_name}</div>
+      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · {total_cajas} caja(s) · <strong>{total_pvv} PVV</strong> · Generado: {now_str} · Por: {exec_name}</div>
       {filters_html}
       {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
       {ranking_html}

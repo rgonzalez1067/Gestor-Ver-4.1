@@ -18,7 +18,7 @@ import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -337,8 +337,9 @@ const Projects = () => {
                     
                     return (
                       <React.Fragment key={project.project_id}>
-                      <tr className="hover:bg-slate-50 transition-colors"
-                        data-testid={`project-row-${project.project_id}`}>
+                      <tr className={`hover:bg-slate-50 transition-colors ${project.direct_project ? 'bg-amber-50/70 hover:bg-amber-100/70' : ''}`}
+                        data-testid={`project-row-${project.project_id}`}
+                        data-direct-project={project.direct_project ? 'true' : 'false'}>
                         <td className="px-4 py-3">
                           {/* Cliente como info principal — tooltip con Nombre de Fantasía al hover */}
                           {(() => {
@@ -389,6 +390,11 @@ const Projects = () => {
                                 <AlertTriangle size={10} />Irregular
                               </span>
                             )}
+                            {project.direct_project && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-700 border border-amber-300" data-testid="project-direct-badge" title="Proyecto creado desde el flujo Proyecto Directo">
+                                <Zap size={10} />Directo
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -435,10 +441,15 @@ const Projects = () => {
                               {hasAssignee ? <UserPlus size={14} /> : <UserCheck size={14} />}
                               <span className="hidden xl:inline">{hasAssignee ? 'Reasignar' : 'Asignar'}</span>
                             </Button>}
-                            {/* Ver Detalle */}
-                            <Button size="sm" variant="outline" title="Detalle del Proyecto"
-                              onClick={() => navigate(`/projects/${project.project_id}`)}
-                              className="h-8 px-2 text-emerald-600" data-testid={`detail-btn-${project.project_id}`}>
+                            {/* Ver Detalle — Iter39: deshabilitado si no hay implementador asignado. */}
+                            <Button
+                              size="sm" variant="outline"
+                              title={hasAssignee ? 'Detalle del Proyecto' : 'Detalle no disponible: el proyecto debe tener un implementador asignado'}
+                              onClick={() => hasAssignee && navigate(`/projects/${project.project_id}`)}
+                              disabled={!hasAssignee}
+                              className={`h-8 px-2 ${hasAssignee ? 'text-emerald-600' : 'text-slate-300 cursor-not-allowed opacity-60'}`}
+                              data-testid={`detail-btn-${project.project_id}`}
+                              data-detail-enabled={hasAssignee ? 'true' : 'false'}>
                               <Eye size={14} />
                             </Button>
                             {/* Compromiso (Coord/Gerente/Admin crea/gestiona; todos leen) */}
