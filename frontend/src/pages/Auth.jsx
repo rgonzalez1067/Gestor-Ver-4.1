@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label';
 import { Eye, EyeOff, User, Mail, Lock, CreditCard, Loader2, Building2, ArrowLeft } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
+import { showInboxWelcomeToast } from '../utils/inboxWelcome';
 
 // Sedes disponibles
 const SEDES = [
@@ -106,6 +107,8 @@ export const Auth = () => {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
         toast.success(`Bienvenido, ${response.data.user.first_name || response.data.user.name}`);
+        // Iter44: aviso destacado de mensajes sin leer en el Centro de Mensajes.
+        showInboxWelcomeToast({ firstName: response.data.user.first_name });
         navigate('/quotes');
         
       } else {

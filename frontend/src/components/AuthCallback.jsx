@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
+import { showInboxWelcomeToast } from '../utils/inboxWelcome';
 
 export const AuthCallback = () => {
   const navigate = useNavigate();
@@ -29,6 +30,9 @@ export const AuthCallback = () => {
         const { session_token, user } = response.data;
         localStorage.setItem('session_token', session_token);
         localStorage.setItem('user', JSON.stringify(user));
+
+        // Iter44: aviso destacado si tiene mensajes sin leer en el Centro de Mensajes.
+        showInboxWelcomeToast({ firstName: user?.first_name });
 
         navigate('/dashboard', { state: { user }, replace: true });
       } catch (error) {

@@ -4,6 +4,25 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 44: Fix descarga PDF + Header llamativo + Banner post-login — Feb 2026
+
+**Bug fix — Descarga de adjuntos rompía con "Script error"** (`InboxCenter.jsx::handleDownloadAttachment`):
+- Causa raíz: `a.remove()` y `URL.revokeObjectURL()` ejecutados síncronamente justo después del `a.click()` interferían con el descargador del navegador y producían un error opaco interceptado por la React Error Overlay.
+- Fix: limpieza diferida con `setTimeout(250ms)`, doble-click bloqueado vía estado `downloading[key]`, re-envoltura defensiva del binario en `new Blob([data], { type })`, manejo explícito de 404/410.
+- UX: botón muestra spinner durante descarga + toast `"Descargando {filename}"`.
+
+**Header Centro de Mensajes — color más llamativo**:
+- Cabecera repintada con gradiente `from-indigo-600 via-violet-600 to-fuchsia-600`, ícono `Inbox` sobre fondo glass, contador "sin leer" en blanco bold, halo decorativo `blur-3xl` sutil.
+
+**Banner post-login con conteo sin leer**:
+- Nuevo helper `utils/inboxWelcome.js::showInboxWelcomeToast()` consulta `GET /api/inbox/me/summary` después del login y emite un `toast.message` durante 7s: *"Rafael, tienes N mensajes sin leer · Revisa tu Centro de Mensajes en el Dashboard."*.
+- Integrado en ambas rutas de autenticación: `pages/Auth.jsx` (email/password) y `components/AuthCallback.jsx` (Google OAuth).
+- Best-effort: si el endpoint falla, el login no se interrumpe.
+
+**Validación e2e** (screenshot tool): descarga del PDF de muestra sin runtime errors, banner visible en `/quotes` tras login, header con gradiente vibrante en Dashboard. Tests backend `tests/test_iteration42_inbox_center.py` siguen pasando (1/1).
+
+
+
 ### Iteration 43: Descarga de Adjuntos en el Centro de Mensajes — Feb 2026
 
 **Mejora UX del Centro de Mensajes** (Iter42): los anexos enviados con cada notificación ahora son **descargables** desde la bandeja interna.

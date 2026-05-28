@@ -144,29 +144,57 @@ export function InboxCenter() {
     }
   };
 
+  const [downloading, setDownloading] = useState({}); // { 'msg_id-idx': true }
+
   const handleDownloadAttachment = async (messageId, index, filename) => {
+    const key = `${messageId}-${index}`;
+    if (downloading[key]) return; // evita doble click
+    setDownloading((prev) => ({ ...prev, [key]: true }));
+    let blobUrl = null;
+    let anchor = null;
     try {
       const res = await api.get(`/inbox/${messageId}/attachments/${index}`, {
         responseType: 'blob',
       });
-      // Forzar descarga conservando el filename original
-      const blobUrl = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename || `adjunto-${index}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(blobUrl);
+      const mime = res.headers?.['content-type'] || 'application/octet-stream';
+      // Re-envolver en un Blob nativo (axios a veces entrega ArrayBuffer o Blob
+      // según versión; new Blob() lo normaliza) y descargar via anchor temporal.
+      const blob = new Blob([res.data], { type: mime });
+      blobUrl = window.URL.createObjectURL(blob);
+      anchor = document.createElement('a');
+      anchor.style.display = 'none';
+      anchor.href = blobUrl;
+      anchor.download = filename || `adjunto-${index}`;
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      toast.success(`Descargando ${filename}`);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'Error';
-      // Para 410 (mensaje legacy sin contenido), aviso amable
-      const status = err.response?.status;
+      const status = err?.response?.status;
       if (status === 410) {
         toast.error('Este adjunto pertenece a un mensaje antiguo y ya no está disponible.');
+      } else if (status === 404) {
+        toast.error('Adjunto no encontrado.');
       } else {
+        const detail = err?.response?.data?.detail || err?.message || 'Error';
         toast.error(`No se pudo descargar: ${detail}`);
       }
+    } finally {
+      // Limpieza asíncrona — algunos navegadores rompen si revocamos el blob URL
+      // mientras el click del anchor aún se está procesando.
+      setTimeout(() => {
+        if (blobUrl) {
+          try { window.URL.revokeObjectURL(blobUrl); } catch { /* noop */ }
+        }
+        if (anchor && anchor.parentNode) {
+          try { anchor.parentNode.removeChild(anchor); } catch { /* noop */ }
+        }
+      }, 250);
+      setDownloading((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
     }
   };
 
@@ -191,18 +219,21 @@ export function InboxCenter() {
       className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
       data-testid="inbox-center"
     >
-      {/* Cabecera */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700">
-            <Inbox size={20} />
+      {/* Cabecera — gradiente índigo/violeta vibrante para destacar el centro de mensajes
+          como el canal principal de comunicación interna. */}
+      <div className="flex items-center justify-between px-6 py-5 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white relative overflow-hidden">
+        {/* Sutil "brillo" decorativo */}
+        <div className="absolute -top-12 -right-8 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="p-2.5 rounded-lg bg-white/20 backdrop-blur-sm">
+            <Inbox size={22} className="text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-900 font-manrope">Centro de Mensajes</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-bold font-manrope tracking-tight">Centro de Mensajes</h2>
+            <p className="text-xs text-indigo-100">
               Bandeja interna · {messages.length} mensaje{messages.length === 1 ? '' : 's'}
               {unreadCount > 0 && (
-                <span className="ml-2 font-semibold text-blue-700">
+                <span className="ml-2 font-bold text-white">
                   · {unreadCount} sin leer
                 </span>
               )}
@@ -214,6 +245,7 @@ export function InboxCenter() {
           size="sm"
           onClick={handleRefresh}
           disabled={refreshing}
+          className="text-white hover:bg-white/15 hover:text-white relative z-10"
           data-testid="inbox-refresh-btn"
         >
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
@@ -308,24 +340,33 @@ export function InboxCenter() {
                           Adjuntos ({msg.attachments_meta.length})
                         </div>
                         <div className="flex flex-wrap gap-2" data-testid={`inbox-msg-attachments-${msg.message_id}`}>
-                          {msg.attachments_meta.map((a, idx) => (
-                            <button
-                              key={`${msg.message_id}-att-${idx}`}
-                              type="button"
-                              onClick={() => handleDownloadAttachment(msg.message_id, idx, a.filename)}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors group"
-                              data-testid={`inbox-att-download-${msg.message_id}-${idx}`}
-                              title={`Descargar ${a.filename}`}
-                            >
-                              <Download size={14} className="text-slate-400 group-hover:text-blue-600" />
-                              <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700 truncate max-w-[260px]">
-                                {a.filename}
-                              </span>
-                              {a.size_bytes > 0 && (
-                                <span className="text-[10px] text-slate-400">{formatBytes(a.size_bytes)}</span>
-                              )}
-                            </button>
-                          ))}
+                          {msg.attachments_meta.map((a, idx) => {
+                            const dlKey = `${msg.message_id}-${idx}`;
+                            const isDownloading = !!downloading[dlKey];
+                            return (
+                              <button
+                                key={`${msg.message_id}-att-${idx}`}
+                                type="button"
+                                onClick={() => handleDownloadAttachment(msg.message_id, idx, a.filename)}
+                                disabled={isDownloading}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors group disabled:opacity-60 disabled:cursor-wait"
+                                data-testid={`inbox-att-download-${msg.message_id}-${idx}`}
+                                title={`Descargar ${a.filename}`}
+                              >
+                                {isDownloading ? (
+                                  <RefreshCw size={14} className="animate-spin text-blue-600" />
+                                ) : (
+                                  <Download size={14} className="text-slate-400 group-hover:text-blue-600" />
+                                )}
+                                <span className="text-xs font-medium text-slate-700 group-hover:text-blue-700 truncate max-w-[260px]">
+                                  {a.filename}
+                                </span>
+                                {a.size_bytes > 0 && (
+                                  <span className="text-[10px] text-slate-400">{formatBytes(a.size_bytes)}</span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
