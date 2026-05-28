@@ -69,7 +69,10 @@ class DirectProjectStore(BaseModel):
 
 
 class DirectProjectSerial(BaseModel):
-    modelo: str
+    """Serial de Pinpad. El `modelo` es opcional (Iter38, feb 2026): el operador
+    solo está obligado a capturar el número de serial; la asociación con un
+    modelo de hardware se hace a nivel global (`pinpad_model` de la cabecera)."""
+    modelo: Optional[str] = ""
     serial: str
 
 
@@ -106,26 +109,6 @@ class DirectProjectCreate(BaseModel):
 
     # Instrucciones para el implementador
     implementation_instructions: Optional[str] = None
-
-
-# =================== Helpers de numeración ===================
-async def _next_direct_project_number(sede_code: str) -> str:
-    now = datetime.now(timezone.utc)
-    year = now.strftime("%Y")
-    month = now.strftime("%m")
-    prefix = f"PRD-{year}-{month}-"
-    last = await db.projects.find_one(
-        {"project_number": {"$regex": f"^{prefix}"}},
-        sort=[("project_number", -1)],
-    )
-    if last:
-        try:
-            n = int(last["project_number"].split("-")[3])
-        except (IndexError, ValueError):
-            n = 0
-    else:
-        n = 0
-    return f"{prefix}{str(n + 1).zfill(3)}-{sede_code}"
 
 
 # =================== Endpoint principal ===================
@@ -170,17 +153,24 @@ async def create_direct_project(
                 detail=f"La suma de cajas por sucursal ({total_boxes}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
             )
 
+    # Iter38: validación HARD de consistencia de inventario.
+    # Para VPOS/MPOS la cantidad de seriales de Pinpad cargados (manual + Excel)
+    # debe coincidir EXACTAMENTE con Cantidad de Cajas (cabecera).
+    if requires_hw:
+        n_serials = len(payload.pinpad_serials or [])
+        if n_serials != payload.cantidad_cajas:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cantidad de seriales Pinpad cargados ({n_serials}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
+            )
+
     if len(payload.boxes_grid) == 0:
         raise HTTPException(
             status_code=400,
             detail="La grilla debe contener al menos una fila (cantidad + banco + producto).",
         )
-    total_grid_qty = sum(int(b.quantity) for b in payload.boxes_grid)
-    if total_grid_qty != payload.cantidad_cajas:
-        raise HTTPException(
-            status_code=400,
-            detail=f"La suma de cajas en la grilla ({total_grid_qty}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
-        )
+    # Iter38: la grilla es INDEPENDIENTE de cantidad_cajas (la matriz banco/producto
+    # se construye con la información comercial; ya no se compara con la cabecera).
     for i, box in enumerate(payload.boxes_grid):
         if not (box.bank_name or "").strip():
             raise HTTPException(status_code=400, detail=f"Fila #{i+1}: banco requerido")
@@ -269,11 +259,6 @@ async def create_direct_project(
         "equipments": [],
     }
 
-    # ---- Reservar número PRD-XXXX antes de crear el proyecto ----
-    # _create_project_from_quote usa la secuencia PRY-; sobreescribimos
-    # post-creación para usar el prefijo PRD- propio del flujo directo.
-    sede_code = sede[:3].upper()
-
     # Llamar al builder existente (deja proyecto creado con número PRY-).
     multistore_data = None
     if payload.is_multistore:
@@ -304,30 +289,27 @@ async def create_direct_project(
         logger.exception(f"Error creando proyecto directo: {e}")
         raise HTTPException(status_code=500, detail=f"Error creando proyecto: {e}")
 
-    # Localizar el proyecto recién creado por quote_id y reasignar número PRD-XXXX.
+    # ---- Localizar el proyecto recién creado por quote_id ----
+    # Iter38: el usuario solicitó usar la nomenclatura ESTÁNDAR (PRY-XXXX) —
+    # ya no sobrescribimos a PRD-. _create_project_from_quote asigna PRY-
+    # internamente y compartimos la misma secuencia con el resto de proyectos
+    # del sistema.
     project = await db.projects.find_one({"quote_id": pseudo_quote_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=500, detail="Proyecto creado pero no se pudo recuperar")
 
-    prd_number = await _next_direct_project_number(sede_code)
+    prd_number = project["project_number"]
     await db.projects.update_one(
         {"project_id": project["project_id"]},
         {"$set": {
-            "project_number": prd_number,
             "origin": "direct",
             "direct_project": True,
             "pinpad_bank": payload.pinpad_bank,
             # Persistir la grilla original para auditoría / re-emisión
             "boxes_grid": [b.model_dump() for b in payload.boxes_grid],
+            # quote_number cosmético (el quote_id es pseudo, no apunta a quote real)
+            "quote_number": prd_number,
         }},
-    )
-    project["project_number"] = prd_number
-
-    # Limpiar quote_id pseudo (no apunta a ningún documento real) — opcional;
-    # lo dejamos por trazabilidad pero marcamos `quote_number` con sentido.
-    await db.projects.update_one(
-        {"project_id": project["project_id"]},
-        {"$set": {"quote_number": prd_number}},
     )
 
     # ---- Generar Ficha Técnica PDF ----

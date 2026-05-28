@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -23,12 +23,19 @@ const REQUIRES_HW = (qt) => qt === 'VPOS' || qt === 'MPOS';
 const AVAIL_FIELD = (qt) => (QUOTE_TYPES.find((x) => x.id === qt) || {}).avail || 'vpos_available';
 
 /* ------------------------------------------------------------------ */
-/* Combobox de clientes con búsqueda                                  */
+/* Combobox de clientes con búsqueda — forwardRef para foco externo   */
 /* ------------------------------------------------------------------ */
-function ClientCombobox({ clients, value, onChange }) {
+const ClientCombobox = forwardRef(function ClientCombobox({ clients, value, onChange }, externalRef) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef(null);
+  const buttonRef = useRef(null);
+
+  // Exponemos un .focus() al padre para que tras un guardado exitoso pueda
+  // devolver el cursor al primer campo del formulario (Iter38).
+  useImperativeHandle(externalRef, () => ({
+    focus: () => { buttonRef.current?.focus(); setOpen(true); },
+  }));
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +59,7 @@ function ClientCombobox({ clients, value, onChange }) {
   return (
     <div className="relative" ref={ref} data-testid="dp-client-combobox">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full h-10 px-3 border border-slate-200 rounded-md bg-white text-left text-sm hover:border-slate-300 focus:border-blue-500 focus:outline-none flex items-center justify-between"
@@ -93,7 +101,7 @@ function ClientCombobox({ clients, value, onChange }) {
       )}
     </div>
   );
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Excel uploader (descarga plantilla + upload + entrega items)       */
@@ -171,9 +179,13 @@ export default function DirectProjectCreation() {
   const [hardware, setHardware] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [lastCreated, setLastCreated] = useState(null); // {project_number, project_id, dispatched}
 
-  /* Form state */
-  const [form, setForm] = useState({
+  const clientRef = useRef(null);
+  const serialsAreaRef = useRef(null);
+
+  /* Form state — INITIAL_FORM se usa también para resetear tras Submit. */
+  const INITIAL_FORM = {
     client_id: '',
     economic_group: '',
     fantasy_name: '',
@@ -182,19 +194,19 @@ export default function DirectProjectCreation() {
     cantidad_cajas: 1,
     sponsor_bank_id: '',
     sponsor_bank_name: '',
-    integrator_name: '',          // primer dropdown (nombre del integrador)
-    integrator_id: '',            // se llena al elegir la app específica (cascada)
-    integrator_app_name: '',      // segundo dropdown (app del integrador)
+    integrator_name: '',
+    integrator_id: '',
+    integrator_app_name: '',
     pinpad_model: '',
     pinpad_bank: '',
     fiscal_printer_model: '',
     pinpad_serials: [],
     is_multistore: false,
     stores: [],
-    // Reel: cada fila es { quantity, bank_name, product_name, store_name? }
     boxes_grid: [{ quantity: 1, bank_name: '', product_name: '', store_name: '' }],
     implementation_instructions: '',
-  });
+  };
+  const [form, setForm] = useState(INITIAL_FORM);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -276,8 +288,8 @@ export default function DirectProjectCreation() {
   };
   const totalStoreBoxes = useMemo(() => form.stores.reduce((acc, s) => acc + (parseInt(s.box_count) || 0), 0), [form.stores]);
 
-  /* Seriales Pinpad */
-  const addSerial = () => set({ pinpad_serials: [...form.pinpad_serials, { modelo: form.pinpad_model || '', serial: '' }] });
+  /* Seriales Pinpad — Iter38: solo importa el SERIAL; el modelo es opcional. */
+  const addSerial = () => set({ pinpad_serials: [...form.pinpad_serials, { modelo: '', serial: '' }] });
   const removeSerial = (idx) => set({ pinpad_serials: form.pinpad_serials.filter((_, i) => i !== idx) });
   const updateSerial = (idx, patch) => {
     const next = [...form.pinpad_serials];
@@ -285,6 +297,24 @@ export default function DirectProjectCreation() {
     set({ pinpad_serials: next });
   };
   const clearSerials = () => set({ pinpad_serials: [] });
+
+  /** Carga masiva por TEXT AREA: separa por líneas / comas / punto-y-coma.
+   * Cada token no vacío es un serial. El modelo queda en blanco (Iter38). */
+  const [bulkSerialsText, setBulkSerialsText] = useState('');
+  const importBulkSerials = () => {
+    const tokens = bulkSerialsText
+      .split(/[\n,;\t]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (tokens.length === 0) {
+      toast.error('Pega al menos un serial separado por línea o coma');
+      return;
+    }
+    const added = tokens.map((s) => ({ modelo: '', serial: s }));
+    set({ pinpad_serials: [...form.pinpad_serials, ...added] });
+    setBulkSerialsText('');
+    toast.success(`${added.length} serial(es) agregado(s)`);
+  };
 
   /* Cascada Integrador → Apps */
   const integratorNames = useMemo(() => {
@@ -305,25 +335,32 @@ export default function DirectProjectCreation() {
       .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
   }, [hardware]);
 
-  /* Validación pre-envío */
+  /* Validación pre-envío — Iter38 reglas actualizadas:
+     - Grilla INDEPENDIENTE de cantidad_cajas (no se valida la suma).
+     - Cantidad de Cajas (cabecera) = cantidad de seriales Pinpad (solo VPOS/MPOS).
+     - Multitienda: suma de cajas por sucursal = cantidad_cajas. */
   const errors = useMemo(() => {
     const errs = [];
     if (!form.client_id) errs.push('Debes seleccionar un cliente');
     if (!form.quote_type) errs.push('Debes seleccionar el tipo de proyecto');
     if (!form.cantidad_cajas || form.cantidad_cajas < 1) errs.push('Cantidad de cajas debe ser >= 1');
     if (REQUIRES_HW(form.quote_type) && !form.pinpad_model) errs.push('VPOS/MPOS requiere Modelo de Pinpad');
+    // Consistencia de inventario (solo VPOS/MPOS).
+    if (REQUIRES_HW(form.quote_type)) {
+      const n = form.pinpad_serials.length;
+      if (n !== Number(form.cantidad_cajas)) {
+        errs.push(`Seriales Pinpad cargados (${n}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
+      }
+    }
     if (form.is_multistore) {
       if (form.stores.length === 0) errs.push('Multitienda activado: agrega al menos una sucursal');
       if (totalStoreBoxes !== Number(form.cantidad_cajas)) {
-        errs.push(`Suma de cajas por sucursal (${totalStoreBoxes}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
+        errs.push(`Suma cajas multitienda (${totalStoreBoxes}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
       }
     }
     if (form.boxes_grid.length === 0) {
       errs.push('Agrega al menos una fila a la grilla');
     } else {
-      if (totalBoxesInGrid !== Number(form.cantidad_cajas)) {
-        errs.push(`Suma de cajas en la grilla (${totalBoxesInGrid}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
-      }
       form.boxes_grid.forEach((b, i) => {
         if (!b.bank_name) errs.push(`Fila #${i + 1}: banco requerido`);
         if (!b.product_name) errs.push(`Fila #${i + 1}: producto requerido`);
@@ -331,7 +368,7 @@ export default function DirectProjectCreation() {
       });
     }
     return errs;
-  }, [form, totalStoreBoxes, totalBoxesInGrid]);
+  }, [form, totalStoreBoxes]);
 
   const handleSubmit = async () => {
     if (errors.length) {
@@ -341,15 +378,28 @@ export default function DirectProjectCreation() {
     setSaving(true);
     try {
       const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas) };
-      delete payload.equipment_serials;  // ya no aplica
+      delete payload.equipment_serials;
       if (form.sponsor_bank_id && !form.sponsor_bank_name) {
         const b = banks.find((x) => x.bank_id === form.sponsor_bank_id);
         if (b) payload.sponsor_bank_name = b.name;
       }
       const res = await api.post('/direct-projects', payload);
       const d = res.data;
-      toast.success(`Proyecto ${d.project_number} creado ${d.notification?.dispatched ? '· correo enviado' : '· sin notificación configurada'}`);
-      navigate(`/projects/${d.project_id}`);
+      toast.success(
+        `Proyecto ${d.project_number} creado ${d.notification?.dispatched ? '· correo enviado' : '· sin notificación configurada'}`,
+        { duration: 6000 }
+      );
+
+      // Iter38: Reset integral + foco al primer campo. NO navegamos.
+      setLastCreated({
+        project_number: d.project_number,
+        project_id: d.project_id,
+        dispatched: !!d.notification?.dispatched,
+      });
+      setForm(INITIAL_FORM);
+      setBulkSerialsText('');
+      // Esperar un tick para que el remount del combobox limpie el valor visible.
+      setTimeout(() => clientRef.current?.focus(), 50);
     } catch (e) {
       toast.error(`Error: ${e.response?.data?.detail || e.message}`);
     } finally { setSaving(false); }
@@ -381,6 +431,30 @@ export default function DirectProjectCreation() {
         </div>
       </div>
 
+      {/* Banner del último proyecto creado (carga continua — Iter38) */}
+      {lastCreated && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-md px-4 py-3 flex items-center justify-between" data-testid="dp-last-created-banner">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={20} className="text-emerald-600" />
+            <div>
+              <p className="text-sm font-medium text-emerald-900">
+                Proyecto <span className="font-mono">{lastCreated.project_number}</span> creado correctamente
+              </p>
+              <p className="text-xs text-emerald-700">
+                {lastCreated.dispatched ? '✓ Correo enviado a destinatarios configurados' : '⚠ Notificación no enviada (no hay configuración para el evento)'}.
+                El formulario se reinició para una nueva captura.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${lastCreated.project_id}`)} data-testid="dp-view-last-project">
+              Ver Proyecto
+            </Button>
+            <button onClick={() => setLastCreated(null)} className="text-emerald-700 hover:text-emerald-900 p-1" title="Cerrar"><X size={14} /></button>
+          </div>
+        </div>
+      )}
+
       {/* Card 1: Cliente */}
       <Card>
         <CardHeader className="pb-3">
@@ -391,7 +465,7 @@ export default function DirectProjectCreation() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-1">
               <Label className="text-xs">Cliente *</Label>
-              <ClientCombobox clients={clients} value={form.client_id} onChange={(v) => set({ client_id: v })} />
+              <ClientCombobox ref={clientRef} clients={clients} value={form.client_id} onChange={(v) => set({ client_id: v })} />
             </div>
             <div>
               <Label className="text-xs">Grupo Económico</Label>
@@ -521,12 +595,16 @@ export default function DirectProjectCreation() {
               </div>
             </div>
 
-            {/* Seriales Pinpad (carga interactiva) */}
+            {/* Seriales Pinpad (carga interactiva) — Iter38: solo SERIAL es obligatorio. */}
             <div className="border border-slate-200 rounded-md p-3 bg-slate-50/40">
               <div className="flex items-center justify-between mb-2">
                 <div className="font-medium text-sm text-slate-700 flex items-center gap-2">
                   <Boxes size={14} /> Seriales Pinpad
-                  {form.pinpad_serials.length > 0 && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[10px]">{form.pinpad_serials.length}</Badge>}
+                  {form.pinpad_serials.length > 0 && (
+                    <Badge variant="secondary" className={`text-[10px] ${form.pinpad_serials.length === Number(form.cantidad_cajas) ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                      {form.pinpad_serials.length} / {form.cantidad_cajas}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <ExcelUploader kind="serials" testIdPrefix="dp-pp" onParsed={(items) => set({ pinpad_serials: [...form.pinpad_serials, ...items] })} />
@@ -538,15 +616,33 @@ export default function DirectProjectCreation() {
                   )}
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 mb-2">Tras cargar el Excel se listan aquí — puedes auditar y eliminar registros erróneos antes de enviar.</p>
+              <p className="text-[11px] text-slate-500 mb-2">
+                Solo es necesario el <strong>número de serial</strong>. La cantidad total debe ser igual a <strong>Cantidad de Cajas ({form.cantidad_cajas})</strong>.
+              </p>
+
+              {/* Carga rápida por TextArea (un serial por línea / separado por coma o ;) */}
+              <div className="mb-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-start">
+                <Textarea
+                  ref={serialsAreaRef}
+                  value={bulkSerialsText}
+                  onChange={(e) => setBulkSerialsText(e.target.value)}
+                  placeholder={`Pega seriales aquí (uno por línea o separados por coma)\nEj:\nABC123456\nXYZ789012`}
+                  rows={3}
+                  className="text-xs font-mono"
+                  data-testid="dp-bulk-serials-text"
+                />
+                <Button size="sm" variant="outline" onClick={importBulkSerials} disabled={!bulkSerialsText.trim()} data-testid="dp-bulk-serials-import">
+                  <Plus size={14} className="mr-1" /> Agregar al lote
+                </Button>
+              </div>
+
               <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                 {form.pinpad_serials.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">Sin seriales cargados</p>
                 ) : form.pinpad_serials.map((s, i) => (
                   <div key={i} className="flex gap-2 items-center" data-testid={`dp-pinpad-serial-row-${i}`}>
                     <span className="text-xs text-slate-400 font-mono w-7 text-right">{i + 1}.</span>
-                    <Input value={s.modelo} onChange={(e) => updateSerial(i, { modelo: e.target.value })} placeholder="Modelo" className="h-8 text-sm" />
-                    <Input value={s.serial} onChange={(e) => updateSerial(i, { serial: e.target.value })} placeholder="Serial" className="h-8 text-sm" />
+                    <Input value={s.serial} onChange={(e) => updateSerial(i, { serial: e.target.value })} placeholder="Serial" className="h-8 text-sm font-mono" />
                     <Button size="sm" variant="ghost" onClick={() => removeSerial(i)} className="text-red-600" data-testid={`dp-remove-serial-${i}`}><Trash2 size={14} /></Button>
                   </div>
                 ))}
@@ -625,11 +721,11 @@ export default function DirectProjectCreation() {
               <CardDescription className="text-xs">
                 Cada fila: <strong>Cantidad</strong> + <strong>Banco</strong> + <strong>Producto</strong>.
                 El catálogo de productos se filtra por banco + tipo de proyecto (<strong>{(QUOTE_TYPES.find((q) => q.id === form.quote_type) || {}).label}</strong>).
+                <span className="block mt-1 text-slate-500">Esta distribución es <strong>independiente</strong> de la Cantidad de Cajas — captura la realidad comercial (un banco puede tener más productos que cajas físicas).</span>
               </CardDescription>
             </div>
-            <p className="text-xs text-slate-500 flex items-center gap-2">
-              {totalBoxesInGrid === Number(form.cantidad_cajas) ? <CheckCircle2 size={14} className="text-emerald-600" /> : <AlertCircle size={14} className="text-red-500" />}
-              <strong className={totalBoxesInGrid === Number(form.cantidad_cajas) ? 'text-emerald-600' : 'text-red-600'}>{totalBoxesInGrid}</strong>/{form.cantidad_cajas}
+            <p className="text-xs text-slate-500 flex items-center gap-2" data-testid="dp-reel-counter">
+              Total grilla: <strong className="text-slate-800">{totalBoxesInGrid}</strong>
             </p>
           </div>
         </CardHeader>

@@ -1,0 +1,76 @@
+{
+  "summary": "Iter38 Proyectos Directos: 13/14 escenarios PASS. Backend 9/10 (PRY-numbering, modelo opcional, validación cantidad_cajas==len(serials), grilla independiente, multitienda sum, todos correctos). Único fallo backend: Excel parser de seriales todavía rechaza archivos con SOLO columna Serial (sigue exigiendo Modelo+Serial obligatorios). Frontend E2E completo PASS: combobox cliente reset+focus, banner PRY-2026-05-035-PRI visible, URL NO redirige, form reseteado, badge dinámico, validaciones visibles, grilla independiente.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/direct-projects/excel-parse/serials",
+        "issue": "Aún requiere columnas Modelo+Serial obligatorias. Archivos con SOLO columna Serial devuelven items=[] y errors=['Fila N: Modelo y Serial son obligatorios']. Iter38 especifica que modelo debe ser opcional también en el parser de Excel (debería aceptar items con modelo='')."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Quotes/QuotesTable",
+        "issues": ["Hydration warning persistente: '<span> cannot be a child of <tbody>' / '<tr>'. Misnesting de <span data-ve-dynamic> dentro de <tbody>. No afecta funcionalidad pero contamina la consola en toda la app (visible al cargar /quotes antes de navegar a /direct-projects)."]
+      }
+    ]
+  },
+  "tests_executed": {
+    "backend_iter38": {
+      "TestPinpadSerialEmptyModelo": "PASS — pinpad_serials con modelo='' aceptado",
+      "TestSerialsCountValidation::4_vs_5_returns_400": "PASS",
+      "TestSerialsCountValidation::5_vs_5_succeeds": "PASS",
+      "TestSerialsCountValidation::link_pago_no_check": "PASS",
+      "TestBoxesGridIndependent::grid_more_than_cantidad": "PASS (5 cajas + grid 10 OK)",
+      "TestBoxesGridIndependent::grid_less_than_cantidad": "PASS (5 cajas + grid 1 OK)",
+      "TestMultitiendaSum::mismatch_returns_400": "PASS (5 cajas + stores 3+3=6 → 400)",
+      "TestMultitiendaSum::match_succeeds": "PASS (5 cajas + 2+3=5 OK)",
+      "TestPryNumbering": "PASS — project_number='PRY-2026-05-035-PRI' (NO PRD-)",
+      "TestExcelSerialsOnlySerial::parse_only_serial_column": "FAIL — parser rechaza 'Fila 2: Modelo y Serial son obligatorios'"
+    },
+    "frontend_e2e": {
+      "bulk_serials_textarea_+_import_btn_present": "PASS (data-testid dp-bulk-serials-text, dp-bulk-serials-import)",
+      "serial_rows_no_modelo_input": "PASS — row 0 tiene 1 input (solo Serial)",
+      "badge_counter_N_div_cantidad": "PASS — muestra '3 / 3' verde cuando match, '3 / 5' rojo cuando mismatch",
+      "reel_header_no_X/Y": "PASS — muestra 'Total grilla: 1' sin /cantidad",
+      "validation_list_visible": "PASS — 'Hay errores que debes corregir' con detalles cuando submit inhabilitado",
+      "submit_disabled_on_mismatch": "PASS",
+      "create_project_e2e": "PASS — proyecto creado con código PRY-2026-05-035-PRI",
+      "banner_visible_with_PRY": "PASS — 'Proyecto PRY-2026-05-035-PRI creado correctamente' + botón Ver Proyecto",
+      "url_no_redirect": "PASS — URL sigue siendo /direct-projects",
+      "form_reset_post_submit": "PASS — cantidad_cajas=1, serials=0, cliente='Seleccionar cliente...'",
+      "focus_returns_to_client_combobox": "PASS — document.activeElement está dentro de [data-testid='dp-client-combobox'] (INPUT)"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration192_direct_projects_iter38.py",
+    "/app/test_reports/pytest/iter192_direct_projects_iter38.xml"
+  ],
+  "action_items": [
+    "Actualizar parser Excel de seriales en /app/backend/routes/direct_projects.py: aceptar archivos con sólo columna 'Serial' (modelo opcional → string vacío). Actualmente rechaza con 'Modelo y Serial son obligatorios'. Esto contradice la spec Iter38 que dice 'Excel parser... acepta archivos con SOLO columna Serial'.",
+    "(Opcional / arrastrado de iter15) Corregir hydration warning <span> cannot be child of <tbody> en QuotesTable — buscar misnesting del <span data-ve-dynamic> alrededor de cada <tr>."
+  ],
+  "critical_code_review_comments": [
+    "Backend direct_projects.py: validación 'len(pinpad_serials) == cantidad_cajas' aplicada sólo a VPOS/MPOS — correcto.",
+    "Frontend DirectProjectCreation.jsx: ClientCombobox usa forwardRef + useImperativeHandle.focus() y setTimeout(50ms) → robusto para reset+focus.",
+    "Excel parser de seriales tiene divergencia con UI (UI permite serial sin modelo en TextArea + filas manuales, pero parser Excel sigue exigiendo ambas columnas). Inconsistencia funcional.",
+    "El backend muestra 'Notificación no enviada (no hay configuración para el evento)' en el toast post-submit — esto es esperado (matriz de notificaciones no configurada para evento 'proyecto_directo_creado'), no es un bug pero el main agent debería configurar la matriz para ese evento si quiere activar la notificación automática."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration192_direct_projects_iter38.py (nuevo)"
+  ],
+  "success_rate": {
+    "backend": "90% (9/10)",
+    "frontend": "100% (11/11 escenarios E2E)"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (validado)",
+  "seed_data_creation": "Proyecto creado durante test E2E: PRY-2026-05-035-PRI (cliente A.C. VALLE ARRIBA ATHLETIC CLUB, VPOS, 2 cajas, 2 seriales E2E_S001/S002). Múltiples proyectos PRY-* creados en backend tests con TEST_S* serials.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Solo queda fix del Excel parser de seriales (modelo opcional). Todo el flujo UI + backend principal está validado. La validación cantidad_cajas==len(pinpad_serials) sólo aplica a VPOS/MPOS (LINK_PAGO/PAYMENT_GATEWAY/EQUIPOS no la requieren). El test file iter192 puede reusarse: pytest /app/backend/tests/test_iteration192_direct_projects_iter38.py.",
+  "rca_of_excel_parser_bug": "El parser asume estructura fija [col A=Modelo, col B=Serial]. Cuando el archivo tiene sólo una columna 'Serial', el parser interpreta col A como Modelo (=valor del serial) y col B como Serial (=None/vacío), entonces falla validación 'serial obligatorio'. Fix sugerido: detectar header con 'serial' en col A → tratar archivos de una sola columna como lista de seriales con modelo=''."
+}
