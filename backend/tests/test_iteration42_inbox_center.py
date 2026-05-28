@@ -169,6 +169,64 @@ async def _run_all():
 
         await db.inbox_messages.delete_many({"action_id": "test_iter42_att"})
 
+        # ------- 5) Iter46: mensajería user-to-user -------
+        await db.inbox_messages.delete_many({"action_id": "user_message", "subject": {"$regex": "^TEST_ITER46"}})
+
+        users_list = await c.get(f"{BACKEND_URL}/auth/users", headers=h)
+        assert users_list.status_code == 200
+        all_users = users_list.json()
+        targets = [u["user_id"] for u in all_users if u["user_id"] != uid][:2]
+        assert len(targets) >= 1, "no hay otros usuarios para test"
+
+        rsend = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={
+                "recipient_user_ids": targets,
+                "subject": "TEST_ITER46 saludo",
+                "body": "Hola!\n\n- Punto uno\n- Punto dos\n\nSaludos.",
+            },
+            headers=h,
+        )
+        assert rsend.status_code == 200, rsend.text
+        sent = rsend.json()
+        assert sent["delivered_count"] == len(targets)
+
+        # Verificar que cada destinatario tiene la copia con marca user_message
+        for d in sent["delivered"]:
+            doc = await db.inbox_messages.find_one({"message_id": d["message_id"]}, {"_id": 0})
+            assert doc is not None
+            assert doc["is_user_message"] is True
+            assert doc["from_user_id"] == uid
+            assert doc["subject"] == "TEST_ITER46 saludo"
+            assert "<pre" in doc["body_html"]
+            assert "Hola!" in doc["body_html"]
+
+        # Validación: lista vacía → 422 (min_length=1)
+        rbad = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={"recipient_user_ids": [], "subject": "X", "body": "Y"},
+            headers=h,
+        )
+        assert rbad.status_code == 422
+
+        # Validación anti-XSS: HTML del usuario se escapa
+        rxss = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={
+                "recipient_user_ids": [targets[0]],
+                "subject": "TEST_ITER46 xss",
+                "body": "<script>alert(1)</script><b>negrita</b>",
+            },
+            headers=h,
+        )
+        assert rxss.status_code == 200
+        mid = rxss.json()["delivered"][0]["message_id"]
+        doc = await db.inbox_messages.find_one({"message_id": mid}, {"_id": 0})
+        assert "<script>" not in doc["body_html"], "tags no debe sobrevivir sin escapar"
+        assert "&lt;script&gt;" in doc["body_html"]
+
+        await db.inbox_messages.delete_many({"action_id": "user_message", "subject": {"$regex": "^TEST_ITER46"}})
+
 
 def test_inbox_center_full_suite():
     """Una sola función para reutilizar el event loop de motor."""

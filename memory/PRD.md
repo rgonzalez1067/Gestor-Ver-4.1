@@ -4,6 +4,29 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 46: Mensajería interna user-to-user en el Centro de Mensajes — Feb 2026
+
+**Nueva capacidad**: ahora los usuarios pueden enviarse mensajes directos entre sí desde el mismo Centro de Mensajes (estilo WhatsApp, sin email externo).
+
+**Backend** (`/app/backend/routes/inbox.py`):
+- Nuevo endpoint **`POST /api/inbox/send`** con payload `{recipient_user_ids: [str], subject, body}`. Inserta una copia individual en la bandeja de cada destinatario (hasta 50 por envío).
+- Anti-XSS: el `body` se escapa con `html.escape()` y se envuelve en `<pre style="white-space:pre-wrap">` para preservar saltos de línea sin permitir HTML del cliente.
+- Cada mensaje persistido lleva marcadores `is_user_message=True`, `from_user_id`, `from_user_name`, `from_user_email`, `body_plain` (para búsquedas futuras).
+- Reutiliza todo el ciclo de vida existente: SLA, leer/no-leer, soft-delete.
+
+**Frontend**:
+- `components/NewMessageDialog.jsx` — modal con multi-select (chips removibles), buscador de usuarios (excluye al sender), asunto (≤200), textarea (≤4000) con contador.
+- `components/InboxCenter.jsx` — botón **"Nuevo mensaje"** en el header (junto a refresh), chip violeta **"De: {nombre}"** en cada mensaje user-to-user para distinguirlo de notificaciones del sistema.
+
+**Tests** (`tests/test_iteration42_inbox_center.py`): suite ampliada con:
+- Envío a múltiples destinatarios (verifica `is_user_message`, `from_user_id`, render del body, count).
+- Validación `recipient_user_ids` vacía → 422.
+- Anti-XSS: HTML del body se escapa (`<script>` → `&lt;script&gt;`).
+
+**Validación e2e**: modal funcional, envío exitoso (toast), chip "De:" visible, body con saltos de línea preservados, sin runtime errors.
+
+
+
 ### Iteration 45: Fix definitivo "Script error" + iframe sandbox para HTML de correos — Feb 2026
 
 **Diagnóstico real** (gracias al feedback iterativo del usuario y a capturar `pageerror` con Playwright):

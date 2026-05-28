@@ -1,21 +1,25 @@
 """Centro de Mensajes — Bandeja Interna.
 
 Endpoints user-facing (NO admin-only) que permiten a cada usuario consultar
-sus mensajes, marcarlos como leídos, eliminarlos (soft-delete) y descargar
-los adjuntos originales.
+sus mensajes, marcarlos como leídos, eliminarlos (soft-delete), descargar
+los adjuntos originales y **enviar mensajes a otros usuarios** (Iter46).
 
 - GET    /api/inbox/me                              → lista de mensajes activos.
 - GET    /api/inbox/me/summary                      → contadores.
 - PATCH  /api/inbox/{id}/read                       → marca como leído.
 - DELETE /api/inbox/{id}                            → soft-delete del mensaje.
 - GET    /api/inbox/{id}/attachments/{idx}          → descarga del adjunto N.
+- POST   /api/inbox/send                            → enviar mensaje a usuarios.
 """
 import base64
+import html as html_lib
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Response
+from pydantic import BaseModel, Field
 from urllib.parse import quote
 
 from config import db, get_current_user
@@ -184,3 +188,93 @@ async def download_attachment(
         media_type=mime,
         headers={"Content-Disposition": disposition},
     )
+
+
+# ==================== Iter46: Mensajería interna entre usuarios ====================
+
+class SendUserMessagePayload(BaseModel):
+    recipient_user_ids: list[str] = Field(..., min_length=1, max_length=50)
+    subject: str = Field(..., min_length=1, max_length=200)
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+@router.post("/inbox/send")
+async def send_user_message(
+    payload: SendUserMessagePayload,
+    authorization: Optional[str] = Header(None),
+):
+    """Envía un mensaje user-to-user al Centro de Mensajes de cada
+    destinatario. Inserta una copia individual por usuario destino.
+
+    Render: el body se almacena escapado dentro de un `<pre>` con
+    `white-space: pre-wrap` para preservar saltos de línea (estilo
+    WhatsApp). No interpreta HTML del cliente (anti-XSS).
+    """
+    sender = await get_current_user(authorization)
+    sender_id = sender["user_id"]
+    sender_name = (
+        f"{sender.get('first_name', '')} {sender.get('last_name', '')}".strip()
+        or sender.get("email", "")
+    )
+
+    # Resolver destinatarios — validar que existan y estén activos.
+    ids = list({uid for uid in payload.recipient_user_ids if uid})
+    if not ids:
+        raise HTTPException(status_code=400, detail="Sin destinatarios válidos")
+
+    users_cur = db.users.find(
+        {"user_id": {"$in": ids}, "is_active": True},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1},
+    )
+    recipients = [u async for u in users_cur]
+    if not recipients:
+        raise HTTPException(status_code=404, detail="Ningún destinatario válido")
+
+    # Render del cuerpo: escapar HTML + envolver en <pre> pre-wrap.
+    # Estilos inline para que el iframe del frontend lo muestre correctamente
+    # aunque el body se renderice ahí.
+    safe_body = html_lib.escape(payload.body)
+    body_html = (
+        "<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'></head>"
+        "<body style=\"margin:0;padding:18px;font-family:'Segoe UI',Arial,sans-serif;"
+        "color:#1e293b;background:#ffffff;\">"
+        "<pre style=\"margin:0;font-family:inherit;font-size:14px;line-height:1.55;"
+        "white-space:pre-wrap;word-break:break-word;\">"
+        f"{safe_body}"
+        "</pre>"
+        "</body></html>"
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+    delivered = []
+    for r in recipients:
+        rname = f"{r.get('first_name', '')} {r.get('last_name', '')}".strip() or r.get("email", "")
+        msg = {
+            "message_id": f"inbox_{uuid.uuid4().hex[:14]}",
+            "user_id": r["user_id"],
+            "recipient_email": r.get("email", ""),
+            "recipient_name": rname,
+            "subject": payload.subject.strip(),
+            "body_html": body_html,
+            "body_plain": payload.body,  # Útil para previews/búsqueda futura
+            "action_id": "user_message",
+            "quote_id": None,
+            "quote_number": None,
+            "project_id": None,
+            "is_user_message": True,
+            "from_user_id": sender_id,
+            "from_user_name": sender_name,
+            "from_user_email": sender.get("email", ""),
+            "created_at": now,
+            "read_at": None,
+            "deleted_at": None,
+            "attachments_meta": [],
+        }
+        await db.inbox_messages.insert_one(msg)
+        delivered.append({"user_id": r["user_id"], "message_id": msg["message_id"]})
+
+    logger.info(
+        f"[Inbox] user_message from={sender_id} to={[d['user_id'] for d in delivered]} subject='{payload.subject[:60]}'"
+    )
+    return {"status": "ok", "delivered_count": len(delivered), "delivered": delivered}
+

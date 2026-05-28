@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download } from 'lucide-react';
+import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download, Send, UserCircle2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { EmailHtmlFrame } from './EmailHtmlFrame';
+import { NewMessageDialog } from './NewMessageDialog';
 
 /**
  * Centro de Mensajes — Bandeja Interna del Usuario.
@@ -146,6 +147,7 @@ export function InboxCenter() {
   };
 
   const [downloading, setDownloading] = useState({}); // { 'msg_id-idx': true }
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const handleDownloadAttachment = async (messageId, index, filename) => {
     const key = `${messageId}-${index}`;
@@ -252,16 +254,27 @@ export function InboxCenter() {
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="text-white hover:bg-white/15 hover:text-white relative z-10"
-          data-testid="inbox-refresh-btn"
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-        </Button>
+        <div className="flex items-center gap-2 relative z-10">
+          <Button
+            onClick={() => setComposeOpen(true)}
+            size="sm"
+            className="bg-white text-violet-700 hover:bg-violet-50 hover:text-violet-800 font-semibold shadow-sm"
+            data-testid="inbox-new-message-btn"
+          >
+            <Send size={14} className="mr-1.5" />
+            Nuevo mensaje
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-white hover:bg-white/15 hover:text-white"
+            data-testid="inbox-refresh-btn"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+          </Button>
+        </div>
       </div>
 
       {/* Listado */}
@@ -313,6 +326,15 @@ export function InboxCenter() {
                         <Badge className={`${sla.chip} text-[10px] font-bold uppercase`}>
                           {sla.label}
                         </Badge>
+                        {msg.is_user_message && msg.from_user_name && (
+                          <Badge
+                            className="bg-violet-100 text-violet-700 text-[10px] font-semibold gap-1"
+                            data-testid={`inbox-msg-from-${msg.message_id}`}
+                          >
+                            <UserCircle2 size={10} />
+                            De: {msg.from_user_name}
+                          </Badge>
+                        )}
                         {msg.quote_number && (
                           <Badge variant="outline" className="text-[10px]">
                             {msg.quote_number}
@@ -411,6 +433,12 @@ export function InboxCenter() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NewMessageDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        onSent={() => load()}
+      />
     </div>
   );
 }
