@@ -4,6 +4,49 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 39: Diferenciación visual Proyectos Directos · Bloqueo Detalle sin implementador · Métrica PVV en Reportes — Feb 2026
+
+**4 cambios coordinados para mejorar gobernanza y análisis operativo del módulo Proyectos**:
+
+**A. Diferenciación visual — Proyectos Directos** (`Projects.jsx`):
+- Fila completa con fondo **ámbar suave** (`bg-amber-50/70`) cuando `project.direct_project=true`.
+- **Badge "Directo"** con ícono `Zap` (rayo) en la columna cliente, junto al RIF, color ámbar corporativo.
+- Atributos `data-testid="project-direct-badge"` y `data-direct-project="true"` para tests y filtros futuros.
+
+**B. Bloqueo de seguridad — Detalle sin implementador** (`Projects.jsx`):
+- Botón ojo (Detalle) ahora se **deshabilita** si `assigned_to_name` está vacío.
+- Click no responde (`disabled=true`, cursor-not-allowed, opacidad 60%).
+- Tooltip explicativo: *"Detalle no disponible: el proyecto debe tener un implementador asignado"*.
+- Activación automática al asignar implementador (depende de `hasAssignee`).
+
+**C. Nuevos campos informativos en Detalle del Proyecto** (`ProjectDetail.jsx`):
+- En sección Implementación, debajo de Integrador/Aplicativo, se agregan **Nro de Cajas** y **Nro de PVV** read-only en grid de 2 columnas.
+- PVV destacado en color índigo bold con label *"Cajas × Bancos × Productos"*.
+- Valor heredado del backend (no recalculado en frontend).
+
+**D. Helper de PVV** (`services/project_pvv.py` — nuevo módulo):
+```python
+PVV = Cajas × Σ(productos_por_banco_en_matriz)
+```
+- Homologado con la fórmula del Resumen Ejecutivo del cotizador comercial ("Total de Terminales Virtuales").
+- Si `implementation_matrix` está vacía → PVV = cantidad_cajas (proyecto en estado inicial).
+- Inyectado automáticamente en `GET /api/projects` y `GET /api/projects/{id}` como `pvv_count`.
+
+**E. Reporte de Carga PDF** (`routes/projects.py`):
+- **Nueva columna "PVV"** en la tabla de cada implementador (color índigo bold para destacar).
+- **Total PVV** en la línea de resumen de cada implementador (junto a Nro de Proyectos y Nro de Cajas).
+- **Total PVV global** en el subtítulo del reporte.
+- **Ranking ordenado por PVV descendente** (en lugar de cajas) — desempate por número de proyectos y luego por cajas.
+- Título del ranking actualizado: *"Ranking de Carga — Implementadores por PVV"*.
+- Tarjetas del ranking ahora muestran "**X PVV** · N proyecto(s) · M caja(s)".
+- CSS ajustado: columna `c-pvv` (7%) + clase `td.pvv` con color índigo.
+
+**Testing**:
+- Backend: 7/7 PASS (helper, GET /projects, GET /projects/{id}, workload PDF).
+- Frontend E2E: 7/7 PASS (9 filas direct con bg ámbar, 9 badges, 10 botones disabled + 42 enabled, navegación bloqueada, PVV mostrado en detalle).
+
+
+
 ### Iteration 38: Refinamientos finales Proyectos Directos — Reglas de Validación, UX Carga Continua y Nomenclatura PRY-XXXX — Feb 2026
 
 **Cambios solicitados por el usuario tras pruebas de campo**:
