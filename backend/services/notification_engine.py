@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 from config import db
 from services.email_service import send_email
+from services.inbox_service import deliver_to_inbox
 
 logger = logging.getLogger("notification_engine")
 
@@ -460,7 +461,7 @@ async def try_dispatch(
     cc_already_attached = False
     for row in cfg["recipients"]:
         # Resolver destinatario
-        rcpt_email, rcpt_name = "", ""
+        rcpt_email, rcpt_name, rcpt_user_id = "", "", None
         if row.get("type") == "client_field":
             if not client_email:
                 skipped.append({"row_id": row.get("row_id"), "reason": "Cliente sin email"})
@@ -473,6 +474,7 @@ async def try_dispatch(
                 skipped.append({"row_id": row.get("row_id"), "reason": "Usuario no encontrado o inactivo"})
                 continue
             rcpt_email, rcpt_name = resolved
+            rcpt_user_id = row.get("user_id")
         else:
             skipped.append({"row_id": row.get("row_id"), "reason": f"tipo desconocido: {row.get('type')}"})
             continue
@@ -507,20 +509,52 @@ async def try_dispatch(
             if cc_for_this_send:
                 cc_already_attached = True
 
+        # Determinar canal: inbox sólo aplica a usuarios internos. Para
+        # `client_field` se fuerza `email` (no podemos mostrar bandeja a
+        # un cliente externo).
+        channel = (row.get("delivery_channel") or "email").lower()
+        if row.get("type") != "user" or not rcpt_user_id:
+            channel = "email"
+
         try:
-            await send_email(
-                to=[rcpt_email],
-                subject=subject or f"Notificación · {quote.get('quote_number', '')}",
-                html=body,
-                action=f"{action_id}_dynamic",
-                quote_id=quote.get("quote_id"),
-                quote_number=quote.get("quote_number"),
-                attachments=attachments,
-                cc=cc_for_this_send,
-            )
+            if channel == "inbox":
+                await deliver_to_inbox(
+                    user_id=rcpt_user_id,
+                    recipient_email=rcpt_email,
+                    recipient_name=rcpt_name,
+                    subject=subject or f"Notificación · {quote.get('quote_number', '')}",
+                    html=body,
+                    action_id=action_id,
+                    quote_id=quote.get("quote_id"),
+                    quote_number=quote.get("quote_number"),
+                    attachments=attachments,
+                )
+                # Si había CCs asignados a este envío, los enviamos por correo
+                # (los CCs son externos al motor de inbox).
+                if cc_for_this_send:
+                    await send_email(
+                        to=cc_for_this_send,
+                        subject=subject or f"Notificación · {quote.get('quote_number', '')}",
+                        html=body,
+                        action=f"{action_id}_dynamic_cc",
+                        quote_id=quote.get("quote_id"),
+                        quote_number=quote.get("quote_number"),
+                        attachments=attachments,
+                    )
+            else:
+                await send_email(
+                    to=[rcpt_email],
+                    subject=subject or f"Notificación · {quote.get('quote_number', '')}",
+                    html=body,
+                    action=f"{action_id}_dynamic",
+                    quote_id=quote.get("quote_id"),
+                    quote_number=quote.get("quote_number"),
+                    attachments=attachments,
+                    cc=cc_for_this_send,
+                )
             sent_count += 1
         except Exception as e:
-            logger.error(f"[engine] Error enviando a {rcpt_email}: {e}")
+            logger.error(f"[engine] Error enviando a {rcpt_email} (channel={channel}): {e}")
             skipped.append({"row_id": row.get("row_id"), "reason": str(e)})
 
     # Fallback: si no se logró adjuntar los CCs (porque ningún destinatario

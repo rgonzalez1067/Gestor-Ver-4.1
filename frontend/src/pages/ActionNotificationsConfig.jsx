@@ -108,6 +108,26 @@ function MatrixRow({ row, users, templates, onChange, onRemove }) {
           data-testid={`row-pdf-${row.row_id}`}
         />
       </td>
+      <td className="px-3 py-2 align-middle">
+        {/* Canal de entrega — solo aplica a destinatarios de tipo "user".
+            Para "client_field" el canal se fuerza a Email (cliente externo). */}
+        {row.type === 'user' ? (
+          <Select
+            value={row.delivery_channel || 'email'}
+            onValueChange={(v) => update({ delivery_channel: v })}
+          >
+            <SelectTrigger className="h-9 w-44" data-testid={`row-channel-${row.row_id}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="email">📧 Correo Electrónico</SelectItem>
+              <SelectItem value="inbox">📨 Centro de Mensajes</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-slate-400 italic">Email (cliente externo)</span>
+        )}
+      </td>
       <td className="px-3 py-2 align-middle text-right">
         <Button variant="ghost" size="sm" onClick={onRemove} className="text-red-600 hover:bg-red-50" data-testid={`row-remove-${row.row_id}`}>
           <Trash2 size={14} />
@@ -136,7 +156,7 @@ function ActionAccordion({ action, businessType, subCategory, configs, users, te
   const handleAddRow = () => {
     setRows((prev) => [
       ...prev,
-      { row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'client_field', user_id: null, template_id: null, send_pdf_attachments: true },
+      { row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'client_field', user_id: null, template_id: null, send_pdf_attachments: true, delivery_channel: 'email' },
     ]);
     setDirty(true);
   };
@@ -194,12 +214,13 @@ function ActionAccordion({ action, businessType, subCategory, configs, users, te
                 <th className="px-3 py-2 text-left text-xs font-medium text-slate-600 uppercase">Destinatario</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-slate-600 uppercase">Plantilla</th>
                 <th className="px-3 py-2 text-center text-xs font-medium text-slate-600 uppercase">PDFs</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-slate-600 uppercase">Canal</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan="5" className="px-3 py-6 text-center text-slate-400 text-sm italic">Sin destinatarios configurados. La acción usará el comportamiento por defecto.</td></tr>
+                <tr><td colSpan="6" className="px-3 py-6 text-center text-slate-400 text-sm italic">Sin destinatarios configurados. La acción usará el comportamiento por defecto.</td></tr>
               ) : (
                 rows.map((r, idx) => (
                   <MatrixRow

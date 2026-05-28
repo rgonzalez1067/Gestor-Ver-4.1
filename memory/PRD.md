@@ -4,6 +4,32 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 42: Centro de Mensajes — Bandeja Interna del Usuario — Feb 2026
+
+**Nuevo módulo** que reemplaza el correo electrónico como canal de despacho cuando el admin lo decide en la matriz de configuración.
+
+**Backend** (`/app/backend/`):
+- **Colección nueva** `inbox_messages` (soft-delete vía `deleted_at`).
+- `services/inbox_service.py::deliver_to_inbox(...)` — análogo a `send_email()`, persiste el mensaje con el footer global anexado y metadatos de adjuntos.
+- `routes/inbox.py` — endpoints user-facing:
+  - `GET /api/inbox/me` — listado con `sla_color` calculado en backend (verde ≤24h · amarillo 24-48h · rojo >48h).
+  - `GET /api/inbox/me/summary` — contadores `{total, unread, by_sla}`.
+  - `PATCH /api/inbox/{id}/read` — idempotente.
+  - `DELETE /api/inbox/{id}` — soft delete.
+- `routes/action_notifications.py` — modelo `RecipientRow` ahora incluye `delivery_channel: "email" | "inbox"`. Cliente externo (`client_field`) se fuerza a `email`.
+- `services/notification_engine.py` — bifurcación: si `delivery_channel == "inbox"` y destinatario interno, omite SMTP/Resend e inserta en `inbox_messages`. Los CCs siempre van por correo.
+
+**Frontend** (`/app/frontend/`):
+- `components/InboxCenter.jsx` — bandeja full-width en `Dashboard.jsx` entre KPIs y Actividad Reciente. Borde lateral coloreado por SLA. Render del cuerpo con `dangerouslySetInnerHTML` (HTML controlado por admin). Marcar leído solo al expandir.
+- `pages/ActionNotificationsConfig.jsx` — nueva columna **"Canal"** en la matriz por fila destinatario; dropdown Email/Centro de Mensajes habilitado solo para usuarios internos.
+
+**Tests** (`/app/backend/tests/test_iteration42_inbox_center.py`) — 3/3 PASSED:
+1. Smoke endpoints `/inbox/me` y `/summary`.
+2. SLA verde/amarillo/rojo + soft-delete.
+3. Persistencia de `delivery_channel` + forzado a `email` para `client_field`.
+
+
+
 ### Iteration 41: Ocultar sección redundante "Seriales (Implementación)" — Feb 2026
 
 **Cambio de UI en `ProjectDetail.jsx`**:

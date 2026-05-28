@@ -13,6 +13,7 @@ import { Button } from '../components/ui/button';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { RecentActivityCard } from '../components/RecentActivityCard';
+import { InboxCenter } from '../components/InboxCenter';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
 import BitacoraModal from '../components/BitacoraModal';
 
@@ -274,6 +275,11 @@ export const Dashboard = () => {
                 </div>
               );
             })}
+          </div>
+
+          {/* Centro de Mensajes — Iter42: bandeja interna full-width, entre KPIs y Actividad Reciente. */}
+          <div className="mb-8">
+            <InboxCenter />
           </div>
 
           {/* Actividad Reciente (admin/director) */}

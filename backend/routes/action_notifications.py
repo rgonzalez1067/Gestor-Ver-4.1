@@ -135,6 +135,12 @@ class RecipientRow(BaseModel):
     user_id: Optional[str] = None  # requerido si type=="user"
     template_id: Optional[str] = None
     send_pdf_attachments: bool = True
+    # Iter42: canal de entrega de la notificación. "email" reproduce el flujo
+    # tradicional (SMTP/Resend). "inbox" inyecta el mensaje en el Centro de
+    # Mensajes del usuario destinatario (omite envío externo). Para filas
+    # `client_field` el inbox se ignora y se fuerza a "email" (no podemos
+    # mostrar la bandeja a un cliente externo).
+    delivery_channel: str = "email"
 
 
 class ActionConfigPayload(BaseModel):
@@ -312,6 +318,11 @@ async def upsert_config(payload: ActionConfigPayload, authorization: Optional[st
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
         if r.type == "user" and not r.user_id:
             raise HTTPException(status_code=400, detail="user_id requerido para destinatarios de tipo 'user'")
+        if r.delivery_channel not in ("email", "inbox"):
+            raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
+        # Cliente externo: forzar email (no tiene bandeja interna)
+        if r.type == "client_field" and r.delivery_channel == "inbox":
+            r.delivery_channel = "email"
 
     config_key = _config_key(payload.business_type, payload.product_subcategory, payload.action_id)
     now = datetime.now(timezone.utc).isoformat()
