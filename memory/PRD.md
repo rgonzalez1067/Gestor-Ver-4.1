@@ -4,6 +4,27 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 47: Botón "Responder" en mensajes user-to-user — Feb 2026
+
+**Nueva capacidad UX** del Centro de Mensajes: cada mensaje recibido **de otro usuario** ahora muestra un botón **"Responder"** violeta debajo del cuerpo. Los mensajes generados por el sistema (notificaciones de cotizaciones/proyectos) **no** muestran el botón — la respuesta solo aplica a comunicación humana.
+
+**Frontend** (`components/InboxCenter.jsx` + `components/NewMessageDialog.jsx`):
+- `NewMessageDialog` ahora acepta prop `initialData = {recipients, subject, body}` y resetea el formulario con esos valores al abrirse.
+- `InboxCenter` añade `handleReply(msg)` que:
+  - Pre-rellena el destinatario con el `from_user_id` original.
+  - Prefija el asunto con `Re:` (idempotente — no duplica si ya está).
+  - Inserta una cita estilo email: `----- Mensaje original -----` + `De: {nombre}` + cada línea con `> `.
+- Botón solo se renderiza si `msg.is_user_message && msg.from_user_id`.
+
+**Backend**: sin cambios — reutiliza `POST /api/inbox/send` existente.
+
+**Validación e2e**: confirmado por screenshot:
+- Mensaje user-to-user → muestra "Responder" → click abre modal pre-relleno con destinatario, asunto "Re: ..." y body con cita.
+- Mensaje del sistema → **no** muestra el botón.
+- Sin runtime errors.
+
+
+
 ### Iteration 46: Mensajería interna user-to-user en el Centro de Mensajes — Feb 2026
 
 **Nueva capacidad**: ahora los usuarios pueden enviarse mensajes directos entre sí desde el mismo Centro de Mensajes (estilo WhatsApp, sin email externo).

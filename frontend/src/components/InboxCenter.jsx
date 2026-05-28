@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download, Send, UserCircle2 } from 'lucide-react';
+import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download, Send, UserCircle2, Reply } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
@@ -148,6 +148,33 @@ export function InboxCenter() {
 
   const [downloading, setDownloading] = useState({}); // { 'msg_id-idx': true }
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeInitial, setComposeInitial] = useState(null);
+
+  /**
+   * Iter47: abrir el modal de composición con pre-relleno para responder
+   * un mensaje user-to-user. Recipient = remitente original, asunto con
+   * prefijo "Re:" (sin duplicarlo) y body con cita del original.
+   */
+  const handleReply = (msg) => {
+    if (!msg?.is_user_message || !msg?.from_user_id) return;
+    const senderEmail = msg.from_user_email || '';
+    const senderName = msg.from_user_name || senderEmail || 'Usuario';
+    const subj = msg.subject || '';
+    const replySubject = /^re:\s*/i.test(subj) ? subj : `Re: ${subj}`;
+    // Cita estilo email: prefijar cada línea con "> "
+    const originalBody = msg.body_plain || '';
+    const quoted = originalBody
+      .split('\n')
+      .map((l) => `> ${l}`)
+      .join('\n');
+    const replyBody = `\n\n\n----- Mensaje original -----\nDe: ${senderName}\n${quoted}`;
+    setComposeInitial({
+      recipients: [{ user_id: msg.from_user_id, full_name: senderName, email: senderEmail }],
+      subject: replySubject,
+      body: replyBody,
+    });
+    setComposeOpen(true);
+  };
 
   const handleDownloadAttachment = async (messageId, index, filename) => {
     const key = `${messageId}-${index}`;
@@ -256,7 +283,7 @@ export function InboxCenter() {
         </div>
         <div className="flex items-center gap-2 relative z-10">
           <Button
-            onClick={() => setComposeOpen(true)}
+            onClick={() => { setComposeInitial(null); setComposeOpen(true); }}
             size="sm"
             className="bg-white text-violet-700 hover:bg-violet-50 hover:text-violet-800 font-semibold shadow-sm"
             data-testid="inbox-new-message-btn"
@@ -367,6 +394,19 @@ export function InboxCenter() {
                       title={msg.subject}
                       testId={`inbox-msg-body-${msg.message_id}`}
                     />
+                    {msg.is_user_message && msg.from_user_id && (
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={() => handleReply(msg)}
+                          className="bg-violet-600 hover:bg-violet-700 text-white"
+                          data-testid={`inbox-msg-reply-${msg.message_id}`}
+                        >
+                          <Reply size={14} className="mr-1.5" />
+                          Responder
+                        </Button>
+                      </div>
+                    )}
                     {msg.attachments_meta && msg.attachments_meta.length > 0 && (
                       <div className="mt-4">
                         <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
@@ -438,6 +478,7 @@ export function InboxCenter() {
         open={composeOpen}
         onOpenChange={setComposeOpen}
         onSent={() => load()}
+        initialData={composeInitial}
       />
     </div>
   );

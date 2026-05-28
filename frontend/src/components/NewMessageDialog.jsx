@@ -17,7 +17,7 @@ import api from '../utils/api';
  *   se preservan en el receptor vía `<pre style="white-space:pre-wrap">`.
  * - Sin adjuntos en esta versión (se podría agregar luego).
  */
-export function NewMessageDialog({ open, onOpenChange, onSent }) {
+export function NewMessageDialog({ open, onOpenChange, onSent, initialData }) {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [selected, setSelected] = useState([]); // [{user_id, full_name, email}]
@@ -29,9 +29,9 @@ export function NewMessageDialog({ open, onOpenChange, onSent }) {
 
   useEffect(() => {
     if (!open) return;
-    setSubject('');
-    setBody('');
-    setSelected([]);
+    setSubject(initialData?.subject || '');
+    setBody(initialData?.body || '');
+    setSelected(initialData?.recipients || []);
     setSearch('');
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}');
@@ -48,7 +48,7 @@ export function NewMessageDialog({ open, onOpenChange, onSent }) {
         setUsersLoading(false);
       }
     })();
-  }, [open]);
+  }, [open, initialData]);
 
   const availableUsers = useMemo(() => {
     const selectedIds = new Set(selected.map((s) => s.user_id));
