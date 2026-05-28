@@ -4,6 +4,17 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 41: Ocultar sección redundante "Seriales (Implementación)" — Feb 2026
+
+**Cambio de UI en `ProjectDetail.jsx`**:
+- Se envuelve el bloque "Seriales (Implementación)" en un renderizado condicional.
+- **Condición**: solo se muestra cuando `(project.pinpad_serials || []).length === 0 && (project.equipments || []).length === 0`.
+- **Razón**: si los seriales ya vienen precargados desde "POS/Pinpad (Inventario)" o desde "Modelo y Seriales de Equipos", la captura manual es redundante y crea confusión al implementador.
+- **Validación**: probado con `prj_e7c29c064f93` (100 pinpads precargados → sección oculta) y `prj_af473b25a253` (sin precargas → sección visible).
+- **Archivo**: `/app/frontend/src/pages/ProjectDetail.jsx` (~línea 1179).
+
+
+
 ### Iteration 39: Diferenciación visual Proyectos Directos · Bloqueo Detalle sin implementador · Métrica PVV en Reportes — Feb 2026
 
 **4 cambios coordinados para mejorar gobernanza y análisis operativo del módulo Proyectos**:

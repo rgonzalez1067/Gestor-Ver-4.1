@@ -1176,33 +1176,38 @@ const ProjectDetail = () => {
                 </div>
               )}
 
-              {/* Bloque: Seriales de Implementación (esquina superior derecha) */}
-              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="impl-serials-section">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Seriales (Implementacion)</p>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{(project.implementation_serials || []).length}</span>
+              {/* Bloque: Seriales de Implementación (esquina superior derecha).
+                  Iter41: se oculta cuando los seriales ya vienen precargados desde
+                  "POS/Pinpad (Inventario)" o "Modelo y Seriales de Equipos" para evitar
+                  redundancia visual y confusión del implementador. */}
+              {((project.pinpad_serials || []).length === 0 && (project.equipments || []).length === 0) && (
+                <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="impl-serials-section">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Seriales (Implementacion)</p>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{(project.implementation_serials || []).length}</span>
+                  </div>
+                  {(project.implementation_serials || []).length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-28 overflow-y-auto">
+                      {(project.implementation_serials || []).map((s, idx) => (
+                        <div key={idx} className="bg-slate-50 border rounded px-2 py-1 flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-mono font-bold text-slate-700 truncate">{s}</span>
+                          {canEditMatrix && <button onClick={() => removeSerial(s)} className="text-slate-300 hover:text-red-500 shrink-0"><X size={10} /></button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {canEditMatrix && (
+                    <div className="flex gap-1 mt-1">
+                      <Input value={serialInput} onChange={e => setSerialInput(e.target.value)}
+                        placeholder="Serial(es) separados por coma" className="h-7 text-[10px] flex-1"
+                        onKeyDown={e => e.key === 'Enter' && handleSerialManualAdd()} data-testid="serial-input" />
+                      <Button size="sm" className="h-7 text-[10px] px-2" onClick={handleSerialManualAdd} disabled={serialUploading} data-testid="serial-add-btn">+</Button>
+                      <input ref={serialFileRef} type="file" accept=".csv,.xlsx,.xls,.txt" className="hidden" onChange={handleSerialFileUpload} />
+                      <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => serialFileRef.current?.click()} disabled={serialUploading} data-testid="serial-excel-btn">Excel</Button>
+                    </div>
+                  )}
                 </div>
-                {(project.implementation_serials || []).length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-28 overflow-y-auto">
-                    {(project.implementation_serials || []).map((s, idx) => (
-                      <div key={idx} className="bg-slate-50 border rounded px-2 py-1 flex items-center justify-between gap-1">
-                        <span className="text-[10px] font-mono font-bold text-slate-700 truncate">{s}</span>
-                        {canEditMatrix && <button onClick={() => removeSerial(s)} className="text-slate-300 hover:text-red-500 shrink-0"><X size={10} /></button>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {canEditMatrix && (
-                  <div className="flex gap-1 mt-1">
-                    <Input value={serialInput} onChange={e => setSerialInput(e.target.value)}
-                      placeholder="Serial(es) separados por coma" className="h-7 text-[10px] flex-1"
-                      onKeyDown={e => e.key === 'Enter' && handleSerialManualAdd()} data-testid="serial-input" />
-                    <Button size="sm" className="h-7 text-[10px] px-2" onClick={handleSerialManualAdd} disabled={serialUploading} data-testid="serial-add-btn">+</Button>
-                    <input ref={serialFileRef} type="file" accept=".csv,.xlsx,.xls,.txt" className="hidden" onChange={handleSerialFileUpload} />
-                    <Button size="sm" variant="outline" className="h-7 text-[10px] px-2" onClick={() => serialFileRef.current?.click()} disabled={serialUploading} data-testid="serial-excel-btn">Excel</Button>
-                  </div>
-                )}
-              </div>
+              )}
 
             </div>
           </div>
