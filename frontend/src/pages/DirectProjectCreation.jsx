@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -420,25 +420,49 @@ export default function DirectProjectCreation() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-5" data-testid="direct-project-page">
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} data-testid="dp-back-btn">
-          <ArrowLeft size={18} className="mr-1" /> Proyectos
-        </Button>
-        <div className="text-right">
-          <h1 className="text-2xl font-bold text-slate-900">Proyecto Directo</h1>
-          <p className="text-xs text-slate-500">Implementación sin cotización previa</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50/30 to-slate-50">
+      <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-5" data-testid="direct-project-page">
+
+      {/* Hero header con gradiente ámbar — alineado con la identidad "Proyecto Directo" */}
+      <div className="rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 shadow-lg px-5 py-4 text-white flex items-center justify-between" data-testid="dp-hero">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/projects')} className="text-white hover:bg-white/15" data-testid="dp-back-btn">
+            <ArrowLeft size={18} className="mr-1" /> Proyectos
+          </Button>
+          <div className="h-7 w-px bg-white/30" />
+          <div className="flex items-center gap-2">
+            <div className="bg-white/20 rounded-lg p-1.5"><Zap size={20} /></div>
+            <div>
+              <h1 className="text-xl font-bold leading-tight">Proyecto Directo</h1>
+              <p className="text-[11px] text-amber-50/90">Implementación sin cotización previa · Carga continua</p>
+            </div>
+          </div>
+        </div>
+        {/* Chips informativos */}
+        <div className="flex items-center gap-2">
+          <span className="bg-white/15 text-xs px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5">
+            <Boxes size={12} /> {form.cantidad_cajas || 0} cajas
+          </span>
+          {REQUIRES_HW(form.quote_type) && (
+            <span className={`text-xs px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5 ${form.pinpad_serials.length === Number(form.cantidad_cajas) ? 'bg-emerald-400/30 text-white' : 'bg-rose-400/30 text-white'}`}>
+              <FileSpreadsheet size={12} /> {form.pinpad_serials.length} seriales
+            </span>
+          )}
+          <span className={`text-xs px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5 ${errors.length === 0 ? 'bg-emerald-400/30' : 'bg-rose-400/30'}`}>
+            {errors.length === 0 ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+            {errors.length === 0 ? 'Listo' : `${errors.length} errores`}
+          </span>
         </div>
       </div>
 
       {/* Banner del último proyecto creado (carga continua — Iter38) */}
       {lastCreated && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-md px-4 py-3 flex items-center justify-between" data-testid="dp-last-created-banner">
+        <div className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-l-4 border-emerald-500 rounded-md px-4 py-3 flex items-center justify-between shadow-sm" data-testid="dp-last-created-banner">
           <div className="flex items-center gap-3">
-            <CheckCircle2 size={20} className="text-emerald-600" />
+            <div className="bg-emerald-500 rounded-full p-1.5"><CheckCircle2 size={18} className="text-white" /></div>
             <div>
               <p className="text-sm font-medium text-emerald-900">
-                Proyecto <span className="font-mono">{lastCreated.project_number}</span> creado correctamente
+                Proyecto <span className="font-mono font-bold">{lastCreated.project_number}</span> creado correctamente
               </p>
               <p className="text-xs text-emerald-700">
                 {lastCreated.dispatched ? '✓ Correo enviado a destinatarios configurados' : '⚠ Notificación no enviada (no hay configuración para el evento)'}.
@@ -447,7 +471,7 @@ export default function DirectProjectCreation() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${lastCreated.project_id}`)} data-testid="dp-view-last-project">
+            <Button size="sm" variant="outline" onClick={() => navigate(`/projects/${lastCreated.project_id}`)} className="border-emerald-300 text-emerald-700 hover:bg-emerald-100" data-testid="dp-view-last-project">
               Ver Proyecto
             </Button>
             <button onClick={() => setLastCreated(null)} className="text-emerald-700 hover:text-emerald-900 p-1" title="Cerrar"><X size={14} /></button>
@@ -456,10 +480,13 @@ export default function DirectProjectCreation() {
       )}
 
       {/* Card 1: Cliente */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2"><Building2 size={18} /> Datos del Cliente</CardTitle>
-          <CardDescription className="text-xs">Selecciona el cliente; Grupo Económico y Nombre de Fantasía se auto-completan y son editables.</CardDescription>
+      <Card className="overflow-hidden border-blue-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-blue-50/30 border-b border-blue-100">
+          <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+            <div className="bg-blue-500 rounded-md p-1.5"><Building2 size={14} className="text-white" /></div>
+            Datos del Cliente
+          </CardTitle>
+          <CardDescription className="text-xs text-blue-700/70">Selecciona el cliente; Grupo Económico y Nombre de Fantasía se auto-completan y son editables.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -480,9 +507,12 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 2: Definición comercial */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Definición Comercial</CardTitle>
+      <Card className="overflow-hidden border-indigo-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-indigo-50 to-indigo-50/30 border-b border-indigo-100">
+          <CardTitle className="text-base flex items-center gap-2 text-indigo-900">
+            <div className="bg-indigo-500 rounded-md p-1.5"><ShoppingBag size={14} className="text-white" /></div>
+            Definición Comercial
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -557,9 +587,12 @@ export default function DirectProjectCreation() {
 
       {/* Card 3: HW (solo VPOS/MPOS) */}
       {REQUIRES_HW(form.quote_type) && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Hardware <span className="text-xs font-normal text-slate-500">(solo VPOS/MPOS)</span></CardTitle>
+        <Card className="overflow-hidden border-emerald-100 shadow-sm">
+          <CardHeader className="pb-3 bg-gradient-to-r from-emerald-50 to-emerald-50/30 border-b border-emerald-100">
+            <CardTitle className="text-base flex items-center gap-2 text-emerald-900">
+              <div className="bg-emerald-500 rounded-md p-1.5"><Cpu size={14} className="text-white" /></div>
+              Hardware <span className="text-xs font-normal text-emerald-700/70">(solo VPOS/MPOS)</span>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -653,12 +686,15 @@ export default function DirectProjectCreation() {
       )}
 
       {/* Card 4: Multitienda */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden border-violet-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-violet-50 to-violet-50/30 border-b border-violet-100">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Control Multitienda</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2 text-violet-900">
+              <div className="bg-violet-500 rounded-md p-1.5"><Store size={14} className="text-white" /></div>
+              Control Multitienda
+            </CardTitle>
             <div className="flex items-center gap-2">
-              <Label htmlFor="multistore-toggle" className="text-xs">{form.is_multistore ? 'Activado' : 'Desactivado'}</Label>
+              <Label htmlFor="multistore-toggle" className="text-xs text-violet-800">{form.is_multistore ? 'Activado' : 'Desactivado'}</Label>
               <Switch id="multistore-toggle" checked={form.is_multistore} onCheckedChange={(v) => set({ is_multistore: v, stores: v ? form.stores : [] })} data-testid="dp-multistore-toggle" />
             </div>
           </div>
@@ -713,19 +749,22 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 5: Reel de distribución de cajas */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden border-amber-100 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-amber-50 to-amber-50/30 border-b border-amber-100">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base">Reel de Distribución de Cajas</CardTitle>
-              <CardDescription className="text-xs">
+              <CardTitle className="text-base flex items-center gap-2 text-amber-900">
+                <div className="bg-amber-500 rounded-md p-1.5"><Layers size={14} className="text-white" /></div>
+                Reel de Distribución de Cajas
+              </CardTitle>
+              <CardDescription className="text-xs text-amber-800/70 mt-1">
                 Cada fila: <strong>Cantidad</strong> + <strong>Banco</strong> + <strong>Producto</strong>.
                 El catálogo de productos se filtra por banco + tipo de proyecto (<strong>{(QUOTE_TYPES.find((q) => q.id === form.quote_type) || {}).label}</strong>).
-                <span className="block mt-1 text-slate-500">Esta distribución es <strong>independiente</strong> de la Cantidad de Cajas — captura la realidad comercial (un banco puede tener más productos que cajas físicas).</span>
+                <span className="block mt-1 text-amber-700/70">Esta distribución es <strong>independiente</strong> de la Cantidad de Cajas — captura la realidad comercial (un banco puede tener más productos que cajas físicas).</span>
               </CardDescription>
             </div>
-            <p className="text-xs text-slate-500 flex items-center gap-2" data-testid="dp-reel-counter">
-              Total grilla: <strong className="text-slate-800">{totalBoxesInGrid}</strong>
+            <p className="text-xs text-amber-900 flex items-center gap-2 bg-white/60 px-3 py-1 rounded-full border border-amber-200" data-testid="dp-reel-counter">
+              Total grilla: <strong className="text-amber-700 text-base">{totalBoxesInGrid}</strong>
             </p>
           </div>
         </CardHeader>
@@ -805,9 +844,12 @@ export default function DirectProjectCreation() {
       </Card>
 
       {/* Card 6: Instrucciones */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Instrucciones para el Implementador <span className="text-xs font-normal text-slate-500">(opcional)</span></CardTitle>
+      <Card className="overflow-hidden border-slate-200 shadow-sm">
+        <CardHeader className="pb-3 bg-gradient-to-r from-slate-50 to-slate-50/30 border-b border-slate-200">
+          <CardTitle className="text-base flex items-center gap-2 text-slate-900">
+            <div className="bg-slate-600 rounded-md p-1.5"><FileText size={14} className="text-white" /></div>
+            Instrucciones para el Implementador <span className="text-xs font-normal text-slate-500">(opcional)</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Textarea
@@ -824,24 +866,28 @@ export default function DirectProjectCreation() {
 
       {/* Errores + Submit */}
       {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800" data-testid="dp-errors">
-          <strong>Hay errores que debes corregir:</strong>
-          <ul className="list-disc list-inside mt-1 space-y-0.5">
+        <div className="bg-gradient-to-r from-red-50 to-red-100/50 border-l-4 border-red-500 rounded-md p-3 text-sm text-red-800 shadow-sm" data-testid="dp-errors">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertCircle size={16} className="text-red-600" />
+            <strong>Hay errores que debes corregir:</strong>
+          </div>
+          <ul className="list-disc list-inside mt-1 space-y-0.5 ml-6">
             {errors.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}
             {errors.length > 6 && <li>... y {errors.length - 6} más</li>}
           </ul>
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-white border-t border-slate-200 -mx-4 lg:-mx-6 px-4 lg:px-6 py-3">
+      <div className="flex items-center justify-end gap-3 sticky bottom-0 bg-gradient-to-r from-white via-white to-amber-50/50 border-t-2 border-amber-200 -mx-4 lg:-mx-6 px-4 lg:px-6 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)] z-10">
         <Button variant="outline" onClick={() => navigate('/projects')} disabled={saving} data-testid="dp-cancel-btn">
           <X size={14} className="mr-1" /> Cancelar
         </Button>
-        <Button onClick={handleSubmit} disabled={saving || errors.length > 0} className="bg-emerald-600 hover:bg-emerald-700" data-testid="dp-submit-btn">
-          {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+        <Button onClick={handleSubmit} disabled={saving || errors.length > 0} className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none" data-testid="dp-submit-btn">
+          {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Zap size={14} className="mr-1" />}
           Enviar a Implementación
         </Button>
       </div>
+    </div>
     </div>
   );
 }
