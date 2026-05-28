@@ -1128,11 +1128,19 @@ const ProjectDetail = () => {
                 )}
               </div>
 
-              {/* Bloque 2.5: Equipos Vinculados — Grid Horizontal */}
+              {/* Bloque 2.5: Equipos Vinculados — Grid Horizontal con scroll cap (6 filas). */}
               {project.equipments && project.equipments.length > 0 && (
                 <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="equipment-section">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo y Seriales de Equipos</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo y Seriales de Equipos</p>
+                    <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                      {project.equipments.length}
+                    </span>
+                  </div>
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[336px] overflow-y-auto pr-1"
+                    data-testid="equipment-grid"
+                  >
                     {project.equipments.map((eq, idx) => (
                       <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" data-testid={`equipment-row-${idx}`}>
                         <p className="text-[10px] text-slate-500 truncate">{eq.modelo}</p>
@@ -1143,11 +1151,21 @@ const ProjectDetail = () => {
                 </div>
               )}
 
-              {/* Bloque 2.7: Pinpads desde Inventario (PYME) — Grid Horizontal */}
+              {/* Bloque 2.7: Pinpads desde Inventario (PYME) — Grid Horizontal con scroll cap (6 filas).
+                  Iter40: limitado a max ~6 filas con barra de scroll para evitar que listas largas
+                  empujen el resto del detalle hacia abajo. */}
               {project.pinpad_serials && project.pinpad_serials.length > 0 && (
                 <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-2" data-testid="pinpad-serials-section">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS / Pinpad (Inventario)</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">POS / Pinpad (Inventario)</p>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded" data-testid="pinpad-serials-count">
+                      {project.pinpad_serials.length}
+                    </span>
+                  </div>
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[336px] overflow-y-auto pr-1"
+                    data-testid="pinpad-serials-grid"
+                  >
                     {project.pinpad_serials.map((pp, idx) => (
                       <div key={idx} className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2" data-testid={`pinpad-serial-row-${idx}`}>
                         <p className="text-[10px] text-emerald-600 truncate">{pp.modelo}</p>
