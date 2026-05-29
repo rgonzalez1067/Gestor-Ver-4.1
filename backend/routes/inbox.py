@@ -23,6 +23,12 @@ from pydantic import BaseModel, Field
 from urllib.parse import quote
 
 from config import db, get_current_user
+from services.conversation_service import (
+    append_message,
+    conversation_for_user,
+    find_or_create_conversation,
+    mark_conversation_read,
+)
 
 router = APIRouter(tags=["inbox"])
 logger = logging.getLogger("inbox")
@@ -60,24 +66,43 @@ async def list_my_inbox(
     include_read: bool = Query(True),
     authorization: Optional[str] = Header(None),
 ):
-    """Lista los mensajes activos (no eliminados) del usuario autenticado.
+    """Lista mezclada de bandeja: notificaciones del sistema + hilos de chat.
 
-    Ordenado por `created_at` descendente. Incluye el flag `sla_color`
-    calculado en backend.
+    Iter48: las conversaciones user-to-user se entregan como filas tipo
+    `conversation` con su preview, el otro participante y el contador de
+    no leídos del usuario actual. Las notificaciones del sistema mantienen
+    el formato original (`type: "notification"`).
+
+    Ordenado por timestamp descendente (`last_message_at` para hilos,
+    `created_at` para notificaciones).
     """
     user = await get_current_user(authorization)
     user_id = user.get("user_id")
-    query: dict = {"user_id": user_id, "deleted_at": None}
-    if not include_read:
-        query["read_at"] = None
 
-    cur = db.inbox_messages.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
-    items = []
+    items: list[dict] = []
+
+    # ---- A) Notificaciones del sistema (NO incluye user-to-user legacy migrados) ----
+    notif_query: dict = {
+        "user_id": user_id,
+        "deleted_at": None,
+        "$or": [
+            {"is_user_message": {"$ne": True}},
+            {"migrated_to_conversation_id": {"$exists": False}, "is_user_message": True},
+        ],
+    }
+    # Excluir explícitamente los migrados (que ya viven como conversaciones)
+    notif_query = {
+        "user_id": user_id,
+        "deleted_at": None,
+        "is_user_message": {"$ne": True},
+    }
+    if not include_read:
+        notif_query["read_at"] = None
+
+    cur = db.inbox_messages.find(notif_query, {"_id": 0}).sort("created_at", -1).limit(limit)
     async for m in cur:
+        m["type"] = "notification"
         m["sla_color"] = _sla_color(m.get("created_at", ""))
-        # Aliviar payload: nunca devolver el contenido base64 en el listado.
-        # Solo metadatos visibles para que el frontend muestre los adjuntos
-        # y consulte el endpoint de descarga bajo demanda.
         slim_atts = []
         for a in (m.get("attachments_meta") or []):
             slim_atts.append({
@@ -87,24 +112,66 @@ async def list_my_inbox(
             })
         m["attachments_meta"] = slim_atts
         items.append(m)
+
+    # ---- B) Conversaciones del usuario ----
+    conv_cur = db.conversations.find(
+        {"participants": user_id, "deleted_for": {"$ne": user_id}},
+        {"_id": 0},
+    ).sort("last_message_at", -1).limit(limit)
+    async for conv in conv_cur:
+        row = conversation_for_user(conv, user_id)
+        row["sla_color"] = _sla_color(row.get("last_message_at", ""))
+        # `created_at` se usa por el frontend como ancla temporal — apuntamos
+        # al último mensaje para que el orden y el semáforo sean coherentes.
+        row["created_at"] = row["last_message_at"]
+        items.append(row)
+
+    # Orden global por timestamp desc
+    items.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+    items = items[:limit]
     return {"items": items, "total": len(items), "user_id": user_id}
 
 
 @router.get("/inbox/me/summary")
 async def inbox_summary(authorization: Optional[str] = Header(None)):
-    """Contadores rápidos para badges de menú: total, no leídos y por SLA."""
+    """Contadores para badges: notificaciones + conversaciones."""
     user = await get_current_user(authorization)
     user_id = user.get("user_id")
-    base = {"user_id": user_id, "deleted_at": None}
-    total = await db.inbox_messages.count_documents(base)
-    unread = await db.inbox_messages.count_documents({**base, "read_at": None})
+    # Notificaciones del sistema
+    base = {"user_id": user_id, "deleted_at": None, "is_user_message": {"$ne": True}}
+    notif_total = await db.inbox_messages.count_documents(base)
+    notif_unread = await db.inbox_messages.count_documents({**base, "read_at": None})
 
-    # Conteo por SLA — barrido en memoria sobre los activos (rangos manejables).
+    # Conversaciones activas del usuario
+    conv_total = await db.conversations.count_documents(
+        {"participants": user_id, "deleted_for": {"$ne": user_id}}
+    )
+    # Hilos con al menos un mensaje sin leer
+    conv_unread = await db.conversations.count_documents(
+        {
+            "participants": user_id,
+            "deleted_for": {"$ne": user_id},
+            f"unread_for.{user_id}": {"$gt": 0},
+        }
+    )
+
+    # SLA combinado: por mensajes de notificación + último mensaje de cada hilo
     cur = db.inbox_messages.find(base, {"_id": 0, "created_at": 1})
     counts = {"green": 0, "yellow": 0, "red": 0}
     async for m in cur:
         counts[_sla_color(m.get("created_at", ""))] += 1
-    return {"total": total, "unread": unread, "by_sla": counts}
+    conv_cur = db.conversations.find(
+        {"participants": user_id, "deleted_for": {"$ne": user_id}},
+        {"_id": 0, "last_message_at": 1},
+    )
+    async for c in conv_cur:
+        counts[_sla_color(c.get("last_message_at", ""))] += 1
+
+    return {
+        "total": notif_total + conv_total,
+        "unread": notif_unread + conv_unread,
+        "by_sla": counts,
+    }
 
 
 @router.patch("/inbox/{message_id}/read")
@@ -203,12 +270,14 @@ async def send_user_message(
     payload: SendUserMessagePayload,
     authorization: Optional[str] = Header(None),
 ):
-    """Envía un mensaje user-to-user al Centro de Mensajes de cada
-    destinatario. Inserta una copia individual por usuario destino.
+    """Envía un mensaje user-to-user (Iter48: chat continuo).
 
-    Render: el body se almacena escapado dentro de un `<pre>` con
-    `white-space: pre-wrap` para preservar saltos de línea (estilo
-    WhatsApp). No interpreta HTML del cliente (anti-XSS).
+    Por cada destinatario:
+      - Encuentra (o crea) la conversación 1:1 por par+asunto normalizado.
+      - Anexa el nuevo mensaje al final del hilo.
+      - Si el destinatario había soft-borrado el hilo, se reactiva.
+
+    Múltiples destinatarios → un hilo independiente por cada par.
     """
     sender = await get_current_user(authorization)
     sender_id = sender["user_id"]
@@ -216,9 +285,9 @@ async def send_user_message(
         f"{sender.get('first_name', '')} {sender.get('last_name', '')}".strip()
         or sender.get("email", "")
     )
+    sender_email = sender.get("email", "")
 
-    # Resolver destinatarios — validar que existan y estén activos.
-    ids = list({uid for uid in payload.recipient_user_ids if uid})
+    ids = list({uid for uid in payload.recipient_user_ids if uid and uid != sender_id})
     if not ids:
         raise HTTPException(status_code=400, detail="Sin destinatarios válidos")
 
@@ -230,51 +299,127 @@ async def send_user_message(
     if not recipients:
         raise HTTPException(status_code=404, detail="Ningún destinatario válido")
 
-    # Render del cuerpo: escapar HTML + envolver en <pre> pre-wrap.
-    # Estilos inline para que el iframe del frontend lo muestre correctamente
-    # aunque el body se renderice ahí.
-    safe_body = html_lib.escape(payload.body)
-    body_html = (
-        "<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'></head>"
-        "<body style=\"margin:0;padding:18px;font-family:'Segoe UI',Arial,sans-serif;"
-        "color:#1e293b;background:#ffffff;\">"
-        "<pre style=\"margin:0;font-family:inherit;font-size:14px;line-height:1.55;"
-        "white-space:pre-wrap;word-break:break-word;\">"
-        f"{safe_body}"
-        "</pre>"
-        "</body></html>"
-    )
-
-    now = datetime.now(timezone.utc).isoformat()
     delivered = []
     for r in recipients:
         rname = f"{r.get('first_name', '')} {r.get('last_name', '')}".strip() or r.get("email", "")
-        msg = {
-            "message_id": f"inbox_{uuid.uuid4().hex[:14]}",
+        conv = await find_or_create_conversation(
+            sender_id=sender_id,
+            sender_name=sender_name,
+            sender_email=sender_email,
+            recipient_id=r["user_id"],
+            recipient_name=rname,
+            recipient_email=r.get("email", ""),
+            subject=payload.subject,
+        )
+        msg = await append_message(
+            conversation=conv,
+            from_user_id=sender_id,
+            from_user_name=sender_name,
+            body_plain=payload.body,
+        )
+        delivered.append({
             "user_id": r["user_id"],
-            "recipient_email": r.get("email", ""),
-            "recipient_name": rname,
-            "subject": payload.subject.strip(),
-            "body_html": body_html,
-            "body_plain": payload.body,  # Útil para previews/búsqueda futura
-            "action_id": "user_message",
-            "quote_id": None,
-            "quote_number": None,
-            "project_id": None,
-            "is_user_message": True,
-            "from_user_id": sender_id,
-            "from_user_name": sender_name,
-            "from_user_email": sender.get("email", ""),
-            "created_at": now,
-            "read_at": None,
-            "deleted_at": None,
-            "attachments_meta": [],
-        }
-        await db.inbox_messages.insert_one(msg)
-        delivered.append({"user_id": r["user_id"], "message_id": msg["message_id"]})
+            "conversation_id": conv["conversation_id"],
+            "message_id": msg["message_id"],
+        })
 
     logger.info(
-        f"[Inbox] user_message from={sender_id} to={[d['user_id'] for d in delivered]} subject='{payload.subject[:60]}'"
+        f"[Inbox] user_message from={sender_id} → {len(delivered)} hilos subj='{payload.subject[:60]}'"
     )
     return {"status": "ok", "delivered_count": len(delivered), "delivered": delivered}
+
+
+# ==================== Iter48: Endpoints de Conversaciones (Chat Continuo) ====================
+
+class ReplyPayload(BaseModel):
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+async def _load_conv_or_403(conversation_id: str, user_id: str) -> dict:
+    conv = await db.conversations.find_one({"conversation_id": conversation_id}, {"_id": 0})
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    if user_id not in conv.get("participants", []):
+        raise HTTPException(status_code=403, detail="No participas de esta conversación")
+    return conv
+
+
+@router.get("/inbox/conversations/{conversation_id}/messages")
+async def get_conversation_thread(
+    conversation_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Devuelve el historial completo del hilo (ordenado ascendente) y marca
+    automáticamente como leídos los mensajes del otro participante.
+    """
+    user = await get_current_user(authorization)
+    user_id = user["user_id"]
+    conv = await _load_conv_or_403(conversation_id, user_id)
+
+    # Marcar como leídos los mensajes que no provienen del propio usuario
+    await mark_conversation_read(conversation_id=conversation_id, user_id=user_id)
+
+    msgs = []
+    cur = db.conversation_messages.find(
+        {"conversation_id": conversation_id}, {"_id": 0}
+    ).sort("created_at", 1)
+    async for m in cur:
+        m["is_mine"] = m.get("from_user_id") == user_id
+        msgs.append(m)
+
+    # Construir cabecera para el frontend
+    other_id = next((p for p in conv["participants"] if p != user_id), None)
+    other_meta = (conv.get("participants_meta") or {}).get(other_id, {})
+    header = {
+        "conversation_id": conversation_id,
+        "subject": conv.get("subject"),
+        "other_user_id": other_id,
+        "other_user_name": other_meta.get("name") or other_id or "",
+        "other_user_email": other_meta.get("email") or "",
+    }
+    return {"conversation": header, "messages": msgs}
+
+
+@router.post("/inbox/conversations/{conversation_id}/messages")
+async def post_conversation_message(
+    conversation_id: str,
+    payload: ReplyPayload,
+    authorization: Optional[str] = Header(None),
+):
+    """Anexa un nuevo mensaje al hilo. No crea una fila duplicada en la
+    bandeja: el hilo único se actualiza con el nuevo `last_message_at`.
+    """
+    user = await get_current_user(authorization)
+    user_id = user["user_id"]
+    conv = await _load_conv_or_403(conversation_id, user_id)
+
+    sender_name = (
+        f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+        or user.get("email", "")
+    )
+    msg = await append_message(
+        conversation=conv,
+        from_user_id=user_id,
+        from_user_name=sender_name,
+        body_plain=payload.body,
+    )
+    return {"status": "ok", "message": {**msg, "is_mine": True}}
+
+
+@router.delete("/inbox/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Soft-delete del hilo SOLO para el usuario actual. El otro participante
+    sigue viendo la conversación en su bandeja. Si el otro envía un nuevo
+    mensaje, el hilo se "revive" para este usuario."""
+    user = await get_current_user(authorization)
+    user_id = user["user_id"]
+    await _load_conv_or_403(conversation_id, user_id)
+    await db.conversations.update_one(
+        {"conversation_id": conversation_id},
+        {"$addToSet": {"deleted_for": user_id}},
+    )
+    return {"status": "deleted", "conversation_id": conversation_id}
 

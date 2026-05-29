@@ -4,6 +4,40 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 48: Centro de Mensajes → Chat Continuo (WhatsApp Style) — Feb 2026
+
+**Refactorización mayor** del modelo de mensajería interna: las respuestas user-to-user ya NO crean filas duplicadas. Cada par de usuarios + asunto comparte UN solo hilo donde se anexan mensajes cronológicamente.
+
+**Modelo de datos** (Mongo):
+- `conversations`: cabecera del hilo 1:1 `{conversation_id, participants[sorted], participants_meta, subject, subject_normalized, last_message_at, last_preview, unread_for[user_id], deleted_for[user_ids], created_at}`. Índice único en (`participants`, `subject_normalized`).
+- `conversation_messages`: mensajes individuales `{message_id, conversation_id, from_user_id, from_user_name, body_plain, created_at, read_by[user_ids]}`.
+
+**Backend** (`/app/backend/`):
+- `services/conversation_service.py` — `find_or_create_conversation()`, `append_message()` (incrementa unread, revive si fue soft-borrado), `mark_conversation_read()`, `migrate_legacy_user_messages()` (idempotente, corre al startup).
+- `routes/inbox.py`:
+  - `POST /api/inbox/send` reescrito → un hilo por par de usuarios + asunto normalizado. Múltiples destinatarios = N hilos 1:1.
+  - `GET /api/inbox/me` merges: notificaciones del sistema (`type:"notification"`) + conversaciones del usuario (`type:"conversation"`) ordenadas por timestamp.
+  - `GET /api/inbox/conversations/{id}/messages` — historial completo + auto-marca como leído.
+  - `POST /api/inbox/conversations/{id}/messages` — anexa al hilo.
+  - `DELETE /api/inbox/conversations/{id}` — soft-delete sólo para el usuario actual (el otro participante sigue viendo; si responde, el hilo "revive").
+- `server.py` startup: crea índices y migra automáticamente los mensajes user-to-user heredados (Iter46/47).
+
+**Frontend**:
+- `components/ChatThread.jsx` — Dialog modal con burbujas (violeta a la derecha = mías, blancas a la izquierda = del otro), header gradient, timestamp por mensaje, autoscroll al fondo, textarea fija abajo, Enter envía / Shift+Enter nueva línea, optimistic UI en el envío, archivado de hilo con confirmación.
+- `components/InboxCenter.jsx` — render condicional por `type`: notificaciones usan iframe expandible existente; conversaciones muestran avatar + nombre + chip "Chat · {asunto}" + preview + badge rojo de no-leídos → click abre `ChatThread`. Botón papelera ahora archiva el hilo completo.
+
+**Tests** (`tests/test_iteration42_inbox_center.py`): suite ampliada con 8 nuevas validaciones Iter48 → **1/1 PASSED**:
+- Hilo único: 4 mensajes consecutivos producen 1 sola fila en bandeja.
+- Cronología: messages ordenados asc.
+- Asunto diferente entre mismos usuarios = hilos separados.
+- Soft-delete sólo para el usuario actual (el doc persiste, el otro lo sigue viendo).
+- Protección self-message (400 si destinatario = sender).
+- Summary cuenta hilos.
+
+**Validación e2e** (screenshot): UI con burbujas alineadas estilo WhatsApp, envío exitoso con preview actualizándose en bandeja, no se duplican filas, sin runtime errors.
+
+
+
 ### Iteration 47: Botón "Responder" en mensajes user-to-user — Feb 2026
 
 **Nueva capacidad UX** del Centro de Mensajes: cada mensaje recibido **de otro usuario** ahora muestra un botón **"Responder"** violeta debajo del cuerpo. Los mensajes generados por el sistema (notificaciones de cotizaciones/proyectos) **no** muestran el botón — la respuesta solo aplica a comunicación humana.

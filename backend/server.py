@@ -371,6 +371,20 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"Service.abreviatura migration failed: {e}")
 
+        # Iter48: indexes para conversations + migración de mensajes legacy.
+        try:
+            await db.conversations.create_index([("conversation_id", 1)], unique=True)
+            await db.conversations.create_index([("participants", 1), ("subject_normalized", 1)])
+            await db.conversations.create_index([("participants", 1), ("last_message_at", -1)])
+            await db.conversation_messages.create_index([("conversation_id", 1), ("created_at", 1)])
+            await db.conversation_messages.create_index([("message_id", 1)], unique=True)
+            from services.conversation_service import migrate_legacy_user_messages
+            migrated = await migrate_legacy_user_messages()
+            if migrated:
+                logging.info(f"[conv] migrated {migrated} legacy user-to-user messages to conversations")
+        except Exception as e:
+            logging.warning(f"Conversations init/migration failed: {e}")
+
     # Fire-and-forget — el startup retorna de inmediato, K8s pasa el readiness.
     import asyncio as _asyncio
     _asyncio.create_task(_bg_init())

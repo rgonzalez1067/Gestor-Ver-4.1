@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import { EmailHtmlFrame } from './EmailHtmlFrame';
 import { NewMessageDialog } from './NewMessageDialog';
+import { ChatThread } from './ChatThread';
 
 /**
  * Centro de Mensajes — Bandeja Interna del Usuario.
@@ -135,9 +136,14 @@ export function InboxCenter() {
   const confirmDelete = async () => {
     if (!deletingTarget) return;
     try {
-      await api.delete(`/inbox/${deletingTarget.message_id}`);
-      setMessages((prev) => prev.filter((m) => m.message_id !== deletingTarget.message_id));
-      toast.success('Mensaje eliminado');
+      if (deletingTarget._isConversation) {
+        await api.delete(`/inbox/conversations/${deletingTarget.message_id}`);
+      } else {
+        await api.delete(`/inbox/${deletingTarget.message_id}`);
+      }
+      // Refrescar el listado para reflejar el cambio (conv archivada, msg borrado)
+      await load();
+      toast.success(deletingTarget._isConversation ? 'Conversación archivada' : 'Mensaje eliminado');
     } catch (err) {
       const detail = err.response?.data?.detail || err.message || 'Error';
       toast.error(`No se pudo eliminar: ${detail}`);
@@ -149,6 +155,13 @@ export function InboxCenter() {
   const [downloading, setDownloading] = useState({}); // { 'msg_id-idx': true }
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeInitial, setComposeInitial] = useState(null);
+  const [chatConvId, setChatConvId] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const openChatThread = (convId) => {
+    setChatConvId(convId);
+    setChatOpen(true);
+  };
 
   /**
    * Iter47: abrir el modal de composición con pre-relleno para responder
@@ -316,6 +329,86 @@ export function InboxCenter() {
       ) : (
         <ul className="divide-y divide-slate-100" data-testid="inbox-message-list">
           {messages.map((msg) => {
+            // Iter48: conversaciones se renderizan diferente que las notificaciones
+            // del sistema. La fila abre un panel de chat al hacer click; el
+            // botón eliminar archiva el hilo completo (no un mensaje).
+            if (msg.type === 'conversation') {
+              const sla = SLA_STYLES[msg.sla_color] || SLA_STYLES.green;
+              const unread = (msg.unread_count || 0) > 0;
+              return (
+                <li
+                  key={msg.conversation_id}
+                  className={`border-l-4 ${sla.border} ${sla.bg} transition-colors`}
+                  data-testid={`inbox-conv-${msg.conversation_id}`}
+                  data-sla={msg.sla_color}
+                  data-type="conversation"
+                >
+                  <div className="px-6 py-4 flex items-start gap-4">
+                    <button
+                      type="button"
+                      onClick={() => openChatThread(msg.conversation_id)}
+                      className="flex-1 text-left flex items-start gap-3 group"
+                      data-testid={`inbox-conv-open-${msg.conversation_id}`}
+                    >
+                      <div className="pt-0.5 relative">
+                        <UserCircle2 size={22} className="text-violet-600" />
+                        {unread && (
+                          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                            {msg.unread_count > 9 ? '9+' : msg.unread_count}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-sm ${
+                              unread ? 'font-bold text-slate-900' : 'font-medium text-slate-700'
+                            } truncate`}
+                          >
+                            {msg.other_user_name}
+                          </span>
+                          <Badge className={`${sla.chip} text-[10px] font-bold uppercase`}>
+                            {sla.label}
+                          </Badge>
+                          <Badge className="bg-violet-100 text-violet-700 text-[10px] font-semibold">
+                            Chat · {msg.subject}
+                          </Badge>
+                        </div>
+                        <p
+                          className={`text-xs mt-0.5 truncate ${
+                            unread ? 'text-slate-700 font-medium' : 'text-slate-500'
+                          }`}
+                          data-testid={`inbox-conv-preview-${msg.conversation_id}`}
+                        >
+                          {msg.last_preview || <span className="italic">Sin mensajes aún</span>}
+                        </p>
+                      </div>
+                      <div className="text-slate-400 group-hover:text-violet-600 transition-colors text-[10px] self-center">
+                        Abrir →
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-rose-500 hover:bg-rose-50 hover:text-rose-700 shrink-0"
+                      onClick={() =>
+                        setDeletingTarget({
+                          message_id: msg.conversation_id,
+                          subject: `Conversación con ${msg.other_user_name}`,
+                          _isConversation: true,
+                        })
+                      }
+                      data-testid={`inbox-conv-delete-${msg.conversation_id}`}
+                      title="Archivar conversación"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                </li>
+              );
+            }
+
+            // --- Notificación del sistema (comportamiento original) ---
             const sla = SLA_STYLES[msg.sla_color] || SLA_STYLES.green;
             const isExpanded = !!expandedIds[msg.message_id];
             const isUnread = !msg.read_at;
@@ -479,6 +572,13 @@ export function InboxCenter() {
         onOpenChange={setComposeOpen}
         onSent={() => load()}
         initialData={composeInitial}
+      />
+
+      <ChatThread
+        conversationId={chatConvId}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        onChanged={() => load()}
       />
     </div>
   );

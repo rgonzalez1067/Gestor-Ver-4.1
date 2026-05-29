@@ -86,7 +86,9 @@ async def _run_all():
             )
 
         r = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
-        items = {m["message_id"]: m for m in r.json()["items"]}
+        # En Iter48, los items pueden ser notifications o conversations.
+        # Las pruebas SLA usan notifications creadas por `deliver_to_inbox`.
+        items = {m["message_id"]: m for m in r.json()["items"] if m.get("type") != "conversation"}
         for color, mid in ids.items():
             assert items[mid]["sla_color"] == color
             assert items[mid]["subject"].startswith("TEST_ITER42")
@@ -95,7 +97,8 @@ async def _run_all():
         rdel = await c.delete(f"{BACKEND_URL}/inbox/{red_id}", headers=h)
         assert rdel.status_code == 200
         r2 = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
-        assert red_id not in [m["message_id"] for m in r2.json()["items"]]
+        notif_ids = [m["message_id"] for m in r2.json()["items"] if m.get("type") != "conversation"]
+        assert red_id not in notif_ids
 
         await db.inbox_messages.delete_many({"subject": {"$regex": "^TEST_ITER42"}})
 
@@ -141,7 +144,7 @@ async def _run_all():
 
         # Listado no debe exponer content_b64
         lst = await c.get(f"{BACKEND_URL}/inbox/me?limit=200", headers=h)
-        item = next((m for m in lst.json()["items"] if m["message_id"] == mid), None)
+        item = next((m for m in lst.json()["items"] if m.get("message_id") == mid), None)
         assert item is not None
         att0 = item["attachments_meta"][0]
         assert att0["filename"] == "demo.pdf"
@@ -191,15 +194,21 @@ async def _run_all():
         sent = rsend.json()
         assert sent["delivered_count"] == len(targets)
 
-        # Verificar que cada destinatario tiene la copia con marca user_message
+        # Verificar que cada destinatario tiene su conversación (Iter48: chat continuo)
         for d in sent["delivered"]:
-            doc = await db.inbox_messages.find_one({"message_id": d["message_id"]}, {"_id": 0})
-            assert doc is not None
-            assert doc["is_user_message"] is True
-            assert doc["from_user_id"] == uid
-            assert doc["subject"] == "TEST_ITER46 saludo"
-            assert "<pre" in doc["body_html"]
-            assert "Hola!" in doc["body_html"]
+            assert "conversation_id" in d and "message_id" in d
+            conv = await db.conversations.find_one(
+                {"conversation_id": d["conversation_id"]}, {"_id": 0}
+            )
+            assert conv is not None
+            assert uid in conv["participants"]
+            assert conv["subject"] == "TEST_ITER46 saludo"
+            msg = await db.conversation_messages.find_one(
+                {"message_id": d["message_id"]}, {"_id": 0}
+            )
+            assert msg is not None
+            assert msg["from_user_id"] == uid
+            assert "Hola!" in msg["body_plain"]
 
         # Validación: lista vacía → 422 (min_length=1)
         rbad = await c.post(
@@ -209,7 +218,10 @@ async def _run_all():
         )
         assert rbad.status_code == 422
 
-        # Validación anti-XSS: HTML del usuario se escapa
+        # Iter48: el body se almacena en `body_plain` literal sin transformar.
+        # El render del chat usa `whitespace-pre-wrap` en CSS, así que el HTML
+        # del cliente NO se interpreta — la seguridad es responsabilidad del
+        # frontend (React escapa interpolaciones por defecto).
         rxss = await c.post(
             f"{BACKEND_URL}/inbox/send",
             json={
@@ -221,11 +233,110 @@ async def _run_all():
         )
         assert rxss.status_code == 200
         mid = rxss.json()["delivered"][0]["message_id"]
-        doc = await db.inbox_messages.find_one({"message_id": mid}, {"_id": 0})
-        assert "<script>" not in doc["body_html"], "tags no debe sobrevivir sin escapar"
-        assert "&lt;script&gt;" in doc["body_html"]
+        msg = await db.conversation_messages.find_one({"message_id": mid}, {"_id": 0})
+        assert msg is not None
+        # El body_plain conserva el texto tal cual (literal). React lo escapa al renderizar.
+        assert msg["body_plain"] == "<script>alert(1)</script><b>negrita</b>"
 
-        await db.inbox_messages.delete_many({"action_id": "user_message", "subject": {"$regex": "^TEST_ITER46"}})
+        # Cleanup Iter48
+        await db.conversations.delete_many({"subject": {"$regex": "^TEST_ITER46"}})
+        await db.conversation_messages.delete_many({"from_user_id": uid})
+
+        # ------- 6) Iter48: Chat continuo end-to-end -------
+        # Limpiar cualquier conversación previa con el target
+        await db.conversations.delete_many({"participants": {"$all": [uid, targets[0]]}})
+
+        # 6.1: nuevo hilo
+        r6 = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={
+                "recipient_user_ids": [targets[0]],
+                "subject": "TEST_ITER48 hilo",
+                "body": "Mensaje 1",
+            },
+            headers=h,
+        )
+        assert r6.status_code == 200
+        conv_id = r6.json()["delivered"][0]["conversation_id"]
+
+        # 6.2: 3 respuestas consecutivas → mismo hilo, NO crean filas duplicadas
+        for body in ["Respuesta 2", "Respuesta 3", "Respuesta 4"]:
+            rr = await c.post(
+                f"{BACKEND_URL}/inbox/conversations/{conv_id}/messages",
+                json={"body": body},
+                headers=h,
+            )
+            assert rr.status_code == 200, rr.text
+
+        # 6.3: GET messages — debe haber 4 mensajes asc
+        rmsgs = await c.get(
+            f"{BACKEND_URL}/inbox/conversations/{conv_id}/messages",
+            headers=h,
+        )
+        assert rmsgs.status_code == 200
+        thread = rmsgs.json()
+        assert len(thread["messages"]) == 4
+        bodies = [m["body_plain"] for m in thread["messages"]]
+        assert bodies == ["Mensaje 1", "Respuesta 2", "Respuesta 3", "Respuesta 4"]
+        # Todos son míos en este test
+        assert all(m["is_mine"] for m in thread["messages"])
+
+        # 6.4: la bandeja muestra UN SOLO row (hilo único)
+        rinbox = await c.get(f"{BACKEND_URL}/inbox/me", headers=h)
+        items = rinbox.json()["items"]
+        convs = [i for i in items if i.get("type") == "conversation" and i.get("conversation_id") == conv_id]
+        assert len(convs) == 1, f"esperaba 1 fila conversation, obtuve {len(convs)}"
+        assert "Respuesta 4" in convs[0]["last_preview"]
+
+        # 6.5: una conversación entre los mismos pero con OTRO asunto crea hilo separado
+        r65 = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={
+                "recipient_user_ids": [targets[0]],
+                "subject": "TEST_ITER48 otro tema",
+                "body": "Tema distinto",
+            },
+            headers=h,
+        )
+        conv_id_2 = r65.json()["delivered"][0]["conversation_id"]
+        assert conv_id_2 != conv_id
+
+        # 6.6: DELETE soft-archiva sólo para el usuario actual
+        rdel = await c.delete(
+            f"{BACKEND_URL}/inbox/conversations/{conv_id}",
+            headers=h,
+        )
+        assert rdel.status_code == 200
+        # Ya no aparece en la bandeja del admin
+        rinbox2 = await c.get(f"{BACKEND_URL}/inbox/me", headers=h)
+        convs2 = [
+            i for i in rinbox2.json()["items"]
+            if i.get("type") == "conversation" and i.get("conversation_id") == conv_id
+        ]
+        assert len(convs2) == 0
+
+        # Pero el documento sigue existiendo en DB (no se borró)
+        doc = await db.conversations.find_one({"conversation_id": conv_id}, {"_id": 0})
+        assert doc is not None
+        assert uid in doc["deleted_for"]
+
+        # 6.7: summary cuenta conversaciones también
+        rsum = await c.get(f"{BACKEND_URL}/inbox/me/summary", headers=h)
+        assert rsum.status_code == 200
+        s = rsum.json()
+        assert isinstance(s["total"], int) and s["total"] >= 1
+
+        # 6.8: no puedo enviarme mensaje a mí mismo (sender es excluido)
+        rself = await c.post(
+            f"{BACKEND_URL}/inbox/send",
+            json={"recipient_user_ids": [uid], "subject": "self", "body": "x"},
+            headers=h,
+        )
+        assert rself.status_code == 400
+
+        # Cleanup final
+        await db.conversations.delete_many({"subject": {"$regex": "^TEST_ITER48"}})
+        await db.conversation_messages.delete_many({"conversation_id": {"$in": [conv_id, conv_id_2]}})
 
 
 def test_inbox_center_full_suite():
