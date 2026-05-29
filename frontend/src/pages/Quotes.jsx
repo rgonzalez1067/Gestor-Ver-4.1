@@ -24,6 +24,7 @@ import { QuoteFilters } from '../components/quotes/QuoteFilters';
 import { ModifyQuoteChoiceDialog } from '../components/ModifyQuoteChoiceDialog';
 import { QuotesTable } from '../components/quotes/QuotesTable';
 import { NewQuoteButtons } from '../components/quotes/NewQuoteButtons';
+import { QuotesKpiCards } from '../components/quotes/QuotesKpiCards';
 import { IrregularQuotesBanner } from '../components/quotes/IrregularQuotesBanner';
 import { PdfPreviewModal } from '../components/quotes/PdfPreviewModal';
 import { DeliveryDialog } from '../components/quotes/DeliveryDialog';
@@ -3624,15 +3625,18 @@ export const Quotes = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      
-      <main className="flex-1 p-8" data-testid="quotes-page">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
+
+      <main className="flex-1 relative" data-testid="quotes-page">
+        {/* Iter49: accent gradient bar — continuidad visual con el Centro de Mensajes */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 z-10" />
+
+        <div className="max-w-7xl mx-auto p-8">
+          <div className="flex justify-between items-start mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-slate-900 font-manrope mb-2">Cotizaciones</h1>
-              <p className="text-slate-600">Genere cotizaciones profesionales para sus clientes</p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 font-manrope">Cotizaciones</h1>
+              <p className="text-sm text-slate-500 mt-1">Genere cotizaciones profesionales para sus clientes</p>
             </div>
             {isAdmin && (
               <Button
@@ -3640,7 +3644,7 @@ export const Quotes = () => {
                 size="sm"
                 onClick={() => setBundleModalOpen(true)}
                 data-testid="quotes-bundle-migration-btn"
-                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                className="border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 title="Exportar / Importar cotizaciones, histórico y proyectos (solo administradores)"
               >
                 <Database size={14} className="mr-1.5" />
@@ -3648,6 +3652,9 @@ export const Quotes = () => {
               </Button>
             )}
           </div>
+
+          {/* Iter49: KPI cards — computados del array de cotizaciones, no requiere backend */}
+          <QuotesKpiCards quotes={rbacFilteredQuotes} />
 
           {/* Botones de Nueva Cotización — Visibilidad por Permisos Especiales */}
           <NewQuoteButtons
@@ -3670,18 +3677,22 @@ export const Quotes = () => {
 
           {/* Widget de Cotizaciones Irregulares */}
           {irregularCount > 0 && (
-            <div className="mb-4 flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-lg px-4 py-3"
+            <div className="mb-6 flex items-center gap-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl px-5 py-4 shadow-sm"
               data-testid="irregular-widget">
-              <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-lg shrink-0">{irregularCount}</div>
+              <div className="relative shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-bold text-lg shadow-md">
+                  {irregularCount}
+                </div>
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
+              </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-orange-800">Cotizaciones en Estado Irregular</p>
-                <p className="text-xs text-orange-600">Tienen pasos saltados pendientes de regularización</p>
+                <p className="text-sm font-bold text-amber-900">Cotizaciones en Estado Irregular</p>
+                <p className="text-xs text-amber-700">Tienen pasos saltados pendientes de regularización</p>
               </div>
               {currentUser?.role === 'admin' && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="border-orange-400 text-orange-700 hover:bg-orange-100"
+                  className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm font-semibold"
                   onClick={() => setRegularizeBatchOpen(true)}
                   data-testid="regularize-batch-btn"
                 >
