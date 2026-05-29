@@ -15,11 +15,11 @@ export async function showInboxWelcomeToast({ firstName } = {}) {
     const { data } = await api.get('/inbox/me/summary');
     const unread = data?.unread || 0;
     if (unread <= 0) return;
-    const name = firstName ? `${firstName}, ` : '';
-    const noun = unread === 1 ? 'mensaje sin leer' : 'mensajes sin leer';
-    toast.message(`${name}tienes ${unread} ${noun}`, {
-      description: 'Revisa tu Centro de Mensajes en el Dashboard.',
-      duration: 7000,
+    const noun = unread === 1 ? 'mensaje nuevo' : 'mensajes nuevos';
+    const greeting = firstName ? `Hola ${firstName}` : 'Bienvenido';
+    toast.message(`${greeting} · Revisa tu Centro de Mensajes`, {
+      description: `Tienes ${unread} ${noun} esperándote en el Dashboard.`,
+      duration: 8000,
     });
   } catch {
     // Silencioso: el saludo es complementario, nunca debe romper el login.

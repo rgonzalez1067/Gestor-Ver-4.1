@@ -109,7 +109,7 @@ export const Auth = () => {
         toast.success(`Bienvenido, ${response.data.user.first_name || response.data.user.name}`);
         // Iter44: aviso destacado de mensajes sin leer en el Centro de Mensajes.
         showInboxWelcomeToast({ firstName: response.data.user.first_name });
-        navigate('/quotes');
+        navigate('/dashboard');
         
       } else {
         // Registro
