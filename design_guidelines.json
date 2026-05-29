@@ -1,142 +1,99 @@
 {
-  "brand_identity": {
-    "name": "PagoFlow",
-    "logo_text": "PagoFlow",
-    "tone": "Professional, Secure, Efficient, Tech-Forward",
-    "archetype": "Swiss & High-Contrast (Modified for Fintech Trust)",
-    "description": "A robust B2B payment quotation platform integrating Venezuelan and International banking protocols."
-  },
-  "typography": {
-    "primary_font": "Manrope",
-    "secondary_font": "Inter",
-    "mono_font": "JetBrains Mono",
-    "google_fonts_url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap",
-    "styles": {
-      "h1": "font-manrope text-4xl font-bold tracking-tight text-slate-900",
-      "h2": "font-manrope text-3xl font-semibold tracking-tight text-slate-900",
-      "h3": "font-manrope text-2xl font-semibold tracking-tight text-slate-800",
-      "h4": "font-manrope text-xl font-medium text-slate-800",
-      "body": "font-inter text-base text-slate-600 leading-relaxed",
-      "small": "font-inter text-sm text-slate-500",
-      "label": "font-inter text-sm font-medium text-slate-700 uppercase tracking-wide",
-      "data_mono": "font-mono text-sm text-slate-700"
-    }
+  "theme": "Light",
+  "archetype": "Modern SaaS Dashboard with Vibrant Accents (Archetype 3 & 4 Hybrid)",
+  "domain": "CRM / SaaS Dashboard",
+  "global_rules": {
+    "emotion": "Professional, efficient, yet vibrant and modern.",
+    "spacing": "Generous Spacing Philosophy. Use p-6 or p-8 for main layout containers, but tight gap-4 for Control Room Grids.",
+    "typography": "Use font-manrope for all headings and body. Headings must use tracking-tight to look premium.",
+    "borders_and_shadows": "Mix soft shadows (shadow-sm) with sharp 1px borders (border-slate-200) to ensure crispness (Neumorphism 'Clay & Crisp' variant). Avoid muddy shadows.",
+    "testing": "CRITICAL: MUST retain all existing data-testid attributes exactly as they are."
   },
   "colors": {
-    "theme": "light",
-    "palette": {
-      "primary": {
-        "DEFAULT": "#0f172a",
-        "foreground": "#f8fafc",
-        "hover": "#1e293b",
-        "active": "#334155"
-      },
-      "secondary": {
-        "DEFAULT": "#f1f5f9",
-        "foreground": "#0f172a",
-        "hover": "#e2e8f0"
-      },
-      "accent": {
-        "DEFAULT": "#0284c7",
-        "foreground": "#ffffff",
-        "hover": "#0369a1"
-      },
-      "destructive": {
-        "DEFAULT": "#ef4444",
-        "foreground": "#ffffff"
-      },
-      "success": {
-        "DEFAULT": "#10b981",
-        "foreground": "#ffffff"
-      },
-      "background": "#f8fafc",
-      "surface": "#ffffff",
-      "border": "#e2e8f0",
-      "input": "#e2e8f0",
-      "ring": "#0f172a"
+    "background": "bg-slate-50",
+    "surface": "bg-white",
+    "text": {
+      "primary": "text-slate-900",
+      "secondary": "text-slate-500",
+      "muted": "text-slate-400"
     },
-    "gradients": {
-      "login_overlay": "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(2, 132, 199, 0.8) 100%)",
-      "card_highlight": "linear-gradient(to right, rgba(2, 132, 199, 0.05), transparent)"
-    }
-  },
-  "layout": {
-    "spacing_scale": "generous",
-    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
-    "border_radius": "rounded-lg",
-    "shadows": {
-      "card": "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)",
-      "dropdown": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
-      "modal": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
-    },
-    "structure": {
-      "dashboard": "Sidebar + Topbar + Content Area",
-      "auth": "Split Screen (Image Left/Right + Form)",
-      "wizard": "Centered Step-by-Step Container"
+    "accent": {
+      "gradient": "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600",
+      "primary": "indigo-600"
     }
   },
   "components": {
-    "Button": {
-      "default": "rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background",
-      "variants": {
-        "default": "bg-primary text-primary-foreground hover:bg-primary/90",
-        "outline": "border border-input hover:bg-accent hover:text-accent-foreground",
-        "ghost": "hover:bg-accent hover:text-accent-foreground",
-        "link": "underline-offset-4 hover:underline text-primary"
+    "page_accent": {
+      "description": "To create visual continuity with the Message Center gradient, add a 4px tall decorative block at the very top edge of the page container using the accent.gradient."
+    },
+    "header_section": {
+      "layout": "Flex container, justify-between, items-start. Margin-bottom: mb-8.",
+      "typography": "Title: text-3xl font-bold tracking-tight text-slate-900. Subtitle: text-sm text-slate-500 mt-1.",
+      "bd_migration_button": "Use outline variant, subtle text-slate-600 hover:text-slate-900 hover:bg-slate-100."
+    },
+    "kpi_cards": {
+      "description": "Pain point fix: Add 4 KPI summary cards above the filters. Compute these dynamically from the existing table data array so no new endpoints are needed.",
+      "layout": "Control Room Grid: grid grid-cols-1 md:grid-cols-4 gap-4 mb-6",
+      "style": "bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200",
+      "cards": [
+        "Total Cotizaciones",
+        "Aprobadas",
+        "Pendientes",
+        "Inversión USD (Suma de montos)"
+      ],
+      "icon_style": "w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3"
+    },
+    "action_buttons": {
+      "description": "Pain point fix: Unify the 3 primary action buttons under a cohesive design system rather than arbitrary solid blocks.",
+      "style": "Use soft backgrounds with brand-tinted text/icons and border. Implementaciones: bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100. Equipos: bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100. Reparaciones: bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100.",
+      "typography": "text-sm font-semibold",
+      "icons": "Use Lucide-react icons for each button (e.g., CheckCircle, Package, Wrench)."
+    },
+    "filters_section": {
+      "description": "Pain point fix: Redesign generic filters into a structured Control Room panel.",
+      "layout": "Grid layout for the 6 fields: grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end.",
+      "style": "Container: bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-6.",
+      "typography": "Labels should be text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block."
+    },
+    "warning_banner": {
+      "description": "Pain point fix: Transform flat yellow banner into a modern Glassmorphic Alert.",
+      "style": "bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between mb-6 shadow-sm",
+      "typography": "text-sm font-semibold text-amber-800 flex items-center gap-3",
+      "animations": "Add a small pulsing dot (w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse) next to the warning icon.",
+      "action_button": "bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold px-4 py-2 rounded-lg transition-colors border border-amber-300"
+    },
+    "data_table": {
+      "description": "Pain point fix: Elevate table rows with hierarchy and hover states.",
+      "container": "bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden",
+      "header": "bg-slate-50 border-b border-slate-200. Text: text-xs font-bold text-slate-500 uppercase tracking-wider py-4 px-4",
+      "rows": "hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0",
+      "cells": "px-4 py-4 text-sm text-slate-700",
+      "usd_column": "Highlight the 'TOTAL USD' column. Font: font-bold text-slate-900. Add the 'Inversión Inicial' label underneath in text-[10px] text-slate-400 uppercase tracking-wider.",
+      "badges": {
+        "style": "rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide border",
+        "implementacion": "bg-emerald-50 text-emerald-700 border-emerald-200",
+        "equipos": "bg-blue-50 text-blue-700 border-blue-200",
+        "reparaciones": "bg-orange-50 text-orange-700 border-orange-200"
+      },
+      "avatars": {
+        "style": "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ring-2 ring-white",
+        "colors": "Map based on segment (e.g., PYME -> bg-indigo-500, MG -> bg-fuchsia-500, etc.)"
       }
     },
-    "Card": {
-      "style": "bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden",
-      "header": "px-6 py-4 border-b border-slate-100 bg-slate-50/50",
-      "body": "p-6"
-    },
-    "Table": {
-      "style": "w-full text-sm text-left",
-      "header": "bg-slate-50 text-slate-500 font-medium uppercase tracking-wider border-b",
-      "row": "border-b border-slate-100 hover:bg-slate-50/50 transition-colors",
-      "cell": "px-4 py-3"
-    },
-    "Input": {
-      "style": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    "stepper": {
+      "description": "Pain point fix: Redesign the ESTADO column to be a highly legible, connected step indicator.",
+      "layout": "Flex row, items-center space-x-1",
+      "step_done": "w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center border border-indigo-200",
+      "step_pending": "w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200 text-[10px] font-bold",
+      "connector": "w-3 h-[2px] bg-slate-200. If previous step is done, connector can be bg-indigo-200.",
+      "icons": "Use tiny Lucide icons inside the 'done' steps (e.g., Check w-3 h-3)."
     }
   },
-  "image_urls": {
-    "auth_background": "https://images.unsplash.com/photo-1747455917568-d89241cd1423?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMG1vZGVybiUyMGNvcnBvcmF0ZSUyMGFyY2hpdGVjdHVyZSUyMGJsdWUlMjB3aGl0ZXxlbnwwfHx8fDE3NzExOTkyMTV8MA&ixlib=rb-4.1.0&q=85",
-    "pos_terminal": "https://images.unsplash.com/photo-1764795850459-3e73e5013ae8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85",
-    "card_reader": "https://images.unsplash.com/photo-1764194790132-6db2d7869e1a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85",
-    "generic_device": "https://images.unsplash.com/photo-1764611907608-2618966a8387?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBjcmVkaXQlMjBjYXJkJTIwcGF5bWVudCUyMHRlcm1pbmFsJTIwcG9pbnQlMjBvZiUyMHNhbGV8ZW58MHx8fHwxNzcxMTk5MjE2fDA&ixlib=rb-4.1.0&q=85"
-  },
   "instructions_to_main_agent": [
-    "Implement a 'Light Mode' first philosophy. Dark mode is optional/secondary.",
-    "Use 'Manrope' for all Headings (h1-h4) and 'Inter' for body text. Import them via Google Fonts in index.html or CSS.",
-    "Authentication: Use Google OAuth flow. The login page should split screen with the 'auth_background' image on one side with a blue overlay.",
-    "Dashboard: Create a sidebar navigation with clear iconography (Lucide React).",
-    "Forms: For the Quotation Engine (Motor de Cotización), use a 'Stepper' pattern (Step 1: Client, Step 2: Services, Step 3: Hardware, Step 4: Review).",
-    "Tables: Since tables are complex (Banks, Services), implement columns with text wrapping logic and sticky headers.",
-    "PDF Export: Use a 'Preview' modal before generating the final PDF. The preview should look exactly like the paper document.",
-    "Currency: Display dual prices (USD/Bs) clearly. Use a pill or badge for currency labels.",
-    "Graphs: Use Recharts for the Dashboard summary (e.g., Quotes per Month).",
-    "Icons: Use 'lucide-react' for all UI icons.",
-    "Use 'sonner' for all toast notifications (success/error).",
-    "Ensure all interactive elements have 'data-testid' attributes."
-  ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Do not use generic centered layouts or simplistic gradients.",
-    "Avoid 'AI slop' aesthetics; focus on crisp, professional borders and whitespace.",
-    "Use 2-3x more spacing than typical defaults (p-6, p-8).",
-    "Interactive elements must have clear hover/active states.",
-    "No generic 'robot' emojis.",
-    "Components must use named exports.",
-    "Use existing Shadcn components from /src/components/ui/ whenever possible, customizing them via className."
-  ],
-  "accessibility": {
-    "contrast": "Ensure WCAG AA compliance (4.5:1 for normal text).",
-    "focus_states": "Visible focus rings on all interactive elements.",
-    "aria_labels": "Required for all icon-only buttons."
-  },
-  "motion": {
-    "page_transition": "opacity: 0 -> 1, duration: 0.3s ease-out",
-    "hover_lift": "transform: translateY(-1px), transition: all 0.2s ease",
-    "modal_enter": "scale: 0.95 -> 1, opacity: 0 -> 1, duration: 0.2s ease-out"
-  }
+    "DO NOT modify backend logic, API calls, or the data structure. Work strictly on the UI presentation in /app/frontend/src/pages/Quotes.jsx (or equivalent component).",
+    "Compute the new KPI cards purely from the client-side quotes array.",
+    "MUST retain all 'data-testid' attributes exactly. Ensure they are attached to the interactive elements (buttons, inputs) in your new design.",
+    "Use standard Shadcn UI primitives for Select, Input, Badge, Card, etc., but customize their Tailwind classes to match these guidelines.",
+    "Use Lucide-react for all iconography."
+  ]
 }
