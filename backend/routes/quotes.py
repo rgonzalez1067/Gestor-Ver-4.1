@@ -1707,6 +1707,10 @@ class EquipmentQuotePDFRequest(BaseModel):
     bulk_serials: List[str] = []
     repair_models: List[RepairModelEntry] = []
     iva_exempt: Optional[bool] = False
+    # Iter50: descuento aplicable a cotizaciones de Equipos.
+    discount_type: Optional[str] = None  # 'percent' | 'amount' | None
+    discount_value: Optional[float] = 0  # valor crudo introducido por el usuario
+    discount_amount_usd: Optional[float] = 0  # monto absoluto ya calculado en el cliente
 
 @router.post("/quotes/generate-equipment-pdf")
 async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authorization: Optional[str] = Header(None)):
@@ -1734,9 +1738,25 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     type_title = type_labels.get(data.equipment_type, data.equipment_type)
 
     subtotal = sum(item.quantity * item.unit_price_usd for item in data.items)
+    # Iter50: aplicar descuento ANTES de calcular el IVA (afecta la base imponible).
+    discount_amount = 0.0
+    discount_label = ""
+    if data.discount_type and (data.discount_value or 0) > 0:
+        if data.discount_type == "percent":
+            pct = max(0.0, min(100.0, float(data.discount_value or 0)))
+            discount_amount = round(subtotal * pct / 100.0, 2)
+            discount_label = f"Descuento ({pct:g}%):"
+        elif data.discount_type == "amount":
+            discount_amount = max(0.0, min(subtotal, float(data.discount_value or 0)))
+            discount_label = "Descuento:"
+    # Si el frontend ya envió `discount_amount_usd` (ya calculado), preferirlo
+    # para evitar discrepancias por redondeo entre cliente y servidor.
+    if data.discount_amount_usd and abs(float(data.discount_amount_usd) - discount_amount) > 0.01:
+        discount_amount = round(max(0.0, min(subtotal, float(data.discount_amount_usd))), 2)
+    base_after_discount = max(0.0, subtotal - discount_amount)
     iva_rate = 0.0 if getattr(data, "iva_exempt", False) else 0.16
-    iva = round(subtotal * iva_rate, 2)
-    total = round(subtotal + iva, 2)
+    iva = round(base_after_discount * iva_rate, 2)
+    total = round(base_after_discount + iva, 2)
     iva_label = "IVA (Exento)" if getattr(data, "iva_exempt", False) else "IVA (16%)"
 
     items_html = ""
@@ -1903,6 +1923,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         </div>
         <div class="totals">
             <div class="total-row"><span>Subtotal:</span><span>${subtotal:,.2f}</span></div>
+            {('<div class="total-row" style="color:#c2410c"><span>' + discount_label + '</span><span>-$' + format(discount_amount, ',.2f') + '</span></div>') if discount_amount > 0 else ''}
             <div class="total-row"><span>{iva_label}:</span><span>${iva:,.2f}</span></div>
             <div class="total-row grand-total"><span>TOTAL:</span><span>${total:,.2f}</span></div>
         </div>
@@ -2024,6 +2045,10 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         "estimated_delivery_date": data.estimated_delivery_date or None,
         "repair_models": [m.dict() for m in data.repair_models] if data.repair_models else [],
         "iva_exempt": bool(getattr(data, "iva_exempt", False)),
+        # Iter50: descuento aplicado.
+        "discount_type": data.discount_type or None,
+        "discount_value": float(data.discount_value or 0),
+        "discount_amount_usd": float(discount_amount),
         "quote_status": "Borrador",
         "quote_pdf_url": quote_pdf_url,
         "attachments": [attachment_entry],

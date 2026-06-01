@@ -31,7 +31,7 @@ logger = logging.getLogger("action-notifications")
 BUSINESS_TYPES = [
     {"id": "implementacion_pyme", "label": "Implementaciones Pyme", "has_sub": True},
     {"id": "implementacion_corp", "label": "Implementaciones Corp", "has_sub": True},
-    {"id": "equipos", "label": "Equipos", "has_sub": False},
+    {"id": "equipos", "label": "Equipos y Accesorios", "has_sub": True},
     {"id": "reparaciones", "label": "Reparaciones", "has_sub": False},
     {"id": "proyectos_directos", "label": "Proyectos Directos", "has_sub": False},
 ]
@@ -42,6 +42,9 @@ PRODUCT_SUBCATEGORIES = [
     {"id": "mpos_imple_pos", "label": "MPOS Imple+POS"},
     {"id": "payment_gateway", "label": "Payment Gateway"},
     {"id": "link_pago", "label": "Link de Pago"},
+    # Iter50: subcategorías de Equipos por segmento de cliente
+    {"id": "clientes_pyme", "label": "Clientes Pyme"},
+    {"id": "clientes_corp", "label": "Clientes Corporativos"},
 ]
 
 # Acciones disponibles. Cada acción tiene un id estable + label + lista de PDFs
@@ -105,6 +108,14 @@ ALLOWED_ACTIONS_BY_BIZ_SUB = {
         "send_to_client", "approve", "preassign_serials", "configure",
         "invoice", "collect", "deliver", "send_to_implementation",
     ],
+    ("equipos", "clientes_pyme"): [
+        "send_to_client", "approve", "invoice", "collect", "deliver",
+    ],
+    ("equipos", "clientes_corp"): [
+        "send_to_client", "approve", "invoice", "collect", "deliver",
+    ],
+    # Legacy: configuraciones antiguas sin subcategoría — se mantienen para
+    # compat hasta que se migren (corre en el startup del backend, Iter50).
     ("equipos", None): [
         "send_to_client", "approve", "invoice", "collect", "deliver",
     ],

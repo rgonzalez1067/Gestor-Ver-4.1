@@ -62,6 +62,7 @@ export const Quotes = () => {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [equipmentWizardOpen, setEquipmentWizardOpen] = useState(false);
   const [equipmentWizardMode, setEquipmentWizardMode] = useState(''); // 'equipment' o 'repair'
+  const [equipmentWizardSegment, setEquipmentWizardSegment] = useState('PYME'); // Iter50: PYME | CORP
   
   
   
@@ -3660,8 +3661,8 @@ export const Quotes = () => {
           <NewQuoteButtons
             rbac={rbac}
             onOpenImpl={(segment) => openWizard(segment)}
-            onOpenEquipment={() => { setEquipmentWizardMode('equipment'); setEquipmentWizardOpen(true); }}
-            onOpenRepair={() => { setEquipmentWizardMode('repair'); setEquipmentWizardOpen(true); }}
+            onOpenEquipment={(segment) => { setEquipmentWizardMode('equipment'); setEquipmentWizardSegment(segment || 'PYME'); setEquipmentWizardOpen(true); }}
+            onOpenRepair={() => { setEquipmentWizardMode('repair'); setEquipmentWizardSegment('PYME'); setEquipmentWizardOpen(true); }}
           />
 
           {/* Filtros Rápidos */}
@@ -3808,7 +3809,7 @@ export const Quotes = () => {
           {/* Modales secundarios (componente extraído) */}
           <QuoteModals ctx={{
             pdfPreviewOpen, setPdfPreviewOpen, pdfPreviewUrl, setPdfPreviewUrl, pdfPreviewLoading,
-            equipmentWizardOpen, setEquipmentWizardOpen, equipmentWizardMode, setEquipmentWizardMode,
+            equipmentWizardOpen, setEquipmentWizardOpen, equipmentWizardMode, setEquipmentWizardMode, equipmentWizardSegment,
             clients, allHardware, currentUser, fetchData, quotes,
             deleteConfirmOpen, setDeleteConfirmOpen, deleteQuoteData, executeDeleteQuote,
             workflowModalOpen, setWorkflowModalOpen, workflowQuoteId, setWorkflowQuoteId,

@@ -30,7 +30,7 @@ export const QuoteModals = ({ ctx }) => {
     // PDF Preview
     pdfPreviewOpen, setPdfPreviewOpen, pdfPreviewUrl, setPdfPreviewUrl, pdfPreviewLoading,
     // Equipment Wizard
-    equipmentWizardOpen, setEquipmentWizardOpen, equipmentWizardMode, setEquipmentWizardMode,
+    equipmentWizardOpen, setEquipmentWizardOpen, equipmentWizardMode, setEquipmentWizardMode, equipmentWizardSegment,
     clients, allHardware, currentUser, fetchData, quotes,
     // Delete confirm
     deleteConfirmOpen, setDeleteConfirmOpen, deleteQuoteData, executeDeleteQuote,
@@ -104,7 +104,7 @@ export const QuoteModals = ({ ctx }) => {
             clients={clients}
             hardware={allHardware}
             forcedMode={equipmentWizardMode}
-            userSede={currentUser?.sede || 'PYME'}
+            userSede={equipmentWizardSegment || currentUser?.sede || 'PYME'}
           />
 
           {/* Modal de confirmación para Eliminar */}

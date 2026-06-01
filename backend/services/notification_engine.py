@@ -39,7 +39,10 @@ def _quote_to_biz_sub(quote: dict) -> tuple[Optional[str], Optional[str]]:
         # Proyectos creados desde el módulo "Proyectos Directos" — sin sub-categoría.
         return "proyectos_directos", None
     if cat == "equipment":
-        return "equipos", None
+        # Iter50: equipos ahora se subcategoriza por segmento del cliente.
+        sede = (quote.get("sede") or quote.get("client_segment") or "PYME").upper()
+        sub = "clientes_corp" if sede == "CORP" else "clientes_pyme"
+        return "equipos", sub
     if cat == "repair":
         return "reparaciones", None
     # MPOS Imple+POS (Fast Track) usa el bucket de Implementación en el catálogo:

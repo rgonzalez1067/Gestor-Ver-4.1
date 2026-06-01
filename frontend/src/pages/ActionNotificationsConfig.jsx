@@ -300,7 +300,13 @@ function SubCategoryAccordion({ subCategory, businessType, actions, allowedMap, 
 
 function BusinessTypeAccordion({ business, subCategories, actions, allowedMap, configs, users, templates, onSaved }) {
   const [expanded, setExpanded] = useState(false);
-  const subs = business.has_sub ? subCategories : [null];
+  // Iter50: filtrar subcategorías por las que tengan acciones permitidas para
+  // ESTE negocio. Antes se renderizaban todas, mostrando subcategorías
+  // ajenas (ej. VPOS bajo "Equipos y Accesorios"). Igual lógica que el bloque
+  // de Override de Acciones.
+  const subs = business.has_sub
+    ? subCategories.filter((s) => (allowedMap[`${business.id}|${s.id}`] || []).length)
+    : [null];
 
   return (
     <div className="border-2 border-slate-300 rounded-lg mb-3 bg-white shadow-sm">
@@ -858,42 +864,96 @@ function OverridesTab({ actions, businessTypes, subCategories, allowedMap, users
 
 function BusinessOverridesBlock({ biz, subCategories, actions, allowedMap, overrides, users = [], onChanged }) {
   const [expanded, setExpanded] = useState(false);
+  // Iter50: drill-down. Cuando el negocio se expande sólo se ven los nombres
+  // de subcategorías; al hacer click sobre una subcategoría se cargan sus
+  // acciones para edición. Evita renderizar masivamente toda la matriz.
+  const [activeSubId, setActiveSubId] = useState(null);
   const subs = biz.has_sub ? subCategories.filter((s) => (allowedMap[`${biz.id}|${s.id}`] || []).length) : [{ id: null, label: '' }];
 
   return (
     <div className="border border-slate-200 rounded bg-white">
-      <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50">
+      <button
+        onClick={() => { setExpanded((v) => !v); setActiveSubId(null); }}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50"
+        data-testid={`ov-biz-toggle-${biz.id}`}
+      >
         <span className="font-medium text-slate-800">{biz.label}</span>
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
       {expanded && (
-        <div className="p-3 border-t border-slate-100 space-y-3">
-          {subs.map((sub) => {
-            const allowed = allowedMap[`${biz.id}|${sub.id || '_'}`] || [];
-            if (!allowed.length) return null;
-            return (
-              <div key={sub.id || 'no-sub'} className="space-y-1.5">
-                {sub.label && <p className="text-xs font-semibold text-slate-500 uppercase">{sub.label}</p>}
-                {allowed.map((aid) => {
-                  const action = actions.find((a) => a.id === aid);
-                  if (!action) return null;
-                  const key = `${biz.id}|${sub.id || '_'}|${aid}`;
+        <div className="p-3 border-t border-slate-100 space-y-2">
+          {/* Caso sin subcategorías: mostrar acciones directamente */}
+          {!biz.has_sub ? (
+            <div className="space-y-1.5">
+              {(allowedMap[`${biz.id}|_`] || []).map((aid) => {
+                const action = actions.find((a) => a.id === aid);
+                if (!action) return null;
+                const key = `${biz.id}|_|${aid}`;
+                return (
+                  <OverrideRow
+                    key={key}
+                    action={action}
+                    configKey={key}
+                    bizId={biz.id}
+                    subId={null}
+                    override={overrides[key]}
+                    users={users}
+                    onChanged={onChanged}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              {/* Lista de subcategorías como tabs/pills */}
+              <div className="flex flex-wrap gap-2 pb-2 border-b border-slate-100" data-testid={`ov-sub-list-${biz.id}`}>
+                {subs.map((sub) => {
+                  const isActive = activeSubId === sub.id;
                   return (
-                    <OverrideRow
-                      key={key}
-                      action={action}
-                      configKey={key}
-                      bizId={biz.id}
-                      subId={sub.id}
-                      override={overrides[key]}
-                      users={users}
-                      onChanged={onChanged}
-                    />
+                    <button
+                      key={sub.id || 'none'}
+                      type="button"
+                      onClick={() => setActiveSubId(isActive ? null : sub.id)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                      data-testid={`ov-sub-toggle-${biz.id}-${sub.id || 'none'}`}
+                    >
+                      {sub.label || '(sin subcategoría)'}
+                    </button>
                   );
                 })}
               </div>
-            );
-          })}
+              {/* Acciones — sólo de la subcategoría seleccionada */}
+              {activeSubId === null ? (
+                <p className="text-xs text-slate-400 italic py-3">
+                  Selecciona una subcategoría arriba para ver sus acciones.
+                </p>
+              ) : (
+                <div className="space-y-1.5 pt-2">
+                  {(allowedMap[`${biz.id}|${activeSubId}`] || []).map((aid) => {
+                    const action = actions.find((a) => a.id === aid);
+                    if (!action) return null;
+                    const key = `${biz.id}|${activeSubId}|${aid}`;
+                    return (
+                      <OverrideRow
+                        key={key}
+                        action={action}
+                        configKey={key}
+                        bizId={biz.id}
+                        subId={activeSubId}
+                        override={overrides[key]}
+                        users={users}
+                        onChanged={onChanged}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

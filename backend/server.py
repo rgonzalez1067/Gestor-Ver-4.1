@@ -385,6 +385,38 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"Conversations init/migration failed: {e}")
 
+        # Iter50: clonar configs y overrides de 'equipos|None' a las nuevas
+        # subcategorías 'clientes_pyme' y 'clientes_corp'. Idempotente vía
+        # `equipos_subcat_migrated` marker en la migrations collection.
+        try:
+            marker = await db.migrations.find_one({"_id": "equipos_subcat_v1"})
+            if not marker:
+                # Configs de acción
+                async for cfg in db.action_notification_configs.find({"business_type": "equipos", "product_subcategory": None}):
+                    for sub in ("clientes_pyme", "clientes_corp"):
+                        new_key = f"equipos|{sub}|{cfg['action_id']}"
+                        existing = await db.action_notification_configs.find_one({"config_key": new_key})
+                        if existing:
+                            continue
+                        clone = {k: v for k, v in cfg.items() if k not in ("_id", "config_key")}
+                        clone["product_subcategory"] = sub
+                        clone["config_key"] = new_key
+                        await db.action_notification_configs.insert_one(clone)
+                # Overrides
+                async for ov in db.quote_action_overrides.find({"business_type": "equipos", "product_subcategory": None}):
+                    for sub in ("clientes_pyme", "clientes_corp"):
+                        new_key = f"equipos|{sub}|{ov['action_id']}"
+                        if await db.quote_action_overrides.find_one({"config_key": new_key}):
+                            continue
+                        clone = {k: v for k, v in ov.items() if k not in ("_id", "config_key")}
+                        clone["product_subcategory"] = sub
+                        clone["config_key"] = new_key
+                        await db.quote_action_overrides.insert_one(clone)
+                await db.migrations.insert_one({"_id": "equipos_subcat_v1", "migrated_at": datetime.now(timezone.utc).isoformat()})
+                logging.info("[iter50] migration equipos_subcat_v1 completed")
+        except Exception as e:
+            logging.warning(f"Iter50 equipos subcat migration failed: {e}")
+
     # Fire-and-forget — el startup retorna de inmediato, K8s pasa el readiness.
     import asyncio as _asyncio
     _asyncio.create_task(_bg_init())

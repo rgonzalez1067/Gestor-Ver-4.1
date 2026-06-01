@@ -52,14 +52,39 @@ export function NewQuoteButtons({ rbac, onOpenImpl, onOpenEquipment, onOpenRepai
       )}
 
       {rbac.hasEquipos && (
-        <Button
-          onClick={onOpenEquipment}
-          data-testid="create-equipment-quote-button"
-          className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
-        >
-          <Plus size={20} className="mr-2" />
-          Equipos y Accesorios
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button data-testid="create-equipment-quote-button" className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white">
+              <Plus size={20} className="mr-2" />
+              Equipos y Accesorios
+              <ChevronDown size={16} className="ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-72">
+            <DropdownMenuItem onClick={() => onOpenEquipment('PYME')} className="py-3 cursor-pointer" data-testid="new-equipment-pyme">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Users size={16} className="text-emerald-700" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Clientes Pymes</p>
+                  <p className="text-xs text-slate-500">VPOS, MPOS, Gateway, Link de Pago</p>
+                </div>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onOpenEquipment('CORP')} className="py-3 cursor-pointer" data-testid="new-equipment-corp">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Building2 size={16} className="text-blue-700" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">Clientes Corporativos</p>
+                  <p className="text-xs text-slate-500">Proyectos de gran envergadura</p>
+                </div>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
 
       {rbac.hasReparaciones && (

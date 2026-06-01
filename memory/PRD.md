@@ -4,6 +4,51 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 51: Fix Matriz cruzada Equipos + descuento en PDF — Feb 2026
+
+**Bug 1 — Subcategorías de Implementaciones aparecían bajo Equipos** (`pages/ActionNotificationsConfig.jsx::BusinessTypeAccordion`):
+- Causa: la matriz renderizaba TODAS las subcategorías sin filtrar por `allowedMap` cuando `business.has_sub=true`.
+- Fix: aplicar el mismo filtro que ya tenía el bloque Override — `subCategories.filter((s) => (allowedMap[`${business.id}|${s.id}`] || []).length)`.
+- Resultado: bajo "Equipos y Accesorios" sólo aparecen "Clientes Pyme" y "Clientes Corporativos".
+
+**Bug 2 — Descuento no se reflejaba en el PDF impreso al cliente** (`routes/quotes.py::generate_equipment_quote_pdf`):
+- `EquipmentQuotePDFRequest` extendido con `discount_type`, `discount_value`, `discount_amount_usd`.
+- Cálculo del PDF aplica descuento **antes** del IVA (afecta la base imponible): `subtotal → −descuento → base → +IVA → TOTAL`.
+- Si el cliente envía `discount_amount_usd` ya calculado se prefiere para evitar discrepancias de redondeo.
+- Línea "Descuento (X%):" o "Descuento:" agregada al bloque de totales del PDF con color ámbar (`#c2410c`).
+- El doc Mongo de la cotización guarda `discount_type`, `discount_value`, `discount_amount_usd` para auditoría/reporte.
+
+**Validación**: PDF generado con `pdftotext` confirma presencia de "Descuento (10%):" entre Subtotal e IVA. Screenshot de la Matriz muestra solo 2 subcategorías bajo Equipos.
+
+
+
+### Iteration 50: Equipos PYME/CORP + Descuento + Override drill-down — Feb 2026
+
+**1. Dropdown "Equipos y Accesorios"** (`components/quotes/NewQuoteButtons.jsx`):
+- Botón ahora abre dropdown con 2 opciones idénticas a Implementaciones: Clientes Pymes / Clientes Corporativos.
+- `Quotes.jsx` propaga el segmento (`PYME`/`CORP`) al `EquipmentQuoteWizard` vía `equipmentWizardSegment`.
+
+**2. Campo Descuento** (`components/EquipmentQuoteWizard.jsx`):
+- Sólo visible en modo Equipos (no en Reparaciones).
+- Toggle `%` / `$` + input con validación (no excede 100% ni el subtotal).
+- Footer de la tabla muestra **Subtotal → Descuento → TOTAL** con línea ámbar para el descuento.
+- Payload incluye `discount_type`, `discount_value`, `discount_amount_usd`, `subtotal_usd`, `total_usd`, `client_segment`, `sede`.
+
+**3. Subcategorías Equipos** (`routes/action_notifications.py` + `notification_engine.py`):
+- `BUSINESS_TYPES.equipos.has_sub = True`.
+- Nuevas subcategorías: `clientes_pyme` (Clientes Pyme) y `clientes_corp` (Clientes Corporativos).
+- `ALLOWED_ACTIONS_BY_BIZ_SUB`: ambas subcategorías heredan las mismas 5 acciones; `equipos|None` se mantiene para legacy compat.
+- `_quote_to_biz_sub()`: para cotizaciones de Equipos ahora deriva `clientes_pyme`/`clientes_corp` según `sede`/`client_segment`.
+- Migración idempotente al startup (`equipos_subcat_v1`): clona configs y overrides de `equipos|None` a ambas subcategorías.
+
+**4. Override de Acciones drill-down** (`pages/ActionNotificationsConfig.jsx::BusinessOverridesBlock`):
+- Refactor completo: al expandir un negocio con subcategorías, se muestra **solo la lista de subcategorías** como pills clickeables. Las acciones aparecen únicamente cuando el usuario selecciona una subcategoría.
+- Reduce drásticamente el render inicial (antes: todas las subcats × todas las actions). Negocios sin subcategoría (Reparaciones, Proyectos Directos) mantienen el render directo.
+
+**Validación e2e** (screenshots): dropdown PYME/CORP funcional, wizard abre con chip "Segmento: Pyme", drill-down de Override muestra subcategorías → click → acciones. Sin runtime errors. Backend tests `tests/test_iteration42_inbox_center.py` siguen 1/1 PASSED.
+
+
+
 ### Iteration 48: Centro de Mensajes → Chat Continuo (WhatsApp Style) — Feb 2026
 
 **Refactorización mayor** del modelo de mensajería interna: las respuestas user-to-user ya NO crean filas duplicadas. Cada par de usuarios + asunto comparte UN solo hilo donde se anexan mensajes cronológicamente.

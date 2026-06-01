@@ -98,6 +98,11 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
   const [serialInput, setSerialInput] = useState(''); // Input para ingreso manual de serial
   const [modelSearchQuery, setModelSearchQuery] = useState(''); // Buscador de modelos
 
+  // Iter50: descuento (sólo aplica a Equipos, no a Reparaciones).
+  // `discountType`: 'percent' aplica % al subtotal · 'amount' resta monto fijo.
+  const [discountType, setDiscountType] = useState('percent');
+  const [discountValue, setDiscountValue] = useState('');
+
   // Hardware POS/Pinpad disponible para selección de modelo (solo Bienes físicos)
   const availableModels = hardware.filter(item =>
     REPAIR_MODEL_TYPES.includes(item.type) &&
@@ -236,8 +241,16 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     }
   };
 
-  // Calcular total
-  const totalUSD = selectedItems.reduce((sum, item) => sum + item.total_usd, 0);
+  // Calcular total (Iter50: con descuento aplicado para Equipos)
+  const subtotalUSD = selectedItems.reduce((sum, item) => sum + item.total_usd, 0);
+  const numericDiscount = parseFloat(discountValue) || 0;
+  const isEquipmentMode = forcedMode === 'equipment';
+  const discountUSD = isEquipmentMode
+    ? (discountType === 'percent'
+        ? Math.max(0, Math.min(100, numericDiscount)) * subtotalUSD / 100
+        : Math.max(0, Math.min(subtotalUSD, numericDiscount)))
+    : 0;
+  const totalUSD = Math.max(0, subtotalUSD - discountUSD);
 
   // Reset wizard
   const resetWizard = () => {
@@ -263,6 +276,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
     setModelSearchQuery('');
     setClientSearchQuery('');
     setClientSearchResults([]);
+    setDiscountType('percent');
+    setDiscountValue('');
   };
 
   // ==================== FLUJO CÍCLICO MULTI-MODELO ====================
@@ -412,6 +427,14 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
         equipment_serial_number: equipmentSerialNumber,
         estimated_delivery_date: estimatedDeliveryDate,
         bulk_serials: confirmedSerials,
+        // Iter50: segmento del cliente y descuento aplicado.
+        client_segment: userSegment === 'Corp' ? 'CORP' : 'PYME',
+        sede: userSegment === 'Corp' ? 'CORP' : 'PYME',
+        discount_type: isEquipmentMode ? discountType : null,
+        discount_value: isEquipmentMode ? numericDiscount : 0,
+        discount_amount_usd: isEquipmentMode ? discountUSD : 0,
+        subtotal_usd: subtotalUSD,
+        total_usd: totalUSD,
         repair_models: repairModels.map(m => ({
           model_name: m.model_name,
           model_id: m.model_id,
@@ -1015,12 +1038,78 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                     </tbody>
                     <tfoot className="bg-slate-900 text-white">
                       <tr>
+                        <td colSpan="3" className="px-3 py-2 text-right font-semibold text-sm">Subtotal:</td>
+                        <td className="px-3 py-2 text-right font-bold text-sm" data-testid="equipment-subtotal">${subtotalUSD.toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                      {isEquipmentMode && discountUSD > 0 && (
+                        <tr className="bg-slate-800">
+                          <td colSpan="3" className="px-3 py-2 text-right font-semibold text-sm text-amber-200">
+                            Descuento ({discountType === 'percent' ? `${numericDiscount}%` : 'monto fijo'}):
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-sm text-amber-200" data-testid="equipment-discount-applied">
+                            −${discountUSD.toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                      <tr>
                         <td colSpan="3" className="px-3 py-3 text-right font-semibold">TOTAL:</td>
                         <td className="px-3 py-3 text-right font-bold text-lg" data-testid="equipment-total">${totalUSD.toFixed(2)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+              )}
+
+              {/* Iter50: Descuento (sólo Equipos, no Reparaciones) */}
+              {isEquipmentMode && selectedItems.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+                  <Label className="text-sm font-bold text-amber-900">Descuento (opcional)</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex rounded-md border border-amber-300 overflow-hidden bg-white">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType('percent')}
+                        className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          discountType === 'percent' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-100'
+                        }`}
+                        data-testid="discount-type-percent"
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType('amount')}
+                        className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          discountType === 'amount' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-100'
+                        }`}
+                        data-testid="discount-type-amount"
+                      >
+                        $
+                      </button>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      max={discountType === 'percent' ? 100 : subtotalUSD}
+                      step="0.01"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      placeholder={discountType === 'percent' ? '0 — 100' : `0 — ${subtotalUSD.toFixed(2)}`}
+                      className="max-w-[180px]"
+                      data-testid="discount-input"
+                    />
+                    {discountUSD > 0 && (
+                      <span className="text-sm font-semibold text-amber-700">
+                        = −${discountUSD.toFixed(2)} USD
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    El descuento se resta del subtotal antes de calcular el total. No puede superar el subtotal.
+                  </p>
                 </div>
               )}
 
