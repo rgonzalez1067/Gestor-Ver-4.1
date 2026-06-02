@@ -15,6 +15,7 @@ import {
 } from './ui/alert-dialog';
 import { toast } from 'sonner';
 import api from '../utils/api';
+import { emitInboxChanged, emitInboxReloadList } from '../utils/inboxEvents';
 
 /**
  * ChatThread — Vista de Conversación tipo WhatsApp (Iter48).
@@ -75,6 +76,10 @@ export function ChatThread({ conversationId, open, onOpenChange, onChanged }) {
       setHeader(data.conversation || null);
       setMessages(data.messages || []);
       scrollToBottom();
+      // Abrir el hilo marca el/los mensaje(s) como leído(s) en el servidor:
+      // avisa al banner global y solicita recargar el listado para sincronizar badges.
+      emitInboxChanged();
+      emitInboxReloadList();
     } catch (err) {
       const detail = err?.response?.data?.detail || err?.message || 'Error';
       toast.error(`No se pudo cargar el hilo: ${detail}`);

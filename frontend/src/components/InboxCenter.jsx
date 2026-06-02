@@ -17,6 +17,8 @@ import api from '../utils/api';
 import { EmailHtmlFrame } from './EmailHtmlFrame';
 import { NewMessageDialog } from './NewMessageDialog';
 import { ChatThread } from './ChatThread';
+import { emitInboxChanged } from '../utils/inboxEvents';
+import { INBOX_RELOAD_LIST } from '../utils/inboxEvents';
 
 /**
  * Centro de Mensajes — Bandeja Interna del Usuario.
@@ -97,6 +99,8 @@ export function InboxCenter() {
     try {
       const res = await api.get('/inbox/me', { params: { limit: 50, include_read: true } });
       setMessages(res.data?.items || []);
+      // Mantiene el banner global sincronizado con el estado de la bandeja.
+      emitInboxChanged();
     } catch (err) {
       const detail = err.response?.data?.detail || err.message || 'Error';
       toast.error(`No se pudo cargar el Centro de Mensajes: ${detail}`);
@@ -108,6 +112,14 @@ export function InboxCenter() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Recarga la bandeja cuando otro componente (ChatThread al leer, WS al recibir)
+  // solicita refrescar el listado, para mantener los badges sincronizados.
+  useEffect(() => {
+    const onReload = () => load();
+    window.addEventListener(INBOX_RELOAD_LIST, onReload);
+    return () => window.removeEventListener(INBOX_RELOAD_LIST, onReload);
   }, [load]);
 
   const handleRefresh = () => {
@@ -127,6 +139,7 @@ export function InboxCenter() {
             m.message_id === msg.message_id ? { ...m, read_at: new Date().toISOString() } : m,
           ),
         );
+        emitInboxChanged();
       } catch {
         /* silencio: lectura es best-effort */
       }
@@ -252,7 +265,9 @@ export function InboxCenter() {
     }
   };
 
-  const unreadCount = messages.filter((m) => !m.read_at).length;
+  const unreadCount = messages.filter((m) =>
+    m.type === 'conversation' ? (m.unread_count || 0) > 0 : !m.read_at,
+  ).length;
 
   if (loading) {
     return (

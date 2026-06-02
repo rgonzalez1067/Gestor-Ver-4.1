@@ -2722,3 +2722,27 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 **Testing**: E2E verificado vía screenshot — admin envía mensaje interno a srubio (recipiente con sesión abierta) → aparece toast morado "Nuevo mensaje de Rafael González" con preview; dedupe confirmado (1 solo toast); "Ver mensaje" navega a /dashboard; mensaje llega en vivo al Centro de Mensajes. Lint OK (JS+PY). Backend sano.
 
 **Credenciales de prueba para mensajes internos**: admin rgonzalez@megasoft.com.ve/admin123 (emisor) → srubio@megasoft.com.ve/Test1234! (usr_3e9641ea80e3, receptor).
+
+---
+
+## Feature — Banner Global Persistente de Mensajes No Leídos (Feb 2026)
+
+**Objetivo**: Alerta roja fija (esquina superior derecha, z-index alto) visible en TODA la app mientras existan mensajes sin leer en el Centro de Mensajes. Sin auto-cierre ni botón de cerrar; desaparece solo al leer.
+
+**Arquitectura Frontend**:
+- `context/UnreadMessagesContext.jsx` (nuevo): estado global `unread` (Context API), consulta `/inbox/me/summary` (campo `unread` = notif + conversaciones sin leer). Se refresca por evento `inbox:changed`, polling 20s y al recuperar foco.
+- `components/GlobalUnreadBanner.jsx` (nuevo): caja roja intensa fija (top-5 right-5, z-[2147483646]) con ícono de sobre parpadeante (animate-ping/pulse) y texto "¡Atención! Tiene N mensaje(s) pendiente(s)...". Render condicional a `unread>0`. Sin timeout, sin botón cerrar.
+- `App.js`: `UnreadMessagesProvider` envuelve el árbol; `GlobalUnreadBanner` se renderiza fuera de `<Routes>` (persistente entre navegaciones); `AppToaster` aplica offset top:96 a los toasts cuando el banner está visible para evitar solापamiento.
+- `utils/inboxEvents.js` (nuevo): eventos `inbox:changed` (refresca summary/banner) e `inbox:reload-list` (recarga el listado del InboxCenter). Desacopla WS / ChatThread / InboxCenter sin bucles (InboxCenter emite `changed` pero escucha solo `reload-list`).
+- Emisores: WS `internal_message` (useNotifications), lectura de hilo (ChatThread.load), marcar leído notificación e InboxCenter.load.
+
+**Fix bug preexistente** (`InboxCenter.jsx`): el contador "X sin leer" del encabezado usaba `!m.read_at`, pero los ítems de conversación no tienen `read_at` → contaba TODAS las conversaciones. Corregido a: conversaciones→`unread_count>0`, notificaciones→`!read_at`. Ahora consistente con el banner.
+
+**Tiempo real**: el push WS `internal_message` (implementado en iteración previa) hace aparecer el banner inmediatamente en la pantalla donde esté el operador.
+
+**Testing (screenshots E2E con admin→srubio)**:
+- Aparición: banner "2 mensajes pendientes" en Dashboard.
+- Persistencia: sigue visible al navegar a /inventory y tras 11s (sin timeout, sin botón cerrar).
+- Remoción reactiva: leer 1 → "un mensaje"; leer todo → banner desaparece (0) sin recargar.
+- Consistencia: header "2 sin leer" = banner; tras leer todo, 0 chips "sin leer" y banner oculto.
+Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).

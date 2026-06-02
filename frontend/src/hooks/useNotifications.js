@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import api from '../utils/api';
+import { emitInboxChanged } from '../utils/inboxEvents';
 
 /**
  * useNotifications — hook global para el sistema de Push Notifications (P1).
@@ -70,6 +71,9 @@ export default function useNotifications() {
             // Mensaje interno (Centro de Mensajes): no entra a la lista de notificaciones
             // del sistema, solo dispara la alerta intensa.
             if (onIncomingRef.current) onIncomingRef.current({ ...msg.payload, kind: 'internal' });
+            // Notifica al banner global y solicita recargar la bandeja.
+            emitInboxChanged();
+            emitInboxReloadList();
           }
         } catch {
           // ping/pong u otro msg no-JSON — ignorar

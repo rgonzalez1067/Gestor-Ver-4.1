@@ -1,6 +1,8 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from 'sonner';
+import { UnreadMessagesProvider, useUnreadMessages } from './context/UnreadMessagesContext';
+import { GlobalUnreadBanner } from './components/GlobalUnreadBanner';
 import Auth from './pages/Auth';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
@@ -229,13 +231,23 @@ function AppRouter() {
   );
 }
 
+function AppToaster() {
+  // Cuando el banner global está visible, empuja los toasts hacia abajo para
+  // que no se solapen con la caja roja fija de la esquina superior derecha.
+  const { unread } = useUnreadMessages();
+  return <Toaster position="top-right" richColors offset={unread > 0 ? { top: 96 } : undefined} />;
+}
+
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <AppRouter />
+        <UnreadMessagesProvider>
+          <AppRouter />
+          <GlobalUnreadBanner />
+          <AppToaster />
+        </UnreadMessagesProvider>
       </BrowserRouter>
-      <Toaster position="top-right" richColors />
     </div>
   );
 }
