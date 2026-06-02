@@ -291,10 +291,10 @@ export const InitialContacts = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Telefono / Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Asignado a</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Sede</th>
-                  {/* Iter53: headers de fechas en 2 líneas + valores abreviados día/mes para compactar la grilla. */}
-                  <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16">Fecha<br />límite</div></th>
-                  <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16">Fecha<br />último<br />contacto</div></th>
-                  <th className="px-3 py-3 text-left text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16">Fecha<br />próximo<br />contacto</div></th>
+                  {/* Iter53: headers de fechas en 2-3 líneas + CENTRADOS + valores DD/MM. */}
+                  <th className="px-3 py-3 text-center text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16 mx-auto">Fecha<br />límite</div></th>
+                  <th className="px-3 py-3 text-center text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16 mx-auto">Fecha<br />último<br />contacto</div></th>
+                  <th className="px-3 py-3 text-center text-[11px] font-medium text-slate-600 uppercase leading-tight"><div className="w-16 mx-auto">Fecha<br />próximo<br />contacto</div></th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Creado</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Acciones</th>
                 </tr>
@@ -332,23 +332,23 @@ export const InitialContacts = () => {
                         {c.sede}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3 text-center">
                       {(() => {
                         const sla = getSLAStatus(c.due_date);
                         return c.due_date ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 justify-center">
                             <span className={`w-2.5 h-2.5 rounded-full ${sla.dot}`} />
                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${sla.color}`}>{new Date(c.due_date + 'T12:00:00').toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' })}</span>
                           </div>
                         ) : <span className="text-xs text-slate-400">—</span>;
                       })()}
                     </td>
-                    <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap" data-testid={`last-contact-${c.contact_id}`}>
+                    <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap text-center" data-testid={`last-contact-${c.contact_id}`}>
                       {c.last_contact_date
                         ? new Date(c.last_contact_date).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' })
                         : <span className="text-slate-400">--/--</span>}
                     </td>
-                    <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap" data-testid={`next-contact-${c.contact_id}`}>
+                    <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap text-center" data-testid={`next-contact-${c.contact_id}`}>
                       {c.next_contact_date
                         ? new Date(c.next_contact_date + (c.next_contact_date.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' })
                         : <span className="text-slate-400">--/--</span>}

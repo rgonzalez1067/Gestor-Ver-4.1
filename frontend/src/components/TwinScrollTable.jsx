@@ -48,10 +48,15 @@ export function TwinScrollTable({ children }) {
       }
     };
     updateSpacer();
-    const ro = new ResizeObserver(updateSpacer);
+    // Diferir el callback con requestAnimationFrame para evitar el clásico
+    // "ResizeObserver loop completed with undelivered notifications" cuando
+    // el cambio de width del spacer dispara otro resize en cascada.
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(updateSpacer);
+    });
     ro.observe(bot);
-    // Si el contenido interno cambia (rows added), también observar el child.
-    if (bot.firstElementChild) ro.observe(bot.firstElementChild);
+    // Solo observar el contenedor; observar el child generaba loops cuando
+    // el alto/ancho del contenido se recalcula con cada render.
 
     return () => {
       top.removeEventListener('scroll', onTop);
