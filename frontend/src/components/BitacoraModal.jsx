@@ -40,6 +40,11 @@ export default function BitacoraModal({
   contacts = [],
   apiPrefix = 'clients',
   originBadge = null,
+  // Iter56: callback que se dispara cada vez que se crea o completa una
+  // entrada de bitácora. Permite al padre (ej. listado de Contactos Iniciales)
+  // refrescar columnas dependientes (last_contact_date / next_contact_date)
+  // de forma inmediata sin necesidad de cerrar el modal ni recargar.
+  onLogCreated = null,
 }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -82,6 +87,8 @@ export default function BitacoraModal({
       setLogs((prev) => [res.data, ...prev]);
       setNewLog(EMPTY_LOG);
       toast.success('Entrada de bitácora registrada');
+      // Iter56: avisar al padre para refrescar la grilla en línea.
+      onLogCreated?.(res.data);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Error al registrar la entrada');
     } finally {

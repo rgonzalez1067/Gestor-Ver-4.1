@@ -602,6 +602,7 @@ export const InitialContacts = () => {
             role: 'Contacto principal',
           }] : []}
           apiPrefix="initial-contacts"
+          onLogCreated={() => fetchData()}
         />
 
         {/* Cerrar Gestión (todos los usuarios) */}
