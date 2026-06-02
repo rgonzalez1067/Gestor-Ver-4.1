@@ -671,7 +671,14 @@ export const Settings = () => {
           </div>
 
           {/* Iter57: Usuarios Conectados — admin-only */}
-          {currentUser?.role === 'admin' && (
+          {(() => {
+            let isAdminUser = false;
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
+            } catch { /* noop */ }
+            if (!isAdminUser) return null;
+            return (
             <div className="bg-white rounded-lg border-2 border-violet-200 p-6 mb-6" data-testid="connected-users-card">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -701,7 +708,8 @@ export const Settings = () => {
                 </Button>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Refresco del Reporte de Embudo (Admin) */}
           <FunnelRecalculateCard />
