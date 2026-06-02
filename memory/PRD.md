@@ -2688,3 +2688,17 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 - `MigrationButtons.jsx`: `<div>` del nombre de archivo con `break-words`.
 
 **Testing**: Verificado vía screenshot tool con archivo de nombre extremadamente largo — modal contenido en viewport (right edge 1184px), botón a ancho completo con elipsis, sin desbordamiento. Lint OK en los 3 archivos.
+
+---
+
+## Fix DEFINITIVO — Desbordamiento de inputs en modal "Subir Documento" (causa raíz grid) (Feb 2026)
+
+**Síntoma persistente**: Con nombre de archivo largo, NO solo el botón sino TODOS los inputs (incluso vacíos) se desbordaban a la derecha del modal.
+
+**Causa raíz**: `DialogContent` (shadcn) es un `grid` con ancho definido (`w-full max-w-lg`). El contenedor del formulario `<div class="space-y-3">` es un grid-item con `min-width: auto`, por lo que el botón con nombre largo (hermano en la misma columna) expandía la columna por encima del ancho del modal, arrastrando a los inputs `w-full` fuera del recuadro. El `truncate` solo en el botón no bastaba porque la columna grid seguía expandiéndose.
+
+**Fix definitivo** (`ClientTemplatesConfig.jsx` y `EntityTemplatesConfig.jsx`): se agregó `min-w-0` al contenedor `space-y-3` (grid-item) y a cada wrapper de campo, permitiendo que la columna se contraiga al ancho del modal y que el truncado del botón surta efecto.
+
+**Testing**: Verificado vía screenshot con el nombre exacto reportado por el usuario — modal 448px (right 1184), botón de archivo termina en 1159px (dentro del modal) con elipsis, inputs contenidos. Lint OK.
+
+**Nota deployment**: El fix está en PREVIEW. Si el usuario lo prueba en PRODUCCIÓN debe re-desplegar para verlo.

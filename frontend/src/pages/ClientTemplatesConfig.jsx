@@ -242,10 +242,10 @@ export const ClientTemplatesConfig = () => {
                   <DialogTitle>Subir Documento de Comunicación</DialogTitle>
                   <DialogDescription>Este documento estará disponible como adjunto al enviar comunicaciones a clientes.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-3">
-                  <div><Label className="text-xs">Nombre</Label><Input value={docForm.name} onChange={e => setDocForm({...docForm, name: e.target.value})} placeholder="Ej: Flyer VPOS 2026" /></div>
-                  <div><Label className="text-xs">Descripción (opcional)</Label><Input value={docForm.description} onChange={e => setDocForm({...docForm, description: e.target.value})} /></div>
-                  <div>
+                <div className="space-y-3 min-w-0">
+                  <div className="min-w-0"><Label className="text-xs">Nombre</Label><Input value={docForm.name} onChange={e => setDocForm({...docForm, name: e.target.value})} placeholder="Ej: Flyer VPOS 2026" /></div>
+                  <div className="min-w-0"><Label className="text-xs">Descripción (opcional)</Label><Input value={docForm.description} onChange={e => setDocForm({...docForm, description: e.target.value})} /></div>
+                  <div className="min-w-0">
                     <Label className="text-xs">Archivo</Label>
                     <div className="mt-1">
                       <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="w-full justify-start max-w-full" title={docFile ? docFile.name : undefined}>
