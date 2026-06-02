@@ -31,6 +31,8 @@ class InitialContactAssign(BaseModel):
 
 class InitialContactDocument(BaseModel):
     comment: str
+    # Iter52: fecha del próximo contacto planificado (opcional, formato ISO).
+    next_contact_date: Optional[str] = None
 
 class InitialContactTransfer(BaseModel):
     target_user_id: str
@@ -286,9 +288,15 @@ async def document_initial_contact(contact_id: str, data: InitialContactDocument
         "timestamp": now
     }
     
+    # Iter52: mantener "last_contact_date" / "next_contact_date" sincronizados.
+    # Cada gestión actualiza last_contact_date al instante; next_contact_date
+    # solo si el agente la informó (no se sobrescribe con vacío).
+    set_fields = {"updated_at": now, "last_contact_date": now}
+    if data.next_contact_date:
+        set_fields["next_contact_date"] = data.next_contact_date.strip()
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
-        {"$set": {"updated_at": now}, "$push": {"bitacora": entry}}
+        {"$set": set_fields, "$push": {"bitacora": entry}}
     )
     
     return {"message": "Gestion documentada exitosamente"}

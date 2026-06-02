@@ -12,6 +12,7 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
 import BitacoraModal from '../components/BitacoraModal';
+import { TwinScrollTable } from '../components/TwinScrollTable';
 
 export const InitialContacts = () => {
   const [contacts, setContacts] = useState([]);
@@ -28,6 +29,7 @@ export const InitialContacts = () => {
   // Action modals
   const [documentOpen, setDocumentOpen] = useState(false);
   const [documentContact, setDocumentContact] = useState(null);
+  const [documentNextDate, setDocumentNextDate] = useState('');
   const [documentComment, setDocumentComment] = useState('');
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -119,10 +121,14 @@ export const InitialContacts = () => {
   const handleDocument = async () => {
     if (!documentComment.trim()) { toast.error('Escriba un comentario'); return; }
     try {
-      await api.post(`/initial-contacts/${documentContact.contact_id}/document`, { comment: documentComment });
+      await api.post(`/initial-contacts/${documentContact.contact_id}/document`, {
+        comment: documentComment,
+        next_contact_date: documentNextDate || null,
+      });
       toast.success('Gestion documentada');
       setDocumentOpen(false);
       setDocumentComment('');
+      setDocumentNextDate('');
       fetchData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al documentar'); }
   };
@@ -272,28 +278,31 @@ export const InitialContacts = () => {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" data-testid="contacts-table">
+        {/* Iter52: Twin Scrollbar — barras superior + inferior sincronizadas
+            mediante refs y un sync de scrollLeft 1:1. Útil cuando la grilla
+            tiene muchas columnas (Fecha último/próximo contacto añadidas). */}
+        <TwinScrollTable>
+            <table className="min-w-[1500px] w-full" data-testid="contacts-table">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Contacto</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Razon Social</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Referido Por</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Telefono / Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Asignado a</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Fecha Limite</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Creado</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Contacto</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Razon Social</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Referido Por</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Telefono / Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Asignado a</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Sede</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Fecha límite de contacto</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Fecha último contacto</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Fecha próximo contacto</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Creado</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase whitespace-nowrap">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">Cargando...</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-400">Cargando...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">No hay contactos iniciales</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-slate-400">No hay contactos iniciales</td></tr>
                 ) : filtered.map((c) => (
                   <tr key={c.contact_id} className={`group ${c.status === 'closed' ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`} data-testid={`contact-row-${c.contact_id}`}>
                     <td className="px-4 py-3">
@@ -332,6 +341,16 @@ export const InitialContacts = () => {
                           </div>
                         ) : <span className="text-xs text-slate-400">—</span>;
                       })()}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap" data-testid={`last-contact-${c.contact_id}`}>
+                      {c.last_contact_date
+                        ? formatDate(c.last_contact_date)
+                        : <span className="text-slate-400">--/--/----</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap" data-testid={`next-contact-${c.contact_id}`}>
+                      {c.next_contact_date
+                        ? new Date(c.next_contact_date + (c.next_contact_date.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        : <span className="text-slate-400">--/--/----</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDate(c.created_at)}</td>
                     <td className="px-4 py-3">
@@ -392,8 +411,7 @@ export const InitialContacts = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
+        </TwinScrollTable>
 
         {/* Create Modal */}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -471,6 +489,18 @@ export const InitialContacts = () => {
             <DialogHeader><DialogTitle className="flex items-center gap-2"><MessageSquare size={20} className="text-blue-600" /> Documentar Gestion</DialogTitle></DialogHeader>
             {documentContact && <p className="text-sm text-slate-500">Contacto: <strong>{documentContact.legal_name}</strong></p>}
             <Textarea placeholder="Describa la gestion realizada..." value={documentComment} onChange={(e) => setDocumentComment(e.target.value)} rows={4} data-testid="document-comment" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Fecha próximo contacto (opcional)</Label>
+              <Input
+                type="date"
+                value={documentNextDate}
+                onChange={(e) => setDocumentNextDate(e.target.value)}
+                data-testid="document-next-date"
+              />
+              <p className="text-[10px] text-slate-400">
+                Si la informas, aparecerá en la columna "Fecha próximo contacto" de la grilla.
+              </p>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDocumentOpen(false)}>Cancelar</Button>
               <Button onClick={handleDocument} className="bg-blue-600 hover:bg-blue-700" data-testid="submit-document-btn">Guardar</Button>

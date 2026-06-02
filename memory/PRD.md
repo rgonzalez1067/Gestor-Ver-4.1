@@ -4,6 +4,28 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 52: Contacto Inicial — Fecha último/próximo contacto + Twin Scrollbar — Feb 2026
+
+**Backend** (`routes/initial_contacts.py`):
+- `InitialContactDocument` extendido con `next_contact_date: Optional[str]`.
+- Endpoint `POST /initial-contacts/{id}/document` ahora actualiza:
+  - `last_contact_date = now` (automático en cada gestión documentada).
+  - `next_contact_date = data.next_contact_date` solo si el agente la informa (no sobrescribe con vacío).
+
+**Frontend** (`pages/InitialContacts.jsx`):
+- 2 nuevas columnas en la grilla, posicionadas **inmediatamente a la derecha** de "Fecha límite de contacto": "Fecha último contacto" y "Fecha próximo contacto". Render con `--/--/----` cuando son nulos (evita errores de render).
+- Modal "Documentar Gestión" ahora incluye campo opcional `<input type="date">` para "Fecha próximo contacto".
+
+**Componente nuevo** `components/TwinScrollTable.jsx`:
+- Wrapper con barras de desplazamiento horizontal **arriba + abajo** de la tabla.
+- Sincronización 1:1 vía refs + flag `syncingRef` (previene bucles infinitos) + `requestAnimationFrame` para release.
+- `ResizeObserver` actualiza el spacer superior cuando el contenido cambia (filas dinámicas).
+- Tabla forzada a `min-w-[1500px]` con `whitespace-nowrap` en cada `<th>` para que el ancho mínimo sea autoajustable y nunca haya solapamiento.
+
+**Validación e2e**: documentación + fecha próxima persistida correctamente en backend; columnas visibles con datos reales en preview; sin runtime errors.
+
+
+
 ### Iteration 51: Fix Matriz cruzada Equipos + descuento en PDF — Feb 2026
 
 **Bug 1 — Subcategorías de Implementaciones aparecían bajo Equipos** (`pages/ActionNotificationsConfig.jsx::BusinessTypeAccordion`):
