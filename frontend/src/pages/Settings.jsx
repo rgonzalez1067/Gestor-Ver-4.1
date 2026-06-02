@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -669,6 +669,39 @@ export const Settings = () => {
               </Button>
             </div>
           </div>
+
+          {/* Iter57: Usuarios Conectados — admin-only */}
+          {currentUser?.role === 'admin' && (
+            <div className="bg-white rounded-lg border-2 border-violet-200 p-6 mb-6" data-testid="connected-users-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Wifi size={24} className="text-violet-600 flex-shrink-0" />
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+                      Usuarios Conectados
+                    </h2>
+                    <p className="text-sm text-slate-600 max-w-2xl">
+                      Visualiza en tiempo real qué usuarios tienen sesión activa
+                      en el sistema, su departamento y el número de pestañas/conexiones
+                      abiertas. Útil para auditoría operativa y soporte en vivo.
+                    </p>
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
+                      Auto-refresh cada 15s · en vivo
+                    </Badge>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate('/settings/connected-users')}
+                  variant="outline"
+                  className="flex-shrink-0 border-violet-300 text-violet-700 hover:bg-violet-50"
+                  data-testid="open-connected-users-btn"
+                >
+                  Ver conectados
+                  <ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Refresco del Reporte de Embudo (Admin) */}
           <FunnelRecalculateCard />

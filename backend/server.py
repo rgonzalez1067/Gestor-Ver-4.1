@@ -52,6 +52,7 @@ from routes.data_migration import router as data_migration_router
 from routes.project_reports import router as project_reports_router
 from routes.direct_projects import router as direct_projects_router
 from routes.inbox import router as inbox_router
+from routes.connected_users import router as connected_users_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(title="Cotizador Merchant Server API")
@@ -250,6 +251,7 @@ api_router.include_router(projects_router)  # Projects router before seed_templa
 api_router.include_router(seed_templates_router)
 api_router.include_router(action_notifications_router)
 api_router.include_router(inbox_router)
+api_router.include_router(connected_users_router)
 api_router.include_router(quote_action_customization_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)
