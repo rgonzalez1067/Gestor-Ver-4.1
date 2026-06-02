@@ -14,7 +14,7 @@ import time
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = "https://direct-project-impl.preview.emergentagent.com"
+    BASE_URL = "https://tooltip-hover-fix.preview.emergentagent.com"
 
 class TestIteration53EditPersistence:
     """Tests for the edit/modify quote persistence bug fixes"""

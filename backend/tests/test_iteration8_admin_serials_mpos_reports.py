@@ -10,7 +10,7 @@ import requests
 import uuid
 from datetime import datetime
 
-BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://direct-project-impl.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://tooltip-hover-fix.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "rgonzalez@megasoft.com.ve", "password": "admin123"}
