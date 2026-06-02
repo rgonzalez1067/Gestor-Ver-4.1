@@ -2662,3 +2662,15 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
   - Aplicado SOLO en cotizador de Equipos/Accesorios (no en wizard de servicios), por decisión del usuario.
 
 **Testing**: Verificado vía screenshot tool — caja de descripción en Inventario OK ("Accesorios varios"); tooltip en Paso 3 del cotizador OK ("Accesorios varios" sobre "Dongles Mifi Produccion mf67"). Lint OK en ambos archivos.
+
+---
+
+## Hotfix — Overlay de error "ResizeObserver loop" en Cotización Equipos (Feb 2026)
+
+**Síntoma**: Al abrir el wizard de Cotización de Equipos/Accesorios y desplegar el selector de cliente, aparecía el overlay rojo de desarrollo "Uncaught runtime errors: ResizeObserver loop completed with undelivered notifications" (error benigno del dev-server, no ocurre en producción).
+
+**Causa**: El popper de Radix Select midiendo una lista larga de clientes dispara el loop benigno de ResizeObserver, que el overlay de webpack-dev-server captura como error.
+
+**Fix** (`/app/frontend/src/index.js`): Listeners globales `error` y `unhandledrejection` que detectan mensajes "ResizeObserver loop", llaman `stopImmediatePropagation()`/`preventDefault()` y ocultan `#webpack-dev-server-client-overlay`. No afecta funcionalidad ni producción.
+
+**Testing**: Verificado vía screenshot tool — al abrir el wizard y desplegar el selector de cliente ya no aparece overlay (overlay present: 0, sin texto "Uncaught"). Flujo de cotización operativo. Lint OK.
