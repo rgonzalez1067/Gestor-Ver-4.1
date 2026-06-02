@@ -2674,3 +2674,17 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 **Fix** (`/app/frontend/src/index.js`): Listeners globales `error` y `unhandledrejection` que detectan mensajes "ResizeObserver loop", llaman `stopImmediatePropagation()`/`preventDefault()` y ocultan `#webpack-dev-server-client-overlay`. No afecta funcionalidad ni producción.
 
 **Testing**: Verificado vía screenshot tool — al abrir el wizard y desplegar el selector de cliente ya no aparece overlay (overlay present: 0, sin texto "Uncaught"). Flujo de cotización operativo. Lint OK.
+
+---
+
+## Fix UI — Desbordamiento por nombre de archivo largo en modales de carga (Feb 2026)
+
+**Síntoma**: En el modal "Subir Documento de Comunicación" (Plantillas/Documentos), un nombre de archivo largo hacía crecer el botón "Archivo" y desbordaba el modal horizontalmente.
+
+**Causa**: El `<Button>` del archivo renderizaba `docFile.name` directo, sin ancho máximo ni truncado, expandiéndose con el contenido.
+
+**Fix**:
+- `ClientTemplatesConfig.jsx` y `EntityTemplatesConfig.jsx`: botón "Archivo" ahora `w-full justify-start max-w-full` con el nombre en `<span className="truncate min-w-0">` + atributo `title` para ver el nombre completo al hover. También se agregó `truncate` a la línea `{doc.filename} | {doc.category}` del listado de documentos.
+- `MigrationButtons.jsx`: `<div>` del nombre de archivo con `break-words`.
+
+**Testing**: Verificado vía screenshot tool con archivo de nombre extremadamente largo — modal contenido en viewport (right edge 1184px), botón a ancho completo con elipsis, sin desbordamiento. Lint OK en los 3 archivos.

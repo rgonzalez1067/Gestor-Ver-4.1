@@ -152,7 +152,7 @@ export const MigrationButtons = ({ module, label, onImported }) => {
                 {preview && (
                   <>
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 space-y-1">
-                      <div><strong>Archivo:</strong> {pendingFile?.name}</div>
+                      <div className="break-words"><strong>Archivo:</strong> {pendingFile?.name}</div>
                       {preview.exported_at && (
                         <div className="text-xs text-slate-600">
                           Exportado: {new Date(preview.exported_at).toLocaleString()} por {preview.exported_by || 'desconocido'}

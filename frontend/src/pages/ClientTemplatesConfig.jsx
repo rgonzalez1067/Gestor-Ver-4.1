@@ -218,7 +218,7 @@ export const ClientTemplatesConfig = () => {
                   <div className="p-2.5 bg-slate-100 rounded-lg"><FileText className="w-5 h-5 text-blue-600" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{doc.name}</p>
-                    <p className="text-[10px] text-slate-400">{doc.filename} | {doc.category}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{doc.filename} | {doc.category}</p>
                   </div>
                   {isAdmin && (
                     <Button variant="ghost" size="sm" onClick={() => deleteDocument(doc)} className="text-slate-300 hover:text-rose-500">
@@ -248,8 +248,8 @@ export const ClientTemplatesConfig = () => {
                   <div>
                     <Label className="text-xs">Archivo</Label>
                     <div className="mt-1">
-                      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-                        <Upload className="w-3.5 h-3.5 mr-1" /> {docFile ? docFile.name : 'Seleccionar archivo'}
+                      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} className="w-full justify-start max-w-full" title={docFile ? docFile.name : undefined}>
+                        <Upload className="w-3.5 h-3.5 mr-1 shrink-0" /> <span className="truncate min-w-0">{docFile ? docFile.name : 'Seleccionar archivo'}</span>
                       </Button>
                       <input type="file" ref={fileRef} onChange={e => setDocFile(e.target.files?.[0] || null)} className="hidden" />
                     </div>
