@@ -645,10 +645,15 @@ async def add_initial_contact_log(
         "origin": "initial_contact",
     }
     await db.initial_contact_logs.insert_one(log_doc)
-    # Bump timestamp del contacto para indicar última gestión
+    # Iter55: sincronizar las 2 columnas de la grilla con cada entrada de bitácora.
+    # - last_contact_date = fecha de esta entrada (now).
+    # - next_contact_date = follow_up_date si el agente lo informó.
+    sync_fields = {"last_activity_at": now.isoformat(), "last_contact_date": now.isoformat()}
+    if payload.follow_up_date:
+        sync_fields["next_contact_date"] = payload.follow_up_date
     await db.initial_contacts.update_one(
         {"contact_id": contact_id},
-        {"$set": {"last_activity_at": now.isoformat()}},
+        {"$set": sync_fields},
     )
     log_doc.pop("_id", None)
     return log_doc

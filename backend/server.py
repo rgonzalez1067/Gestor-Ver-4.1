@@ -417,6 +417,36 @@ async def create_indexes():
         except Exception as e:
             logging.warning(f"Iter50 equipos subcat migration failed: {e}")
 
+        # Iter55: backfill — para contactos que YA tienen entradas en
+        # `initial_contact_logs` pero su doc del contacto no tiene
+        # last_contact_date/next_contact_date sincronizados (gestiones hechas
+        # antes del fix Iter55). Idempotente vía marker.
+        try:
+            mk = await db.migrations.find_one({"_id": "initial_contact_dates_backfill_v1"})
+            if not mk:
+                async for contact in db.initial_contacts.find({}, {"_id": 0, "contact_id": 1}):
+                    cid = contact["contact_id"]
+                    # Última entrada por created_at desc → last_contact_date
+                    last_log = await db.initial_contact_logs.find_one(
+                        {"contact_id": cid},
+                        sort=[("created_at", -1)],
+                    )
+                    if not last_log:
+                        continue
+                    set_f = {"last_contact_date": last_log.get("created_at")}
+                    # next: tomar el follow_up_date más reciente NO completado.
+                    fl = await db.initial_contact_logs.find_one(
+                        {"contact_id": cid, "follow_up_date": {"$ne": None}, "is_completed": {"$ne": True}},
+                        sort=[("created_at", -1)],
+                    )
+                    if fl and fl.get("follow_up_date"):
+                        set_f["next_contact_date"] = fl["follow_up_date"]
+                    await db.initial_contacts.update_one({"contact_id": cid}, {"$set": set_f})
+                await db.migrations.insert_one({"_id": "initial_contact_dates_backfill_v1", "migrated_at": datetime.now(timezone.utc).isoformat()})
+                logging.info("[iter55] initial_contact_dates_backfill_v1 done")
+        except Exception as e:
+            logging.warning(f"Iter55 backfill failed: {e}")
+
     # Fire-and-forget — el startup retorna de inmediato, K8s pasa el readiness.
     import asyncio as _asyncio
     _asyncio.create_task(_bg_init())
