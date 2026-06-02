@@ -9,6 +9,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import DebouncedInput from '../components/DebouncedInput';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Warehouse, Plus, Trash2, PackagePlus, PackageMinus, ArrowLeftRight, History, Box, Cpu, X, Upload, Building2, Pencil, Search, Eye, ExternalLink, ChevronRight, FileDown, ShieldCheck, AlertTriangle, CheckCircle2, FileText } from 'lucide-react';
 import api from '../utils/api';
@@ -1098,15 +1099,26 @@ export default function Inventory() {
                   const hw = hardware.find(h => h.hardware_id === v);
                   setEntryForm({ ...entryForm, item_id: v, unit_cost: hw?.price_bs_usd || hw?.price_usd || 0, serials: [], acquisition_date: entryForm.acquisition_date });
                 }}>
-                  <SelectTrigger data-testid="entry-item" className="truncate"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                  <SelectTrigger data-testid="entry-item" className="h-auto min-h-10 [&>span]:whitespace-normal [&>span]:break-words [&>span]:text-left"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                   <SelectContent>
                     {hardware.filter(h => h.type !== 'Mantenimiento').map(h => (
                       <SelectItem key={h.hardware_id} value={h.hardware_id}>
-                        <span className="flex items-center gap-2 min-w-0">
-                          {isSerializedType(h.type) && h.asset_type === 'Bien' ? <Cpu size={12} className="text-purple-500 shrink-0" /> : <Box size={12} className="text-slate-400 shrink-0" />}
-                          <span className="truncate">{h.name}</span>
-                          <span className="text-xs text-slate-400 shrink-0">({h.type}{h.asset_type === 'Servicio' ? ' — Srv' : ''})</span>
-                        </span>
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-start gap-2 min-w-0 max-w-[24rem]">
+                                {isSerializedType(h.type) && h.asset_type === 'Bien' ? <Cpu size={12} className="text-purple-500 shrink-0 mt-0.5" /> : <Box size={12} className="text-slate-400 shrink-0 mt-0.5" />}
+                                <span className="whitespace-normal break-words text-left">{h.name}</span>
+                                <span className="text-xs text-slate-400 shrink-0">({h.type}{h.asset_type === 'Servicio' ? ' — Srv' : ''})</span>
+                              </span>
+                            </TooltipTrigger>
+                            {h.description && h.description.trim() && (
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p className="whitespace-normal break-words text-left">{h.description}</p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1206,7 +1218,18 @@ export default function Inventory() {
           <DialogContent className="max-w-lg" data-testid="exit-dialog">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><PackageMinus size={20} className="text-red-600" />Salida de Inventario</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <p className="text-sm text-slate-700">Ítem: <strong>{hardware.find(h => h.hardware_id === exitForm.item_id)?.name}</strong></p>
+              <p className="text-sm text-slate-700">Ítem: {selectedExitItem ? (
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <strong className="whitespace-normal break-words cursor-default">{selectedExitItem.name}</strong>
+                    </TooltipTrigger>
+                    {selectedExitItem.description && selectedExitItem.description.trim() && (
+                      <TooltipContent side="bottom" className="max-w-xs"><p className="whitespace-normal break-words text-left">{selectedExitItem.description}</p></TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              ) : <strong>—</strong>}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={exitForm.quantity} onCommit={v => setExitForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="exit-qty" /></div>
                 <div><Label>Referencia</Label><DebouncedInput value={exitForm.reference} onCommit={v => setExitForm(p => ({ ...p, reference: v }))} placeholder="COT-XXXX..." /></div>
@@ -1292,7 +1315,18 @@ export default function Inventory() {
           <DialogContent className="max-w-lg" data-testid="transfer-dialog">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><ArrowLeftRight size={20} className="text-blue-600" />Transferencia entre Almacenes</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <p className="text-sm text-slate-700">Origen: <strong>{currentWh?.name}</strong> | Ítem: <strong>{hardware.find(h => h.hardware_id === transferForm.item_id)?.name}</strong></p>
+              <p className="text-sm text-slate-700">Origen: <strong>{currentWh?.name}</strong> | Ítem: {selectedTransferItem ? (
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <strong className="whitespace-normal break-words cursor-default">{selectedTransferItem.name}</strong>
+                    </TooltipTrigger>
+                    {selectedTransferItem.description && selectedTransferItem.description.trim() && (
+                      <TooltipContent side="bottom" className="max-w-xs"><p className="whitespace-normal break-words text-left">{selectedTransferItem.description}</p></TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              ) : <strong>—</strong>}</p>
               <div>
                 <Label>Almacén Destino *</Label>
                 <Select value={transferForm.dest_warehouse_id} onValueChange={v => setTransferForm({ ...transferForm, dest_warehouse_id: v })}>

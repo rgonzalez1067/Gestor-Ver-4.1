@@ -2633,3 +2633,16 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 **Mejora minor aplicada post-test**: `_resolve_manual_attachments` ahora borra sólo los IDs efectivamente consumidos (no los truncados por límite total).
 
 
+
+---
+
+## Iteración 43 — Text-Wrap + Tooltip en Inventario (Feb 2026)
+
+**Requerimiento**: Corregir desbordamiento de texto en selección de ítems (Inventario) y mostrar la "Descripción Opcional" del bien/servicio vía Tooltip (hover) sin ocupar espacio en la grilla.
+
+**Implementado** (`/app/frontend/src/pages/Inventory.jsx`):
+- Import de `Tooltip, TooltipContent, TooltipProvider, TooltipTrigger`.
+- **Entrada de Inventario** (Select de Bien/Servicio): se eliminó `truncate`; el nombre ahora usa `whitespace-normal break-words` (ajuste multi-línea). El `SelectTrigger` muestra el valor seleccionado en multi-línea. Cada `SelectItem` envuelve el nombre con `Tooltip` (delayDuration={0}, side="right") que muestra `hardware.description` sólo si no está vacía.
+- **Salida** y **Transferencia**: el nombre del ítem mostrado (`selectedExitItem`/`selectedTransferItem`) se envuelve con el mismo patrón de Tooltip (side="bottom") y `whitespace-normal break-words`.
+
+**Testing**: Verificado vía screenshot tool — multi-línea OK (ej. "PinPad Verifone P200 Engage..." en 3 líneas) y tooltip instantáneo OK (ej. "Dongles Mifi Produccion mf67" → "Accesorios varios"). Lint OK.
