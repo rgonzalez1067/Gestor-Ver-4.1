@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
@@ -942,7 +943,20 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                       data-testid={`equipment-item-${item.hardware_id}`}
                     >
                       <div>
-                        <p className="font-medium text-slate-900">{item.name}</p>
+                        {item.description && item.description.trim() ? (
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="font-medium text-slate-900 cursor-help w-fit" data-testid={`equipment-item-name-${item.hardware_id}`}>{item.name}</p>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p className="whitespace-normal break-words text-left">{item.description}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <p className="font-medium text-slate-900">{item.name}</p>
+                        )}
                         <p className="text-sm text-slate-500">{item.type} • ${(item.price_bs_usd || item.price_usd)?.toFixed(2) || '0.00'}</p>
                       </div>
                       <Button 
@@ -974,9 +988,24 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedItems.map((item, index) => (
+                      {selectedItems.map((item, index) => {
+                        const itemDesc = hardware.find(h => h.hardware_id === item.hardware_id)?.description;
+                        return (
                         <tr key={index} className="border-t">
-                          <td className="px-3 py-2 text-slate-900">{item.name}</td>
+                          <td className="px-3 py-2 text-slate-900">
+                            {itemDesc && itemDesc.trim() ? (
+                              <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help" data-testid={`equipment-selected-name-${index}`}>{item.name}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <p className="whitespace-normal break-words text-left">{itemDesc}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : item.name}
+                          </td>
                           <td className="px-3 py-2">
                             <Input
                               type="number"
@@ -1034,7 +1063,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     <tfoot className="bg-slate-900 text-white">
                       <tr>

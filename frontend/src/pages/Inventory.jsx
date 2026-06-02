@@ -1123,6 +1123,12 @@ export default function Inventory() {
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedEntryItem && selectedEntryItem.description && selectedEntryItem.description.trim() && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5" data-testid="entry-item-description">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">Descripción (Opcional)</p>
+                    <p className="text-xs text-slate-700 whitespace-normal break-words">{selectedEntryItem.description}</p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Cantidad *</Label><DebouncedInput type="number" min={1} value={entryForm.quantity} onCommit={v => setEntryForm(p => ({ ...p, quantity: parseInt(v) || 1 }))} data-testid="entry-qty" /></div>

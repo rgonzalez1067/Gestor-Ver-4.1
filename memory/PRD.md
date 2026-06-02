@@ -2646,3 +2646,19 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 - **Salida** y **Transferencia**: el nombre del ítem mostrado (`selectedExitItem`/`selectedTransferItem`) se envuelve con el mismo patrón de Tooltip (side="bottom") y `whitespace-normal break-words`.
 
 **Testing**: Verificado vía screenshot tool — multi-línea OK (ej. "PinPad Verifone P200 Engage..." en 3 líneas) y tooltip instantáneo OK (ej. "Dongles Mifi Produccion mf67" → "Accesorios varios"). Lint OK.
+
+---
+
+## Iteración 44 — Descripción Opcional transversal (Inventario + Cotizador) (Feb 2026)
+
+**Requerimiento**: Disponibilidad de la "Descripción Opcional" en (1) Entrada de Inventario como campo visible de solo lectura, y (2) Cotizador de Equipos/Accesorios vía hover/tooltip.
+
+**Implementado**:
+- `Inventory.jsx` (Entrada de Inventario): caja de solo lectura `data-testid="entry-item-description"` debajo del selector, se popula con `selectedEntryItem.description` al elegir ítem. Control de nulos: oculta si vacía.
+- `EquipmentQuoteWizard.jsx` (Paso 3 — Selección de Productos):
+  - Lista de productos disponibles: nombre con Tooltip (delay 0, side right) mostrando `item.description`. `data-testid="equipment-item-name-{id}"`.
+  - Tabla "Productos Seleccionados": nombre con Tooltip; descripción resuelta vía `hardware.find(...).description`. `data-testid="equipment-selected-name-{index}"`.
+  - Control de nulos: sin descripción → sin tooltip ni caja vacía. No altera líneas ni montos.
+  - Aplicado SOLO en cotizador de Equipos/Accesorios (no en wizard de servicios), por decisión del usuario.
+
+**Testing**: Verificado vía screenshot tool — caja de descripción en Inventario OK ("Accesorios varios"); tooltip en Paso 3 del cotizador OK ("Accesorios varios" sobre "Dongles Mifi Produccion mf67"). Lint OK en ambos archivos.
