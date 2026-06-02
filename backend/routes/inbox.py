@@ -29,6 +29,29 @@ from services.conversation_service import (
     find_or_create_conversation,
     mark_conversation_read,
 )
+from services.notification_service import manager
+
+
+def _msg_preview(text: str, limit: int = 120) -> str:
+    p = (text or "").strip().replace("\n", " ")
+    return p[: limit - 1] + "…" if len(p) > limit else p
+
+
+async def _push_internal_message(*, recipient_id: str, conversation_id: str, from_user_name: str, body: str, subject: str, created_at: str):
+    """Empuja por WebSocket un aviso de mensaje interno al destinatario online."""
+    try:
+        await manager.send_to_user(recipient_id, {
+            "type": "internal_message",
+            "payload": {
+                "conversation_id": conversation_id,
+                "from_user_name": from_user_name,
+                "preview": _msg_preview(body),
+                "subject": subject or "",
+                "created_at": created_at,
+            },
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[Inbox] No se pudo empujar internal_message a {recipient_id}: {e}")
 
 router = APIRouter(tags=["inbox"])
 logger = logging.getLogger("inbox")
@@ -317,6 +340,14 @@ async def send_user_message(
             from_user_name=sender_name,
             body_plain=payload.body,
         )
+        await _push_internal_message(
+            recipient_id=r["user_id"],
+            conversation_id=conv["conversation_id"],
+            from_user_name=sender_name,
+            body=payload.body,
+            subject=payload.subject,
+            created_at=msg["created_at"],
+        )
         delivered.append({
             "user_id": r["user_id"],
             "conversation_id": conv["conversation_id"],
@@ -403,6 +434,16 @@ async def post_conversation_message(
         from_user_name=sender_name,
         body_plain=payload.body,
     )
+    other_id = next((p for p in conv.get("participants", []) if p != user_id), None)
+    if other_id:
+        await _push_internal_message(
+            recipient_id=other_id,
+            conversation_id=conversation_id,
+            from_user_name=sender_name,
+            body=payload.body,
+            subject=conv.get("subject") or "",
+            created_at=msg["created_at"],
+        )
     return {"status": "ok", "message": {**msg, "is_mine": True}}
 
 

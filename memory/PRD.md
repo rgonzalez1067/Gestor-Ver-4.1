@@ -2702,3 +2702,23 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 **Testing**: Verificado vía screenshot con el nombre exacto reportado por el usuario — modal 448px (right 1184), botón de archivo termina en 1159px (dentro del modal) con elipsis, inputs contenidos. Lint OK.
 
 **Nota deployment**: El fix está en PREVIEW. Si el usuario lo prueba en PRODUCCIÓN debe re-desplegar para verlo.
+
+---
+
+## Feature — Alerta Intensa de Notificaciones y Mensajes Internos (Feb 2026)
+
+**Objetivo**: Aviso más insistente que el toast efímero anterior; un recuadro flotante de color intenso que "obliga" al usuario a ir al mensaje.
+
+**Decisiones del usuario**: dispara con AMBOS (notificaciones + mensajes internos); formato toast intenso PERSISTENTE (no auto-cierra) con botón "Ver mensaje" apilado arriba-derecha; color por prioridad; beep con ícono para silenciar; una sola vez por mensaje nuevo.
+
+**Backend** (`routes/inbox.py`): los mensajes internos ahora hacen push WebSocket `internal_message` al destinatario (helper `_push_internal_message`) en `/inbox/send` y `/inbox/conversations/{id}/messages`. Antes NO había push en tiempo real para chat interno.
+
+**Frontend**:
+- `utils/notificationSound.js` (nuevo): beep corto con Web Audio API + estado de silencio persistido en `localStorage` (`notif_sound_muted`).
+- `components/IntenseAlertToast.jsx` (nuevo): tarjeta de color intenso (rojo=alta, naranja=media, ámbar=baja, morado=mensaje interno), botón "Ver mensaje", botón silenciar (Volume2/VolumeX), cerrar. data-testids: intense-alert-toast, -title, -view-btn, -mute-btn, -close-btn.
+- `hooks/useNotifications.js`: maneja `type==='internal_message'` (marca `kind:'internal'`, no entra a la lista de notificaciones del sistema).
+- `components/NotificationBell.jsx`: `setOnIncoming` reescrito → `toast.custom` persistente (`duration: Infinity`), beep, pulso de campana para alta/interno, y deduplicación por clave (notification_id / conversation_id+created_at) para evitar toasts repetidos por múltiples sockets WS.
+
+**Testing**: E2E verificado vía screenshot — admin envía mensaje interno a srubio (recipiente con sesión abierta) → aparece toast morado "Nuevo mensaje de Rafael González" con preview; dedupe confirmado (1 solo toast); "Ver mensaje" navega a /dashboard; mensaje llega en vivo al Centro de Mensajes. Lint OK (JS+PY). Backend sano.
+
+**Credenciales de prueba para mensajes internos**: admin rgonzalez@megasoft.com.ve/admin123 (emisor) → srubio@megasoft.com.ve/Test1234! (usr_3e9641ea80e3, receptor).

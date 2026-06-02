@@ -66,6 +66,10 @@ export default function useNotifications() {
             setItems((prev) => [msg.payload, ...prev].slice(0, 100));
             setUnread((u) => u + 1);
             if (onIncomingRef.current) onIncomingRef.current(msg.payload);
+          } else if (msg.type === 'internal_message' && msg.payload) {
+            // Mensaje interno (Centro de Mensajes): no entra a la lista de notificaciones
+            // del sistema, solo dispara la alerta intensa.
+            if (onIncomingRef.current) onIncomingRef.current({ ...msg.payload, kind: 'internal' });
           }
         } catch {
           // ping/pong u otro msg no-JSON — ignorar

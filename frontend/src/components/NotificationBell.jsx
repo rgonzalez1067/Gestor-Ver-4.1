@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, BellRing, Check, CheckCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import useNotifications from '../hooks/useNotifications';
+import IntenseAlertToast from './IntenseAlertToast';
+import { playNotifBeep } from '../utils/notificationSound';
 
 const PRIORITY_COLORS = {
   high: { bar: 'bg-red-500', pill: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
@@ -29,25 +31,70 @@ export const NotificationBell = () => {
   const { items, unread, connected, markRead, markAllRead, setOnIncoming } = useNotifications();
   const [open, setOpen] = useState(false);
   const [pulse, setPulse] = useState(false);
+  const seenRef = useRef(new Set());
 
-  // Toast visual cuando llega nueva notificación (solo visual, sin sonido)
+  // Alerta intensa persistente cuando llega una notificación o mensaje interno.
+  // Color por prioridad: rojo=alta, naranja=media, ámbar=baja, morado=mensaje interno.
   useEffect(() => {
     setOnIncoming((payload) => {
+      const isInternal = payload?.kind === 'internal';
+
+      // Dedupe: evita toasts repetidos si el mismo evento llega por varias
+      // conexiones WS del mismo usuario.
+      const key = isInternal
+        ? `int:${payload?.conversation_id || ''}:${payload?.created_at || ''}`
+        : `ntf:${payload?.notification_id || ''}`;
+      if (seenRef.current.has(key)) return;
+      seenRef.current.add(key);
+      if (seenRef.current.size > 200) {
+        seenRef.current = new Set(Array.from(seenRef.current).slice(-100));
+      }
+
       const priority = payload?.priority || 'medium';
-      const title = payload?.title || 'Nueva notificación';
-      const msg = payload?.message || '';
-      if (priority === 'high') {
-        toast.error(title, { description: msg, duration: 7000 });
-        // Pulso visual breve
+
+      let variant;
+      let title;
+      let message;
+      let link;
+
+      if (isInternal) {
+        variant = 'purple';
+        title = `Nuevo mensaje de ${payload.from_user_name || 'un usuario'}`;
+        message = payload.preview || payload.subject || '';
+        link = '/dashboard';
+      } else {
+        variant = priority === 'high' ? 'red' : priority === 'low' ? 'amber' : 'orange';
+        title = payload?.title || 'Nueva notificación';
+        message = payload?.message || '';
+        link = payload?.link || null;
+      }
+
+      playNotifBeep();
+
+      if (isInternal || priority === 'high') {
         setPulse(true);
         setTimeout(() => setPulse(false), 3000);
-      } else if (priority === 'medium') {
-        toast.warning(title, { description: msg, duration: 5000 });
-      } else {
-        toast.info(title, { description: msg, duration: 4000 });
       }
+
+      // Toast intenso persistente (no se auto-cierra) con CTA "Ver mensaje".
+      toast.custom(
+        (id) => (
+          <IntenseAlertToast
+            variant={variant}
+            title={title}
+            message={message}
+            onView={() => {
+              toast.dismiss(id);
+              setOpen(false);
+              if (link) navigate(link);
+            }}
+            onClose={() => toast.dismiss(id)}
+          />
+        ),
+        { duration: Infinity }
+      );
     });
-  }, [setOnIncoming]);
+  }, [setOnIncoming, navigate]);
 
   // Cerrar al clickear afuera
   useEffect(() => {
