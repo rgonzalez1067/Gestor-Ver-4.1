@@ -2746,3 +2746,24 @@ Fix: regla simplificada — **si el step tiene su timestamp, es completed** (ind
 - Remoción reactiva: leer 1 → "un mensaje"; leer todo → banner desaparece (0) sin recargar.
 - Consistencia: header "2 sin leer" = banner; tras leer todo, 0 chips "sin leer" y banner oculto.
 Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
+
+---
+
+## Bug Fix — Adjuntos de Comunicaciones no se envían en Producción (disco efímero) (Feb 2026)
+
+**Síntoma**: En Deploy/Producción, el correo de Comunicaciones a Clientes/Integradores llegaba SIN el documento adjunto, aunque el Preview lo mostraba bien.
+
+**Causa raíz**: El envío real leía los adjuntos SOLO desde disco local (`/app/backend{doc['url']}` con `os.path.exists`). En producción el FS es efímero/read-only, así que el archivo no estaba y el adjunto se omitía SILENCIOSAMENTE → correo vacío. (`save_pdf_dual` sí persiste en Object Storage, pero el envío no lo consumía.)
+
+**Fix**:
+- `services/pdf_storage.py`: nuevos `storage_name_from_upload_url()` y `load_attachment_bytes()` → resuelve bytes del adjunto con prioridad Object Storage (persistente cross-deploy, mismo origen que preview/descargas) y disco como fallback.
+- `routes/client_communications.py` (`send-email`) y `routes/entity_communications.py` (`_send_and_log`, usado por integradores y nuevos productos):
+  - Archivos externos: se adjuntan con los bytes ya leídos en memoria (no se re-leen de disco).
+  - Documentos internos: se leen con `load_attachment_bytes()` (Object Storage + fallback).
+  - Fallback de seguridad: si algún adjunto seleccionado no se localiza, se ABORTA el envío con HTTP 422 y mensaje detallado + log de error (`logging.error`), en vez de enviar un correo sin anexos.
+- Frontend (`ClientEmailDialog.jsx`/`EntityEmailDialog.jsx`): ya muestran `err.response.data.detail` en toast → el operador ve el aviso de aborto.
+
+**Testing (curl E2E)**:
+- Subida de doc → BORRADO del archivo local (simula prod efímero) → envío con doc interno → `attachments_count: 1` (leído desde Object Storage). ✓
+- Aborto: envío con doc_id inexistente → HTTP 422 con detalle "No se pudo adjuntar el/los documento(s)...". ✓
+- Lint Python OK (sin nuevos errores). Backend sano.

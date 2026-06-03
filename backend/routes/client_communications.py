@@ -9,7 +9,7 @@ import os
 import logging
 
 from config import db, get_current_user
-from services.pdf_storage import save_pdf_dual
+from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
 from services.email_service import send_email
 
 router = APIRouter()
@@ -168,10 +168,11 @@ async def send_client_email(
     </div>
     """
 
-    # Guardar adjuntos externos
+    # Guardar adjuntos externos (persistencia) y conservar bytes en memoria para SMTP.
     upload_dir = f"/app/backend/uploads/client_emails/{client_id}"
     os.makedirs(upload_dir, exist_ok=True)
     saved_files = []
+    email_attachments = []
     for f in files:
         if f.filename:
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
@@ -184,42 +185,48 @@ async def send_client_email(
                 "size": len(content),
                 "content_type": f.content_type,
             })
+            # Bytes recién leídos: se adjuntan directamente (no se re-leen de disco).
+            email_attachments.append({"filename": f.filename, "content": content})
 
-    # Cargar documentos internos seleccionados como adjuntos
+    # Cargar documentos internos seleccionados como adjuntos (desde el mismo origen
+    # seguro que sirve preview/descargas: Object Storage, con disco como fallback).
     try:
         doc_ids = json.loads(internal_doc_ids)
-    except:
+    except (json.JSONDecodeError, ValueError):
         doc_ids = []
 
     internal_attachments = []
+    missing_docs = []
     for doc_id in doc_ids:
         doc = await db.client_documents.find_one({"document_id": doc_id}, {"_id": 0})
-        if doc:
-            file_path = f"/app/backend{doc['url']}"
-            if os.path.exists(file_path):
-                internal_attachments.append({
-                    "filename": doc["filename"],
-                    "path": file_path,
-                    "content_type": doc.get("content_type", "application/octet-stream"),
-                })
+        if not doc:
+            missing_docs.append(doc_id)
+            logging.error(f"[client-email] Documento interno inexistente: doc_id={doc_id} cliente={client_id}")
+            continue
+        content_bytes = load_attachment_bytes(doc.get("url", ""))
+        if content_bytes is None:
+            missing_docs.append(doc.get("filename") or doc_id)
+            logging.error(
+                f"[client-email] Adjunto NO localizable: doc_id={doc_id} url={doc.get('url')} "
+                f"storage_key={storage_name_from_upload_url(doc.get('url',''))} cliente={client_id}"
+            )
+            continue
+        internal_attachments.append({"filename": doc["filename"], "content": content_bytes})
 
-    # Preparar adjuntos para el motor de email (formato: {filename, content} en bytes)
-    email_attachments = []
-    for f_info in saved_files:
-        fpath = f"/app/backend{f_info['url']}"
-        if os.path.exists(fpath):
-            with open(fpath, "rb") as fh:
-                email_attachments.append({
-                    "filename": f_info["filename"],
-                    "content": fh.read(),
-                })
-    for att in internal_attachments:
-        if os.path.exists(att["path"]):
-            with open(att["path"], "rb") as fh:
-                email_attachments.append({
-                    "filename": att["filename"],
-                    "content": fh.read(),
-                })
+    # Fallback de seguridad: si algún adjunto seleccionado no pudo localizarse,
+    # abortar el envío (no despachar un correo sin anexos) y notificar al operador.
+    if missing_docs:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No se pudo adjuntar el/los documento(s): "
+                + ", ".join(str(m) for m in missing_docs)
+                + ". El envío fue abortado para evitar un correo sin anexos. "
+                "Verifique que el documento exista en el repositorio e intente nuevamente."
+            ),
+        )
+
+    email_attachments.extend(internal_attachments)
 
     # Enviar email CON adjuntos
     email_result = await send_email(

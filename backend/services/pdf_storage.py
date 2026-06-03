@@ -65,6 +65,36 @@ def get_pdf_from_storage(filename: str) -> Optional[Tuple[bytes, str]]:
         return None
 
 
+def storage_name_from_upload_url(url: str) -> str:
+    """Convierte la URL pública del adjunto en la clave usada por `save_pdf_dual`.
+
+    Ej: `/uploads/client_documents/ab12_x.pdf` -> `client_documents/ab12_x.pdf`
+    """
+    return (url or "").replace("/uploads/", "", 1).lstrip("/")
+
+
+def load_attachment_bytes(upload_url: str) -> Optional[bytes]:
+    """Resuelve los bytes de un adjunto persistido por `save_pdf_dual`.
+
+    Prioridad (homologado con el origen que sirve descargas/preview):
+      1) Object Storage (persistente cross-deploy / producción).
+      2) Filesystem local como fallback best-effort (cache del pod).
+    Devuelve None si no se localiza en ningún backend.
+    """
+    name = storage_name_from_upload_url(upload_url)
+    res = get_pdf_from_storage(name)
+    if res and res[0]:
+        return res[0]
+    local = f"/app/backend{upload_url or ''}"
+    try:
+        if os.path.exists(local):
+            with open(local, "rb") as fh:
+                return fh.read()
+    except OSError as e:
+        logger.warning(f"[pdf_storage] lectura local falló para {local}: {e}")
+    return None
+
+
 def save_pdf_dual(pdf_path: Path, pdf_bytes: bytes, filename: Optional[str] = None) -> Path:
     """Persiste el archivo. Prioridad: Object Storage (primary) + FS local (cache).
 

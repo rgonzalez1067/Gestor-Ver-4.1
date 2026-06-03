@@ -11,7 +11,7 @@ import os
 import logging
 
 from config import db, get_current_user
-from services.pdf_storage import save_pdf_dual
+from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
 from services.email_service import send_email
 
 router = APIRouter()
@@ -210,10 +210,11 @@ async def _send_and_log(
     </div>
     """
 
-    # Guardar adjuntos externos
+    # Guardar adjuntos externos (persistencia) y conservar bytes en memoria.
     upload_dir = f"/app/backend/uploads/entity_emails/{folder}"
     os.makedirs(upload_dir, exist_ok=True)
     saved_files = []
+    email_attachments = []
     for f in external_files:
         if f and f.filename:
             safe_name = f"{uuid.uuid4().hex[:8]}_{f.filename}"
@@ -223,26 +224,44 @@ async def _send_and_log(
             rel = os.path.relpath(file_path, "/app/backend/uploads")
             save_pdf_dual(file_path, content, rel)
             saved_files.append({"filename": f.filename, "path": file_path})
+            # Bytes recién leídos: se adjuntan directamente (no se re-leen de disco).
+            email_attachments.append({"filename": f.filename, "content": content})
 
-    # Cargar documentos internos
+    # Cargar documentos internos desde el mismo origen seguro (Object Storage + fallback disco)
     try:
         doc_ids = json.loads(internal_doc_ids_json or "[]")
     except (json.JSONDecodeError, ValueError):
         doc_ids = []
     internal_files_info = []
+    missing_docs = []
     for did in doc_ids:
         doc = await db.entity_documents.find_one({"document_id": did}, {"_id": 0})
-        if doc:
-            path = f"/app/backend{doc['url']}"
-            if os.path.exists(path):
-                internal_files_info.append({"filename": doc["filename"], "path": path})
+        if not doc:
+            missing_docs.append(did)
+            logging.error(f"[entity-email] Documento interno inexistente: doc_id={did} folder={folder}")
+            continue
+        content_bytes = load_attachment_bytes(doc.get("url", ""))
+        if content_bytes is None:
+            missing_docs.append(doc.get("filename") or did)
+            logging.error(
+                f"[entity-email] Adjunto NO localizable: doc_id={did} url={doc.get('url')} "
+                f"storage_key={storage_name_from_upload_url(doc.get('url',''))} folder={folder}"
+            )
+            continue
+        internal_files_info.append({"filename": doc["filename"], "path": f"/app/backend{doc['url']}"})
+        email_attachments.append({"filename": doc["filename"], "content": content_bytes})
 
-    # Construir adjuntos para SMTP
-    email_attachments = []
-    for info in saved_files + internal_files_info:
-        if os.path.exists(info["path"]):
-            with open(info["path"], "rb") as fh:
-                email_attachments.append({"filename": info["filename"], "content": fh.read()})
+    # Fallback de seguridad: abortar si algún adjunto seleccionado no se localizó.
+    if missing_docs:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No se pudo adjuntar el/los documento(s): "
+                + ", ".join(str(m) for m in missing_docs)
+                + ". El envío fue abortado para evitar un correo sin anexos. "
+                "Verifique que el documento exista en el repositorio e intente nuevamente."
+            ),
+        )
 
     email_result = await send_email(
         to=to_list,
