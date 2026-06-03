@@ -114,6 +114,8 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
             "dias_fase_saliente": "", "Dias_Fase_Saliente": "",
             "equipo_trabajo": "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>",
             "usuario_responsable": "Por definir",
+            "dias_totales_proyecto": "0", "Dias_Totales_Proyecto": "0",
+            "responsable_fase_entrante": "Por asignar", "Responsable_Fase_Entrante": "Por asignar",
             "tipo_evento": "Creación", "Tipo_Evento": "Creación",
             "fecha_sistema": now_str, "Fecha_Sistema": now_str,
         }
@@ -392,6 +394,23 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         else:
             _equipo_html = "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>"
             _equipo_names = "Por definir"
+
+        # Días totales del proyecto (desde la creación hasta hoy)
+        _dias_totales = ""
+        try:
+            _created = product.get("created_at")
+            if _created:
+                _cdt = datetime.fromisoformat(str(_created).replace("Z", "+00:00"))
+                if _cdt.tzinfo is None:
+                    _cdt = _cdt.replace(tzinfo=timezone.utc)
+                _dias_totales = str((datetime.now(timezone.utc) - _cdt).days)
+        except Exception:
+            _dias_totales = ""
+
+        # Responsable asignado para la fase ENTRANTE (re-consultar tras la gobernanza)
+        _entrante = await db.new_products.find_one({"product_id": product_id}, {"_id": 0, "responsable_nombre": 1})
+        _resp_entrante = (_entrante or {}).get("responsable_nombre") or "Por asignar"
+
         _tpl_vars = {
             "nombre_producto": product.get("service_name", ""), "Nombre_Producto": product.get("service_name", ""),
             "service_name": product.get("service_name", ""),
@@ -407,6 +426,8 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
             "Dias_Fase_Saliente": str(days_in_phase) if days_in_phase is not None else "",
             "equipo_trabajo": _equipo_html, "Equipo_Trabajo": _equipo_html,
             "usuario_responsable": product.get("responsable_nombre") or _equipo_names,
+            "dias_totales_proyecto": _dias_totales, "Dias_Totales_Proyecto": _dias_totales,
+            "responsable_fase_entrante": _resp_entrante, "Responsable_Fase_Entrante": _resp_entrante,
             "tipo_evento": "Cambio de fase", "Tipo_Evento": "Cambio de fase",
             "fecha_sistema": now_str, "Fecha_Sistema": now_str,
         }

@@ -547,6 +547,8 @@ const VARIABLE_CATEGORIES = [
       { key: 'fase_actual', label: 'Fase actual (anterior)' },
       { key: 'nueva_fase', label: 'Nueva fase' },
       { key: 'dias_fase_saliente', label: 'Días en la fase saliente' },
+      { key: 'dias_totales_proyecto', label: 'Días totales del proyecto' },
+      { key: 'responsable_fase_entrante', label: 'Responsable de la fase entrante' },
       { key: 'tipo_evento', label: 'Tipo de evento (Creación / Cambio de fase)' },
     ],
   },

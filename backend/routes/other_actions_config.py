@@ -36,7 +36,8 @@ OTHER_ACTIONS = [
         "label": "Cambio de Estado o Fase de Nuevos Productos",
         "description": "Se dispara cuando un producto del pipeline de Nuevos Productos cambia de estatus/fase.",
         "variables": [
-            "nombre_producto", "nombre_banco", "fase_actual", "nueva_fase", "dias_fase_saliente", "tipo_evento",
+            "nombre_producto", "nombre_banco", "fase_actual", "nueva_fase", "dias_fase_saliente",
+            "dias_totales_proyecto", "responsable_fase_entrante", "tipo_evento",
             "componente", "estatus", "estatus_anterior", "dias_en_fase", "equipo_trabajo", "usuario_responsable", "fecha_sistema",
         ],
     },
