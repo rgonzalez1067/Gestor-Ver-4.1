@@ -164,8 +164,31 @@ class ConnectionManager:
     def _count(self) -> int:
         return sum(len(v) for v in self._active.values())
 
+    def local_user_ids(self) -> List[str]:
+        """user_ids con al menos una conexión WS viva EN ESTE proceso."""
+        return list(self._active.keys())
+
     async def send_to_user(self, user_id: str, payload: dict) -> None:
-        """Envía a todas las conexiones abiertas de un usuario. Silenciosamente limpia conexiones muertas."""
+        """Encola el mensaje en el backplane de Mongo (`ws_outbox`).
+
+        En producción el backend corre con múltiples workers/réplicas y el
+        registro de conexiones (`_active`) es local a cada proceso. Si el
+        destinatario está conectado a OTRO proceso, una entrega directa en
+        memoria nunca le llegaría. Por eso TODA entrega se publica en Mongo y
+        el `_ws_dispatch_loop` de cada worker reparte a sus usuarios locales.
+        """
+        try:
+            await db.ws_outbox.insert_one({
+                "user_id": user_id,
+                "payload": payload,
+                "created_at": datetime.now(timezone.utc),
+            })
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[WS] no se pudo encolar ws_outbox user={user_id}: {e}")
+
+    async def deliver_local(self, user_id: str, payload: dict) -> None:
+        """Entrega a todas las conexiones vivas del usuario EN ESTE proceso.
+        Silenciosamente limpia conexiones muertas."""
         conns = list(self._active.get(user_id, set()))
         if not conns:
             return
@@ -187,6 +210,57 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+# ==================== WebSocket Backplane (Mongo fan-out) ====================
+# Cada worker corre este loop: consulta `ws_outbox` por mensajes dirigidos a
+# usuarios conectados localmente, los reclama atómicamente (find_one_and_delete)
+# y los entrega. Esto garantiza la entrega en tiempo real sin importar a qué
+# réplica esté conectado el destinatario (Mongo es el bus compartido).
+
+WS_DISPATCH_INTERVAL = 1.0  # segundos — casi instantáneo
+_ws_dispatch_task: Optional["asyncio.Task"] = None
+_ws_dispatch_stop = False
+
+
+async def _ws_dispatch_loop() -> None:
+    # Índice TTL para auto-limpiar mensajes no entregados (usuario offline).
+    try:
+        await db.ws_outbox.create_index("created_at", expireAfterSeconds=120)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[WS] no se pudo crear índice TTL ws_outbox: {e}")
+
+    logger.info("[WS] dispatcher backplane iniciado")
+    while not _ws_dispatch_stop:
+        try:
+            uids = manager.local_user_ids()
+            if uids:
+                while True:
+                    doc = await db.ws_outbox.find_one_and_delete(
+                        {"user_id": {"$in": uids}},
+                        sort=[("created_at", 1)],
+                    )
+                    if not doc:
+                        break
+                    await manager.deliver_local(doc["user_id"], doc.get("payload") or {})
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[WS] dispatch loop error: {e}")
+        await asyncio.sleep(WS_DISPATCH_INTERVAL)
+    logger.info("[WS] dispatcher backplane detenido")
+
+
+def start_ws_dispatcher() -> None:
+    global _ws_dispatch_task, _ws_dispatch_stop
+    _ws_dispatch_stop = False
+    if _ws_dispatch_task is None or _ws_dispatch_task.done():
+        _ws_dispatch_task = asyncio.create_task(_ws_dispatch_loop())
+
+
+def stop_ws_dispatcher() -> None:
+    global _ws_dispatch_stop
+    _ws_dispatch_stop = True
+    if _ws_dispatch_task is not None:
+        _ws_dispatch_task.cancel()
 
 
 # ==================== Config helpers ====================

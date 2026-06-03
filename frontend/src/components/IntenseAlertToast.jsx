@@ -34,13 +34,15 @@ export const IntenseAlertToast = ({ variant = 'orange', title, message, onView, 
           <p className="font-bold text-sm leading-snug break-words" data-testid="intense-alert-title">{title}</p>
           {message && <p className="text-xs text-white/90 mt-0.5 break-words line-clamp-3">{message}</p>}
           <div className="flex items-center gap-2 mt-2.5">
-            <button
-              onClick={onView}
-              className="inline-flex items-center gap-1 bg-white text-slate-900 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-white/90 transition-colors"
-              data-testid="intense-alert-view-btn"
-            >
-              Ver mensaje <ArrowRight size={13} />
-            </button>
+            {onView && (
+              <button
+                onClick={onView}
+                className="inline-flex items-center gap-1 bg-white text-slate-900 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-white/90 transition-colors"
+                data-testid="intense-alert-view-btn"
+              >
+                Ver mensaje <ArrowRight size={13} />
+              </button>
+            )}
             <button
               onClick={toggleMute}
               className="p-1.5 rounded-lg hover:bg-white/15 transition-colors"

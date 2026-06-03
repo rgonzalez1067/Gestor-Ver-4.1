@@ -76,18 +76,21 @@ export const NotificationBell = () => {
         setTimeout(() => setPulse(false), 3000);
       }
 
-      // Toast intenso persistente (no se auto-cierra) con CTA "Ver mensaje".
+      // Toast intenso persistente (no se auto-cierra). El CTA "Ver mensaje"
+      // solo aplica a mensajes internos (lleva a la conversación). Para
+      // notificaciones de eventos del sistema NO se muestra, porque no existe
+      // un "mensaje" que abrir y el enlace lleva a una pantalla operativa.
       toast.custom(
         (id) => (
           <IntenseAlertToast
             variant={variant}
             title={title}
             message={message}
-            onView={() => {
+            onView={isInternal ? () => {
               toast.dismiss(id);
               setOpen(false);
               if (link) navigate(link);
-            }}
+            } : undefined}
             onClose={() => toast.dismiss(id)}
           />
         ),

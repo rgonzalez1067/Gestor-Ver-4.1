@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import api from '../utils/api';
-import { emitInboxChanged } from '../utils/inboxEvents';
+import { emitInboxChanged, emitInboxReloadList } from '../utils/inboxEvents';
 
 /**
  * useNotifications — hook global para el sistema de Push Notifications (P1).

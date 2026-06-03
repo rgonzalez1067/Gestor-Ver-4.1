@@ -54,6 +54,7 @@ from routes.direct_projects import router as direct_projects_router
 from routes.inbox import router as inbox_router
 from routes.connected_users import router as connected_users_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
+from services.notification_service import start_ws_dispatcher, stop_ws_dispatcher
 
 app = FastAPI(title="Cotizador Merchant Server API")
 
@@ -63,6 +64,10 @@ async def _on_startup():
         start_scheduler()
     except Exception as e:
         logging.warning(f"[startup] scheduler failed: {e}")
+    try:
+        start_ws_dispatcher()
+    except Exception as e:
+        logging.warning(f"[startup] ws dispatcher failed: {e}")
 
 @app.on_event("shutdown")
 async def _on_shutdown():
@@ -70,6 +75,10 @@ async def _on_shutdown():
         stop_scheduler()
     except Exception as e:
         logging.warning(f"[shutdown] scheduler failed: {e}")
+    try:
+        stop_ws_dispatcher()
+    except Exception as e:
+        logging.warning(f"[shutdown] ws dispatcher failed: {e}")
 
 # Mount uploads — primero intenta Object Storage (persistente entre deploys),
 # fallback a filesystem local para archivos legacy/temporales.

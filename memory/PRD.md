@@ -2809,3 +2809,16 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Botón "Importar Masivo (ZIP)" (data-testid=import-zip-btn) + `BulkImportDialog`: selecciona .zip → preview (lista de entidades con conteos) → "Restaurar Todo" (data-testid=bulk-import-apply-btn).
 
 **Testing**: backend curl (preview-zip lista 4 entidades; import-zip idempotente 0 creados / 382 actualizados sin errores) + frontend E2E screenshot (modal, preview, aplicar, toast de éxito). Lint OK (JS+PY).
+
+---
+
+## Iter — Fix WS Multi-Destinatario (Backplane MongoDB) + Toast eventos · 2026-06-03
+
+**Problema (P0):** En Producción la alerta WS en tiempo real solo llegaba a algunos destinatarios al enviar a varios. Causa raíz: `ConnectionManager._active` es in-memory por proceso; el deploy corre múltiples workers/réplicas, así que un destinatario conectado a otro worker que el que procesaba `/inbox/send` nunca recibía el push. (En preview con `--workers 1` no se reproducía.) MongoDB es standalone → sin Change Streams.
+
+**Solución:** Backplane de fan-out vía MongoDB.
+- `services/notification_service.py`: `send_to_user()` ahora ENCOLA en colección `ws_outbox` (`{user_id, payload, created_at}`). Cada worker corre `_ws_dispatch_loop()` (poll ~1s) que reclama atómicamente (`find_one_and_delete`, sort created_at asc) los mensajes de usuarios conectados LOCALMENTE (`manager.local_user_ids()`) y entrega con `manager.deliver_local()`. Índice TTL (120s) auto-limpia mensajes a usuarios offline.
+- `server.py`: `start_ws_dispatcher()` / `stop_ws_dispatcher()` en startup/shutdown.
+- Validado: `tests/repro_ws_multi.py` (2 destinatarios reciben) y `tests/repro_ws_crossworker.py` (proceso externo encola sin conexión local → dispatcher del backend entrega = prueba cross-worker OK).
+
+**Ajuste UX toast:** En `IntenseAlertToast.jsx` el botón "Ver mensaje" ahora es condicional (`onView` opcional). En `NotificationBell.jsx` solo se pasa `onView` para mensajes internos; las notificaciones de eventos del sistema ya NO muestran "Ver mensaje" (llevaba a pantallas operativas sin mensaje). Bonus: corregido bug de import faltante `emitInboxReloadList` en `useNotifications.js` (lanzaba error silencioso al recibir mensajes internos).
