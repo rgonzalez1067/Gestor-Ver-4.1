@@ -53,6 +53,7 @@ from routes.project_reports import router as project_reports_router
 from routes.direct_projects import router as direct_projects_router
 from routes.inbox import router as inbox_router
 from routes.connected_users import router as connected_users_router
+from routes.other_actions_config import router as other_actions_router
 from services.notification_scheduler import start_scheduler, stop_scheduler
 from services.notification_service import start_ws_dispatcher, stop_ws_dispatcher
 
@@ -139,6 +140,7 @@ ROUTE_MODULE_MAP = {
     "/api/inventory": "inventarios",
     "/api/taller-equipos": "taller_equipos",
     "/api/new-products": "nuevos_productos",
+    "/api/other-actions": "config_otras_acciones",
 }
 
 # Rutas exentas de validación RBAC (auth, dashboard, uploads, etc.)
@@ -261,6 +263,7 @@ api_router.include_router(seed_templates_router)
 api_router.include_router(action_notifications_router)
 api_router.include_router(inbox_router)
 api_router.include_router(connected_users_router)
+api_router.include_router(other_actions_router)
 api_router.include_router(quote_action_customization_router)
 api_router.include_router(new_products_router)
 api_router.include_router(inventory_router)

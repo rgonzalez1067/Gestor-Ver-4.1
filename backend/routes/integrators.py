@@ -1352,7 +1352,24 @@ async def notify_new_integration_project(
         "Nombre_Ejecutivo": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
     }
-    
+
+    # Motor dinámico "Configuración de otras Acciones" (con fallback legacy)
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        _dyn = await dispatch_other_action(
+            "new_integration_project", variables, current_user=current_user,
+            fallback_subject=f"Nuevo Proyecto de Integracion — {integrator.get('name','')}",
+        )
+        if _dyn.get("dispatched"):
+            if _dyn.get("disabled"):
+                return {"message": "Notificación desactivada en Configuración de otras Acciones", "sent_to": []}
+            return {
+                "message": f"Notificación enviada a {_dyn.get('sent_count', 0)} destinatario(s) (Configuración de otras Acciones)",
+                "sent_to": _dyn.get("recipients", []),
+            }
+    except Exception as e:
+        logging.error(f"[Integradores] motor dinámico de otras acciones falló: {e}")
+
     # Obtener plantilla (puede estar personalizada en DB o usar la default)
     template = await db.email_templates.find_one({"template_id": "new_integration_project"}, {"_id": 0})
     if not template:

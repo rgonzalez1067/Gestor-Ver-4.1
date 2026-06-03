@@ -1,0 +1,170 @@
+"""Configuración de otras Acciones — Motor Dinámico para acciones NO ligadas a
+cotizaciones.
+
+Permite al admin definir, por cada acción registrada (cambio de fase de Nuevos
+Productos, creación de Proyecto de Integración), qué usuarios internos reciben
+qué plantilla y por qué canal (Correo / Centro de Mensajes), además de un toggle
+global de activación.
+
+Endpoints:
+  - GET    /api/other-actions/catalog          → acciones + usuarios + plantillas.
+  - GET    /api/other-actions/configs          → todas las configs.
+  - GET    /api/other-actions/configs/{action} → una config.
+  - PUT    /api/other-actions/configs          → upsert.
+
+La RBAC se aplica vía middleware (módulo `config_otras_acciones`).
+"""
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel, Field
+
+from config import db, get_current_user
+
+router = APIRouter(tags=["other-actions"])
+logger = logging.getLogger("other-actions")
+
+
+# Catálogo de "otras acciones" desacopladas del hardcode. Cada acción documenta
+# las variables disponibles para usar en la plantilla seleccionada.
+OTHER_ACTIONS = [
+    {
+        "id": "new_product_phase_change",
+        "label": "Cambio de Estado o Fase de Nuevos Productos",
+        "description": "Se dispara cuando un producto del pipeline de Nuevos Productos cambia de estatus/fase.",
+        "variables": [
+            "nombre_producto", "nombre_banco", "componente", "estatus", "estatus_anterior",
+            "dias_en_fase", "equipo_trabajo", "usuario_responsable", "fecha_sistema",
+        ],
+    },
+    {
+        "id": "new_integration_project",
+        "label": "Creación de un Nuevo Proyecto de Integración",
+        "description": "Se dispara al dar de alta un Proyecto de Integración (alta de integrador).",
+        "variables": [
+            "nombre_integrador", "tipo_integracion", "nombre_aplicativo",
+            "nombre_responsable", "email_responsable", "telefono_responsable",
+            "usuario_creador", "fecha_sistema",
+        ],
+    },
+]
+OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
+
+
+# ---------- Models ----------
+class RecipientRow(BaseModel):
+    row_id: str = Field(default_factory=lambda: f"row_{uuid.uuid4().hex[:8]}")
+    type: str = "user"  # sólo usuarios internos (no hay correo de cliente)
+    user_id: Optional[str] = None
+    template_id: Optional[str] = None
+    send_pdf_attachments: bool = False
+    delivery_channel: str = "email"  # "email" | "inbox"
+
+
+class OtherActionConfigPayload(BaseModel):
+    action_id: str
+    enabled: bool = True
+    recipients: list[RecipientRow] = Field(default_factory=list)
+
+
+async def _require_auth(authorization: Optional[str]) -> dict:
+    user = await get_current_user(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    return user
+
+
+# ---------- Endpoints ----------
+@router.get("/other-actions/catalog")
+async def get_catalog(authorization: Optional[str] = Header(None)):
+    """Acciones disponibles + usuarios internos activos + plantillas (agrupadas)."""
+    await _require_auth(authorization)
+
+    users_cur = db.users.find({"is_active": True}, {
+        "_id": 0, "user_id": 1, "first_name": 1, "last_name": 1, "email": 1,
+        "departamento": 1, "cargo": 1, "sede": 1,
+    })
+    users = [{
+        "user_id": u["user_id"],
+        "label": f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or u.get("email", "(sin nombre)"),
+        "email": u.get("email", ""),
+        "departamento": u.get("departamento", ""),
+        "cargo": u.get("cargo", ""),
+        "sede": u.get("sede", ""),
+    } async for u in users_cur]
+
+    templates = await db.email_templates.find({}, {
+        "_id": 0, "template_id": 1, "name": 1, "subject": 1,
+        "context": 1, "sede": 1, "category": 1, "group": 1,
+    }).to_list(500)
+    # Categorización para el dropdown (mismo criterio que action_notifications).
+    for t in templates:
+        if t.get("group"):
+            t["category"] = t["group"]
+            continue
+        tid = (t.get("template_id") or "")
+        sede = (t.get("sede") or "").strip().upper()
+        ctx = (t.get("context") or "").strip().lower()
+        if tid.endswith("_PYME") or sede == "PYME":
+            t["category"] = "Pyme"
+        elif tid.endswith("_CORP") or sede == "CORP":
+            t["category"] = "Corp"
+        elif t.get("is_project_template") or "implement" in ctx or "integr" in ctx:
+            t["category"] = "Implementación"
+        else:
+            t["category"] = "General"
+
+    return {"actions": OTHER_ACTIONS, "users": users, "templates": templates}
+
+
+@router.get("/other-actions/configs")
+async def list_configs(authorization: Optional[str] = Header(None)):
+    await _require_auth(authorization)
+    items = await db.other_action_configs.find({}, {"_id": 0}).to_list(100)
+    return {"items": items, "total": len(items)}
+
+
+@router.get("/other-actions/configs/{action_id}")
+async def get_config(action_id: str, authorization: Optional[str] = Header(None)):
+    await _require_auth(authorization)
+    cfg = await db.other_action_configs.find_one({"action_id": action_id}, {"_id": 0})
+    if not cfg:
+        return {"action_id": action_id, "enabled": True, "recipients": [], "exists": False}
+    return cfg
+
+
+@router.put("/other-actions/configs")
+async def upsert_config(payload: OtherActionConfigPayload, authorization: Optional[str] = Header(None)):
+    user = await _require_auth(authorization)
+    if payload.action_id not in OTHER_ACTION_IDS:
+        raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
+
+    for r in payload.recipients:
+        if r.type != "user":
+            raise HTTPException(status_code=400, detail="Sólo se permiten destinatarios de tipo 'user' (usuarios internos)")
+        if not r.user_id:
+            raise HTTPException(status_code=400, detail="user_id requerido para cada fila")
+        if r.delivery_channel not in ("email", "inbox"):
+            raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "action_id": payload.action_id,
+        "enabled": payload.enabled,
+        "recipients": [r.model_dump() for r in payload.recipients],
+        "updated_at": now,
+        "updated_by": user.get("email"),
+        "updated_by_name": (
+            f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", "")
+        ),
+    }
+    await db.other_action_configs.update_one(
+        {"action_id": payload.action_id},
+        {"$set": doc, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    saved = await db.other_action_configs.find_one({"action_id": payload.action_id}, {"_id": 0})
+    return saved

@@ -18,6 +18,7 @@ import { EmailFooterConfig } from './pages/EmailFooterConfig';
 import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import ActionNotificationsConfig from './pages/ActionNotificationsConfig';
+import OtherActionsConfig from './pages/OtherActionsConfig';
 import ConnectedUsers from './pages/ConnectedUsers';
 import BackupCenter from './pages/BackupCenter';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
@@ -205,6 +206,11 @@ function AppRouter() {
       <Route path="/settings/action-notifications" element={
         <ProtectedRoute>
           <ActionNotificationsConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/other-actions" element={
+        <ProtectedRoute>
+          <OtherActionsConfig />
         </ProtectedRoute>
       } />
       <Route path="/settings/connected-users" element={

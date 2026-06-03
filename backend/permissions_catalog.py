@@ -60,6 +60,7 @@ MODULES = [
     {"id": "taller_equipos", "name": "Gestión de Taller", "group": "gestion_taller"},
     # Configuración (legacy, sin grupo visible)
     {"id": "configuracion", "name": "Configuración", "group": "gestion_administrativa"},
+    {"id": "config_otras_acciones", "name": "Configuración de Otras Acciones", "group": "gestion_administrativa"},
 ]
 
 MODULE_IDS = [m["id"] for m in MODULES]

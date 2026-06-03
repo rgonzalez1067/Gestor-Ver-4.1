@@ -346,7 +346,43 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
     days_text = f" (Tiempo transcurrido en fase {old_status}: {days_in_phase} días)" if days_in_phase is not None else ""
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
 
-    # -- Notificación por email a Gerencia de Ventas y Gerente de Implementación --
+    # -- Motor dinámico: "Configuración de otras Acciones" (con fallback legacy) --
+    dynamic_result = {"dispatched": False}
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        _equipo = product.get("equipo_fase", [])
+        if _equipo:
+            _equipo_html = "<ul style='margin:10px 0;padding-left:20px;'>" + "".join(
+                f"<li style='margin:4px 0;'><strong>{e.get('name','')}</strong> — {e.get('cargo','')}</li>" for e in _equipo
+            ) + "</ul>"
+            _equipo_names = ", ".join([e.get("name", "") for e in _equipo])
+        elif product.get("responsable_nombre"):
+            _equipo_html = f"<p style='margin:10px 0;'><strong>{product.get('responsable_nombre')}</strong></p>"
+            _equipo_names = product.get("responsable_nombre")
+        else:
+            _equipo_html = "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>"
+            _equipo_names = "Por definir"
+        _tpl_vars = {
+            "nombre_producto": product.get("service_name", ""), "Nombre_Producto": product.get("service_name", ""),
+            "service_name": product.get("service_name", ""),
+            "nombre_banco": product.get("bank_name", ""), "Banco": product.get("bank_name", ""),
+            "bank_name": product.get("bank_name", ""),
+            "componente": product.get("component_type", ""), "Componente": product.get("component_type", ""),
+            "estatus": new_status, "Estatus": new_status, "fase": new_status, "Fase": new_status,
+            "estatus_anterior": old_status, "Estatus_Anterior": old_status,
+            "dias_en_fase": str(days_in_phase) if days_in_phase is not None else "",
+            "equipo_trabajo": _equipo_html, "Equipo_Trabajo": _equipo_html,
+            "usuario_responsable": product.get("responsable_nombre") or _equipo_names,
+            "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+        }
+        dynamic_result = await dispatch_other_action(
+            "new_product_phase_change", _tpl_vars, current_user=user,
+            fallback_subject=f"Actualización de Nuevos Proyectos - Producto: {product.get('service_name','')} - Banco: {product.get('bank_name','')}",
+        )
+    except Exception as e:
+        logging.error(f"[NP] motor dinámico de otras acciones falló: {e}")
+
+    # -- Notificación por email a Gerencia de Ventas y Gerente de Implementación (LEGACY fallback) --
     try:
         # Destinatarios: Gerentes de Ventas + Gerente de Implementación + Coordinadores
         notify_cargos = ["Gerente", "Coordinador", "Director"]
@@ -397,7 +433,7 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         </div>
         """
 
-        if recipients:
+        if recipients and not dynamic_result.get("dispatched"):
             from services.email_service import send_email
             await send_email(
                 to=recipients,
@@ -406,6 +442,8 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
                 action="new_product_status_change"
             )
             logging.info(f"[NP] Email de actualización enviado a {len(recipients)} destinatarios para {service_name}/{bank_name} → {new_status}")
+        elif dynamic_result.get("dispatched"):
+            logging.info(f"[NP] Notificación manejada por motor dinámico (sent={dynamic_result.get('sent_count')}, disabled={dynamic_result.get('disabled')}) para {service_name}/{bank_name} → {new_status}")
         else:
             logging.info(f"[NP] Sin destinatarios para notificación de {service_name}/{bank_name} → {new_status}")
     except Exception as e:

@@ -2824,3 +2824,23 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 **Ajuste UX toast:** En `IntenseAlertToast.jsx` el botón "Ver mensaje" ahora es condicional (`onView` opcional). En `NotificationBell.jsx` solo se pasa `onView` para mensajes internos; las notificaciones de eventos del sistema ya NO muestran "Ver mensaje" (llevaba a pantallas operativas sin mensaje). Bonus: corregido bug de import faltante `emitInboxReloadList` en `useNotifications.js` (lanzaba error silencioso al recibir mensajes internos).
 
 **Deep-link toast mensaje interno (2026-06-03):** El toast de mensaje interno ahora navega a `/dashboard?conv=<conversation_id>`. `InboxCenter.jsx` lee el query param `conv` (useLocation) y abre el `ChatThread` de esa conversación, limpiando luego el param (navigate replace). Los toasts de eventos del sistema siguen siendo solo informativos (sin botón). Validado en navegador: el hilo se abre directo. 
+
+---
+
+## Módulo "Configuración de otras Acciones" (desacople de correos hardcode) · 2026-06-03
+
+**Objetivo:** Migrar a configuración dinámica los correos que estaban fijos en el código para 2 acciones, clonando el modelo de "Configuración de Acciones de Cotizaciones" (filas Tipo=Usuario interno, Destinatario, Plantilla, Canal Email/Centro de Mensajes), sin fila de correo de cliente.
+
+**Backend:**
+- `routes/other_actions_config.py`: catálogo (2 acciones + usuarios + plantillas), CRUD config (colección `other_action_configs`, keyed por `action_id`, con `enabled` + `recipients[]`). Endpoints `/api/other-actions/catalog|configs`.
+- `services/other_actions_engine.py`: `dispatch_other_action(action_id, template_vars, ...)`. Reglas: sin config→`dispatched:False` (fallback legacy); `enabled:false`→no envía (`dispatched:True, disabled:True`); con config activa→despacha por email o inbox y renderiza la plantilla seleccionada.
+- **Desacople Acción A** (`new_products.py` `update_new_product_status`): motor dinámico + fallback legacy gateado.
+- **Desacople Acción B** (`integrators.py` `notify_new_integration_project`): motor dinámico con return temprano; fallback legacy (impl_manager_email) solo si no hay config.
+- **RBAC**: nuevo módulo `config_otras_acciones` en `permissions_catalog.py` (grupo gestion_administrativa) + `/api/other-actions`→`config_otras_acciones` en ROUTE_MODULE_MAP. Por defecto `none` para no-admin (admin bypass). Para dar acceso a Gerencia, asignar nivel Consulta/Edición en las Plantillas de Seguridad.
+
+**Frontend:**
+- `pages/OtherActionsConfig.jsx` (ruta `/settings/other-actions`) + tarjeta en `Settings.jsx` ("Configuración de otras Acciones"). Acordeón por acción con toggle "Acción activa", grilla de filas (Usuario interno, Plantilla, Canal), Agregar Fila/Guardar.
+
+**Pruebas (todas OK):** CRUD + RBAC (no-admin 403); engine 3 conductas; Acción B HTTP (enabled→sent_count 1 al destinatario configurado / disabled→"desactivada"); Acción A HTTP (DESA→SQA → bitacora other_action_dispatch sent_count 1). Configs de prueba limpiadas; producto revertido a DESA. Lint JS+PY OK.
+
+**Nota:** las plantillas se crean en el módulo de plantillas existente y se seleccionan en el campo Plantilla.

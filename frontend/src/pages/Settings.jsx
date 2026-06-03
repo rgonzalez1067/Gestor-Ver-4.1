@@ -670,6 +670,38 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Configuración de otras Acciones (desacople de correos hardcode) */}
+          <div className="bg-white rounded-lg border-2 border-blue-200 p-6 mb-6" data-testid="other-actions-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Settings2 size={24} className="text-blue-600 flex-shrink-0" />
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+                    Configuración de otras Acciones
+                  </h2>
+                  <p className="text-sm text-slate-600 max-w-2xl">
+                    Parametriza los destinatarios internos, la plantilla y el canal de envío
+                    (Correo o Centro de Mensajes) de las notificaciones automáticas de
+                    Nuevos Productos (cambio de fase) y Proyectos de Integración (creación),
+                    que antes estaban fijas en el código.
+                  </p>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
+                    Motor dinámico · fallback seguro a la lógica legacy
+                  </Badge>
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/settings/other-actions')}
+                variant="outline"
+                className="flex-shrink-0 border-blue-300 text-blue-700 hover:bg-blue-50"
+                data-testid="open-other-actions-btn"
+              >
+                Configurar
+                <ChevronRight size={16} className="ml-1" />
+              </Button>
+            </div>
+          </div>
+
           {/* Centro de Respaldos (Admin) — Exportación/Importación unificada */}
           {(() => {
             let isAdminUser = false;
