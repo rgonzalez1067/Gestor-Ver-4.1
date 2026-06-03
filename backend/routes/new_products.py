@@ -328,14 +328,14 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
                 {"product_id": product_id},
                 {"$set": {
                     "usuario_responsable_fase": resp_user_id,
-                    "responsable_nombre": equipo_fase[0]["name"] if equipo_fase else assigned_name,
+                    "responsable_nombre": assigned_name,
                     "responsable_role": "Líder de Proyecto",
                     "equipo_fase": equipo_fase,
                 }}
             )
             await _log_assignment(product_id, resp_user_id, assigned_name, "Equipo DESA", "DESA", user)
 
-    # 2. DESA → SQA: Solo el equipo DESA puede mover
+    # 2. DESA → SQA: Solo el equipo DESA puede mover; al entrar a SQA se asigna el equipo de Analistas SQA
     elif old_status == "DESA" and new_status == "SQA":
         equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
         if responsable_id:
@@ -345,16 +345,40 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
                 status_code=403,
                 detail="GOBERNANZA: Solo el equipo DESA asignado puede mover de DESA a SQA"
             )
-        # Limpiar equipo al entrar a SQA
-        await db.new_products.update_one(
-            {"product_id": product_id},
-            {"$set": {
-                "usuario_responsable_fase": None,
-                "responsable_nombre": None,
-                "responsable_role": None,
-                "equipo_fase": [],
-            }}
-        )
+
+        # Asignar el equipo SQA (Analistas de Aseguramiento de Calidad) que ingresa a la fase
+        resp_user_id = body.get("responsable_user_id")
+        equipo_user_ids = body.get("equipo_user_ids", [])
+        if resp_user_id:
+            equipo_fase = []
+            all_ids = list(set(equipo_user_ids)) if equipo_user_ids else [resp_user_id]
+            for uid in all_ids:
+                target = await db.users.find_one({"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+                if target:
+                    name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
+                    equipo_fase.append({"user_id": uid, "name": name, "cargo": target.get("cargo", ""), "email": target.get("email", "")})
+            assigned_name = ", ".join([e["name"] for e in equipo_fase])
+            await db.new_products.update_one(
+                {"product_id": product_id},
+                {"$set": {
+                    "usuario_responsable_fase": resp_user_id,
+                    "responsable_nombre": assigned_name,
+                    "responsable_role": "Analista SQA",
+                    "equipo_fase": equipo_fase,
+                }}
+            )
+            await _log_assignment(product_id, resp_user_id, assigned_name, "Equipo SQA", "SQA", user)
+        else:
+            # Sin selección (p.ej. admin sin asignar): limpiar el equipo de la fase anterior
+            await db.new_products.update_one(
+                {"product_id": product_id},
+                {"$set": {
+                    "usuario_responsable_fase": None,
+                    "responsable_nombre": None,
+                    "responsable_role": None,
+                    "equipo_fase": [],
+                }}
+            )
 
     # 3. SQA → IMPLE: Solo el equipo SQA asignado puede mover
     elif old_status == "SQA" and new_status == "IMPLE":

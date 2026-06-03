@@ -372,11 +372,13 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
     integrations = bank.get("integrations", [])
     found = False
     old_status = None
+    old_phase_entered_at = None
     target_idx = -1
     source_product_id = None
     for i, intg in enumerate(integrations):
         if intg.get("integration_id") == integration_id:
             old_status = intg.get("status")
+            old_phase_entered_at = intg.get("phase_changed_at") or intg.get("created_at")
             source_product_id = intg.get("source_product_id")
             target_idx = i
 
@@ -393,8 +395,11 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
                     )
 
             for key, val in update_data.items():
-                if key in ("status", "notes", "service_name", "component_type"):
+                if key in ("status", "notes", "service_name", "component_type", "responsable_nombre"):
                     integrations[i][key] = val
+            # Marcar el momento de entrada a la nueva fase (para "días en fase saliente")
+            if update_data.get("status") and update_data.get("status") != old_status:
+                integrations[i]["phase_changed_at"] = datetime.now(timezone.utc).isoformat()
             found = True
             break
     
@@ -422,27 +427,72 @@ async def update_bank_integration(bank_id: str, integration_id: str, update_data
                 {"$set": {"bank_integration_status": new_status}}
             )
     
-    # Notificación simulada al equipo de ventas cuando cambia el estatus
+    # Notificación de cambio de fase de Implementación (proceso continuo):
+    # usa el MISMO motor, configuración de correos, plantillas, reglas y variables
+    # que Nuevos Productos (action_id "new_product_phase_change"), para las fases
+    # PreProd → Primer Prod → Masificación.
     if new_status and new_status != old_status:
         try:
-            sales_roles = ["Ejecutivo de Ventas Pyme", "Ejecutivo de Ventas Corporativas"]
-            sales_users = await db.users.find(
-                {"cargo": {"$in": sales_roles}},
-                {"_id": 0, "email": 1, "first_name": 1, "last_name": 1}
-            ).to_list(100)
-            
-            service_name = integrations[target_idx].get("service_name", "N/A")
-            bank_name = bank.get("name", "N/A")
-            recipients = [u["email"] for u in sales_users if u.get("email")]
-            
-            logging.info(
-                f"[EMAIL SIMULADO] Notificación de cambio de estatus de integración: "
-                f"Banco={bank_name}, Servicio={service_name}, "
-                f"De={old_status} -> A={new_status}, "
-                f"Destinatarios={recipients if recipients else 'Sin ejecutivos de ventas registrados'}"
+            from services.other_actions_engine import dispatch_other_action
+
+            def _days_since(iso_val):
+                try:
+                    if not iso_val:
+                        return ""
+                    dt = datetime.fromisoformat(str(iso_val).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return str((datetime.now(timezone.utc) - dt).days)
+                except Exception:
+                    return ""
+
+            intg_final = integrations[target_idx]
+            service_name = intg_final.get("service_name", "")
+            bank_name = bank.get("name", "")
+
+            # Días totales del proyecto: desde la creación del producto original (continuo)
+            dias_totales = ""
+            if source_product_id:
+                sp = await db.new_products.find_one({"product_id": source_product_id}, {"_id": 0, "created_at": 1})
+                dias_totales = _days_since((sp or {}).get("created_at")) if sp else ""
+            if not dias_totales:
+                dias_totales = _days_since(intg_final.get("created_at"))
+
+            dias_saliente = _days_since(old_phase_entered_at)
+            resp_entrante = (
+                update_data.get("responsable_nombre")
+                or intg_final.get("responsable_nombre")
+                or "Por asignar"
             )
+            now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+
+            tpl_vars = {
+                "nombre_producto": service_name, "Nombre_Producto": service_name, "service_name": service_name,
+                "nombre_banco": bank_name, "Banco": bank_name, "banco": bank_name, "bank_name": bank_name,
+                "componente": intg_final.get("component_type", ""), "Componente": intg_final.get("component_type", ""),
+                "estatus": new_status, "Estatus": new_status, "fase": new_status, "Fase": new_status,
+                "nueva_fase": new_status, "Nueva_Fase": new_status,
+                "estatus_anterior": old_status, "Estatus_Anterior": old_status,
+                "fase_actual": old_status, "Fase_Actual": old_status,
+                "dias_en_fase": dias_saliente,
+                "dias_fase_saliente": dias_saliente, "Dias_Fase_Saliente": dias_saliente,
+                "dias_totales_proyecto": dias_totales, "Dias_Totales_Proyecto": dias_totales,
+                "responsable_fase_entrante": resp_entrante, "Responsable_Fase_Entrante": resp_entrante,
+                "equipo_trabajo": f"<p style='margin:10px 0;'><strong>{resp_entrante}</strong></p>",
+                "usuario_responsable": resp_entrante,
+                "tipo_evento": "Cambio de fase", "Tipo_Evento": "Cambio de fase",
+                "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+            }
+            result = await dispatch_other_action(
+                "new_product_phase_change", tpl_vars, current_user=user,
+                fallback_subject=f"Implementación - {service_name} - Banco: {bank_name} → {new_status}",
+            )
+            if result.get("dispatched"):
+                logging.info(f"[Implementación] Notificación dinámica {old_status}->{new_status} de {service_name}/{bank_name}: sent={result.get('sent_count')}, disabled={result.get('disabled')}")
+            else:
+                logging.info(f"[Implementación] Sin config dinámica para cambio {old_status}->{new_status} de {service_name}/{bank_name}")
         except Exception as e:
-            logging.error(f"Error al preparar notificación de integración: {e}")
+            logging.error(f"Error al despachar notificación de integración: {e}")
     
     return integrations[target_idx]
 

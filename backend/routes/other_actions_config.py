@@ -34,7 +34,7 @@ OTHER_ACTIONS = [
     {
         "id": "new_product_phase_change",
         "label": "Cambio de Estado o Fase de Nuevos Productos",
-        "description": "Se dispara cuando un producto del pipeline de Nuevos Productos cambia de estatus/fase.",
+        "description": "Se dispara al crear un producto y en cada cambio de fase del ciclo completo: Negociación → DESA → SQA → IMPLE y las fases de Implementación (PreProd → Primer Prod → Masificación).",
         "variables": [
             "nombre_producto", "nombre_banco", "fase_actual", "nueva_fase", "dias_fase_saliente",
             "dias_totales_proyecto", "responsable_fase_entrante", "tipo_evento",

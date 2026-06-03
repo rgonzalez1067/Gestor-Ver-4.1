@@ -192,14 +192,20 @@ export const NewProducts = () => {
       }
     }
 
-    // DESA → SQA: Solo el equipo DESA puede mover (el administrador está exento)
-    if (product.status === 'DESA' && newStatus === 'SQA' && !isAdmin) {
-      const equipoIds = (product.equipo_fase || []).map(e => e.user_id);
-      if (product.usuario_responsable_fase) equipoIds.push(product.usuario_responsable_fase);
-      if (equipoIds.length > 0 && !equipoIds.includes(currentUser?.user_id)) {
-        toast.error(`Solo el equipo de DESA asignado puede mover a SQA`);
-        return;
+    // DESA → SQA: validar gobernanza (admin exento) y abrir modal para asignar el Analista SQA entrante
+    if (product.status === 'DESA' && newStatus === 'SQA') {
+      if (!isAdmin) {
+        const equipoIds = (product.equipo_fase || []).map(e => e.user_id);
+        if (product.usuario_responsable_fase) equipoIds.push(product.usuario_responsable_fase);
+        if (equipoIds.length > 0 && !equipoIds.includes(currentUser?.user_id)) {
+          toast.error(`Solo el equipo de DESA asignado puede mover a SQA`);
+          return;
+        }
       }
+      setAssignContext({ productId, newStatus: 'SQA', role: 'Analista SQA', currentProduct: product });
+      setAssignUserIds([]);
+      setAssignOpen(true);
+      return;
     }
 
     executeStatusChange(productId, newStatus);
@@ -770,7 +776,7 @@ export const NewProducts = () => {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancelar</Button>
                 <Button
-                  onClick={assignContext.role === 'Líder de Proyecto' ? handleConfirmAssign : handleConfirmAnalystAssign}
+                  onClick={assignContext.newStatus ? handleConfirmAssign : handleConfirmAnalystAssign}
                   disabled={assignUserIds.length === 0}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white"
                   data-testid="assign-confirm-btn">
