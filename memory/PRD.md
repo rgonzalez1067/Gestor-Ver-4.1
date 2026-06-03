@@ -2767,3 +2767,29 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Subida de doc → BORRADO del archivo local (simula prod efímero) → envío con doc interno → `attachments_count: 1` (leído desde Object Storage). ✓
 - Aborto: envío con doc_id inexistente → HTTP 422 con detalle "No se pudo adjuntar el/los documento(s)...". ✓
 - Lint Python OK (sin nuevos errores). Backend sano.
+
+---
+
+## Feature — Centro de Respaldos (Exportación/Importación unificada) (Feb 2026)
+
+**Objetivo**: Centralizar export (backup) e import (restauración) de 9 entidades maestras en Configuración. Formato JSON, export masivo en ZIP, import upsert idempotente, acceso admin-only.
+
+**Backend** (`routes/data_migration.py`):
+- Nuevo módulo `integrators` (collection `integrators`, key `integrator_id`).
+- Nuevo módulo virtual multi-colección `user-permissions` = Usuarios + Perfiles/Roles relacional (perfiles primero, luego usuarios; users sanitizados al importar).
+- Helper reutilizable `_apply_upsert_docs()` (upsert por clave natural, conserva created_at).
+- `GET /admin/backup-center/entities` → 9 entidades con conteos.
+- `POST /admin/backup-center/export-zip` {modules:[...]} → ZIP con un JSON por entidad + _manifest.json.
+- `_build_export_payload()` reutilizado por export individual y ZIP.
+- Slugs kebab-case: clients, banks, payment-methods, hardware, commercial-categories, inventory-movements, taller-equipos, user-permissions, integrators.
+
+**Frontend**:
+- `pages/BackupCenter.jsx` (nuevo): grilla de 9 entidades con checkbox + "Seleccionar Todos", export individual, "Ejecutar Exportación Seleccionados" (ZIP), modal Importar/Restaurar con preview (a-crear/a-actualizar) + aplicar.
+- `Settings.jsx`: tarjeta admin-only "Centro de Respaldos" → `/settings/backup-center`. `App.js`: ruta agregada.
+- Exclusiones intactas: Cotizaciones, Histórico (HistoricalQuotes conserva su MigrationButtons), Proyectos.
+
+**Limpieza de vistas operativas**: removido `MigrationButtons` (respaldo/migración JSON) de Clients, Banks, MediosPago, Hardware, CommercialCategories, Inventory, TallerEquipos, AdminUsers. Conservados los reportes Excel/PDF operativos y los imports Excel de plantilla (operativos). HistoricalQuotes preservado.
+
+**Testing**: testing agent 100% — backend 8/8 pytest (`/app/backend/tests/test_backup_center.py`), frontend todos los flujos críticos (9 entidades, selectores, export JSON/ZIP, import preview+apply idempotente: integrators 0/267, user-permissions 0/46 = 7 perfiles + 39 usuarios). Admin-only verificado (non-admin 403/401). Limpieza y exclusiones confirmadas.
+
+**Nota conocida (P2 backlog)**: warning de hydration por wrapper de instrumentación `<span data-ve-dynamic>` (no es código de la app) en Settings/HistoricalQuotes; no bloquea.
