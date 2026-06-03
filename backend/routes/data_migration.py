@@ -345,16 +345,9 @@ async def _apply_upsert_docs(collection_name: str, key: str, docs: list, user: d
     return inserted, updated, skipped, errors
 
 
-@router.post("/admin/migration/{module}/import-apply")
-async def import_apply(
-    module: str,
-    file: UploadFile = File(...),
-    authorization: Optional[str] = Header(None),
-):
-    """Aplica el import: hace upsert de cada documento por su id natural.
-    Conserva created_at original al actualizar; refresca updated_at."""
-    user = await _require_admin(authorization)
-    payload = await _read_payload(file)
+async def _apply_import_payload(module: str, payload: dict, user: dict) -> dict:
+    """Aplica un payload de import para un módulo (simple o multi-colección user-permissions).
+    Hace upsert idempotente y registra bitácora. Devuelve un dict-resumen."""
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # --- Módulo virtual multi-colección: Permisos de Usuarios (users + profiles) ---
@@ -416,7 +409,6 @@ async def import_apply(
         cfg["collection"], cfg["key"], docs, user, sanitize_users=(module == "users")
     )
 
-    # Bitácora
     await db.bitacora.insert_one({
         "action": "data_migration_import",
         "module": module,
@@ -440,6 +432,19 @@ async def import_apply(
         "errors": errors[:20],
         "message": f"Migración completada: {inserted} creado(s), {updated} actualizado(s), {skipped} omitido(s).",
     }
+
+
+@router.post("/admin/migration/{module}/import-apply")
+async def import_apply(
+    module: str,
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Aplica el import: hace upsert de cada documento por su id natural.
+    Conserva created_at original al actualizar; refresca updated_at."""
+    user = await _require_admin(authorization)
+    payload = await _read_payload(file)
+    return await _apply_import_payload(module, payload, user)
 
 
 # =====================================================================
@@ -518,6 +523,136 @@ async def backup_center_export_zip(payload: dict, authorization: Optional[str] =
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _module_from_zip_entry(name: str) -> Optional[str]:
+    """Deriva el slug del módulo desde el nombre del archivo dentro del ZIP.
+    Ignora _manifest.json, carpetas y archivos no-JSON."""
+    base = name.rsplit("/", 1)[-1]
+    if not base.endswith(".json") or base.startswith("_") or base.startswith("."):
+        return None
+    return base[: -len(".json")]
+
+
+@router.post("/admin/backup-center/import-preview-zip")
+async def backup_center_import_preview_zip(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Lee un ZIP de respaldo y devuelve, por entidad, cuántos registros se
+    crearán/actualizarán. NO modifica datos."""
+    await _require_admin(authorization)
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Debe subir un archivo .zip de respaldo")
+
+    raw = await file.read()
+    valid_modules = {e["module"] for e in BACKUP_CENTER_ENTITIES}
+    label_map = {e["module"]: e["label"] for e in BACKUP_CENTER_ENTITIES}
+    entities = []
+    skipped_files = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            for name in zf.namelist():
+                module = _module_from_zip_entry(name)
+                if module is None:
+                    continue
+                if module not in valid_modules:
+                    skipped_files.append(name)
+                    continue
+                try:
+                    payload = json.loads(zf.read(name).decode("utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    skipped_files.append(name)
+                    continue
+
+                if module == USER_PERMISSIONS_MODULE:
+                    cols = payload.get("collections") or {}
+                    total = sum(len((cols.get(c) or {}).get("documents") or []) for c, _ in USER_PERMISSIONS_COLLECTIONS)
+                else:
+                    total = len(payload.get("documents") or [])
+                entities.append({"module": module, "label": label_map.get(module, module), "records": total})
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="El archivo no es un ZIP válido")
+
+    if not entities:
+        raise HTTPException(status_code=400, detail="El ZIP no contiene archivos de respaldo válidos de las entidades soportadas")
+
+    return {"entities": entities, "skipped_files": skipped_files, "total_entities": len(entities)}
+
+
+@router.post("/admin/backup-center/import-zip")
+async def backup_center_import_zip(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Importación masiva: restaura TODAS las entidades contenidas en un ZIP de
+    respaldo, aplicando upsert idempotente por cada {module}.json encontrado."""
+    user = await _require_admin(authorization)
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Debe subir un archivo .zip de respaldo")
+
+    raw = await file.read()
+    valid_modules = {e["module"] for e in BACKUP_CENTER_ENTITIES}
+    results = []
+    errors = []
+    # user-permissions de último para que perfiles/usuarios se restauren al final
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            entries = []
+            for name in zf.namelist():
+                module = _module_from_zip_entry(name)
+                if module is None or module not in valid_modules:
+                    continue
+                entries.append((module, name))
+            entries.sort(key=lambda x: (x[0] == USER_PERMISSIONS_MODULE, x[0]))
+
+            for module, name in entries:
+                try:
+                    payload = json.loads(zf.read(name).decode("utf-8"))
+                    res = await _apply_import_payload(module, payload, user)
+                    results.append({
+                        "module": module,
+                        "inserted": res.get("inserted", 0),
+                        "updated": res.get("updated", 0),
+                        "skipped": res.get("skipped", 0),
+                    })
+                except HTTPException as he:
+                    errors.append({"module": module, "error": he.detail})
+                except Exception as e:  # noqa: BLE001
+                    errors.append({"module": module, "error": str(e)})
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="El archivo no es un ZIP válido")
+
+    if not results and not errors:
+        raise HTTPException(status_code=400, detail="El ZIP no contiene archivos de respaldo válidos de las entidades soportadas")
+
+    total_inserted = sum(r["inserted"] for r in results)
+    total_updated = sum(r["updated"] for r in results)
+    total_skipped = sum(r["skipped"] for r in results)
+
+    await db.bitacora.insert_one({
+        "action": "backup_center_import_zip",
+        "modules": [r["module"] for r in results],
+        "inserted": total_inserted,
+        "updated": total_updated,
+        "skipped": total_skipped,
+        "errors": errors,
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "results": results,
+        "errors": errors,
+        "total_inserted": total_inserted,
+        "total_updated": total_updated,
+        "total_skipped": total_skipped,
+        "message": (
+            f"Importación masiva completada: {len(results)} entidad(es), "
+            f"{total_inserted} creado(s), {total_updated} actualizado(s), {total_skipped} omitido(s)."
+            + (f" {len(errors)} con error." if errors else "")
+        ),
+    }
 
 
 # =====================================================================

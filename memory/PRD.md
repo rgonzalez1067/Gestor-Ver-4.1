@@ -2793,3 +2793,19 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 **Testing**: testing agent 100% — backend 8/8 pytest (`/app/backend/tests/test_backup_center.py`), frontend todos los flujos críticos (9 entidades, selectores, export JSON/ZIP, import preview+apply idempotente: integrators 0/267, user-permissions 0/46 = 7 perfiles + 39 usuarios). Admin-only verificado (non-admin 403/401). Limpieza y exclusiones confirmadas.
 
 **Nota conocida (P2 backlog)**: warning de hydration por wrapper de instrumentación `<span data-ve-dynamic>` (no es código de la app) en Settings/HistoricalQuotes; no bloquea.
+
+---
+
+## Feature — Importación Masiva por ZIP en Centro de Respaldos (Feb 2026)
+
+**Objetivo**: Restaurar TODAS las BD desde un único ZIP de respaldo, sin extraer cada JSON manualmente.
+
+**Backend** (`routes/data_migration.py`):
+- Refactor: lógica de import extraída a `_apply_import_payload(module, payload, user)` (reusada por import-apply individual y por el masivo).
+- `POST /admin/backup-center/import-preview-zip` → lee el ZIP y devuelve por entidad {module,label,records} + archivos ignorados.
+- `POST /admin/backup-center/import-zip` → recorre cada `{module}.json` del ZIP, aplica upsert idempotente (user-permissions procesado al final), registra bitácora `backup_center_import_zip`, devuelve resumen total + errores por entidad.
+
+**Frontend** (`pages/BackupCenter.jsx`):
+- Botón "Importar Masivo (ZIP)" (data-testid=import-zip-btn) + `BulkImportDialog`: selecciona .zip → preview (lista de entidades con conteos) → "Restaurar Todo" (data-testid=bulk-import-apply-btn).
+
+**Testing**: backend curl (preview-zip lista 4 entidades; import-zip idempotente 0 creados / 382 actualizados sin errores) + frontend E2E screenshot (modal, preview, aplicar, toast de éxito). Lint OK (JS+PY).

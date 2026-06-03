@@ -1,1 +1,150 @@
-<analysis>BackgroundTaskscreated_by_user_idrepairequipmentfast_trackBackgroundTasksinitial_contactsprojectsdb.create_indexasyncio.create_taskstartupserver.pyadditional_items{Cantidad_Cajas}services/notification_engine.pyacceptMultiple: truerif_formatter.pyrifFormatter.jsrepair-deliver_engine_or_legacynotification_engine.pyworkflow_notifications.pyaction_notification_configsservices/pdf_generator.pyroutes/quotes.pyuseQuoteRbac.jsroutes/quotes.pyprofileformat_rif(rif)formatRif(rif)V00012345created_by_user_iduser_id in dept_usersquote_categoryasyncio.create_taskserver.pyaction_notification_configsquotesquote_category/app/backend/server.py/app/backend/services/rif_formatter.py/app/frontend/src/utils/rifFormatter.js/app/backend/services/assignment_notifications.py/app/backend/routes/quotes.py/app/frontend/src/hooks/useQuoteRbac.js/app/backend/routes/projects.py/app/frontend/src/pages/ProjectDetail.jsxquotes.pyGET /api/quotesPOST /api/quotes/{quote_id}/deliverGET /api/projects/{project_id}/suggested-contacts/app/backend/tests/test_iteration17_assignment_emails.py/app/backend/tests/test_iteration18_filters_status_category.py/app/test_reports/iteration_8.json/app/test_reports/iteration_9.json/app/backend/tests/test_iteration19_send_to_impl_template_vars.py/app/backend/tests/test_iteration20_rif_formatter.py/app/backend/tests/test_iteration21_ops_union_scope.py/app/backend/tests/test_iteration[17-21]*.pyaction_notifications.pyconfigurerepair_completequote_actions.py_engine_or_legacyconfigurerepair_complete</analysis>
+<analysis>**original_problem_statement**: 
+Bug in Inbox Center: Al enviar un mensaje interno a múltiples destinatarios, la notificación en tiempo real (alerta roja persistente/WebSocket) solo se activa para el primer destinatario de la lista. El usuario reportó este fallo al probarlo en Producción.
+
+**User's preferred language**: Spanish
+INSTRUCT NEXT AGENT: You MUST respond and communicate with the user ONLY in Spanish.
+
+**what currently exists?** 
+Un CRM Full-Stack (React/FastAPI/MongoDB) para MegaNexus con módulos de Cotizaciones, Inventario, y Centro de Mensajes. Cuenta con WebSockets para notificaciones en tiempo real, un Banner Global Persistente para alertas de mensajes no leídos, y un Centro de Respaldos unificado que soporta exportación e importación masiva (ZIP/JSON) empleando Emergent Object Storage para la resiliencia de archivos.
+
+**Last working item**:
+    - Last item agent was working: Diagnosticando el bug de notificaciones WebSockets para múltiples destinatarios. El agente reprodujo el error enviando un mensaje a 2 usuarios y comprobó en los logs que el WebSocket solo realizaba el push al primer destinatario de la lista, omitiendo a los demás.
+    - Status: IN PROGRESS
+    - Agent Testing Done: Y (Bug reproducido vía logs y script)
+    - Which testing method agent to use? manual testing by curl/ python -c / screenshot tool (para verificar que el WS dispare notificaciones a múltiples usuarios logueados).
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**:  
+  Issue 1: Bug de notificación en tiempo real (WS) para múltiples destinatarios (P0)
+     - Attempted fixes: El agente localizó la ruta de envío  y verificó la BD. Determinó que el mensaje se guarda correctamente para todos los usuarios (), pero el push del WebSocket falla o no se ejecuta para el usuario 2+.
+     - Next debug checklist: 
+        1. Revisar el bucle  en  (método ).
+        2. Verificar si  funciona asíncronamente de forma correcta para cada destinatario iterado, o si hay un bloqueo.
+        3. Revisar el administrador de conexiones WebSocket ( -> ) para asegurar que el diccionario  registra correctamente a los usuarios simultáneos y que el bucle de envío no se rompe silenciosamente por excepciones del primer envío.
+     - Why fix this issue and what will be achieved with the fix?: Para garantizar que todos los destinatarios reciban su alerta persistente roja inmediatamente al enviar un comunicado masivo sin necesidad de refrescar la pantalla.
+     - Status: IN PROGRESS
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Both
+
+  Issue 2: Hydration warning en QuotesTable.jsx (P2)
+     - Attempted fixes: Ninguno (Issue visual/benigno).
+     - Next debug checklist: Revisar anidaciones de etiquetas block dentro de inline o uso del atributo .
+     - Why fix this issue and what will be achieved with the fix?: Limpieza de logs de consola de desarrollo.
+     - Status: NOT STARTED
+     - Is recurring issue?: Y
+     - Should Test frontend/backend/both after fix?: Frontend
+
+**In progress Task List**:
+  No hay tareas adicionales en progreso.
+
+**Upcoming and Future Tasks**
+  - **P1**: Migrar Marcar como Configurada y Reparada al motor dinámico de notificaciones.
+  - **P2**: Filtro PYME/CORP en el listado de Cotizaciones para la categoría Equipos.
+  - **P2**: Polling automático del chat abierto (refresh cada 15s) en Centro de Mensajes.
+  - **P2**: Aplicar nuevo lenguaje visual (gradient + KPI cards) a las pantallas de Clientes, Proyectos y Reportes de Ventas.
+  - **P3**: Roadmap Bancos - Lógica Completado.
+  - **P3**: Plantillas dedicadas para Contactos Iniciales.
+  - **P3**: Generación de Documentación Técnica integral de la aplicación.
+  - **P3**: Permiso Especial - Exportar CSV en reportes de ventas.
+  - **P3**: Reactivar Promovidos.
+  - **P3**: Agregar filtro/orden por métrica PVV en el listado principal de Proyectos.
+
+**Completed work in this session**
+- Text-Wrap multi-línea + Tooltip Hover en descripciones de Inventarios (, ). (DONE)
+- Hotfix supresión de overlay benigno  en Webpack. (DONE)
+- Fix de desbordamiento visual por nombres largos en modales de Carga de Documentos (uso de  en grilla). (DONE)
+- Notificaciones de Alta Intensidad (Toast fijo) y Banner Global Persistente para alertas de mensajes no leídos (uso de WebSockets y UnreadMessagesContext). (DONE)
+- Bug Fix Crítico: Migración de adjuntos de emails a  en lugar de almacenamiento local efímero, permitiendo correos con anexos en ambiente Deploy. (DONE)
+- Creación del nuevo Centro de Respaldos unificado en Configuración () para 9 entidades con exportación/importación Masiva ZIP. (DONE)
+- Limpieza de interfaz: se eliminaron los botones individuales de Backup/Migración de las 8 pantallas operativas. (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+   Issue 1: Hydration warning en QuotesTable.jsx
+   - Debug checklist: Buscar etiquetas block anidadas incorrectamente.
+   - Why to solve this issue and what will be achieved with this?: Limpieza de DOM tree.
+   - Should Test frontend/backend/both after fix: Frontend
+   - Is recurring issue?: Y
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: Ninguno.
+  - Recurrence count: 0
+  - Status: RESOLVED
+
+**Code Architecture**
+- **Frontend**: SPA con React, Context API (), y Tailwind CSS. UI basada en Shadcn.
+- **Backend**: API en FastAPI + MongoDB. Lógica de WS en  e integraciones de email/storage manejadas por servicios (, ).
+
+**Key Technical Concepts**
+- **Persistencia de Archivos**: Los archivos deben persistirse obligatoriamente vía  (Object Storage) ya que el disco local es efímero en Producción.
+- **Banner Global de No Leídos**: Un contexto de React interroga  y escucha eventos WebSockets () para renderizar un banner persistente sobre todas las vistas (sin timeout).
+- **Importación Masiva (ZIP)**: El backend descomprime un payload de archivos  e invoca de forma iterativa y upsert (idempotente) a múltiples colecciones de MongoDB ().
+
+**key DB schema**
+  -  & : Estructura para mensajería interna.
+  - : Mapeo de  y  (se respaldan y migran juntos).
+
+**changes in tech stack**
+  - Ninguno.
+
+**All files of reference** 
+  -  (Línea crítica a revisar para el bug de multi-destinatario).
+  -  (Lógica de Websockets).
+  -  (Manejo de estados de notificación UI).
+  -  y  (Solución previa de attachments en Object Storage).
+  -  (Nuevo Centro de respaldos masivo).
+
+**Areas that need refactoring**: 
+  -  React Editor hydration warnings.
+
+**key api endpoints**
+  - 
+  - 
+  - 
+
+**Critical Info for New Agent** 
+  - Existen dos entornos: PREVIEW y PRODUCTION. El agente tiene acceso **sólo al preview**. Todas las fallas reportadas por el usuario en producción/deploy se deben diagnosticar y resolver en el código del PREVIEW. NUNCA menciones URLs de producción ni de preview en tus comunicaciones, solo indica si el problema fue replicado y resuelto en tu entorno local/preview.
+  - Almacenamiento: El sistema de archivos locales es *read-only* o efímero en producción. Todas las cargas deben guardarse y leerse desde el Object Storage utilizando .
+  - WS Multi-Destinatario: Cuando resuelvas el bug del WebSocket, asegúrate de que el loop que despacha a  maneje silenciosamente los errores individuales (por ej., un usuario no conectado) sin detener el envío a los demás.
+
+**documents and test reports created in this job** 
+  - 
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ - User: Bug de adjuntos no enviados en Producción. -> Agent: Resolvió leyendo documentos desde Object Storage.
+ - User: Creación de un Centro de Respaldos en Configuración. -> Agent: Creado, unificado y botones operativos eliminados.
+ - User: Solicitud de botón de importación masiva mediante ZIP. -> Agent: Creado y verificado.
+ - User: Bug report: El cuadro rojo de notificaciones (WS) introducido ayer no se activa en Producción cuando envío el mensaje a varios usuarios; solo le salta al primero de la lista. -> Agent: Confirmado que es un bug en el código al iterar múltiples push WS. (STATUS: PENDING FIX).
+
+**Project Health Check:**
+- Broken: Push de Notificaciones WebSocket en tiempo real para múltiples destinatarios. 
+
+**3rd Party Integrations** 
+  - Resend (Emails) — requires User API Key
+  - Emergent Object Storage — uses Emergent LLM Key
+
+**Testing status**
+  - Testing agent used after significant changes: YES
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: 
+  - Known regressions: El envío WS para listas de usuarios múltiples falló en este fork.
+
+**Credentials to test flow:**
+Admin: rgonzalez@megasoft.com.ve / admin123
+Usuario alternativo 1: srubio@megasoft.com.ve / Test1234!
+Usuario alternativo 2: Jrojas@megasoft.com.ve / Test1234!
+
+**What agent forgot to execute**
+El agente diagnosticó y confirmó con éxito el error del WS para múltiples destinatarios e identificó los archivos responsables, pero el contexto se agotó antes de poder codificar la corrección en  /  y probar el parche.
+
+**Debugging checklist for current issue**
+    Issue: Multi-recipient WS Push Bug
+    
+    Backend files to check: 
+    - 
+    - 
+    
+    Checklist:
+    1. Revisar la función  (en ). El loop  ejecuta .
+    2. Verificar si  gestiona un error si el primer usuario no está conectado al WS, interrumpiendo el loop en lugar de continuar.
+    3. Inspeccionar el  en . Asegurarse de que el método asíncrono para enviar a un WebSocket maneje excepciones individualmente, para no quebrar iteradores de nivel superior.</analysis>

@@ -20,7 +20,7 @@ sys.path.insert(0, "/app/backend")
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://tooltip-hover-fix.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://websocket-broadcast.preview.emergentagent.com").rstrip("/")
 LCH_ID = "whs_bea89b61"
 TBP_ID = "whs_f00b02f4"
 

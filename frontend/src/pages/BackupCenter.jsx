@@ -31,7 +31,9 @@ export default function BackupCenter() {
   const [selected, setSelected] = useState(new Set());
   const [busyZip, setBusyZip] = useState(false);
   const [importTarget, setImportTarget] = useState(null); // entity row
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const fileRef = useRef(null);
+  const zipRef = useRef(null);
 
   const loadEntities = useCallback(async () => {
     setLoading(true);
@@ -125,20 +127,31 @@ export default function BackupCenter() {
           </span>
         </div>
 
-        {/* Acción masiva */}
-        <div className="flex items-center justify-between gap-3 mb-3">
+        {/* Acciones masivas */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <p className="text-sm text-slate-500" data-testid="backup-selected-count">
             {selected.size} de {entities.length} entidad(es) seleccionada(s)
           </p>
-          <Button
-            onClick={handleExportSelected}
-            disabled={busyZip || selected.size === 0}
-            className="bg-indigo-600 hover:bg-indigo-700"
-            data-testid="export-selected-btn"
-          >
-            {busyZip ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Package size={16} className="mr-1.5" />}
-            Ejecutar Exportación Seleccionados
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBulkImportOpen(true)}
+              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              data-testid="import-zip-btn"
+            >
+              <Upload size={16} className="mr-1.5" />
+              Importar Masivo (ZIP)
+            </Button>
+            <Button
+              onClick={handleExportSelected}
+              disabled={busyZip || selected.size === 0}
+              className="bg-indigo-600 hover:bg-indigo-700"
+              data-testid="export-selected-btn"
+            >
+              {busyZip ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : <Package size={16} className="mr-1.5" />}
+              Ejecutar Exportación Seleccionados
+            </Button>
+          </div>
         </div>
 
         {/* Grilla */}
@@ -213,6 +226,13 @@ export default function BackupCenter() {
         onClose={() => setImportTarget(null)}
         onDone={loadEntities}
         fileRef={fileRef}
+      />
+
+      <BulkImportDialog
+        open={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
+        onDone={loadEntities}
+        zipRef={zipRef}
       />
     </div>
   );
@@ -321,3 +341,117 @@ function ImportDialog({ entity, onClose, onDone, fileRef }) {
     </Dialog>
   );
 }
+
+function BulkImportDialog({ open, onClose, onDone, zipRef }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { if (!open) { setFile(null); setPreview(null); setBusy(false); } }, [open]);
+
+  const handleFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith('.zip')) { toast.error('Solo se permite un archivo .zip de respaldo'); return; }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const { data } = await api.post('/admin/backup-center/import-preview-zip', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPreview(data);
+      setFile(f);
+    } catch (err) {
+      toast.error(`ZIP inválido: ${err.response?.data?.detail || err.message}`);
+      setPreview(null); setFile(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleApply = async () => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/admin/backup-center/import-zip', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success(data.message || 'Importación masiva completada');
+      if (data.errors?.length) {
+        toast.error(`${data.errors.length} entidad(es) con error: ${data.errors.map((e) => e.module).join(', ')}`);
+      }
+      onDone?.();
+      onClose();
+    } catch (err) {
+      toast.error(`Error en importación masiva: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md" data-testid="bulk-import-dialog">
+        <DialogHeader>
+          <DialogTitle>Importar Masivo desde ZIP</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 min-w-0">
+          <p className="text-sm text-slate-600">
+            Suba el archivo <strong>.zip</strong> de respaldo (generado por "Ejecutar Exportación
+            Seleccionados"). Se restaurarán todas las entidades contenidas mediante upsert idempotente.
+          </p>
+          <input ref={zipRef} type="file" accept=".zip" onChange={handleFile} className="hidden" />
+          <Button
+            variant="outline"
+            onClick={() => zipRef.current?.click()}
+            disabled={busy}
+            className="w-full justify-start max-w-full"
+            title={file ? file.name : undefined}
+            data-testid="bulk-import-pick-file-btn"
+          >
+            <Package size={15} className="mr-1.5 shrink-0" />
+            <span className="truncate min-w-0">{file ? file.name : 'Seleccionar archivo .zip'}</span>
+          </Button>
+
+          {preview && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" data-testid="bulk-import-preview">
+              <p className="font-semibold text-slate-700 mb-1.5">
+                {preview.total_entities} entidad(es) en el respaldo
+              </p>
+              <ul className="text-slate-600 space-y-1 max-h-48 overflow-auto">
+                {preview.entities.map((e) => (
+                  <li key={e.module} className="flex items-center justify-between gap-2">
+                    <span>{e.label}</span>
+                    <Badge variant="secondary" className="bg-slate-100 text-slate-600">{e.records} reg.</Badge>
+                  </li>
+                ))}
+              </ul>
+              {preview.skipped_files?.length > 0 && (
+                <p className="text-xs text-amber-600 mt-2">
+                  Se ignorarán {preview.skipped_files.length} archivo(s) no reconocido(s).
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy} data-testid="bulk-import-cancel-btn">Cancelar</Button>
+          <Button
+            onClick={handleApply}
+            disabled={busy || !preview}
+            className="bg-indigo-600 hover:bg-indigo-700"
+            data-testid="bulk-import-apply-btn"
+          >
+            {busy ? <Loader2 size={16} className="mr-1.5 animate-spin" /> : null}
+            Restaurar Todo
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
