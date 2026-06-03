@@ -166,6 +166,8 @@ export const NewProducts = () => {
     const product = products.find(p => p.product_id === productId);
     if (!product) return;
 
+    const isAdmin = currentUser?.role === 'admin';
+
     // Negociación → DESA: Requiere asignar Líder de Proyecto
     if (product.status === 'Negociación' && newStatus === 'DESA') {
       setAssignContext({ productId, newStatus, role: 'Líder de Proyecto', currentProduct: product });
@@ -174,8 +176,8 @@ export const NewProducts = () => {
       return;
     }
 
-    // SQA → IMPLE: Solo Analista SQA puede mover
-    if (product.status === 'SQA' && newStatus === 'IMPLE') {
+    // SQA → IMPLE: Solo Analista SQA puede mover (el administrador está exento)
+    if (product.status === 'SQA' && newStatus === 'IMPLE' && !isAdmin) {
       if (!product.equipo_fase || product.equipo_fase.length === 0) {
         if (!product.usuario_responsable_fase) {
           toast.error('Debe asignar un Analista SQA antes de pasar a IMPLE');
@@ -190,8 +192,8 @@ export const NewProducts = () => {
       }
     }
 
-    // DESA → SQA: Solo el equipo DESA puede mover
-    if (product.status === 'DESA' && newStatus === 'SQA') {
+    // DESA → SQA: Solo el equipo DESA puede mover (el administrador está exento)
+    if (product.status === 'DESA' && newStatus === 'SQA' && !isAdmin) {
       const equipoIds = (product.equipo_fase || []).map(e => e.user_id);
       if (product.usuario_responsable_fase) equipoIds.push(product.usuario_responsable_fase);
       if (equipoIds.length > 0 && !equipoIds.includes(currentUser?.user_id)) {

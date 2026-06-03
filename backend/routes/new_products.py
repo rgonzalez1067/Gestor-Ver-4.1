@@ -113,6 +113,7 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
             "dias_en_fase": "",
             "equipo_trabajo": "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>",
             "usuario_responsable": "Por definir",
+            "tipo_evento": "Creación", "Tipo_Evento": "Creación",
             "fecha_sistema": now_str, "Fecha_Sistema": now_str,
         }
         await dispatch_other_action(
@@ -403,6 +404,7 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
             "dias_en_fase": str(days_in_phase) if days_in_phase is not None else "",
             "equipo_trabajo": _equipo_html, "Equipo_Trabajo": _equipo_html,
             "usuario_responsable": product.get("responsable_nombre") or _equipo_names,
+            "tipo_evento": "Cambio de fase", "Tipo_Evento": "Cambio de fase",
             "fecha_sistema": now_str, "Fecha_Sistema": now_str,
         }
         dynamic_result = await dispatch_other_action(

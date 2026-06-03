@@ -546,6 +546,7 @@ const VARIABLE_CATEGORIES = [
       { key: 'nombre_banco', label: 'Banco' },
       { key: 'fase_actual', label: 'Fase actual (anterior)' },
       { key: 'nueva_fase', label: 'Nueva fase' },
+      { key: 'tipo_evento', label: 'Tipo de evento (Creación / Cambio de fase)' },
     ],
   },
 ];
