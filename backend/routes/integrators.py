@@ -425,10 +425,9 @@ async def assign_integrator_implementador(integrator_id: str, body: dict, author
         }}
     )
     
-    from services.email_service import send_email
     assigner_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get('email', '')
-    
-    # Incluir contactos técnicos en el email para que el implementador sepa a quién contactar
+
+    # Tabla de contactos técnicos del integrador (disponible como variable {contactos_tecnicos})
     contacts_html = ""
     contacts = integrator.get("contacts") or []
     if contacts:
@@ -450,52 +449,33 @@ async def assign_integrator_implementador(integrator_id: str, body: dict, author
                 </tr>
                 {contacts_rows}
             </table>"""
-    
-    subject = f"Asignación de proyecto: {integrator.get('name', '')} — {integrator.get('app_name', '')}"
-    html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #0f766e; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">Proyecto de Implementación Asignado</h2>
-        </div>
-        <div style="padding: 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
-            <p>Hola <strong>{assignee_name}</strong>,</p>
-            <p><strong>{assigner_name}</strong> te ha asignado como implementador del siguiente proyecto:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 8px; font-weight: bold; color: #475569;">Integrador</td>
-                    <td style="padding: 8px;">{integrator.get('name', '')}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 8px; font-weight: bold; color: #475569;">Aplicativo</td>
-                    <td style="padding: 8px;">{integrator.get('app_name', '')}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 8px; font-weight: bold; color: #475569;">Tipo</td>
-                    <td style="padding: 8px;">{integrator.get('integration_type', 'N/A')}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px; font-weight: bold; color: #475569;">Tipo Integrador</td>
-                    <td style="padding: 8px;">{integrator.get('integrator_type', '')}</td>
-                </tr>
-            </table>
-            {contacts_html}
-            <p style="color: #64748b; font-size: 13px; margin-top: 16px;">Ingresa al sistema para ver los detalles completos del proyecto.</p>
-        </div>
-    </div>
-    """
-    
-    email_result = await send_email(
-        to=[assignee_email] if assignee_email else [],
-        subject=subject,
-        html=html,
-        action="implementador_assignment",
+
+    # Notificación 100% dinámica vía "Configuración de otras Acciones" (mismas reglas:
+    # receptor, plantilla y canal definidos por el admin). El correo/destinatario/mensaje
+    # hardcodeado fue removido por requerimiento.
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    tpl_vars = {
+        "nombre_implementador": assignee_name, "Nombre_Implementador": assignee_name,
+        "email_implementador": assignee_email, "Correo_Implementador": assignee_email,
+        "nombre_integrador": integrator.get("name", ""), "Integrador": integrator.get("name", ""),
+        "integrator_name": integrator.get("name", ""),
+        "nombre_aplicativo": integrator.get("app_name", ""), "app_name": integrator.get("app_name", ""),
+        "tipo_integracion": integrator.get("integration_type", ""), "tipo_integrador": integrator.get("integrator_type", ""),
+        "asignado_por": assigner_name, "Asignado_Por": assigner_name,
+        "contactos_tecnicos": contacts_html, "Contactos_Tecnicos": contacts_html,
+        "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+    }
+    from services.other_actions_engine import dispatch_other_action
+    dispatch_result = await dispatch_other_action(
+        "implementer_assignment", tpl_vars, current_user=current_user,
+        fallback_subject=f"Asignación de proyecto: {integrator.get('name', '')} — {integrator.get('app_name', '')}",
     )
-    
+
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
     return {
         "status": "ok",
         "integrator": updated,
-        "email": email_result,
+        "notification": dispatch_result,
         "message": f"Implementador asignado: {assignee_name}"
     }
 

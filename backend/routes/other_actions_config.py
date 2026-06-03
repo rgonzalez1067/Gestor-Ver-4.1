@@ -51,6 +51,16 @@ OTHER_ACTIONS = [
             "usuario_creador", "fecha_sistema",
         ],
     },
+    {
+        "id": "implementer_assignment",
+        "label": "Asignación del Implementador en Proyecto de Integración",
+        "description": "Se dispara al asignar un implementador a un proyecto de integración.",
+        "variables": [
+            "nombre_implementador", "email_implementador", "nombre_integrador",
+            "nombre_aplicativo", "tipo_integracion", "tipo_integrador",
+            "asignado_por", "contactos_tecnicos", "fecha_sistema",
+        ],
+    },
 ]
 OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 

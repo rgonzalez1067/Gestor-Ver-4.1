@@ -2858,3 +2858,9 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - (P1) DESA→SQA ahora abre el MISMO modal de asignación (como Neg→DESA) filtrando Analistas del depto "Aseguramiento de Calidad" para asignar el responsable SQA entrante (antes quedaba en blanco). Backend `update_new_product_status` caso DESA→SQA: construye `equipo_fase` desde responsable_user_id/equipo_user_ids, role="Analista SQA"; si no se asigna (admin), limpia. Frontend: confirm del modal usa `assignContext.newStatus` para decidir handleConfirmAssign (transición) vs handleConfirmAnalystAssign.
 - (P2) `responsable_nombre` ahora compone TODOS los nombres del equipo separados por coma (antes solo el primero). Variables `{responsable_fase_entrante}` y `{usuario_responsable}` muestran múltiples nombres con coma. Validado: "Yulimarys Rivas, Jhondder Oliveros".
 - (P3) Causa de config de "otras acciones" que desaparecía: el agente ejecutaba `delete_many({})` sobre `other_action_configs` en sus pruebas, borrando la config real del preview. NO es bug de la app (upsert/load correctos). En adelante: pruebas con snapshot/restore, nunca delete_many global.
+
+**Nueva acción: Asignación del Implementador (Proyecto de Integración) · 2026-06-03:**
+- Agregada acción `implementer_assignment` al catálogo de "Configuración de otras Acciones" (receptor/plantilla/canal configurables, mismas reglas).
+- `integrators.py` `assign_integrator_implementador`: SE ELIMINÓ el correo/destinatario/mensaje hardcodeado y se reemplazó por `dispatch_other_action("implementer_assignment", ...)`. Variables: nombre_implementador, email_implementador, nombre_integrador, nombre_aplicativo, tipo_integracion, tipo_integrador, asignado_por, contactos_tecnicos, fecha_sistema.
+- Validado E2E: asignar implementador → notificación dinámica sent_count=1 (canal inbox). UI muestra las 3 acciones.
+- Disciplina de pruebas: snapshot/restore de other_action_configs (preservadas las 2 configs reales del usuario).
