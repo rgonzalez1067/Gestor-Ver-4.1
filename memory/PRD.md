@@ -2822,3 +2822,5 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Validado: `tests/repro_ws_multi.py` (2 destinatarios reciben) y `tests/repro_ws_crossworker.py` (proceso externo encola sin conexión local → dispatcher del backend entrega = prueba cross-worker OK).
 
 **Ajuste UX toast:** En `IntenseAlertToast.jsx` el botón "Ver mensaje" ahora es condicional (`onView` opcional). En `NotificationBell.jsx` solo se pasa `onView` para mensajes internos; las notificaciones de eventos del sistema ya NO muestran "Ver mensaje" (llevaba a pantallas operativas sin mensaje). Bonus: corregido bug de import faltante `emitInboxReloadList` en `useNotifications.js` (lanzaba error silencioso al recibir mensajes internos).
+
+**Deep-link toast mensaje interno (2026-06-03):** El toast de mensaje interno ahora navega a `/dashboard?conv=<conversation_id>`. `InboxCenter.jsx` lee el query param `conv` (useLocation) y abre el `ChatThread` de esa conversación, limpiando luego el param (navigate replace). Los toasts de eventos del sistema siguen siendo solo informativos (sin botón). Validado en navegador: el hilo se abre directo. 

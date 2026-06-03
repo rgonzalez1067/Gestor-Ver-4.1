@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paperclip, Download, Send, UserCircle2, Reply } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -175,6 +176,20 @@ export function InboxCenter() {
     setChatConvId(convId);
     setChatOpen(true);
   };
+
+  // Deep-link: si llegamos con ?conv=<id> (p.ej. desde el toast de un mensaje
+  // interno), abrimos esa conversación y limpiamos el query param para no
+  // reabrirla al refrescar.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const conv = new URLSearchParams(location.search).get('conv');
+    if (conv) {
+      setChatConvId(conv);
+      setChatOpen(true);
+      navigate('/dashboard', { replace: true });
+    }
+  }, [location.search, navigate]);
 
   /**
    * Iter47: abrir el modal de composición con pre-relleno para responder

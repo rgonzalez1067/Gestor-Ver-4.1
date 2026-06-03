@@ -61,7 +61,10 @@ export const NotificationBell = () => {
         variant = 'purple';
         title = `Nuevo mensaje de ${payload.from_user_name || 'un usuario'}`;
         message = payload.preview || payload.subject || '';
-        link = '/dashboard';
+        // Deep-link directo a la conversación dentro del Centro de Mensajes.
+        link = payload.conversation_id
+          ? `/dashboard?conv=${encodeURIComponent(payload.conversation_id)}`
+          : '/dashboard';
       } else {
         variant = priority === 'high' ? 'red' : priority === 'low' ? 'amber' : 'orange';
         title = payload?.title || 'Nueva notificación';
