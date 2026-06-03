@@ -96,6 +96,32 @@ async def create_new_product(body: NewProductCreate, authorization: Optional[str
     # Registrar transición inicial
     await _log_transition(doc["product_id"], "", "Negociación", user)
 
+    # Notificación de creación (mismo motor dinámico que el cambio de fase)
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        _tpl_vars = {
+            "nombre_producto": doc.get("service_name", ""), "Nombre_Producto": doc.get("service_name", ""),
+            "service_name": doc.get("service_name", ""),
+            "nombre_banco": doc.get("bank_name", ""), "Banco": doc.get("bank_name", ""),
+            "banco": doc.get("bank_name", ""), "bank_name": doc.get("bank_name", ""),
+            "componente": doc.get("component_type", ""), "Componente": doc.get("component_type", ""),
+            "estatus": "Negociación", "Estatus": "Negociación", "fase": "Negociación", "Fase": "Negociación",
+            "nueva_fase": "Negociación", "Nueva_Fase": "Negociación",
+            "estatus_anterior": "", "Estatus_Anterior": "",
+            "fase_actual": "", "Fase_Actual": "",
+            "dias_en_fase": "",
+            "equipo_trabajo": "<p style='margin:10px 0;color:#94a3b8;'>Por definir</p>",
+            "usuario_responsable": "Por definir",
+            "fecha_sistema": now_str, "Fecha_Sistema": now_str,
+        }
+        await dispatch_other_action(
+            "new_product_phase_change", _tpl_vars, current_user=user,
+            fallback_subject=f"Nuevo Producto registrado - {doc.get('service_name','')} - Banco: {doc.get('bank_name','')}",
+        )
+    except Exception as e:
+        logging.error(f"[NP] notificación de creación falló: {e}")
+
     return doc
 
 
@@ -272,43 +298,45 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
 
     current_user_id = user.get("user_id", "")
     responsable_id = product.get("usuario_responsable_fase")
+    is_admin = user.get("role") == "admin"
 
-    # === GOBERNANZA: Restricciones de transición ===
+    # === GOBERNANZA: Restricciones de transición (NO aplican al administrador) ===
 
     # 1. Negociación → DESA: Requiere asignar equipo de Desarrolladores
     if old_status == "Negociación" and new_status == "DESA":
         resp_user_id = body.get("responsable_user_id")
         equipo_user_ids = body.get("equipo_user_ids", [])
-        if not resp_user_id:
+        if not resp_user_id and not is_admin:
             raise HTTPException(status_code=400, detail="GOBERNANZA: Para mover a DESA debe asignar al menos un Desarrollador")
 
-        # Construir equipo completo
-        equipo_fase = []
-        all_ids = list(set(equipo_user_ids)) if equipo_user_ids else [resp_user_id]
-        for uid in all_ids:
-            target = await db.users.find_one({"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
-            if target:
-                name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
-                equipo_fase.append({"user_id": uid, "name": name, "cargo": target.get("cargo", ""), "email": target.get("email", "")})
+        # Construir equipo completo (solo si se asignó responsable)
+        if resp_user_id:
+            equipo_fase = []
+            all_ids = list(set(equipo_user_ids)) if equipo_user_ids else [resp_user_id]
+            for uid in all_ids:
+                target = await db.users.find_one({"user_id": uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1, "cargo": 1})
+                if target:
+                    name = f"{target.get('first_name', '')} {target.get('last_name', '')}".strip() or target.get("email", "")
+                    equipo_fase.append({"user_id": uid, "name": name, "cargo": target.get("cargo", ""), "email": target.get("email", "")})
 
-        assigned_name = ", ".join([e["name"] for e in equipo_fase])
-        await db.new_products.update_one(
-            {"product_id": product_id},
-            {"$set": {
-                "usuario_responsable_fase": resp_user_id,
-                "responsable_nombre": equipo_fase[0]["name"] if equipo_fase else assigned_name,
-                "responsable_role": "Líder de Proyecto",
-                "equipo_fase": equipo_fase,
-            }}
-        )
-        await _log_assignment(product_id, resp_user_id, assigned_name, "Equipo DESA", "DESA", user)
+            assigned_name = ", ".join([e["name"] for e in equipo_fase])
+            await db.new_products.update_one(
+                {"product_id": product_id},
+                {"$set": {
+                    "usuario_responsable_fase": resp_user_id,
+                    "responsable_nombre": equipo_fase[0]["name"] if equipo_fase else assigned_name,
+                    "responsable_role": "Líder de Proyecto",
+                    "equipo_fase": equipo_fase,
+                }}
+            )
+            await _log_assignment(product_id, resp_user_id, assigned_name, "Equipo DESA", "DESA", user)
 
     # 2. DESA → SQA: Solo el equipo DESA puede mover
     elif old_status == "DESA" and new_status == "SQA":
         equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
         if responsable_id:
             equipo_ids.append(responsable_id)
-        if equipo_ids and current_user_id not in equipo_ids and user.get("role") != "admin":
+        if equipo_ids and current_user_id not in equipo_ids and not is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="GOBERNANZA: Solo el equipo DESA asignado puede mover de DESA a SQA"
@@ -329,12 +357,12 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         equipo_ids = [e["user_id"] for e in product.get("equipo_fase", [])]
         if responsable_id:
             equipo_ids.append(responsable_id)
-        if not equipo_ids:
+        if not equipo_ids and not is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="GOBERNANZA: No hay equipo SQA asignado. Debe asignar analistas antes de pasar a IMPLE."
             )
-        if current_user_id not in equipo_ids and user.get("role") != "admin":
+        if equipo_ids and current_user_id not in equipo_ids and not is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="GOBERNANZA: Solo el equipo SQA asignado puede autorizar el paso a IMPLE"

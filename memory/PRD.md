@@ -2846,3 +2846,8 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 **Nota:** las plantillas se crean en el módulo de plantillas existente y se seleccionan en el campo Plantilla.
 
 **4 variables para plantilla de cambio de fase (Nuevos Productos) · 2026-06-03:** Se agregó la categoría "Nuevos Productos" al editor de plantillas (`EmailTemplatesEditor.jsx` → VARIABLE_CATEGORIES, icono Package) con: `{nombre_producto}`, `{nombre_banco}`, `{fase_actual}` (fase anterior), `{nueva_fase}`. El motor de la Acción A (`new_products.py`) ahora rellena estas claves (+ aliases). Validado E2E: cambio DESA→SQA renderiza Subject/body con las 4 variables sustituidas.
+
+**Notif. en creación de producto + bypass de gobernanza para admin · 2026-06-03:**
+- `create_new_product` ahora dispara `dispatch_other_action("new_product_phase_change", ...)` con `nueva_fase="Negociación"` y `fase_actual=""` (misma config/recipients/plantilla que el cambio de fase).
+- Gobernanza en `update_new_product_status`: el administrador (`role=="admin"`) ahora bypassa TODAS las restricciones: Negociación→DESA sin responsable, DESA→SQA, y SQA→IMPLE aun sin equipo asignado.
+- Validado E2E: creación→correo "-> Negociación"; admin recorre Negociación→DESA→SQA→IMPLE todo HTTP 200.
