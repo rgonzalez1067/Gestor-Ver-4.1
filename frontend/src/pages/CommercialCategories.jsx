@@ -15,7 +15,6 @@ import { Plus, Pencil, Trash2, Save, Tag, CheckCircle2, XCircle, Search } from '
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
-import { MigrationButtons } from '../components/MigrationButtons';
 
 export const CommercialCategories = () => {
   const { user } = usePermission('configuracion');
@@ -131,7 +130,6 @@ export const CommercialCategories = () => {
 
           {/* Search */}
           <div className="flex justify-end mb-4">
-            <MigrationButtons module="commercial-categories" label="Categorías Comerciales" onImported={fetchCats} />
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
             <div className="relative max-w-md">

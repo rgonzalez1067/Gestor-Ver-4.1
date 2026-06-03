@@ -8,7 +8,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { MigrationButtons } from '../components/MigrationButtons';
 import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -571,7 +570,6 @@ export const Banks = () => {
           )}
 
           <div className="flex justify-end mb-6">
-            <MigrationButtons module="banks" label="Bancos" onImported={fetchData} />
           </div>
 
           {/* Integration Report Button */}

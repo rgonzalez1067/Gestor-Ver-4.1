@@ -19,6 +19,7 @@ import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import ActionNotificationsConfig from './pages/ActionNotificationsConfig';
 import ConnectedUsers from './pages/ConnectedUsers';
+import BackupCenter from './pages/BackupCenter';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
 import SalesReports from './pages/SalesReports';
@@ -209,6 +210,11 @@ function AppRouter() {
       <Route path="/settings/connected-users" element={
         <ProtectedRoute>
           <ConnectedUsers />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/backup-center" element={
+        <ProtectedRoute>
+          <BackupCenter />
         </ProtectedRoute>
       } />
       <Route path="/admin/users" element={

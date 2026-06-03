@@ -13,7 +13,6 @@ import {
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
-import { MigrationButtons } from '../components/MigrationButtons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const PAGE_SIZE = 25;
@@ -167,7 +166,6 @@ export default function TallerEquipos() {
               <p className="text-sm text-slate-500 mt-1">Control de custodia de equipos de terceros en taller</p>
             </div>
             <div className="flex items-center gap-2">
-              <MigrationButtons module="taller-equipos" label="Equipos en Taller" onImported={fetchData} />
               <Button
                 onClick={handleExport}
                 disabled={exporting || equipos.length === 0}

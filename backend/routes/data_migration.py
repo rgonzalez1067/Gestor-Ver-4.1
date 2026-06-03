@@ -78,7 +78,19 @@ MODULES = {
         "key": "taller_equipo_id",
         "label": "Equipos en Taller",
     },
+    "integrators": {
+        "collection": "integrators",
+        "key": "integrator_id",
+        "label": "Integradores",
+    },
 }
+
+# Módulo virtual multi-colección: respalda Usuarios + Perfiles/Roles de forma relacional.
+USER_PERMISSIONS_MODULE = "user-permissions"
+USER_PERMISSIONS_COLLECTIONS = (
+    ("profiles", "profile_id"),  # primero perfiles (los usuarios referencian profile_id)
+    ("users", "user_id"),
+)
 
 # Campos que NO deben sobreescribirse al importar usuarios (sesión / bloqueos transitorios)
 USER_SANITIZE_FIELDS = ("failed_attempts", "locked_until", "session_token", "last_login_ip", "last_login_at")
@@ -99,33 +111,57 @@ async def _require_admin(authorization: Optional[str]):
 
 # ==================== EXPORT ====================
 
+async def _build_export_payload(module: str, user: dict) -> dict:
+    """Construye el payload JSON de exportación para un módulo (simple o multi-colección)."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    exporter = {
+        "exported_at": now_iso,
+        "exported_by": user.get("email"),
+        "exported_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+    }
+
+    if module == USER_PERMISSIONS_MODULE:
+        collections = {}
+        total = 0
+        for cname, ckey in USER_PERMISSIONS_COLLECTIONS:
+            docs = await db[cname].find({}, {"_id": 0}).to_list(None)
+            collections[cname] = {"key": ckey, "documents": docs}
+            total += len(docs)
+        return {
+            "schema_version": 1,
+            "module": module,
+            "multi": True,
+            "label": "Permisos de Usuarios",
+            **exporter,
+            "count": total,
+            "collections": collections,
+        }
+
+    cfg = _get_module_or_404(module)
+    docs = await db[cfg["collection"]].find({}, {"_id": 0}).to_list(None)
+    return {
+        "schema_version": 1,
+        "module": module,
+        "collection": cfg["collection"],
+        "key": cfg["key"],
+        **exporter,
+        "count": len(docs),
+        "documents": docs,
+    }
+
+
 @router.get("/admin/migration/{module}/export")
 async def export_module(module: str, authorization: Optional[str] = Header(None)):
     """Exporta TODOS los documentos del módulo en formato JSON estandarizado.
     El archivo resultante puede ser usado tal cual en /import-preview e /import-apply."""
     user = await _require_admin(authorization)
-    cfg = _get_module_or_404(module)
-
-    docs = await db[cfg["collection"]].find({}, {"_id": 0}).to_list(None)
-
-    payload = {
-        "schema_version": 1,
-        "module": module,
-        "collection": cfg["collection"],
-        "key": cfg["key"],
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-        "exported_by": user.get("email"),
-        "exported_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
-        "count": len(docs),
-        "documents": docs,
-    }
+    payload = await _build_export_payload(module, user)
 
     # Bitácora
     await db.bitacora.insert_one({
         "action": "data_migration_export",
         "module": module,
-        "collection": cfg["collection"],
-        "count": len(docs),
+        "count": payload.get("count", 0),
         "executed_by": user.get("email"),
         "executed_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -174,8 +210,47 @@ async def import_preview(
     """Lee el archivo y devuelve un resumen de qué pasará si se aplica el import.
     NO modifica datos. Devuelve cuántos se crearán y cuántos se actualizarán."""
     await _require_admin(authorization)
-    cfg = _get_module_or_404(module)
     payload = await _read_payload(file)
+
+    # --- Módulo virtual multi-colección: Permisos de Usuarios (users + profiles) ---
+    if module == USER_PERMISSIONS_MODULE:
+        if payload.get("module") != module:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El archivo es del módulo '{payload.get('module')}', pero se está importando en '{module}'.",
+            )
+        cols = payload.get("collections") or {}
+        total_in_file = 0
+        to_create_total = 0
+        to_update_total = 0
+        breakdown = {}
+        for cname, ckey in USER_PERMISSIONS_COLLECTIONS:
+            block = cols.get(cname) or {}
+            docs = block.get("documents") or []
+            keys = [d[ckey] for d in docs if isinstance(d, dict) and d.get(ckey)]
+            existing = await db[cname].find({ckey: {"$in": keys}}, {"_id": 0, ckey: 1}).to_list(None)
+            existing_keys = {e[ckey] for e in existing}
+            tc = len([k for k in keys if k not in existing_keys])
+            tu = len([k for k in keys if k in existing_keys])
+            breakdown[cname] = {"total": len(docs), "to_create": tc, "to_update": tu}
+            total_in_file += len(docs)
+            to_create_total += tc
+            to_update_total += tu
+        return {
+            "module": module,
+            "multi": True,
+            "exported_at": payload.get("exported_at"),
+            "exported_by": payload.get("exported_by"),
+            "total_in_file": total_in_file,
+            "valid_count": total_in_file,
+            "invalid_count": 0,
+            "duplicates_in_file": [],
+            "to_create_count": to_create_total,
+            "to_update_count": to_update_total,
+            "breakdown": breakdown,
+        }
+
+    cfg = _get_module_or_404(module)
     docs = _validate_payload(payload, cfg, module)
 
     key = cfg["key"]
@@ -220,33 +295,16 @@ async def import_preview(
 
 # ==================== IMPORT: APPLY ====================
 
-@router.post("/admin/migration/{module}/import-apply")
-async def import_apply(
-    module: str,
-    file: UploadFile = File(...),
-    authorization: Optional[str] = Header(None),
-):
-    """Aplica el import: hace upsert de cada documento por su id natural.
-    Conserva created_at original al actualizar; refresca updated_at."""
-    user = await _require_admin(authorization)
-    cfg = _get_module_or_404(module)
-    payload = await _read_payload(file)
-    docs = _validate_payload(payload, cfg, module)
-
-    key = cfg["key"]
-    collection = db[cfg["collection"]]
+async def _apply_upsert_docs(collection_name: str, key: str, docs: list, user: dict, sanitize_users: bool = False):
+    """Upsert idempotente de una lista de documentos por su id natural.
+    Devuelve (inserted, updated, skipped, errors)."""
+    collection = db[collection_name]
     now_iso = datetime.now(timezone.utc).isoformat()
-
-    inserted = 0
-    updated = 0
-    skipped = 0
+    inserted = updated = skipped = 0
     errors = []
 
-    # Pre-cargar existentes para distinguir create vs update
     incoming_keys = [d[key] for d in docs if isinstance(d, dict) and d.get(key)]
-    existing_docs = await collection.find(
-        {key: {"$in": incoming_keys}}, {"_id": 0}
-    ).to_list(None)
+    existing_docs = await collection.find({key: {"$in": incoming_keys}}, {"_id": 0}).to_list(None)
     existing_map = {e[key]: e for e in existing_docs}
 
     for d in docs:
@@ -256,8 +314,7 @@ async def import_apply(
             continue
         try:
             doc = {k: v for k, v in d.items() if k != "_id"}
-            # Sanitización especial para 'users': resetear bloqueos/sesiones (no propagarlos del origen)
-            if module == "users":
+            if sanitize_users:
                 for f in USER_SANITIZE_FIELDS:
                     if f == "failed_attempts":
                         doc[f] = 0
@@ -267,7 +324,6 @@ async def import_apply(
                         doc.pop(f, None)
             kv = doc[key]
             if kv in existing_map:
-                # Conservar created_at original si existe
                 original_created = existing_map[kv].get("created_at")
                 if original_created and not doc.get("created_at"):
                     doc["created_at"] = original_created
@@ -285,6 +341,80 @@ async def import_apply(
         except Exception as e:
             skipped += 1
             errors.append({"key": d.get(key), "error": str(e)})
+
+    return inserted, updated, skipped, errors
+
+
+@router.post("/admin/migration/{module}/import-apply")
+async def import_apply(
+    module: str,
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None),
+):
+    """Aplica el import: hace upsert de cada documento por su id natural.
+    Conserva created_at original al actualizar; refresca updated_at."""
+    user = await _require_admin(authorization)
+    payload = await _read_payload(file)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # --- Módulo virtual multi-colección: Permisos de Usuarios (users + profiles) ---
+    if module == USER_PERMISSIONS_MODULE:
+        if payload.get("module") != module:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El archivo es del módulo '{payload.get('module')}', pero se está importando en '{module}'.",
+            )
+        cols = payload.get("collections") or {}
+        total_inserted = total_updated = total_skipped = 0
+        breakdown = {}
+        all_errors = []
+        # Perfiles primero, luego usuarios (mantiene la relación profile_id consistente)
+        for cname, ckey in USER_PERMISSIONS_COLLECTIONS:
+            block = cols.get(cname) or {}
+            cdocs = block.get("documents") or []
+            ins, upd, skp, errs = await _apply_upsert_docs(
+                cname, ckey, cdocs, user, sanitize_users=(cname == "users")
+            )
+            breakdown[cname] = {"inserted": ins, "updated": upd, "skipped": skp}
+            total_inserted += ins
+            total_updated += upd
+            total_skipped += skp
+            all_errors.extend(errs)
+
+        await db.bitacora.insert_one({
+            "action": "data_migration_import",
+            "module": module,
+            "breakdown": breakdown,
+            "inserted": total_inserted,
+            "updated": total_updated,
+            "skipped": total_skipped,
+            "source_exported_at": payload.get("exported_at"),
+            "source_exported_by": payload.get("exported_by"),
+            "executed_by": user.get("email"),
+            "executed_by_name": f"{user.get('first_name','')} {user.get('last_name','')}".strip(),
+            "executed_at": now_iso,
+        })
+
+        return {
+            "module": module,
+            "multi": True,
+            "breakdown": breakdown,
+            "inserted": total_inserted,
+            "updated": total_updated,
+            "skipped": total_skipped,
+            "errors": all_errors[:20],
+            "message": (
+                f"Permisos de Usuarios importados: {total_inserted} creado(s), "
+                f"{total_updated} actualizado(s), {total_skipped} omitido(s)."
+            ),
+        }
+
+    cfg = _get_module_or_404(module)
+    docs = _validate_payload(payload, cfg, module)
+
+    inserted, updated, skipped, errors = await _apply_upsert_docs(
+        cfg["collection"], cfg["key"], docs, user, sanitize_users=(module == "users")
+    )
 
     # Bitácora
     await db.bitacora.insert_one({
@@ -310,6 +440,84 @@ async def import_apply(
         "errors": errors[:20],
         "message": f"Migración completada: {inserted} creado(s), {updated} actualizado(s), {skipped} omitido(s).",
     }
+
+
+# =====================================================================
+# CENTRO DE RESPALDOS — Grilla unificada + Exportación masiva (ZIP)
+# =====================================================================
+# Las 9 entidades gobernadas por el Centro de Respaldos (Configuración).
+# Excluidos a propósito: cotizaciones, histórico y proyectos (se respaldan
+# en sus propias vistas, fuera de este centro).
+BACKUP_CENTER_ENTITIES = [
+    {"module": "clients", "label": "Clientes"},
+    {"module": "banks", "label": "Bancos"},
+    {"module": "payment-methods", "label": "Medios de Pago"},
+    {"module": "hardware", "label": "Bienes y Servicios"},
+    {"module": "commercial-categories", "label": "Categoría Comercial"},
+    {"module": "inventory-movements", "label": "Inventarios"},
+    {"module": "taller-equipos", "label": "Equipos en Reparación"},
+    {"module": USER_PERMISSIONS_MODULE, "label": "Permisos de Usuarios"},
+    {"module": "integrators", "label": "Integradores"},
+]
+
+
+async def _entity_count(module: str) -> int:
+    if module == USER_PERMISSIONS_MODULE:
+        total = 0
+        for cname, _ in USER_PERMISSIONS_COLLECTIONS:
+            total += await db[cname].count_documents({})
+        return total
+    cfg = MODULES.get(module)
+    if not cfg:
+        return 0
+    return await db[cfg["collection"]].count_documents({})
+
+
+@router.get("/admin/backup-center/entities")
+async def backup_center_entities(authorization: Optional[str] = Header(None)):
+    """Lista las entidades del Centro de Respaldos con su conteo de registros."""
+    await _require_admin(authorization)
+    out = []
+    for e in BACKUP_CENTER_ENTITIES:
+        out.append({**e, "count": await _entity_count(e["module"])})
+    return {"entities": out}
+
+
+@router.post("/admin/backup-center/export-zip")
+async def backup_center_export_zip(payload: dict, authorization: Optional[str] = Header(None)):
+    """Exportación masiva: empaqueta las entidades seleccionadas en un único ZIP
+    con un archivo JSON por entidad (mismo formato que el export individual)."""
+    user = await _require_admin(authorization)
+    modules = payload.get("modules") or []
+    valid_modules = {e["module"] for e in BACKUP_CENTER_ENTITIES}
+    selected = [m for m in modules if m in valid_modules]
+    if not selected:
+        raise HTTPException(status_code=400, detail="No se indicaron entidades válidas para exportar")
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        manifest = {"exported_at": datetime.now(timezone.utc).isoformat(), "exported_by": user.get("email"), "modules": []}
+        for m in selected:
+            data = await _build_export_payload(m, user)
+            zf.writestr(f"{m}.json", json.dumps(data, ensure_ascii=False, default=str, indent=2))
+            manifest["modules"].append({"module": m, "count": data.get("count", 0)})
+        zf.writestr("_manifest.json", json.dumps(manifest, ensure_ascii=False, default=str, indent=2))
+    buf.seek(0)
+
+    await db.bitacora.insert_one({
+        "action": "backup_center_export_zip",
+        "modules": selected,
+        "executed_by": user.get("email"),
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    filename = f"backup_center_{ts}.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # =====================================================================

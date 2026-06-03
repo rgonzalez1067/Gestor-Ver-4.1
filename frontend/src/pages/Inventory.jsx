@@ -16,7 +16,6 @@ import api from '../utils/api';
 import { formatRif } from '../utils/rifFormatter';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
-import { MigrationButtons } from '../components/MigrationButtons';
 import { AdminSerialManagementModal } from '../components/AdminSerialManagementModal';
 
 const SERIALIZED_TYPES = ['pos', 'pinpad', 'mpos'];
@@ -641,7 +640,6 @@ export default function Inventory() {
                 Gestionar Seriales (Admin)
               </Button>
             )}
-            <MigrationButtons module="inventory-movements" label="Movimientos de Inventario" onImported={fetchAll} />
           </div>
 
           {/* Warehouse selector */}

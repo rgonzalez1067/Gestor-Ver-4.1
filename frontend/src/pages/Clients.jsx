@@ -17,7 +17,6 @@ import { Plus, Pencil, Trash2, Upload, FileSpreadsheet, FileText, BookOpen, User
 import api from '../utils/api';
 import { formatRif } from '../utils/rifFormatter';
 import { toast } from 'sonner';
-import { MigrationButtons } from '../components/MigrationButtons';
 import { usePermission } from '../hooks/usePermission';
 import { useNavigate } from 'react-router-dom';
 import { ClientEmailDialog } from '../components/ClientEmailDialog';
@@ -1494,7 +1493,6 @@ export const Clients = () => {
                 </Button>
               )}
             </div>
-            <MigrationButtons module="clients" label="Clientes" onImported={fetchClients} />
           </div>
 
 

@@ -12,7 +12,6 @@ import { Label } from '../components/ui/label';
 import { Users, Shield, ShieldAlert, Search, RefreshCw, Crown, User as UserIcon, Warehouse, Link2, ChevronDown, Power } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
-import { MigrationButtons } from '../components/MigrationButtons';
 
 // =============================
 // Helpers UI (sticky constants)
@@ -297,7 +296,6 @@ const AdminUsers = () => {
               <p className="text-sm text-slate-500 mt-1">Configure grupos de menú, niveles de acceso y funciones especiales por usuario.</p>
             </div>
             <div className="flex items-center gap-3">
-              <MigrationButtons module="users" label="Usuarios" onImported={fetchAll} />
               <Button variant="outline" onClick={fetchAll} disabled={loading} data-testid="refresh-users">
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar

@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi } from 'lucide-react';
+import { Upload, Trash2, Image, FileText, Check, X, Download, Mail, Save, Building2, Warehouse, FileCode, Key, Eye, EyeOff, CheckCircle, AlertCircle, MapPin, TrendingUp, RefreshCw, Clock, Settings2, ChevronRight, ShieldCheck, ChevronDown, Wifi, DatabaseBackup } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { EmailTemplatesEditor } from '../components/EmailTemplatesEditor';
 import { ContingencyAttachmentsExport } from '../components/ContingencyAttachmentsExport';
@@ -669,6 +669,47 @@ export const Settings = () => {
               </Button>
             </div>
           </div>
+
+          {/* Centro de Respaldos (Admin) — Exportación/Importación unificada */}
+          {(() => {
+            let isAdminUser = false;
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
+            } catch { /* noop */ }
+            if (!isAdminUser) return null;
+            return (
+            <div className="bg-white rounded-lg border-2 border-indigo-200 p-6 mb-6" data-testid="backup-center-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <DatabaseBackup size={24} className="text-indigo-600 flex-shrink-0" />
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900 font-manrope mb-1">
+                      Centro de Respaldos
+                    </h2>
+                    <p className="text-sm text-slate-600 max-w-2xl">
+                      Exporta (Backup) e importa (Restauración) de forma centralizada los datos maestros:
+                      Clientes, Bancos, Medios de Pago, Bienes y Servicios, Categoría Comercial, Inventarios,
+                      Equipos en Reparación, Permisos de Usuarios e Integradores. Exportación masiva en ZIP.
+                    </p>
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 mt-2 text-xs">
+                      9 entidades · JSON · upsert idempotente
+                    </Badge>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate('/settings/backup-center')}
+                  variant="outline"
+                  className="flex-shrink-0 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  data-testid="open-backup-center-btn"
+                >
+                  Abrir
+                  <ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            </div>
+            );
+          })()}
 
           {/* Iter57: Usuarios Conectados — admin-only */}
           {(() => {

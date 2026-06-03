@@ -11,7 +11,6 @@ import { Plus, Pencil, Trash2, DollarSign, Upload, Download, Cpu, Cable, Box, Sm
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
-import { MigrationButtons } from '../components/MigrationButtons';
 
 // Categorías principales
 const CATEGORIES = [
@@ -567,7 +566,6 @@ export const Hardware = () => {
 
           {/* Tabla de Dispositivos - Estilo MediosPago */}
           <div className="flex justify-end mb-4">
-            <MigrationButtons module="hardware" label="Bienes y Servicios" onImported={fetchHardware} />
           </div>
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
