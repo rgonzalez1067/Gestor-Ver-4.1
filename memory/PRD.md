@@ -2844,3 +2844,5 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 **Pruebas (todas OK):** CRUD + RBAC (no-admin 403); engine 3 conductas; Acción B HTTP (enabled→sent_count 1 al destinatario configurado / disabled→"desactivada"); Acción A HTTP (DESA→SQA → bitacora other_action_dispatch sent_count 1). Configs de prueba limpiadas; producto revertido a DESA. Lint JS+PY OK.
 
 **Nota:** las plantillas se crean en el módulo de plantillas existente y se seleccionan en el campo Plantilla.
+
+**4 variables para plantilla de cambio de fase (Nuevos Productos) · 2026-06-03:** Se agregó la categoría "Nuevos Productos" al editor de plantillas (`EmailTemplatesEditor.jsx` → VARIABLE_CATEGORIES, icono Package) con: `{nombre_producto}`, `{nombre_banco}`, `{fase_actual}` (fase anterior), `{nueva_fase}`. El motor de la Acción A (`new_products.py`) ahora rellena estas claves (+ aliases). Validado E2E: cambio DESA→SQA renderiza Subject/body con las 4 variables sustituidas.

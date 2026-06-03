@@ -537,10 +537,21 @@ const VARIABLE_CATEGORIES = [
       { key: 'pinpad_model', label: 'Modelo de pinpad' },
     ],
   },
+  {
+    cat: 'Nuevos Productos',
+    icon: 'Package',
+    iconColor: 'text-cyan-500',
+    vars: [
+      { key: 'nombre_producto', label: 'Nombre del Producto' },
+      { key: 'nombre_banco', label: 'Banco' },
+      { key: 'fase_actual', label: 'Fase actual (anterior)' },
+      { key: 'nueva_fase', label: 'Nueva fase' },
+    ],
+  },
 ];
 
 // Mapa de iconos para renderización
-const ICON_MAP = { Building2, CreditCard, Users, Server };
+const ICON_MAP = { Building2, CreditCard, Users, Server, Package };
 
 // Función para obtener variables de una plantilla específica
 const getTemplateVariables = (templateId) => {
