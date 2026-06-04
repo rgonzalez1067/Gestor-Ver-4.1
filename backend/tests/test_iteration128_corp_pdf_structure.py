@@ -13,7 +13,7 @@ import os
 import io
 from PyPDF2 import PdfReader
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://websocket-broadcast.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://audit-proyectos-v2.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "test_pdf@test.com"

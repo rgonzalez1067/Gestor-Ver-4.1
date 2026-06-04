@@ -119,15 +119,24 @@ async def get_integrators(
 
 @router.post("/integrators", response_model=Integrator)
 async def create_integrator(integrator: IntegratorCreate, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    
+    current_user = await get_current_user(authorization)
+
     new_integrator = Integrator(**integrator.model_dump())
     doc = new_integrator.model_dump()
-    
+
     # Auto-initialize certifications to N/A for all products if not provided
     if not doc.get('certifications'):
         doc['certifications'] = {pid: "N/A" for pid in INTEGRATOR_PRODUCT_IDS}
-    
+
+    # Automatización: el usuario que da de alta el Proyecto de Integración queda
+    # registrado automáticamente como "Gestor del Proyecto" (sin selección manual).
+    if current_user and not doc.get('gestor_user_id'):
+        creator_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get('email', '')
+        doc['gestor'] = creator_name
+        doc['gestor_user_id'] = current_user.get('user_id')
+        doc['assigned_at'] = datetime.now(timezone.utc).isoformat()
+        doc['assigned_by'] = current_user.get('user_id')
+
     doc['created_at'] = doc['created_at'].isoformat()
     await db.integrators.insert_one(doc)
     doc.pop('_id', None)

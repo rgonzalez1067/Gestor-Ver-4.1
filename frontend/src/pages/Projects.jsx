@@ -168,7 +168,8 @@ const Projects = () => {
       p.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all'
       ? true
       : statusFilter === 'irregular'
@@ -252,7 +253,7 @@ const Projects = () => {
           <div className="flex gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input placeholder="Buscar por ticket, proyecto, cliente, RIF o implementador..."
+              <Input placeholder="Buscar por ticket, proyecto, cliente, RIF, implementador o generador..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 className="pl-9" data-testid="project-search" />
             </div>
@@ -288,6 +289,7 @@ const Projects = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Generador</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
@@ -424,6 +426,11 @@ const Projects = () => {
                             </div>
                           ) : <span className="text-slate-400 italic">Sin asignar</span>}
                         </td>
+                        <td className="px-4 py-3 text-sm text-slate-600" data-testid={`project-generator-${project.project_id}`}>
+                          {project.created_by_name && project.created_by_name !== '—'
+                            ? <span>{project.created_by_name}</span>
+                            : <span className="text-slate-400 italic">—</span>}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-center gap-1">
                             {/* Cambiar Estado */}
@@ -486,7 +493,7 @@ const Projects = () => {
                       </tr>
                       {/* Fila SLA Semáforo */}
                       <tr className="border-b border-slate-200" data-testid={`sla-row-${project.project_id}`}>
-                        <td colSpan={6} className="px-4 py-1.5">
+                        <td colSpan={7} className="px-4 py-1.5">
                           <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
                             <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />

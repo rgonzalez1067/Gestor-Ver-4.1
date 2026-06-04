@@ -2567,8 +2567,8 @@ export const Quotes = () => {
           movement_id: s.movement_id || '',
         }));
       }
-      // Modelo de impresora fiscal (Feb 2026): se imprime en la Ficha Técnica.
-      const finalFiscalModel = (fiscalPrinterFromClient || fiscalPrinterModel || '').trim();
+      // Modelo de impresora fiscal (editable): la fuente de verdad es el valor del campo.
+      const finalFiscalModel = (fiscalPrinterModel || fiscalPrinterFromClient || '').trim();
       if (finalFiscalModel) {
         body.fiscal_printer_model = finalFiscalModel;
       }
@@ -2687,17 +2687,19 @@ export const Quotes = () => {
   };
 
   const handleFiscalPrinterContinue = async () => {
-    const finalModel = (fiscalPrinterFromClient || fiscalPrinterModel || '').trim();
+    // El campo es EDITABLE y se precarga con el valor de la ficha. La fuente de
+    // verdad es lo que quedó en `fiscalPrinterModel` (editado o precargado).
+    const finalModel = (fiscalPrinterModel || '').trim();
     if (!finalModel) {
       toast.error('Indique el modelo de impresora fiscal');
       return;
     }
-    // Si el cliente no tenía el modelo registrado, persistirlo en su ficha.
-    if (!fiscalPrinterFromClient && fiscalPrinterModel.trim()) {
+    // Si el modelo cambió respecto al registrado en la ficha (o no existía), persistirlo.
+    if (finalModel !== (fiscalPrinterFromClient || '').trim()) {
       try {
         const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
         if (quote?.client_id) {
-          await api.patch(`/clients/${quote.client_id}`, { modelo_impresora_fiscal: fiscalPrinterModel.trim() });
+          await api.patch(`/clients/${quote.client_id}`, { modelo_impresora_fiscal: finalModel });
         }
       } catch {
         // No bloquea el flujo si la actualización del cliente falla
@@ -2762,11 +2764,24 @@ export const Quotes = () => {
 
   // ==================== FLUJO PYME EXTENDIDO ====================
 
-  const handlePymeServerContinue = () => {
+  const handlePymeServerContinue = async () => {
     const server = pymeServerName === 'Otro' ? pymeServerCustom.trim() : pymeServerName;
     if (!server) {
       toast.error('Seleccione o ingrese el servidor de instalación');
       return;
+    }
+    // Precargar Grupo Económico y Nombre de Fantasía desde la ficha del cliente.
+    // Ambos quedan EDITABLES en el modal (el operador puede corregirlos antes de continuar).
+    try {
+      const quote = quotes.find(q => q.quote_id === multistoreQuoteId);
+      if (quote?.client_id) {
+        const res = await api.get(`/clients/${quote.client_id}`);
+        const c = res.data || {};
+        setEconomicGroup((c.grupo_economico || '').toString());
+        setFantasyName((c.fantasy_name || '').toString());
+      }
+    } catch {
+      // No bloquea el flujo si la ficha no se puede leer
     }
     setMultistorePhase('economic_data');
   };

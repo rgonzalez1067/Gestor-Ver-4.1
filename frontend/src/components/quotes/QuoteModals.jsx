@@ -673,30 +673,24 @@ export const QuoteModals = ({ ctx }) => {
                       Ficha Técnica
                     </span>
                   </div>
-                  {fiscalPrinterFromClient ? (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800">
-                      <p className="font-semibold mb-1">Modelo registrado en ficha del cliente:</p>
-                      <p className="font-mono text-base text-emerald-900" data-testid="fiscal-printer-existing">
-                        {fiscalPrinterFromClient}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3">
+                    {fiscalPrinterFromClient ? (
+                      <p className="text-[11px] text-emerald-700 mb-2" data-testid="fiscal-printer-prefilled-hint">
+                        ✓ Precargado desde la ficha del cliente. Puedes editarlo si requiere corrección.
                       </p>
-                      <p className="text-[10px] text-emerald-600 mt-2">
-                        Este modelo se imprimirá en la Ficha Técnica como "Modelo de Impresora Fiscal".
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    ) : (
                       <p className="text-xs text-amber-800 mb-2">
                         La ficha del cliente no tiene registrado el modelo de impresora fiscal.
                         <b> Indique el modelo</b> para imprimirlo en la Ficha Técnica.
                       </p>
-                      <Input
-                        value={fiscalPrinterModel}
-                        onChange={(e) => setFiscalPrinterModel(e.target.value)}
-                        placeholder="Ej: BIXOLON SRP-330, EPSON TM-T20III"
-                        className="bg-white"
-                        data-testid="fiscal-printer-input" />
-                    </div>
-                  )}
+                    )}
+                    <Input
+                      value={fiscalPrinterModel}
+                      onChange={(e) => setFiscalPrinterModel(e.target.value)}
+                      placeholder="Ej: BIXOLON SRP-330, EPSON TM-T20III"
+                      className="bg-white"
+                      data-testid="fiscal-printer-input" />
+                  </div>
                   <div className="flex gap-3 justify-between pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => setMultistoreDialogOpen(false)} data-testid="fiscal-printer-cancel-btn">
                       Cancelar
@@ -705,7 +699,7 @@ export const QuoteModals = ({ ctx }) => {
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                       size="sm"
                       onClick={handleFiscalPrinterContinue}
-                      disabled={!fiscalPrinterFromClient && !fiscalPrinterModel.trim()}
+                      disabled={!fiscalPrinterModel.trim()}
                       data-testid="fiscal-printer-continue-btn">
                       Continuar
                     </Button>

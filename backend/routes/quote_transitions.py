@@ -141,9 +141,19 @@ async def _create_project_from_quote(
             "inherited_from": "cotización",
         })
 
+    # Generador del Proyecto: usuario que originó la cotización (para auditoría y filtro).
+    creator_uid = quote.get("created_by_user_id") or quote.get("created_by")
+    creator_name = (quote.get("created_by_name") or "").strip()
+    if not creator_name and creator_uid:
+        cu = await db.users.find_one({"user_id": creator_uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if cu:
+            creator_name = f"{cu.get('first_name', '')} {cu.get('last_name', '')}".strip() or cu.get("email", "")
+
     project = {
         "project_id": f"prj_{uuid.uuid4().hex[:12]}",
         "project_number": project_number,
+        "created_by_user_id": creator_uid,
+        "created_by_name": creator_name or "—",
         "quote_id": quote_id,
         "quote_number": quote.get("quote_number", ""),
         "quote_pdf_url": quote.get("quote_pdf_url"),
