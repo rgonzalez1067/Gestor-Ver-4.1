@@ -74,6 +74,11 @@ export default function useNotifications() {
             // Notifica al banner global y solicita recargar la bandeja.
             emitInboxChanged();
             emitInboxReloadList();
+          } else if (msg.type === 'reminder_due' && msg.payload) {
+            // Recuérdame (Centro de Mensajes): el recordatorio configurado venció.
+            // Dispara alerta intensa y recarga la bandeja para reflejar el badge "Vencido".
+            if (onIncomingRef.current) onIncomingRef.current({ ...msg.payload, kind: 'reminder' });
+            emitInboxReloadList();
           }
         } catch {
           // ping/pong u otro msg no-JSON — ignorar

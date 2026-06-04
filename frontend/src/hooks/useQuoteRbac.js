@@ -31,21 +31,31 @@ export function useQuoteRbac({ currentUser, canEdit, quotes }) {
   }, [currentUser, canEdit]);
 
   const rbacFilteredQuotes = useMemo(() => {
+    // Admin y usuarios SIN ningún permiso de cotizaciones (ej. Admin Pyme /
+    // Administración por sede, que el backend ya segmenta) no se filtran aquí.
     if (rbac.isAdm || !rbac.hasAnyCotPerm) {
       return quotes;
     }
-    const allowed = [];
-    if (rbac.hasImplPyme || rbac.hasImplCorp) allowed.push('implementation', 'fast_track');
-    if (rbac.hasEquipos) allowed.push('equipment');
-    if (rbac.hasReparaciones) allowed.push('repair');
-    // Operaciones (Feb 2026): la sede tiene acceso de lectura sobre MPOS PYME
-    // aunque su perfil no incluya `cotizaciones:impl_pyme`. Sin esta excepción
-    // el filtro descartaba las cotizaciones `fast_track` que el backend ya
-    // había incluido en su scope, dejando al usuario "ciego" en esa categoría.
-    if (rbac.isOpsReadonly && !allowed.includes('fast_track')) {
-      allowed.push('fast_track');
-    }
-    return quotes.filter(q => allowed.includes(q.quote_category));
+    // Gobierno de Datos (Feb 2026): la categoría Implementación se segmenta por
+    // SEGMENTO Pyme/Corp según el permiso del usuario. Un Ejecutivo Corp solo
+    // ve cotizaciones de Implementación Corp y un Pyme solo Pyme — evita el
+    // cruce de cartera entre las fuerzas de venta. Excepciones (Admin Pyme,
+    // Operaciones) se manejan arriba o por categoría.
+    return quotes.filter(q => {
+      const cat = q.quote_category;
+      const seg = (q.client_segment || q.sede || 'PYME').toString().toUpperCase();
+      if (cat === 'implementation') {
+        return seg === 'CORP' ? rbac.hasImplCorp : rbac.hasImplPyme;
+      }
+      // Fast Track (MPOS Imple+POS): es siempre PYME. Visible con impl_pyme o
+      // por Operaciones (lectura sobre MPOS PYME para la fase técnica).
+      if (cat === 'fast_track') {
+        return rbac.hasImplPyme || rbac.isOpsReadonly;
+      }
+      if (cat === 'equipment') return rbac.hasEquipos;
+      if (cat === 'repair') return rbac.hasReparaciones;
+      return false;
+    });
   }, [quotes, rbac]);
 
   return { rbac, rbacFilteredQuotes };

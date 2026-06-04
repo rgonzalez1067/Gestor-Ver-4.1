@@ -38,12 +38,15 @@ export const NotificationBell = () => {
   useEffect(() => {
     setOnIncoming((payload) => {
       const isInternal = payload?.kind === 'internal';
+      const isReminder = payload?.kind === 'reminder';
 
       // Dedupe: evita toasts repetidos si el mismo evento llega por varias
       // conexiones WS del mismo usuario.
       const key = isInternal
         ? `int:${payload?.conversation_id || ''}:${payload?.created_at || ''}`
-        : `ntf:${payload?.notification_id || ''}`;
+        : isReminder
+          ? `rem:${payload?.message_id || ''}`
+          : `ntf:${payload?.notification_id || ''}`;
       if (seenRef.current.has(key)) return;
       seenRef.current.add(key);
       if (seenRef.current.size > 200) {
@@ -65,6 +68,13 @@ export const NotificationBell = () => {
         link = payload.conversation_id
           ? `/dashboard?conv=${encodeURIComponent(payload.conversation_id)}`
           : '/dashboard';
+      } else if (isReminder) {
+        variant = 'red';
+        title = '⏰ Recordatorio vencido';
+        message = payload.subject
+          ? `${payload.subject}${payload.quote_number ? ` · ${payload.quote_number}` : ''}`
+          : 'Tienes un recordatorio pendiente en tu Centro de Mensajes.';
+        link = payload.link || '/dashboard';
       } else {
         variant = priority === 'high' ? 'red' : priority === 'low' ? 'amber' : 'orange';
         title = payload?.title || 'Nueva notificación';
@@ -74,22 +84,23 @@ export const NotificationBell = () => {
 
       playNotifBeep();
 
-      if (isInternal || priority === 'high') {
+      if (isInternal || isReminder || priority === 'high') {
         setPulse(true);
         setTimeout(() => setPulse(false), 3000);
       }
 
       // Toast intenso persistente (no se auto-cierra). El CTA "Ver mensaje"
-      // solo aplica a mensajes internos (lleva a la conversación). Para
-      // notificaciones de eventos del sistema NO se muestra, porque no existe
-      // un "mensaje" que abrir y el enlace lleva a una pantalla operativa.
+      // aplica a mensajes internos (lleva a la conversación) y a recordatorios
+      // (lleva al Centro de Mensajes). Para notificaciones de eventos del
+      // sistema NO se muestra, porque el enlace lleva a una pantalla operativa.
+      const showView = isInternal || isReminder;
       toast.custom(
         (id) => (
           <IntenseAlertToast
             variant={variant}
             title={title}
             message={message}
-            onView={isInternal ? () => {
+            onView={showView ? () => {
               toast.dismiss(id);
               setOpen(false);
               if (link) navigate(link);

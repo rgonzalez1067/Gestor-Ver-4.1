@@ -14,9 +14,10 @@ from datetime import datetime, timezone, timedelta, date
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from config import db
-from services.notification_service import notify
+from services.notification_service import notify, manager
 from services.email_service import send_email
 
 logger = logging.getLogger(__name__)
@@ -305,6 +306,49 @@ async def job_implementer_alerts_due() -> None:
     logger.info(f"[scheduler] implementer_alerts_due → {count} recordatorio(s) enviado(s)")
 
 
+async def job_inbox_reminders_due() -> None:
+    """Centro de Mensajes — "Recuérdame".
+
+    Corre cada minuto. Por cada notificación del sistema con `remind_at` vencido
+    y aún no disparada (`remind_fired != True`), empuja una alerta en vivo por
+    WebSocket (toast intenso) al usuario dueño y la marca como disparada para
+    no repetir. La alerta visual persistente (badge "Vencido") la calcula el
+    listado `/inbox/me` (campo `remind_due`).
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    count = 0
+    cursor = db.inbox_messages.find(
+        {
+            "deleted_at": None,
+            "is_user_message": {"$ne": True},
+            "remind_at": {"$ne": None, "$lte": now_iso},
+            "remind_fired": {"$ne": True},
+        },
+        {"_id": 0, "message_id": 1, "user_id": 1, "subject": 1, "quote_number": 1},
+    )
+    async for m in cursor:
+        try:
+            await manager.send_to_user(m["user_id"], {
+                "type": "reminder_due",
+                "payload": {
+                    "message_id": m.get("message_id"),
+                    "subject": m.get("subject") or "Recordatorio",
+                    "quote_number": m.get("quote_number") or "",
+                    "link": "/dashboard",
+                },
+            })
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[scheduler] reminder push failed msg={m.get('message_id')}: {e}")
+            continue
+        await db.inbox_messages.update_one(
+            {"message_id": m["message_id"], "user_id": m["user_id"]},
+            {"$set": {"remind_fired": True, "remind_fired_at": now_iso}},
+        )
+        count += 1
+    if count:
+        logger.info(f"[scheduler] inbox_reminders_due → {count} recordatorio(s) disparado(s)")
+
+
 def start_scheduler() -> None:
     """Arranca APScheduler con los 4 jobs. Llamado desde server.py startup."""
     global scheduler
@@ -316,8 +360,10 @@ def start_scheduler() -> None:
     scheduler.add_job(job_project_assigned_not_started, CronTrigger(hour=8, minute=5), id="proj_not_started", replace_existing=True)
     scheduler.add_job(job_project_stalled_5_days, CronTrigger(hour=8, minute=10), id="proj_stalled", replace_existing=True)
     scheduler.add_job(job_implementer_alerts_due, CronTrigger(hour=8, minute=15), id="impl_alerts_due", replace_existing=True)
+    # Recuérdame: chequeo frecuente (cada minuto) de vencimientos del Centro de Mensajes.
+    scheduler.add_job(job_inbox_reminders_due, IntervalTrigger(minutes=1), id="inbox_reminders", replace_existing=True)
     scheduler.start()
-    logger.info("[scheduler] started with 4 jobs at 08:00/08:05/08:10/08:15 America/Caracas")
+    logger.info("[scheduler] started with 5 jobs (4 daily + inbox_reminders cada 1 min)")
 
 
 def stop_scheduler() -> None:

@@ -83,6 +83,19 @@ def _sla_color(created_at_iso: str) -> str:
     return "red"
 
 
+def _remind_due(remind_at_iso: Optional[str]) -> bool:
+    """True si el recordatorio (`remind_at`) ya venció (<= ahora)."""
+    if not remind_at_iso:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(remind_at_iso).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return False
+    return dt <= datetime.now(timezone.utc)
+
+
 @router.get("/inbox/me")
 async def list_my_inbox(
     limit: int = Query(50, ge=1, le=200),
@@ -126,6 +139,10 @@ async def list_my_inbox(
     async for m in cur:
         m["type"] = "notification"
         m["sla_color"] = _sla_color(m.get("created_at", ""))
+        # Recuérdame (solo notificaciones del sistema): expone el vencimiento
+        # configurado y un flag calculado en backend para la alerta visual.
+        m["remind_at"] = m.get("remind_at")
+        m["remind_due"] = _remind_due(m.get("remind_at"))
         slim_atts = []
         for a in (m.get("attachments_meta") or []):
             slim_atts.append({
@@ -213,6 +230,65 @@ async def mark_read(message_id: str, authorization: Optional[str] = Header(None)
             raise HTTPException(status_code=404, detail="Mensaje no encontrado")
         return {"status": "already_read", "message_id": message_id}
     return {"status": "ok", "message_id": message_id}
+
+
+class RemindPayload(BaseModel):
+    # ISO datetime (UTC). El frontend convierte el datetime-local a UTC con
+    # `new Date(value).toISOString()`. `None` limpia el recordatorio.
+    remind_at: Optional[str] = None
+
+
+@router.patch("/inbox/{message_id}/remind")
+async def set_reminder(
+    message_id: str,
+    payload: RemindPayload,
+    authorization: Optional[str] = Header(None),
+):
+    """Función "Recuérdame" — SOLO para notificaciones del sistema.
+
+    Configura (o limpia) el `remind_at` de un mensaje del sistema. Al vencer,
+    el scheduler dispara una alerta visual en vivo (WebSocket/toast) y el
+    listado marca el mensaje como vencido (`remind_due=True`).
+    """
+    user = await get_current_user(authorization)
+    msg = await db.inbox_messages.find_one(
+        {"message_id": message_id, "user_id": user["user_id"], "deleted_at": None},
+        {"_id": 0, "is_user_message": 1},
+    )
+    # Nota: usar `msg is None` (no `not msg`) porque la proyección puede
+    # devolver `{}` cuando el campo `is_user_message` no está presente en
+    # mensajes legacy del sistema. `{}` es falsy y causaría un 404 falso.
+    if msg is None:
+        raise HTTPException(status_code=404, detail="Mensaje no encontrado")
+    if msg.get("is_user_message"):
+        raise HTTPException(
+            status_code=400,
+            detail="Recuérdame solo aplica a notificaciones del sistema",
+        )
+
+    if not payload.remind_at:
+        # Limpiar recordatorio
+        await db.inbox_messages.update_one(
+            {"message_id": message_id, "user_id": user["user_id"]},
+            {"$set": {"remind_at": None, "remind_fired": False}},
+        )
+        return {"status": "cleared", "message_id": message_id, "remind_at": None}
+
+    # Normalizar y validar la fecha
+    try:
+        dt = datetime.fromisoformat(str(payload.remind_at).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Fecha/hora inválida")
+
+    remind_iso = dt.astimezone(timezone.utc).isoformat()
+    await db.inbox_messages.update_one(
+        {"message_id": message_id, "user_id": user["user_id"]},
+        # remind_fired=False re-arma la alerta si el usuario reprograma la fecha.
+        {"$set": {"remind_at": remind_iso, "remind_fired": False}},
+    )
+    return {"status": "ok", "message_id": message_id, "remind_at": remind_iso}
 
 
 @router.delete("/inbox/{message_id}")
