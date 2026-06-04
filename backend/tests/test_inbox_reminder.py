@@ -77,12 +77,24 @@ async def run():
         "read_at": None,
         "deleted_at": None,
     }
+    # Mensaje del sistema LEGACY: SIN el campo `is_user_message` (reproduce el
+    # bug 404 que causaba la proyección `{}` falsy). Debe aceptar el recordatorio.
+    legacy_msg_id = TAG + "leg_" + uuid.uuid4().hex[:8]
+    legacy_msg = {
+        "message_id": legacy_msg_id,
+        "user_id": uid,
+        "subject": "Notificación legacy sin is_user_message",
+        "body_html": "<p>legacy</p>",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "read_at": None,
+        "deleted_at": None,
+    }
 
     headers = {"Authorization": f"Bearer {tok}"}
     try:
         await db.users.insert_one(user)
         await db.user_sessions.insert_one(session)
-        await db.inbox_messages.insert_many([sys_msg, user_msg])
+        await db.inbox_messages.insert_many([sys_msg, user_msg, legacy_msg])
 
         async with httpx.AsyncClient(timeout=30) as client:
             # 1) Fijar recordatorio en el pasado (ya vencido)
@@ -102,6 +114,10 @@ async def run():
             # 3) 400 para mensaje user-to-user
             r = await client.patch(f"{BASE}/inbox/{user_msg_id}/remind", json={"remind_at": past}, headers=headers)
             assert r.status_code == 400, f"esperaba 400, got {r.status_code}: {r.text}"
+
+            # 3b) Mensaje LEGACY sin is_user_message → debe aceptar (200), no 404
+            r = await client.patch(f"{BASE}/inbox/{legacy_msg_id}/remind", json={"remind_at": past}, headers=headers)
+            assert r.status_code == 200, f"legacy debería dar 200, got {r.status_code}: {r.text}"
 
         # 4) Ejecutar el job del scheduler → debe disparar y marcar remind_fired
         from services.notification_scheduler import job_inbox_reminders_due
@@ -124,7 +140,7 @@ async def run():
 
         print("PASS: Función Recuérdame (set/due/job/400/clear) correcta.")
     finally:
-        await db.inbox_messages.delete_many({"message_id": {"$in": [sys_msg_id, user_msg_id]}})
+        await db.inbox_messages.delete_many({"message_id": {"$in": [sys_msg_id, user_msg_id, legacy_msg_id]}})
         await db.ws_outbox.delete_many({"user_id": uid})
         await db.user_sessions.delete_many({"session_token": tok})
         await db.users.delete_many({"user_id": uid})

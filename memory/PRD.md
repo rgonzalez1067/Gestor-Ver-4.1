@@ -4,6 +4,31 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 56: Gobierno de Datos (Segmentación Cotizaciones) + Centro de Mensajes "Recuérdame" + Verificación Fase A/B — Jun 2026
+
+**Contexto:** Continuación del requerimiento de 4 puntos. Fases A (Modal Implementación editable) y B (Generador/Gestor) ya estaban implementadas; faltaban Issue 1 (Segmentación) e Issue 2 (Recuérdame).
+
+**1. Gobierno de Datos — Segmentación de Cotizaciones de Implementación (P0)** ✅
+- Backend (`routes/quotes.py::get_quotes`): ya segmentaba por `client_segment = user_sede` en todas las rutas jerárquicas (ejecutivo/coordinador/gerente/admin-dept/perfil RBAC). Director y Admin role = visibilidad total (excepción intencional). Operaciones = lectura universal sobre repair/equipment/fast_track (excepción preservada).
+- Frontend (`hooks/useQuoteRbac.js::rbacFilteredQuotes`): REFINADO para ser **segment-aware**. Antes mostraba `implementation` para cualquier permiso impl; ahora una cotización de Implementación CORP solo es visible con `cotizaciones:impl_corp` y PYME con `cotizaciones:impl_pyme`. Fast Track (siempre PYME) visible con impl_pyme o por Operaciones. Equipos/Reparaciones sin cambio. Admin Pyme (Administración sin perms cotizaciones) → exención vía `!hasAnyCotPerm` (ve todo su sede).
+- Test: `tests/test_quote_segmentation_governance.py` (PASS) — gerente PYME ve solo PYME, gerente CORP ve solo CORP, en el mismo departamento (segmento es el discriminador).
+- Nota de datos: actualmente todas las cotizaciones son PYME (68 impl PYME, 0 CORP); el cambio es defensa para el caso CORP futuro.
+
+**2. Centro de Mensajes — Función "Recuérdame" (P0)** ✅
+- Aplica SOLO a notificaciones del sistema (no chats user-to-user). Decisión del usuario: ambas alertas (WS+toast en vivo Y badge visual de vencidos).
+- Backend (`routes/inbox.py`): `PATCH /api/inbox/{id}/remind` con `{remind_at: ISO|null}` (400 si `is_user_message`). `GET /inbox/me` devuelve `remind_at` + `remind_due` (vencido). Fix crítico: `if msg is None` (no `if not msg`) porque la proyección `{is_user_message:1}` devuelve `{}` falsy para mensajes legacy sin el campo → 404 falso.
+- Scheduler (`services/notification_scheduler.py::job_inbox_reminders_due`): IntervalTrigger cada 1 min; empuja WS `type:"reminder_due"` a los recordatorios vencidos no disparados (`remind_fired != True`) y marca `remind_fired=True`.
+- Frontend: `useNotifications.js` maneja `reminder_due`; `NotificationBell.jsx` muestra IntenseAlertToast rojo "⏰ Recordatorio vencido" con CTA al Dashboard. `InboxCenter.jsx` → componente `ReminderControl` (botón campana + Popover con `datetime-local` + Guardar/Quitar). Chip índigo si pendiente, chip rojo `animate-pulse` "Vencido" si `remind_due`. Conversión local→UTC con `new Date(value).toISOString()`.
+- Tests: `tests/test_inbox_reminder.py` (PASS, incluye caso legacy sin `is_user_message`). UI validada 100% por testing agent (iteration_19.json).
+
+**3. Verificación Fase A (Modal editable) y Fase B (Generador)** ✅
+- Fase A: confirmado por code-review — `Quotes.jsx` precarga `economicGroup`/`fantasyName` (de `grupo_economico`/`fantasy_name` del cliente) y `fiscalPrinterModel` (de `modelo_impresora_fiscal`), todos EDITABLES; `quote_transitions.py` persiste `economic_group`/`fantasy_name`/`fiscal_printer_model` en el proyecto. (Flujo UI completo NO se e2e-probó para no alterar datos productivos.)
+- Fase B: `tests/test_phase_b_generator.py` (PASS) — `_create_project_from_quote` resuelve y persiste `created_by_name` (Generador) desde `created_by_user_id`. Integradores auto-asignan creador como `gestor` (`integrators.py:132`). Proyectos NUEVOS muestran el Generador; los 52 proyectos legacy son IMPORTADOS (`imported_by`), sin generador comercial real → muestran '—' (correcto).
+
+**Archivos modificados:** `hooks/useQuoteRbac.js`, `routes/inbox.py`, `services/notification_scheduler.py`, `hooks/useNotifications.js`, `components/NotificationBell.jsx`, `components/InboxCenter.jsx`. Tests nuevos: `test_quote_segmentation_governance.py`, `test_inbox_reminder.py`, `test_phase_b_generator.py`.
+
+
+
 ### Iteration 52: Contacto Inicial — Fecha último/próximo contacto + Twin Scrollbar — Feb 2026
 
 **Backend** (`routes/initial_contacts.py`):
