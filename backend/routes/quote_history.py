@@ -8,6 +8,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from pathlib import Path
 import io
+import re
 import uuid
 import logging
 
@@ -163,12 +164,17 @@ async def list_quote_history(
     if client_id:
         query["client_id"] = client_id
     if invoice_number:
-        query["invoice_number"] = {"$regex": invoice_number, "$options": "i"}
+        query["invoice_number"] = {"$regex": re.escape(invoice_number), "$options": "i"}
     if search:
+        # Escapar caracteres especiales de regex para que la búsqueda sea una
+        # coincidencia literal de substring (estilo LIKE %texto%). Sin esto, nombres
+        # de cliente con paréntesis u otros metacaracteres (p.ej. "..., C.A.)")
+        # producían una regex inválida y un error 500.
+        safe = re.escape(search.strip())
         query["$or"] = [
-            {"quote_number": {"$regex": search, "$options": "i"}},
-            {"client_name": {"$regex": search, "$options": "i"}},
-            {"invoice_number": {"$regex": search, "$options": "i"}},
+            {"quote_number": {"$regex": safe, "$options": "i"}},
+            {"client_name": {"$regex": safe, "$options": "i"}},
+            {"invoice_number": {"$regex": safe, "$options": "i"}},
         ]
     if from_date or to_date:
         date_q = {}

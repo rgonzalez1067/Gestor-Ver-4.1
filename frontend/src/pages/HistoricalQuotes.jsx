@@ -68,6 +68,18 @@ export const HistoricalQuotes = () => {
 
   useEffect(() => { fetchHistory(); /* eslint-disable-next-line */ }, [categoryFilter]);
 
+  // Búsqueda en vivo (debounced) por nombre de cliente / nº cotización / factura:
+  // la grilla se actualiza de inmediato al escribir, sin necesidad de "Aplicar filtros".
+  const searchDebounceRef = useRef(null);
+  const firstSearchRender = useRef(true);
+  useEffect(() => {
+    if (firstSearchRender.current) { firstSearchRender.current = false; return; }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => { fetchHistory(); }, 400);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+    /* eslint-disable-next-line */
+  }, [search, invoiceFilter]);
+
   // Auto-abrir detalle si llega ?quote_id=xxx en la URL (desde Reportes de Irregulares)
   useEffect(() => {
     const targetQuoteId = searchParams.get('quote_id');

@@ -190,13 +190,15 @@ export const InitialContacts = () => {
   const canAssign = !!currentUser;
   const canTransfer = !!currentUser;
 
-  // Filter users for assignment based on hierarchy
+  // Asignación de Contacto Inicial: SOLO ejecutivos de áreas comerciales
+  // (Ventas Pyme y Ventas Corporativas). Se excluyen Soporte, Operaciones,
+  // Administración y Tecnología para evitar asignaciones a áreas no comerciales.
+  const COMMERCIAL_DEPTS = ['Ventas Pyme', 'Ventas Corporativas'];
   const assignableUsers = users.filter(u => {
     if (!currentUser) return false;
     if (u.user_id === currentUser.user_id) return false; // No asignar a sí mismo
-    if (currentUser.role === 'admin') return true;
-    const allowed = { Director: ['Gerente'], Gerente: ['Coordinador', 'Ejecutivo'], Coordinador: ['Ejecutivo'], Ejecutivo: ['Ejecutivo'] };
-    return (allowed[currentUser.cargo] || []).includes(u.cargo) && u.is_active !== false;
+    if (u.is_active === false) return false;
+    return COMMERCIAL_DEPTS.includes(u.departamento);
   });
 
   // Filter users for transfer (only Gerentes from other sede)

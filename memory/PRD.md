@@ -2864,3 +2864,8 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - `integrators.py` `assign_integrator_implementador`: SE ELIMINÓ el correo/destinatario/mensaje hardcodeado y se reemplazó por `dispatch_other_action("implementer_assignment", ...)`. Variables: nombre_implementador, email_implementador, nombre_integrador, nombre_aplicativo, tipo_integracion, tipo_integrador, asignado_por, contactos_tecnicos, fecha_sistema.
 - Validado E2E: asignar implementador → notificación dinámica sent_count=1 (canal inbox). UI muestra las 3 acciones.
 - Disciplina de pruebas: snapshot/restore de other_action_configs (preservadas las 2 configs reales del usuario).
+
+**Bug fixes operativos · 2026-06-04:**
+1. Proyectos Directos: `pinpad_model` y `pinpad_serials` ahora OPCIONALES (backend `direct_projects.py`: removida la validación de pinpad_model requerido; conteo de seriales solo se valida si n_serials>0. Frontend `DirectProjectCreation.jsx`: igual). Validado: VPOS sin POS/seriales → HTTP 200.
+2. Contacto Inicial (`InitialContacts.jsx`): `assignableUsers` ahora filtra SOLO departamento ['Ventas Pyme','Ventas Corporativas'] (excluye Soporte/Operaciones/Administración/Tecnología). Reemplaza la jerarquía por cargo previa.
+3. BUG buscador Histórico (`quote_history.py` /quote-history): el search se pasaba crudo a $regex → nombres con paréntesis (",C.A.)") generaban regex inválida y HTTP 500. Fix: `re.escape(search)` (LIKE literal). Frontend `HistoricalQuotes.jsx`: búsqueda en vivo debounced (400ms) en search+invoiceFilter. Validado: ASTROCEL→3, GIORNO→2, especiales→200.

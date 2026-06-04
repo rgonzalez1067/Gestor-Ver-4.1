@@ -140,8 +140,7 @@ async def create_direct_project(
         raise HTTPException(status_code=400, detail=f"quote_type inválido: {qtype}")
 
     requires_hw = qtype in {"VPOS", "MPOS"}
-    if requires_hw and not payload.pinpad_model:
-        raise HTTPException(status_code=400, detail="VPOS/MPOS requiere modelo de Pinpad")
+    # Modelo de Pinpad: OPCIONAL (puede no estar disponible en la etapa inicial del despliegue).
 
     if payload.is_multistore:
         if not payload.stores:
@@ -153,12 +152,11 @@ async def create_direct_project(
                 detail=f"La suma de cajas por sucursal ({total_boxes}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",
             )
 
-    # Iter38: validación HARD de consistencia de inventario.
-    # Para VPOS/MPOS la cantidad de seriales de Pinpad cargados (manual + Excel)
-    # debe coincidir EXACTAMENTE con Cantidad de Cajas (cabecera).
+    # Seriales de Pinpad: OPCIONALES. Si NO se cargan, se permite guardar el proyecto.
+    # Solo cuando el operador SÍ carga seriales se valida la consistencia con Cantidad de Cajas.
     if requires_hw:
         n_serials = len(payload.pinpad_serials or [])
-        if n_serials != payload.cantidad_cajas:
+        if n_serials > 0 and n_serials != payload.cantidad_cajas:
             raise HTTPException(
                 status_code=400,
                 detail=f"La cantidad de seriales Pinpad cargados ({n_serials}) debe coincidir con Cantidad de Cajas ({payload.cantidad_cajas}).",

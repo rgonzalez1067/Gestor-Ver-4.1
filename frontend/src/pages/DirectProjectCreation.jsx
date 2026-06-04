@@ -344,11 +344,11 @@ export default function DirectProjectCreation() {
     if (!form.client_id) errs.push('Debes seleccionar un cliente');
     if (!form.quote_type) errs.push('Debes seleccionar el tipo de proyecto');
     if (!form.cantidad_cajas || form.cantidad_cajas < 1) errs.push('Cantidad de cajas debe ser >= 1');
-    if (REQUIRES_HW(form.quote_type) && !form.pinpad_model) errs.push('VPOS/MPOS requiere Modelo de Pinpad');
-    // Consistencia de inventario (solo VPOS/MPOS).
+    // Modelo de Pinpad y Seriales son OPCIONALES (pueden quedar vacíos en la etapa inicial).
+    // Solo si se cargan seriales se valida su consistencia con la Cantidad de Cajas.
     if (REQUIRES_HW(form.quote_type)) {
       const n = form.pinpad_serials.length;
-      if (n !== Number(form.cantidad_cajas)) {
+      if (n > 0 && n !== Number(form.cantidad_cajas)) {
         errs.push(`Seriales Pinpad cargados (${n}) ≠ Cantidad de Cajas (${form.cantidad_cajas})`);
       }
     }
