@@ -4,6 +4,24 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 60: Fix menú Histórico de Cotizaciones + Modal de Selección de Contactos en "Enviar al Cliente" — Jun 2026
+
+**1. BUG FIX — Histórico de Cotizaciones no visible (P0)** ✅
+- Síntoma: aunque el perfil tuviera el permiso `quote_history` activo en la Matriz de Seguridad, el ítem no aparecía en el menú (solo lo veían admin/Director).
+- Causa raíz (3 capas): (a) `Sidebar.jsx` filtraba por `canSeeHistory` (cargo Director) ignorando el permiso de matriz; (b) la página `HistoricalQuotes.jsx` mostraba "Acceso Restringido" cuando el backend devolvía 403; (c) el backend `routes/quote_history.py::_can_access_history` solo permitía admin/Director.
+- Fix: `Sidebar.jsx` (filterChild para `requiresHistoryAccess`) ahora usa `ROUTE_MODULE_MAP['/historical-quotes']='quote_history'` → visible si `permissions['quote_history']!=='none'` (o admin/Director legacy). Backend `_can_access_history` ahora retorna True también si `user.permissions.quote_history != 'none'`. La página hereda el acceso del 403 del backend (ya no aparece).
+- Verificado: srubio (Ejecutivo, quote_history=read) ve el menú, navega y la tabla del Histórico carga (backend HTTP 200, sin "Acceso Restringido"). Borrado sigue siendo admin-only.
+
+**2. NUEVA FUNCIÓN — Modal de Selección de Contactos en "Enviar al Cliente"** ✅
+- Se intercepta la acción "Enviar al Cliente": antes de "Personalizar Comunicación" se abre un Modal de Selección de Destinatarios con los contactos de la ficha del cliente.
+- `Quotes.jsx`: `handleSendToClient` hace `GET /clients/{client_id}`, filtra contactos con email válido y abre `contact-select-modal`. `handleContactSelectContinue` → `openEmailModal('send-to-client', quoteId, contactSelectedEmails)` (param nuevo `initialRecipients` precarga `emailRecipientsList`).
+- `QuoteModals.jsx`: nuevo Dialog `contact-select-modal` con tabla de 3 columnas (Nombre / Email / Rol-Cargo) + Checkbox por fila (`contact-row-{idx}`, `contact-checkbox-{idx}`), contador (`contact-select-count`) y Continuar (`contact-select-continue`). El modal de email muestra los correos seleccionados como chips; el label del campo se vuelve "Para (Destinatarios)" para send-to-client.
+- Verificado: testing agent iteration_22.json → Test 2 **100% PASS** (COT-2026-05-123-PYME, 4 contactos reales de SUPER RIO MARKET; 2 seleccionados; chips precargados con los emails exactos en el email-modal).
+
+**Archivos:** `components/Sidebar.jsx`, `pages/HistoricalQuotes.jsx` (sin cambio, hereda del backend), `routes/quote_history.py`, `pages/Quotes.jsx`, `components/quotes/QuoteModals.jsx`.
+
+
+
 ### Iteration 59: BUG FIX — Precarga de Grupo Económico / Nombre de Fantasía en "Enviar a Implementación" — Jun 2026
 
 **Bug reportado:** El modal de "Enviar a Implementación" (cotizaciones PYME) no precargaba Grupo Económico ni Nombre de Fantasía desde la ficha del cliente (Fase A previa quedó incompleta).

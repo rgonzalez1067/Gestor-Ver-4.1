@@ -20,8 +20,13 @@ router = APIRouter()
 
 
 def _can_access_history(user: dict) -> bool:
-    """Solo admin (Administrador del Sistema) o cargo='Director'."""
-    return user.get("role") == "admin" or (user.get("cargo") or "").strip() == "Director"
+    """Acceso al Histórico: por la Matriz de Seguridad (permiso `quote_history`),
+    o admin (Administrador del Sistema), o cargo='Director' (legacy)."""
+    if user.get("role") == "admin":
+        return True
+    if (user.get("cargo") or "").strip() == "Director":
+        return True
+    return (user.get("permissions", {}) or {}).get("quote_history", "none") != "none"
 
 
 async def archive_quote_to_history(quote_id: str, trigger: str, user: Optional[dict] = None) -> Optional[dict]:
