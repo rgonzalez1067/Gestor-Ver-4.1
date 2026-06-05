@@ -4,6 +4,34 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 57: Entidad "Procesador" + Patrocinio Relacional + Filtro en Proyectos — Jun 2026
+
+**Requerimiento:** Soportar adquirencia/implementaciones patrocinadas. Habilitar "Procesador" en el maestro de Bancos, relación dinámica Procesador→Banco en la cotización, persistencia y filtro en Proyectos.
+
+**Decisiones del usuario:** 1 procesador por banco (single-select); campo Procesador solo en Banco/Fintech (no en entidades tipo Procesador); texto compuesto en orden "Procesador — Banco"; filtro de Proyectos = dropdown + buscador interno.
+
+**1. Maestro de Bancos** ✅
+- `models.py`: `Bank`/`BankCreate` con campo `procesador` (Optional). `routes/banks.py`: `valid_types = ['Banco','Fintech','Procesador']`.
+- `Banks.jsx`: opción "Procesador" en el select Tipo; nuevo campo "Procesador" (oculto si Tipo='Procesador'), poblado con "Procesador Independiente" + carga dinámica de bancos `type==='Procesador'`. Al cambiar Tipo a Procesador se limpia `procesador`. (Fix de layout: el campo se movió dentro del grid como `col-span-2`.)
+
+**2. Cotizador — flujo Procesador (sub-modal)** ✅
+- `models.py`/`quotes.py`: `Quote`, `QuoteCreate`, `QuoteCreateWithPDF`, `QuoteUpdate` + constructor con `sponsoring_processor_id`/`sponsoring_processor_name`.
+- `QuoteWizardDialog.jsx`: potenciado el flujo existente "Implementación Patrocinada → Banco Patrocinante". `handleSponsoringBankSelect`: si el banco elegido es tipo Procesador → abre sub-modal (`processor-link-modal`) que lista SOLO bancos cuyo `procesador===nombre del procesador`; al elegir el banco final se fija `sponsoring_bank_*` + `sponsoring_processor_*` y se muestra etiqueta compuesta "Procesador — Banco". Banco tradicional → guarda directo y limpia procesador.
+- `Quotes.jsx`: payloads (create-with-pdf), defaults y edición incluyen los campos de procesador.
+
+**3. Proyectos — Patrocinador + Filtro** ✅
+- `models.py`: `Project` + `sponsoring_processor_id/name` y `patrocinador_label`. `quote_transitions.py`: `_build_patrocinador_label()` → "Procesador — Banco" (compuesto) o "Banco" (directo); persiste en el proyecto al despachar.
+- `Projects.jsx`: helper `getPatrocinadorLabel()` (usa label persistido o lo calcula para legacy); nueva columna "Patrocinador" (`project-sponsor-{id}`); filtro combobox (`project-sponsor-filter`, Popover con buscador + opciones Todos/Sin patrocinador/distinct). `project-search` también filtra por texto del patrocinador.
+- `ProjectDetail.jsx`: campo "Patrocinador" (`project-detail-patrocinador`).
+
+**Tests (todos PASS):** `test_processor_sponsorship.py` (backend e2e: API crear Procesador + banco vinculado, transición a proyecto con label compuesto y directo). Frontend: testing agent iteration_20.json → **29/29 assertions PASS** (Bancos, sub-modal cotizador, columna+filtro Proyectos). Entidades QA creadas y eliminadas.
+
+**Archivos modificados:** `models.py`, `routes/banks.py`, `routes/quotes.py`, `routes/quote_transitions.py`, `pages/Banks.jsx`, `components/quotes/QuoteWizardDialog.jsx`, `pages/Quotes.jsx`, `pages/Projects.jsx`, `pages/ProjectDetail.jsx`.
+
+**Pendiente conocido (P2):** warning de hidratación `<span>` dentro de `<tbody>/<tr>` en Dashboard/Proyectos — proviene del wrapper de instrumentación de la plataforma (no del código de la app); no bloquea.
+
+
+
 ### Iteration 56: Gobierno de Datos (Segmentación Cotizaciones) + Centro de Mensajes "Recuérdame" + Verificación Fase A/B — Jun 2026
 
 **Contexto:** Continuación del requerimiento de 4 puntos. Fases A (Modal Implementación editable) y B (Generador/Gestor) ya estaban implementadas; faltaban Issue 1 (Segmentación) e Issue 2 (Recuérdame).
