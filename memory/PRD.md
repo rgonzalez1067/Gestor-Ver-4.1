@@ -4,6 +4,20 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 59: BUG FIX — Precarga de Grupo Económico / Nombre de Fantasía en "Enviar a Implementación" — Jun 2026
+
+**Bug reportado:** El modal de "Enviar a Implementación" (cotizaciones PYME) no precargaba Grupo Económico ni Nombre de Fantasía desde la ficha del cliente (Fase A previa quedó incompleta).
+
+**Causa raíz:** El precargado (`setEconomicGroup`/`setFantasyName`) vivía en `handlePymeServerContinue`, una función HUÉRFANA que ponía la fase `economic_data` (fase muerta). El flujo real entra a la fase `consolidated_data` desde `handleFiscalPrinterContinue` (Quotes.jsx ~2722), que la activaba SIN precargar → inputs vacíos.
+
+**Fix:** En `handleFiscalPrinterContinue`, rama `isPyme`, antes de `setMultistorePhase('consolidated_data')` se hace `GET /clients/{client_id}` y se setean `economicGroup = c.grupo_economico` y `fantasyName = c.fantasy_name` (campos correctos verificados en BD). Ambos quedan EDITABLES (binding value/onChange en QuoteModals.jsx fase `consolidated_data`).
+
+**Verificación:** Testing agent iteration_21.json → **100% PASS** en UI con COT-2026-05-091-PYME: el modal mostró Grupo Económico='Paramo' y Nombre de Fantasía='PARAMO LA URBINA' precargados; ambos campos se borraron y reescribieron (editabilidad confirmada). Sin envío real (cerrado con 'Atrás').
+
+**Archivo:** `pages/Quotes.jsx` (handleFiscalPrinterContinue).
+
+
+
 ### Iteration 58: Reportes por Patrocinador (Cartera de Adquirencia) — Jun 2026
 
 **Requerimiento:** Reporte "Reportes por Patrocinador" ubicado debajo de "Reportes de Ventas" en el menú, con acceso configurable vía Gestión de Seguridad.
