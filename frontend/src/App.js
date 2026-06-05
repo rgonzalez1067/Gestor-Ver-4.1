@@ -24,6 +24,7 @@ import BackupCenter from './pages/BackupCenter';
 import { IntegratorTemplatesConfig, NewProductTemplatesConfig } from './pages/EntityTemplatesConfig';
 import HistoricalQuotes from './pages/HistoricalQuotes';
 import SalesReports from './pages/SalesReports';
+import SponsorReports from './pages/SponsorReports';
 import Banks from './pages/Banks';
 import BankDetail from './pages/BankDetail';
 import IntegrationReport from './pages/IntegrationReport';
@@ -171,6 +172,11 @@ function AppRouter() {
       <Route path="/reports/sales" element={
         <ProtectedRoute>
           <SalesReports />
+        </ProtectedRoute>
+      } />
+      <Route path="/reports/sponsors" element={
+        <ProtectedRoute>
+          <SponsorReports />
         </ProtectedRoute>
       } />
       <Route path="/taller-equipos" element={

@@ -20,6 +20,7 @@ import {
   FolderKanban,
   Archive,
   BarChart3,
+  Landmark,
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
@@ -46,6 +47,7 @@ const menuItems = [
       { path: '/clients', icon: Users, label: 'Clientes' },
       { path: '/quotes', icon: FileText, label: 'Cotizaciones' },
       { path: '/reports/sales', icon: BarChart3, label: 'Reportes de Ventas' },
+      { path: '/reports/sponsors', icon: Landmark, label: 'Reportes por Patrocinador' },
       { path: '/historical-quotes', icon: Archive, label: 'Histórico de Cotizaciones', requiresHistoryAccess: true },
     ]
   },

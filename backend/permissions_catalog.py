@@ -40,6 +40,7 @@ MODULES = [
     {"id": "clientes",          "name": "Clientes",          "group": "gestion_comercial"},
     {"id": "cotizaciones",      "name": "Cotizaciones",      "group": "gestion_comercial"},
     {"id": "reportes_ventas",   "name": "Reportes de Ventas", "group": "gestion_comercial"},
+    {"id": "reportes_patrocinador", "name": "Reportes por Patrocinador", "group": "gestion_comercial"},
     {"id": "quote_history",     "name": "Histórico de Cotizaciones", "group": "gestion_comercial"},
     # Catálogos
     {"id": "bancos",                "name": "Bancos",               "group": "catalogos"},

@@ -4,6 +4,27 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 58: Reportes por Patrocinador (Cartera de Adquirencia) — Jun 2026
+
+**Requerimiento:** Reporte "Reportes por Patrocinador" ubicado debajo de "Reportes de Ventas" en el menú, con acceso configurable vía Gestión de Seguridad.
+
+**Backend** ✅
+- `routes/sponsor_reports.py` (nuevo): `GET /api/reports/sponsors` (cartera de proyectos patrocinados agrupada por patrocinador: Banco directo o "Procesador — Banco") + `GET /api/reports/sponsors/csv` (export). Ambos protegidos con `require_permission(..., "reportes_patrocinador", "read")`. Cada grupo: project_count, total_usd, status_breakdown, lista de proyectos (N°, cliente, segmento, tipo, estado, generador, implementador, monto). KPIs totales + `sponsors_available` para el filtro.
+- `permissions_catalog.py`: nuevo módulo `{"id": "reportes_patrocinador", "name": "Reportes por Patrocinador", "group": "gestion_comercial"}` justo después de `reportes_ventas` → aparece automáticamente en la matriz de Gestión de Seguridad (build_catalog).
+- `server.py`: registrado `sponsor_reports_router`.
+
+**Frontend** ✅
+- `pages/SponsorReports.jsx` (nuevo): header, filtros (Desde/Hasta/Patrocinador), 3 KPI cards, grupos colapsables por patrocinador con desglose de estados + tabla de proyectos, botón "Exportar CSV", y pantalla de "Acceso restringido" si el backend responde 403.
+- `Sidebar.jsx`: ítem "Reportes por Patrocinador" (icono Landmark) debajo de "Reportes de Ventas" en Gestión Comercial.
+- `hooks/usePermission.js`: `ROUTE_MODULE_MAP['/reports/sponsors'] = 'reportes_patrocinador'` (controla visibilidad del menú por permiso).
+- `App.js`: ruta `/reports/sponsors` (ProtectedRoute → SponsorReports).
+
+**Pruebas:** curl admin → datos reales (Banco Mercantil, 1 proyecto, $261); CSV header correcto; usuario sin permiso (srubio) → HTTP 403; catálogo de seguridad incluye el módulo; screenshot de la página y del menú OK. Acceso por defecto: 'none' para no-admin (debe habilitarse en Gestión de Seguridad); admin siempre.
+
+**Archivos:** `routes/sponsor_reports.py` (nuevo), `permissions_catalog.py`, `server.py`, `pages/SponsorReports.jsx` (nuevo), `components/Sidebar.jsx`, `hooks/usePermission.js`, `App.js`.
+
+
+
 ### Iteration 57: Entidad "Procesador" + Patrocinio Relacional + Filtro en Proyectos — Jun 2026
 
 **Requerimiento:** Soportar adquirencia/implementaciones patrocinadas. Habilitar "Procesador" en el maestro de Bancos, relación dinámica Procesador→Banco en la cotización, persistencia y filtro en Proyectos.

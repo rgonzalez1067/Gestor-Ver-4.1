@@ -56,6 +56,7 @@ export const ROUTE_MODULE_MAP = {
   '/initial-contacts': 'initial_contacts',
   '/quotes': 'cotizaciones',
   '/reports/sales': 'reportes_ventas',
+  '/reports/sponsors': 'reportes_patrocinador',
   '/historical-quotes': 'quote_history',
   '/clients': 'clientes',
   '/banks': 'bancos',
