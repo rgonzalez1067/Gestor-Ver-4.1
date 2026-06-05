@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only test of bug fix: in PYME 'Enviar a Implementación' wizard, the consolidated_data step now PRELOADS 'Grupo Económico' and 'Nombre de Fantasía' from the client record, and both fields are EDITABLE. Verified end-to-end on quote COT-2026-05-091-PYME using admin rgonzalez@megasoft.com.ve.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Quotes table & wizard dialogs", "issues": ["React hydration warnings in console: <span> as child of <tr>/<tbody> in quotes list (cosmetic, no functional impact)", "DialogContent missing aria-describedby (a11y warning)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": ["(Optional) Fix React hydration warning <span> inside <tr>/<tbody> in Quotes list", "(Optional) Add aria-describedby to DialogContent for a11y"],
+  "critical_code_review_comments": [
+    "Fix in Quotes.jsx handleFiscalPrinterContinue is correct: GET /clients/{id} runs BEFORE setMultistorePhase('consolidated_data'), so economicGroup/fantasyName are populated when the modal renders. Confirmed working in UI.",
+    "QuoteModals.jsx 'consolidated_data' phase binds value=economicGroup / value=fantasyName with proper onChange — editability confirmed by typing PRUEBA_GE and PRUEBA_FN into both fields and reading back via input_value()."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Used existing quote COT-2026-05-091-PYME (Inversiones Cold 2024 - Paramo / PARAMO LA URBINA). NO submission performed (closed via 'Atrás').",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Wizard flow for PYME 'Enviar a Implementación' on Facturada quotes: 1) 'Alerta de Flujo Irregular' modal appears (state Facturada vs expected Pagada) — must fill 'Motivo de la Excepción' (textarea) + 'Compromiso de Regularización' (input[type=date]) and click 'Confirmar Acción'. 2) 'Personalizar Comunicación' modal — click 'Continuar'. 3) Multitienda question — click 'No, tienda única'. 4) Pinpad question — click 'No, Continuar sin equipos'. 5) Impresora Fiscal — fill input[placeholder='Ej: BIXOLON SRP-330, EPSON TM-T20III'] with any model, click 'Continuar'. 6) 'Datos Técnicos e Instrucciones' phase = consolidated_data, with data-testid='consolidated-economic-group-input' and 'consolidated-fantasy-name-input'. ALWAYS close via 'Atrás' or 'Cancelar' — do NOT click final 'Continuar' (would convert quote to project).",
+  "rca of the issue": "Previous bug: setEconomicGroup/setFantasyName were in an orphan function never called when entering consolidated_data phase. Fix: inside handleFiscalPrinterContinue, before setMultistorePhase('consolidated_data'), the code now performs api.get(`/clients/{client_id}`) and calls setEconomicGroup(c.grupo_economico) and setFantasyName(c.fantasy_name). Verification (this iteration): for COT-2026-05-091-PYME the consolidated_data modal showed Grupo Económico='Paramo' and Nombre de Fantasía='PARAMO LA URBINA' preloaded; both fields were successfully cleared and retyped, confirming editability. Bug is fixed."
+}

@@ -2719,6 +2719,22 @@ export const Quotes = () => {
     const segment = (quote?.client_segment || '').toLowerCase();
     const isPyme = segment === 'pyme' || segment === 'pymes' || (quote?.quote_number || '').toUpperCase().includes('-PYME');
     if (isPyme) {
+      // Precargar Grupo Económico y Nombre de Fantasía desde la ficha del cliente.
+      // Quedan EDITABLES en el modal `consolidated_data` para que el operador pueda
+      // ajustarlos antes de enviar la ficha técnica a Implementación.
+      try {
+        if (quote?.client_id) {
+          const res = await api.get(`/clients/${quote.client_id}`);
+          const c = res.data || {};
+          setEconomicGroup((c.grupo_economico || '').toString());
+          setFantasyName((c.fantasy_name || '').toString());
+        } else {
+          setEconomicGroup('');
+          setFantasyName('');
+        }
+      } catch {
+        // No bloquea el flujo si la ficha no se puede leer
+      }
       setMultistorePhase('consolidated_data');
     } else {
       // No-PYME: cierra el wizard y dispara el envío. Si el usuario marcó
