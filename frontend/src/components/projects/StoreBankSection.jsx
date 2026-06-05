@@ -15,12 +15,11 @@ export const StoreBankSection = ({ bankName, products, matrixData, storeId, onUp
             <td className="px-6 py-2.5 text-sm text-slate-700">
               <span className="truncate">{productName}</span>
             </td>
-            {phases.map((phase, phaseIdx) => {
+            {phases.map((phase) => {
               const d = pd[phase] || {};
               const expected = d.expected || expectedQty || 0;
               const processed = d.processed || 0;
               const pct = expected > 0 ? Math.min(Math.round((processed / expected) * 100), 100) : 0;
-              const isRecibido = phaseIdx === 0;
               const isComplete = processed >= expected && expected > 0;
               return (
                 <td key={phase} className="px-2 py-2 text-center border-l border-slate-100">
@@ -47,14 +46,14 @@ export const StoreBankSection = ({ bankName, products, matrixData, storeId, onUp
                           <input type="number" min={0} value={expected}
                             onChange={e => {
                               const newExp = parseInt(e.target.value) || 0;
-                              if (isRecibido && onUpdateStoreCascade) {
-                                onUpdateStoreCascade(storeId, bankName, productName, newExp, processed);
+                              if (onUpdateStoreCascade) {
+                                onUpdateStoreCascade(storeId, bankName, productName, newExp, phase, processed);
                               } else {
                                 onUpdateStoreQuantity(storeId, bankName, productName, phase, newExp, processed);
                               }
                             }}
-                            className={`w-8 h-5 text-[10px] text-center border rounded font-mono ${isRecibido ? 'border-blue-300 bg-blue-50' : 'border-slate-200'}`}
-                            title={isRecibido ? "Esperados (se propaga a todas las fases)" : "Esperados"}
+                            className="w-8 h-5 text-[10px] text-center border rounded font-mono border-blue-300 bg-blue-50"
+                            title="Cantidad de Terminales (se propaga a todas las fases)"
                             data-testid={`store-qty-exp-${storeId}-${bankName}-${productName}-${phase}`} />
                         </>
                       )}

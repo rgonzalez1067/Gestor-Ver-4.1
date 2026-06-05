@@ -193,12 +193,18 @@ const ProjectDetail = () => {
 
   // Permisos: determinar si el usuario actual puede editar
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  // Edición de la Matriz: Admin, el implementador asignado, o cualquier usuario con
+  // PERFIL DE IMPLEMENTACIÓN (cargo Implementador / Coordinador / Gerente de
+  // Implementación / Técnico de Infraestructura, o departamento "Implementación").
+  // Nota: el acceso al proyecto ya está restringido por la regla de visibilidad
+  // (un Implementador solo ve los suyos), por lo que ampliar aquí es seguro.
+  const _cargoLc = (currentUser.cargo || '').toLowerCase();
+  const _deptoLc = (currentUser.departamento || '').toLowerCase();
+  const isImplementationProfile =
+    _deptoLc.includes('implement') || _cargoLc.includes('implement') || _cargoLc.includes('infraestructura');
   const canEditMatrix = currentUser.role === 'admin' ||
-    currentUser.user_id === project?.assigned_to ||
-    (project?.assigned_to && currentUser.user_id === (() => {
-      // Check if current user is supervisor of the implementer (simplified client-side check)
-      return project?.implementer_supervisor_id;
-    })());
+    (!!project?.assigned_to_user_id && currentUser.user_id === project.assigned_to_user_id) ||
+    isImplementationProfile;
 
   // Seriales de implementación
   const addSerials = async (serialsList) => {
@@ -288,19 +294,23 @@ const ProjectDetail = () => {
     }
   };
 
-  // Cascade: actualiza expected en todas las fases, preservando el processed actual por fase (Single)
-  const updateMatrixCascade = async (bankName, productName, newExpected, currentRecibidoProcessed) => {
+  // Cascade (Single): el campo derecho "Cantidad de Terminales" se propaga a TODAS
+  // las fases del producto-Banco. Se preserva el avance (processed) de cada fase;
+  // solo la fase editada conserva su processed en vivo.
+  const updateMatrixCascade = async (bankName, productName, newExpected, editedPhase, editedProcessed) => {
     try {
       const matrixData = (project?.implementation_matrix?.[bankName]?.[productName]) || {};
-      await Promise.all(PHASES.map(phase => {
+      // Secuencial (no Promise.all): evita race read-modify-write que perdería una fase.
+      for (const phase of PHASES) {
         const pd = matrixData[phase] || {};
-        const processed = phase === 'Recibido' ? currentRecibidoProcessed : (pd.processed || 0);
-        return api.put(`/projects/${projectId}/matrix/phase`, {
+        const processed = phase === editedPhase ? editedProcessed : (pd.processed || 0);
+        // eslint-disable-next-line no-await-in-loop
+        await api.put(`/projects/${projectId}/matrix/phase`, {
           bank_name: bankName, product_name: productName, phase,
           completed: processed >= newExpected && newExpected > 0,
           expected: newExpected, processed,
         });
-      }));
+      }
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar matriz en cascada');
@@ -325,19 +335,22 @@ const ProjectDetail = () => {
   };
 
   // Store: cascade + fill-all (Multitienda)
-  const updateStoreMatrixCascade = async (storeId, bankName, productName, newExpected, currentRecibidoProcessed) => {
+  const updateStoreMatrixCascade = async (storeId, bankName, productName, newExpected, editedPhase, editedProcessed) => {
     try {
       const store = project?.stores?.find(s => s.store_id === storeId);
       const matrixData = (store?.implementation_matrix?.[bankName]?.[productName]) || {};
-      await Promise.all(STORE_PHASES.map(phase => {
+      // Secuencial (no Promise.all): cada fase escribe el documento completo; en
+      // paralelo se pisarían entre sí (race read-modify-write) y se perdería una fase.
+      for (const phase of STORE_PHASES) {
         const pd = matrixData[phase] || {};
-        const processed = phase === 'Recibido' ? currentRecibidoProcessed : (pd.processed || 0);
-        return api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
+        const processed = phase === editedPhase ? editedProcessed : (pd.processed || 0);
+        // eslint-disable-next-line no-await-in-loop
+        await api.put(`/projects/${projectId}/stores/${storeId}/matrix/phase`, {
           bank_name: bankName, product_name: productName, phase,
           completed: processed >= newExpected && newExpected > 0,
           expected: newExpected, processed,
         });
-      }));
+      }
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al actualizar matriz en cascada');

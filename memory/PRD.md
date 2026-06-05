@@ -4,6 +4,29 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 65: Edición + Propagación de "Cantidad de Terminales" en Matriz de Proyectos — Jun 2026
+
+**Problema:** El equipo de Implementación no podía editar el campo "Cantidad de Terminales" (campo derecho "/N" bajo la columna T) en la Matriz de Proyectos; quedaba en solo-lectura.
+
+**Causa raíz (P0):** `canEditMatrix` (`ProjectDetail.jsx`) comparaba contra `project.assigned_to` (campo inexistente) en vez de `assigned_to_user_id` → ni el implementador asignado pasaba el chequeo. Mismo bug en el backend `update_matrix_phase`.
+
+**Criterio 1 — Edición habilitada** ✅
+- `canEditMatrix`: ahora Admin + implementador asignado (`assigned_to_user_id`) + **perfil de Implementación** (cargo/departamento que contiene "implement" o "infraestructura"). Celda completa editable (izquierdo=Procesados/avance por fase, derecho=Cantidad de Terminales).
+- Backend `update_matrix_phase` (single): corregido `assigned_to`→`assigned_to_user_id` + permite perfil de Implementación. El endpoint de tienda ya era permisivo.
+
+**Criterio 2 — Propagación en cascada** ✅ (`StoreBankSection.jsx`, `SingleBankSection.jsx`)
+- Antes la cascada solo se disparaba desde la 1ª fase (Recibido). Ahora editar el campo derecho en **cualquier fase** replica ese valor a las 4 fases del mismo producto-Banco. El campo izquierdo (Procesados) NO cascada: refleja el avance solo de esa fase.
+
+**Criterio 3 — Persistencia + fix de race** ✅
+- Las cascadas se enviaban con `Promise.all` (4 PUT en paralelo) → **condición de carrera** read-modify-write sobre el mismo doc que perdía una fase. Cambiadas a **secuenciales** (`for...await`). Verificado: las 4 fases persisten el mismo valor tras recargar.
+
+**QA (Playwright, Implementador Axel González sobre PRY-2026-05-020-PRI multitienda):** 4 inputs editables (no solo-lectura); editar derecho=7 → 4 fases=7 en UI y tras reload; editar izquierdo Recibido=3 → solo Recibido=3, resto 0.
+
+**Archivos:** `pages/ProjectDetail.jsx`, `components/projects/StoreBankSection.jsx`, `components/projects/SingleBankSection.jsx`, `routes/projects.py`.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 64: Inversión nombre Cliente + Desbloqueo Directo por Ticket + Aislamiento Implementador — Jun 2026
 
 **1. UI Proyectos — Inversión de nombre de Cliente + filtro por Fantasía** (`pages/Projects.jsx`) ✅

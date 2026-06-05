@@ -1008,21 +1008,24 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Permisos: Solo implementador asignado, su supervisor, o admin
+    # Permisos: Admin, implementador asignado, su supervisor, o equipo de Implementación
     user_role = current_user.get("role", "")
     user_id = current_user.get("user_id", "")
-    assigned_to = project.get("assigned_to", "")
+    assigned_to = project.get("assigned_to_user_id", "")
     if user_role != "admin":
+        cargo = (current_user.get("cargo") or "").lower()
+        depto = (current_user.get("departamento") or "").lower()
+        is_impl_profile = ("implement" in depto) or ("implement" in cargo) or ("infraestructura" in cargo)
         # Check if user is the assigned implementer
-        is_implementer = user_id == assigned_to
+        is_implementer = bool(user_id) and user_id == assigned_to
         # Check if user is the supervisor of the assigned implementer
         is_supervisor = False
         if assigned_to:
             assigned_user = await db.users.find_one({"user_id": assigned_to}, {"_id": 0, "supervisor_id": 1})
             if assigned_user and assigned_user.get("supervisor_id") == user_id:
                 is_supervisor = True
-        if not is_implementer and not is_supervisor:
-            raise HTTPException(status_code=403, detail="Solo el implementador asignado o su supervisor pueden editar la matriz")
+        if not (is_implementer or is_supervisor or is_impl_profile):
+            raise HTTPException(status_code=403, detail="Solo el equipo de Implementación, el implementador asignado o su supervisor pueden editar la matriz")
 
     # Bloquear edición manual en multitienda
     if project.get("project_type") == "multistore":
