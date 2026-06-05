@@ -99,10 +99,48 @@ NOTIFICATION_SUBJECTS = {
 
 # ==================== PROJECT ENDPOINTS ====================
 
+async def _build_project_visibility_query(user: dict) -> dict:
+    """Construye el filtro de visibilidad de la bandeja de Proyectos según rol/área.
+
+    Reglas (Feb 2026):
+      - Admin: todos.
+      - Ejecutivo de Ventas Pyme (departamento='Ventas Pyme'): proyectos generados
+        por el ÁREA Pyme (creados por cualquier usuario del departamento Ventas Pyme).
+      - Ejecutivo de Ventas Corporativas (departamento='Ventas Corporativas'):
+        proyectos propios (created_by_user_id) MÁS los de su sede CORP (client_segment).
+      - Implementador (cargo='Implementador'): solo los proyectos donde figura como
+        Implementador Asignado.
+      - Resto (Coordinador/Gerente de Implementación, Directores, Operaciones,
+        Administración, etc.): todos (comportamiento nativo sin alteración).
+    """
+    if user.get("role") == "admin":
+        return {}
+    cargo = (user.get("cargo") or "").strip()
+    dept = (user.get("departamento") or "").strip()
+    uid = user.get("user_id")
+
+    if cargo == "Ejecutivo" and dept == "Ventas Pyme":
+        pyme_users = await db.users.find(
+            {"departamento": "Ventas Pyme"}, {"_id": 0, "user_id": 1}
+        ).to_list(2000)
+        pyme_ids = [u["user_id"] for u in pyme_users if u.get("user_id")]
+        return {"created_by_user_id": {"$in": pyme_ids}}
+
+    if cargo == "Ejecutivo" and dept == "Ventas Corporativas":
+        return {"$or": [{"created_by_user_id": uid}, {"client_segment": "CORP"}]}
+
+    if cargo == "Implementador":
+        return {"assigned_to_user_id": uid}
+
+    # Resto de roles: sin restricción (gobernanza de Implementación intacta).
+    return {}
+
+
 @router.get("/projects")
 async def get_projects(authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    projects = await db.projects.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    user = await get_current_user(authorization)
+    query = await _build_project_visibility_query(user)
+    projects = await db.projects.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     # Iter39: inyectar pvv_count para que la lista pueda mostrarlo / ordenarlo
     # sin un GET adicional por proyecto.
     from services.project_pvv import compute_project_pvv
@@ -113,13 +151,19 @@ async def get_projects(authorization: Optional[str] = Header(None)):
 
 @router.get("/projects/stats")
 async def get_project_stats(authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    total = await db.projects.count_documents({})
-    pending = await db.projects.count_documents({"status": "Pendiente por Asignar"})
-    in_progress = await db.projects.count_documents({"status": "Asignado / En Proceso"})
-    blocked = await db.projects.count_documents({"status": {"$in": ["Suspendido por Cliente", "Suspendido por Banco"]}})
-    completed = await db.projects.count_documents({"status": "Finalizado / Producción"})
-    irregular = await db.projects.count_documents({"is_irregular": True})
+    user = await get_current_user(authorization)
+    # Stats coherentes con la grilla: aplican el mismo filtro de visibilidad.
+    base = await _build_project_visibility_query(user)
+
+    def _q(extra: dict) -> dict:
+        return {"$and": [base, extra]} if base else extra
+
+    total = await db.projects.count_documents(base)
+    pending = await db.projects.count_documents(_q({"status": "Pendiente por Asignar"}))
+    in_progress = await db.projects.count_documents(_q({"status": "Asignado / En Proceso"}))
+    blocked = await db.projects.count_documents(_q({"status": {"$in": ["Suspendido por Cliente", "Suspendido por Banco"]}}))
+    completed = await db.projects.count_documents(_q({"status": "Finalizado / Producción"}))
+    irregular = await db.projects.count_documents(_q({"is_irregular": True}))
     return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed, "irregular": irregular}
 
 

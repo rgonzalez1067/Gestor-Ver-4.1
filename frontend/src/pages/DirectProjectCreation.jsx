@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Landmark } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { usePermission } from '../hooks/usePermission';
@@ -194,6 +195,8 @@ export default function DirectProjectCreation() {
     cantidad_cajas: 1,
     sponsor_bank_id: '',
     sponsor_bank_name: '',
+    sponsor_processor_id: '',
+    sponsor_processor_name: '',
     integrator_name: '',
     integrator_id: '',
     integrator_app_name: '',
@@ -207,6 +210,9 @@ export default function DirectProjectCreation() {
     implementation_instructions: '',
   };
   const [form, setForm] = useState(INITIAL_FORM);
+  // Patrocinio relacional: sub-modal de asociación Procesador → Banco (homologado
+  // con el cotizador). Se abre cuando el Banco Patrocinante elegido es un Procesador.
+  const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -545,13 +551,23 @@ export default function DirectProjectCreation() {
               <Label className="text-xs">Banco Patrocinante</Label>
               <Select value={form.sponsor_bank_id || ''} onValueChange={(v) => {
                 const b = banks.find((x) => x.bank_id === v);
-                set({ sponsor_bank_id: v, sponsor_bank_name: b?.name || '' });
+                if (b && b.type === 'Procesador') {
+                  // Interceptar: designar el banco final vinculado al procesador.
+                  setProcessorModal({ open: true, processor: b });
+                  return;
+                }
+                set({ sponsor_bank_id: v, sponsor_bank_name: b?.name || '', sponsor_processor_id: '', sponsor_processor_name: '' });
               }}>
                 <SelectTrigger className="h-10" data-testid="dp-sponsor-bank"><SelectValue placeholder="Sin banco" /></SelectTrigger>
                 <SelectContent>
-                  {banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.name}</SelectItem>)}
+                  {banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {form.sponsor_processor_name && form.sponsor_bank_name && (
+                <p className="text-[11px] text-emerald-700 mt-1 font-medium" data-testid="dp-sponsor-composite">
+                  Patrocinador: {form.sponsor_processor_name} — {form.sponsor_bank_name}
+                </p>
+              )}
             </div>
             {/* Cascada Integrador → App */}
             <div>
@@ -887,6 +903,67 @@ export default function DirectProjectCreation() {
           Enviar a Implementación
         </Button>
       </div>
+
+      {/* Sub-modal de Asociación: Procesador → Banco vinculado (patrocinio relacional) */}
+      <Dialog open={processorModal.open} onOpenChange={(o) => !o && setProcessorModal({ open: false, processor: null })}>
+        <DialogContent className="max-w-md" data-testid="dp-processor-link-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Landmark size={18} className="text-indigo-600" />
+              Banco vinculado al Procesador
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              El patrocinante <strong>{processorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
+              Seleccione el banco que operará la transacción para consolidar el patrocinio.
+            </p>
+            {(() => {
+              const linked = processorModal.processor
+                ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === processorModal.processor.name)
+                : [];
+              if (linked.length === 0) {
+                return (
+                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="dp-processor-link-empty">
+                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
+                    (campo "Procesador") en el maestro de Bancos.
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+                  {linked.map((b) => (
+                    <button
+                      key={b.bank_id}
+                      type="button"
+                      onClick={() => {
+                        const proc = processorModal.processor;
+                        set({
+                          sponsor_bank_id: b.bank_id,
+                          sponsor_bank_name: b.name,
+                          sponsor_processor_id: proc?.bank_id || '',
+                          sponsor_processor_name: proc?.name || '',
+                        });
+                        setProcessorModal({ open: false, processor: null });
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                      data-testid={`dp-processor-linked-bank-${b.bank_id}`}
+                    >
+                      <span>{b.name}</span>
+                      <span className="text-[10px] text-slate-400">{b.type}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="flex justify-end pt-1">
+              <Button variant="outline" size="sm" onClick={() => setProcessorModal({ open: false, processor: null })} data-testid="dp-processor-link-cancel">
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
     </div>
   );

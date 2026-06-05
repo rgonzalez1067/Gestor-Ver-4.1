@@ -4,6 +4,32 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 61: Homologación de Patrocinio en Proyectos Directos + Visibilidad de Proyectos por rol/área — Jun 2026
+
+**1. Procesador→Banco en Proyectos Directos (homologado con Cotizaciones)** ✅
+- `DirectProjectCreation.jsx`: el campo "Banco Patrocinante" ahora intercepta: si la entidad elegida es tipo Procesador abre sub-modal (`dp-processor-link-modal`) que lista solo los bancos cuyo `procesador===nombre del procesador`; al elegir el banco final fija `sponsor_bank_*`+`sponsor_processor_*` y muestra etiqueta compuesta (`dp-sponsor-composite`). Banco tradicional → flujo normal sin modal.
+- `direct_projects.py`: `DirectProjectCreate` + `sponsor_processor_id/name`; el `synthetic_quote` ahora mapea `sponsored_implementation`+`sponsoring_bank_*`+`sponsoring_processor_*` desde los campos sponsor → `_create_project_from_quote` produce `patrocinador_label`.
+
+**2. Persistencia de Generador y Patrocinador en Proyectos Directos** ✅
+- Generador: ya se resolvía (`created_by_user_id` → `_create_project_from_quote` setea `created_by_name`).
+- Patrocinador: ahora se persiste `patrocinador_label` (Banco o "Procesador — Banco") homologado con el cotizador. Mostrado en la columna Patrocinador del grid.
+
+**3. Reglas de visibilidad en `GET /projects` (Parte 4 — gobernanza P0)** ✅
+- ANTES: `get_projects` no segmentaba (todos veían todo). AHORA, helper `_build_project_visibility_query(user)` aplicado a `/projects` y `/projects/stats`:
+  - Ejecutivo + dept 'Ventas Pyme' → proyectos creados por usuarios del dept 'Ventas Pyme'.
+  - Ejecutivo + dept 'Ventas Corporativas' → propios (`created_by_user_id`) **o** sede CORP (`client_segment`).
+  - Implementador → solo `assigned_to_user_id == self`.
+  - Coordinador/Gerente de Implementación, Admin, Directores, Operaciones, etc. → todos (sin alteración).
+- Decisiones del usuario: identificación por departamento; "área Pyme" = creador en dept Ventas Pyme; Corp también ve su sede CORP; reglas de Implementación implementadas ahora (antes no existían).
+
+**Tests (todos PASS):** `test_project_visibility.py` (Pyme/Corp/Implementador/Coordinador e2e), `test_processor_sponsorship.py` (label compuesto/directo). Suite completa sin regresiones. UI: screenshots del sub-modal en Proyectos Directos + etiqueta compuesta "Consorcio CrediCard — Banco de Venezuela".
+
+**Archivos:** `routes/direct_projects.py`, `routes/projects.py`, `pages/DirectProjectCreation.jsx`.
+
+**⚠️ Nota deploy:** Estos cambios están en PREVIEW. Para que apliquen en producción (https://admin-control-center-21.emergent.host) se requiere redeploy.
+
+
+
 ### Iteration 60: Fix menú Histórico de Cotizaciones + Modal de Selección de Contactos en "Enviar al Cliente" — Jun 2026
 
 **1. BUG FIX — Histórico de Cotizaciones no visible (P0)** ✅

@@ -88,6 +88,10 @@ class DirectProjectCreate(BaseModel):
     cantidad_cajas: int = Field(ge=1)
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional (homologado con Cotizaciones): si el Banco Patrocinante
+    # elegido es un Procesador, se designa el banco final vinculado.
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
 
     # Integrador (cascada Integrador → App)
     integrator_id: Optional[str] = None
@@ -236,6 +240,13 @@ async def create_direct_project(
         "branch_details": branch_details,
         "sponsor_bank_id": payload.sponsor_bank_id,
         "sponsor_bank_name": payload.sponsor_bank_name,
+        # Patrocinador homologado con Cotizaciones: alimenta patrocinador_label
+        # ("Procesador — Banco" o solo "Banco") y la columna de patrocinio del grid.
+        "sponsored_implementation": bool(payload.sponsor_bank_id),
+        "sponsoring_bank_id": payload.sponsor_bank_id,
+        "sponsoring_bank_name": payload.sponsor_bank_name,
+        "sponsoring_processor_id": payload.sponsor_processor_id,
+        "sponsoring_processor_name": payload.sponsor_processor_name,
         "integrator_name": payload.integrator_name,
         "integrator_app_name": payload.integrator_app_name,
         "pinpad_model": payload.pinpad_model,
