@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only test of (1) Sidebar bug fix for 'Histórico de Cotizaciones' visibility based on quote_history matrix permission and (2) new 'Seleccionar Destinatarios' (contact-select-modal) inserted before 'Personalizar Comunicación' (email-modal) in the Enviar al Cliente flow. Test 2 PASSED end-to-end on COT-2026-05-123-PYME (4 real contacts of SUPER RIO MARKET, C.A; 2 selected; chips preloaded correctly in email-modal). Test 1 PARTIALLY PASSED: sidebar item is now visible AND clickable for srubio (Ejecutivo with quote_history=read), BUT the page itself (HistoricalQuotes route) still enforces the legacy admin/Director-only guard and renders 'Acceso Restringido — reservado a perfiles de Director o Administrador del Sistema'. Bug fix is INCOMPLETE.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HistoricalQuotes page (/historical-quotes route)",
+        "issue": "After sidebar fix, srubio (cargo Ejecutivo, permissions.quote_history='read') can now see and click 'Histórico de Cotizaciones' in the sidebar and the URL navigates to /historical-quotes, BUT the page renders an 'Acceso Restringido' card with message 'El Histórico de Cotizaciones está reservado a perfiles de Director o Administrador del Sistema para fines de auditoría.' — the in-page RBAC guard was not updated to honor the quote_history matrix permission. Net effect: the feature is still unusable for non-admin/Director users with the permission granted.",
+        "selector": "text='Acceso Restringido' / HistoricalQuotes.jsx access guard",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Quotes table & several pages",
+        "issues": [
+          "Persistent React hydration warnings: <span data-ve-dynamic> is rendered as child of <tbody>/<tr> in QuotesTable, Dashboard commitments, and HistoricalQuotes table (cosmetic, no functional impact; same warning observed in iteration 21)",
+          "Multiple DialogContent missing aria-describedby (a11y warning)"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX: Update HistoricalQuotes.jsx (or its route guard) to honor permissions.quote_history (mirror the Sidebar.jsx logic): allow access when role==='admin' OR permissions['quote_history']!=='none' OR cargo === Director. Without this, the sidebar fix is cosmetic — clicking the menu lands on an 'Acceso Restringido' screen for users who legitimately have the quote_history permission.",
+    "(Optional, carried over from iter 21) Fix React hydration warning '<span> inside <tr>/<tbody>' across Quotes, Dashboard, HistoricalQuotes tables.",
+    "(Optional) Add aria-describedby to DialogContent for a11y."
+  ],
+  "critical_code_review_comments": [
+    "Sidebar.jsx (lines 187-212) correctly uses ROUTE_MODULE_MAP['/historical-quotes']='quote_history' and (permissions[histModule] || 'none') !== 'none' as an additive check beyond admin/Director — confirmed working in UI for srubio.",
+    "Quotes.jsx handleSendToClient (line 2384) correctly does GET /clients/{client_id}, filters contacts with valid emails, opens contact-select-modal, and handleContactSelectContinue (line 2413) calls openEmailModal('send-to-client', quoteId, contactSelectedEmails) — confirmed: chips appear with EXACT emails from selected rows.",
+    "QuoteModals.jsx contact-select-modal (lines 220-298) renders the 3-column table (Nombre/Email/Rol-Cargo) plus checkbox with proper data-testid={contact-row-${idx}, contact-checkbox-${idx}}, counter data-testid=contact-select-count, and Continuar data-testid=contact-select-continue — all selectors work as documented.",
+    "INCONSISTENCY: Sidebar visibility was patched but the in-page guard in HistoricalQuotes.jsx still uses the old 'admin/Director only' check. Bug fix is half-applied — both layers must use the same matrix-based rule for the fix to be effective."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "Test 2 100% / Test 1 50% (sidebar OK, page guard still wrong)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123; Ejecutivo c/permiso: srubio@megasoft.com.ve / Test1234!",
+  "seed_data_creation": "None. Used existing COT-2026-05-123-PYME (SUPER RIO MARKET, C.A — 4 contacts: Jesus Rodriguez, Cristhian Velasquez, Sergio Toro, Mehif Narvaez — all role Administrativo, all real emails @riomarket.com). NO email was sent (closed Personalizar Comunicación with Cancelar).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "To retest the Histórico-de-Cotizaciones fix after main agent updates the in-page guard: login as srubio@megasoft.com.ve/Test1234!, expand 'Gestion Comercial' in sidebar, click 'Histórico de Cotizaciones'. Expected: page renders the historical-quotes table (NOT the 'Acceso Restringido' card). For the contact selection modal, the canonical happy path was confirmed on COT-2026-05-123-PYME: kebab menu of that row exposes the 'Enviar al Cliente' action; modal data-testid='contact-select-modal' shows 4 rows; counter is data-testid='contact-select-count' (format 'N seleccionado(s)'); chips inside email-modal are 'span.inline-flex' (no testid). Backup quotes with same client/contacts: COT-2026-05-126-PYME and COT-2026-05-165-PYME.",
+  "rca of the issue": "Bug RCA — 'Acceso Restringido' for srubio on /historical-quotes: the fix targeted ONLY Sidebar.jsx filterChild (now checks permissions.quote_history). However, the page component HistoricalQuotes.jsx (rendered by the protected route) contains its own role-based gate ('reservado a perfiles de Director o Administrador del Sistema') that was NOT updated. As a result, after clicking the now-visible menu item, the page short-circuits to the access-restricted card. Mitigation: in HistoricalQuotes.jsx, replace the access check with the same logic used in Sidebar — role==='admin' || (user.permissions?.quote_history || 'none') !== 'none' || cargo==='Director'. Reproduction: 1) login srubio. 2) expand Gestion Comercial → click Histórico de Cotizaciones. 3) Observe URL=/historical-quotes but body shows 'Acceso Restringido' card."
+}

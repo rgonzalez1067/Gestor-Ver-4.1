@@ -9,7 +9,8 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
-import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X } from 'lucide-react';
+import { Checkbox } from '../ui/checkbox';
+import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users } from 'lucide-react';
 import { useRef, useState } from 'react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
@@ -50,6 +51,9 @@ export const QuoteModals = ({ ctx }) => {
     emailModalOpen, setEmailModalOpen, emailModalConfig, emailCustomMessage, setEmailCustomMessage,
     emailNewRecipient, setEmailNewRecipient, emailRecipientsList, setEmailRecipientsList,
     addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
+    // Enviar al Cliente — Paso 1: selección de contactos
+    contactSelectOpen, setContactSelectOpen, contactList, contactSelectLoading,
+    contactSelectedEmails, toggleContactEmail, handleContactSelectContinue,
     // Bitacora
     bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
     bitacoraFlujoEntries, bitacoraFlujoLoading,
@@ -210,6 +214,89 @@ export const QuoteModals = ({ ctx }) => {
             </DialogContent>
           </Dialog>
 
+          {/* Enviar al Cliente — Paso 1: Modal de Selección de Destinatarios.
+              Lista los contactos de la ficha del cliente (Nombre, Email, Rol) con
+              checkbox; al Continuar precarga los correos en el modal de comunicación. */}
+          <Dialog open={contactSelectOpen} onOpenChange={(open) => { if (!open) setContactSelectOpen(false); }}>
+            <DialogContent className="max-w-lg" data-testid="contact-select-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-blue-700">
+                  <Users size={20} className="text-blue-500" />
+                  Seleccionar Destinatarios
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-slate-500">
+                  Elija los contactos de la ficha del cliente a quienes se enviará la cotización.
+                </p>
+                {contactSelectLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  </div>
+                ) : contactList.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-lg" data-testid="contact-select-empty">
+                    <Users size={32} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm text-slate-400">La ficha del cliente no tiene contactos con correo.</p>
+                    <p className="text-xs text-slate-400 mt-1">Puede continuar y agregar destinatarios manualmente.</p>
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[340px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 w-10"></th>
+                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Nombre</th>
+                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Email</th>
+                          <th className="px-3 py-2 text-left text-xs uppercase font-medium">Rol / Cargo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {contactList.map((c, idx) => {
+                          const checked = contactSelectedEmails.includes(c.email);
+                          return (
+                            <tr
+                              key={c.contact_id || c.email || idx}
+                              className={`cursor-pointer hover:bg-blue-50/60 ${checked ? 'bg-blue-50' : ''}`}
+                              onClick={() => toggleContactEmail(c.email)}
+                              data-testid={`contact-row-${idx}`}
+                            >
+                              <td className="px-3 py-2 text-center">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => toggleContactEmail(c.email)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`contact-checkbox-${idx}`}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-slate-700 font-medium">{c.full_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || '—'}</td>
+                              <td className="px-3 py-2 text-slate-600 truncate max-w-[180px]">{c.email}</td>
+                              <td className="px-3 py-2 text-slate-500">{c.role || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-3 border-t">
+                  <span className="text-xs text-slate-400" data-testid="contact-select-count">
+                    {contactSelectedEmails.length} seleccionado(s)
+                  </span>
+                  <div className="flex gap-3">
+                    <Button variant="outline" onClick={() => setContactSelectOpen(false)} data-testid="contact-select-cancel">Cancelar</Button>
+                    <Button
+                      onClick={handleContactSelectContinue}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      data-testid="contact-select-continue"
+                    >
+                      Continuar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Modal de Personalización de Envío */}
           <Dialog open={emailModalOpen} onOpenChange={(open) => { if (!open) { setEmailModalOpen(false); setPendingAction(null); } }}>
             <DialogContent className="max-w-md" data-testid="email-modal">
@@ -236,7 +323,9 @@ export const QuoteModals = ({ ctx }) => {
                     data-testid="email-custom-message" />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Destinatarios adicionales (CC)</Label>
+                  <Label className="text-sm font-medium">
+                    {emailModalConfig.action === 'send-to-client' ? 'Para (Destinatarios)' : 'Destinatarios adicionales (CC)'}
+                  </Label>
                   <div className="flex gap-2 mt-1 items-start">
                     <div className="flex-1">
                       <InternalEmailInput

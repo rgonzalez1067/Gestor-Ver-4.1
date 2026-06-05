@@ -186,8 +186,15 @@ const SidebarInner = () => {
 
     const filterChild = (child) => {
       try {
-        // Visibilidad especial: Histórico de Cotizaciones (admin o Director)
-        if (child.requiresHistoryAccess && !(role === 'admin' || canSeeHistory)) return null;
+        // Visibilidad de Histórico de Cotizaciones: debe basarse en el PERMISO de
+        // la matriz de seguridad (módulo `quote_history`), no solo en el cargo.
+        // Se mantiene el acceso legacy para admin/Director como respaldo aditivo.
+        if (child.requiresHistoryAccess) {
+          const histModule = ROUTE_MODULE_MAP[child.path]; // 'quote_history'
+          const hasMatrixAccess = role === 'admin' || (permissions[histModule] || 'none') !== 'none';
+          if (!(hasMatrixAccess || canSeeHistory)) return null;
+          return child;
+        }
         // Sub-grupo anidado (Reportes Contables)
         if (child.isSubGroup) {
           const kept = (child.children || []).map(filterChild).filter(Boolean);

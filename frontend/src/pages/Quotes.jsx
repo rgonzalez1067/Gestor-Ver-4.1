@@ -231,6 +231,12 @@ export const Quotes = () => {
   const [emailAdditionalRecipients, setEmailAdditionalRecipients] = useState('');
   const [emailNewRecipient, setEmailNewRecipient] = useState('');
   const [emailRecipientsList, setEmailRecipientsList] = useState([]);
+  // "Enviar al Cliente" — Paso 1: selección de contactos de la ficha del cliente.
+  const [contactSelectOpen, setContactSelectOpen] = useState(false);
+  const [contactSelectQuoteId, setContactSelectQuoteId] = useState(null);
+  const [contactList, setContactList] = useState([]);
+  const [contactSelectedEmails, setContactSelectedEmails] = useState([]);
+  const [contactSelectLoading, setContactSelectLoading] = useState(false);
   // Adjuntos manuales del modal de Personalizar Comunicación.
   // Cada item: { attachment_id, filename, size, content_type }
   const [emailManualAttachments, setEmailManualAttachments] = useState([]);
@@ -2287,12 +2293,13 @@ export const Quotes = () => {
   // === FUNCIONES DE ACCIONES DE COTIZACIÓN ===
   
   // === Modal de Envío: helpers ===
-  const openEmailModal = (action, quoteId) => {
+  const openEmailModal = (action, quoteId, initialRecipients = []) => {
     const q = quotes.find(q => q.quote_id === quoteId);
     setEmailModalConfig({ action, quoteId, quoteName: q?.quote_number || '' });
     setEmailCustomMessage('');
     setEmailNewRecipient('');
-    setEmailRecipientsList([]);
+    // Permite precargar destinatarios (ej. contactos seleccionados de la ficha del cliente).
+    setEmailRecipientsList(Array.isArray(initialRecipients) ? initialRecipients : []);
     setEmailManualAttachments([]);
     setEmailModalOpen(true);
   };
@@ -2371,9 +2378,42 @@ export const Quotes = () => {
     }
   };
 
-  // Enviar al cliente (con modal previo)
-  const handleSendToClient = (quoteId) => {
-    openEmailModal('send-to-client', quoteId);
+  // Enviar al cliente — Paso 1: selección de contactos de la ficha del cliente.
+  // Intercepta el flujo: antes de "Personalizar Comunicación" se eligen los
+  // destinatarios desde el maestro de contactos del cliente.
+  const handleSendToClient = async (quoteId) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    setContactSelectQuoteId(quoteId);
+    setContactSelectedEmails([]);
+    setContactList([]);
+    setContactSelectOpen(true);
+    setContactSelectLoading(true);
+    try {
+      if (quote?.client_id) {
+        const res = await api.get(`/clients/${quote.client_id}`);
+        const contacts = (res.data?.contacts || []).filter(c => (c.email || '').includes('@'));
+        setContactList(contacts);
+      }
+    } catch {
+      // Si la ficha no se puede leer, el modal queda vacío: el operador puede
+      // continuar y capturar destinatarios manualmente en el paso siguiente.
+    } finally {
+      setContactSelectLoading(false);
+    }
+  };
+
+  const toggleContactEmail = (email) => {
+    setContactSelectedEmails((prev) =>
+      prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email],
+    );
+  };
+
+  // Paso 2: cerrar selección y abrir "Personalizar Comunicación" con los
+  // correos seleccionados precargados en el campo de destinatarios (TO).
+  const handleContactSelectContinue = () => {
+    const quoteId = contactSelectQuoteId;
+    setContactSelectOpen(false);
+    openEmailModal('send-to-client', quoteId, contactSelectedEmails);
   };
 
   const executeSendToClient = async (quoteId) => {
@@ -3866,6 +3906,8 @@ export const Quotes = () => {
             emailNewRecipient, setEmailNewRecipient, emailRecipientsList, setEmailRecipientsList,
             emailManualAttachments, setEmailManualAttachments,
             addEmailRecipient, removeEmailRecipient, confirmEmailAndProceed,
+            contactSelectOpen, setContactSelectOpen, contactList, contactSelectLoading,
+            contactSelectedEmails, toggleContactEmail, handleContactSelectContinue,
             bitacoraFlujoOpen, setBitacoraFlujoOpen, bitacoraFlujoQuoteNumber,
             bitacoraFlujoEntries, bitacoraFlujoLoading,
             deliveryDialogOpen, setDeliveryDialogOpen, deliveryQuoteId, deliveryExceptionInfo, deliveryEmailHeaders,
