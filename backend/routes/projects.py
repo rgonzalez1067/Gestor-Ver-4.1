@@ -182,9 +182,18 @@ async def get_implementers(authorization: Optional[str] = Header(None)):
 
 @router.get("/projects/{project_id}")
 async def get_project(project_id: str, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    user = await get_current_user(authorization)
+    # Aislamiento de datos (P0): el acceso por URL directa debe respetar la misma
+    # regla de visibilidad que la grilla. Un Implementador solo puede abrir los
+    # proyectos donde figura como técnico asignado; un Ejecutivo solo los de su
+    # área/sede. Resto de roles (Coordinador/Gerente/Operaciones/Admin): sin límite.
+    vis = await _build_project_visibility_query(user)
+    match = {"$and": [vis, {"project_id": project_id}]} if vis else {"project_id": project_id}
+    project = await db.projects.find_one(match, {"_id": 0})
     if not project:
+        exists = await db.projects.find_one({"project_id": project_id}, {"_id": 0, "project_id": 1})
+        if exists:
+            raise HTTPException(status_code=403, detail="No tiene acceso a este proyecto")
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     # Iter39: incluir pvv_count (Nro de PVV) — métrica oficial homologada con
     # "Total de Terminales Virtuales" del Resumen Ejecutivo.
@@ -1004,7 +1013,6 @@ async def update_matrix_phase(project_id: str, phase_update: PhaseUpdate, author
     user_id = current_user.get("user_id", "")
     assigned_to = project.get("assigned_to", "")
     if user_role != "admin":
-        user_supervisor_id = current_user.get("supervisor_id", "")
         # Check if user is the assigned implementer
         is_implementer = user_id == assigned_to
         # Check if user is the supervisor of the assigned implementer
@@ -1316,7 +1324,7 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
 @router.put("/projects/{project_id}/implementation-fields")
 async def update_implementation_fields(project_id: str, body: dict, authorization: Optional[str] = Header(None)):
     """Actualizar campos de Integrador y Aplicativo en el proyecto."""
-    current_user = await get_current_user(authorization)
+    await get_current_user(authorization)
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
@@ -1441,7 +1449,7 @@ async def upload_serials_file(project_id: str, file: UploadFile = File(...), aut
 @router.delete("/projects/{project_id}/implementation-serials/{serial}")
 async def remove_implementation_serial(project_id: str, serial: str, authorization: Optional[str] = Header(None)):
     """Eliminar un serial de implementación."""
-    current_user = await get_current_user(authorization)
+    await get_current_user(authorization)
     await db.projects.update_one(
         {"project_id": project_id},
         {"$pull": {"implementation_serials": serial}}
@@ -1781,12 +1789,28 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
         "created_at": now,
     }
 
+    update_set = {"ticket_number": ticket, "unblocked_at": now, "updated_at": now}
+
+    # Proyectos Directos: el Nro. de Ticket es condición suficiente para desbloquear
+    # la ejecución (matriz incluida). El envío de notificaciones por correo es
+    # OPCIONAL para este tipo de proyectos (nacen fuera del cotizador comercial),
+    # por lo que marcamos la matriz como desbloqueada sin exigir la "Primera
+    # Comunicación". Para proyectos estándar el flujo de notificación no cambia.
+    if project.get("direct_project") and not project.get("client_notified"):
+        update_set["client_notified"] = True
+        update_set["client_notified_at"] = now
+        update_set["client_notified_by"] = user_name
+        note["text"] = (
+            f"Ticket registrado: {ticket} (por {user_name}) — Proyecto Directo "
+            f"desbloqueado sin envío de notificación (notificación opcional)."
+        )
+
     await db.projects.update_one(
         {"project_id": project_id},
-        {"$set": {"ticket_number": ticket, "unblocked_at": now, "updated_at": now}, "$push": {"notes": note}}
+        {"$set": update_set, "$push": {"notes": note}}
     )
 
-    return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket}
+    return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket, "direct_unlock": bool(project.get("direct_project"))}
 
 
 # ==================== VTID GENERATOR (PER-STORE) ====================

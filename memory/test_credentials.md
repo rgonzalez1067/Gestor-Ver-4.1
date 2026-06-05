@@ -45,3 +45,16 @@
 - Permisos: proyectos=edit
 - Nota: tiene al menos un proyecto asignado (prj_bba45a09cd00) para probar
   los endpoints `/api/projects/{id}/implementer-alerts`.
+
+
+## Implementador para pruebas de Aislamiento de Visibilidad (Jun 2026)
+- Email: agonzalez@megasoft.com.ve
+- Password: Test1234!
+- Role: user
+- user_id: user_5ea91fd44449
+- Name: Axel González
+- cargo: Implementador · departamento: Implementación
+- Nota: tiene EXACTAMENTE 3 proyectos asignados. Sirve para validar la regla P0
+  de visibilidad: la grilla GET /projects devuelve solo sus 3 proyectos, y
+  GET /projects/{id} de un proyecto ajeno/huérfano responde 403. Password
+  reseteado por el agente para QA.

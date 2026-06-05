@@ -181,10 +181,12 @@ const Projects = () => {
 
   const filtered = projects.filter(p => {
     const sponsorLabel = getPatrocinadorLabel(p);
+    // Filtro "Cliente": consulta estrictamente sobre el Nombre de Fantasía.
+    const fantasy = clientMap[p.client_id]?.fantasy_name || p.fantasy_name || '';
     const matchSearch = !searchTerm ||
       p.project_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fantasy.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -441,16 +443,17 @@ const Projects = () => {
                         data-testid={`project-row-${project.project_id}`}
                         data-direct-project={project.direct_project ? 'true' : 'false'}>
                         <td className="px-4 py-3">
-                          {/* Cliente como info principal — tooltip con Nombre de Fantasía al hover */}
+                          {/* Cliente como info principal — Nombre de Fantasía nativo; hover → Razón Social */}
                           {(() => {
                             const c = clientMap[project.client_id] || {};
-                            const fantasy = c.fantasy_name || '';
+                            const fantasy = c.fantasy_name || project.fantasy_name || '';
                             const legal = c.legal_name || project.client_name || '';
-                            // Mostramos Razón Social (legal) como principal; hover → Nombre de Fantasía.
+                            // Mostramos Nombre de Fantasía como principal; hover → Razón Social.
+                            const mainName = fantasy || legal;
                             if (!fantasy || fantasy === legal) {
                               return (
                                 <p className="text-sm font-semibold text-slate-900" data-testid={`project-client-${project.project_id}`}>
-                                  {project.client_name}
+                                  {mainName}
                                 </p>
                               );
                             }
@@ -462,12 +465,12 @@ const Projects = () => {
                                       className="text-sm font-semibold text-slate-900 cursor-help underline decoration-dotted decoration-slate-300 underline-offset-2 hover:decoration-slate-500 inline-block"
                                       data-testid={`project-client-${project.project_id}`}
                                     >
-                                      {project.client_name}
+                                      {fantasy}
                                     </p>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="bg-slate-900 text-white text-xs max-w-[280px] border-slate-700">
-                                    <p className="font-semibold mb-0.5 text-slate-300">Nombre de Fantasía</p>
-                                    <p className="font-normal">{fantasy}</p>
+                                    <p className="font-semibold mb-0.5 text-slate-300">Razón Social</p>
+                                    <p className="font-normal">{legal}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>

@@ -4,6 +4,27 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 64: Inversión nombre Cliente + Desbloqueo Directo por Ticket + Aislamiento Implementador — Jun 2026
+
+**1. UI Proyectos — Inversión de nombre de Cliente + filtro por Fantasía** (`pages/Projects.jsx`) ✅
+- La celda "Cliente" ahora muestra de forma nativa el **Nombre de Fantasía**; al hacer hover, el tooltip muestra la **Razón Social** (antes era al revés). Fallback a Razón Social si el cliente no tiene fantasía.
+- El buscador superior filtra estrictamente por **Nombre de Fantasía** (`clientMap[client_id].fantasy_name`), no por Razón Social. Decisión del usuario: filtrado client-side instantáneo (sin latencia de red).
+- Verificado (Playwright): buscar "Rio Super" → 1 fila; celda="Rio Super Market"; hover→ "Razón Social: SUPER RIO MARKET".
+
+**2. Desbloqueo de Proyectos Directos por Ticket (notificación OPCIONAL)** (`routes/projects.py::update_ticket_number`) ✅
+- Para `direct_project=True`, registrar el Nro. de Ticket ahora marca también `client_notified=True` → desbloquea la Matriz de inmediato **sin exigir el envío de correos**. Para proyectos estándar el flujo de notificación no cambia. Devuelve `direct_unlock:true`.
+- El frontend (`ProjectDetail.jsx`) refetch tras guardar el ticket → matriz visible automáticamente (gate `clientNotified`).
+- Verificado (curl): proyecto directo client_notified False→True tras PUT /ticket, sin envío de correo.
+
+**3. Aislamiento estricto de Implementador (P0 seguridad)** (`routes/projects.py::get_project`) ✅
+- **Hueco cerrado:** `GET /projects/{id}` ahora aplica `_build_project_visibility_query(user)` → un Implementador que abre por URL un proyecto ajeno/huérfano recibe **403** (antes 200). Se distingue 404 (no existe) de 403 (sin acceso). La grilla ya filtraba por `assigned_to_user_id`.
+- Verificado (curl, agonzalez/Axel González, 3 asignados): grilla=3, proyecto propio=200, proyecto ajeno/huérfano=403.
+
+**Archivos:** `routes/projects.py`, `pages/Projects.jsx`. Credencial QA: agonzalez@megasoft.com.ve / Test1234! (Implementador, 3 proyectos).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 62: Procesador en el resumen de Bancos + Vista "Bancos por Procesador" — Jun 2026
 
 **Requerimiento:** Mostrar el procesador asignado en el resumen de cada banco y una consulta agrupada por Procesador para validar asignaciones.
