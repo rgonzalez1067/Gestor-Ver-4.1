@@ -841,7 +841,9 @@ export default function DirectProjectCreation() {
                           <Select value={b.store_name || ''} onValueChange={(v) => updateBox(i, { store_name: v })}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="(opcional)" /></SelectTrigger>
                             <SelectContent>
-                              {form.stores.map((s, si) => <SelectItem key={si} value={s.name}>{s.name}</SelectItem>)}
+                              {form.stores
+                                .filter((s) => (s.name || '').trim())
+                                .map((s, si) => <SelectItem key={si} value={s.name}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </td>
