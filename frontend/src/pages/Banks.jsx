@@ -101,7 +101,7 @@ export const Banks = () => {
   const [deleteBankData, setDeleteBankData] = useState({ id: null, name: null });
   const [formData, setFormData] = useState({
     name: '', type: 'Banco', country: 'Venezuela',
-    rif: '', bank_code: '',
+    rif: '', bank_code: '', procesador: 'Procesador Independiente',
     contact_name: '', contact_phone: '', contact_email: '',
     bank_logo_url: '', products: [], contacts: []
   });
@@ -208,6 +208,7 @@ export const Banks = () => {
     setFormData({
       name: bank.name, type: bank.type, country: bank.country,
       rif: bank.rif || '', bank_code: bank.bank_code || '',
+      procesador: bank.procesador || 'Procesador Independiente',
       contact_name: bank.contact_name || '', contact_phone: bank.contact_phone || '',
       contact_email: bank.contact_email || '', bank_logo_url: bank.bank_logo_url || '',
       products: bank.products || [],
@@ -219,7 +220,7 @@ export const Banks = () => {
   const resetForm = () => {
     setFormData({
       name: '', type: 'Banco', country: 'Venezuela',
-      rif: '', bank_code: '',
+      rif: '', bank_code: '', procesador: 'Procesador Independiente',
       contact_name: '', contact_phone: '', contact_email: '',
       bank_logo_url: '', products: [], contacts: []
     });
@@ -402,11 +403,12 @@ export const Banks = () => {
                         </div>
                         <div>
                           <Label htmlFor="type">Tipo</Label>
-                          <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                          <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v, ...(v === 'Procesador' ? { procesador: '' } : {}) })}>
+                            <SelectTrigger data-testid="bank-type-select"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Banco">Banco</SelectItem>
                               <SelectItem value="Fintech">Fintech</SelectItem>
+                              <SelectItem value="Procesador">Procesador</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -420,6 +422,28 @@ export const Banks = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Procesador asociado — solo aplica a Banco/Fintech (un Procesador
+                            no se asocia a otro Procesador). Opciones: "Procesador Independiente"
+                            (fijo) + carga dinámica de entidades cuyo Tipo == "Procesador". */}
+                        {formData.type !== 'Procesador' && (
+                          <div className="col-span-2">
+                            <Label htmlFor="procesador">Procesador</Label>
+                            <Select value={formData.procesador || 'Procesador Independiente'} onValueChange={(v) => setFormData({ ...formData, procesador: v })}>
+                              <SelectTrigger data-testid="bank-procesador-select"><SelectValue placeholder="Seleccione el procesador" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Procesador Independiente">Procesador Independiente</SelectItem>
+                                {banks
+                                  .filter(b => b.type === 'Procesador' && b.bank_id !== editingBank?.bank_id)
+                                  .map(p => (
+                                    <SelectItem key={p.bank_id} value={p.name} data-testid={`bank-procesador-option-${p.bank_id}`}>
+                                      {p.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-slate-400 mt-1">Vincula este banco con un procesador de pago para el flujo de patrocinio.</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -154,6 +154,8 @@ export const Quotes = () => {
     // Implementación Patrocinada (radio Sí/No + dropdown banco condicional)
     sponsored_implementation: false,
     sponsoring_bank_id: '',
+    sponsoring_processor_id: '',
+    sponsoring_processor_name: '',
     // Cliente exento de IVA (radio Sí/No)
     iva_exempt: false,
   });
@@ -1008,6 +1010,8 @@ export const Quotes = () => {
       include_recurring: true,
       sponsored_implementation: false,
       sponsoring_bank_id: '',
+      sponsoring_processor_id: '',
+      sponsoring_processor_name: '',
       iva_exempt: false,
     });
     setSelectedBankId('');
@@ -1863,6 +1867,8 @@ export const Quotes = () => {
         sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
           ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
           : '',
+        sponsoring_processor_id: quoteData.sponsored_implementation ? (quoteData.sponsoring_processor_id || '') : '',
+        sponsoring_processor_name: quoteData.sponsored_implementation ? (quoteData.sponsoring_processor_name || '') : '',
         // Cliente exento de IVA
         iva_exempt: !!quoteData.iva_exempt,
         // Total USD = Total Setup Neto + Equipment (calculado por el wizard)
@@ -3226,6 +3232,9 @@ export const Quotes = () => {
       notes: quote.notes || '',
       sponsored_implementation: !!quote.sponsored_implementation,
       sponsoring_bank_id: quote.sponsoring_bank_id || '',
+      sponsoring_bank_name: quote.sponsoring_bank_name || '',
+      sponsoring_processor_id: quote.sponsoring_processor_id || '',
+      sponsoring_processor_name: quote.sponsoring_processor_name || '',
       iva_exempt: !!quote.iva_exempt,
     });
     
@@ -3414,6 +3423,8 @@ export const Quotes = () => {
         sponsoring_bank_name: (quoteData.sponsored_implementation && quoteData.sponsoring_bank_id)
           ? (banks.find(b => b.bank_id === quoteData.sponsoring_bank_id)?.name || '')
           : '',
+        sponsoring_processor_id: quoteData.sponsored_implementation ? (quoteData.sponsoring_processor_id || '') : '',
+        sponsoring_processor_name: quoteData.sponsored_implementation ? (quoteData.sponsoring_processor_name || '') : '',
         // Cliente exento de IVA
         iva_exempt: !!quoteData.iva_exempt,
       });

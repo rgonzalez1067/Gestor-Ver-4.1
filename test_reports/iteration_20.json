@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only e2e testing of CRM MegaNexus 'Procesador + Patrocinio Relacional' feature (Bancos, Cotizador sub-modal, Proyectos columna+filtro). 29/29 assertions PASS. Backend not retested per request. Cleanup of QA test entities also verified.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard / Proyectos (global)", "issues": ["Hydration warnings en consola: '<span> cannot be a child of <tbody>' y '<tr> cannot contain a nested <span>'. Probable wrapper <span data-ve-dynamic='true' style='display:contents'> que ve.js inyecta dentro de <tbody>/<tr>. Es ruido en producción/dev tools y puede causar hydration mismatch en SSR. NO bloquea esta entrega pero recomendable revisar."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Opcional) Limpiar las advertencias de hydration React (<span> dentro de <tbody>/<tr>) que aparecen en Dashboard y Proyectos. Probablemente ligado al wrapper x-ve-dynamic que envuelve filas."
+  ],
+  "critical_code_review_comments": [
+    "Banks.jsx: la lógica condicional para ocultar 'Procesador' cuando type==='Procesador' funciona y al cambiar el tipo se setea procesador='' — correcto, evita guardar valor inconsistente.",
+    "QuoteWizardDialog.jsx: el sub-modal sólo se abre cuando el banco seleccionado es de type==='Procesador'; tras elegir banco vinculado se cierra y se rellenan sponsoring_processor_id/name + sponsoring_bank_id/name — flujo consistente con el spec. Al cambiar luego a un banco tradicional, sponsoring_processor_* se limpia y el composite-label se oculta — verificado.",
+    "Projects.jsx: filtro por Patrocinador construye el listado distinct desde projects via getPatrocinadorLabel(); soporta búsqueda interna y 'Sin patrocinador'/'Todos los patrocinadores' — verificado. project-search también filtra por texto del patrocinador (ej. 'Banco' devuelve 1 resultado coincidente)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "skipped", "frontend": "100% (29/29)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (de /app/memory/test_credentials.md)",
+  "seed_data_creation": "Creadas 'QA Procesador Test' (Tipo=Procesador) y 'QA Banco Patrocinado Test' (Tipo=Banco, procesador='QA Procesador Test'). AMBAS ELIMINADAS al cierre — no queda basura en el catálogo.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "La feature 'Procesador + Patrocinio Relacional' quedó verificada end-to-end en UI. Bancos: opción 'Procesador' en tipo, ocultado del campo Procesador, dropdown poblado con Procesador Independiente + procesadores existentes, persistencia al reabrir. Cotizador (QuoteWizardDialog): seleccionar un banco type=Procesador abre 'processor-link-modal'; seleccionar banco tradicional no abre nada; etiqueta 'sponsoring-composite-label' muestra 'Procesador — Banco'; al cambiar a tradicional limpia los procesador_* y oculta la etiqueta. Proyectos: columna 'Patrocinador', filtro Popover (search + opciones), proyectos sin patrocinio muestran '—', filtro 'Sin patrocinador'/Todos/buscador interno funcionan; project-search también filtra por texto del patrocinador.",
+  "test_evidence": {
+    "banks": "TEST-1a..1c PASS, TEST-2a..2d PASS, TEST-3a..3c PASS (Procesador option exists, oculto cuando type=Procesador, dropdown poblado con Indep + QA Procesador, persistencia al reabrir)",
+    "quote_wizard": "TEST-Q1a..Q1c PASS (sufijo '· Procesador'), TEST-Q2a..Q2c PASS (sub-modal abre, 1 banco vinculado), TEST-Q3a..Q3c PASS (modal cierra, label 'Patrocinador: QA Procesador Test — QA Banco Patrocinado Test'), TEST-Q4a..Q4b PASS (no modal con banco tradicional, label se oculta)",
+    "projects": "TEST-P1a..P1c PASS (header + 53 celdas + 52 '—'), TEST-P2a..P2e PASS (filtro/popover/search/options-all-none/distinct=1 'Banco Mercantil'), TEST-P3a..P3e PASS (Sin patrocinador → 52 todas con '—', search 'Banesco' oculta opción, Todos restaura a 53), TEST-P4 PASS (project-search 'Banco' devuelve 1 fila)"
+  }
+}

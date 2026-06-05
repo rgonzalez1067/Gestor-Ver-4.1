@@ -15,6 +15,22 @@ from services.assignment_notifications import notify_project_assigned
 logger = logging.getLogger(__name__)
 
 
+def _build_patrocinador_label(quote: dict) -> str | None:
+    """Construye el texto del Patrocinador para el Proyecto.
+
+    - Escenario A (Directo): "Banco X".
+    - Escenario B (Compuesto): "Procesador Y — Banco X".
+    Retorna None si la implementación no es patrocinada o no hay banco.
+    """
+    if not quote.get("sponsored_implementation"):
+        return None
+    bank = (quote.get("sponsoring_bank_name") or "").strip()
+    if not bank:
+        return None
+    proc = (quote.get("sponsoring_processor_name") or "").strip()
+    return f"{proc} — {bank}" if proc else bank
+
+
 async def _create_project_from_quote(
     quote: dict,
     quote_id: str,
@@ -177,6 +193,11 @@ async def _create_project_from_quote(
         "sponsored_implementation": bool(quote.get("sponsored_implementation", False)),
         "sponsoring_bank_id": quote.get("sponsoring_bank_id") or None,
         "sponsoring_bank_name": quote.get("sponsoring_bank_name") or None,
+        # Patrocinio relacional vía Procesador (Procesador → Banco final).
+        "sponsoring_processor_id": quote.get("sponsoring_processor_id") or None,
+        "sponsoring_processor_name": quote.get("sponsoring_processor_name") or None,
+        # Patrocinador consolidado: "Procesador — Banco" (compuesto) o solo "Banco" (directo).
+        "patrocinador_label": _build_patrocinador_label(quote),
         # Cliente exento de IVA (heredado para que facturación respete el régimen fiscal)
         "iva_exempt": bool(quote.get("iva_exempt", False)),
         "total_usd": quote.get("total_usd", 0),

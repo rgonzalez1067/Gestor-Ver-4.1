@@ -567,7 +567,7 @@ async def import_banks(file: UploadFile = File(...), authorization: Optional[str
                 message='Error: Falta columna requerida (Nombre)'
             )
         
-        valid_types = ['Banco', 'Fintech']
+        valid_types = ['Banco', 'Fintech', 'Procesador']
         valid_countries = ['Venezuela', 'Estados Unidos']
         
         # Procesar cada fila

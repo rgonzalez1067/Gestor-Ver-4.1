@@ -66,7 +66,48 @@ export const QuoteWizardDialog = ({ ctx }) => {
   // Búsqueda interna en el selector de integradores
   const [integratorSearchQuery, setIntegratorSearchQuery] = useState('');
 
+  // Patrocinio relacional: sub-modal de asociación Procesador → Banco.
+  // Se abre cuando en "Banco Patrocinante" se elige una entidad tipo Procesador.
+  const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
+
+  // Resuelve la selección de "Banco Patrocinante":
+  //  - Si es Procesador → abre el sub-modal para designar el banco vinculado.
+  //  - Si es banco/fintech tradicional → guarda directo y limpia el procesador.
+  const handleSponsoringBankSelect = (bankId) => {
+    const sel = (banks || []).find(b => b.bank_id === bankId);
+    if (sel && sel.type === 'Procesador') {
+      setProcessorModal({ open: true, processor: sel });
+      return; // no fija sponsoring_bank_id aún; espera la elección del sub-modal
+    }
+    setQuoteData({
+      ...quoteData,
+      sponsoring_bank_id: bankId,
+      sponsoring_bank_name: sel?.name || '',
+      sponsoring_processor_id: '',
+      sponsoring_processor_name: '',
+    });
+  };
+
+  // Confirma el banco final vinculado al procesador desde el sub-modal.
+  const handleProcessorLinkedBankSelect = (bank) => {
+    const proc = processorModal.processor;
+    setQuoteData({
+      ...quoteData,
+      sponsoring_bank_id: bank.bank_id,
+      sponsoring_bank_name: bank.name,
+      sponsoring_processor_id: proc?.bank_id || '',
+      sponsoring_processor_name: proc?.name || '',
+    });
+    setProcessorModal({ open: false, processor: null });
+  };
+
+  // Banco actualmente seleccionado como patrocinante (para mostrar etiqueta compuesta).
+  const _processorLinkedBanks = processorModal.processor
+    ? (banks || []).filter(b => b.type !== 'Procesador' && b.procesador === processorModal.processor.name)
+    : [];
+
   return (
+        <>
           <Dialog open={wizardOpen} onOpenChange={(open) => {
             if (!open) {
               // Al cerrar el dialog, resetear el modo edición
@@ -498,7 +539,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         </Label>
                         <Select
                           value={quoteData.sponsoring_bank_id || ''}
-                          onValueChange={(val) => setQuoteData({ ...quoteData, sponsoring_bank_id: val })}
+                          onValueChange={handleSponsoringBankSelect}
                         >
                           <SelectTrigger className="w-full h-10" data-testid="sponsoring-bank-select">
                             <SelectValue placeholder="Seleccione el banco patrocinante…" />
@@ -506,11 +547,16 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           <SelectContent className="max-h-[280px]">
                             {(banks || []).map((b) => (
                               <SelectItem key={b.bank_id} value={b.bank_id} data-testid={`sponsoring-bank-option-${b.bank_id}`}>
-                                {b.name}
+                                {b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {quoteData.sponsoring_processor_name && quoteData.sponsoring_bank_name && (
+                          <p className="text-[11px] text-emerald-700 mt-1.5 font-medium" data-testid="sponsoring-composite-label">
+                            Patrocinador: {quoteData.sponsoring_processor_name} — {quoteData.sponsoring_bank_name}
+                          </p>
+                        )}
                         {!quoteData.sponsoring_bank_id && (
                           <p className="text-[11px] text-amber-600 mt-1.5">Debe seleccionar el banco patrocinante.</p>
                         )}
@@ -2125,5 +2171,50 @@ export const QuoteWizardDialog = ({ ctx }) => {
               )}
             </DialogContent>
           </Dialog>
+
+          {/* Sub-modal de Asociación: Procesador → Banco vinculado (patrocinio relacional) */}
+          <Dialog open={processorModal.open} onOpenChange={(o) => !o && setProcessorModal({ open: false, processor: null })}>
+            <DialogContent className="max-w-md" data-testid="processor-link-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Landmark size={18} className="text-indigo-600" />
+                  Banco vinculado al Procesador
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">
+                  El patrocinante <strong>{processorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
+                  Seleccione el banco que operará la transacción para consolidar el patrocinio.
+                </p>
+                {_processorLinkedBanks.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="processor-link-empty">
+                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
+                    (campo "Procesador") en el maestro de Bancos.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+                    {_processorLinkedBanks.map((b) => (
+                      <button
+                        key={b.bank_id}
+                        type="button"
+                        onClick={() => handleProcessorLinkedBankSelect(b)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                        data-testid={`processor-linked-bank-${b.bank_id}`}
+                      >
+                        <span>{b.name}</span>
+                        <span className="text-[10px] text-slate-400">{b.type}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end pt-1">
+                  <Button variant="outline" size="sm" onClick={() => setProcessorModal({ open: false, processor: null })} data-testid="processor-link-cancel">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
   );
 };

@@ -126,6 +126,9 @@ class QuoteCreateWithPDF(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Patrocinio relacional vía Procesador (Procesador → Banco final)
+    sponsoring_processor_id: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
     # Cliente exento de IVA — suprime impuesto en cálculos y facturación
     iva_exempt: Optional[bool] = False
     cantidad_cajas: Optional[int] = None
@@ -364,6 +367,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             sponsored_implementation=bool(data.sponsored_implementation),
             sponsoring_bank_id=data.sponsoring_bank_id if data.sponsored_implementation else None,
             sponsoring_bank_name=data.sponsoring_bank_name if data.sponsored_implementation else None,
+            sponsoring_processor_id=data.sponsoring_processor_id if data.sponsored_implementation else None,
+            sponsoring_processor_name=data.sponsoring_processor_name if data.sponsored_implementation else None,
             iva_exempt=bool(data.iva_exempt),
             cantidad_cajas=data.cantidad_cajas,
             cantidad_bancos=data.cantidad_bancos,
@@ -801,6 +806,8 @@ class QuoteUpdate(BaseModel):
     sponsored_implementation: Optional[bool] = None
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    sponsoring_processor_id: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
     # Cliente exento de IVA
     iva_exempt: Optional[bool] = None
     subtotal_usd: Optional[float] = None

@@ -148,6 +148,9 @@ class BankCreate(BaseModel):
     country: str
     rif: Optional[str] = None
     bank_code: Optional[str] = None
+    # Procesador asociado (solo aplica a Banco/Fintech). "Procesador Independiente"
+    # por defecto, o el nombre de una entidad cuyo Tipo == "Procesador".
+    procesador: Optional[str] = None
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
@@ -163,6 +166,7 @@ class Bank(BaseModel):
     country: str
     rif: Optional[str] = None
     bank_code: Optional[str] = None
+    procesador: Optional[str] = None
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_email: Optional[str] = None
@@ -510,6 +514,9 @@ class QuoteCreate(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Patrocinio relacional vía Procesador (Procesador → Banco final)
+    sponsoring_processor_id: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
     # Cliente exento de IVA (impacta cálculo de impuestos en cotización y facturación)
     iva_exempt: Optional[bool] = False
     # Campos de cantidades a nivel de cotización
@@ -611,6 +618,9 @@ class Quote(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Patrocinio relacional vía Procesador (Procesador → Banco final)
+    sponsoring_processor_id: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
     # Cliente exento de IVA (heredado al proyecto/facturación)
     iva_exempt: Optional[bool] = False
     # Campos de cantidades a nivel de cotización
@@ -755,6 +765,11 @@ class Project(BaseModel):
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
     sponsoring_bank_name: Optional[str] = None
+    # Patrocinio relacional vía Procesador (heredado): Procesador → Banco final.
+    sponsoring_processor_id: Optional[str] = None
+    sponsoring_processor_name: Optional[str] = None
+    # patrocinador_label: texto consolidado "Procesador — Banco" o solo "Banco".
+    patrocinador_label: Optional[str] = None
     # Cliente exento de IVA (heredado desde la cotización)
     iva_exempt: Optional[bool] = False
     total_usd: float = 0

@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -18,7 +19,7 @@ import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -38,6 +39,19 @@ const STATUS_TRANSITIONS = [
   { id: 'Finalizado / Producción', label: 'Finalizado / Producción', icon: CheckCircle2, iconColor: 'text-emerald-600' },
 ];
 
+/**
+ * Patrocinador del proyecto (Implementación Patrocinada).
+ *  - Escenario A (Directo): "Banco X".
+ *  - Escenario B (Compuesto): "Procesador Y — Banco X".
+ * Usa la etiqueta persistida si existe; si no, la calcula (proyectos legacy).
+ */
+const getPatrocinadorLabel = (p) => {
+  if (p?.patrocinador_label) return p.patrocinador_label;
+  if (!p?.sponsored_implementation || !p?.sponsoring_bank_name) return null;
+  const proc = (p.sponsoring_processor_name || '').trim();
+  return proc ? `${proc} — ${p.sponsoring_bank_name}` : p.sponsoring_bank_name;
+};
+
 const Projects = () => {
   const { canEdit, user: currentUser } = usePermission('proyectos');
   // Coord/Gerente/Admin → acciones gerenciales (reasignación masiva + compromisos)
@@ -54,6 +68,9 @@ const Projects = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sponsorFilter, setSponsorFilter] = useState('all');
+  const [sponsorPickerOpen, setSponsorPickerOpen] = useState(false);
+  const [sponsorSearch, setSponsorSearch] = useState('');
 
   // Assign/Reassign dialog
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -163,13 +180,15 @@ const Projects = () => {
   };
 
   const filtered = projects.filter(p => {
+    const sponsorLabel = getPatrocinadorLabel(p);
     const matchSearch = !searchTerm ||
       p.project_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.client_rif?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      p.created_by_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      sponsorLabel?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all'
       ? true
       : statusFilter === 'irregular'
@@ -177,8 +196,21 @@ const Projects = () => {
         : statusFilter === 'suspended'
           ? (p.status === 'Suspendido por Cliente' || p.status === 'Suspendido por Banco')
           : p.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchSponsor = sponsorFilter === 'all'
+      ? true
+      : sponsorFilter === '__none__'
+        ? !sponsorLabel
+        : sponsorLabel === sponsorFilter;
+    return matchSearch && matchStatus && matchSponsor;
   });
+
+  // Lista de patrocinadores distintos (para el dropdown del filtro).
+  const sponsorOptions = Array.from(
+    new Set(projects.map(getPatrocinadorLabel).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
+  const sponsorOptionsFiltered = sponsorOptions.filter(
+    s => !sponsorSearch || s.toLowerCase().includes(sponsorSearch.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -270,6 +302,71 @@ const Projects = () => {
                 </SelectContent>
               </Select>
             </div>
+            {/* Filtro por Patrocinador (dropdown + búsqueda interna) */}
+            <div className="flex items-center gap-2">
+              <Landmark size={16} className="text-slate-400" />
+              <Popover open={sponsorPickerOpen} onOpenChange={(o) => { setSponsorPickerOpen(o); if (!o) setSponsorSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-[240px] justify-between font-normal ${sponsorFilter !== 'all' ? 'border-indigo-400 text-indigo-700' : 'text-slate-600'}`}
+                    data-testid="project-sponsor-filter"
+                  >
+                    <span className="truncate">
+                      {sponsorFilter === 'all'
+                        ? 'Todos los patrocinadores'
+                        : sponsorFilter === '__none__'
+                          ? 'Sin patrocinador'
+                          : sponsorFilter}
+                    </span>
+                    <ChevronDown size={15} className="shrink-0 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0" align="start" data-testid="project-sponsor-popover">
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Buscar patrocinador…"
+                      value={sponsorSearch}
+                      onChange={(e) => setSponsorSearch(e.target.value)}
+                      className="h-8 text-sm"
+                      data-testid="project-sponsor-search"
+                    />
+                  </div>
+                  <div className="max-h-[260px] overflow-y-auto py-1">
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${sponsorFilter === 'all' ? 'font-semibold text-indigo-700' : 'text-slate-700'}`}
+                      onClick={() => { setSponsorFilter('all'); setSponsorPickerOpen(false); setSponsorSearch(''); }}
+                      data-testid="project-sponsor-option-all"
+                    >
+                      Todos los patrocinadores
+                    </button>
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${sponsorFilter === '__none__' ? 'font-semibold text-indigo-700' : 'text-slate-500'}`}
+                      onClick={() => { setSponsorFilter('__none__'); setSponsorPickerOpen(false); setSponsorSearch(''); }}
+                      data-testid="project-sponsor-option-none"
+                    >
+                      Sin patrocinador
+                    </button>
+                    {sponsorOptionsFiltered.length === 0 && (
+                      <p className="px-3 py-2 text-xs text-slate-400">Sin coincidencias</p>
+                    )}
+                    {sponsorOptionsFiltered.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 ${sponsorFilter === s ? 'font-semibold text-indigo-700' : 'text-slate-700'}`}
+                        onClick={() => { setSponsorFilter(s); setSponsorPickerOpen(false); setSponsorSearch(''); }}
+                        data-testid={`project-sponsor-option-${s}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           {/* Projects Table */}
@@ -290,6 +387,7 @@ const Projects = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Generador</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Patrocinador</th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-slate-600 uppercase">Acciones</th>
                   </tr>
                 </thead>
@@ -429,6 +527,14 @@ const Projects = () => {
                         <td className="px-4 py-3 text-sm text-slate-600" data-testid={`project-generator-${project.project_id}`}>
                           {project.created_by_name && project.created_by_name !== '—'
                             ? <span>{project.created_by_name}</span>
+                            : <span className="text-slate-400 italic">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm" data-testid={`project-sponsor-${project.project_id}`}>
+                          {getPatrocinadorLabel(project)
+                            ? <span className="inline-flex items-center gap-1 text-slate-700">
+                                <Landmark size={13} className="text-indigo-500 shrink-0" />
+                                <span className="font-medium">{getPatrocinadorLabel(project)}</span>
+                              </span>
                             : <span className="text-slate-400 italic">—</span>}
                         </td>
                         <td className="px-4 py-3">

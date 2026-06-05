@@ -15,7 +15,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart, Flag
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart, Flag, Landmark
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -1103,6 +1103,21 @@ const ProjectDetail = () => {
                   <div>
                     <p className="text-xs text-slate-500">Banco Patrocinador</p>
                     <p className="text-sm font-semibold text-slate-700" data-testid="sponsor-bank">{project.sponsor_bank_name || '—'}</p>
+                  </div>
+                </div>
+                {/* Patrocinador (Implementación Patrocinada): Banco directo o Procesador — Banco */}
+                <div className="flex items-center gap-3">
+                  <Landmark size={18} className="text-indigo-600 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Patrocinador</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="project-detail-patrocinador">
+                      {project.patrocinador_label
+                        || (project.sponsored_implementation && project.sponsoring_bank_name
+                              ? (project.sponsoring_processor_name
+                                    ? `${project.sponsoring_processor_name} — ${project.sponsoring_bank_name}`
+                                    : project.sponsoring_bank_name)
+                              : '—')}
+                    </p>
                   </div>
                 </div>
                 {project.assigned_to_name && (
