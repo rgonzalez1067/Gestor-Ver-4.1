@@ -535,7 +535,7 @@ class QuoteCreate(BaseModel):
     descuento_recurrente: float = 0
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
-    requires_vpn: bool = True
+    requires_vpn: bool = False
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
@@ -670,7 +670,7 @@ class Quote(BaseModel):
     descuento_recurrente: float = 0
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
-    requires_vpn: bool = True
+    requires_vpn: bool = False
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []

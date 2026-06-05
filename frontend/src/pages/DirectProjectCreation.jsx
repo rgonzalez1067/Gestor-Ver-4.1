@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Landmark } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Landmark, Server, Network } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -203,6 +203,9 @@ export default function DirectProjectCreation() {
     pinpad_model: '',
     pinpad_bank: '',
     fiscal_printer_model: '',
+    server_name: '',          // Configuración Técnica: Multicomercio MSC/MSC2/Propio
+    server_name_custom: '',   // Nombre libre cuando server_name === 'Propio'
+    communication_type: 'SSL', // SSL | VPN (preseleccionado SSL)
     pinpad_serials: [],
     is_multistore: false,
     stores: [],
@@ -373,6 +376,12 @@ export default function DirectProjectCreation() {
         if (!b.quantity || b.quantity < 1) errs.push(`Fila #${i + 1}: cantidad >= 1`);
       });
     }
+    // Configuración Técnica (obligatoria)
+    if (!form.server_name) errs.push('Debes seleccionar el Servidor de Instalación');
+    if (form.server_name === 'Propio' && !(form.server_name_custom || '').trim()) {
+      errs.push('Debes escribir el nombre del servidor (opción "Propio")');
+    }
+    if (!form.communication_type) errs.push('Debes seleccionar el Tipo de Comunicación');
     return errs;
   }, [form, totalStoreBoxes]);
 
@@ -385,6 +394,11 @@ export default function DirectProjectCreation() {
     try {
       const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas) };
       delete payload.equipment_serials;
+      // Resolver Servidor de Instalación: si es "Propio" se envía el texto libre.
+      payload.server_name = form.server_name === 'Propio'
+        ? (form.server_name_custom || '').trim()
+        : form.server_name;
+      delete payload.server_name_custom;
       if (form.sponsor_bank_id && !form.sponsor_bank_name) {
         const b = banks.find((x) => x.bank_id === form.sponsor_bank_id);
         if (b) payload.sponsor_bank_name = b.name;
@@ -700,6 +714,64 @@ export default function DirectProjectCreation() {
           </CardContent>
         </Card>
       )}
+
+      {/* Card 3.5: Configuración Técnica (Servidor + Comunicación) — siempre visible */}
+      <Card className="border-cyan-100 shadow-sm" data-testid="dp-tech-config-card">
+        <CardHeader className="pb-3 bg-gradient-to-r from-cyan-50 to-cyan-50/30 border-b border-cyan-100 rounded-t-lg">
+          <CardTitle className="text-base flex items-center gap-2 text-cyan-900">
+            <div className="bg-cyan-500 rounded-md p-1.5"><Server size={14} className="text-white" /></div>
+            Configuración Técnica
+          </CardTitle>
+          <CardDescription className="text-xs text-cyan-700/70">Estos datos se archivan en la Ficha Técnica del proyecto.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Fila 1: Servidor de Instalación */}
+          <div>
+            <Label className="text-xs flex items-center gap-1.5"><Server size={12} className="text-cyan-600" /> Servidor de Instalación <span className="text-red-500">*</span></Label>
+            <Select value={form.server_name || ''} onValueChange={(v) => set({ server_name: v, server_name_custom: v === 'Propio' ? form.server_name_custom : '' })}>
+              <SelectTrigger className="h-10 mt-1" data-testid="dp-server-name"><SelectValue placeholder="Seleccionar servidor..." /></SelectTrigger>
+              <SelectContent>
+                {['Multicomercio MSC', 'Multicomercio MSC2', 'Propio'].map((opt) => (
+                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.server_name === 'Propio' && (
+              <Input
+                value={form.server_name_custom}
+                onChange={(e) => set({ server_name_custom: e.target.value })}
+                placeholder="Nombre del servidor (obligatorio)..."
+                className="mt-2"
+                data-testid="dp-server-name-custom"
+              />
+            )}
+          </div>
+
+          {/* Fila 2: Tipo de Comunicación */}
+          <div>
+            <Label className="text-xs flex items-center gap-1.5"><Network size={12} className="text-cyan-600" /> Tipo de Comunicación <span className="text-red-500">*</span></Label>
+            <div className="flex gap-2 mt-1.5" role="radiogroup" aria-label="Tipo de Comunicación">
+              {['SSL', 'VPN'].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.communication_type === opt}
+                  onClick={() => set({ communication_type: opt })}
+                  data-testid={`dp-comm-${opt.toLowerCase()}`}
+                  className={`px-5 py-2 rounded-md text-sm font-semibold border-2 transition ${
+                    form.communication_type === opt
+                      ? 'bg-cyan-600 text-white border-cyan-700 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-cyan-400'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Card 4: Multitienda */}
       <Card className="border-violet-100 shadow-sm">

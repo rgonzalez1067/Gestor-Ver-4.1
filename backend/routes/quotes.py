@@ -147,7 +147,7 @@ class QuoteCreateWithPDF(BaseModel):
     production_items: List[dict] = []
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
-    requires_vpn: bool = True
+    requires_vpn: bool = False
     # Segmento de cliente
     client_segment: str = "PYME"
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
@@ -979,7 +979,7 @@ async def regenerate_quote_pdf(quote_id: str, data: dict = {}, authorization: Op
             descuento_setup=quote.get("descuento_setup", 0),
             descuento_recurrente=quote.get("descuento_recurrente", 0),
             requires_pinpad_config=quote.get("requires_pinpad_config", True),
-            requires_vpn=quote.get("requires_vpn", True),
+            requires_vpn=quote.get("requires_vpn", False),
             notes=quote.get("notes", ""),
             is_production_client=quote.get("is_production_client", False),
             pg_setup_items=quote.get("pg_setup_items") or [],

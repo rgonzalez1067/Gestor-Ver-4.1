@@ -172,6 +172,9 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     server_name = quote.get("server_name") or ""
     if server_name:
         tech_pairs.append(("Servidor de Instalacion", server_name))
+    communication_type = quote.get("communication_type") or ""
+    if communication_type:
+        tech_pairs.append(("Tipo de Comunicacion", communication_type))
 
     elements.append(_key_value_table(tech_pairs, styles))
     elements.append(Spacer(1, 14))

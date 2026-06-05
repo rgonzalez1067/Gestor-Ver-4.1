@@ -4,6 +4,33 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 66: "Tipo de Comunicación" en Ficha Técnica + Homologación en Proyectos Directos — Jun 2026
+
+**1. Ficha Técnica (Core) — nuevo campo "Tipo de Comunicación" (SSL/VPN)** ✅
+- UI proyecto (`ProjectDetail.jsx`): bloque "Tipo de Comunicación" (`communication-type`) justo debajo de "Servidor de Instalación" en Configuración Técnica.
+- PDF Ficha Técnica (`implementation_pdf.py`): fila "Tipo de Comunicacion" tras "Servidor de Instalacion".
+- Variable de plantilla `{Tipo_Comunicacion}` (`project_template_vars.py`).
+
+**2. Cotizador — mapeo automático** ✅ (`quote_transitions._create_project_from_quote`)
+- Al enviar a implementación: `¿Requiere VPN?` NO → `communication_type="SSL"`; SÍ → `"VPN"`. Derivado de `quote.requires_vpn`.
+
+**3. Default de "¿Requiere VPN?" cambiado a NO** ✅ (pedido del usuario)
+- Backend: `models.py` (Quote/QuoteCreate), `routes/quotes.py` (modelo + read-fallback) → `requires_vpn` default `False`.
+- Frontend: `Quotes.jsx` (3 defaults), `QuoteWizardDialog.jsx` (init por tipo). Verificado en UI: el selector arranca en "No — Costo Outs.".
+
+**4. Proyectos Directos — captura explícita** ✅ (`DirectProjectCreation.jsx` + `direct_projects.py`)
+- Card "Configuración Técnica" siempre visible:
+  - **Servidor de Instalación** (dropdown: Multicomercio MSC / MSC2 / Propio). "Propio" → campo de texto obligatorio (`dp-server-name-custom`).
+  - **Tipo de Comunicación** (radio SSL/VPN, preseleccionado **SSL**).
+  - Ambos **obligatorios** (validación). Se inyectan en la Ficha Técnica en orden: Fila 1 Servidor, Fila 2 Comunicación.
+- Backend: `DirectProjectCreate` con `server_name`/`communication_type`; se pasan al builder y al `synthetic_quote` (incl. `requires_vpn` derivado) para PDF.
+
+**QA verificado:** API (proyecto directo persiste `server_name="Servidor Propio QA"`, `communication_type="VPN"`); Playwright (card visible, SSL default, "Propio"→texto / "MSC"→oculto, VPN cotizador default="No"). Lint limpio.
+**Archivos:** `models.py`, `routes/quotes.py`, `routes/quote_transitions.py`, `routes/direct_projects.py`, `services/implementation_pdf.py`, `services/project_template_vars.py`, `pages/Quotes.jsx`, `components/quotes/QuoteWizardDialog.jsx`, `pages/ProjectDetail.jsx`, `pages/DirectProjectCreation.jsx`.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 65: Edición + Propagación de "Cantidad de Terminales" en Matriz de Proyectos — Jun 2026
 
 **Problema:** El equipo de Implementación no podía editar el campo "Cantidad de Terminales" (campo derecho "/N" bajo la columna T) en la Matriz de Proyectos; quedaba en solo-lectura.

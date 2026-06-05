@@ -141,7 +141,7 @@ export const Quotes = () => {
     pinpad_id: '',
     sponsor_bank_id: '', // Entidad patrocinadora/vendedora
     requires_pinpad_config: true,  // ¿Requiere Configuración de PinPads?
-    requires_vpn: true,            // ¿Requiere VPN?
+    requires_vpn: false,           // ¿Requiere VPN? (default No)
     setup_items: [],              // Items exclusivos de Setup
     recurring_basic_items: [],    // Recurrentes Básicos (incluye complementos de adicionales)
     recurring_other_items: [],    // Otros Recurrentes
@@ -1006,7 +1006,7 @@ export const Quotes = () => {
       pinpad_id: '',
       sponsor_bank_id: '',
       requires_pinpad_config: true,
-      requires_vpn: true,
+      requires_vpn: false,
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
@@ -3535,7 +3535,7 @@ export const Quotes = () => {
       pinpad_id: '',
       sponsor_bank_id: '',
       requires_pinpad_config: true,
-      requires_vpn: true,
+      requires_vpn: false,
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],

@@ -338,6 +338,9 @@ async def resolve_project_template_vars(project: dict) -> dict:
     # === {Servidor_Instalacion} === (flujo PYME)
     servidor_instalacion = project.get("server_name", "")
 
+    # === {Tipo_Comunicacion} === (SSL/VPN) — fila siguiente a Servidor de Instalación
+    tipo_comunicacion = project.get("communication_type", "")
+
     # === Ejecutivo asignado al proyecto ===
     assigned_name = project.get("assigned_to_name", "")
 
@@ -383,6 +386,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Modelo_Seriales_Equipos": modelo_seriales_html,
         "Modelo_Seriales_POS": modelo_seriales_pos_html,
         "Servidor_Instalacion": servidor_instalacion or "No asignado",
+        "Tipo_Comunicacion": tipo_comunicacion or "No asignado",
 
         # === Alias en PascalCase español (lo que muestra el panel lateral del editor) ===
         "Nro_Proyecto": project_number or "",

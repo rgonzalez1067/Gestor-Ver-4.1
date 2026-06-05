@@ -15,7 +15,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Edit2, Layers, FileBarChart, Flag, Landmark
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -1151,6 +1151,15 @@ const ProjectDetail = () => {
                     <div>
                       <p className="text-xs text-slate-500">Servidor de Instalación</p>
                       <p className="text-sm font-semibold text-blue-700" data-testid="server-name">{project.server_name}</p>
+                    </div>
+                  </div>
+                )}
+                {project.communication_type && (
+                  <div className="flex items-center gap-3 pt-1 mt-1 border-t border-slate-100">
+                    <Network size={18} className="text-cyan-600 shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-500">Tipo de Comunicación</p>
+                      <p className="text-sm font-semibold text-cyan-700" data-testid="communication-type">{project.communication_type}</p>
                     </div>
                   </div>
                 )}

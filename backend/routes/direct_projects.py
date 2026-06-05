@@ -104,6 +104,11 @@ class DirectProjectCreate(BaseModel):
     fiscal_printer_model: Optional[str] = None
     pinpad_serials: list[DirectProjectSerial] = Field(default_factory=list)
 
+    # Configuración Técnica (homologado con "Enviar a Implementación")
+    # server_name: "Multicomercio MSC" | "Multicomercio MSC2" | <texto libre si "Propio">
+    server_name: Optional[str] = None
+    communication_type: Optional[str] = "SSL"  # "SSL" | "VPN"
+
     # Multitienda
     is_multistore: bool = False
     stores: list[DirectProjectStore] = Field(default_factory=list)
@@ -251,6 +256,9 @@ async def create_direct_project(
         "integrator_app_name": payload.integrator_app_name,
         "pinpad_model": payload.pinpad_model,
         "fiscal_printer_model": payload.fiscal_printer_model,
+        "server_name": (payload.server_name or "").strip() or None,
+        "communication_type": (payload.communication_type or "SSL").strip().upper(),
+        "requires_vpn": (payload.communication_type or "SSL").strip().upper() == "VPN",
         "cantidad_cajas": payload.cantidad_cajas,
         "economic_group": payload.economic_group or "Sin Grupo Económico",
         "fantasy_name": payload.fantasy_name or client.get("fantasy_name") or client.get("legal_name") or "",
@@ -286,13 +294,14 @@ async def create_direct_project(
             multistore_data,
             equipment_data,
             "vpos_mpos" if qtype in {"VPOS", "MPOS"} else ("payment_gateway" if qtype == "GATEWAY" else "link_pago"),
-            None,           # server_name no aplica
+            (payload.server_name or "").strip() or None,   # server_name (Configuración Técnica)
             pp_serials,
             payload.economic_group or "Sin Grupo Económico",
             payload.fantasy_name or None,
             payload.implementation_instructions or None,
             keep_quote_active=False,
             fiscal_printer_model=payload.fiscal_printer_model,
+            communication_type=(payload.communication_type or "SSL").strip().upper(),
         )
     except Exception as e:
         logger.exception(f"Error creando proyecto directo: {e}")

@@ -181,7 +181,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           quote_type: value, 
                           medios_pago_items: [], 
                           pricing_model: isPGLike ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
-                          requires_vpn: isFastTrack ? false : true,
+                          requires_vpn: false,
                           requires_pinpad_config: true,
                           integrator_id: newIntegratorId,
                           sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,

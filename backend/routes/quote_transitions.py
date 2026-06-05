@@ -44,6 +44,7 @@ async def _create_project_from_quote(
     implementation_instructions: str = None,
     keep_quote_active: bool = False,
     fiscal_printer_model: str = None,
+    communication_type: str = None,
 ):
     """Crea un proyecto a partir de una cotización enviada a implementación.
 
@@ -291,6 +292,15 @@ async def _create_project_from_quote(
             "created_by_name": "Sistema",
             "created_at": now.isoformat(),
         })
+
+    # Tipo de Comunicación (red/conectividad) — se inyecta en la Ficha Técnica,
+    # en la fila siguiente a "Servidor de Instalación". Para Proyectos Directos
+    # viene explícito (SSL/VPN). Para el flujo de Cotizaciones se deduce de la
+    # respuesta "¿Requiere VPN?": NO → SSL, SÍ → VPN.
+    comm = (communication_type or "").strip().upper()
+    if comm not in {"SSL", "VPN"}:
+        comm = "VPN" if quote.get("requires_vpn", False) else "SSL"
+    project["communication_type"] = comm
 
     # Grupo Económico y Nombre de Fantasía (defaults aplicados aguas arriba)
     if economic_group is not None:
