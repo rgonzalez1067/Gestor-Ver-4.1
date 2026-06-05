@@ -4,6 +4,21 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 62: Procesador en el resumen de Bancos + Vista "Bancos por Procesador" — Jun 2026
+
+**Requerimiento:** Mostrar el procesador asignado en el resumen de cada banco y una consulta agrupada por Procesador para validar asignaciones.
+
+**Implementación (frontend, `pages/Banks.jsx`):**
+- Chip de Procesador en cada fila del listado: `Cpu` + nombre del procesador (indigo) para Banco/Fintech con procesador asignado; chip gris "Independiente" si no tiene. `data-testid='bank-processor-chip-{bank_id}'`.
+- Toggle de vista (`banks-view-toggle`): "Lista de Bancos" (`banks-view-list`) | "Bancos por Procesador" (`banks-view-by-processor`).
+- Vista agrupada (`banks-by-processor`): por cada entidad tipo Procesador, tarjeta con su nombre + conteo de bancos + lista de bancos vinculados (con botón Ver → ficha); más un grupo "Procesador Independiente / Sin asignar". Permite validar de un vistazo que todos los bancos estén correctamente asignados.
+
+**Verificado (screenshot):** chips visibles en la lista (BdV→Consorcio CrediCard, Mercantil→Platco, Banesco→Independiente); vista agrupada correcta (Consorcio CrediCard: 11, Platco: 2, Tranred: 1 + Independiente).
+
+**Archivo:** `pages/Banks.jsx`. ⚠️ En PREVIEW; requiere redeploy para producción.
+
+
+
 ### Iteration 61: Homologación de Patrocinio en Proyectos Directos + Visibilidad de Proyectos por rol/área — Jun 2026
 
 **1. Procesador→Banco en Proyectos Directos (homologado con Cotizaciones)** ✅

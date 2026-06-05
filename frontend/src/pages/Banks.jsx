@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { ImportResultPanel } from '../components/ImportResultPanel';
-import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Upload, FileSpreadsheet, FileText, Monitor, Globe, Smartphone, Link, ImagePlus, User, Phone, Mail, Building2, Hash, Eye, Rocket, FileBarChart, Cpu, Landmark, LayoutGrid, ListChecks } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { usePermission } from '../hooks/usePermission';
@@ -305,6 +305,8 @@ export const Banks = () => {
   };
 
   const [productsByBankLoading, setProductsByBankLoading] = useState(false);
+  // Modo de visualización del listado: 'list' (default) | 'by-processor' (agrupado).
+  const [viewMode, setViewMode] = useState('list');
   const downloadProductsByBankReport = async () => {
     setProductsByBankLoading(true);
     try {
@@ -606,7 +608,110 @@ export const Banks = () => {
             </Button>
           </div>
 
+          {/* Toggle de vista: Lista vs. Bancos por Procesador */}
+          <div className="flex items-center gap-2 mb-4" data-testid="banks-view-toggle">
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              data-testid="banks-view-list"
+              className={viewMode === 'list' ? 'bg-slate-800 text-white hover:bg-slate-900' : ''}
+            >
+              <LayoutGrid size={15} className="mr-2" />Lista de Bancos
+            </Button>
+            <Button
+              variant={viewMode === 'by-processor' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('by-processor')}
+              data-testid="banks-view-by-processor"
+              className={viewMode === 'by-processor' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'text-indigo-700 border-indigo-300 hover:bg-indigo-50'}
+            >
+              <Cpu size={15} className="mr-2" />Bancos por Procesador
+            </Button>
+          </div>
+
+          {/* Vista agrupada: Bancos por Procesador (validación de asignaciones) */}
+          {viewMode === 'by-processor' && (() => {
+            const processors = banks.filter(b => b.type === 'Procesador').sort((a, b) => a.name.localeCompare(b.name));
+            const independientes = banks.filter(b => b.type !== 'Procesador' && (!b.procesador || b.procesador === 'Procesador Independiente'));
+            return (
+              <div className="space-y-4" data-testid="banks-by-processor">
+                {processors.length === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center text-sm text-amber-700">
+                    No hay entidades de tipo "Procesador" registradas. Cree una en el maestro de Bancos para empezar a vincular.
+                  </div>
+                )}
+                {processors.map((proc) => {
+                  const linked = banks.filter(b => b.type !== 'Procesador' && b.procesador === proc.name)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                  return (
+                    <div key={proc.bank_id} className="bg-white rounded-lg border border-indigo-200 overflow-hidden" data-testid={`processor-group-${proc.bank_id}`}>
+                      <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border-b border-indigo-100">
+                        <div className="flex items-center gap-2">
+                          <Cpu size={18} className="text-indigo-600" />
+                          <h3 className="font-semibold text-indigo-900">{proc.name}</h3>
+                          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-200 text-indigo-800">Procesador</span>
+                        </div>
+                        <span className="text-sm font-bold text-indigo-700" data-testid={`processor-group-count-${proc.bank_id}`}>
+                          {linked.length} banco(s)
+                        </span>
+                      </div>
+                      {linked.length === 0 ? (
+                        <p className="px-4 py-4 text-sm text-slate-400 italic">Sin bancos asignados a este procesador.</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100">
+                          {linked.map((b) => (
+                            <div key={b.bank_id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50" data-testid={`processor-linked-${b.bank_id}`}>
+                              <div className="flex items-center gap-2">
+                                <Landmark size={14} className="text-slate-400" />
+                                <span className="text-sm font-medium text-slate-700">{b.name}</span>
+                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-slate-100 text-slate-500">{b.type}</span>
+                              </div>
+                              <Button size="sm" variant="ghost" onClick={() => navigate(`/banks/${b.bank_id}`)} className="h-7 text-xs text-brand-blue-600">
+                                <Eye size={13} className="mr-1" />Ver
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Grupo: sin procesador (Independiente) */}
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden" data-testid="processor-group-independent">
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Cpu size={18} className="text-slate-400" />
+                      <h3 className="font-semibold text-slate-700">Procesador Independiente / Sin asignar</h3>
+                    </div>
+                    <span className="text-sm font-bold text-slate-500">{independientes.length} banco(s)</span>
+                  </div>
+                  {independientes.length === 0 ? (
+                    <p className="px-4 py-4 text-sm text-slate-400 italic">Todos los bancos tienen un procesador asignado.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {independientes.sort((a, b) => a.name.localeCompare(b.name)).map((b) => (
+                        <div key={b.bank_id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50" data-testid={`processor-independent-${b.bank_id}`}>
+                          <div className="flex items-center gap-2">
+                            <Landmark size={14} className="text-slate-400" />
+                            <span className="text-sm font-medium text-slate-700">{b.name}</span>
+                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-slate-100 text-slate-500">{b.type}</span>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/banks/${b.bank_id}`)} className="h-7 text-xs text-brand-blue-600">
+                            <Eye size={13} className="mr-1" />Ver
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Bank Rows - Horizontal Layout */}
+          {viewMode === 'list' && (
           <div className="space-y-3" data-testid="banks-list">
             {banks.map((bank) => {
               const chips = getProductChips(bank.products);
@@ -629,11 +734,22 @@ export const Banks = () => {
                   <div className="min-w-[200px] shrink-0">
                     <h3 className="text-base font-semibold text-slate-900 font-manrope leading-tight cursor-pointer hover:text-brand-blue-600 transition-colors"
                       onClick={() => navigate(`/banks/${bank.bank_id}`)}>{bank.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600">{bank.type}</span>
                       {bank.bank_code && (
                         <span className="text-xs text-slate-500 flex items-center gap-0.5">
                           <Hash size={10} />{bank.bank_code}
+                        </span>
+                      )}
+                      {/* Procesador asignado (solo Banco/Fintech) */}
+                      {bank.type !== 'Procesador' && bank.procesador && bank.procesador !== 'Procesador Independiente' && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-100 text-indigo-700" data-testid={`bank-processor-chip-${bank.bank_id}`}>
+                          <Cpu size={10} />{bank.procesador}
+                        </span>
+                      )}
+                      {bank.type !== 'Procesador' && (!bank.procesador || bank.procesador === 'Procesador Independiente') && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-50 text-slate-400 border border-slate-200" data-testid={`bank-processor-chip-${bank.bank_id}`}>
+                          <Cpu size={10} />Independiente
                         </span>
                       )}
                     </div>
@@ -699,8 +815,9 @@ export const Banks = () => {
               );
             })}
           </div>
+          )}
 
-          {banks.length === 0 && (
+          {viewMode === 'list' && banks.length === 0 && (
             <div className="bg-white rounded-lg border border-slate-200 p-12 text-center text-slate-500">
               <Building2 size={40} className="mx-auto text-slate-300 mb-3" />
               <p>No hay bancos registrados</p>

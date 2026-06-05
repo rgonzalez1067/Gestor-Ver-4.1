@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 class PagoFlowAPITester:
-    def __init__(self, base_url="https://audit-proyectos-v2.preview.emergentagent.com"):
+    def __init__(self, base_url="https://vision-departamental.preview.emergentagent.com"):
         self.base_url = base_url
         self.session_token = None
         self.tests_run = 0

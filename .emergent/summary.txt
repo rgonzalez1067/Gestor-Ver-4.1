@@ -1,57 +1,37 @@
 <analysis>**original_problem_statement**: 
-Requerimiento Técnico: Implementar optimizaciones orientadas a endurecer la seguridad del embudo comercial, dotar de herramientas al Centro de Mensajes (Recuérdame), mejorar la auditoría de Proyectos de Integración (registro de creador/gestor) y flexibilizar el modal de despacho a implementación (precarga editable de Grupo Económico, Nombre Fantasía e Impresora Fiscal).
+Requerimientos iterativos para evolucionar el CRM operativo de MegaNexus: Implementar segmentación de datos corporativos, función Recuérdame en el inbox, creación de la entidad Procesador con lógica de patrocinio relacional (sub-modales dependientes) en cotizaciones y proyectos directos, creación de Reportes por Patrocinador con RBAC, aplicación de nuevas reglas de visibilidad departamental en Proyectos, y resolución de bugs en el menú de Histórico y precarga de datos en modales de implementación.
 
 **PRODUCT REQUIREMENTS**:
-1. **Gobierno de Datos**: Segmentar cotizaciones de Implementación (Corp ve Corp, Pyme ve Pyme), manteniendo excepciones de Admin Pyme y Operaciones.
-2. **Centro de Mensajes**: Función Recuérdame con selector de fecha/hora y alerta visual de vencimiento.
-3. **Proyectos**: Registrar y mostrar el Generador (creador) del proyecto, permitiendo filtrado; y auto-asignarlo como Gestor en Proyectos de Integración.
-4. **Modal Enviar a Implementación**: Precargar Grupo Económico, Nombre Fantasía e Impresora Fiscal desde la ficha del cliente, y hacerlos estrictamente EDITABLES antes de enviar.
+1. **Entidad Procesador y Patrocinio**: Nuevo tipo de Banco (Procesador). Al seleccionar un procesador como patrocinador, forzar un sub-modal para elegir el banco vinculado. Reflejar en Cotizaciones y Proyectos Directos.
+2. **Visibilidad en Proyectos**: Ejecutivos Pyme ven solo Pyme; Ejecutivos Corp ven solo lo suyo/su sede; Operaciones ve solo lo asignado; Coordinadores ven todo.
+3. **Selección de Contactos**: Interceptar la acción Enviar al Cliente con un modal previo que liste contactos de la ficha del cliente (Nombre, Email, Rol) con checkboxes, herendando los correos al modal de envío.
+4. **Vista de Bancos**: Agregar chips identificadores de procesador y una vista agrupada (Bancos por Procesador).
 
 **User's preferred language**: Spanish
 INSTRUCT NEXT AGENT: You MUST respond and communicate with the user ONLY in Spanish.
 
 **what currently exists?** 
-Un CRM Full-Stack (React/FastAPI/MongoDB) para MegaNexus con módulos de Cotizaciones, Inventario, Centro de Mensajes y Proyectos. Cuenta con WebSockets para notificaciones (usando un backplane en MongoDB para múltiples workers) y un Motor Dinámico de Otras Acciones para configurar notificaciones por correo/inbox según eventos del sistema.
+Un CRM Full-Stack (React/FastAPI/MongoDB) para MegaNexus. Cuenta con módulos de Cotizaciones, Inventario, Centro de Mensajes (con WebSockets backplane), Proyectos, Bancos, y un Motor Dinámico de Notificaciones. Utiliza un sistema RBAC robusto basado en un catálogo de permisos y roles para segmentar visualización y acceso a rutas.
 
 **Last working item**:
-    - Last item agent was working: Implementación de la Fase 3 (Proyectos: Registro de Generador y Auto-Gestor) y Fase 4 (Modal Enviar a Implementación: Precarga editable de campos). El agente finalizó las modificaciones en frontend y backend para estos dos requerimientos y estaba verificando la correcta asignación de los estados de React (, etc.) para el modal.
-    - Status: IN PROGRESS
-    - Agent Testing Done: Y (Scripts backend validados, faltan pruebas de UI completas/E2E).
-    - Which testing method agent to use? frontend testing agent / screenshot tool.
+    - Last item agent was working: Modificación de la interfaz  para mostrar el nombre del procesador en el resumen de cada banco (chips) y agregar un toggle que permita agrupar y visualizar la lista de bancos clasificados por Procesador.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? Frontend testing agent / screenshot tool.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Gobierno de Datos - Segmentación de Cotizaciones de Implementación (P0)
-     - Attempted fixes: Ninguno (análisis inicial completado en  y ).
-     - Next debug checklist: Editar la lógica en  () y el hook  para restringir que los Ejecutivos Corp solo vean cotizaciones Corp, y los Pyme solo Pyme, sin afectar a  u .
-     - Why fix this issue and what will be achieved with the fix?: Evitar el cruce de cartera de clientes entre fuerzas de venta.
-     - Status: NOT STARTED
-     - Is recurring issue?: N
-     - Should Test frontend/backend/both after fix?: Both
-
-  Issue 2: Centro de Mensajes - Función Recuérdame (Alertas de Seguimiento) (P0)
-     - Attempted fixes: Ninguno.
-     - Next debug checklist: Crear componente en UI (Date/Time Picker en Inbox), tabla/colección o campo para guardar el vencimiento, un scheduler/poller en el backend y el disparo de la alerta visual (WebSocket/toast).
-     - Why fix this issue and what will be achieved with the fix?: Mitigar olvidos operativos sobre notificaciones entrantes.
-     - Status: NOT STARTED
-     - Is recurring issue?: N
-     - Should Test frontend/backend/both after fix?: Both
-
-  Issue 3: Hydration warning en QuotesTable.jsx (P2)
-     - Attempted fixes: Ninguno.
-     - Next debug checklist: Revisar anidaciones de etiquetas block dentro de inline.
-     - Why fix this issue and what will be achieved with the fix?: Limpieza de DOM tree y consola.
+  Issue 1: Hydration warning en QuotesTable.jsx (P2)
+     - Attempted fixes: Ninguno en esta sesión.
+     - Next debug checklist: Revisar anidaciones de etiquetas block dentro de inline en .
+     - Why fix this issue and what will be achieved with the fix?: Limpieza de DOM tree y consola de errores en el navegador.
      - Status: NOT STARTED
      - Is recurring issue?: Y
      - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on other issue: Ninguno.
 
-**In progress Task List**:
-  Task 1: Modal Enviar a Implementación Editable & Proyectos Generador/Gestor
-     - Where to resume: Comprobar vía screenshot tool o testing agent que el modal en el UI precarga correctamente el Grupo Económico, Nombre Fantasía e Impresora Fiscal desde el cliente y permite su edición.
-     - What will be achieved with this?: Agilidad en captura de datos al despachar a implementación y mejor auditoría en Proyectos.
-     - Status: TESTING PENDING
-     - Should Test frontend/backend/both after fix?: Frontend (Backend ya validado con scripts).
-     - Blocked on something: Ninguno.
+**In progress Task List**: 
+Ninguna tarea en progreso. Todas las tareas solicitadas en la sesión actual fueron completadas y verificadas.
 
 **Upcoming and Future Tasks**
   - **P1**: Migrar Marcar como Configurada y Reparada al motor dinámico de notificaciones.
@@ -61,107 +41,119 @@ Un CRM Full-Stack (React/FastAPI/MongoDB) para MegaNexus con módulos de Cotizac
   - **P3**: Roadmap Bancos - Lógica Completado.
   - **P3**: Plantillas dedicadas para Contactos Iniciales.
   - **P3**: Generación de Documentación Técnica integral de la aplicación.
-  - **P3**: Permiso Especial - Exportar CSV en reportes de ventas.
+  - **P3**: Permiso Especial - Exportar CSV en reportes de ventas generales.
   - **P3**: Reactivar Promovidos.
   - **P3**: Agregar filtro/orden por métrica PVV en el listado principal de Proyectos.
 
 **Completed work in this session**
-- Bug WS Multi-Destinatario resuelto usando backplane MongoDB (). (DONE)
-- Deep-link añadido a notificaciones toast del Centro de Mensajes hacia el chat específico. (DONE)
-- Creación de Módulo Configuración de otras Acciones (desacoplamiento de correos hardcoded para Nuevos Productos e Integradores). (DONE)
-- Inserción de variables dinámicas al editor de plantillas (, , , etc.). (DONE)
-- Configuración de disparadores de acciones para fases de Implementación de Bancos (PreProd, Primer Prod, Masificación). (DONE)
-- Asignación de Analista SQA en modal dependiente del equipo correcto. (DONE)
-- Bypass de gobernanza implementado para usuarios Administradores. (DONE)
-- Proyectos Directos: Modelo POS y Seriales PinPad configurados como opcionales. (DONE)
-- Contacto Inicial: Dropdown de usuarios restringido a perfiles comerciales (Ventas Pyme / Corp). (DONE)
-- Bug Fix Histórico de Cotizaciones: Filtrado en vivo implementado y error HTTP 500 por caracteres especiales resuelto. (DONE)
-- Proyectos e Integraciones: Creador del proyecto se mapea a Generador y Gestor automáticamente. Backend implementado. (DONE)
-- Modal Enviar a Implementación: Precarga de atributos dinámicos (Grupo Económico, etc.) como editables. Backend/Frontend implementado. (DONE)
+- Lógica RBAC para Segmentación de Cotizaciones de Implementación (Corp/Pyme) (DONE)
+- Endpoint, Scheduler (cada 1 min) y UI WS para Recuérdame en Centro de Mensajes (DONE)
+- Maestro de Bancos: Adición de campo Tipo=Procesador y vinculación de dependencias (DONE)
+- Cotizador: Sub-modal dinámico de Patrocinio Relacional (Procesador -> Banco) (DONE)
+- Proyectos: Columna, persistencia compuesta (Procesador - Banco) y Filtro por Patrocinador (DONE)
+- Backend y UI para Reportes por Patrocinador con RBAC anidado bajo Gestión Comercial (DONE)
+- Bugfix: Precarga de Grupo Económico y Nombre de Fantasía editables en Enviar a Implementación (DONE)
+- Bugfix: Menú de Histórico de Cotizaciones ahora respeta  de la matriz en vez de solo cargo Director (DONE)
+- Modal Interceptor: Selección de Destinatarios (desde contactos del cliente) previo al envío de cotización (DONE)
+- Proyectos Directos: Homologación de lógica de sub-modal Procesador y persistencia de Generador (DONE)
+- Proyectos: Nuevas reglas P0 de visibilidad departamental (Ejecutivos Pyme, Corp, Operaciones) en  (DONE)
+- Vista : Chips de procesador y Toggle para agrupar Bancos por Procesador (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    Issue 1: Hydration warning en QuotesTable.jsx
-   - Debug checklist: Buscar etiquetas block anidadas incorrectamente.
-   - Why to solve this issue and what will be achieved with this?: Limpieza de DOM tree.
+   - Debug checklist: Buscar etiquetas block anidadas incorrectamente en la tabla de cotizaciones.
+   - Why to solve this issue and what will be achieved with this?: Limpieza de la consola y optimización de renderizado.
    - Should Test frontend/backend/both after fix: Frontend
    - Is recurring issue?: Y
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: El usuario reportó que sus configuraciones de Otras Acciones se borraban; fue causado por comandos de limpieza del agente () en pruebas.
+  - Issue recurrence in previous fork: Uso de comandos destructivos en base de datos () que borran configuraciones de Otras Acciones.
   - Recurrence count: 1
-  - Status: RESOLVED (Agente se comprometió a usar snapshots y backups de prueba).
+  - Status: RESOLVED (Agente advertido: usar solo pytest con mocks o inyección/eliminación por IDs específicos).
 
 **Code Architecture**
-- **Frontend**: SPA React, Context API (), Tailwind CSS.
-- **Backend**: FastAPI, MongoDB. Módulos separados por dominios (, , , ). 
-- **Notification Engine**: Motor dinámico con plantillas guardadas en BD y renderizadas con variables extraídas en caliente.
+- **Frontend**: SPA React, Tailwind CSS, Context API.
+- **Backend**: FastAPI, MongoDB (Motor). Arquitectura modularizada por dominios (, , , ).
+- **Seguridad**:  con middleware  basado en  y tokens de sesión en base de datos.
+- **Tests**: Suite de Pytest en  para pruebas E2E de lógica de negocio (Visibilidad, Segmentación, Patrocinio).
 
 **Key Technical Concepts**
-- **WebSockets Backplane**: Ahora usa una colección en MongoDB () y un poller de background en  para sincronizar eventos en múltiples replicas de producción.
+- Patrocinio Relacional: Cuando un banco es tipo Procesador, se requiere un sub-flujo para elegir el banco adquirente final. La etiqueta final se compone como Procesador Y — Banco X.
+- WebSockets Polling: Cron interno de FastAPI y un job Scheduler () para despachar alertas de sistema.
 
 **key DB schema**
-  - : Matriz dinámica de acciones (reemplaza correos hardcode).
-  - : Almacena , .
-  - : Almacena , .
+  - : {type, processor_name, ...}
+  - : {sponsor_bank_id, sponsor_bank_name, sponsoring_processor_id, sponsoring_processor_name, client_sede, client_segment, created_by_user_id}
 
 **changes in tech stack**
   - Ninguno.
 
 **All files of reference** 
-  -  &  (Para Segmentación de Cotizaciones - Issue 1).
-  -  (Modal Implementación Editable).
-  -  &  (Mapeo Creador de Proyectos).
+  -  (Reglas críticas de visibilidad P0).
+  -  &  (Lógica de sub-modales de Procesador).
+  -  (Listado y agrupación por procesador).
+  -  (Modal de Selección de Contactos y Precarga de Implementación).
+  -  (Tests de gobernanza P0).
 
 **Areas that need refactoring**: 
-  - Archivo  contiene  que genera >40 warnings linter F405, pero ha sido desestimado como riesgo inmediato al no ser introducido recientemente.
-  -  hydration warnings.
+  -  contiene  generando warnings de linter (F405).
 
 **key api endpoints**
-  - 
-  - 
-  - 
+  -  (Ahora segmenta estrictamente por rol del usuario).
+  -  (Nuevo reporte).
+  -  (Recuérdame).
 
 **Critical Info for New Agent** 
-  - Existen dos entornos: PREVIEW (donde tú trabajas) y PRODUCTION (desplegado). Las validaciones siempre aplican al preview. No reveles la URL del preview al usuario.
-  - NUNCA uses  en la base de datos para pruebas. Siempre usa scripts que creen registros falsos y luego borren solo esos registros falsos por ID, o usa un mecanismo de snapshot/restore para no eliminar la configuración real del usuario.
+  - **VISIBILIDAD (P0)**: Modificaste  para que devuelva registros estrictamente filtrados según el rol comercial u operativo. No retires estos filtros ( queries) bajo ninguna circunstancia sin autorización explícita.
+  - El usuario notificó que la aplicación ha sido **DESPLEGADA A PRODUCCIÓN**. Cualquier bug reportado de ahora en adelante debe ser clarificado para saber si ocurre en Preview o en Production. Solo puedes modificar código en el entorno Preview.
 
 **documents and test reports created in this job** 
-  -  (Updated in memory)
+  - 
+  - 
+  - 
+  - 
+  - 
+  - Varios scripts de Pytest creados en .
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - User: Creación de Modal SQA, múltiples responsables y queja de borrado de configuración. -> Agent: Corregido, explicado el borrado, UI validada.
- - User: Nueva Acción para Asignación de Implementador. -> Agent: Acción creada, correo hardcode eliminado.
- - User: Tres ajustes (Seriales opcionales en Directos, Filtro Comercial en Dropdown, Bug HTTP 500 Buscador Cotizaciones). -> Agent: Implementados y verificados exhaustivamente.
- - User: Pide clarificación del término UI. -> Agent: Explica concepto.
- - User: No, sigue así. Me queda claro ahora. -> Agent: Acepta.
- - User (System): Alerta de despliegue a producción. Nuevo requerimiento de 4 puntos (Segmentación Cotizaciones, Centro Mensajes Recuérdame, Gestor de Proyectos, Modal Implementación Dinámico). -> Agent: Plantea plan de trabajo por fases (Fase A a D).
- - User: Avanza en el orden y prueba cada fase. -> Agent: Completa backend y frontend de Fase A (Modal Implementación) y Fase B (Registro Creador Proyectos). Queda pendiente Fase C (Segmentación) y Fase D (Centro de Mensajes).
+ - User: Provee handoff y resumen.
+ - Agent: Solicita confirmación de plan y diseño para Recuérdame.
+ - User: Aprueba plan. (Notif sistema -> alertas dobles).
+ - Agent: Completa Segmentación, Recuérdame, Fase A y B de la iteración anterior. Cierra ticket.
+ - User: Nuevo Requerimiento: Entidad Procesador, Flujos dinámicos de patrocinio en Cotizador y Proyectos.
+ - Agent: Aclara detalles (One-to-one, Trigger, Nomenclatura del label). Completa el feature y testea (29/29). Cierra ticket.
+ - User: Pide agregar Reportes por Patrocinador.
+ - Agent: Añade el reporte, configura RBAC, testea y cierra ticket.
+ - User: Reporta Bug (Grupo económico/Nombre fantasía no se precarga en el modal de Implementación).
+ - Agent: Arregla función huérfana de React, testea con testing_agent y cierra ticket.
+ - User: Reporta Bug (Menú de Histórico no visible para usuarios con permiso) y pide Nuevo Modal de Selección de Contactos antes de enviar correos.
+ - Agent: Arregla RBAC de backend y menú. Añade modal interceptor. Testea.
+ - User: (Notificación de despliegue a producción) + Nuevo Requerimiento: Proyectos Directos con Procesador, Guardar Generador en Directos, y Segmentar Visibilidad en Proyectos (Corp/Pyme/Impl).
+ - Agent: Implementa las reglas P0 de base de datos, replica modal en Directos, escribe pytests exhaustivos.
+ - User: Pide agregar chips de Procesador a la vista de Bancos y una vista agrupada por Procesador.
+ - Agent: Modifica UI en , usa screenshot tool. Cierra iteración.
 
 **Project Health Check:**
-- Broken: Ninguno crítico actual.
-- Mocked: Ninguno.
+- Broken: None
+- Mocked: None
 
 **3rd Party Integrations** 
   - Resend (Emails) — requires User API Key
   - Emergent Object Storage — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (usó scripts de validación  exhaustivos).
+  - Testing agent used after significant changes: YES (4 reportes generados con éxito rotundo).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: Ninguno en este batch.
-  - Known regressions: Ninguna.
+  - Test files created: , , , , .
+  - Known regressions: None
 
 **Credentials to test flow:**
 Admin: rgonzalez@megasoft.com.ve / admin123
-Usuario alternativo 1: srubio@megasoft.com.ve / Test1234!
-Usuario alternativo 2: Jrojas@megasoft.com.ve / Test1234!
+Usuario alternativo 1 (Ejecutivo): srubio@megasoft.com.ve / Test1234!
+Usuario alternativo 2 (Operaciones): Jrojas@megasoft.com.ve / Test1234!
 
 **What agent forgot to execute**
-El agente planificó 4 fases para el último gran requerimiento, implementó el código de Fase A (Modal) y Fase B (Proyectos), pero el contexto se agotó antes de verificar el comportamiento UI del Modal con Screenshot, y quedaron totalmente pendientes las Fases C (Segmentación de Cotizaciones) y D (Recordatorio en Centro de Mensajes).
+Nada. Todas las tareas solicitadas y bifurcaciones fueron resueltas exitosamente.
 
 **Debugging checklist for current issue**
-    Issue: Segmentación de Cotizaciones de Implementación
-    Backend files to check: 
-    -  (Lógica de filtrado en el GET ). Asegurar segmentación  por Pyme/Corp respetando accesos de Administrador.
-    Frontend files to check:
-    -  (Manejo de permisos cliente/UI para no ocultar la cotización si fue enviada directamente al usuario).</analysis>
+NA (Sistema estable. Queda pendiente el backlog general de tareas).</analysis>
