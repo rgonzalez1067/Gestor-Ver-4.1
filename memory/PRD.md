@@ -4,7 +4,15 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
-### Iteration 67b: Corrección — "Cotización Equipos Infra" usa config estándar de usuario interno — Jun 2026
+### Iteration 67c: Fix — Variables vacías en la notificación "Cotización Equipos Infra" — Jun 2026
+
+**Reporte:** Todas las variables de la comunicación a Infraestructura llegaban vacías/"descargadas" en la notificación.
+**Causa raíz:** `nombre_fantasia`, `rif_cliente` y `ejecutivo` se leían de la cotización, pero esos datos viven en el **documento del cliente** y en el **usuario creador**, no en la cotización (quedaban `None`).
+**Fix** (`routes/quote_actions.py::trigger_equipos_infra`): se enriquece `template_vars` cargando el cliente (`client_id` → legal_name/fantasy_name/rif) y el ejecutivo (`created_by_user_id` → nombre). `segmento` se muestra como "Corporativo"/"Pyme".
+**Verificado e2e:** la notificación renderiza Cliente=A.C. VALLE ARRIBA ATHLETIC CLUB, Fantasía=VAAC, RIF=J305153060, Cot=COT-2026-05-001-CORP, Seg=Corporativo, Monto=6,902.00, Ejecutivo=Angel Rafael Gonzalez. Datos de prueba eliminados.
+**Bonus (deuda técnica):** resuelto de forma segura el `from models import *` (F403/F405) en `quote_actions.py` → import explícito de los 5 nombres realmente usados (BaseModel, InventoryMovement, QUOTE_STATUSES, QUOTE_TRANSITIONS, SERIALIZED_TYPES). Backend verificado sin errores. Lint limpio.
+
+
 
 El usuario aclaró que la acción debe configurarse **idéntica a las otras 3** (usuario interno + plantilla + canal correo/Centro de Mensajes), NO destinatarios externos Para/CC/CCO. Se revirtió el enfoque externo:
 - `other_actions_config.py`: removido `external_recipients`; `RecipientRow` y validación de nuevo solo `type="user"`.

@@ -18,7 +18,7 @@ import base64
 
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template, inject_custom_message
 from services.pdf_storage import save_pdf_dual
-from models import *
+from models import BaseModel, InventoryMovement, QUOTE_STATUSES, QUOTE_TRANSITIONS, SERIALIZED_TYPES
 from services.email_service import send_email
 from services.workflow_notifications import send_workflow_notification
 from services.hoja_ruta_pdf import generate_nota_entrega_pdf
@@ -406,8 +406,9 @@ async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = He
 
     Se invoca en segundo plano cuando el operador, al hacer "Enviar al Cliente"
     de una cotización CORPORATIVA, confirma que la cotización incluye Equipos de
-    Infraestructura. Notifica a las cuentas externas (Para/CC/CCO) y plantilla
-    configuradas en "Configuración de otras Acciones". Respeta el toggle global.
+    Infraestructura. Notifica al usuario interno (correo o Centro de Mensajes) y
+    plantilla configurados en "Configuración de otras Acciones". Respeta el
+    toggle global.
     """
     from services.other_actions_engine import dispatch_other_action
 
@@ -421,6 +422,23 @@ async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = He
     if segment != "CORP":
         return {"dispatched": False, "reason": "not_corp"}
 
+    # Datos del cliente (Nombre de Fantasía, RIF, Razón Social viven en el cliente,
+    # NO en la cotización), y del ejecutivo creador. Se enriquecen para que las
+    # variables de la plantilla no lleguen vacías.
+    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0}) or {}
+
+    executive_name = quote.get("created_by_name") or ""
+    exec_uid = quote.get("created_by_user_id") or quote.get("created_by")
+    if not executive_name and exec_uid:
+        exec_user = await db.users.find_one({"user_id": exec_uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
+        if exec_user:
+            executive_name = f"{exec_user.get('first_name', '')} {exec_user.get('last_name', '')}".strip() or exec_user.get("email", "")
+
+    nombre_cliente = quote.get("client_name") or client.get("legal_name") or ""
+    nombre_fantasia = client.get("fantasy_name") or quote.get("fantasy_name") or nombre_cliente
+    rif_cliente = client.get("rif") or client.get("client_rif") or quote.get("client_rif") or ""
+    segmento_label = "Corporativo" if segment == "CORP" else ("Pyme" if segment == "PYME" else segment)
+
     monto = quote.get("grand_total_usd") or quote.get("total_usd") or 0
     try:
         monto_fmt = f"{float(monto):,.2f}"
@@ -428,22 +446,22 @@ async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = He
         monto_fmt = str(monto)
 
     template_vars = {
-        "nombre_cliente": quote.get("client_name", "") or "",
-        "nombre_fantasia": quote.get("fantasy_name", "") or quote.get("client_name", "") or "",
-        "rif_cliente": quote.get("client_rif", "") or "",
+        "nombre_cliente": nombre_cliente,
+        "nombre_fantasia": nombre_fantasia,
+        "rif_cliente": rif_cliente,
         "numero_cotizacion": quote.get("quote_number", "") or "",
-        "segmento": segment,
+        "segmento": segmento_label,
         "monto_total_usd": monto_fmt,
-        "ejecutivo": quote.get("created_by_name", "") or "",
+        "ejecutivo": executive_name,
         "usuario_ejecutor": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", ""),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
         # Alias estándar de plantillas de cotización (compatibilidad con el maestro existente).
         "quote_number": quote.get("quote_number", "") or "",
-        "client_name": quote.get("client_name", "") or "",
-        "fantasy_name": quote.get("fantasy_name", "") or "",
-        "client_rif": quote.get("client_rif", "") or "",
-        "sede_name": segment,
-        "sede": segment,
+        "client_name": nombre_cliente,
+        "fantasy_name": nombre_fantasia,
+        "client_rif": rif_cliente,
+        "sede_name": segmento_label,
+        "sede": segmento_label,
     }
 
     result = await dispatch_other_action(
