@@ -411,6 +411,7 @@ async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = He
     toggle global.
     """
     from services.other_actions_engine import dispatch_other_action
+    from services.notification_engine import _build_template_vars
 
     user = await get_current_user(authorization)
     quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
@@ -422,47 +423,45 @@ async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = He
     if segment != "CORP":
         return {"dispatched": False, "reason": "not_corp"}
 
-    # Datos del cliente (Nombre de Fantasía, RIF, Razón Social viven en el cliente,
-    # NO en la cotización), y del ejecutivo creador. Se enriquecen para que las
-    # variables de la plantilla no lleguen vacías.
-    client = await db.clients.find_one({"client_id": quote.get("client_id")}, {"_id": 0}) or {}
+    # Variables canónicas — IDÉNTICAS al resto de notificaciones del motor
+    # (Nombre_Cliente=Razón Social, Rif_Cliente, Cotizacion_Nro, Cantidad_Cajas,
+    # Nombre_Ejecutivo...). Esto evita que la plantilla salga con placeholders
+    # crudos `{Nombre_Cliente}` por mismatch de mayúsculas/minúsculas.
+    template_vars = await _build_template_vars(quote)
 
-    executive_name = quote.get("created_by_name") or ""
-    exec_uid = quote.get("created_by_user_id") or quote.get("created_by")
-    if not executive_name and exec_uid:
-        exec_user = await db.users.find_one({"user_id": exec_uid}, {"_id": 0, "first_name": 1, "last_name": 1, "email": 1})
-        if exec_user:
-            executive_name = f"{exec_user.get('first_name', '')} {exec_user.get('last_name', '')}".strip() or exec_user.get("email", "")
+    # Cantidad_Cajas (Pinpads): si la cotización no la trae a nivel raíz
+    # (ej. cotizaciones de Equipos/Accesorios), derivarla de los items.
+    if not template_vars.get("Cantidad_Cajas"):
+        eq_items = quote.get("equipment_items") or []
+        pinpads = sum(int(it.get("quantity", 0) or 0) for it in eq_items)
+        if not pinpads:
+            svcs = quote.get("services") or []
+            pinpads = sum(int(it.get("cantidad_cajas") or it.get("quantity") or 0) for it in svcs)
+        if pinpads:
+            cc = str(pinpads)
+            template_vars["Cantidad_Cajas"] = cc
+            template_vars["cantidad_cajas"] = cc
+            template_vars["cajas"] = cc
 
-    nombre_cliente = quote.get("client_name") or client.get("legal_name") or ""
-    nombre_fantasia = client.get("fantasy_name") or quote.get("fantasy_name") or nombre_cliente
-    rif_cliente = client.get("rif") or client.get("client_rif") or quote.get("client_rif") or ""
-    segmento_label = "Corporativo" if segment == "CORP" else ("Pyme" if segment == "PYME" else segment)
-
+    # Extras específicos de la acción "Cotización Equipos Infra".
     monto = quote.get("grand_total_usd") or quote.get("total_usd") or 0
     try:
         monto_fmt = f"{float(monto):,.2f}"
     except (TypeError, ValueError):
         monto_fmt = str(monto)
-
-    template_vars = {
-        "nombre_cliente": nombre_cliente,
-        "nombre_fantasia": nombre_fantasia,
-        "rif_cliente": rif_cliente,
-        "numero_cotizacion": quote.get("quote_number", "") or "",
+    segmento_label = "Corporativo"
+    executive_name = template_vars.get("Nombre_Ejecutivo", "") or quote.get("created_by_name", "")
+    template_vars.update({
         "segmento": segmento_label,
+        "Segmento": segmento_label,
         "monto_total_usd": monto_fmt,
+        "Monto_Total": monto_fmt,
         "ejecutivo": executive_name,
+        "Ejecutivo": executive_name,
         "usuario_ejecutor": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", ""),
         "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
-        # Alias estándar de plantillas de cotización (compatibilidad con el maestro existente).
-        "quote_number": quote.get("quote_number", "") or "",
-        "client_name": nombre_cliente,
-        "fantasy_name": nombre_fantasia,
-        "client_rif": rif_cliente,
-        "sede_name": segmento_label,
-        "sede": segmento_label,
-    }
+        "numero_cotizacion": quote.get("quote_number", "") or "",
+    })
 
     result = await dispatch_other_action(
         action_id="cotizacion_equipos_infra",

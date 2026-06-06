@@ -66,6 +66,8 @@ OTHER_ACTIONS = [
         "label": "Cotización Equipos Infra",
         "description": "Se dispara al confirmar 'Enviar al Cliente' una cotización de un cliente Corporativo cuando el operador indica que la cotización incluye Equipos de Infraestructura. Notifica a usuarios internos del sistema (correo o Centro de Mensajes) según la plantilla configurada.",
         "variables": [
+            "Nombre_Cliente", "Rif_Cliente", "Cotizacion_Nro", "Cantidad_Cajas",
+            "Nombre_Ejecutivo", "Email_Ejecutivo", "Contacto_Principal",
             "nombre_cliente", "nombre_fantasia", "rif_cliente", "numero_cotizacion",
             "segmento", "monto_total_usd", "ejecutivo", "usuario_ejecutor", "fecha_sistema",
         ],
