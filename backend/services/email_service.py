@@ -94,6 +94,7 @@ def _send_smtp(
     sender: str,
     attachments: list = None,
     cc: List[str] = None,
+    bcc: List[str] = None,
 ) -> dict:
     """Envío síncrono vía SMTP (se ejecuta en thread aparte)."""
     msg = MIMEMultipart("mixed")
@@ -126,8 +127,8 @@ def _send_smtp(
             part.add_header("Content-Disposition", "attachment", filename=fname)
             msg.attach(part)
 
-    # All recipients for sendmail (TO + CC)
-    all_recipients = list(to) + (cc or [])
+    # All recipients for sendmail (TO + CC + BCC). BCC no va en headers.
+    all_recipients = list(to) + (cc or []) + (bcc or [])
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
         server.ehlo()
@@ -149,15 +150,17 @@ async def send_email(
     attachments: list = None,
     sender: str = None,
     cc: List[str] = None,
+    bcc: List[str] = None,
 ) -> dict:
     """
-    Envía un email con soporte para CC.
+    Envía un email con soporte para CC y BCC.
     Prioridad: 1) SMTP propio  2) Resend  3) Simulado.
     """
     sender = sender or SENDER_EMAIL
     # Filter empty emails
     to = [e for e in to if e and e.strip() and '@' in e]
     cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
+    bcc = [e for e in (bcc or []) if e and e.strip() and '@' in e]
 
     # Anexar footer global institucional al final del HTML (si hay configurado)
     try:
@@ -175,6 +178,7 @@ async def send_email(
         "from": sender,
         "to": to,
         "cc": cc,
+        "bcc": bcc,
         "subject": subject,
         "html_preview": html[:500],
         "has_attachment": bool(attachments),
@@ -185,7 +189,7 @@ async def send_email(
     if SMTP_AVAILABLE:
         try:
             result = await asyncio.to_thread(
-                _send_smtp, to, subject, html, sender, attachments, cc
+                _send_smtp, to, subject, html, sender, attachments, cc, bcc
             )
             email_log["status"] = "sent"
             email_log["method"] = "smtp"
@@ -210,6 +214,10 @@ async def send_email(
             if api_key:
                 resend.api_key = api_key
                 params = {"from": sender, "to": to, "subject": subject, "html": html}
+                if cc:
+                    params["cc"] = cc
+                if bcc:
+                    params["bcc"] = bcc
                 if attachments:
                     params["attachments"] = attachments
                 result = await asyncio.to_thread(resend.Emails.send, params)

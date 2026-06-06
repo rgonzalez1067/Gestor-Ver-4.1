@@ -61,6 +61,16 @@ OTHER_ACTIONS = [
             "asignado_por", "contactos_tecnicos", "fecha_sistema",
         ],
     },
+    {
+        "id": "cotizacion_equipos_infra",
+        "label": "Cotización Equipos Infra",
+        "description": "Se dispara al confirmar 'Enviar al Cliente' una cotización de un cliente Corporativo cuando el operador indica que la cotización incluye Equipos de Infraestructura. Notifica a cuentas de correo externas (Para/CC/CCO).",
+        "external_recipients": True,
+        "variables": [
+            "nombre_cliente", "nombre_fantasia", "rif_cliente", "numero_cotizacion",
+            "segmento", "monto_total_usd", "ejecutivo", "usuario_ejecutor", "fecha_sistema",
+        ],
+    },
 ]
 OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 
@@ -68,8 +78,10 @@ OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 # ---------- Models ----------
 class RecipientRow(BaseModel):
     row_id: str = Field(default_factory=lambda: f"row_{uuid.uuid4().hex[:8]}")
-    type: str = "user"  # sólo usuarios internos (no hay correo de cliente)
+    type: str = "user"  # "user" (interno) | "email" (cuenta externa Para/CC/CCO)
     user_id: Optional[str] = None
+    email: Optional[str] = None          # requerido si type=="email"
+    recipient_kind: Optional[str] = "to"  # "to" | "cc" | "bcc" (solo type=="email")
     template_id: Optional[str] = None
     send_pdf_attachments: bool = False
     delivery_channel: str = "email"  # "email" | "inbox"
@@ -154,12 +166,21 @@ async def upsert_config(payload: OtherActionConfigPayload, authorization: Option
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
 
     for r in payload.recipients:
-        if r.type != "user":
-            raise HTTPException(status_code=400, detail="Sólo se permiten destinatarios de tipo 'user' (usuarios internos)")
-        if not r.user_id:
-            raise HTTPException(status_code=400, detail="user_id requerido para cada fila")
-        if r.delivery_channel not in ("email", "inbox"):
-            raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
+        if r.type == "email":
+            email = (r.email or "").strip()
+            if "@" not in email:
+                raise HTTPException(status_code=400, detail="Correo externo inválido en una de las filas")
+            if (r.recipient_kind or "to") not in ("to", "cc", "bcc"):
+                raise HTTPException(status_code=400, detail=f"recipient_kind inválido: {r.recipient_kind}")
+            if not r.template_id:
+                raise HTTPException(status_code=400, detail="Cada fila externa debe tener una plantilla seleccionada")
+        elif r.type == "user":
+            if not r.user_id:
+                raise HTTPException(status_code=400, detail="user_id requerido para cada fila")
+            if r.delivery_channel not in ("email", "inbox"):
+                raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
+        else:
+            raise HTTPException(status_code=400, detail=f"Tipo de destinatario no soportado: {r.type}")
 
     now = datetime.now(timezone.utc).isoformat()
     doc = {

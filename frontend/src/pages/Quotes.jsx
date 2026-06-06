@@ -237,6 +237,10 @@ export const Quotes = () => {
   const [contactList, setContactList] = useState([]);
   const [contactSelectedEmails, setContactSelectedEmails] = useState([]);
   const [contactSelectLoading, setContactSelectLoading] = useState(false);
+  // "Cotización Equipos Infra" — interceptación post-personalización para clientes Corp.
+  const [equiposInfraOpen, setEquiposInfraOpen] = useState(false);
+  const [equiposInfraQuoteId, setEquiposInfraQuoteId] = useState(null);
+  const [equiposInfraSending, setEquiposInfraSending] = useState(false);
   // Adjuntos manuales del modal de Personalizar Comunicación.
   // Cada item: { attachment_id, filename, size, content_type }
   const [emailManualAttachments, setEmailManualAttachments] = useState([]);
@@ -2331,7 +2335,7 @@ export const Quotes = () => {
     setEmailModalOpen(false);
     
     if (action === 'send-to-client') {
-      executeSendToClient(quoteId);
+      proceedSendToClient(quoteId);
     } else if (action === 'approve') {
       openApproveConfirm(quoteId, pendingAction?.exceptionHeaders || null);
     } else if (action === 'repair-complete') {
@@ -2414,6 +2418,48 @@ export const Quotes = () => {
     const quoteId = contactSelectQuoteId;
     setContactSelectOpen(false);
     openEmailModal('send-to-client', quoteId, contactSelectedEmails);
+  };
+
+  // Intercepta "Enviar al Cliente": para cotizaciones CORP, si la acción
+  // "Cotización Equipos Infra" está configurada y activa, muestra primero el
+  // modal de Equipos de Infraestructura. Pyme/otros o acción desactivada →
+  // despacho directo (comportamiento estándar).
+  const proceedSendToClient = async (quoteId) => {
+    const quote = quotes.find(q => q.quote_id === quoteId);
+    const isCorp = (quote?.client_segment || '').toUpperCase() === 'CORP';
+    if (isCorp) {
+      try {
+        const res = await api.get('/other-actions/configs/cotizacion_equipos_infra');
+        const cfg = res.data || {};
+        const hasRecipients = (cfg.recipients || []).length > 0;
+        if (cfg.exists !== false && cfg.enabled !== false && hasRecipients) {
+          setEquiposInfraQuoteId(quoteId);
+          setEquiposInfraOpen(true);
+          return;
+        }
+      } catch {
+        // Si la consulta falla, continúa con el envío directo (cero regresión).
+      }
+    }
+    executeSendToClient(quoteId);
+  };
+
+  // Respuesta del modal de Equipos Infra. En ambos casos se despacha la
+  // cotización; sólo si responde "Sí" se dispara la acción de infraestructura.
+  const handleEquiposInfraAnswer = async (includesInfra) => {
+    const quoteId = equiposInfraQuoteId;
+    setEquiposInfraOpen(false);
+    if (includesInfra) {
+      setEquiposInfraSending(true);
+      try {
+        await api.post(`/quotes/${quoteId}/equipos-infra`);
+      } catch (e) {
+        console.error('equipos-infra dispatch error', e);
+      } finally {
+        setEquiposInfraSending(false);
+      }
+    }
+    executeSendToClient(quoteId);
   };
 
   const executeSendToClient = async (quoteId) => {
@@ -3933,6 +3979,39 @@ export const Quotes = () => {
             projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
             equipmentSelected, setEquipmentSelected,
           }} />
+
+          {/* Modal interceptor: Equipos de Infraestructura (solo clientes Corp) */}
+          <AlertDialog open={equiposInfraOpen} onOpenChange={(v) => { if (!v) setEquiposInfraOpen(false); }}>
+            <AlertDialogContent data-testid="equipos-infra-modal">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Equipos de Infraestructura</AlertDialogTitle>
+                <AlertDialogDescription>
+                  ¿Esta cotización incluye <strong>Equipos de Infraestructura</strong>?
+                  <br />
+                  Al confirmar, se enviará la cotización al cliente. Si respondes "Sí", además se
+                  notificará al área de infraestructura según la configuración.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  onClick={() => handleEquiposInfraAnswer(false)}
+                  disabled={equiposInfraSending}
+                  data-testid="equipos-infra-no"
+                >
+                  No, enviar normal
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleEquiposInfraAnswer(true)}
+                  disabled={equiposInfraSending}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  data-testid="equipos-infra-yes"
+                >
+                  Sí, incluye Equipos Infra
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
 
           {/* Modal Reparacion Completada con Calculadora */}
           <RepairCompleteModal

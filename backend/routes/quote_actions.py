@@ -206,7 +206,7 @@ async def _push_quote_event(event_type: str, quote: dict, title: str, message: s
                 "creator_user_id": quote.get("created_by_user_id"),
                 "sede": quote.get("sede"),
             },
-            link=f"/quotes",
+            link="/quotes",
             quote_id=quote.get("quote_id"),
         )
     except Exception as e:
@@ -398,6 +398,62 @@ async def get_quote_audit_log(quote_id: str, authorization: Optional[str] = Head
     await get_current_user(authorization)
     entries = await db.audit_exceptions.find({"quote_id": quote_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return entries
+
+
+@router.post("/quotes/{quote_id}/equipos-infra")
+async def trigger_equipos_infra(quote_id: str, authorization: Optional[str] = Header(None)):
+    """Dispara la acción dinámica 'Cotización Equipos Infra'.
+
+    Se invoca en segundo plano cuando el operador, al hacer "Enviar al Cliente"
+    de una cotización CORPORATIVA, confirma que la cotización incluye Equipos de
+    Infraestructura. Notifica a las cuentas externas (Para/CC/CCO) y plantilla
+    configuradas en "Configuración de otras Acciones". Respeta el toggle global.
+    """
+    from services.other_actions_engine import dispatch_other_action
+
+    user = await get_current_user(authorization)
+    quote = await db.quotes.find_one({"quote_id": quote_id}, {"_id": 0})
+    if not quote:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    # Solo aplica a clientes Corporativos (seguridad de servidor, no solo UI).
+    segment = (quote.get("client_segment") or "").strip().upper()
+    if segment != "CORP":
+        return {"dispatched": False, "reason": "not_corp"}
+
+    monto = quote.get("grand_total_usd") or quote.get("total_usd") or 0
+    try:
+        monto_fmt = f"{float(monto):,.2f}"
+    except (TypeError, ValueError):
+        monto_fmt = str(monto)
+
+    template_vars = {
+        "nombre_cliente": quote.get("client_name", "") or "",
+        "nombre_fantasia": quote.get("fantasy_name", "") or quote.get("client_name", "") or "",
+        "rif_cliente": quote.get("client_rif", "") or "",
+        "numero_cotizacion": quote.get("quote_number", "") or "",
+        "segmento": segment,
+        "monto_total_usd": monto_fmt,
+        "ejecutivo": quote.get("created_by_name", "") or "",
+        "usuario_ejecutor": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("email", ""),
+        "fecha_sistema": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+        # Alias estándar de plantillas de cotización (compatibilidad con el maestro existente).
+        "quote_number": quote.get("quote_number", "") or "",
+        "client_name": quote.get("client_name", "") or "",
+        "fantasy_name": quote.get("fantasy_name", "") or "",
+        "client_rif": quote.get("client_rif", "") or "",
+        "sede_name": segment,
+        "sede": segment,
+    }
+
+    result = await dispatch_other_action(
+        action_id="cotizacion_equipos_infra",
+        template_vars=template_vars,
+        current_user=user,
+        fallback_subject=f"Cotización Equipos Infra — {quote.get('quote_number', '')}",
+    )
+    return result
+
 
 
 @router.put("/quotes/{quote_id}/status")
@@ -2163,8 +2219,6 @@ async def deliver_quote(quote_id: str, body: dict = {}, authorization: Optional[
         wh = await db.warehouses.find_one({"warehouse_id": warehouse_id}, {"_id": 0})
         if not wh:
             raise HTTPException(status_code=404, detail="Almacén no encontrado")
-
-        warehouse_name = wh.get("name", "")
 
         # ============================================================
         # FASE 1 — PRE-VALIDACIÓN ATÓMICA
