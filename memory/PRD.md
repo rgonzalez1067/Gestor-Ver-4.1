@@ -4,6 +4,26 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 67: Acción "Cotización Equipos Infra" — Interceptación post-personalización para Corp — Jun 2026
+
+**Objetivo:** Tras procesar "Personalizar Comunicaciones" al hacer "Enviar al Cliente", para clientes CORP emerge un modal "¿Incluye Equipos de Infraestructura?"; si "Sí" se dispara una notificación parametrizable a correos externos (Para/CC/CCO + plantilla). Pyme/otros → envío directo. Parametrizable desde "Configuración de otras Acciones".
+
+**Backend:**
+- `services/email_service.py`: `send_email`/`_send_smtp` ahora soportan **BCC** (y CC en Resend).
+- `routes/other_actions_config.py`: nueva acción de catálogo `cotizacion_equipos_infra` (`external_recipients:true`); `RecipientRow` extendido con `email` + `recipient_kind` (to/cc/bcc); validación de filas externas.
+- `services/other_actions_engine.py`: despacho de destinatarios externos agrupados por plantilla, particionando Para/CC/CCO en un solo correo por plantilla (promueve un TO si solo hay CC/CCO).
+- `routes/quote_actions.py`: `POST /quotes/{id}/equipos-infra` (solo CORP; arma template_vars con alias estándar de cotización; llama `dispatch_other_action`; respeta toggle global).
+
+**Frontend:**
+- `pages/OtherActionsConfig.jsx`: variante de tarjeta para `external_recipients` con filas {correo externo + Para/CC/CCO + plantilla} y toggle de activación.
+- `pages/Quotes.jsx`: `proceedSendToClient()` (gate CORP + acción activa + recipients>0 → abre modal; si no → envío directo). Modal AlertDialog `equipos-infra-modal` (Sí/No). `handleEquiposInfraAnswer()`: "Sí" → envío + POST equipos-infra; "No" → envío normal. Solo en "Enviar al Cliente".
+
+**QA:** Backend validado por curl (catálogo, save TO/CC/BCC, dispatch CORP=3 destinatarios con email_log particionado, PYME=not_corp). Frontend validado por testing_agent (iteration_23) — **6/6 criterios PASS**: config UI, Pyme sin modal, Corp con modal, "No" sin dispatch, "Sí" con dispatch, desactivada sin modal. Config de prueba eliminada (estado limpio).
+**Decisión:** correo de Equipos Infra es notificación informativa con plantilla (sin adjunto PDF). Lint limpio salvo deuda preexistente de star-import en `quote_actions.py` (backlog).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 66: "Tipo de Comunicación" en Ficha Técnica + Homologación en Proyectos Directos — Jun 2026
 
 **1. Ficha Técnica (Core) — nuevo campo "Tipo de Comunicación" (SSL/VPN)** ✅
