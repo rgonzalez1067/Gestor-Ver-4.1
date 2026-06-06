@@ -4,7 +4,6 @@ import { ArrowLeft, ChevronRight, ChevronDown, Plus, Trash2, Save, Settings2, Lo
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
-import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
@@ -12,70 +11,8 @@ import api from '../utils/api';
 
 const TEMPLATE_CATEGORIES = ['Implementación', 'Pyme', 'Corp', 'General'];
 
-function RecipientRow({ row, users, templates, onChange, onRemove, isExternal }) {
+function RecipientRow({ row, users, templates, onChange, onRemove }) {
   const update = (patch) => onChange({ ...row, ...patch });
-  const TemplateSelect = (
-    <Select value={row.template_id || ''} onValueChange={(v) => update({ template_id: v })}>
-      <SelectTrigger className="h-9 w-72" data-testid={`oa-row-tpl-${row.row_id}`}>
-        <SelectValue placeholder="Seleccionar plantilla..." />
-      </SelectTrigger>
-      <SelectContent className="max-h-80">
-        {TEMPLATE_CATEGORIES.map((cat) => {
-          const subset = templates.filter((t) => (t.category || 'General') === cat);
-          if (subset.length === 0) return null;
-          return (
-            <div key={cat}>
-              <div className="px-2 py-1 text-xs font-bold text-slate-500 bg-slate-50">{cat}</div>
-              {subset.map((t) => (
-                <SelectItem key={t.template_id} value={t.template_id}>
-                  <span className="truncate max-w-[260px] inline-block">{t.name}</span>
-                </SelectItem>
-              ))}
-            </div>
-          );
-        })}
-      </SelectContent>
-    </Select>
-  );
-
-  if (isExternal) {
-    return (
-      <tr className="border-b border-slate-100 hover:bg-slate-50">
-        <td className="px-3 py-2 align-middle">
-          <Select value={row.recipient_kind || 'to'} onValueChange={(v) => update({ recipient_kind: v })}>
-            <SelectTrigger className="h-9 w-32" data-testid={`oa-row-kind-${row.row_id}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="to">Para (TO)</SelectItem>
-              <SelectItem value="cc">Con Copia (CC)</SelectItem>
-              <SelectItem value="bcc">Copia Oculta (CCO)</SelectItem>
-            </SelectContent>
-          </Select>
-        </td>
-        <td className="px-3 py-2 align-middle">
-          <Input
-            type="email"
-            value={row.email || ''}
-            onChange={(e) => update({ email: e.target.value })}
-            placeholder="correo@externo.com"
-            className="h-9 w-64"
-            data-testid={`oa-row-email-${row.row_id}`}
-          />
-        </td>
-        <td className="px-3 py-2 align-middle">{TemplateSelect}</td>
-        <td className="px-3 py-2 align-middle">
-          <span className="text-sm text-slate-500">📧 Correo</span>
-        </td>
-        <td className="px-3 py-2 align-middle text-right">
-          <Button variant="ghost" size="sm" onClick={onRemove} className="text-red-600 hover:bg-red-50" data-testid={`oa-row-remove-${row.row_id}`}>
-            <Trash2 size={14} />
-          </Button>
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50">
       <td className="px-3 py-2 align-middle">
@@ -98,7 +35,29 @@ function RecipientRow({ row, users, templates, onChange, onRemove, isExternal })
           </SelectContent>
         </Select>
       </td>
-      <td className="px-3 py-2 align-middle">{TemplateSelect}</td>
+      <td className="px-3 py-2 align-middle">
+        <Select value={row.template_id || ''} onValueChange={(v) => update({ template_id: v })}>
+          <SelectTrigger className="h-9 w-72" data-testid={`oa-row-tpl-${row.row_id}`}>
+            <SelectValue placeholder="Seleccionar plantilla..." />
+          </SelectTrigger>
+          <SelectContent className="max-h-80">
+            {TEMPLATE_CATEGORIES.map((cat) => {
+              const subset = templates.filter((t) => (t.category || 'General') === cat);
+              if (subset.length === 0) return null;
+              return (
+                <div key={cat}>
+                  <div className="px-2 py-1 text-xs font-bold text-slate-500 bg-slate-50">{cat}</div>
+                  {subset.map((t) => (
+                    <SelectItem key={t.template_id} value={t.template_id}>
+                      <span className="truncate max-w-[260px] inline-block">{t.name}</span>
+                    </SelectItem>
+                  ))}
+                </div>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </td>
       <td className="px-3 py-2 align-middle">
         <Select value={row.delivery_channel || 'email'} onValueChange={(v) => update({ delivery_channel: v })}>
           <SelectTrigger className="h-9 w-48" data-testid={`oa-row-channel-${row.row_id}`}>
@@ -135,14 +94,10 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
 
   const hasConfig = !!(existingCfg && existingCfg.recipients?.length);
 
-  const isExternal = !!action.external_recipients;
-
   const handleAddRow = () => {
     setRows((prev) => [
       ...prev,
-      isExternal
-        ? { row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'email', email: '', recipient_kind: 'to', template_id: null, delivery_channel: 'email' }
-        : { row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'user', user_id: null, template_id: null, send_pdf_attachments: false, delivery_channel: 'email' },
+      { row_id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'user', user_id: null, template_id: null, send_pdf_attachments: false, delivery_channel: 'email' },
     ]);
     setDirty(true);
   };
@@ -151,12 +106,7 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
 
   const handleSave = async () => {
     for (const r of rows) {
-      if (isExternal) {
-        if (!r.email || !r.email.includes('@')) { toast.error('Cada fila debe tener un correo externo válido'); return; }
-        if (!r.template_id) { toast.error('Cada fila debe tener una plantilla seleccionada'); return; }
-      } else if (!r.user_id) {
-        toast.error('Cada fila debe tener un usuario seleccionado'); return;
-      }
+      if (!r.user_id) { toast.error('Cada fila debe tener un usuario seleccionado'); return; }
     }
     setSaving(true);
     try {
@@ -227,7 +177,6 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
                     row={r}
                     users={users}
                     templates={templates}
-                    isExternal={isExternal}
                     onChange={(nr) => handleChangeRow(idx, nr)}
                     onRemove={() => handleRemoveRow(idx)}
                   />

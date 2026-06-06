@@ -4,6 +4,17 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 67b: Corrección — "Cotización Equipos Infra" usa config estándar de usuario interno — Jun 2026
+
+El usuario aclaró que la acción debe configurarse **idéntica a las otras 3** (usuario interno + plantilla + canal correo/Centro de Mensajes), NO destinatarios externos Para/CC/CCO. Se revirtió el enfoque externo:
+- `other_actions_config.py`: removido `external_recipients`; `RecipientRow` y validación de nuevo solo `type="user"`.
+- `other_actions_engine.py`: removida la rama de destinatarios externos (usa la ruta estándar de usuarios internos).
+- `email_service.py`: revertido el soporte BCC (no requerido).
+- `OtherActionsConfig.jsx`: tarjeta de la acción usa el `RecipientRow` estándar (selector de usuario + plantilla + canal). Removido el import `Input` y la variante externa.
+- El flujo interceptor (modal Corp en "Enviar al Cliente") y el endpoint `POST /quotes/{id}/equipos-infra` se mantienen sin cambios.
+
+**QA:** API (catálogo sin external_recipients; config guarda fila `type=user` canal inbox; trigger CORP despacha a usuario interno sent_count=1) + UI smoke (selector de usuario + selector de canal presentes; input de correo externo ausente). Lint limpio.
+
 ### Iteration 67: Acción "Cotización Equipos Infra" — Interceptación post-personalización para Corp — Jun 2026
 
 **Objetivo:** Tras procesar "Personalizar Comunicaciones" al hacer "Enviar al Cliente", para clientes CORP emerge un modal "¿Incluye Equipos de Infraestructura?"; si "Sí" se dispara una notificación parametrizable a correos externos (Para/CC/CCO + plantilla). Pyme/otros → envío directo. Parametrizable desde "Configuración de otras Acciones".

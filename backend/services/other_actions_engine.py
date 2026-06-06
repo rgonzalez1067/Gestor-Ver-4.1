@@ -58,62 +58,9 @@ async def dispatch_other_action(
     sent_to: list[str] = []
     skipped: list[dict] = []
 
-    # --- Destinatarios externos (Para/CC/CCO) — agrupados por plantilla ---
-    # Cada fila type=="email" lleva su correo + recipient_kind (to/cc/bcc) + plantilla.
-    # Se agrupan por plantilla para emitir UN correo por plantilla con sus
-    # destinatarios particionados en Para/CC/CCO.
-    email_rows = [r for r in recipients if r.get("type") == "email"]
-    if email_rows:
-        from collections import defaultdict
-        groups: dict = defaultdict(lambda: {"to": [], "cc": [], "bcc": []})
-        for r in email_rows:
-            em = (r.get("email") or "").strip()
-            if "@" not in em:
-                skipped.append({"row_id": r.get("row_id"), "reason": "correo externo inválido"})
-                continue
-            kind = (r.get("recipient_kind") or "to").lower()
-            if kind not in ("to", "cc", "bcc"):
-                kind = "to"
-            groups[r.get("template_id")][kind].append(em)
-
-        for template_id, buckets in groups.items():
-            tpl = await _load_template(template_id)
-            if not tpl:
-                skipped.append({"template_id": template_id, "reason": "Plantilla no encontrada"})
-                continue
-            to_list = list(buckets["to"])
-            cc_list = list(buckets["cc"])
-            bcc_list = list(buckets["bcc"])
-            # Garantizar al menos un destinatario "Para" (promueve el primer CC/CCO).
-            if not to_list:
-                if cc_list:
-                    to_list = [cc_list.pop(0)]
-                elif bcc_list:
-                    to_list = [bcc_list.pop(0)]
-            if not to_list:
-                continue
-            subject = _render(tpl.get("subject", ""), template_vars) or fallback_subject
-            body = _render(tpl.get("body_html", "") or tpl.get("body", ""), template_vars)
-            try:
-                await send_email(
-                    to=to_list,
-                    subject=subject or fallback_subject or "Notificación",
-                    html=body,
-                    action=f"{action_id}_external",
-                    cc=cc_list,
-                    bcc=bcc_list,
-                )
-                total_dest = to_list + cc_list + bcc_list
-                sent_count += len(total_dest)
-                sent_to.extend(total_dest)
-            except Exception as e:  # noqa: BLE001
-                logger.error(f"[other-actions] Error enviando correo externo (tpl={template_id}): {e}")
-                skipped.append({"template_id": template_id, "reason": str(e)})
-
     for row in recipients:
         if row.get("type") != "user":
-            if row.get("type") != "email":
-                skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {row.get('type')}"})
+            skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {row.get('type')}"})
             continue
         resolved = await _resolve_user_email(row.get("user_id", ""))
         if not resolved:
