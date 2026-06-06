@@ -1111,18 +1111,19 @@ const ProjectDetail = () => {
                     <p className="text-sm font-semibold text-slate-700" data-testid="pinpad-model">{project.pinpad_model || '—'}</p>
                   </div>
                 </div>
+                {/* Patrocinador de Pinpads (entidad que patrocina/asocia los terminales) */}
                 <div className="flex items-center gap-3">
                   <Building2 size={18} className="text-blue-600 shrink-0" />
                   <div>
-                    <p className="text-xs text-slate-500">Banco Patrocinador</p>
+                    <p className="text-xs text-slate-500">Patrocinador de Pinpads</p>
                     <p className="text-sm font-semibold text-slate-700" data-testid="sponsor-bank">{project.sponsor_bank_name || '—'}</p>
                   </div>
                 </div>
-                {/* Patrocinador (Implementación Patrocinada): Banco directo o Procesador — Banco */}
+                {/* Patrocinador de la Implementación (Implementación Patrocinada): Banco directo o Procesador — Banco */}
                 <div className="flex items-center gap-3">
                   <Landmark size={18} className="text-indigo-600 shrink-0" />
                   <div>
-                    <p className="text-xs text-slate-500">Patrocinador</p>
+                    <p className="text-xs text-slate-500">Patrocinador de la Implementación</p>
                     <p className="text-sm font-semibold text-slate-700" data-testid="project-detail-patrocinador">
                       {project.patrocinador_label
                         || (project.sponsored_implementation && project.sponsoring_bank_name
@@ -1145,22 +1146,26 @@ const ProjectDetail = () => {
                     </div>
                   </div>
                 )}
-                {project.server_name && (
-                  <div className="flex items-center gap-3 pt-1 mt-1 border-t border-slate-100">
-                    <Server size={18} className="text-blue-600 shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-500">Servidor de Instalación</p>
-                      <p className="text-sm font-semibold text-blue-700" data-testid="server-name">{project.server_name}</p>
-                    </div>
-                  </div>
-                )}
-                {project.communication_type && (
-                  <div className="flex items-center gap-3 pt-1 mt-1 border-t border-slate-100">
-                    <Network size={18} className="text-cyan-600 shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-500">Tipo de Comunicación</p>
-                      <p className="text-sm font-semibold text-cyan-700" data-testid="communication-type">{project.communication_type}</p>
-                    </div>
+                {(project.server_name || project.communication_type) && (
+                  <div className="flex items-center gap-6 pt-1 mt-1 border-t border-slate-100" data-testid="server-comm-row">
+                    {project.server_name && (
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Server size={18} className="text-blue-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-slate-500">Servidor de Instalación</p>
+                          <p className="text-sm font-semibold text-blue-700 truncate" data-testid="server-name">{project.server_name}</p>
+                        </div>
+                      </div>
+                    )}
+                    {project.communication_type && (
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Network size={18} className="text-cyan-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-slate-500">Tipo de Comunicación</p>
+                          <p className="text-sm font-semibold text-cyan-700" data-testid="communication-type">{project.communication_type}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

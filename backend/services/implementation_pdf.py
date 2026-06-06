@@ -167,8 +167,17 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
         ("Nombre del Integrador", quote.get('integrator_name', 'N/A')),
         ("Nombre del Aplicativo", quote.get('integrator_app_name', 'N/A')),
         ("Modelo de Pinpad", quote.get('pinpad_model', 'N/A')),
-        ("Patrocinador de Pinpads", quote.get('sponsor_bank_name', 'N/A')),
+        ("Patrocinador de Pinpads", quote.get('sponsor_bank_name') or 'N/A'),
     ]
+    # Patrocinador de la Implementación (independiente del Patrocinador de Pinpads):
+    # proviene de "¿Implementación patrocinada?" (cotizaciones) o "Banco Patrocinante"
+    # (proyectos directos). Puede ser "Procesador - Banco" o solo "Banco".
+    impl_sponsor = ""
+    if quote.get("sponsored_implementation") and (quote.get("sponsoring_bank_name") or "").strip():
+        _proc = (quote.get("sponsoring_processor_name") or "").strip()
+        _bank = (quote.get("sponsoring_bank_name") or "").strip()
+        impl_sponsor = f"{_proc} - {_bank}" if _proc else _bank
+    tech_pairs.append(("Patrocinador de la Implementacion", impl_sponsor or "N/A"))
     server_name = quote.get("server_name") or ""
     if server_name:
         tech_pairs.append(("Servidor de Instalacion", server_name))

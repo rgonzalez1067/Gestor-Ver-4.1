@@ -243,11 +243,15 @@ async def create_direct_project(
         "hardware": [],
         "equipment_items": [],
         "branch_details": branch_details,
-        "sponsor_bank_id": payload.sponsor_bank_id,
-        "sponsor_bank_name": payload.sponsor_bank_name,
-        # Patrocinador homologado con Cotizaciones: alimenta patrocinador_label
-        # ("Procesador — Banco" o solo "Banco") y la columna de patrocinio del grid.
-        "sponsored_implementation": bool(payload.sponsor_bank_id),
+        # Patrocinador de Pinpads (homologado con Cotizaciones = sponsor_bank): en
+        # Proyectos Directos proviene del campo "Banco del Pinpad" (pinpad_bank).
+        # Es independiente del Patrocinador de la Implementación.
+        "sponsor_bank_id": None,
+        "sponsor_bank_name": (payload.pinpad_bank or "").strip() or None,
+        # Patrocinador de la Implementación = "Banco Patrocinante" (Sección Definición
+        # Comercial). Alimenta patrocinador_label ("Procesador — Banco" o solo "Banco")
+        # y la columna de patrocinio del grid.
+        "sponsored_implementation": bool(payload.sponsor_bank_id or payload.sponsor_processor_id),
         "sponsoring_bank_id": payload.sponsor_bank_id,
         "sponsoring_bank_name": payload.sponsor_bank_name,
         "sponsoring_processor_id": payload.sponsor_processor_id,

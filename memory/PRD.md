@@ -4,6 +4,28 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 70: Ficha Técnica — "Patrocinador de la Implementación" + reordenamiento Sección B — Jun 2026
+
+**Requerimiento:** Estandarizar la Sección B (Configuración Técnica) de la Ficha Técnica con orden jerárquico: (1) Patrocinador de Pinpads, (2) Patrocinador de la Implementación [NUEVO], (3) Servidor de Instalación → Tipo de Comunicación (misma línea). Aplicar idéntico a Cotizaciones y Proyectos Directos. Aislamiento de patrocinios (Pinpads ≠ Implementación).
+
+**Matriz de mapeo:**
+| Campo | Cotizaciones (Enviar a Implementación) | Proyectos Directos |
+|---|---|---|
+| Patrocinador de Pinpads | `sponsor_bank_name` (Entidad Patrocinadora) | `pinpad_bank` ("Banco del Pinpad") |
+| Patrocinador de la Implementación | `sponsoring_bank_name` (¿Implementación patrocinada?) | `sponsor_bank_name` ("Banco Patrocinante") |
+| Servidor de Instalación | `server_name` | `server_name` |
+| Tipo de Comunicación | `communication_type` | `communication_type` |
+
+**Cambios:**
+- `services/implementation_pdf.py`: Sección B agrega fila "Patrocinador de la Implementacion" (desde `sponsored_implementation` + `sponsoring_bank_name`/processor → "Procesador - Banco" o "Banco"), justo debajo de "Patrocinador de Pinpads"; Servidor y Tipo de Comunicación al final.
+- `routes/direct_projects.py` (synthetic_quote): **FIX de homologación** — `sponsor_bank_name` (Patrocinador de Pinpads) ahora toma `pinpad_bank` (antes tomaba erróneamente el Banco Patrocinante); `sponsoring_bank_name` (Patrocinador de la Implementación) toma el Banco Patrocinante. Esto alinea Proyectos Directos con Cotizaciones (en ambos, el Pinpad-sponsor se agrega a la matriz de bancos en `quote_transitions`).
+- `pages/ProjectDetail.jsx`: relabel "Banco Patrocinador"→"Patrocinador de Pinpads" y "Patrocinador"→"Patrocinador de la Implementación"; Servidor de Instalación y Tipo de Comunicación renderizados en la misma fila (`data-testid="server-comm-row"`).
+
+**QA:** `tests/test_ficha_tecnica_patrocinadores.py` (PDF, 3 casos PASS: cotización, directo, sin-patrocinio→N/A). UI verificada por screenshot (etiquetas + fila Servidor/Comunicación). E2E Proyecto Directo por API (Pinpad=Banco Gamma, Patrocinante=Banco Beta, VPN → sponsor_bank_name=Gamma, sponsoring_bank_name=Beta, communication_type=VPN); proyecto de prueba eliminado (no destructivo). Cambios aditivos: proyectos/fichas existentes NO se migran ni corrompen.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 69: Bug Fix — Pérdida de datos del Resumen Ejecutivo al cambiar Modelo de Precios — Jun 2026
 
 **Bug:** Al cambiar el "Modelo de Precios" (Convencional/Outsourcing) en el wizard cuando ya había Medios de Pago + Bancos cargados, el `onValueChange` ejecutaba SIEMPRE la rama de inicialización (`initializeSetupConcepts` + `additional_items: []`), destruyendo la Matriz de Distribución del Resumen Ejecutivo (derivada de `additional_items`). El texto de "Notas adicionales" (`notes`) sí se preservaba por el spread, pero los medios de pago/bancos se perdían.
