@@ -1012,6 +1012,7 @@ export const Quotes = () => {
       sponsor_bank_id: '',
       requires_pinpad_config: true,
       requires_vpn: false,
+      communication_type: 'NO_APLICA',
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],
@@ -1803,6 +1804,7 @@ export const Quotes = () => {
         descuento_recurrente: quoteData.descuento_recurrente || 0,
         requires_pinpad_config: quoteData.requires_pinpad_config !== false,
         requires_vpn: quoteData.requires_vpn !== false,
+        communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
         notes: quoteData.notes || '',
         is_production_client: isProductionClient,
         pg_setup_items: pgSetupItems.map(item => ({
@@ -1863,6 +1865,7 @@ export const Quotes = () => {
         is_production_client: isProductionClient,
         requires_pinpad_config: quoteData.requires_pinpad_config !== false,
         requires_vpn: quoteData.requires_vpn !== false,
+        communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
         production_items: productionItems.map(item => ({
           item_name: item.medio_pago_name,
           cantidad_cajas: item.cantidad_cajas || 1,
@@ -2008,6 +2011,7 @@ export const Quotes = () => {
       descuento_recurrente: quoteData.descuento_recurrente || 0,
       requires_pinpad_config: quoteData.requires_pinpad_config !== false,
       requires_vpn: quoteData.requires_vpn !== false,
+      communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
       notes: quoteData.notes || '',
       is_production_client: isProductionClient,
       // PG setup items para el PDF de Payment Gateway
@@ -2233,6 +2237,7 @@ export const Quotes = () => {
         descuento_recurrente: quoteData.descuento_recurrente || 0,
         requires_pinpad_config: quoteData.requires_pinpad_config !== false,
         requires_vpn: quoteData.requires_vpn !== false,
+        communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
         notes: quoteData.notes || '',
         is_production_client: isProductionClient,
         pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
@@ -3325,6 +3330,7 @@ export const Quotes = () => {
       sponsor_bank_id: quote.sponsor_bank_id || '',
       requires_pinpad_config: quote.requires_pinpad_config !== false,
       requires_vpn: quote.requires_vpn !== false,
+      communication_type: quote.communication_type || (quote.requires_vpn ? 'VPN' : 'NO_APLICA'),
       setup_items: setupItems,
       recurring_basic_items: recurringBasicItems,
       recurring_other_items: recurringOtherItems,
@@ -3509,6 +3515,7 @@ export const Quotes = () => {
         descuento_recurrente: quoteData.descuento_recurrente || 0,
         requires_pinpad_config: quoteData.requires_pinpad_config !== false,
         requires_vpn: quoteData.requires_vpn !== false,
+        communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
         notes: quoteData.notes,
         cantidad_cajas: quoteData.cantidad_cajas || 1,
         cantidad_bancos: quoteData.cantidad_bancos || 1,
@@ -3583,6 +3590,7 @@ export const Quotes = () => {
       sponsor_bank_id: '',
       requires_pinpad_config: true,
       requires_vpn: false,
+      communication_type: 'NO_APLICA',
       setup_items: [],
       recurring_basic_items: [],
       recurring_other_items: [],

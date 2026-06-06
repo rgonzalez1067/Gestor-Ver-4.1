@@ -13,7 +13,7 @@ import { Plus, Download, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, T
 import { useState } from 'react';
 import { BranchDetailPanel } from '../BranchDetailPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
-import { QUOTE_TYPES, PRICING_MODELS } from './constants';
+import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS } from './constants';
 import { toast } from 'sonner';
 
 export const QuoteWizardDialog = ({ ctx }) => {

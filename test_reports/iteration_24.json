@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only validation of the Cotizador de Implementación visual + commercial homologation (PinPad segmented buttons, Tipo de Comunicación SSL/VPN/No aplica segmented buttons, removal of legacy ¿Requiere VPN?, and the Comunicación Backend tariff matrix). Found and FIXED one critical regression introduced by the recent QuoteWizardDialog extraction: SETUP_CONCEPTS was used but not imported, throwing ReferenceError when toggling requires-pinpad-yes (Sí). After fix, all PinPad and Tipo de Comunicación toggles work; aria-checked state is correct; help-text branches by VPN vs SSL/NO_APLICA; no console runtime errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "QuoteWizardDialog.jsx", "issue": "FIXED in this iteration — ReferenceError: SETUP_CONCEPTS is not defined when user clicks [data-testid=requires-pinpad-yes]. Used at line 416 but not imported (only QUOTE_TYPES, PRICING_MODELS were imported from ./constants). Added SETUP_CONCEPTS to the import.", "selector": "[data-testid=requires-pinpad-yes]", "priority": "CRITICAL (already fixed)"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Cotizaciones list", "issues": ["Pre-existing hydration warning: <span data-ve-dynamic> appears as child of <tbody> and <tr> in QuotesTable (carried over from previous iterations, not blocking)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Re-run the persistence test with a more deterministic UI path (the row action ... menu opens 'Anexos' modal when clicked via generic last-button selector). Suggested: add a stable data-testid='quote-actions-{quote_id}' on the kebab/dots button to make automated Modificar testing reliable.",
+    "Although the handleCommunicationType handler correctly mutates recurring_other_items[*].tarifa via setQuoteData when the matching 'Comunicación Backend' row is found, the visible tariff cell could not be confirmed numerically through DOM scraping in the wizard (likely rendered as a non-input span/Number). Recommend a data-testid on the Comunicación Backend tarifa display (e.g. data-testid='recurring-backend-comm-tarifa') for easier QA.",
+    "Code review observation: handleCommunicationType matches the recurring_other_items entry by item.medio_pago_name.includes('Comunicación Backend'); ensure the seed/initialize function always uses that exact substring (case-sensitive). A small typo upstream (e.g. 'Comunicacion Backend' without tilde) would silently skip the tariff update — consider matching with .toLowerCase() on both sides."
+  ],
+  "critical_code_review_comments": [
+    "QuoteWizardDialog.jsx line 416: SETUP_CONCEPTS not imported — runtime error on PinPad Sí click. FIXED (added to existing import on line 16).",
+    "QuoteWizardDialog.jsx L95-116 (handleCommunicationType): correctly recomputes Comunicación Backend tarifa using service.monthly_cost_conventional (VPN) vs service.monthly_cost_outsourcing (SSL / NO_APLICA), keeps requires_vpn synchronized for backend/PDF compatibility, and persists communication_type via setQuoteData — good design.",
+    "QuoteWizardDialog.jsx L480-515 (Tipo de Comunicación): segmented radio buttons render the 3 options with data-testid communication-type-{ssl|vpn|no_aplica}; help-text branches correctly between 'Comunicación Backend usa tarifa Convencional' (VPN) and 'Outsourcing' (SSL/NO_APLICA). MPOS hides the control (only VPOS shows it) as required.",
+    "Quotes.jsx persists communication_type in all relevant payloads (1807, 1868, 2014, 2240, 3518) and re-hydrates it on edit (3333) — verified by code review; UI-level re-hydration was not exercised via Playwright in this iteration because the row action menu opened the Anexos modal instead of the Modificar option with the generic selector.",
+    "Pre-existing: hydration warnings <span> child of <tr>/<tbody> from QuotesTable and Dashboard — carried over."
+  ],
+  "updated_files": ["/app/frontend/src/components/quotes/QuoteWizardDialog.jsx"],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "After fix: 3 of 4 acceptance criteria validated end-to-end via Playwright (PinPad segmented toggle, Tipo de Comunicación segmented toggle with help-text branch, legacy '¿Requiere VPN?' label absent). Criterion 4 (edit-mode persistence) validated by code review only."},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (PROTECTED_VARIABLES respected; nothing else touched).",
+  "seed_data_creation": "No new quotes were created or saved. No DB writes were issued during this iteration. NON-DESTRUCTIVE constraint respected — no cleanup scripts run; other_action_configs untouched.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Critical SETUP_CONCEPTS import regression was already fixed in /app/frontend/src/components/quotes/QuoteWizardDialog.jsx (added to the import alongside QUOTE_TYPES, PRICING_MODELS). To validate edit-mode persistence end-to-end via UI in a future iteration: (1) add a data-testid on the row kebab/dots action button (e.g. quote-actions-{quote_id}), then (2) the existing flow click→Modificar→wait→assert aria-checked on [data-testid=communication-type-{ssl|vpn|no_aplica}] will work. The wizard already supports VPOS-only display of Tipo de Comunicación; MPOS hides it (verified in code, not re-tested here). Communication Backend tariff swap by VPN/SSL/NO_APLICA is wired in handleCommunicationType (L95-116); the visible cell could not be scraped via input selectors (likely rendered as text); suggest adding a stable testid on that tariff cell for QA.",
+  "rca of the issue": "Root cause of the only critical bug found: QuoteWizardDialog.jsx was recently extracted from Quotes.jsx; the move forgot to add SETUP_CONCEPTS to the constants import in the new file even though the new inline pinpad handler (line 416) references it. Reproduction: open New Quote → Implementaciones → Clientes Pyme → select Tipo VPOS → Modelo Convencional → default is requires_pinpad_config=true → click [data-testid=requires-pinpad-yes] from a state where it is currently false (toggle Sí) → ReferenceError: SETUP_CONCEPTS is not defined dispatched, the wizard becomes interactively broken until reload. Mitigation already applied: extend the existing import to include SETUP_CONCEPTS."
+}
