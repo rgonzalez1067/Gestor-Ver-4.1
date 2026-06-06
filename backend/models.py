@@ -536,6 +536,9 @@ class QuoteCreate(BaseModel):
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
     requires_vpn: bool = False
+    # Tipo de Comunicación (conectividad): "VPN" | "SSL" | "NO_APLICA".
+    # VPN → Costo Convencional; SSL/NO_APLICA → Costo Outsourcing.
+    communication_type: Optional[str] = None
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []
@@ -671,6 +674,8 @@ class Quote(BaseModel):
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
     requires_vpn: bool = False
+    # Tipo de Comunicación (conectividad): "VPN" | "SSL" | "NO_APLICA".
+    communication_type: Optional[str] = None
     # Cliente en producción
     is_production_client: bool = False
     production_items: List[dict] = []

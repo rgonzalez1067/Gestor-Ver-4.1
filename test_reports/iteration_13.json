@@ -31,6 +31,6 @@
   "seed_data_creation": "Test created PRD-2026-* projects in MongoDB via POST /api/direct-projects (used existing client_id). No special seeds required.",
   "retest_needed": false,
   "should_main_agent_self_test": true,
-  "context_for_next_testing_agent": "Backend regression file: /app/backend/tests/test_iteration191_direct_projects_v2.py. Reuse it for future iterations of Proyectos Directos v2. The preview URL (https://proyecto-directo.preview.emergentagent.com) sleeps and requires manual 'Wake up servers' click — playwright cannot trigger it reliably. For UI testing, prefer running locally against the active backend.",
+  "context_for_next_testing_agent": "Backend regression file: /app/backend/tests/test_iteration191_direct_projects_v2.py. Reuse it for future iterations of Proyectos Directos v2. The preview URL (https://quote-wizard-homolog.preview.emergentagent.com) sleeps and requires manual 'Wake up servers' click — playwright cannot trigger it reliably. For UI testing, prefer running locally against the active backend.",
   "rca of the issue": "N/A — no bugs found. All Iteration 191 requirements verified via API tests + code inspection."
 }

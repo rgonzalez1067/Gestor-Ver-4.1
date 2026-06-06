@@ -549,7 +549,7 @@ async def update_quote_status(quote_id: str, status_update: QuoteStatusUpdate, a
     # === TRIGGER: Crear Proyecto al enviar a Implementación ===
     if status_update.new_status == "Enviada a Imple":
         try:
-            await _create_project_from_quote(quote, quote_id)
+            await _create_project_from_quote(quote, quote_id, communication_type=quote.get("communication_type"))
         except Exception as e:
             logger.error(f"Error creando proyecto desde cotización {quote_id}: {e}")
 
@@ -1577,6 +1577,7 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
             pt_impl, srv_name, pp_serials, eg, fn, ii,
             keep_quote_active=is_mpos_fast_track,
             fiscal_printer_model=fp_model,
+            communication_type=quote_for_project.get("communication_type"),
         )
     except HTTPException:
         raise

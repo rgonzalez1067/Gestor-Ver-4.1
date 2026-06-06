@@ -88,6 +88,34 @@ export const QuoteWizardDialog = ({ ctx }) => {
     });
   };
 
+  // Tipo de Comunicación (conectividad): "VPN" | "SSL" | "NO_APLICA".
+  // Matriz de costos: VPN → tarifa Convencional; SSL/NO_APLICA → tarifa
+  // Outsourcing. Mantiene `requires_vpn` sincronizado (VPN ⇔ true) para no
+  // romper el backend/PDF/transición a Proyecto existentes.
+  const handleCommunicationType = (commType) => {
+    const isVpn = commType === 'VPN';
+    const updatedOther = (quoteData.recurring_other_items || []).map(item => {
+      if (item.medio_pago_name && item.medio_pago_name.includes('Comunicación Backend')) {
+        const service = serviceCatalog.find(s =>
+          s.name.toLowerCase().includes('comunicación backend') ||
+          s.name.toLowerCase().includes('comunicacion backend') ||
+          item.medio_pago_name.toLowerCase().includes(s.name.toLowerCase())
+        );
+        if (service) {
+          return {
+            ...item,
+            tarifa: isVpn
+              ? (service.monthly_cost_conventional || 0)
+              : (service.monthly_cost_outsourcing || 0),
+          };
+        }
+      }
+      return item;
+    });
+    setQuoteData({ ...quoteData, communication_type: commType, requires_vpn: isVpn, recurring_other_items: updatedOther });
+  };
+
+
   // Confirma el banco final vinculado al procesador desde el sub-modal.
   const handleProcessorLinkedBankSelect = (bank) => {
     const proc = processorModal.processor;
@@ -182,6 +210,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                           medios_pago_items: [], 
                           pricing_model: isPGLike ? 'conventional' : (isMposLike ? 'outsourcing' : ''),
                           requires_vpn: false,
+                          communication_type: 'NO_APLICA',
                           requires_pinpad_config: true,
                           integrator_id: newIntegratorId,
                           sponsor_bank_id: isFastTrack ? (megaSoftBank?.bank_id || quoteData.sponsor_bank_id || '') : quoteData.sponsor_bank_id,
@@ -372,17 +401,18 @@ export const QuoteWizardDialog = ({ ctx }) => {
                 {!isPaymentGateway && quoteData.pricing_model && (
                   <div className={`grid grid-cols-1 ${isMPOS ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-4 mt-4 pt-4 border-t border-slate-200`}>
                     <div>
-                      <Label className="text-sm font-medium text-slate-700 mb-2 block">
+                      <Label className="text-sm font-semibold text-slate-800 mb-2 block">
                         ¿Requiere Configuración de {isMPOS ? 'POS' : 'PinPads'}?
                       </Label>
-                      <Select
-                        value={quoteData.requires_pinpad_config ? 'si' : 'no'}
-                        onValueChange={(v) => {
-                          const newVal = v === 'si';
-                          const cajas = quoteData.cantidad_cajas || 1;
-                          const bancos = quoteData.cantidad_bancos || 1;
-                          if (newVal && !quoteData.requires_pinpad_config) {
-                            // Agregar ítem de vuelta
+                      <div className="flex gap-1.5" role="radiogroup" aria-label="Requiere Configuración de PinPads">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.requires_pinpad_config === true}
+                          data-testid="requires-pinpad-yes"
+                          onClick={() => {
+                            if (quoteData.requires_pinpad_config) return;
+                            const cajas = quoteData.cantidad_cajas || 1;
                             const pinpadConcept = SETUP_CONCEPTS.find(c => c.name === 'Configuración dispositivo (Pinpad o POS)');
                             if (pinpadConcept) {
                               const prices = findServicePriceWithModel(pinpadConcept.name, quoteData.pricing_model);
@@ -397,28 +427,42 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                 lockBancos: true,
                                 autoBancos: false
                               };
-                              // Insertar en posición 1 (después del primer concepto)
                               const newSetup = [...quoteData.setup_items];
                               newSetup.splice(1, 0, pinpadItem);
                               setQuoteData({ ...quoteData, requires_pinpad_config: true, setup_items: newSetup });
+                            } else {
+                              setQuoteData({ ...quoteData, requires_pinpad_config: true });
                             }
-                          } else if (!newVal && quoteData.requires_pinpad_config) {
-                            // Eliminar ítem de Configuración dispositivo
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            quoteData.requires_pinpad_config
+                              ? 'bg-brand-blue-600 text-white border-brand-blue-700 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-brand-blue-400'
+                          }`}
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={quoteData.requires_pinpad_config === false}
+                          data-testid="requires-pinpad-no"
+                          onClick={() => {
+                            if (!quoteData.requires_pinpad_config) return;
                             const newSetup = quoteData.setup_items.filter(
                               i => i.medio_pago_name !== 'Configuración dispositivo (Pinpad o POS)'
                             );
                             setQuoteData({ ...quoteData, requires_pinpad_config: false, setup_items: newSetup });
-                          }
-                        }}
-                      >
-                        <SelectTrigger data-testid="select-requires-pinpad">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="si">Sí</SelectItem>
-                          <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                      </Select>
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                            !quoteData.requires_pinpad_config
+                              ? 'bg-slate-700 text-white border-slate-800 shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          No
+                        </button>
+                      </div>
                       <p className="text-[10px] text-slate-400 mt-1">
                         {quoteData.requires_pinpad_config
                           ? `Incluye "Configuración dispositivo (${isMPOS ? 'POS' : 'Pinpad o POS'})" en Setup`
@@ -426,48 +470,46 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       </p>
                     </div>
 
-                    {/* VPN toggle: solo VPOS, MPOS asume conectividad estándar */}
+                    {/* Tipo de Comunicación: solo VPOS, MPOS asume conectividad estándar */}
                     {!isMPOS && (
                       <div>
-                        <Label className="text-sm font-medium text-slate-700 mb-2 block">
-                          ¿Requiere VPN?
+                        <Label className="text-sm font-semibold text-slate-800 mb-2 block">
+                          Tipo de Comunicación
                         </Label>
-                        <Select
-                          value={quoteData.requires_vpn ? 'si' : 'no'}
-                          onValueChange={(v) => {
-                            const newVal = v === 'si';
-                            // Actualizar tarifa de "Comunicación Backend" en recurring_other_items
-                            const updatedOther = quoteData.recurring_other_items.map(item => {
-                              if (item.medio_pago_name.includes('Comunicación Backend')) {
-                                const service = serviceCatalog.find(s =>
-                                  s.name.toLowerCase().includes('comunicación backend') ||
-                                  s.name.toLowerCase().includes('comunicacion backend') ||
-                                  item.medio_pago_name.toLowerCase().includes(s.name.toLowerCase())
+                        {(() => {
+                          const commType = quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA');
+                          const opts = [
+                            { val: 'SSL', label: 'SSL' },
+                            { val: 'VPN', label: 'VPN' },
+                            { val: 'NO_APLICA', label: 'No aplica' },
+                          ];
+                          return (
+                            <div className="flex gap-1.5" role="radiogroup" aria-label="Tipo de Comunicación">
+                              {opts.map(o => {
+                                const active = commType === o.val;
+                                return (
+                                  <button
+                                    key={o.val}
+                                    type="button"
+                                    role="radio"
+                                    aria-checked={active}
+                                    data-testid={`communication-type-${o.val.toLowerCase()}`}
+                                    onClick={() => handleCommunicationType(o.val)}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                                      active
+                                        ? 'bg-brand-blue-600 text-white border-brand-blue-700 shadow-sm'
+                                        : 'bg-white text-slate-700 border-slate-300 hover:border-brand-blue-400'
+                                    }`}
+                                  >
+                                    {o.label}
+                                  </button>
                                 );
-                                if (service) {
-                                  return {
-                                    ...item,
-                                    tarifa: newVal
-                                      ? (service.monthly_cost_conventional || 0)
-                                      : (service.monthly_cost_outsourcing || 0)
-                                  };
-                                }
-                              }
-                              return item;
-                            });
-                            setQuoteData({ ...quoteData, requires_vpn: newVal, recurring_other_items: updatedOther });
-                          }}
-                        >
-                          <SelectTrigger data-testid="select-requires-vpn">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="si">Sí — Costo Conv.</SelectItem>
-                            <SelectItem value="no">No — Costo Outs.</SelectItem>
-                          </SelectContent>
-                        </Select>
+                              })}
+                            </div>
+                          );
+                        })()}
                         <p className="text-[10px] text-slate-400 mt-1">
-                          {quoteData.requires_vpn
+                          {(quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA')) === 'VPN'
                             ? 'Comunicación Backend usa tarifa Convencional'
                             : 'Comunicación Backend usa tarifa Outsourcing'}
                         </p>

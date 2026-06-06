@@ -148,6 +148,8 @@ class QuoteCreateWithPDF(BaseModel):
     # Parámetros dinámicos VPOS
     requires_pinpad_config: bool = True
     requires_vpn: bool = False
+    # Tipo de Comunicación (conectividad): "VPN" | "SSL" | "NO_APLICA".
+    communication_type: Optional[str] = None
     # Segmento de cliente
     client_segment: str = "PYME"
     # Detalle de sucursales (opcional, para VPOS/MPOS/Fast Track)
@@ -382,6 +384,7 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             branch_details=data.branch_details,
             requires_pinpad_config=data.requires_pinpad_config,
             requires_vpn=data.requires_vpn,
+            communication_type=data.communication_type,
             sede=user_sede,
             client_segment=data.client_segment or user_sede,
             created_by_user_id=current_user.get("user_id"),
@@ -830,6 +833,7 @@ class QuoteUpdate(BaseModel):
     ft_hardware_subtotal: Optional[float] = None
     requires_pinpad_config: Optional[bool] = None
     requires_vpn: Optional[bool] = None
+    communication_type: Optional[str] = None
     # Equipment/Repair items
     equipment_items: Optional[List[dict]] = None
     repair_description: Optional[str] = None

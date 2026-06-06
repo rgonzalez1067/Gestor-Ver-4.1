@@ -142,6 +142,7 @@ export const Quotes = () => {
     sponsor_bank_id: '', // Entidad patrocinadora/vendedora
     requires_pinpad_config: true,  // ¿Requiere Configuración de PinPads?
     requires_vpn: false,           // ¿Requiere VPN? (default No)
+    communication_type: 'NO_APLICA', // Tipo de Comunicación: VPN | SSL | NO_APLICA
     setup_items: [],              // Items exclusivos de Setup
     recurring_basic_items: [],    // Recurrentes Básicos (incluye complementos de adicionales)
     recurring_other_items: [],    // Otros Recurrentes
