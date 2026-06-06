@@ -4,6 +4,21 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 69: Bug Fix — Pérdida de datos del Resumen Ejecutivo al cambiar Modelo de Precios — Jun 2026
+
+**Bug:** Al cambiar el "Modelo de Precios" (Convencional/Outsourcing) en el wizard cuando ya había Medios de Pago + Bancos cargados, el `onValueChange` ejecutaba SIEMPRE la rama de inicialización (`initializeSetupConcepts` + `additional_items: []`), destruyendo la Matriz de Distribución del Resumen Ejecutivo (derivada de `additional_items`). El texto de "Notas adicionales" (`notes`) sí se preservaba por el spread, pero los medios de pago/bancos se perdían.
+
+**Causa raíz:** `QuoteWizardDialog.jsx` — la rama destructiva corría incondicionalmente (salvo edición), reseteando `additional_items` y re-inicializando la grilla desde el catálogo.
+
+**Fix (`QuoteWizardDialog.jsx`):**
+- Nuevo helper `repriceQuoteForModel(value)`: RECÁLCULO AISLADO — recalcula únicamente las tarifas (`setup_items.tarifa`=setup_cost, recurrentes `.tarifa`=monthly_cost, `additional_items.tarifa_setup/tarifa_recurrente`) con `findServicePriceWithModel(value)`, preservando estructura completa, cantidades, items custom/duplicados, recurrentes vinculados, medios de pago/bancos y `notes`. Salta items con `autoTariff` (TDD/TDC divisas) y la fila "Comunicación Backend" (su tarifa depende del Tipo de Comunicación/VPN, no del modelo; sus effects la mantienen).
+- `onValueChange` del `select-pricing-model`: si `hasLoadedData` (cualquiera de setup/recurring/additional con length>0) → `repriceQuoteForModel(value)`; solo si no hay datos cargados → inicialización original (sin pérdida posible).
+
+**QA:** testing_agent iteration_25.json → fix correcto a nivel código (100%). Self-test e2e Playwright (admin, VPOS, cliente VAAC, 2 bancos/medios de pago, notas 294 chars): cambiar Convencional→Outsourcing preserva las 2 filas de la Matriz del Resumen Ejecutivo, notas idénticas, tarifas/total recalculados ($182.52), sin errores de consola. Cumple los 3 criterios de aceptación (persistencia, recálculo aislado, control de errores).
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 68: Homologación Visual + Lógica "Tipo de Comunicación" en Cotizador — Jun 2026
 
 **Requerimiento:** (1) "¿Requiere Configuración de PinPads?" → botones segmentados (cambio 100% visual). (2) Eliminar "¿Requiere VPN?" y reemplazar por "Tipo de Comunicación" con 3 opciones segmentadas (SSL, VPN, No aplica). (3) Impacto financiero en el ítem recurrente "Comunicación Backend": VPN → tarifa Convencional; SSL/No aplica → tarifa Outsourcing. Persistir `communication_type` (VPN|SSL|NO_APLICA) en la cotización.
