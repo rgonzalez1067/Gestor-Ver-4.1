@@ -115,6 +115,39 @@ export const QuoteWizardDialog = ({ ctx }) => {
     setQuoteData({ ...quoteData, communication_type: commType, requires_vpn: isVpn, recurring_other_items: updatedOther });
   };
 
+  // Cambio de Modelo de Precios con items ya cargados: RECÁLCULO AISLADO.
+  // Recalcula únicamente las tarifas (fórmulas financieras) de la grilla según
+  // el nuevo modelo, preservando estrictamente la estructura cargada por el
+  // operador: medios de pago + bancos (additional_items / Matriz del Resumen
+  // Ejecutivo), cantidades, items duplicados/custom, recurrentes vinculados y
+  // el texto de "Notas adicionales". NO destruye datos.
+  const repriceQuoteForModel = (value) => {
+    const repriceList = (items, kind) => (items || []).map((it) => {
+      // No tocar items con tarifa automática (TDD/TDC divisas) ni Comunicación
+      // Backend: su tarifa depende de reglas propias (CORE / Tipo de Comunicación),
+      // no del modelo de precios. Sus effects dedicados la mantienen sincronizada.
+      if (it.autoTariff) return it;
+      const name = it.medio_pago_name || it.name || '';
+      if (name.toLowerCase().includes('comunicación backend') || name.toLowerCase().includes('comunicacion backend')) return it;
+      const prices = findServicePriceWithModel(name, value);
+      const newTarifa = kind === 'setup' ? prices.setup_cost : prices.monthly_cost;
+      return { ...it, tarifa: newTarifa };
+    });
+    const repriceAdditional = (items) => (items || []).map((it) => {
+      const name = it.medio_pago_name || it.name || '';
+      const prices = findServicePriceWithModel(name, value);
+      return { ...it, tarifa_setup: prices.setup_cost, tarifa_recurrente: prices.monthly_cost };
+    });
+    setQuoteData({
+      ...quoteData,
+      pricing_model: value,
+      setup_items: repriceList(quoteData.setup_items, 'setup'),
+      recurring_basic_items: repriceList(quoteData.recurring_basic_items, 'recurring'),
+      recurring_other_items: repriceList(quoteData.recurring_other_items, 'recurring'),
+      additional_items: repriceAdditional(quoteData.additional_items),
+    });
+  };
+
 
   // Confirma el banco final vinculado al procesador desde el sub-modal.
   const handleProcessorLinkedBankSelect = (bank) => {
@@ -306,19 +339,25 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     <Select 
                       value={quoteData.pricing_model} 
                       onValueChange={(value) => {
-                        // Al seleccionar modelo, inicializar conceptos SOLO si no estamos en modo edición
-                        // o si no hay items ya cargados
+                        // Al seleccionar modelo, inicializar conceptos SOLO si aún no hay
+                        // nada cargado. Si el operador ya agregó medios de pago/bancos o
+                        // existen conceptos en la grilla, hacer un RECÁLCULO AISLADO que
+                        // re-precia las tarifas sin destruir los datos ya cargados (medios
+                        // de pago, bancos, cantidades, recurrentes vinculados y notas).
                         const cajas = quoteData.cantidad_cajas || 1;
                         const bancos = quoteData.cantidad_bancos || 1;
-                        
-                        // Si estamos editando y ya hay items, mantenerlos
-                        if (isEditing && (quoteData.setup_items.length > 0 || quoteData.recurring_basic_items.length > 0)) {
-                          setQuoteData({ 
-                            ...quoteData, 
-                            pricing_model: value
-                          });
+
+                        const hasLoadedData =
+                          (quoteData.setup_items || []).length > 0 ||
+                          (quoteData.recurring_basic_items || []).length > 0 ||
+                          (quoteData.recurring_other_items || []).length > 0 ||
+                          (quoteData.additional_items || []).length > 0;
+
+                        if (hasLoadedData) {
+                          // Recálculo aislado: preserva la estructura, solo actualiza tarifas.
+                          repriceQuoteForModel(value);
                         } else {
-                          // Nueva cotización: inicializar conceptos desde el catálogo
+                          // Cotización nueva sin items: inicializar conceptos desde el catálogo
                           const setupItems = initializeSetupConcepts(value, cajas, bancos, quoteData.requires_pinpad_config);
                           const recurringBasicItems = initializeRecurringBasicConcepts(value, cajas, bancos);
                           const recurringOtherItems = initializeRecurringOtherConcepts(value, cajas, bancos, quoteData.requires_vpn);
