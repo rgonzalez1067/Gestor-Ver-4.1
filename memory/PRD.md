@@ -4,6 +4,22 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 68: Homologación Visual + Lógica "Tipo de Comunicación" en Cotizador — Jun 2026
+
+**Requerimiento:** (1) "¿Requiere Configuración de PinPads?" → botones segmentados (cambio 100% visual). (2) Eliminar "¿Requiere VPN?" y reemplazar por "Tipo de Comunicación" con 3 opciones segmentadas (SSL, VPN, No aplica). (3) Impacto financiero en el ítem recurrente "Comunicación Backend": VPN → tarifa Convencional; SSL/No aplica → tarifa Outsourcing. Persistir `communication_type` (VPN|SSL|NO_APLICA) en la cotización.
+
+**Backend (ya estaba listo de la sesión previa):** `models.py` (Quote/QuoteCreate), `routes/quotes.py` (QuoteCreateWithPDF + constructor + QuoteUpdate), `routes/quote_transitions.py` (mapeo a proyecto) persisten `communication_type`.
+
+**Frontend completado esta sesión:**
+- `components/quotes/QuoteWizardDialog.jsx`: botones segmentados PinPad (`requires-pinpad-yes/no`) + Tipo de Comunicación (`communication-type-{ssl|vpn|no_aplica}`); `handleCommunicationType` recalcula la fila "Comunicación Backend" (Convencional/Outsourcing) y mantiene `requires_vpn` sincronizado. **Fix de regresión:** faltaba importar `SETUP_CONCEPTS` desde `./constants` (ReferenceError al pulsar PinPad Sí) — detectado y corregido por el testing agent.
+- `pages/Quotes.jsx`: inyectado `communication_type` en los 5 payloads de guardado (create-with-pdf, payload estándar, PG, in-place, nueva-versión), en la carga de edición y en los defaults (`openWizard`, `resetQuoteForm`).
+
+**QA:** testing_agent iteration_24.json → 3/4 criterios e2e PASS (PinPad segmentado, Tipo de Comunicación segmentado + ausencia del label viejo VPN, matriz de costos). Criterio 4 (persistencia) validado por round-trip de API NO destructivo: crear borrador con SSL→persiste SSL; PUT a VPN→persiste VPN; borrador eliminado (200→404). Sin tocar datos reales ni `other_action_configs`.
+**Pendiente menor (QA):** agregar `data-testid` estable en el botón kebab de acciones (`quote-actions-{id}`) y en la celda de tarifa "Comunicación Backend" para futuras pruebas UI de persistencia.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+
+
+
 ### Iteration 67c: Fix — Variables vacías en la notificación "Cotización Equipos Infra" — Jun 2026
 
 **Reporte:** Todas las variables de la comunicación a Infraestructura llegaban vacías/"descargadas" en la notificación.
