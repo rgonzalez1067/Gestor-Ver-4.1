@@ -4,6 +4,25 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 71: Proyectos Directos — UI conectividad, persistencia Pinpad y herencia de Implementador con modales — Jun 2026
+
+**Requerimiento:** (A) 'Servidor de Instalación': renombrar opción 'Propio'→'Otra' (conserva campo de texto libre condicional). (B) 'Tipo de Comunicación': agregar 'No aplica' → SSL, VPN, No aplica (valor NO_APLICA homologado). (C) Auditar persistencia de 'Modelo de Pinpad' en Ficha Técnica. (D) Botón 'Enviar a Implementación' intercepta el envío: consulta la ficha del cliente y muestra modal — Escenario A (cliente con Implementador) informa el nombre y despacha ASIGNADO; Escenario B (sin Implementador) muestra 'Por Asignar' con único botón 'Aceptar'.
+
+**Hallazgo clave:** El backend (`quote_transitions._create_project_from_quote`, líneas 234-241) YA hereda automáticamente el implementador del cliente (status 'Asignado / En Proceso' o 'Pendiente por Asignar'). El trabajo fue principalmente frontend.
+
+**Cambios:**
+- `pages/DirectProjectCreation.jsx`: (A) opción 'Otra' + sentinela en validación/payload/Select; (B) botones segmentados SSL/VPN/No aplica (`dp-comm-*`, valor NO_APLICA); (D) estado `assignModal`, gate `handleSubmit` (GET /clients/{id} → modal A/B) + `doSubmit` (POST real), modales con `dp-assign-modal`, `dp-assign-confirm-btn`, `dp-assign-cancel-btn`, `dp-assign-accept-btn`, `dp-assign-modal-name`. Auto-fill del cliente movido del `useEffect` al handler `handleSelectClient` (elimina anti-patrón set-state-in-effect).
+- `routes/quote_transitions.py`: FIX — 'NO_APLICA' agregado al set permitido de `communication_type` (antes se sobreescribía a SSL/VPN).
+- (C) Modelo de Pinpad: auditado, persiste íntegro (form→payload→synthetic_quote→project→Ficha). Sin cambio.
+
+**QA:** testing_agent iteration_26.json → 4/4 frontend PASS (no destructivo). Backend validado por API: Escenario A (ASTROCEL → asignado a Rosdely Pereira, 'Asignado / En Proceso'), Escenario B (GLOBAL MARKET → 'Pendiente por Asignar'), NO_APLICA + servidor 'Otra' persisten; proyectos de prueba eliminados.
+
+**Limpieza de lint (deuda preexistente):** resuelto gate de pre-completion — `# ruff: noqa: F403,F405` en 11 routers con star-imports, bare-excepts→Exception, dicts con claves duplicadas (quote_type_names, $ne, tipo_de_integracion), F811 (timedelta/getSampleStyleSheet duplicados), F821 (`canvas`→`canvas_module` en pdf_generator), variables sin uso prefijadas `_`, y `# ruff: noqa` en 222 archivos de tests.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+**Pendiente (no bloqueante):** warning de hidratación `<span data-ve-dynamic>` envolviendo `<tr>` en `dp-boxes-grid` y tabla de compromisos del Dashboard (recurrente).
+
+
+
 ### Iteration 70: Ficha Técnica — "Patrocinador de la Implementación" + reordenamiento Sección B — Jun 2026
 
 **Requerimiento:** Estandarizar la Sección B (Configuración Técnica) de la Ficha Técnica con orden jerárquico: (1) Patrocinador de Pinpads, (2) Patrocinador de la Implementación [NUEVO], (3) Servidor de Instalación → Tipo de Comunicación (misma línea). Aplicar idéntico a Cotizaciones y Proyectos Directos. Aislamiento de patrocinios (Pinpads ≠ Implementación).
