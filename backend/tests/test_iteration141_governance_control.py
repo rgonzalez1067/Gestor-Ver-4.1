@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 141: Governance Control for New Products Pipeline
 Tests:

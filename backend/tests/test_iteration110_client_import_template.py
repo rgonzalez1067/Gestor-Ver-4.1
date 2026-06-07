@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 110 - Client Import Template and Error Messages Enhancement
 Tests for:
@@ -136,7 +137,7 @@ class TestImportErrorMessages:
         assert rif_error is not None, "Should have RIF error"
         assert rif_error.get("row") == 2, f"Error should reference row 2, got {rif_error.get('row')}"
         assert "Col A" in rif_error.get("column", ""), f"Error should reference Col A, got {rif_error.get('column')}"
-        assert rif_error.get("value") == "INVALID_RIF", f"Error should include the invalid value"
+        assert rif_error.get("value") == "INVALID_RIF", "Error should include the invalid value"
         assert rif_error.get("suggested_action"), "Error should have suggested_action"
         print(f"PASSED: Invalid RIF error has detailed message: {rif_error['message'][:100]}...")
     

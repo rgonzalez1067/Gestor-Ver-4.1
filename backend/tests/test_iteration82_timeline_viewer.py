@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 82 - Timeline Viewer Feature
 Tests the transformation of the FileText button to show 'Reporte Histórico' with bitácora entries
@@ -375,7 +376,7 @@ class TestBookOpenButtonUnchanged:
         assert response.status_code == 200
         updated = response.json()
         assert updated['commitment_completed'] == True
-        print(f"Updated: commitment_completed = True")
+        print("Updated: commitment_completed = True")
         
         # DELETE
         response = requests.delete(

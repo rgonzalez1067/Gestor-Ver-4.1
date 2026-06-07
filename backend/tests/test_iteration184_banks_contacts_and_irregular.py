@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 184 backend tests: banks contacts repeater, suggested-contacts,
 preview-notification matrix qty inheritance, and irregular quotes report."""
 import os
@@ -68,7 +69,7 @@ def test_create_bank_assigns_contact_ids_and_syncs_legacy(created_bank, headers)
     fetched = next((b for b in rg.json() if b["bank_id"] == created_bank["bank_id"]), None)
     assert fetched is not None
     assert fetched.get("contact_email") == "juan.perez@test.com", \
-        f"Legacy contact_email not synced from Principal contact. POST response also missing sync (returns model not doc) — see bug report."
+        "Legacy contact_email not synced from Principal contact. POST response also missing sync (returns model not doc) — see bug report."
     assert fetched.get("contact_phone") == "0212-1111111"
     assert "Juan" in (fetched.get("contact_name") or "")
 

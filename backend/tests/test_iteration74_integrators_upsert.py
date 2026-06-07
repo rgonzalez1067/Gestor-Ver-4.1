@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 74 - Integrators Module Enhancements Tests
 - Auto-initialization of certifications to N/A on create
@@ -238,8 +239,8 @@ TEST_Upsert_It74,Integrador,UpdatedApp,MPOS,Certificado,CR,"""
         updated = get_response.json()
         
         assert updated["app_name"] == "UpdatedApp", f"App name should be updated, got {updated['app_name']}"
-        assert updated["integration_modality"] == "MPOS", f"Modality should be updated"
-        assert updated["integrator_status"] == "Certificado", f"Status should be updated"
+        assert updated["integration_modality"] == "MPOS", "Modality should be updated"
+        assert updated["integrator_status"] == "Certificado", "Status should be updated"
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)

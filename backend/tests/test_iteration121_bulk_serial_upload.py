@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 121: Test Bulk Serial Upload for Repair Quotations
 Tests:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 15: Anexos manuales propagados a TODAS las acciones del modal.
 
 Verifica que cada endpoint workflow acepte el header `x-manual-attachment-ids`

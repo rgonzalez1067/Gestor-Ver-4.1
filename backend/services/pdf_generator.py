@@ -363,7 +363,7 @@ class DynamicQuotePDFGenerator:
             try:
                 canvas.drawImage(self.logo_path, self.margin, self.page_height - 70, 
                                width=120, height=50, preserveAspectRatio=True)
-            except:
+            except Exception:
                 pass
         
         # Línea de encabezado
@@ -1899,7 +1899,7 @@ class DynamicQuotePDFGenerator:
 def create_overlay_pdf(data: TemplateQuotePDFRequest, page_width: float, page_height: float, page_num: int):
     """[LEGACY] Crea un PDF overlay para el modo de plantilla base - Solo para compatibilidad"""
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=(page_width, page_height))
+    c = canvas_module.Canvas(buffer, pagesize=(page_width, page_height))
     c.save()
     buffer.seek(0)
     return buffer

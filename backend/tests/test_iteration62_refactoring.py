@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 62 - Frontend Refactoring Verification
 Tests: QuoteFilters, QuotesTable, PdfPreviewModal components
@@ -28,7 +29,7 @@ class TestAuthentication:
         """Test login returns valid token"""
         assert auth_token is not None
         assert len(auth_token) > 0
-        print(f"✓ Login successful, token received")
+        print("✓ Login successful, token received")
 
 
 class TestBackendAPIs:

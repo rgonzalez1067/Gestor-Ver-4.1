@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 61: Backend Refactoring Test Suite
 Tests all major endpoints across all 12 route modules after the modular refactoring

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for the Anexos (Attachments) module - Iteration 42
 Tests for: GET, POST, DELETE attachment endpoints
@@ -41,7 +42,7 @@ class TestAnexosAttachments:
             })
             if login_response.status_code == 200:
                 TestAnexosAttachments.session_token = login_response.json().get("session_token")
-                print(f"✓ Logged in successfully, token obtained")
+                print("✓ Logged in successfully, token obtained")
             else:
                 pytest.skip(f"Cannot login: {login_response.status_code} - {login_response.text}")
         
@@ -138,7 +139,7 @@ class TestAnexosAttachments:
         assert response.status_code == 200, f"Upload failed: {response.text}"
         resp_data = response.json()
         assert resp_data["attachment"]["category"] == "Orden de Compra"
-        print(f"✓ Uploaded 'Orden de Compra' attachment")
+        print("✓ Uploaded 'Orden de Compra' attachment")
 
     def test_05_upload_attachment_factura(self, api_client):
         """Test uploading to 'Factura' category"""
@@ -162,7 +163,7 @@ class TestAnexosAttachments:
         assert response.status_code == 200, f"Upload failed: {response.text}"
         resp_data = response.json()
         assert resp_data["attachment"]["category"] == "Factura"
-        print(f"✓ Uploaded 'Factura' attachment")
+        print("✓ Uploaded 'Factura' attachment")
 
     def test_06_upload_attachment_otros(self, api_client):
         """Test uploading to 'Otros' category"""
@@ -186,7 +187,7 @@ class TestAnexosAttachments:
         assert response.status_code == 200, f"Upload failed: {response.text}"
         resp_data = response.json()
         assert resp_data["attachment"]["category"] == "Otros"
-        print(f"✓ Uploaded 'Otros' attachment")
+        print("✓ Uploaded 'Otros' attachment")
 
     def test_07_upload_invalid_category_returns_400(self, api_client):
         """Test POST with invalid category returns 400 error"""
@@ -233,7 +234,7 @@ class TestAnexosAttachments:
         for cat in VALID_CATEGORIES:
             assert cat in categories_found, f"Category '{cat}' not found in attachments"
         
-        print(f"✓ All 4 categories verified in attachments")
+        print("✓ All 4 categories verified in attachments")
 
     def test_09_download_attachment(self, api_client):
         """Test GET /api/quotes/{quote_id}/attachments/{attachment_id}/download"""
@@ -292,7 +293,7 @@ class TestAnexosAttachments:
         assert verify_response.status_code == 200
         remaining = verify_response.json().get("attachments", [])
         assert not any(a["attachment_id"] == attachment_id for a in remaining), "Deleted attachment still present"
-        print(f"✓ Verified attachment was removed from quote")
+        print("✓ Verified attachment was removed from quote")
 
     def test_11_get_attachments_nonexistent_quote(self, api_client):
         """Test GET with nonexistent quote_id returns 404"""
@@ -300,7 +301,7 @@ class TestAnexosAttachments:
         
         response = api_client.get(f"{BASE_URL}/api/quotes/quo_nonexistent123/attachments")
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"✓ Nonexistent quote correctly returns 404")
+        print("✓ Nonexistent quote correctly returns 404")
 
     def test_12_upload_to_nonexistent_quote(self, api_client):
         """Test POST to nonexistent quote returns 404"""
@@ -322,7 +323,7 @@ class TestAnexosAttachments:
         )
         
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"✓ Upload to nonexistent quote correctly returns 404")
+        print("✓ Upload to nonexistent quote correctly returns 404")
 
     def test_13_delete_nonexistent_attachment(self, api_client):
         """Test DELETE nonexistent attachment returns 404"""
@@ -333,7 +334,7 @@ class TestAnexosAttachments:
         )
         
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"✓ Delete nonexistent attachment correctly returns 404")
+        print("✓ Delete nonexistent attachment correctly returns 404")
 
     def test_14_download_nonexistent_attachment(self, api_client):
         """Test download nonexistent attachment returns 404"""
@@ -344,7 +345,7 @@ class TestAnexosAttachments:
         )
         
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"✓ Download nonexistent attachment correctly returns 404")
+        print("✓ Download nonexistent attachment correctly returns 404")
 
     def test_15_cleanup_test_attachments(self, api_client):
         """Cleanup: Remove all TEST_ prefixed attachments"""

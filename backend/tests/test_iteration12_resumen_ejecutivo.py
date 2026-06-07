@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 12: Resumen Ejecutivo & Client Address Field
 Tests:

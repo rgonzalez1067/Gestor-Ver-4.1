@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Gobierno de Datos — Segmentación de Cotizaciones de Implementación (P0).
 

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Tests para el Generador de PDF Dinámico con flujo automático
 ============================================================
@@ -420,7 +421,7 @@ class TestPDFEdgeCases:
         
         assert response.status_code == 200, f"Should handle special characters: {response.text}"
         assert response.content[:4] == b'%PDF', "Should generate valid PDF"
-        print(f"✓ PDF with special characters generated successfully")
+        print("✓ PDF with special characters generated successfully")
     
     def test_long_text_in_fields(self):
         """Test: PDF con texto muy largo en campos"""
@@ -497,7 +498,7 @@ class TestPDFEdgeCases:
         )
         
         assert response.status_code == 200, f"Should handle large discount: {response.text}"
-        print(f"✓ PDF with large discount generated successfully")
+        print("✓ PDF with large discount generated successfully")
     
     def test_unauthorized_access(self):
         """Test: Acceso sin autorización debe fallar"""
@@ -526,7 +527,7 @@ class TestPDFEdgeCases:
         )
         
         assert response.status_code == 401, f"Should return 401 without auth, got {response.status_code}"
-        print(f"✓ Unauthorized access correctly rejected")
+        print("✓ Unauthorized access correctly rejected")
 
 
 if __name__ == "__main__":

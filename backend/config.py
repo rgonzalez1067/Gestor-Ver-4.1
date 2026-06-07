@@ -67,7 +67,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
         salt, pwd_hash = stored_hash.split(":")
         check_hash = hashlib.sha256((password + salt).encode()).hexdigest()
         return check_hash == pwd_hash
-    except:
+    except Exception:
         return False
 
 
@@ -183,7 +183,7 @@ def stamp_header_footer_on_all_pages(pdf_buffer, quote_number="", logo_path=None
         if logo_path and os.path.exists(logo_path):
             try:
                 c.drawImage(logo_path, margin, page_height - 70, width=120, height=50, preserveAspectRatio=True)
-            except:
+            except Exception:
                 pass
         
         # Línea de encabezado

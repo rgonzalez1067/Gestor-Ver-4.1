@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para el flujo Aprobación de cotización (multipart con payment_files efímeros).
 
 Cubre:

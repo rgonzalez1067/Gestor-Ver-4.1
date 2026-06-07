@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 71 Tests - Bank Logo Upload and Component Toggles
 Tests:

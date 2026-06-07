@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 122: Testing Cyclic Multi-Model Repair Flow in EquipmentQuoteWizard
 Tests:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test script for Modificar Cotización functionality (iteration 21)
 Testing:
@@ -395,7 +396,7 @@ class TestModificarCotizacion:
         assert original.get('cantidad_cajas') != modified.get('cantidad_cajas'), "cantidad_cajas should be different"
         assert original.get('cantidad_bancos') != modified.get('cantidad_bancos'), "cantidad_bancos should be different"
         
-        print(f"✓ Two separate quotes exist:")
+        print("✓ Two separate quotes exist:")
         print(f"  Original: {original.get('quote_number')} - cajas={original.get('cantidad_cajas')}, bancos={original.get('cantidad_bancos')}")
         print(f"  Modified: {modified.get('quote_number')} - cajas={modified.get('cantidad_cajas')}, bancos={modified.get('cantidad_bancos')}")
 
@@ -447,7 +448,7 @@ class TestQuoteItemsPreserveData:
         
         # For newer quotes, all items should have cantidad values
         if "TEST_ITERATION21" in (quote.get('notes') or ''):
-            assert items_without_cantidad == 0, f"Some items missing cantidad values in test quote"
+            assert items_without_cantidad == 0, "Some items missing cantidad values in test quote"
 
 
 if __name__ == "__main__":

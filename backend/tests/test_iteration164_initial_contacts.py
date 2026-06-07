@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test module for Initial Contacts (Leads/Prospección Temprana) - Iteration 164
 Tests: CRUD operations, assignment hierarchy, documentation, transfer, conversion to prospect

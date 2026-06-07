@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 97 - Inventory Module (Módulo de Control de Inventarios Multialmacén)
 

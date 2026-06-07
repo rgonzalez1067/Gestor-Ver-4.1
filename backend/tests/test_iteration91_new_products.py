@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 91: New Products (R&D Pipeline) Module
 Tests for the pipeline lifecycle of new payment methods before official deployment.
@@ -36,7 +37,7 @@ def auth_token(session):
     if login_resp.status_code == 200:
         token = login_resp.json().get("session_token")
         session.headers.update({"Authorization": f"Bearer {token}"})
-        print(f"Logged in successfully, token obtained")
+        print("Logged in successfully, token obtained")
         return token
     
     # If login fails, try to register with a unique cedula
@@ -54,7 +55,7 @@ def auth_token(session):
         data = register_resp.json()
         token = data.get("session_token")
         session.headers.update({"Authorization": f"Bearer {token}"})
-        print(f"Registered and logged in, token obtained")
+        print("Registered and logged in, token obtained")
         return token
     
     # Registration might fail due to email already exists but with wrong password
@@ -108,7 +109,7 @@ class TestNewProductsModule:
         
         # Cleanup
         session.delete(f"{BASE_URL}/api/new-products/{product['product_id']}")
-        print(f"PASS: Product created with initial status 'Negociación'")
+        print("PASS: Product created with initial status 'Negociación'")
 
     def test_create_new_product_with_invalid_bank(self, session, auth_token):
         """Test POST /api/new-products with non-existent bank returns 404"""

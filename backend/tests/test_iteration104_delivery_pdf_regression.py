@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 104 - Delivery Notes PDF Regression Testing
 Tests for the Nota de Entrega PDF generation with pagination (X/Y page numbering,

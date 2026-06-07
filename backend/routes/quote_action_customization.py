@@ -11,7 +11,8 @@ from typing import Optional, List
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-import os, uuid
+import os
+import uuid
 
 from config import db, get_current_user
 
@@ -152,7 +153,7 @@ async def upsert_custom_action(payload: CustomAction, authorization: Optional[st
     if payload.business_type not in ALLOWED_BIZ_TYPES:
         raise HTTPException(400, f"business_type inválido: {payload.business_type}")
     if payload.position_after and payload.position_after not in LEGACY_ACTION_IDS:
-        raise HTTPException(400, f"position_after debe ser un legacy action_id válido o null")
+        raise HTTPException(400, "position_after debe ser un legacy action_id válido o null")
 
     config_key = _build_key(payload.business_type, payload.product_subcategory, payload.action_id)
     doc = payload.model_dump()

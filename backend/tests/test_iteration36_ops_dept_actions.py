@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iter36 — Regression test: la restricción "solo Configuración" para usuarios
 del Departamento Operaciones aplica únicamente a cotizaciones fast_track
 (MPOS Imple+POS). Para Reparaciones, Equipos e Implementaciones nativas, el

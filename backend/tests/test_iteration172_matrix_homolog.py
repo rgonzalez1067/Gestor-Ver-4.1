@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 172 — Homologación matriz de implementación (backend tests):
 - IMPLEMENTATION_PHASES sólo 4 fases (rechaza 'Notificado').

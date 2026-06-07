@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Fast Track Hardware Visibility and Cost Integration
 Tests for iteration 155 - Rectificación: Restauración de Visibilidad y Costos de Hardware

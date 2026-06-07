@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 21 — Departamento Operaciones ve sus PROPIAS cotizaciones
 + las MPOS PYME (UNIÓN, no reemplazo).
 

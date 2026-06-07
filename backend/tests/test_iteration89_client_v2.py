@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 89: Client Form v2.0 Redesign (4 Quadrants)
 - New fields: condicion (Prospecto/Cliente), cantidad_tiendas, cantidad_cajas, ejecutivo_user_id
@@ -37,7 +38,7 @@ class TestEjecutivosEndpoint:
         """Verify the endpoint returns 200"""
         response = auth_session.get(f"{BASE_URL}/api/auth/ejecutivos")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        print(f"GET /api/auth/ejecutivos returned status 200")
+        print("GET /api/auth/ejecutivos returned status 200")
     
     def test_ejecutivos_returns_list(self, auth_session):
         """Verify the endpoint returns a list"""
@@ -67,11 +68,11 @@ class TestEjecutivosEndpoint:
         ejecutivos = response.json()
         
         for ej in ejecutivos:
-            assert "user_id" in ej, f"Missing user_id for ejecutivo"
-            assert "full_name" in ej, f"Missing full_name for ejecutivo"
-            assert "cargo" in ej, f"Missing cargo for ejecutivo"
+            assert "user_id" in ej, "Missing user_id for ejecutivo"
+            assert "full_name" in ej, "Missing full_name for ejecutivo"
+            assert "cargo" in ej, "Missing cargo for ejecutivo"
         
-        print(f"All ejecutivos have required fields: user_id, full_name, cargo")
+        print("All ejecutivos have required fields: user_id, full_name, cargo")
 
 
 class TestClientCreateWithNewFields:
@@ -139,13 +140,13 @@ class TestClientCreateWithNewFields:
         
         data = response.json()
         assert data.get("cantidad_tiendas") == 15, f"Expected cantidad_tiendas=15, got {data.get('cantidad_tiendas')}"
-        print(f"Created client with cantidad_tiendas=15")
+        print("Created client with cantidad_tiendas=15")
         
         # Verify persistence via GET
         get_response = auth_session.get(f"{BASE_URL}/api/clients/{data.get('client_id')}")
         fetched = get_response.json()
         assert fetched.get("cantidad_tiendas") == 15, f"Persistence failed: expected 15, got {fetched.get('cantidad_tiendas')}"
-        print(f"Verified cantidad_tiendas persisted correctly via GET")
+        print("Verified cantidad_tiendas persisted correctly via GET")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{data.get('client_id')}")
@@ -168,13 +169,13 @@ class TestClientCreateWithNewFields:
         
         data = response.json()
         assert data.get("cantidad_cajas") == 50, f"Expected cantidad_cajas=50, got {data.get('cantidad_cajas')}"
-        print(f"Created client with cantidad_cajas=50")
+        print("Created client with cantidad_cajas=50")
         
         # Verify persistence via GET
         get_response = auth_session.get(f"{BASE_URL}/api/clients/{data.get('client_id')}")
         fetched = get_response.json()
         assert fetched.get("cantidad_cajas") == 50, f"Persistence failed: expected 50, got {fetched.get('cantidad_cajas')}"
-        print(f"Verified cantidad_cajas persisted correctly via GET")
+        print("Verified cantidad_cajas persisted correctly via GET")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{data.get('client_id')}")
@@ -222,7 +223,7 @@ class TestClientCreateWithNewFields:
             assert data.get("ejecutivo_user_id") == ejecutivo_id
             assert data.get("ejecutivo_propietario") == ejecutivo_name
         
-        print(f"Created client with ALL v2 fields:")
+        print("Created client with ALL v2 fields:")
         print(f"  - condicion: {data.get('condicion')}")
         print(f"  - cantidad_tiendas: {data.get('cantidad_tiendas')}")
         print(f"  - cantidad_cajas: {data.get('cantidad_cajas')}")
@@ -235,7 +236,7 @@ class TestClientCreateWithNewFields:
         assert fetched.get("condicion") == "Cliente"
         assert fetched.get("cantidad_tiendas") == 25
         assert fetched.get("cantidad_cajas") == 100
-        print(f"All v2 fields verified via GET")
+        print("All v2 fields verified via GET")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{data.get('client_id')}")
@@ -263,7 +264,7 @@ class TestClientUpdateWithNewFields:
         client_id = created.get("client_id")
         
         assert created.get("condicion") == "Prospecto"
-        print(f"Created client as Prospecto")
+        print("Created client as Prospecto")
         
         # Update to Cliente
         update_payload = {**create_payload, "condicion": "Cliente"}
@@ -272,13 +273,13 @@ class TestClientUpdateWithNewFields:
         
         updated = update_response.json()
         assert updated.get("condicion") == "Cliente", f"Expected 'Cliente', got {updated.get('condicion')}"
-        print(f"Updated condicion to Cliente successfully")
+        print("Updated condicion to Cliente successfully")
         
         # Verify via GET
         get_response = auth_session.get(f"{BASE_URL}/api/clients/{client_id}")
         fetched = get_response.json()
         assert fetched.get("condicion") == "Cliente"
-        print(f"Verified condicion change persisted via GET")
+        print("Verified condicion change persisted via GET")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{client_id}")
@@ -320,7 +321,7 @@ class TestClientUpdateWithNewFields:
         fetched = get_response.json()
         assert fetched.get("cantidad_tiendas") == 30
         assert fetched.get("cantidad_cajas") == 150
-        print(f"Verified updated quantities persisted via GET")
+        print("Verified updated quantities persisted via GET")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{client_id}")
@@ -347,7 +348,7 @@ class TestCondicionDefaultValue:
         data = response.json()
         # Default should be Prospecto as defined in models.py
         assert data.get("condicion") == "Prospecto", f"Expected default 'Prospecto', got {data.get('condicion')}"
-        print(f"Verified condicion defaults to 'Prospecto' when not provided")
+        print("Verified condicion defaults to 'Prospecto' when not provided")
         
         # Cleanup
         auth_session.delete(f"{BASE_URL}/api/clients/{data.get('client_id')}")

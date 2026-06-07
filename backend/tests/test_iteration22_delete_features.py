@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 22: Delete Features Testing
 - DELETE /api/quotes/{quote_id} endpoint

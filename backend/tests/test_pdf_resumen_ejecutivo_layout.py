@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test PDF Resumen Ejecutivo Layout - Iteration 41
 
@@ -264,7 +265,7 @@ class TestPDFWithAdditionalItems(TestAuthSetup):
         
         if response.status_code == 200:
             assert "application/pdf" in response.headers.get("content-type", "")
-            print(f"PDF without additional items generated successfully")
+            print("PDF without additional items generated successfully")
         else:
             print(f"Response: {response.text[:300]}")
 
@@ -390,7 +391,7 @@ class TestAdditionalItemsFieldValidation(TestAuthSetup):
         assert response.status_code in [200, 500], f"Unexpected status: {response.status_code}"
         
         if response.status_code == 200:
-            print(f"PDF generated successfully - bank_name filtering works")
+            print("PDF generated successfully - bank_name filtering works")
 
 
 class TestTemplateQuotePDFRequestModel:
@@ -412,7 +413,7 @@ class TestTemplateQuotePDFRequestModel:
         assert 'additional_items: List[QuotePDFItem]' in result.stdout, \
             "additional_items field not found in TemplateQuotePDFRequest model"
         
-        print(f"Found additional_items in model:")
+        print("Found additional_items in model:")
         for line in result.stdout.strip().split('\n')[:5]:
             print(f"  {line}")
 
@@ -437,7 +438,7 @@ class TestCreateBankProductsTableMethod:
         assert 'additional_items' in result.stdout or 'SOLO' in result.stdout, \
             "Method should reference additional_items"
         
-        print(f"Method signature found:")
+        print("Method signature found:")
         print(result.stdout)
     
     def test_method_creates_two_column_first_row(self):
@@ -454,7 +455,7 @@ class TestCreateBankProductsTableMethod:
         assert 'FILA 1' in result.stdout or 'Cliente' in result.stdout, \
             "First row structure comment not found"
         
-        print(f"First row structure found:")
+        print("First row structure found:")
         print(result.stdout)
     
     def test_method_creates_separate_address_row(self):
@@ -470,7 +471,7 @@ class TestCreateBankProductsTableMethod:
         
         assert 'Dirección Fiscal' in result.stdout, "Dirección Fiscal not found"
         
-        print(f"Address row structure found:")
+        print("Address row structure found:")
         print(result.stdout)
 
 

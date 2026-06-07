@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test module: test_repair_email_templates.py
 Tests for the 4 new repair email templates (PYME + CORP = 8 total):
@@ -74,7 +75,7 @@ class TestRepairEmailTemplatesListing:
         for repair_id in REPAIR_TEMPLATE_IDS:
             assert repair_id in template_ids, f"Missing repair template: {repair_id}"
         
-        print(f"✓ All 8 repair templates found in GET /api/email-templates")
+        print("✓ All 8 repair templates found in GET /api/email-templates")
 
     def test_repair_templates_have_correct_structure(self, api_client):
         """Verify repair templates have required fields"""
@@ -92,7 +93,7 @@ class TestRepairEmailTemplatesListing:
             assert "subject" in template, f"Missing subject in {template}"
             assert "body_html" in template, f"Missing body_html in {template}"
             
-        print(f"✓ All repair templates have correct structure")
+        print("✓ All repair templates have correct structure")
 
 
 class TestRepairQuoteSentTemplate:
@@ -111,7 +112,7 @@ class TestRepairQuoteSentTemplate:
         assert "{contacto_cliente}" in body, "Body should contain {contacto_cliente}"
         assert "{modelos_resumen}" in body, "Body should contain {modelos_resumen}"
         
-        print(f"✓ repair_quote_sent_PYME template verified with correct variables")
+        print("✓ repair_quote_sent_PYME template verified with correct variables")
 
     def test_get_repair_quote_sent_corp(self, api_client):
         """GET /api/email-templates/repair_quote_sent_CORP should return template"""
@@ -122,7 +123,7 @@ class TestRepairQuoteSentTemplate:
         assert template.get("template_id") == "repair_quote_sent_CORP"
         assert "{nro_cotizacion}" in template.get("subject", "")
         
-        print(f"✓ repair_quote_sent_CORP template verified")
+        print("✓ repair_quote_sent_CORP template verified")
 
 
 class TestRepairApprovedTemplate:
@@ -140,7 +141,7 @@ class TestRepairApprovedTemplate:
         body = template.get("body_html", "")
         assert "{contacto_cliente}" in body, "Body should contain {contacto_cliente}"
         
-        print(f"✓ repair_approved_PYME template verified")
+        print("✓ repair_approved_PYME template verified")
 
     def test_get_repair_approved_corp(self, api_client):
         """GET /api/email-templates/repair_approved_CORP should return approval template"""
@@ -150,7 +151,7 @@ class TestRepairApprovedTemplate:
         template = response.json()
         assert template.get("template_id") == "repair_approved_CORP"
         
-        print(f"✓ repair_approved_CORP template verified")
+        print("✓ repair_approved_CORP template verified")
 
 
 class TestRepairCompleteClientTemplate:
@@ -168,7 +169,7 @@ class TestRepairCompleteClientTemplate:
         assert "{lista_modelos_seriales}" in body, "Body should contain {lista_modelos_seriales}"
         assert "{contacto_cliente}" in body, "Body should contain {contacto_cliente}"
         
-        print(f"✓ repair_complete_client_PYME template verified with lista_modelos_seriales")
+        print("✓ repair_complete_client_PYME template verified with lista_modelos_seriales")
 
     def test_get_repair_complete_client_corp(self, api_client):
         """GET /api/email-templates/repair_complete_client_CORP should return template"""
@@ -178,7 +179,7 @@ class TestRepairCompleteClientTemplate:
         template = response.json()
         assert template.get("template_id") == "repair_complete_client_CORP"
         
-        print(f"✓ repair_complete_client_CORP template verified")
+        print("✓ repair_complete_client_CORP template verified")
 
 
 class TestRepairDeliveryTemplate:
@@ -201,7 +202,7 @@ class TestRepairDeliveryTemplate:
         assert "{cantidad_entregada}" in body, "Body should contain {cantidad_entregada}"
         assert "{estatus_entrega}" in body, "Body should contain {estatus_entrega}"
         
-        print(f"✓ repair_delivery_PYME template verified with all delivery variables")
+        print("✓ repair_delivery_PYME template verified with all delivery variables")
 
     def test_get_repair_delivery_corp(self, api_client):
         """GET /api/email-templates/repair_delivery_CORP should return template"""
@@ -211,7 +212,7 @@ class TestRepairDeliveryTemplate:
         template = response.json()
         assert template.get("template_id") == "repair_delivery_CORP"
         
-        print(f"✓ repair_delivery_CORP template verified")
+        print("✓ repair_delivery_CORP template verified")
 
 
 class TestRepairTemplateUpdate:
@@ -246,7 +247,7 @@ class TestRepairTemplateUpdate:
         reset_response = api_client.post(f"{BASE_URL}/api/email-templates/reset/repair_quote_sent_PYME")
         assert reset_response.status_code == 200
         
-        print(f"✓ repair_quote_sent_PYME template update and reset verified")
+        print("✓ repair_quote_sent_PYME template update and reset verified")
 
 
 class TestRepairTemplateDesign:
@@ -265,7 +266,7 @@ class TestRepairTemplateDesign:
             # Check for professional design elements
             assert "#2c3e50" in body or "2c3e50" in body, f"Template {template.get('template_id')} should have #2c3e50 header color"
             
-        print(f"✓ All repair templates have professional design with #2c3e50 header")
+        print("✓ All repair templates have professional design with #2c3e50 header")
 
     def test_repair_delivery_has_orange_button(self, api_client):
         """Verify repair_delivery template has #f39c12 orange action button"""
@@ -278,7 +279,7 @@ class TestRepairTemplateDesign:
         # Check for orange button color
         assert "#f39c12" in body or "f39c12" in body, "repair_delivery should have #f39c12 orange button"
         
-        print(f"✓ repair_delivery template has orange action button")
+        print("✓ repair_delivery template has orange action button")
 
 
 if __name__ == "__main__":

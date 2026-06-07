@@ -1,3 +1,4 @@
+# ruff: noqa
 """Backend tests — Proyectos Directos v2 (Iteration 191).
 
 Cambios validados:

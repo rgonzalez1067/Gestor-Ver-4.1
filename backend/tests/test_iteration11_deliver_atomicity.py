@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test atomicidad de /quotes/{id}/deliver:
 Cuando un item del payload falla validación, NINGÚN movimiento debe haberse insertado.
 """

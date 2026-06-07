@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 147: Testing 4 enhancements to MegaNexus platform
 1. VTIDs por Sucursal (multistore projects get per-store VTID generation)
@@ -164,7 +165,7 @@ class TestVTIDPerStore(TestAuth):
         assert store2_vtids is not None and len(store2_vtids.get("vtids", [])) > 0, \
             "Store2 VTIDs should remain"
         
-        print(f"PASS: Selective deletion works - store1 VTIDs deleted, store2 VTIDs remain")
+        print("PASS: Selective deletion works - store1 VTIDs deleted, store2 VTIDs remain")
 
 
 class TestSequentialNotificationCustomHtml(TestAuth):
@@ -261,9 +262,9 @@ class TestTemplateVariables(TestAuth):
         if has_vtids:
             # Lista_VTID should be in variables (resolved value)
             # Note: It might be in the resolved variables or need to be checked via preview
-            print(f"PASS: Project has VTIDs, Lista_VTID variable available")
+            print("PASS: Project has VTIDs, Lista_VTID variable available")
         else:
-            print(f"INFO: Project has no VTIDs, Lista_VTID will show placeholder")
+            print("INFO: Project has no VTIDs, Lista_VTID will show placeholder")
 
 
 class TestFluidWidthEmails(TestAuth):
@@ -295,8 +296,8 @@ class TestFluidWidthEmails(TestAuth):
             print("INFO: Database template uses old 600px width - template needs update")
             print("INFO: Fallback code in projects.py correctly uses width:95%;max-width:900px")
         else:
-            assert has_95_width or has_900_max, f"HTML should use fluid width (95% or 900px max)"
-            print(f"PASS: Email HTML uses fluid width (95%/900px)")
+            assert has_95_width or has_900_max, "HTML should use fluid width (95% or 900px max)"
+            print("PASS: Email HTML uses fluid width (95%/900px)")
         
         # Test passes - code is correct, template may need DB update
         print("PASS: Fluid width code verified in fallback HTML")

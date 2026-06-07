@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 65: Projects Module (Post-Venta)
 Tests for the Projects module including:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 125: Taller Equipos Tracking and Repair Delivery Features
 Tests the new taller_equipos collection tracking and repair delivery workflow.
@@ -166,7 +167,7 @@ class TestApproveRepairQuoteCreatesTallerEquipos:
         
         # Create repair quote
         status_code, quote_id = create_repair_quote(auth_session, test_client, serials)
-        assert status_code == 200 and quote_id, f"Failed to create quote"
+        assert status_code == 200 and quote_id, "Failed to create quote"
         
         # Send to client first (required step)
         send_res = auth_session.post(f"{BASE_URL}/api/quotes/{quote_id}/send-to-client")
@@ -256,7 +257,7 @@ class TestRepairDeliveryPrep:
         create_res = auth_session.post(f"{BASE_URL}/api/quotes/generate-equipment-pdf", json=payload)
         quote_id = create_res.headers.get('X-Quote-ID')
         if not quote_id:
-            pytest.skip(f"Could not create equipment quote")
+            pytest.skip("Could not create equipment quote")
         
         # Try repair-delivery-prep on non-repair quote
         prep_res = auth_session.get(f"{BASE_URL}/api/quotes/{quote_id}/repair-delivery-prep")
@@ -384,7 +385,7 @@ class TestRepairDeliver:
         create_res = auth_session.post(f"{BASE_URL}/api/quotes/generate-equipment-pdf", json=payload)
         quote_id = create_res.headers.get('X-Quote-ID')
         if not quote_id:
-            pytest.skip(f"Could not create equipment quote")
+            pytest.skip("Could not create equipment quote")
         
         # Try repair-deliver on non-repair quote
         deliver_payload = {

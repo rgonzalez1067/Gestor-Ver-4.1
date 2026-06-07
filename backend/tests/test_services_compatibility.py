@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Services Compatibility Filter Tests
 ====================================

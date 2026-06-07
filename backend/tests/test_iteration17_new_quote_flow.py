@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 17 - New quote status flow endpoints
 Testing:
@@ -163,7 +164,7 @@ class TestQuoteInvoice:
             assert "Aprobada" in response.json().get("detail", ""), "Error should mention Aprobada status"
             print(f"Correctly rejected: {response.json()}")
         elif response.status_code == 200:
-            print(f"Quote was already Approved, invoice succeeded")
+            print("Quote was already Approved, invoice succeeded")
         else:
             pytest.fail(f"Unexpected status: {response.status_code}: {response.text}")
     

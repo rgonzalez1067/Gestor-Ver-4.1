@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 12: Reportes admin, filtro predictivo, nota de entrega, impresora fiscal."""
 import os
 import sys

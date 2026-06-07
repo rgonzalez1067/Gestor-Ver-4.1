@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests for Equipment PDF generation with serials field (iter 182)
 
 Covers:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 188 — Implementación Patrocinada (sponsored_implementation)
 Tests backend persistence of sponsored_implementation, sponsoring_bank_id, sponsoring_bank_name

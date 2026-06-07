@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for iteration 37 - Testing new quote features and hardware import/export
 Features to test:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para la regla de privacidad por departamento en cotizaciones.
 
 Cubre 4 escenarios:

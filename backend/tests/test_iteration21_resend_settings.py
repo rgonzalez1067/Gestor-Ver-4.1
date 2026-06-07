@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 21 - Testing:
 1. QuoteItem model fields (bank_id, bank_name, tarifa_setup, tarifa_recurrente)

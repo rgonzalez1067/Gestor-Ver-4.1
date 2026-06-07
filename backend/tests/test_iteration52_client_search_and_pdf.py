@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 52 - Server-side client search and PDF fix
 Features tested:

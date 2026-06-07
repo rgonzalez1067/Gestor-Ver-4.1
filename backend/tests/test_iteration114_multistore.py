@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 114: Multistore Flow for Send-to-Implementation
 Tests the new multistore feature when sending quotes to implementation.
@@ -43,7 +44,7 @@ def create_test_client(session):
     """Create a test client"""
     client_data = {
         "legal_name": f"TEST_MULTISTORE_Client_{uuid.uuid4().hex[:6]}",
-        "fantasy_name": f"Multistore Test Co",
+        "fantasy_name": "Multistore Test Co",
         "rif": f"J-{uuid.uuid4().hex[:8]}",
         "segment": "PYME"
     }
@@ -317,7 +318,7 @@ def test_store_phase_update_endpoint():
     updated_matrix = updated_store.get("implementation_matrix", {})
     phase_data = updated_matrix.get(bank_name, {}).get(product_name, {}).get("Notificado", {})
     assert phase_data.get("completed") == True, f"Phase should be marked as completed, got: {phase_data}"
-    print(f"SUCCESS: Verified phase update persisted in database")
+    print("SUCCESS: Verified phase update persisted in database")
 
 
 # ===== Test: Store Phase Update on Non-Multistore Project =====
@@ -378,7 +379,7 @@ def test_store_phase_update_invalid_project_type():
     assert update_res.status_code == 400, f"Expected 400, got {update_res.status_code}: {update_res.text}"
     detail = update_res.json().get("detail", "").lower()
     assert "multitienda" in detail or "multistore" in detail, f"Error should mention multitienda/multistore: {detail}"
-    print(f"SUCCESS: Store phase update correctly rejected for non-multistore project")
+    print("SUCCESS: Store phase update correctly rejected for non-multistore project")
 
 
 # ===== Test: Invalid Store ID =====
@@ -436,7 +437,7 @@ def test_store_phase_update_invalid_store_id():
     )
     
     assert update_res.status_code == 404, f"Expected 404, got {update_res.status_code}: {update_res.text}"
-    print(f"SUCCESS: Invalid store_id correctly returned 404")
+    print("SUCCESS: Invalid store_id correctly returned 404")
 
 
 # ===== Test: Projects List Contains Project Type =====
@@ -568,7 +569,7 @@ def test_send_to_implementation_changes_status():
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     data = res.json()
     assert data.get("new_status") == "Enviada a Imple", f"Expected 'Enviada a Imple', got {data.get('new_status')}"
-    print(f"SUCCESS: Response indicates status changed to 'Enviada a Imple'")
+    print("SUCCESS: Response indicates status changed to 'Enviada a Imple'")
     
     # The quote should be deleted after converting to project
     # So trying to get it should return 404

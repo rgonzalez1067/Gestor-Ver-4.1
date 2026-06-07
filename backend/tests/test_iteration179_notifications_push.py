@@ -1,3 +1,4 @@
+# ruff: noqa
 """Backend tests for P1 Push Notifications (iteration 179).
 
 Covers:
@@ -191,7 +192,7 @@ class TestNotifyService:
         r = requests.get(f"{BASE_URL}/api/notifications?limit=100", headers=admin_headers, timeout=15)
         assert r.status_code == 200
         titles = [n["title"] for n in r.json()["items"]]
-        assert unique_title in titles, f"Notification title not found in admin feed"
+        assert unique_title in titles, "Notification title not found in admin feed"
 
     def test_notify_disabled_event_returns_zero(self, admin_headers):
         """When is_active=false → notify returns 0 and nothing new appears in admin feed."""

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 102 - Nota de Entrega PDF Redesign
 Tests for the new 'Nota de Entrega' (formerly 'Hoja de Ruta') PDF generation.

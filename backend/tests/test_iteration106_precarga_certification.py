@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 106 - MegaNexus Advanced Inventory Features
 ====================================================================
@@ -120,7 +121,7 @@ class TestPrecargaCertification:
         assert item_stock.get("has_precarga") == True, "has_precarga should be True"
         assert item_stock.get("precarga_qty") == 3, f"precarga_qty should be 3, got {item_stock.get('precarga_qty')}"
         assert len(item_stock.get("precarga_serials", [])) == 3, "Should have 3 precarga serials"
-        print(f"✓ Stock correctly shows quantity=0 with precarga_qty=3")
+        print("✓ Stock correctly shows quantity=0 with precarga_qty=3")
 
     def test_3_validate_certification_with_csv(self, headers):
         """Test 3: Validate certification with Excel/CSV - returns matching, only_in_precarga, only_in_excel"""
@@ -193,7 +194,7 @@ class TestPrecargaCertification:
         
         assert cert_data.get("certification_status") == "certificado", "Status should be 'certificado'"
         assert cert_data.get("serials") == serials, "Serials should remain unchanged"
-        print(f"✓ Certification with source='original' successful, status='certificado'")
+        print("✓ Certification with source='original' successful, status='certificado'")
 
     def test_5_certify_with_source_excel_updates_serials(self, headers, test_warehouse, test_hardware):
         """Test 5: Certify with source='excel' and excel_serials - updates serials"""
@@ -228,7 +229,7 @@ class TestPrecargaCertification:
         
         assert cert_data.get("certification_status") == "certificado"
         assert set(cert_data.get("serials", [])) == set(new_serials), "Serials should be updated to excel serials"
-        print(f"✓ Certification with source='excel' updated serials correctly")
+        print("✓ Certification with source='excel' updated serials correctly")
 
     def test_6_certified_stock_now_available(self, headers, test_warehouse, test_hardware):
         """Test 6: After certification, stock should include certified items"""
@@ -322,7 +323,7 @@ class TestExcelBulkUpload:
         assert data.get("valid_count") == 3
         assert set(data.get("valid", [])) == set(valid_serials)
         assert data.get("not_found_count") == 0
-        print(f"✓ Validated 3 serials, all found in stock")
+        print("✓ Validated 3 serials, all found in stock")
 
     def test_8_validate_serials_stock_with_invalid_excel(self, headers, setup_stock):
         """Test 8: Upload Excel with non-existent serials - has_errors=true"""
@@ -348,7 +349,7 @@ class TestExcelBulkUpload:
         assert data.get("valid_count") == 1
         assert data.get("not_found_count") == 2
         assert len(data.get("not_found", [])) == 2
-        print(f"✓ Correctly detected 2 not found serials")
+        print("✓ Correctly detected 2 not found serials")
 
     def test_9_validate_serials_stock_all_valid(self, headers, setup_stock):
         """Test 9: Upload Excel with all valid serials - has_errors=false"""
@@ -371,7 +372,7 @@ class TestExcelBulkUpload:
         assert data.get("has_errors") == False
         assert data.get("valid_count") == 5
         assert set(data.get("valid", [])) == set(all_serials)
-        print(f"✓ All 5 serials validated successfully")
+        print("✓ All 5 serials validated successfully")
 
 
 class TestDeliveryLogistics:
@@ -481,7 +482,7 @@ class TestDeliveryLogistics:
             print(f"✓ Delivery with courier method completed, PDF generated: {data.get('hoja_ruta_url')}")
         elif res.status_code == 400 and "equipos" in res.text.lower():
             # This means endpoint accepted parameters but quote type check failed
-            print(f"✓ Delivery endpoint accepts logistics fields (quote type restriction)")
+            print("✓ Delivery endpoint accepts logistics fields (quote type restriction)")
         else:
             # Check if it's a validation error (meaning fields were parsed correctly)
             data_text = res.text
@@ -534,7 +535,7 @@ class TestKardexCertificationStatus:
         if kardex.get("movements"):
             for m in kardex["movements"]:
                 assert "certification_status" in m, "Kardex movement should have certification_status field"
-            print(f"✓ Kardex movements include certification_status field")
+            print("✓ Kardex movements include certification_status field")
         else:
             print("Note: No movements in kardex to verify")
 
@@ -635,7 +636,7 @@ class TestCleanup:
             "password": TEST_USER_PASSWORD
         })
         if res.status_code != 200:
-            pytest.skip(f"Auth failed")
+            pytest.skip("Auth failed")
         return res.json().get("session_token")
 
     @pytest.fixture(scope="class")

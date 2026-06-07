@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 120: Testing ProjectDetail improvements
 - Suggested contacts endpoint returns both client and bank contacts

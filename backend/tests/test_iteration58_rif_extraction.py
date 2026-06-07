@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 58: Test RIF Digital Extraction Module
 Tests for POST /api/clients/parse-rif endpoint and duplicate detection

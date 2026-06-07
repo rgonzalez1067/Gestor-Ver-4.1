@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 170: Verificar función get_email_template() y plantillas de reparación
 - get_email_template busca en BD primero, luego en defaults del código
@@ -396,7 +397,7 @@ class TestDBTemplatesPrioritized:
         
         if response.status_code == 200:
             template = response.json()
-            print(f"Template repair_invoice_PYME found:")
+            print("Template repair_invoice_PYME found:")
             print(f"  - template_id: {template.get('template_id')}")
             print(f"  - name: {template.get('name')}")
             print(f"  - subject: {template.get('subject')[:50]}...")

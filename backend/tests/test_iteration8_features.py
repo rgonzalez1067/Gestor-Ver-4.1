@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Cotizador Merchant Server - Iteration 8 Feature Tests
 ======================================================

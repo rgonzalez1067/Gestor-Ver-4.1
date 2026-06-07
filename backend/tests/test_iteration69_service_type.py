@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 69 - Service Type Feature Tests
 Tests for mandatory 'Tipo' field (Producto/Servicio) in Medios de Pago catalog.
@@ -60,7 +61,7 @@ class TestServiceTypeCreate:
         # Cleanup
         service_id = data["service_id"]
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=auth_headers)
-        print(f"✅ Created service with service_type='Producto' successfully")
+        print("✅ Created service with service_type='Producto' successfully")
     
     def test_create_service_with_type_servicio(self, auth_headers):
         """Test creating a service with service_type='Servicio'"""
@@ -85,7 +86,7 @@ class TestServiceTypeCreate:
         # Cleanup
         service_id = data["service_id"]
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=auth_headers)
-        print(f"✅ Created service with service_type='Servicio' successfully")
+        print("✅ Created service with service_type='Servicio' successfully")
     
     def test_create_service_without_type_defaults_to_servicio(self, auth_headers):
         """Test that creating a service without service_type defaults to 'Servicio'"""
@@ -108,7 +109,7 @@ class TestServiceTypeCreate:
         # Cleanup
         service_id = data["service_id"]
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=auth_headers)
-        print(f"✅ Default service_type='Servicio' applied correctly")
+        print("✅ Default service_type='Servicio' applied correctly")
 
 
 class TestServiceTypeRead:
@@ -180,7 +181,7 @@ class TestServiceTypeUpdate:
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=auth_headers)
-        print(f"✅ service_type updated from 'Servicio' to 'Producto' successfully")
+        print("✅ service_type updated from 'Servicio' to 'Producto' successfully")
 
 
 class TestServiceTypeCountsAndDistribution:
@@ -196,7 +197,7 @@ class TestServiceTypeCountsAndDistribution:
         servicio_count = sum(1 for s in services if s.get("service_type") == "Servicio")
         other_count = len(services) - producto_count - servicio_count
         
-        print(f"Service type distribution:")
+        print("Service type distribution:")
         print(f"  - Producto: {producto_count}")
         print(f"  - Servicio: {servicio_count}")
         print(f"  - Other/None: {other_count}")

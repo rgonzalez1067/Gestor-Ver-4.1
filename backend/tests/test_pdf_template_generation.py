@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Backend Tests for Dynamic PDF Generation with Templates
 =======================================================

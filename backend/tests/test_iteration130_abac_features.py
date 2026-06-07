@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 130 - ABAC Evolution Features
 Tests the three pillars of the ABAC system:
@@ -510,7 +511,7 @@ class TestHierarchicalQuotes(TestABACFeatures):
         
         # All quotes should be created by this user (or empty if no quotes)
         for quote in quotes:
-            assert quote.get("created_by_user_id") == user_id, f"Ejecutivo should only see own quotes"
+            assert quote.get("created_by_user_id") == user_id, "Ejecutivo should only see own quotes"
         
         print(f"✓ Ejecutivo sees only own quotes ({len(quotes)} quotes)")
     

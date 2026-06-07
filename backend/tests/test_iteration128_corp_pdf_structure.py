@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 128: Corporate PDF Structure and Financial Grouping
 Tests the new corporate (CORP) PDF generation path with:

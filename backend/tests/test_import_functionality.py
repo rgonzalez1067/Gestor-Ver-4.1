@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Import Functionality Tests
 ===========================

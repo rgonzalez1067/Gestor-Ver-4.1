@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 113 - Quote Regularization and Email Modal Testing
 
@@ -228,7 +229,7 @@ class TestEmailHeadersOnInvoice:
         if response.status_code == 200:
             data = response.json()
             assert 'message' in data
-            print(f"PASSED: invoice endpoint accepted custom headers")
+            print("PASSED: invoice endpoint accepted custom headers")
         else:
             print(f"PASSED: invoice endpoint parsed headers (422: {response.json().get('detail', '')})")
 
@@ -301,7 +302,7 @@ class TestEmailHeadersOnCollect:
         if response.status_code == 200:
             data = response.json()
             assert 'message' in data
-            print(f"PASSED: collect endpoint accepted custom headers")
+            print("PASSED: collect endpoint accepted custom headers")
         else:
             print(f"PASSED: collect endpoint parsed headers (422: {response.json().get('detail', '')})")
 

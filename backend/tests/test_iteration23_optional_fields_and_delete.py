@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 23: Optional fields (Pinpad, Sponsor Bank) and Delete quotes in any state
 Tests:

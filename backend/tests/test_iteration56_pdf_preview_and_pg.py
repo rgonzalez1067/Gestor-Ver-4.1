@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 56: PDF Preview Modal & PG Buttons Testing
 Tests for:
@@ -162,7 +163,7 @@ class TestIteration56PreviewPDF:
         assert response.status_code == 200
         content_disposition = response.headers.get("content-disposition", "")
         assert "inline" in content_disposition, f"Expected 'inline' for preview, got: {content_disposition}"
-        print(f"✓ Content-Disposition is 'inline' for preview")
+        print("✓ Content-Disposition is 'inline' for preview")
 
 
 class TestIteration56ObservacionesCleanup:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 146: Workflow Optimization Tests
 Tests for:
@@ -266,7 +267,7 @@ class TestListaVTIDVariable:
         available_tags = data.get("available_tags", [])
         tag_keys = [t["key"] for t in available_tags]
         assert "Lista_VTID" in tag_keys, f"Lista_VTID not in available_tags: {tag_keys}"
-        print(f"Lista_VTID found in available_tags")
+        print("Lista_VTID found in available_tags")
 
     def test_preview_notification_resolves_lista_vtid(self, auth_headers):
         """Test that preview notification resolves Lista_VTID variable."""

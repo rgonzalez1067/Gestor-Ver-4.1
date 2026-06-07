@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 124: Repair State Flow Reengineering
 

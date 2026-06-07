@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 58 - MultiProductSelector and Dashboard Stats
 Tests:

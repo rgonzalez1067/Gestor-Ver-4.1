@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 17 — Notificaciones Automatizadas por Correo
 (Asignación de Contactos Iniciales y Proyectos).
 
@@ -169,8 +170,8 @@ def test_bitacora_logs_assignment_email_sent():
         rec = await db.bitacora.find_one({
             "reference_id": contact["contact_id"],
             "action": "assignment_email_sent",
-        })
-        return rec
+        }, {"_id": 0})
+        return dict(rec) if rec else None
 
     rec = _run(runner())
     assert rec is not None, "No se registró entrada en bitácora"

@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 186: Tests for implementer-alerts RBAC, workload PDF with filters, and auto-assign from client."""
 import os
 import pytest
@@ -30,7 +31,7 @@ def _login(email, password):
 @pytest.fixture(scope="module")
 def admin_token():
     tk = _login(ADMIN_EMAIL, ADMIN_PASS)
-    assert tk, f"Admin login failed"
+    assert tk, "Admin login failed"
     return tk
 
 

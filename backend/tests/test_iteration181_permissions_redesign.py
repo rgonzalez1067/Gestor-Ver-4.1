@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iter 181 — Redesign módulo de Seguridad y Perfiles de Acceso.
 Tests:
 - GET /admin/permission-catalog (admin-only, shape)

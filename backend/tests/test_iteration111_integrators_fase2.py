@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 111 - Integrators Fase 1/2 Restructuring Tests
 Tests for:
@@ -68,7 +69,7 @@ class TestIntegratorsFase2:
         # Cleanup
         integrator_id = data["integrator_id"]
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=self.headers)
-        print(f"✓ TEST 1 PASSED: Created integrator WITHOUT integration_modality")
+        print("✓ TEST 1 PASSED: Created integrator WITHOUT integration_modality")
 
     # ==================== TEST 2: Create integrator WITH integration_modality ====================
     def test_02_create_integrator_with_modality(self):
@@ -95,7 +96,7 @@ class TestIntegratorsFase2:
         # Cleanup
         integrator_id = data["integrator_id"]
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=self.headers)
-        print(f"✓ TEST 2 PASSED: Created integrator WITH integration_modality")
+        print("✓ TEST 2 PASSED: Created integrator WITH integration_modality")
 
     # ==================== TEST 3: GET /api/auth/implementadores returns only Implementador cargo ====================
     def test_03_get_implementadores_endpoint(self):
@@ -189,7 +190,7 @@ class TestIntegratorsFase2:
         assert "implementador" in intg or intg.get("implementador") is None  # Field exists
         assert "implementador_user_id" in intg or intg.get("implementador_user_id") is None  # Field exists
         
-        print(f"✓ TEST 5 PASSED: Integrator model includes 'implementador' and 'implementador_user_id' fields")
+        print("✓ TEST 5 PASSED: Integrator model includes 'implementador' and 'implementador_user_id' fields")
 
     # ==================== TEST 6: Assign implementador requires user_id ====================
     def test_06_assign_implementador_requires_user_id(self):
@@ -217,7 +218,7 @@ class TestIntegratorsFase2:
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=self.headers)
-        print(f"✓ TEST 6 PASSED: Assign implementador correctly rejects request without user_id")
+        print("✓ TEST 6 PASSED: Assign implementador correctly rejects request without user_id")
 
     # ==================== TEST 7: Assign implementador with non-existent user ====================
     def test_07_assign_implementador_nonexistent_user(self):
@@ -245,7 +246,7 @@ class TestIntegratorsFase2:
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=self.headers)
-        print(f"✓ TEST 7 PASSED: Assign implementador correctly rejects non-existent user")
+        print("✓ TEST 7 PASSED: Assign implementador correctly rejects non-existent user")
 
     # ==================== TEST 8: Verify GET /api/integrators returns implementador data ====================
     def test_08_get_integrators_with_implementador(self):
@@ -286,7 +287,7 @@ class TestIntegratorsFase2:
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=self.headers)
-        print(f"✓ TEST 8 PASSED: GET /api/integrators correctly returns implementador data")
+        print("✓ TEST 8 PASSED: GET /api/integrators correctly returns implementador data")
 
 
 if __name__ == "__main__":

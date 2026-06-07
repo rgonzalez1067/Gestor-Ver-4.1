@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for PYME Extended Flow: Server Selection + Pinpad from Inventory
 Iteration 152 - Testing the extended PYME flow for 'Enviar a Implementación'

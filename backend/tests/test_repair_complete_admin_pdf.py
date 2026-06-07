@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para acción 'Reparada' (repair-complete) de cotizaciones de Reparación.
 
 Verifica que:
@@ -125,10 +126,10 @@ def test_repair_complete_admin_gets_pdf_client_does_not():
         logs = asyncio.run(_get_logs())
         assert logs, "Debe existir al menos un email_log para esta cotización"
 
-        admin_logs = [l for l in logs if l.get("action") in ("repair_complete_admin", "repair_complete_no_config")]
-        client_logs = [l for l in logs if l.get("action") == "repair_complete_client"]
-        assert admin_logs, f"Debe existir log para admin/no_config, vio {[l.get('action') for l in logs]}"
-        assert client_logs, f"Debe existir log para cliente, vio {[l.get('action') for l in logs]}"
+        admin_logs = [lg for lg in logs if lg.get("action") in ("repair_complete_admin", "repair_complete_no_config")]
+        client_logs = [lg for lg in logs if lg.get("action") == "repair_complete_client"]
+        assert admin_logs, f"Debe existir log para admin/no_config, vio {[lg.get('action') for lg in logs]}"
+        assert client_logs, f"Debe existir log para cliente, vio {[lg.get('action') for lg in logs]}"
 
         for al in admin_logs:
             assert al.get("has_attachment") is True, (

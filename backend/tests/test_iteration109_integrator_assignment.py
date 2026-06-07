@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 109 Tests - Integrators Assignment Board Reingeniería
 Tests for:
@@ -108,7 +109,7 @@ class TestIntegratorAssignment:
         
         assert found is not None, "Created unassigned integrator not found in list"
         assert found.get("gestor") in [None, "", None]
-        print(f"✓ GET /api/integrators includes unassigned integrators")
+        print("✓ GET /api/integrators includes unassigned integrators")
     
     def test_03_assign_endpoint_exists(self):
         """PUT /api/integrators/{id}/assign - endpoint should exist"""
@@ -132,7 +133,7 @@ class TestIntegratorAssignment:
         
         data = res.json()
         assert "user_id" in str(data.get("detail", "")).lower() or "user_id" in str(data).lower()
-        print(f"✓ PUT /api/integrators/{{id}}/assign endpoint exists and validates input")
+        print("✓ PUT /api/integrators/{id}/assign endpoint exists and validates input")
     
     def test_04_assign_gestor_successfully(self):
         """PUT /api/integrators/{id}/assign - should assign user and update gestor"""

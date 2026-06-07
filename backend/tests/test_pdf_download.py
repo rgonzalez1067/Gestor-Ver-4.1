@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 PDF Download Tests for Cotizador Merchant Server
 Tests PDF generation endpoints for Quotes, Clients, and Banks modules

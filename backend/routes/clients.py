@@ -1,4 +1,5 @@
 """Route module: clients.py"""
+# ruff: noqa: F403, F405
 from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Optional
@@ -473,7 +474,8 @@ async def get_clients_import_template(authorization: Optional[str] = Header(None
         condiciones = ['Prospecto', 'Cliente']
         
         max_len = max(len(categorias), len(referidores_origenes), len(ejecutivo_names), len(integrador_names), len(roles), len(bank_names), 15)
-        pad = lambda lst: lst + [''] * (max_len - len(lst))
+        def pad(lst):
+            return lst + [''] * (max_len - len(lst))
         
         values_data = {
             'Segmentos (Col E)': pad(segmentos),

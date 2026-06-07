@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 183 — Tests for Profiles master & ceiling (techo de permisos).
 
 Covers:

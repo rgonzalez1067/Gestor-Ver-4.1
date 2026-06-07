@@ -1,3 +1,4 @@
+# ruff: noqa
 """Phase 2 — Motor Dinámico de Notificaciones.
 
 Tests para validar:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test CRM Evolution Features - Iteration 44
 - Multi-sede structure (RIF + Sucursal composite key)

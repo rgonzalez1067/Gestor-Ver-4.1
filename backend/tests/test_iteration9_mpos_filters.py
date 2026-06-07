@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para Iteration 9: Flujo MPOS estabilizado + filtros Validar Pago/Preasign.
 
 Cubre:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 16 features:
 1. Filtros Rápidos (Quick Filters) - Cliente, Estado, Categoría, Fecha Desde, Fecha Hasta
@@ -69,7 +70,7 @@ class TestPDFDownload:
         
         # Should return 404
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"Non-existent quote returns 404 correctly")
+        print("Non-existent quote returns 404 correctly")
     
     def test_pdf_download_without_auth(self):
         """Test PDF download without authentication returns 401"""
@@ -82,7 +83,7 @@ class TestPDFDownload:
         
         # Should return 401
         assert response.status_code == 401, f"Expected 401, got {response.status_code}"
-        print(f"Unauthenticated request returns 401 correctly")
+        print("Unauthenticated request returns 401 correctly")
 
 
 class TestQuotesEndpoint:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 103 - Test Client Segment Dropdown Feature
 Tests:
@@ -195,7 +196,7 @@ class TestSegmentDropdownBackend:
         quote = get_response.json()
         assert "client_segment" in quote, "Quote should have client_segment field"
         assert quote["client_segment"] == "CORP", f"Expected CORP, got {quote['client_segment']}"
-        print(f"PASS: GET quote returns client_segment=CORP")
+        print("PASS: GET quote returns client_segment=CORP")
     
     def test_list_quotes_includes_segment(self, headers):
         """Test that GET /api/quotes list includes client_segment for each quote"""
@@ -242,7 +243,7 @@ class TestSegmentDropdownBackend:
         assert "client_segment" in quote
         assert quote["client_segment"] == "PYME"
         
-        print(f"PASS: Quote model correctly includes client_segment field")
+        print("PASS: Quote model correctly includes client_segment field")
 
 
 class TestSegmentFiltering:
@@ -286,7 +287,7 @@ class TestSegmentFiltering:
                 no_segment_count += 1
         
         print(f"Quotes distribution: PYME={pyme_count}, CORP={corp_count}, no_segment={no_segment_count}")
-        print(f"PASS: Segment values verified (PYME/CORP or null for old quotes)")
+        print("PASS: Segment values verified (PYME/CORP or null for old quotes)")
 
 
 if __name__ == "__main__":

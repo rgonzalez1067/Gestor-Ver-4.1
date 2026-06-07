@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 100 - Kardex Drill-down, Destination Popover, and Client Search features
 

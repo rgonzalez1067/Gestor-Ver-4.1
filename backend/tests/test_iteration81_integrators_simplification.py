@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 81 - Integrators Module Simplification
 Testing:

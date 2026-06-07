@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para _validate_instructions_length y persistencia de implementation_instructions."""
 import asyncio
 import os

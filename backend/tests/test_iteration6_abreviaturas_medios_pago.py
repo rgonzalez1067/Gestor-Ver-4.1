@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test iteration 6 — Abreviaturas de Medios de Pago.
 
 Cubre:

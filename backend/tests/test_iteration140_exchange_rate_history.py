@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 140: Exchange Rate History System
 Tests for:
@@ -26,7 +27,7 @@ class TestLogin:
         data = response.json()
         assert "session_token" in data, "session_token not in response"
         assert len(data["session_token"]) > 0, "Token is empty"
-        print(f"✓ Login successful, session_token received")
+        print("✓ Login successful, session_token received")
         return data["session_token"]
 
 
@@ -194,7 +195,7 @@ class TestExchangeRateHistory:
             if len(data) > 1:
                 dates = [r["fecha"] for r in data]
                 assert dates == sorted(dates, reverse=True), "History should be ordered by date descending"
-                print(f"✓ History correctly ordered by date descending")
+                print("✓ History correctly ordered by date descending")
 
 
 class TestExchangeRateUpdate:

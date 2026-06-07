@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 22 - Rich Text Editor (TipTap) backend regression tests.
 

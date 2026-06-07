@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 70 - Bank Detail View (Visor 360°) and Bank Integrations
 Tests:
@@ -176,7 +177,7 @@ class TestBankIntegrationCRUD:
         
         data = response.json()
         assert data["status"] == "DESA"
-        print(f"✓ Integration status updated to DESA")
+        print("✓ Integration status updated to DESA")
 
     def test_update_integration_to_completado(self, api_client):
         """Test updating integration through the full status flow"""

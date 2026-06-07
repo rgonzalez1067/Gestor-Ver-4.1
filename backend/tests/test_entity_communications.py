@@ -1,3 +1,4 @@
+# ruff: noqa
 """Pytest suite for entity_communications: integradores + nuevos productos
 notification flow + templates + internal users autocomplete.
 """

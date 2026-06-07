@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Integration and Hardware section in Quotes
 Tests for new fields: integrator_id, pinpad_id, sponsor_bank_id

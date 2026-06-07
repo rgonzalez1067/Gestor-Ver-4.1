@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 8 backend tests — Standardized notifications to clients & banks.
 
 Validates:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 101 - Stock Minimum Alert System (Sistema de Alertas de Stock Mínimo)
 

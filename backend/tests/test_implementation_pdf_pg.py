@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test PDF Ficha Técnica para Payment Gateway: tabla N°/Concepto/Banco/Observación + TOTAL SETUP."""
 import sys
 import os

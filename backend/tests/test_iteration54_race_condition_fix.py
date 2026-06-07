@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 54: Race Condition Fix Tests
 
@@ -78,13 +79,13 @@ class TestRaceConditionFix:
         suscripcion = next((s for s in setup_items if "Suscripción PDV/Banco" in s["item_name"]), None)
         assert suscripcion is not None, "Should find 'Suscripción PDV/Banco' item"
         assert suscripcion["lockBancos"] == False, "Suscripción PDV/Banco should have lockBancos=false"
-        print(f"✓ 'Suscripción PDV/Banco' has lockBancos=false")
+        print("✓ 'Suscripción PDV/Banco' has lockBancos=false")
         
         # Check Configuración Medio de Pago - should have autoBancos=true
         config_mp = next((s for s in setup_items if "Configuración Medio de Pago" in s["item_name"]), None)
         if config_mp:
             assert config_mp["autoBancos"] == True, "Configuración Medio de Pago should have autoBancos=true"
-            print(f"✓ 'Configuración Medio de Pago' has autoBancos=true")
+            print("✓ 'Configuración Medio de Pago' has autoBancos=true")
     
     def test_recurring_items_have_correct_lockBancos_values(self):
         """Test that recurring items have correct lockBancos values for N/A behavior"""
@@ -104,7 +105,7 @@ class TestRaceConditionFix:
         if derecho_pdv:
             assert derecho_pdv["lockBancos"] == True, \
                 "'Derecho de uso... por PDV' should have lockBancos=true (shows N/A in UI)"
-            print(f"✓ 'Derecho de uso de plataforma MServer por PDV' has lockBancos=true (N/A in UI)")
+            print("✓ 'Derecho de uso de plataforma MServer por PDV' has lockBancos=true (N/A in UI)")
         
         # 'Derecho de uso de plataforma MServer por PDV / Banco' should have lockBancos=false
         derecho_banco = next((s for s in recurring_items 
@@ -112,7 +113,7 @@ class TestRaceConditionFix:
         if derecho_banco:
             assert derecho_banco["lockBancos"] == False, \
                 "'Derecho de uso... por PDV / Banco' should have lockBancos=false (editable Bancos)"
-            print(f"✓ 'Derecho de uso de plataforma MServer por PDV / Banco' has lockBancos=false (editable)")
+            print("✓ 'Derecho de uso de plataforma MServer por PDV / Banco' has lockBancos=false (editable)")
     
     def test_quote_has_correct_cajas_value(self):
         """Test that quote preserves cantidad_cajas at header level"""
@@ -125,7 +126,7 @@ class TestRaceConditionFix:
         quote = response.json()
         assert quote["cantidad_cajas"] == 15, f"Quote should have cantidad_cajas=15, got {quote['cantidad_cajas']}"
         assert quote["cantidad_bancos"] == 2, f"Quote should have cantidad_bancos=2, got {quote['cantidad_bancos']}"
-        print(f"✓ Quote header has cantidad_cajas=15, cantidad_bancos=2")
+        print("✓ Quote header has cantidad_cajas=15, cantidad_bancos=2")
     
     def test_quote_has_correct_descuento_values(self):
         """Test that quote preserves descuento_setup and descuento_recurrente"""
@@ -140,7 +141,7 @@ class TestRaceConditionFix:
             f"Quote should have descuento_setup=10, got {quote['descuento_setup']}"
         assert quote["descuento_recurrente"] == 5.0, \
             f"Quote should have descuento_recurrente=5, got {quote['descuento_recurrente']}"
-        print(f"✓ Quote has descuento_setup=10%, descuento_recurrente=5%")
+        print("✓ Quote has descuento_setup=10%, descuento_recurrente=5%")
     
     def test_setup_items_preserve_cantidad_cajas(self):
         """Test that each setup item preserves its cantidad_cajas value"""

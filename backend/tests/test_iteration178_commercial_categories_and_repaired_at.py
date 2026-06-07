@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 178 — Backend tests
 1) Commercial Categories CRUD + RBAC + propagation + delete blocking
 2) Bug fix: GET /api/quotes now returns repaired_at (and configured_at) timestamps

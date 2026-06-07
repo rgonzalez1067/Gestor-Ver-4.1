@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 116: ticket_number obligatorio, email ad-hoc, progreso estandarizado
 - PUT /api/projects/{id}/assign con ticket_number obligatorio
@@ -79,7 +80,7 @@ def test_assign_requires_ticket_number(session, headers, projects, implementers)
     })
     assert response.status_code == 400
     assert "ticket" in response.json().get("detail", "").lower()
-    print(f"PASSED: Empty ticket_number rejected with 400")
+    print("PASSED: Empty ticket_number rejected with 400")
 
 
 def test_assign_with_valid_ticket_number(session, headers, projects, implementers):
@@ -109,7 +110,7 @@ def test_assign_with_valid_ticket_number(session, headers, projects, implementer
     assert proj_res.status_code == 200
     proj_data = proj_res.json()
     assert proj_data.get("ticket_number") == unique_ticket
-    print(f"PASSED: ticket_number persisted in project")
+    print("PASSED: ticket_number persisted in project")
 
 
 def test_assign_ticket_uniqueness(session, headers, projects, implementers):
@@ -138,7 +139,7 @@ def test_assign_ticket_uniqueness(session, headers, projects, implementers):
     assert res2.status_code == 400
     detail = res2.json().get("detail", "").lower()
     assert "ya está asignado" in detail or "ticket" in detail
-    print(f"PASSED: Duplicate ticket_number rejected with 400")
+    print("PASSED: Duplicate ticket_number rejected with 400")
 
 
 # ==================== AD-HOC EMAIL TESTS ====================
@@ -302,7 +303,7 @@ def test_adhoc_email_auto_bitacora(session, multipart_headers, headers, projects
     assert latest_entry is not None
     assert "[Email Ad-hoc]" in latest_entry.get("text", "")
     assert "Test Bitacora Auto-Registro" in latest_entry.get("text", "")
-    print(f"PASSED: Ad-hoc email auto-registered in bitacora")
+    print("PASSED: Ad-hoc email auto-registered in bitacora")
 
 
 # ==================== ROLLUP PROGRESS TESTS ====================
@@ -392,7 +393,7 @@ def test_matrix_phase_update_recalculates_single_progress(session, headers, proj
     # Check rollup was recalculated
     updated_proj = session.get(f"{BASE_URL}/api/projects/{project_id}", headers=headers).json()
     assert "rollup_progress" in updated_proj
-    print(f"PASSED: Matrix phase update recalculated rollup_progress for single project")
+    print("PASSED: Matrix phase update recalculated rollup_progress for single project")
 
 
 # ==================== ADDITIONAL TESTS ====================

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 66: Projects Module Optimization
 Features tested:
@@ -345,7 +346,7 @@ class TestQuoteTriggerCreatesProjectWithMatrix:
             for product_name, phases in products.items():
                 assert isinstance(phases, dict), f"Product '{product_name}' phases should be a dict"
         
-        print(f"✓ Implementation matrix structure verified")
+        print("✓ Implementation matrix structure verified")
         print(f"  Banks: {list(matrix.keys())}")
     
     def test_project_inherits_attachments_from_quote(self):
@@ -360,7 +361,7 @@ class TestQuoteTriggerCreatesProjectWithMatrix:
             pytest.skip("No attachments to verify")
         
         for att in attachments:
-            assert att.get("inherited_from") == "cotización", f"Attachment should be inherited from cotización"
+            assert att.get("inherited_from") == "cotización", "Attachment should be inherited from cotización"
             assert "attachment_id" in att
             assert "filename" in att
             assert "url" in att

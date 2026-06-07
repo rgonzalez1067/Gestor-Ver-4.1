@@ -1,3 +1,4 @@
+# ruff: noqa
 """E2E test: Centro de Mensajes (Iter42).
 
 Cubre los criterios de aceptación funcional:

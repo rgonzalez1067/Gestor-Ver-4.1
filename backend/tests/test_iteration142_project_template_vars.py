@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 142: Project Template Variables and Preview Endpoints
 Tests:

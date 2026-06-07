@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Linked Recurring Services Tests
 ================================

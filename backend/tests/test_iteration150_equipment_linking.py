@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 150: Equipment Linking in 'Enviar a Implementación' flow
 Tests:
@@ -51,7 +52,7 @@ class TestEquipmentForImplementationEndpoint:
         """Test that the equipment endpoint returns 200 for valid quote"""
         response = api_client.get(f"{BASE_URL}/api/quotes/{TEST_QUOTE_ID}/equipment-for-implementation")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        print(f"PASS: Equipment endpoint returns 200")
+        print("PASS: Equipment endpoint returns 200")
 
     def test_equipment_endpoint_returns_quote_equipment_array(self, api_client):
         """Test that response contains quote_equipment array"""
@@ -86,7 +87,7 @@ class TestEquipmentForImplementationEndpoint:
             for field in required_fields:
                 assert field in eq, f"Equipment missing required field: {field}"
             assert eq["source"] == "cotizacion", f"quote_equipment source should be 'cotizacion', got {eq['source']}"
-        print(f"PASS: All quote_equipment items have required fields and source='cotizacion'")
+        print("PASS: All quote_equipment items have required fields and source='cotizacion'")
 
     def test_rif_equipment_has_required_fields(self, api_client):
         """Test that rif_equipment items have required fields"""
@@ -97,7 +98,7 @@ class TestEquipmentForImplementationEndpoint:
             for field in required_fields:
                 assert field in eq, f"RIF equipment missing required field: {field}"
             assert eq["source"] == "cliente_rif", f"rif_equipment source should be 'cliente_rif', got {eq['source']}"
-        print(f"PASS: All rif_equipment items have required fields and source='cliente_rif'")
+        print("PASS: All rif_equipment items have required fields and source='cliente_rif'")
 
     def test_response_includes_client_rif(self, api_client):
         """Test that response includes client_rif"""
@@ -120,7 +121,7 @@ class TestEquipmentForImplementationEndpoint:
         """Test that endpoint returns 404 for non-existent quote"""
         response = api_client.get(f"{BASE_URL}/api/quotes/quo_nonexistent/equipment-for-implementation")
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-        print(f"PASS: Returns 404 for non-existent quote")
+        print("PASS: Returns 404 for non-existent quote")
 
 
 class TestTemplateVariables:
@@ -130,7 +131,7 @@ class TestTemplateVariables:
         """Test that template-variables endpoint returns 200"""
         response = api_client.get(f"{BASE_URL}/api/projects/{TEST_PROJECT_ID}/template-variables")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        print(f"PASS: Template variables endpoint returns 200")
+        print("PASS: Template variables endpoint returns 200")
 
     def test_modelo_seriales_equipos_in_variables(self, api_client):
         """Test that Modelo_Seriales_Equipos is in variables"""
@@ -138,7 +139,7 @@ class TestTemplateVariables:
         data = response.json()
         assert "variables" in data, "Response missing 'variables' field"
         assert "Modelo_Seriales_Equipos" in data["variables"], "Modelo_Seriales_Equipos not in variables"
-        print(f"PASS: Modelo_Seriales_Equipos is in variables")
+        print("PASS: Modelo_Seriales_Equipos is in variables")
 
     def test_available_tags_includes_modelo_seriales(self, api_client):
         """Test that available_tags includes Modelo_Seriales_Equipos"""
@@ -162,7 +163,7 @@ class TestTemplateVariables:
         html = data["variables"]["Modelo_Seriales_Equipos"]
         # Project without equipment should show placeholder
         assert "Sin equipos asignados" in html or "<table" in html, f"Unexpected HTML format: {html[:100]}"
-        print(f"PASS: Modelo_Seriales_Equipos returns appropriate HTML")
+        print("PASS: Modelo_Seriales_Equipos returns appropriate HTML")
 
 
 class TestSendToImplementationRequest:
@@ -211,7 +212,7 @@ class TestProjectEquipmentStorage:
         """Test that project detail endpoint returns 200"""
         response = api_client.get(f"{BASE_URL}/api/projects/{TEST_PROJECT_ID}")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        print(f"PASS: Project detail endpoint returns 200")
+        print("PASS: Project detail endpoint returns 200")
 
     def test_project_can_have_equipments_field(self, api_client):
         """Test that project schema supports equipments field"""

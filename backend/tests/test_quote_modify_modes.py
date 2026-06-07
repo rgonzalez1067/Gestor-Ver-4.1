@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para "Modificar Cotización" con elección de modo (in_place vs new_version).
 
 Cubre:
@@ -75,7 +76,7 @@ def test_duplicate_in_place_keeps_number_and_resets():
         data = r.json()
         assert data["mode"] == "in_place"
         assert data["new_quote_id"] == "qid_modify_test_001", f"in_place debe mantener mismo id, got {data}"
-        assert data["new_quote_number"] == "COT-MOD-TEST-001", f"in_place debe mantener mismo número"
+        assert data["new_quote_number"] == "COT-MOD-TEST-001", "in_place debe mantener mismo número"
 
         async def _get_quote_and_bitacora():
             c = AsyncIOMotorClient(os.environ['MONGO_URL'])

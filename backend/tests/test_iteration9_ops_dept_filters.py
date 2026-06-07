@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iter9 — Backend tests for:
 1. GET /api/quotes filtered for Operaciones department (PYME + fast_track/FAST_TRACK only).

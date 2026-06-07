@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite: Iteration 112 - PDF Layout Fixes for Nota de Entrega and Nota de Transferencia
 Tests:
@@ -67,7 +68,7 @@ class TestNotaEntregaPDFLayoutFixes:
         pdf_doc.close()
         
         assert page_count == 2, f"Expected exactly 2 pages, got {page_count}"
-        print(f"✓ Nota Entrega generates exactly 2 pages")
+        print("✓ Nota Entrega generates exactly 2 pages")
 
     def test_02_page1_has_no_recepcion_section(self):
         """Verify Page 1 does NOT contain 'Recepcion y Conformidad' section."""
@@ -88,7 +89,7 @@ class TestNotaEntregaPDFLayoutFixes:
         assert "3. Detalle de Bienes" in page1_text, "Page 1 should have section 3"
         assert "4. Control Logistico" in page1_text, "Page 1 should have section 4"
         
-        print(f"✓ Page 1 has sections 1-4 and NO 'Recepcion y Conformidad'")
+        print("✓ Page 1 has sections 1-4 and NO 'Recepcion y Conformidad'")
 
     def test_03_page2_has_header_and_recepcion_section(self):
         """Verify Page 2 starts with persistent header (NOTA DE ENTREGA) followed by Recepcion section."""
@@ -110,7 +111,7 @@ class TestNotaEntregaPDFLayoutFixes:
         assert "Cedula / RIF" in page2_text, "Page 2 should have cedula field"
         assert "Firma y Sello" in page2_text, "Page 2 should have signature field"
         
-        print(f"✓ Page 2 has persistent header and 'Recepcion y Conformidad' section")
+        print("✓ Page 2 has persistent header and 'Recepcion y Conformidad' section")
 
     def test_04_long_address_wraps_without_overflow(self):
         """Verify long address (100+ chars) wraps to multiple lines without overflow."""
@@ -144,7 +145,7 @@ class TestNotaEntregaPDFLayoutFixes:
         assert "Venezuela" in page1_text or "1060" in page1_text
         
         pdf_doc.close()
-        print(f"✓ Long address wraps properly without overflow")
+        print("✓ Long address wraps properly without overflow")
 
     def test_05_pagination_shows_correct_page_numbers(self):
         """Verify pagination shows 'Pagina 1 / 2' and 'Pagina 2 / 2' correctly."""
@@ -162,7 +163,7 @@ class TestNotaEntregaPDFLayoutFixes:
         assert "Pagina 2 / 2" in page2_text or "Pagina 2/2" in page2_text, \
             "Page 2 should show 'Pagina 2 / 2'"
         
-        print(f"✓ Pagination shows 'Pagina 1/2' and 'Pagina 2/2' correctly")
+        print("✓ Pagination shows 'Pagina 1/2' and 'Pagina 2/2' correctly")
 
     def test_06_no_duplicate_pages(self):
         """Verify no duplicate pages in output (NumberedCanvas fix)."""
@@ -183,7 +184,7 @@ class TestNotaEntregaPDFLayoutFixes:
         assert "5. Recepcion y Conformidad" not in page1_text
         assert "5. Recepcion y Conformidad" in page2_text
         
-        print(f"✓ No duplicate pages - NumberedCanvas working correctly")
+        print("✓ No duplicate pages - NumberedCanvas working correctly")
 
     def test_07_column_widths_sum_to_content_width(self):
         """Verify all table column widths sum to exactly CONTENT_W (no overflow)."""
@@ -224,8 +225,8 @@ class TestNotaEntregaPDFLayoutFixes:
         expected_margin_r = 1.8 * cm
         expected_content_w = PAGE_W - expected_margin_l - expected_margin_r
         
-        assert abs(MARGIN_L - expected_margin_l) < 0.01, f"MARGIN_L incorrect"
-        assert abs(MARGIN_R - expected_margin_r) < 0.01, f"MARGIN_R incorrect"
+        assert abs(MARGIN_L - expected_margin_l) < 0.01, "MARGIN_L incorrect"
+        assert abs(MARGIN_R - expected_margin_r) < 0.01, "MARGIN_R incorrect"
         assert abs(CONTENT_W - expected_content_w) < 0.01, \
             f"CONTENT_W={CONTENT_W} != expected {expected_content_w}"
         
@@ -258,7 +259,7 @@ class TestTransferNotePDFLayoutFixes:
         page_count = pdf_doc.page_count
         pdf_doc.close()
         
-        assert page_count >= 1, f"Transfer note should generate at least 1 page"
+        assert page_count >= 1, "Transfer note should generate at least 1 page"
         print(f"✓ Transfer Note generates {page_count} page(s) without error")
 
     def test_02_transfer_note_column_widths_percentage_based(self):
@@ -271,7 +272,7 @@ class TestTransferNotePDFLayoutFixes:
         assert abs(cw_sum - TRANSFER_CONTENT_W) < 0.01, \
             f"Section 1 widths sum {cw_sum} != CONTENT_W {TRANSFER_CONTENT_W}"
         
-        print(f"✓ Transfer Note Section 1 uses percentage-based widths")
+        print("✓ Transfer Note Section 1 uses percentage-based widths")
 
     def test_03_transfer_note_route_section_widths(self):
         """Verify Transfer Note 'Ruta de Transferencia' section uses percentage-based widths."""
@@ -283,7 +284,7 @@ class TestTransferNotePDFLayoutFixes:
         assert abs(cw2_sum - TRANSFER_CONTENT_W) < 0.01, \
             f"Route section widths sum {cw2_sum} != CONTENT_W {TRANSFER_CONTENT_W}"
         
-        print(f"✓ Transfer Note 'Ruta de Transferencia' uses percentage-based widths")
+        print("✓ Transfer Note 'Ruta de Transferencia' uses percentage-based widths")
 
     def test_04_transfer_note_signature_width(self):
         """Verify Transfer Note signature section width (line 391)."""
@@ -292,9 +293,9 @@ class TestTransferNotePDFLayoutFixes:
         sig_sum = sig_col * 2  # Two columns
         
         assert abs(sig_sum - TRANSFER_CONTENT_W * 0.96) < 0.01, \
-            f"Signature widths calculation error"
+            "Signature widths calculation error"
         
-        print(f"✓ Transfer Note signature width is percentage-based")
+        print("✓ Transfer Note signature width is percentage-based")
 
     def test_05_transfer_note_no_overflow(self):
         """Verify Transfer Note content doesn't overflow page boundaries."""
@@ -317,7 +318,7 @@ class TestTransferNotePDFLayoutFixes:
                     f"Page {page_num+1}: Content exceeds boundary at x1={x1}, max={max_x}"
         
         pdf_doc.close()
-        print(f"✓ Transfer Note has no content overflow")
+        print("✓ Transfer Note has no content overflow")
 
     def test_06_transfer_note_has_pinpad_note_when_applicable(self):
         """Verify technical note appears when Pinpads are included."""
@@ -333,7 +334,7 @@ class TestTransferNotePDFLayoutFixes:
         assert "PinPads son entregados con" in full_text or "Nota tecnica" in full_text, \
             "Should have technical note for Pinpads"
         
-        print(f"✓ Transfer Note includes Pinpad technical note")
+        print("✓ Transfer Note includes Pinpad technical note")
 
     def test_07_transfer_note_pagination_correct(self):
         """Verify Transfer Note pagination is correct."""
@@ -366,7 +367,7 @@ class TestNumberedCanvasNoDuplication:
         assert "_startPage" in source, "showPage should call self._startPage()"
         assert "super().showPage()" not in source, "showPage should NOT call super().showPage()"
         
-        print(f"✓ NumberedCanvas.showPage() uses self._startPage() correctly")
+        print("✓ NumberedCanvas.showPage() uses self._startPage() correctly")
 
     def test_02_transfer_note_numbered_canvas_uses_start_page(self):
         """Verify Transfer Note's NumberedCanvas also uses _startPage()."""
@@ -378,7 +379,7 @@ class TestNumberedCanvasNoDuplication:
         assert "_startPage" in source, "Transfer Note showPage should call self._startPage()"
         assert "super().showPage()" not in source, "showPage should NOT call super().showPage()"
         
-        print(f"✓ Transfer Note NumberedCanvas.showPage() uses self._startPage() correctly")
+        print("✓ Transfer Note NumberedCanvas.showPage() uses self._startPage() correctly")
 
 
 class TestAddressWordWrap:
@@ -408,7 +409,7 @@ class TestAddressWordWrap:
         assert pdf_doc.page_count == 2, f"Should be 2 pages even with long address, got {pdf_doc.page_count}"
         
         pdf_doc.close()
-        print(f"✓ Very long address (200+ chars) handled correctly")
+        print("✓ Very long address (200+ chars) handled correctly")
 
     def test_02_address_with_special_characters(self):
         """Test address with special Venezuelan characters."""
@@ -426,7 +427,7 @@ class TestAddressWordWrap:
         # Should handle special characters
         assert "Urdaneta" in page1_text
         
-        print(f"✓ Address with special characters handled correctly")
+        print("✓ Address with special characters handled correctly")
 
 
 if __name__ == "__main__":

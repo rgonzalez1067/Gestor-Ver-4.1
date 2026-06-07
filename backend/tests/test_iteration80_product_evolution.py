@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 80 - Product Evolution (Bitácora) and Integration Report Grouping Tests
 Tests for:
@@ -117,8 +118,8 @@ class TestIntegrationReportGroupedByBank:
                 assert "label" in group, f"Group {key} missing label"
                 assert "count" in group, f"Group {key} missing count"
                 assert "items" in group, f"Group {key} missing items"
-                assert isinstance(group["items"], list), f"Items should be a list"
-                assert group["count"] == len(group["items"]), f"Count should match items length"
+                assert isinstance(group["items"], list), "Items should be a list"
+                assert group["count"] == len(group["items"]), "Count should match items length"
 
 
 class TestIntegrationReportGroupedByProduct:
@@ -130,7 +131,7 @@ class TestIntegrationReportGroupedByProduct:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict), f"Grouped mode should return dict, got {type(data)}"
-        assert data.get("group_by") == "product", f"group_by should be 'product'"
+        assert data.get("group_by") == "product", "group_by should be 'product'"
     
     def test_group_by_product_groups_by_service_name(self, api_client):
         """Products are grouped by service_name"""
@@ -143,7 +144,7 @@ class TestIntegrationReportGroupedByProduct:
             # All items in this group should have the same service_name
             if len(group.get("items", [])) > 0:
                 service_names = set(item["service_name"] for item in group["items"])
-                assert len(service_names) == 1, f"All items in product group should have same service_name"
+                assert len(service_names) == 1, "All items in product group should have same service_name"
 
 
 class TestIntegrationReportGroupedByPhase:
@@ -155,7 +156,7 @@ class TestIntegrationReportGroupedByPhase:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, dict), f"Grouped mode should return dict, got {type(data)}"
-        assert data.get("group_by") == "phase", f"group_by should be 'phase'"
+        assert data.get("group_by") == "phase", "group_by should be 'phase'"
     
     def test_group_by_phase_uses_status_labels(self, api_client):
         """Phase groups use proper status labels"""
@@ -170,8 +171,8 @@ class TestIntegrationReportGroupedByPhase:
             assert key in valid_phases, f"Phase key '{key}' not in valid phases"
             if len(group.get("items", [])) > 0:
                 statuses = set(item["status"] for item in group["items"])
-                assert len(statuses) == 1, f"All items in phase group should have same status"
-                assert list(statuses)[0] == key, f"Items status should match group key"
+                assert len(statuses) == 1, "All items in phase group should have same status"
+                assert list(statuses)[0] == key, "Items status should match group key"
 
 
 class TestIntegrationReportAuth:
@@ -188,7 +189,7 @@ class TestIntegrationReportAuth:
         assert response.status_code == 200
         data = response.json()
         # Invalid group_by should return flat list
-        assert isinstance(data, list), f"Invalid group_by should return flat list"
+        assert isinstance(data, list), "Invalid group_by should return flat list"
 
 
 # ==================== PRODUCT EVOLUTION CRUD ====================
@@ -228,7 +229,7 @@ class TestProductEvolutionCRUD:
         
         # Verify response structure
         assert "entry_id" in data, "Response should have entry_id"
-        assert data["entry_id"].startswith("pev_"), f"entry_id should start with pev_"
+        assert data["entry_id"].startswith("pev_"), "entry_id should start with pev_"
         assert data["comment"] == new_entry["comment"], "Comment should match"
         assert data["phase"] == new_entry["phase"], "Phase should match"
         assert data["date"] == new_entry["date"], "Date should match"

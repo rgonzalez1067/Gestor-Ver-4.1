@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 20 — RIF padding a 9 dígitos.
 
 Regla: el RIF de Venezuela tiene 10 chars (letra + 9 dígitos). Si en BD

@@ -1,4 +1,5 @@
 """Route module: dashboard.py"""
+# ruff: noqa: F403, F405
 from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Optional
@@ -441,7 +442,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     condicion = 'Prospecto'
                 
                 # === Referidor validation (lista maestra + cascada Banco/Cliente) ===
-                valid_origenes = [
+                _valid_origenes = [
                     'Correo de Ventas', 'Integrador', 'Directores', 'Corporativo',
                     'Jose Dolande', 'Melissa Garcia', 'Katherine Quailey', 'Rafael Gonzalez',
                     'Ventas Directas (Ejecutivo)', 'Página Web / Landing Page', 'Redes Sociales',
@@ -491,7 +492,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                                 row_errors.append(ImportError(row=row_num, column=_col_ref('referidor_nombre'), value=search_term,
                                     error_type='invalid',
                                     message=f'Fila {row_num}, Col H/I (Referidor): No se encontró cliente "{search_term}" en el sistema.',
-                                    suggested_action=f'Corrija la celda. Si Origen=Cliente Referidor, el nombre o RIF debe pertenecer a un comercio ya registrado.'))
+                                    suggested_action='Corrija la celda. Si Origen=Cliente Referidor, el nombre o RIF debe pertenecer a un comercio ya registrado.'))
                     else:
                         referidor_tipo = 'OTRO'
                         referidor_nombre = referidor_nombre_raw or None                
@@ -610,7 +611,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                         integrador_name = intg_match["name"]
                         integrador_id = intg_match["id"]
                     else:
-                        sample_names = list(integrador_lookup.keys())[:5]
+                        _sample_names = list(integrador_lookup.keys())[:5]
                         row_errors.append(ImportError(row=row_num, column=_col_ref('integrador_name'), value=integrador_name,
                             error_type='invalid',
                             message=f'Fila {row_num}, Col R (Integrador): El integrador "{integrador_name}" no está registrado en el sistema.',
@@ -641,7 +642,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     errors.append(ImportError(row=row_num, column=f'{_col_ref("rif")} + {_col_ref("sucursal")}', value=f'{rif} / {sucursal}',
                         error_type='duplicate',
                         message=f'Fila {row_num}: Ya existe un cliente con RIF "{rif}" y sucursal "{sucursal}" en el sistema. No se permiten registros duplicados con la misma combinación.',
-                        suggested_action=f'Verifique si desea importar este registro con una sucursal distinta (ej: "Sede Norte"), o elimine esta fila si ya existe en el sistema.'))
+                        suggested_action='Verifique si desea importar este registro con una sucursal distinta (ej: "Sede Norte"), o elimine esta fila si ya existe en el sistema.'))
                     skipped_count += 1
                     # Still log non-critical errors
                     if row_errors:
@@ -711,7 +712,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
                     suggested_action=f'Revise todos los datos de la fila {row_num}. Asegúrese de que los campos numéricos solo contengan números y que las fechas tengan formato válido.'))
                 skipped_count += 1
         
-        total_errors = len([e for e in errors if e.error_type in ('missing', 'duplicate', 'format') or 'crítico' in e.message.lower()])
+        _total_errors = len([e for e in errors if e.error_type in ('missing', 'duplicate', 'format') or 'crítico' in e.message.lower()])
         
         if success_count == 0 and errors:
             status = 'error'
@@ -737,7 +738,7 @@ async def import_clients(file: UploadFile = File(...), authorization: Optional[s
             errors=[ImportError(row=0, column='Archivo', value=file.filename, error_type='format',
                 message=f'Error crítico al procesar el archivo: {str(e)}. El archivo puede estar corrupto o tener un formato no soportado.',
                 suggested_action='Verifique que el archivo no esté dañado. Descargue la plantilla modelo y copie sus datos respetando el formato de cada columna.')],
-            message=f'Error crítico: No se pudo procesar el archivo'
+            message='Error crítico: No se pudo procesar el archivo'
         )
 
 

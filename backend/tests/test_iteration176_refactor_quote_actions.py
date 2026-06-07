@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 176: Validation of quote_actions.py refactor split.
 

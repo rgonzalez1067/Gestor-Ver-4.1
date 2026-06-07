@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 160: Password Reset and Email Verification Features
 Tests for:

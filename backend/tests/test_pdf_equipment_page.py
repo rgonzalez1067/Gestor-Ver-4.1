@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test PDF Generation for Fast Track quotes with Equipment Page (COTIZACIÓN DE EQUIPOS).
 Tests the POST /api/quotes/generate-pdf endpoint with ft_equipment_items.
@@ -137,7 +138,7 @@ class TestPDFEquipmentPage:
         
         # Check for equipment page title
         assert "COTIZACIÓN DE EQUIPOS" in full_text, "PDF should contain 'COTIZACIÓN DE EQUIPOS' page"
-        print(f"✓ PDF contains 'COTIZACIÓN DE EQUIPOS' page")
+        print("✓ PDF contains 'COTIZACIÓN DE EQUIPOS' page")
     
     @pytest.mark.skipif(not PYPDF2_AVAILABLE, reason="PyPDF2 not available")
     def test_pdf_equipment_table_has_correct_data(self):
@@ -193,7 +194,7 @@ class TestPDFEquipmentPage:
         assert "44" in full_text or "44.80" in full_text, "PDF should contain IVA $44.80"
         assert "324" in full_text or "324.80" in full_text, "PDF should contain TOTAL $324.80"
         
-        print(f"✓ PDF equipment table contains correct data")
+        print("✓ PDF equipment table contains correct data")
     
     @pytest.mark.skipif(not PYPDF2_AVAILABLE, reason="PyPDF2 not available")
     def test_pdf_resumen_includes_equipos_hardware_row(self):
@@ -244,7 +245,7 @@ class TestPDFEquipmentPage:
         # The row should show "Equipos (Hardware)" with $280.00
         assert "Equipos" in full_text or "Hardware" in full_text, "PDF should contain 'Equipos (Hardware)' row"
         
-        print(f"✓ PDF RESUMEN includes Equipos (Hardware) row")
+        print("✓ PDF RESUMEN includes Equipos (Hardware) row")
     
     def test_pdf_generation_without_ft_equipment_items_works(self):
         """Test that PDF generation WITHOUT ft_equipment_items still works (no equipment page)"""
@@ -319,7 +320,7 @@ class TestPDFEquipmentPage:
         
         # Should NOT contain equipment page
         assert "COTIZACIÓN DE EQUIPOS" not in full_text, "PDF without equipment should NOT contain 'COTIZACIÓN DE EQUIPOS' page"
-        print(f"✓ PDF without equipment items correctly omits equipment page")
+        print("✓ PDF without equipment items correctly omits equipment page")
     
     @pytest.mark.skipif(not PYPDF2_AVAILABLE, reason="PyPDF2 not available")
     def test_pdf_total_general_sums_services_and_hardware(self):
@@ -373,7 +374,7 @@ class TestPDFEquipmentPage:
         # The total should include both services and hardware
         assert "300" in full_text, "PDF TOTAL GENERAL should be $300 (services $20 + hardware $280)"
         
-        print(f"✓ PDF TOTAL GENERAL correctly sums services and hardware")
+        print("✓ PDF TOTAL GENERAL correctly sums services and hardware")
 
 
 class TestPDFTemplateEndpoint:
@@ -492,7 +493,7 @@ class TestPDFTemplateEndpoint:
         assert "COTIZACIÓN DE EQUIPOS" in full_text, "Template PDF should contain 'COTIZACIÓN DE EQUIPOS' page"
         assert "Morefun MF960" in full_text, "Template PDF should contain equipment name"
         
-        print(f"✓ Template PDF contains equipment page with correct data")
+        print("✓ Template PDF contains equipment page with correct data")
 
 
 if __name__ == "__main__":

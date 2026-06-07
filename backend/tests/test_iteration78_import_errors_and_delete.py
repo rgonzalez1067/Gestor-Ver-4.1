@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 78 - Test Import Error Handling and DELETE Bug Fixes
 
@@ -203,7 +204,7 @@ TestGestorError78,Integrador,TestApp78,PG Universal,En proceso,PG,GestorQueNoExi
             print(f"WARNING: Gestor validation not triggered. Result: {result}")
             # Still pass if import was processed (the gestor validation may have been skipped)
             if result.get("success_count", 0) > 0 or result.get("updated_count", 0) > 0:
-                print(f"PASSED (with warning): Record processed despite invalid gestor - consider adding stricter validation")
+                print("PASSED (with warning): Record processed despite invalid gestor - consider adding stricter validation")
             else:
                 # Check if there was a different error
                 assert len(result.get("errors", [])) > 0, f"Expected some errors, result: {result}"
@@ -299,7 +300,7 @@ class TestDeleteIntegrator(TestAuthentication):
         assert get_after_delete.status_code == 404, \
             f"CRITICAL BUG: Integrator still exists after DELETE! Status: {get_after_delete.status_code}, Data: {get_after_delete.text}"
         
-        print(f"PASSED: DELETE actually removes the integrator (GET returns 404)")
+        print("PASSED: DELETE actually removes the integrator (GET returns 404)")
     
     def test_delete_nonexistent_integrator_returns_404(self, auth_headers):
         """Deleting non-existent integrator returns 404"""
@@ -311,7 +312,7 @@ class TestDeleteIntegrator(TestAuthentication):
         )
         
         assert response.status_code == 404, f"Expected 404, got: {response.status_code}"
-        print(f"PASSED: DELETE non-existent integrator returns 404")
+        print("PASSED: DELETE non-existent integrator returns 404")
 
 
 class TestImportErrorsArrayStructure(TestAuthentication):
@@ -362,7 +363,7 @@ class TestImportErrorsArrayStructure(TestAuthentication):
             valid_types = ["missing", "invalid", "format", "duplicate"]
             assert error["error_type"] in valid_types, f"Invalid error_type: {error['error_type']}"
         
-        print(f"PASSED: ImportResult and ImportError structures are correct")
+        print("PASSED: ImportResult and ImportError structures are correct")
         print(f"  - ImportResult fields: {list(result.keys())}")
         if result["errors"]:
             print(f"  - ImportError fields: {list(result['errors'][0].keys())}")

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 148: Bug Fixes Testing
 - Bug 1: Variable hydration fix (Nombre_Implementador, Correo_Implementador, Contacto_Principal, Datos_Contacto, Nombre_Cliente)
@@ -70,7 +71,7 @@ class TestBug1VariableHydration(TestAuth):
             assert "@" in correo_impl, f"Correo_Implementador doesn't look like email: {correo_impl}"
             print(f"PASS: Correo_Implementador = '{correo_impl}'")
         else:
-            print(f"INFO: Correo_Implementador is empty (implementer may not have email)")
+            print("INFO: Correo_Implementador is empty (implementer may not have email)")
     
     def test_preview_notification_contacto_principal_not_empty(self, session_token):
         """Contacto_Principal must show first contact name"""
@@ -125,7 +126,7 @@ class TestBug1VariableHydration(TestAuth):
         if datos_contacto and datos_contacto != "—":
             assert "Tel:" in datos_contacto or "Email:" in datos_contacto, \
                 f"Datos_Contacto doesn't have expected format: {datos_contacto}"
-            print(f"PASS: Datos_Contacto has proper format")
+            print("PASS: Datos_Contacto has proper format")
     
     def test_template_variables_endpoint(self, session_token):
         """Test the template-variables endpoint returns all variables"""
@@ -151,7 +152,7 @@ class TestBug1VariableHydration(TestAuth):
         tag_keys = [t["key"] for t in available_tags]
         assert "Datos_Contacto" in tag_keys, "Datos_Contacto not in available_tags"
         
-        print(f"PASS: All expected variables present")
+        print("PASS: All expected variables present")
         print(f"  Nombre_Implementador: {variables.get('Nombre_Implementador')}")
         print(f"  Correo_Implementador: {variables.get('Correo_Implementador')}")
         print(f"  Contacto_Principal: {variables.get('Contacto_Principal')}")
@@ -224,7 +225,7 @@ class TestBug2ImageUpload(TestAuth):
         
         # Should fail with 400
         assert response.status_code == 400, f"Expected 400, got {response.status_code}"
-        print(f"PASS: Invalid format rejected with 400")
+        print("PASS: Invalid format rejected with 400")
 
 
 class TestBug3VariablesPanel:

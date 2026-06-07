@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 67: Implementation Matrix Fix
 - Verifies that implementation_matrix only contains 'additional' items (bank-specific payment methods)
@@ -109,7 +110,7 @@ class TestProjectMatrixFix:
                         assert forbidden.lower() not in product_name.lower(), \
                             f"Forbidden item '{forbidden}' found in matrix for {project.get('project_number')}"
         
-        print(f"✓ No recurring items in any project matrices")
+        print("✓ No recurring items in any project matrices")
     
     def test_specific_project_prj_27c658a31dd2(self, api_client):
         """PRY-2026-03-004 should have exactly 9 additional items in matrix"""
@@ -138,7 +139,7 @@ class TestProjectMatrixFix:
         for bank in expected_banks:
             assert bank in matrix, f"Missing bank: {bank}"
         
-        print(f"✓ PRY-2026-03-004-PRI has correct 9 items across 4 banks")
+        print("✓ PRY-2026-03-004-PRI has correct 9 items across 4 banks")
 
 
 class TestProjectStats:

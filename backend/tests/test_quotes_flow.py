@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Cotizador Merchant Server - Quote Flow Tests
 =============================================

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 63: Email Service and Complete Quote Workflow
 Tests the simulated email engine and complete quote workflow transitions.

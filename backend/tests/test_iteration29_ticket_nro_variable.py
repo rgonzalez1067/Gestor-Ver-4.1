@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 29 — Validar que {Ticket_Nro} se resuelve correctamente desde project.ticket_number."""
 import asyncio
 import sys

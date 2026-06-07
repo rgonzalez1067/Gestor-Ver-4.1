@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test workflow-based state transitions for quotations
 Tests the evidence-based state transitions (Workflows) for the quotation system.

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 26: Testing approve, collect, delete quote flows
 Features:

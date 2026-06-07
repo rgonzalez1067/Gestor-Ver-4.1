@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 18 — Filtros estrictos de estado y categoría en Cotizaciones.
 
 Valida:

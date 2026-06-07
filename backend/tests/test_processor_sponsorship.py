@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Procesador + Patrocinio Relacional — flujo end-to-end (backend).
 

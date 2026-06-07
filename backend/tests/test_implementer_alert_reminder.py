@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test job_implementer_alerts_due — recordatorios de Mis Alertas por email.
 
 Cubre 3 branches + cool-down. Usa asyncio.run en un test síncrono para

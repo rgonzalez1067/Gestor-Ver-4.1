@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 127: Fast Track Hybrid PDF Generation
 Tests the generation of PDF with equipment page for Fast Track quotes.
@@ -393,7 +394,7 @@ class TestFastTrackHybridPDF:
         # Download and verify PDF
         pdf_url = data.get("pdf_url")
         pdf_response = self.session.get(f"{BASE_URL}{pdf_url}")
-        assert pdf_response.status_code == 200, f"PDF download failed"
+        assert pdf_response.status_code == 200, "PDF download failed"
         assert len(pdf_response.content) > 0, "PDF should have content"
         
     def test_default_integrator_for_fast_track(self):

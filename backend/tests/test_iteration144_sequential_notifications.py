@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 144: Sequential Notifications with Auto-Prefix by Send Count
 
@@ -111,7 +112,7 @@ class TestSendNotificationAutoPrefix:
         # Verify auto-calculated prefix
         assert data.get("level") == "Primer Envío", f"Expected 'Primer Envío', got {data.get('level')}"
         assert data.get("send_number") == 1, f"Expected send_number=1, got {data.get('send_number')}"
-        assert "[Primer Envío]" in data.get("message", ""), f"Message should contain [Primer Envío]"
+        assert "[Primer Envío]" in data.get("message", ""), "Message should contain [Primer Envío]"
     
     def test_send_client_second_notification_primer_recordatorio(self, auth_headers, reset_notification_history):
         """Second send to client should use 'Primer Recordatorio' prefix"""

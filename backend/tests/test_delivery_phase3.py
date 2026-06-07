@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 99: Test suite for Inventory Phase 3 - Automatic stock exits on equipment quote delivery
 Tests:
@@ -218,7 +219,7 @@ class TestDeliveryPhase3:
         assert "stock_available" in item
         assert "requires_serial" in item
         
-        print(f"TEST 01 PASSED: delivery-prep returns items and warehouses correctly")
+        print("TEST 01 PASSED: delivery-prep returns items and warehouses correctly")
     
     def test_02_delivery_prep_with_warehouse_returns_serials(self):
         """Test GET /api/quotes/{quote_id}/delivery-prep?warehouse_id=X returns available serials"""
@@ -278,7 +279,7 @@ class TestDeliveryPhase3:
         resp = self.session.get(f"{BASE_URL}/api/quotes/{quote['quote_id']}/delivery-prep")
         assert resp.status_code == 400, f"Expected 400 for non-equipment quote, got {resp.status_code}"
         
-        print(f"TEST 03 PASSED: delivery-prep correctly rejects non-equipment quotes")
+        print("TEST 03 PASSED: delivery-prep correctly rejects non-equipment quotes")
     
     # ===== DELIVER ENDPOINT TESTS =====
     
@@ -523,14 +524,14 @@ class TestDeliveryPhase3:
         )
         assert resp.status_code == 200, f"Delivery with exception header failed: {resp.text}"
         
-        print(f"TEST 09 PASSED: Delivery with exception header succeeds")
+        print("TEST 09 PASSED: Delivery with exception header succeeds")
     
     def test_10_delivery_prep_not_found_quote(self):
         """Test delivery-prep returns 404 for non-existent quote"""
         resp = self.session.get(f"{BASE_URL}/api/quotes/nonexistent_quote_id/delivery-prep")
         assert resp.status_code == 404
         
-        print(f"TEST 10 PASSED: delivery-prep returns 404 for non-existent quote")
+        print("TEST 10 PASSED: delivery-prep returns 404 for non-existent quote")
     
     def test_11_verify_quote_status_after_delivery(self):
         """Test quote status is 'Entregada' after successful delivery"""
@@ -570,7 +571,7 @@ class TestDeliveryPhase3:
         if quote_resp.status_code == 200:
             updated_quote = quote_resp.json()
             assert updated_quote.get("quote_status") == "Entregada"
-            print(f"TEST 11 PASSED: Quote status is 'Entregada' after delivery")
+            print("TEST 11 PASSED: Quote status is 'Entregada' after delivery")
         else:
             # Quote might be in the list
             all_quotes = self.session.get(f"{BASE_URL}/api/quotes")
@@ -578,9 +579,9 @@ class TestDeliveryPhase3:
                 for q in all_quotes.json():
                     if q.get("quote_id") == quote["quote_id"]:
                         assert q.get("quote_status") == "Entregada"
-                        print(f"TEST 11 PASSED: Quote status is 'Entregada' after delivery")
+                        print("TEST 11 PASSED: Quote status is 'Entregada' after delivery")
                         return
-            print(f"TEST 11 WARNING: Could not verify quote status, but delivery succeeded")
+            print("TEST 11 WARNING: Could not verify quote status, but delivery succeeded")
 
 
 if __name__ == "__main__":

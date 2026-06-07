@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 13:
 - Validar Pago robusto (avanza aunque falte config de email).
 - Fix WriteError por custom_actions_executed: null.

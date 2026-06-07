@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 83 - Dynamic action buttons for projects
 Features tested:

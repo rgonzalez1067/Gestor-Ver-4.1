@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 72 - Integration Report Feature Tests
 Tests for GET /api/banks/integrations/report endpoint and related functionality

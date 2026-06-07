@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 14: Botón Volver embebido + propagación de anexos en DeliveryDialog."""
 import os
 import sys

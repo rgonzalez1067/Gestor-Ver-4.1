@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 165: Client Email Templates Bug Fix
 Tests for the bug fix where frontend was sending 'body' instead of 'body_html' 

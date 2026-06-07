@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 157: Equipment Email Templates (10 templates for equipment sales flow)
 Tests:
@@ -85,7 +86,7 @@ class TestEquipmentTemplatesExistence:
             # Context should be EQUIPOS or empty (some may not have context set)
             assert context in ('EQUIPOS', '', None), f"Template {template['template_id']} has unexpected context: {context}"
         
-        print(f"✓ Equipment templates have correct context")
+        print("✓ Equipment templates have correct context")
     
     def test_equipment_templates_grouped_by_sede(self, auth_headers):
         """Equipment templates should be grouped by sede (PYME/CORP)"""
@@ -101,7 +102,7 @@ class TestEquipmentTemplatesExistence:
         assert len(pyme_templates) == 5, f"Expected 5 PYME templates, got {len(pyme_templates)}"
         assert len(corp_templates) == 5, f"Expected 5 CORP templates, got {len(corp_templates)}"
         
-        print(f"✓ 5 PYME templates + 5 CORP templates = 10 total")
+        print("✓ 5 PYME templates + 5 CORP templates = 10 total")
 
 
 class TestEquipmentTemplateContent:

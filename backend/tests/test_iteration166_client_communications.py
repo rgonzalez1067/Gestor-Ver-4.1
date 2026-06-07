@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 166: Verificación de correcciones en módulo de Comunicaciones a Clientes
 1) Adjuntos se pasan correctamente a send_email (attachments como bytes)

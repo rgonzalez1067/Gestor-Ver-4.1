@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iter39 — PVV + direct projects + workload PDF backend tests."""
 import os
 import pytest

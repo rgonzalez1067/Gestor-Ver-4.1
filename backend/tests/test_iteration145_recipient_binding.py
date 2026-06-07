@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 145: Test recipient data binding for project notifications
 - Client emails from contacts[] array (not placeholders)
@@ -85,7 +86,7 @@ class TestClientRecipientBinding:
         for placeholder in PLACEHOLDER_EMAILS:
             assert placeholder not in recipients, f"Placeholder email {placeholder} found in recipients"
         
-        print(f"✓ No placeholder emails in client recipients")
+        print("✓ No placeholder emails in client recipients")
 
 
 class TestBankRecipientBinding:
@@ -134,7 +135,7 @@ class TestBankRecipientBinding:
         for placeholder in PLACEHOLDER_EMAILS:
             assert placeholder not in recipients, f"Placeholder email {placeholder} found in bank recipients"
         
-        print(f"✓ No placeholder emails in bank recipients")
+        print("✓ No placeholder emails in bank recipients")
 
 
 class TestAdditionalRecipientsCC:
@@ -209,7 +210,7 @@ class TestAdditionalRecipientsCC:
             headers=auth_headers
         )
         assert response.status_code == 200, f"Send notification failed: {response.text}"
-        print(f"✓ Send notification with empty CC works")
+        print("✓ Send notification with empty CC works")
     
     def test_send_notification_with_null_cc(self, auth_headers):
         """Send notification with null additional_recipients should work"""
@@ -223,7 +224,7 @@ class TestAdditionalRecipientsCC:
             headers=auth_headers
         )
         assert response.status_code == 200, f"Send notification failed: {response.text}"
-        print(f"✓ Send notification with null CC works")
+        print("✓ Send notification with null CC works")
 
 
 class TestBankNotificationWithCC:

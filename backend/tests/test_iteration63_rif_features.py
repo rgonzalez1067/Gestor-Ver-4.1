@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 63: Test RIF Digital Scan and Update Features
 Tests for:
@@ -219,7 +220,7 @@ class TestUpdateFromRifEndpoint:
         # Verify document was archived
         assert data["rif_document_url"].startswith("/uploads/rif_documents/")
         
-        print(f"✓ Client updated from RIF")
+        print("✓ Client updated from RIF")
         print(f"✓ Previous RIF: {data['previous_data'].get('rif', 'N/A')}")
         print(f"✓ Updated RIF: {data['updated_data'].get('rif', 'N/A')}")
         print(f"✓ Document archived at: {data['rif_document_url']}")
@@ -382,7 +383,7 @@ class TestClientTableIntegration:
         assert "rif_updated_at" in client, "Should have rif_updated_at"
         assert "rif_updated_by" in client, "Should have rif_updated_by"
         
-        print(f"✓ Client has RIF metadata:")
+        print("✓ Client has RIF metadata:")
         print(f"  - rif_document_url: {client['rif_document_url']}")
         print(f"  - rif_document_filename: {client['rif_document_filename']}")
         print(f"  - rif_updated_at: {client['rif_updated_at']}")

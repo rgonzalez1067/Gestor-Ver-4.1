@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 161: Delete User Feature + Frontend Regression Tests
 Tests:

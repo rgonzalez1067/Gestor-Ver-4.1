@@ -1,4 +1,5 @@
 """Route module: integrators.py"""
+# ruff: noqa: F403, F405
 from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Optional
@@ -106,7 +107,7 @@ async def get_integrators(
         overdue_entries = await db.bitacora.find({
             "integrator_id": {"$in": integrator_ids},
             "commitment_completed": False,
-            "commitment_deadline": {"$lt": today, "$ne": None, "$ne": ""}
+            "commitment_deadline": {"$lt": today, "$nin": [None, ""]}
         }, {"_id": 0, "integrator_id": 1}).to_list(1000)
         for e in overdue_entries:
             overdue_map[e['integrator_id']] = True
@@ -818,7 +819,8 @@ async def get_integrators_import_template(authorization: Optional[str] = Header(
             'Cliente/Integrador nuevo VPOS', 'Cliente/Integrador MobilePOS'
         ]
         max_len = max(len(all_modalities), len(all_categories), len(INTEGRATOR_PRODUCTS), 12)
-        pad = lambda lst: lst + [''] * (max_len - len(lst))
+        def pad(lst):
+            return lst + [''] * (max_len - len(lst))
         values_data = {
             'Tipos de Integrador (Col B)': pad(['Integrador', 'Comercio']),
             'Modalidades (Col D)': pad(all_modalities),
@@ -921,7 +923,7 @@ async def import_integrators(
             )
         
         # Keep original column names for product matching before normalizing
-        original_columns = list(df.columns.str.strip())
+        _original_columns = list(df.columns.str.strip())
         df.columns = [c.strip() for c in df.columns]
         
         # Normalize base column names
@@ -952,7 +954,7 @@ async def import_integrators(
             'ultimo contacto con el cliente': 'last_contact_date',
             'Correo': 'email', 'correo': 'email', 'email_contacto': 'email',
             'Tipo Integracion': 'integration_type', 'tipo integracion': 'integration_type',
-            'Tipo de Integracion': 'integration_type', 'tipo_de_integracion': 'integration_type',
+            'Tipo de Integracion': 'integration_type',
         }
         
         # Pre-load users and products

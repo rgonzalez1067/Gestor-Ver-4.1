@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para Acciones Dinámicas (Fase A+B) — allowed_user_ids.
 
 Cubre:

@@ -1369,7 +1369,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
                 deferred_exits.append((key, qty, mtype, m))
                 continue
             items_entries[key]["lots"].sort(
-                key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+                key=lambda lot: lot.get("purchase_date") or lot.get("created_at") or ""
             )
             to_deduct = qty
             for lot in items_entries[key]["lots"]:
@@ -1391,7 +1391,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             )
             continue
         items_entries[key]["lots"].sort(
-            key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+            key=lambda lot: lot.get("purchase_date") or lot.get("created_at") or ""
         )
         to_deduct = qty
         for lot in items_entries[key]["lots"]:
@@ -1408,7 +1408,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
     # Ordenar lotes finales por fecha (PEPS) DENTRO de cada (item, warehouse).
     for key in items_entries:
         items_entries[key]["lots"].sort(
-            key=lambda l: l.get("purchase_date") or l.get("created_at") or ""
+            key=lambda lot: lot.get("purchase_date") or lot.get("created_at") or ""
         )
 
     
@@ -1513,7 +1513,7 @@ async def get_asset_ledger(authorization: Optional[str] = Header(None)):
             "lots": lot_details,
             "history": history_by_iid.get(iid, []),
             "item_total": round(item_total, 2),
-            "total_units": sum(l["remaining"] for l in active_lots_global),
+            "total_units": sum(lot["remaining"] for lot in active_lots_global),
             "units_lch": units_lch,
             "units_tbp": units_tbp,
         })

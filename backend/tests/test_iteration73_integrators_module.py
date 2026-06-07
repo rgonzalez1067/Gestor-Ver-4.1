@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 73 - Integrators Module Evolution
 Tests for new fields: integration_type, gestor, categoria, certifications
@@ -252,7 +253,7 @@ class TestIntegratorsCRUD:
         assert updated["gestor"] == "Naylen Arevalo"
         assert updated["categoria"] == "Cliente/Integrador nuevo Link de Pago"
         assert updated["integrator_status"] == "Certificado"
-        print(f"✓ Updated gestor, categoria, integration_type")
+        print("✓ Updated gestor, categoria, integration_type")
     
     def test_delete_integrator(self, auth_token):
         """DELETE /api/integrators/{id} removes integrator"""

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Tests for the new authentication system:
 - POST /api/auth/register - Register new user

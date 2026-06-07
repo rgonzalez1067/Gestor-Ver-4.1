@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iter 180 — Initial Contacts: DELETE (admin-only) + flexible phone/email + transfer payload.
 

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 123: Testing Asset Type Segmentation (Bien/Servicio)
 Tests the new asset_type field in hardware catalog and its filtering in quotes.

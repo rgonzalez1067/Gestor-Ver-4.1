@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 126: Fast Track (POS Stand Alone) Flow
 Tests the new quote category 'fast_track' with pipeline:
@@ -120,7 +121,7 @@ class TestFastTrackFlow:
         data = response.json()
         assert data.get("new_status") == "Enviada", f"Expected new_status='Enviada', got {data.get('new_status')}"
         
-        print(f"✓ Fast track quote sent to client, status: Enviada")
+        print("✓ Fast track quote sent to client, status: Enviada")
     
     def test_03_approve_fast_track_requires_oc(self):
         """Test that approving fast_track quote requires Orden de Compra attachment"""
@@ -138,7 +139,7 @@ class TestFastTrackFlow:
         assert response.status_code == 422, f"Expected 422 without OC, got {response.status_code}"
         assert "Orden de Compra" in response.text, "Error should mention Orden de Compra"
         
-        print(f"✓ Approve correctly requires Orden de Compra attachment")
+        print("✓ Approve correctly requires Orden de Compra attachment")
     
     def test_04_upload_oc_and_approve_fast_track(self):
         """Test uploading OC and approving fast_track quote - should notify Operations, return is_fast_track=true"""
@@ -213,7 +214,7 @@ class TestFastTrackFlow:
         quote = quote_response.json()
         assert quote.get("quote_status") == "Configurada", f"Quote status should be 'Configurada', got {quote.get('quote_status')}"
         
-        print(f"✓ Fast track quote configured, status: Configurada")
+        print("✓ Fast track quote configured, status: Configurada")
     
     def test_06_configure_fails_for_non_fast_track(self):
         """Test that configure endpoint fails for non-fast_track quotes"""
@@ -256,7 +257,7 @@ class TestFastTrackFlow:
         # Cleanup
         requests.delete(f"{BASE_URL}/api/quotes/{regular_quote_id}", headers=self.headers)
         
-        print(f"✓ Configure correctly rejects non-fast_track quotes")
+        print("✓ Configure correctly rejects non-fast_track quotes")
     
     def test_07_configure_fails_for_wrong_status(self):
         """Test that configure endpoint fails for fast_track quotes not in 'Aprobada' status"""
@@ -299,7 +300,7 @@ class TestFastTrackFlow:
         # Cleanup
         requests.delete(f"{BASE_URL}/api/quotes/{new_ft_quote_id}", headers=self.headers)
         
-        print(f"✓ Configure correctly rejects fast_track quotes not in 'Aprobada' status")
+        print("✓ Configure correctly rejects fast_track quotes not in 'Aprobada' status")
     
     def test_08_invoice_fast_track_from_configurada(self):
         """Test that invoice accepts 'Configurada' as valid pre-status for fast_track"""
@@ -344,7 +345,7 @@ class TestFastTrackFlow:
         quote = quote_response.json()
         assert quote.get("quote_status") == "Facturada", f"Quote status should be 'Facturada', got {quote.get('quote_status')}"
         
-        print(f"✓ Fast track quote invoiced from Configurada status")
+        print("✓ Fast track quote invoiced from Configurada status")
     
     def test_09_collect_fast_track(self):
         """Test collecting payment for fast_track quote"""
@@ -382,7 +383,7 @@ class TestFastTrackFlow:
         quote = quote_response.json()
         assert quote.get("quote_status") == "Pagada", f"Quote status should be 'Pagada', got {quote.get('quote_status')}"
         
-        print(f"✓ Fast track quote payment collected, status: Pagada")
+        print("✓ Fast track quote payment collected, status: Pagada")
     
     def test_10_deliver_fast_track(self):
         """Test delivering fast_track quote (Pagada → Entregada)"""
@@ -404,7 +405,7 @@ class TestFastTrackFlow:
         quote = quote_response.json()
         assert quote.get("quote_status") == "Entregada", f"Quote status should be 'Entregada', got {quote.get('quote_status')}"
         
-        print(f"✓ Fast track quote delivered, status: Entregada")
+        print("✓ Fast track quote delivered, status: Entregada")
     
     def test_11_quote_transitions_has_fast_track(self):
         """Verify QUOTE_TRANSITIONS model includes fast_track with Configurada path"""
@@ -423,7 +424,7 @@ class TestFastTrackFlow:
         assert quote.get("quote_category") == "fast_track"
         assert quote.get("quote_status") == "Entregada"
         
-        print(f"✓ QUOTE_TRANSITIONS includes fast_track with correct path")
+        print("✓ QUOTE_TRANSITIONS includes fast_track with correct path")
     
     def test_12_cleanup(self):
         """Cleanup test data"""
@@ -501,7 +502,7 @@ class TestFastTrackFrontendIntegration:
         # Cleanup
         requests.delete(f"{BASE_URL}/api/quotes/{quote['quote_id']}", headers=self.headers)
         
-        print(f"✓ Backend accepts FAST_TRACK as valid quote_type")
+        print("✓ Backend accepts FAST_TRACK as valid quote_type")
     
     def test_fast_track_defaults_integrator_and_pricing(self):
         """Verify fast_track quotes can have 'Sin integrador' and outsourcing pricing"""
@@ -550,7 +551,7 @@ class TestFastTrackFrontendIntegration:
         # Cleanup
         requests.delete(f"{BASE_URL}/api/quotes/{quote['quote_id']}", headers=self.headers)
         
-        print(f"✓ Fast track quote accepts default integrator and outsourcing pricing")
+        print("✓ Fast track quote accepts default integrator and outsourcing pricing")
 
 
 if __name__ == "__main__":

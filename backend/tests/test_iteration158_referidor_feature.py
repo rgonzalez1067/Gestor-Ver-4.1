@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 158: Dynamic Referidor Field Feature
 Tests for the two-level referidor system: referidor_tipo (BANCO/CLIENTE/OTRO) + referidor_id + referidor_nombre
@@ -189,7 +190,7 @@ class TestCreateClientWithReferidor:
         # Verify referidor fields
         assert data.get("referidor_tipo") == "OTRO", f"Expected referidor_tipo=OTRO, got {data.get('referidor_tipo')}"
         assert data.get("referidor_nombre") == "Correo de Ventas", f"Expected referidor_nombre='Correo de Ventas', got {data.get('referidor_nombre')}"
-        print(f"✓ Created client with OTRO referidor: Correo de Ventas")
+        print("✓ Created client with OTRO referidor: Correo de Ventas")
 
 
 class TestUpdateClientReferidor:

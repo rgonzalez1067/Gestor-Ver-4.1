@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 115: Notification Hierarchy & Multistore Matrix Flow
 Tests the new notification system and matrix blocking/unlocking logic.
@@ -50,7 +51,7 @@ def create_test_client(session):
     """Create a test client"""
     client_data = {
         "legal_name": f"TEST_NOTIFICATION_Client_{uuid.uuid4().hex[:6]}",
-        "fantasy_name": f"Notification Test Co",
+        "fantasy_name": "Notification Test Co",
         "rif": f"J-{uuid.uuid4().hex[:8]}",
         "segment": "PYME",
         "email": "testclient@example.com"
@@ -238,7 +239,7 @@ class TestNotifyClient:
         
         detail = res2.json().get("detail", "").lower()
         assert "ya" in detail or "already" in detail, f"Error should mention already notified: {detail}"
-        print(f"SUCCESS: Double notification correctly rejected with 400")
+        print("SUCCESS: Double notification correctly rejected with 400")
     
     def test_notify_client_invalid_project_returns_404(self):
         """Notify client on non-existent project should return 404"""
@@ -247,7 +248,7 @@ class TestNotifyClient:
         
         res = session.post(f"{BASE_URL}/api/projects/nonexistent_project_12345/notify-client")
         assert res.status_code == 404, f"Expected 404, got {res.status_code}"
-        print(f"SUCCESS: Invalid project returns 404")
+        print("SUCCESS: Invalid project returns 404")
 
 
 # ==================== NOTIFY BANK TESTS ====================
@@ -277,7 +278,7 @@ class TestNotifyBank:
         assert res.status_code == 400, f"Expected 400, got {res.status_code}: {res.text}"
         detail = res.json().get("detail", "").lower()
         assert "cliente" in detail or "client" in detail, f"Error should mention client: {detail}"
-        print(f"SUCCESS: Bank notification correctly blocked - client not notified first")
+        print("SUCCESS: Bank notification correctly blocked - client not notified first")
     
     def test_notify_bank_success_after_client_notified(self):
         """Notify bank should work after client is notified"""
@@ -317,7 +318,7 @@ class TestNotifyBank:
         
         assert bank_name in bank_notifications, "Bank should be in bank_notifications"
         assert bank_notifications[bank_name].get("notified_at") is not None
-        print(f"SUCCESS: Bank notification persisted")
+        print("SUCCESS: Bank notification persisted")
     
     def test_notify_bank_already_notified_returns_400(self):
         """Attempting to notify same bank again should return 400"""
@@ -351,7 +352,7 @@ class TestNotifyBank:
         assert res2.status_code == 400, f"Expected 400, got {res2.status_code}: {res2.text}"
         detail = res2.json().get("detail", "").lower()
         assert "ya" in detail or "already" in detail, f"Error should mention already: {detail}"
-        print(f"SUCCESS: Double bank notification correctly rejected")
+        print("SUCCESS: Double bank notification correctly rejected")
     
     def test_notify_bank_invalid_bank_returns_404(self):
         """Notify non-existent bank should return 404"""
@@ -374,7 +375,7 @@ class TestNotifyBank:
         )
         
         assert res.status_code == 404, f"Expected 404, got {res.status_code}: {res.text}"
-        print(f"SUCCESS: Invalid bank returns 404")
+        print("SUCCESS: Invalid bank returns 404")
 
 
 # ==================== MATRIX PHASE UPDATE TESTS (SINGLE) ====================
@@ -410,7 +411,7 @@ class TestMatrixPhaseUpdateSingle:
         assert res.status_code == 400, f"Expected 400, got {res.status_code}: {res.text}"
         detail = res.json().get("detail", "").lower()
         assert "cliente" in detail or "client" in detail or "notificar" in detail, f"Error: {detail}"
-        print(f"SUCCESS: Matrix update blocked - client not notified (Hard Stop working)")
+        print("SUCCESS: Matrix update blocked - client not notified (Hard Stop working)")
     
     def test_matrix_phase_works_after_client_notification(self):
         """Matrix phase update should work after client is notified"""
@@ -444,7 +445,7 @@ class TestMatrixPhaseUpdateSingle:
         assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
         data = res.json()
         assert data.get("completed") == True
-        print(f"SUCCESS: Matrix phase updated after client notification")
+        print("SUCCESS: Matrix phase updated after client notification")
         
         # Verify persistence
         project_res = session.get(f"{BASE_URL}/api/projects/{project_id}")
@@ -453,7 +454,7 @@ class TestMatrixPhaseUpdateSingle:
         phase_data = updated_matrix.get(bank_name, {}).get(product_name, {}).get("Recibido", {})
         
         assert phase_data.get("completed") == True, "Phase update should persist"
-        print(f"SUCCESS: Phase update persisted")
+        print("SUCCESS: Phase update persisted")
     
     def test_matrix_phase_blocked_for_multistore(self):
         """Matrix phase update should fail for multistore projects (read-only)"""
@@ -487,7 +488,7 @@ class TestMatrixPhaseUpdateSingle:
         assert res.status_code == 400, f"Expected 400, got {res.status_code}: {res.text}"
         detail = res.json().get("detail", "").lower()
         assert "multitienda" in detail or "multistore" in detail or "solo lectura" in detail or "read" in detail, f"Error: {detail}"
-        print(f"SUCCESS: Main matrix update blocked for multistore project (read-only)")
+        print("SUCCESS: Main matrix update blocked for multistore project (read-only)")
 
 
 # ==================== STORE MATRIX PHASE UPDATE TESTS (MULTISTORE) ====================
@@ -529,7 +530,7 @@ class TestStoreMatrixPhaseUpdate:
         assert res.status_code == 400, f"Expected 400, got {res.status_code}: {res.text}"
         detail = res.json().get("detail", "").lower()
         assert "cliente" in detail or "client" in detail or "notificar" in detail, f"Error: {detail}"
-        print(f"SUCCESS: Store phase update blocked - client not notified")
+        print("SUCCESS: Store phase update blocked - client not notified")
     
     def test_store_phase_rejects_notificado_phase(self):
         """Store phase update should reject 'Notificado' as a valid phase"""
@@ -566,7 +567,7 @@ class TestStoreMatrixPhaseUpdate:
         assert res.status_code == 400, f"Expected 400, got {res.status_code}: {res.text}"
         detail = res.json().get("detail", "").lower()
         assert "fase" in detail or "phase" in detail or "inválid" in detail or "invalid" in detail, f"Error: {detail}"
-        print(f"SUCCESS: 'Notificado' phase correctly rejected for store matrix")
+        print("SUCCESS: 'Notificado' phase correctly rejected for store matrix")
     
     def test_store_phase_accepts_valid_phases(self):
         """Store phase update should accept valid STORE_PHASES"""
@@ -700,7 +701,7 @@ class TestRollupEndpoint:
         
         detail = res.json().get("detail", "").lower()
         assert "multitienda" in detail or "multistore" in detail, f"Error should mention multitienda: {detail}"
-        print(f"SUCCESS: Rollup correctly rejected for single project")
+        print("SUCCESS: Rollup correctly rejected for single project")
 
 
 if __name__ == "__main__":

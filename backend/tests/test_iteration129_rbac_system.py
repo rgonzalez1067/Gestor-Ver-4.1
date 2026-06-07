@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test RBAC System - Iteration 129
 Tests for strict RBAC implementation where 'read' permission is purely consultive.
@@ -408,7 +409,7 @@ class TestRBACPermissionLevels:
         assert response.status_code == 200
         user_data = response.json()
         assert user_data.get("role") == "admin", f"Expected admin role, got {user_data.get('role')}"
-        print(f"✓ Admin user has role='admin'")
+        print("✓ Admin user has role='admin'")
     
     def test_new_user_gets_read_permissions_by_default(self, admin_token):
         """Verify new users get 'read' permissions by default (not first user)"""
@@ -438,7 +439,7 @@ class TestRBACPermissionLevels:
         for module, level in permissions.items():
             assert level == "read", f"Expected 'read' for {module}, got {level}"
         
-        print(f"✓ New user gets 'read' permissions by default")
+        print("✓ New user gets 'read' permissions by default")
 
 
 class TestRBACErrorMessages:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 90: Bank Integration States Simplification
 Tests the new 3-state integration lifecycle: PreProd, Primer Prod, Masificación
@@ -77,7 +78,7 @@ class TestBankIntegrationStates:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "PreProd"
-        print(f"✓ Integration created with explicit PreProd status")
+        print("✓ Integration created with explicit PreProd status")
     
     def test_create_integration_with_primer_prod_status(self):
         """Test: Creating integration with Primer Prod status"""
@@ -94,7 +95,7 @@ class TestBankIntegrationStates:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "Primer Prod", f"Expected 'Primer Prod', got '{data['status']}'"
-        print(f"✓ Integration created with Primer Prod status")
+        print("✓ Integration created with Primer Prod status")
     
     def test_create_integration_with_masificacion_status(self):
         """Test: Creating integration with Masificación status"""
@@ -111,7 +112,7 @@ class TestBankIntegrationStates:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "Masificación", f"Expected 'Masificación', got '{data['status']}'"
-        print(f"✓ Integration created with Masificación status")
+        print("✓ Integration created with Masificación status")
     
     def test_update_status_to_primer_prod(self):
         """Test: Update integration status from PreProd to Primer Prod"""
@@ -136,7 +137,7 @@ class TestBankIntegrationStates:
         assert update_response.status_code == 200
         data = update_response.json()
         assert data["status"] == "Primer Prod", f"Expected 'Primer Prod', got '{data['status']}'"
-        print(f"✓ Status updated to Primer Prod")
+        print("✓ Status updated to Primer Prod")
     
     def test_update_status_to_masificacion(self):
         """Test: Update integration status to Masificación"""
@@ -161,7 +162,7 @@ class TestBankIntegrationStates:
         assert update_response.status_code == 200
         data = update_response.json()
         assert data["status"] == "Masificación", f"Expected 'Masificación', got '{data['status']}'"
-        print(f"✓ Status updated to Masificación")
+        print("✓ Status updated to Masificación")
     
     def test_get_bank_detail_shows_new_status(self):
         """Test: GET /api/banks/{bank_id}/detail shows updated status"""
@@ -270,7 +271,7 @@ class TestBankIntegrationStates:
         data = evo_response.json()
         assert data["phase"] == "Primer Prod", f"Expected 'Primer Prod', got '{data['phase']}'"
         assert data["comment"] == "TEST evolution entry with new phase"
-        print(f"✓ Evolution entry created with Primer Prod phase")
+        print("✓ Evolution entry created with Primer Prod phase")
     
     def test_banks_list_count_excludes_masificacion(self):
         """Test: Banks list counts integrations in progress excluding 'Masificación'"""

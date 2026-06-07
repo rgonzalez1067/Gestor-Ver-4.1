@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Centro de Mensajes — Función "Recuérdame" (P0).
 

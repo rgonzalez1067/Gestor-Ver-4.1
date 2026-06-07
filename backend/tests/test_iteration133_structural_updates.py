@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 133: 4 Structural Updates Testing
 1. Fiscal Printer Models - GET/POST endpoints
@@ -302,7 +303,7 @@ class TestClientsModeloImpresoraFiscal:
         if client_id:
             requests.delete(f"{BASE_URL}/api/clients/{client_id}", headers=auth_headers)
         
-        print(f"✓ POST /api/clients accepts modelo_impresora_fiscal field")
+        print("✓ POST /api/clients accepts modelo_impresora_fiscal field")
     
     def test_get_client_returns_modelo_impresora_fiscal(self, auth_headers):
         """GET /api/clients should return modelo_impresora_fiscal field"""
@@ -315,7 +316,7 @@ class TestClientsModeloImpresoraFiscal:
             # Field may be null/empty but should be accessible
             _ = client.get("modelo_impresora_fiscal")
         
-        print(f"✓ GET /api/clients returns modelo_impresora_fiscal field")
+        print("✓ GET /api/clients returns modelo_impresora_fiscal field")
 
 
 # ==================== AUTH USERS ENDPOINT TESTS ====================

@@ -60,7 +60,7 @@ def user_display(user):
 @router.get("/initial-contacts")
 async def list_initial_contacts(authorization: Optional[str] = Header(None)):
     """Lista contactos iniciales. Admins/Directores ven todos. Otros ven los asignados a ellos y subordinados."""
-    current_user = await get_current_user(authorization)
+    _current_user = await get_current_user(authorization)
     
     contacts = await db.initial_contacts.find(
         {"is_converted": False}, {"_id": 0}
@@ -72,7 +72,7 @@ async def list_initial_contacts(authorization: Optional[str] = Header(None)):
 @router.get("/initial-contacts/all")
 async def list_all_initial_contacts(authorization: Optional[str] = Header(None)):
     """Lista TODOS los contactos (incluyendo convertidos) para historial."""
-    current_user = await get_current_user(authorization)
+    _current_user = await get_current_user(authorization)
     contacts = await db.initial_contacts.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return contacts
 
@@ -176,13 +176,13 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
                 creator_sede = creator_doc.get("sede")
         await _push_notify(
             event_type="initial_contact_created",
-            title=f"Nuevo Contacto Inicial registrado",
+            title="Nuevo Contacto Inicial registrado",
             message=f"{contact.get('legal_name','')} · RIF {contact.get('rif','')}",
             context={
                 "creator_user_id": assigned_user_id,
                 "sede": creator_sede,
             },
-            link=f"/initial-contacts",
+            link="/initial-contacts",
         )
     except Exception:
         pass

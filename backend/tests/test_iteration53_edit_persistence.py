@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 53: Edit/Modify Quote Persistence
 Tests for:
@@ -270,7 +271,7 @@ class TestIteration53EditPersistence:
         assert resp.status_code == 200
         quote = resp.json()
         
-        print(f"Single quote data:")
+        print("Single quote data:")
         print(f"  descuento_setup: {quote.get('descuento_setup')}")
         print(f"  descuento_recurrente: {quote.get('descuento_recurrente')}")
         print(f"  is_production_client: {quote.get('is_production_client')}")
@@ -282,7 +283,7 @@ class TestIteration53EditPersistence:
         assert "is_production_client" in quote
         assert "production_items" in quote
         
-        print(f"✓ Individual quote endpoint returns all new fields")
+        print("✓ Individual quote endpoint returns all new fields")
     
     def test_mongodb_indexes_health(self):
         """Test 5: Verify backend is healthy (indexes created on startup)"""

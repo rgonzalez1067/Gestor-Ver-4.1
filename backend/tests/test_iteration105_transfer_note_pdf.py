@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 105 - Transfer Note PDF Feature
 Tests the new 'Nota de Entrega por Transferencia entre Almacenes' functionality.
@@ -220,7 +221,7 @@ class TestTransferNotePDF:
         data = response.json()
         assert data.get("quantity") == 10
         assert data.get("serials") == []  # Non-serialized should have empty serials
-        print(f"✓ Registered Cable entry (non-serialized), qty: 10")
+        print("✓ Registered Cable entry (non-serialized), qty: 10")
     
     def test_10_verify_origin_stock(self):
         """Verify stock exists in origin warehouse before transfer"""

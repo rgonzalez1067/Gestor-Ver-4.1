@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 87 - Testing 3 Critical Issues:
 1. State machine flexibility for irregular quotes (allow invoice/collect even when 'Entregada')
@@ -259,7 +260,7 @@ class TestIrregularQuoteFlow:
         quote_after_deliver = get_quote_resp.json()
         assert quote_after_deliver["quote_status"] == "Entregada", f"Expected 'Entregada', got '{quote_after_deliver['quote_status']}'"
         assert quote_after_deliver.get("is_irregular") == True, "Quote should be marked as irregular"
-        print(f"✓ Quote status verified: Entregada, is_irregular: True")
+        print("✓ Quote status verified: Entregada, is_irregular: True")
         
         # Step 3: Upload Factura attachment (required for invoicing)
         # Create a simple PDF-like file for testing
@@ -274,7 +275,7 @@ class TestIrregularQuoteFlow:
             headers=upload_headers
         )
         assert upload_resp.status_code == 200, f"Failed to upload Factura: {upload_resp.text}"
-        print(f"✓ Factura attachment uploaded")
+        print("✓ Factura attachment uploaded")
         
         # Step 4: Invoice the Entregada quote with exception
         invoice_headers = {**auth_headers, "x-exception-reason": "Facturación post-entrega por solicitud administrativa", "x-regularization-date": "2026-02-15"}
@@ -297,7 +298,7 @@ class TestIrregularQuoteFlow:
         assert get_quote_resp2.status_code == 200
         quote_after_invoice = get_quote_resp2.json()
         assert quote_after_invoice["quote_status"] == "Facturada", f"Expected 'Facturada', got '{quote_after_invoice['quote_status']}'"
-        print(f"✓ Quote status after invoice: Facturada")
+        print("✓ Quote status after invoice: Facturada")
         
         # Step 5: Upload Pagos attachment (required for collect)
         pagos_file = ("test_pago.pdf", b"%PDF-1.4 Test Pago Content", "application/pdf")
@@ -310,7 +311,7 @@ class TestIrregularQuoteFlow:
             headers={"Authorization": auth_headers["Authorization"]}
         )
         assert pagos_resp.status_code == 200, f"Failed to upload Pagos: {pagos_resp.text}"
-        print(f"✓ Pagos attachment uploaded")
+        print("✓ Pagos attachment uploaded")
         
         # Step 6: Collect (mark as Pagada) - this should work normally since quote is now Facturada
         collect_resp = requests.post(f"{BASE_URL}/api/quotes/{quote_id}/collect", headers=auth_headers)
@@ -333,7 +334,7 @@ class TestIrregularQuoteFlow:
         assert "deliver" in actions_logged, "Missing 'deliver' action in irregular_exceptions"
         assert "invoice" in actions_logged, "Missing 'invoice' action in irregular_exceptions"
         
-        print(f"✓ FULL IRREGULAR FLOW COMPLETED: Borrador → Entregada → Facturada → Pagada")
+        print("✓ FULL IRREGULAR FLOW COMPLETED: Borrador → Entregada → Facturada → Pagada")
         print(f"  Quote: {quote_number}")
         print(f"  Irregular exceptions logged: {actions_logged}")
 
@@ -458,13 +459,13 @@ class TestHealthAndAuth:
         assert response.status_code == 200, f"Login failed: {response.text}"
         data = response.json()
         assert "session_token" in data or "token" in data
-        print(f"✓ Authentication successful")
+        print("✓ Authentication successful")
 
     def test_quotes_endpoint_accessible(self, auth_headers):
         """Test quotes endpoint is accessible"""
         response = requests.get(f"{BASE_URL}/api/quotes", headers=auth_headers)
         assert response.status_code == 200, f"Failed: {response.text}"
-        print(f"✓ Quotes endpoint accessible")
+        print("✓ Quotes endpoint accessible")
 
 
 if __name__ == "__main__":

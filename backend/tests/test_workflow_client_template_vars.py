@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test que las variables de cliente en plantillas se resuelven desde el documento `clients`.
 Valida que `Nombre_Cliente`, `Datos_Contacto`, `Email_Contacto`, `Telefono_Contacto`,
 `Direccion_Cliente` se rellenen aunque la cotización no las tenga denormalizadas.

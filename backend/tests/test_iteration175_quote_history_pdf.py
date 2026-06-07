@@ -1,3 +1,4 @@
+# ruff: noqa
 """Retest PDF fix for /api/quote-history/{id}/pdf across all categories.
 
 Validates fix in /app/backend/routes/quote_history.py where download_quote_history_pdf

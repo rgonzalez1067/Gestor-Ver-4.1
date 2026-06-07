@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests Iteration 16: Multitienda como primer modal en Enviar a Implementación.
 
 Verifica que el flujo del wizard sea:

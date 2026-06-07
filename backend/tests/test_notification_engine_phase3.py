@@ -1,3 +1,4 @@
+# ruff: noqa
 """Phase 3 — Seeder Legacy + Auditoría de despachos.
 
 Tests para validar:
@@ -75,7 +76,7 @@ async def _run():
         recips = send_to_client_pyme_vpos.get('recipients', [])
         assert any(r.get('type') == 'client_field' for r in recips), \
             f"send_to_client debe tener fila client_field, got: {recips}"
-        print(f"[OK] send_to_client | implementacion_pyme | vpos tiene fila client_field")
+        print("[OK] send_to_client | implementacion_pyme | vpos tiene fila client_field")
 
         # repair_complete | reparaciones también
         rc_repair = await db.action_notification_configs.find_one(
@@ -83,7 +84,7 @@ async def _run():
         )
         assert rc_repair and any(r.get('type') == 'client_field' for r in rc_repair['recipients']), \
             "repair_complete | reparaciones debe tener client_field"
-        print(f"[OK] repair_complete | reparaciones tiene fila client_field")
+        print("[OK] repair_complete | reparaciones tiene fila client_field")
 
         # invoice | implementacion_pyme | vpos NO debe tener client_field (acción interna)
         inv_pyme = await db.action_notification_configs.find_one(
@@ -92,7 +93,7 @@ async def _run():
         assert inv_pyme is not None
         assert not any(r.get('type') == 'client_field' for r in inv_pyme.get('recipients', [])), \
             "invoice no debe pre-cargar client_field"
-        print(f"[OK] invoice | implementacion_pyme | vpos sin client_field (correcto)")
+        print("[OK] invoice | implementacion_pyme | vpos sin client_field (correcto)")
 
         # -------- 3. Audit-log endpoint --------
         # Insertar 2 despachos sintéticos para validar filtros
@@ -148,7 +149,7 @@ async def _run():
             assert res.status_code == 403, f"expected 403 for non-admin seed, got {res.status_code}"
             res = await ac.get('/api/action-notifications/audit-log', headers=non_admin_h)
             assert res.status_code == 403, f"expected 403 for non-admin audit, got {res.status_code}"
-            print(f"[OK] RBAC: non-admin bloqueado en seed-legacy y audit-log (403)")
+            print("[OK] RBAC: non-admin bloqueado en seed-legacy y audit-log (403)")
         except AssertionError:
             raise
         except Exception as _e:

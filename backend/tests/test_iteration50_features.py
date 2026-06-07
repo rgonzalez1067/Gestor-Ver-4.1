@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 50 Features:
 1. Client search (filter by name, RIF, sucursal)

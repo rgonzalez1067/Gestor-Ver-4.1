@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 187 — Consolidated send-to-implementation flow.
 
 Backend checks:

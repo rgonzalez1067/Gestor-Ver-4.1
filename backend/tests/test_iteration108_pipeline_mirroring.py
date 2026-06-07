@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 108 - MegaNexus Pipeline Mirroring & Lifecycle Sync Tests
 

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test services for 'Otros Recurrentes' - verify the 4 services created in DB have correct prices
 """

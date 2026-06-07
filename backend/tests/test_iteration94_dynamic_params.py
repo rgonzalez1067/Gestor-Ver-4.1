@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 94 - Dynamic Parameters for VPOS Quotes (requires_pinpad_config, requires_vpn)
 

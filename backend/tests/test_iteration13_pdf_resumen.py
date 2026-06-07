@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 13: PDF Resumen Ejecutivo Features
 Tests:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 5 — Bug fix: Mayor de Activos must include POS / PinPads received directly in TBP.
 

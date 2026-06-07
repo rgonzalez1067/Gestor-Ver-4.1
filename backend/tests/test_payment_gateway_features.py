@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Payment Gateway restructuring features:
 1. Quote types: VPOS/MPOS and Payment Gateway only (no Link de Pago)

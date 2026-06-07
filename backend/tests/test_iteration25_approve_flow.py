@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 25 - Testing approval workflow and state transitions
 Features to test:
@@ -185,11 +186,11 @@ class TestSendToImplementationValidation:
         if response.status_code == 400:
             data = response.json()
             # Should be about email config, not state
-            assert "Pagada" not in data.get('detail', ''), f"Should not fail due to state validation"
+            assert "Pagada" not in data.get('detail', ''), "Should not fail due to state validation"
             print(f"Pagada quote accepted, but email config missing: {data['detail']}")
         else:
             assert response.status_code == 200, f"Should accept Pagada quote. Got: {response.status_code}"
-            print(f"Pagada quote accepted for implementation")
+            print("Pagada quote accepted for implementation")
 
 
 class TestQuoteStateFlow:

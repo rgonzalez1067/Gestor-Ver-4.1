@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Payment Gateway Flow - Iteration 49
 Tests: 

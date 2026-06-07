@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 77 Tests - Last Contact Date Field + Table Layout + Filters
 Features tested:

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 171: Project Optimizations
 - PUT /api/projects/{id}/matrix/phase - expected/processed fields + auto bitacora

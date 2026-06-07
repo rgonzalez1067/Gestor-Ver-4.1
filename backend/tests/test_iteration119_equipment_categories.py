@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 119: Equipment Quote Categories Split
 Tests the new equipment categorization (Verifone, Morefun, Accesorios, Reparaciones)
@@ -368,7 +369,7 @@ class TestEquipmentQuoteCategories:
         assert quote_data.get("repair_description") == "Test repair description"
         assert quote_data.get("equipment_serial_number") == "SN-REPAIR-TEST"
         
-        print(f"✓ Reparación quote has repair-specific fields")
+        print("✓ Reparación quote has repair-specific fields")
     
     # ==================== STATIC PDF FILES EXISTENCE TESTS ====================
     

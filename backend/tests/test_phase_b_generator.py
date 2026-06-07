@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Proyectos — Registro del "Generador" (creador) — Fase B (P0).
 

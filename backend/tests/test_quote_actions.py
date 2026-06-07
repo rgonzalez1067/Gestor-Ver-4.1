@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Quote Actions (Contextual Actions Menu)
 Testing: Status changes, send-to-client, send-to-implementation, config settings
@@ -217,7 +218,7 @@ class TestSendToImplementation:
         
         data = response.json()
         assert "status" in data, "Response should have status"
-        assert data.get("status") in ["simulated", "success"], f"Status should be simulated or success"
+        assert data.get("status") in ["simulated", "success"], "Status should be simulated or success"
         assert "message" in data, "Response should have message"
         print(f"✓ Send to implementation: {data.get('status')} - {data.get('message')}")
         
@@ -232,7 +233,7 @@ class TestSendToImplementation:
     def test_send_to_implementation_without_email_configured(self):
         """POST /api/quotes/{id}/send-to-implementation without implementation email"""
         # Clear implementation email
-        email_payload = {"implementation_email": ""}
+        email_payload = {"implementation_email": ""}  # noqa: F841
         # This may fail due to email validation, so let's test with missing config
         
         # Get a quote

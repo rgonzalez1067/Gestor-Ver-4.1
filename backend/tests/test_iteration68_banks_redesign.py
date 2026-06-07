@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 68 - Banks Module Redesign
 Tests:

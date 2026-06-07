@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 64 - Testing new client fields:
 - branch_address (Dirección de la Sucursal)
@@ -105,7 +106,7 @@ class TestGetClientsListWithNewFields:
         assert "categoria_comercial" in test_client
         assert test_client["branch_address"] == "CC Plaza Mayor, Local 15, Caracas"
         assert test_client["categoria_comercial"] == "Restaurantes"
-        print(f"✓ Clients list includes new fields correctly")
+        print("✓ Clients list includes new fields correctly")
 
 
 class TestCreateClientWithNewFields:
@@ -159,7 +160,7 @@ class TestCreateClientWithNewFields:
         assert fetched["categoria_comercial"] == payload["categoria_comercial"]
         assert fetched["contacts"][0]["full_name"] == "María Rodríguez García"
         
-        print(f"✓ Verified client persisted correctly via GET")
+        print("✓ Verified client persisted correctly via GET")
         
         # Cleanup
         api_client.delete(f"{BASE_URL}/api/clients/{client_id}")
@@ -211,7 +212,7 @@ class TestCreateClientWithNewFields:
         assert data["contacts"][1]["full_name"] == "Ana María González"
         assert data["contacts"][2]["full_name"] == "Pedro Ramírez Sánchez"
         
-        print(f"✓ Created client with 3 contacts using full_name")
+        print("✓ Created client with 3 contacts using full_name")
         
         # Cleanup
         api_client.delete(f"{BASE_URL}/api/clients/{client_id}")
@@ -275,7 +276,7 @@ class TestUpdateClientNewFields:
         assert updated["categoria_comercial"] == "Gimnasios"
         assert updated["contacts"][0]["full_name"] == "UPDATED Contact Full Name"
         
-        print(f"✓ Updated client with new field values successfully")
+        print("✓ Updated client with new field values successfully")
         
         # Cleanup
         api_client.delete(f"{BASE_URL}/api/clients/{client_id}")

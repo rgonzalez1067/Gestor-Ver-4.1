@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 3 tests:
 - Link de Pago in action-notifications catalog & configs (Pyme + Corp)

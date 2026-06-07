@@ -1,3 +1,4 @@
+# ruff: noqa
 """Backend tests — Módulo Proyectos Directos (Iteration 190).
 
 Cubre el flujo del nuevo endpoint POST /api/direct-projects + plantillas Excel +

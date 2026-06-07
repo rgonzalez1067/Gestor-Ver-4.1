@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite: Delete Referential Integrity and AlertDialog Confirmation
 Tests for: Clientes, Bancos, Medios de Pago, Dispositivos, Integradores

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 118: Email Templates Body Content Fix, Matrix HTML Separation, and UX Improvements
 

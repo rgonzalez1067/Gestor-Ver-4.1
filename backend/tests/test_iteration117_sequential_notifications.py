@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 117: Sequential Notifications, Email Templates CRUD, Suggested Contacts, 
 Attach Matrix, and Email Detail in Bitácora

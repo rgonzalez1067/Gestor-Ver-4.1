@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Client Import Functionality (iteration_45)
 Tests the improved import feature with:
@@ -272,7 +273,7 @@ class TestClientImportValidation:
         assert response.status_code == 200
         result = response.json()
         
-        assert result['success_count'] == 0, f"Should not import row without RIF"
+        assert result['success_count'] == 0, "Should not import row without RIF"
         assert len(result['errors']) > 0, "Should report error for missing RIF"
         
         # Check error message mentions RIF

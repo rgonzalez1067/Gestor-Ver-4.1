@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 60: PDF generation fix verification
 Bug: Line 3000 had 'quote_data.get("quote_type")' but 'quote_data' didn't exist
@@ -251,7 +252,7 @@ class TestPDFGenerationFix:
         content = download_resp.content
         assert content[:4] == b'%PDF', f"Content should start with PDF header, got: {content[:10]}"
         
-        print(f"✅ PDF download successful")
+        print("✅ PDF download successful")
         print(f"   Content-Type: {content_type}")
         print(f"   Size: {len(content)} bytes")
     
@@ -326,15 +327,15 @@ class TestPDFGenerationFix:
         if attachments:
             pdf_attachment = next((a for a in attachments if a.get("category") == "Cotización"), None)
             if pdf_attachment:
-                print(f"✅ Latest VPOS quote has PDF attachment:")
+                print("✅ Latest VPOS quote has PDF attachment:")
                 print(f"   Quote Number: {latest_vpos.get('quote_number')}")
                 print(f"   PDF URL: {latest_vpos.get('quote_pdf_url', 'N/A')}")
                 print(f"   PDF Filename: {pdf_attachment.get('filename')}")
                 print(f"   PDF Size: {pdf_attachment.get('file_size')} bytes")
             else:
-                print(f"⚠️ Latest VPOS quote has attachments but no 'Cotización' category PDF")
+                print("⚠️ Latest VPOS quote has attachments but no 'Cotización' category PDF")
         else:
-            print(f"⚠️ Latest VPOS quote has no attachments (may be pre-fix quote)")
+            print("⚠️ Latest VPOS quote has no attachments (may be pre-fix quote)")
         
         # This test is informational - don't fail if older quotes don't have PDFs
         assert True

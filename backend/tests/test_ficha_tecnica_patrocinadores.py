@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Verifica la Sección B de la Ficha Técnica: orden y mapeo de
 Patrocinador de Pinpads, Patrocinador de la Implementación,

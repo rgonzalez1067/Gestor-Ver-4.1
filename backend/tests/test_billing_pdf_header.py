@@ -1,3 +1,4 @@
+# ruff: noqa
 """Test: encabezado del PDF Cálculos Definitivos de Facturación.
 
 Verifica que el bloque sea "Datos para la Factura" con: Razón Social,

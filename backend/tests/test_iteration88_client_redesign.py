@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 88: Test Client Form Redesign - 3-column layout with new fields
 Tests:
@@ -109,7 +110,7 @@ class TestClientCreateWithNewFields:
         if client_id:
             requests.delete(f"{BASE_URL}/api/clients/{client_id}", headers=auth_headers)
         
-        print(f"✓ Client created with all new fields")
+        print("✓ Client created with all new fields")
         print(f"  - grupo_economico: {data.get('grupo_economico')}")
         print(f"  - ejecutivo_propietario: {data.get('ejecutivo_propietario')}")
         print(f"  - fecha_primer_contacto: {data.get('fecha_primer_contacto')}")

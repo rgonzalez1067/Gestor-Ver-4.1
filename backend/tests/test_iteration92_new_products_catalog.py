@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 92: New Products Module - Catalog-based Selection & Audit Log
 Tests for the enhanced features:
@@ -408,7 +409,7 @@ class TestTransitionLogFields:
                 assert field in t, f"Missing field '{field}' in transition"
             
             # Verify transition_id format
-            assert t["transition_id"].startswith("stl_"), f"transition_id should start with 'stl_'"
+            assert t["transition_id"].startswith("stl_"), "transition_id should start with 'stl_'"
             # Verify product_id matches
             assert t["product_id"] == product["product_id"]
         

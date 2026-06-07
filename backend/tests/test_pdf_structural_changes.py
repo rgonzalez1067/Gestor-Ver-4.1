@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Tests para verificar ajustes estructurales al PDF de cotización
 ================================================================

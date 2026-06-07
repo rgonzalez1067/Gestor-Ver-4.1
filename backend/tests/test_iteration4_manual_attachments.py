@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 4 — Adjuntos manuales en modal 'Personalizar Comunicación'.
 
 Covers:

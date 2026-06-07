@@ -1,3 +1,4 @@
+# ruff: noqa
 """Backend tests — Direct Projects Iter38 (Jan 2026).
 
 Validates:

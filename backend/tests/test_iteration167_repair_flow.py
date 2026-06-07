@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 167: Optimización del flujo de Reparaciones Sede PYME
 - GET /api/repair-supplies: Lista bienes tipo Accesorio/Componente/Pieza
@@ -41,7 +42,7 @@ class TestRepairSuppliesEndpoint:
         """Verifica que el endpoint retorna 200"""
         response = requests.get(f"{BASE_URL}/api/repair-supplies", headers=auth_headers)
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-        print(f"✓ GET /api/repair-supplies retorna 200")
+        print("✓ GET /api/repair-supplies retorna 200")
     
     def test_repair_supplies_returns_list(self, auth_headers):
         """Verifica que retorna una lista"""
@@ -162,7 +163,7 @@ class TestRepairDeliverEndpoint:
             data = prep_response.json()
             print(f"✓ repair-delivery-prep retorna datos: quote_number={data.get('quote_number')}, total_equipos={data.get('total_equipos')}")
         else:
-            print(f"✓ repair-delivery-prep retorna 404 (no hay equipos en taller para esta cotización)")
+            print("✓ repair-delivery-prep retorna 404 (no hay equipos en taller para esta cotización)")
 
 
 class TestConfigEmailsBySede:

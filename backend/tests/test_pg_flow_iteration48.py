@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Payment Gateway Corrected Flow Tests - Iteration 48
 Tests the corrected PG flow with:

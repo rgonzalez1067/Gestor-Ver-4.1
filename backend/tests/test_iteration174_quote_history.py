@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests for Iteration 174: Histórico de Cotizaciones module.
 
 Scope:

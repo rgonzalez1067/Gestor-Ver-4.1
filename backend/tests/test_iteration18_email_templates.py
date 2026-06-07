@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 18: Email Templates and Quote Modification Tests
 Tests for:

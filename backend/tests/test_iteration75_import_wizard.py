@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 75 - Import Wizard Modal with Template Download and Mode Selection
 Tests for:
@@ -256,8 +257,8 @@ TEST_UpsertUpdate_It75,Integrador,UpdatedApp,PG Universal,Certificado,PG,"""
         updated = get_response.json()
         
         assert updated["app_name"] == "UpdatedApp", f"App name should be updated, got {updated['app_name']}"
-        assert updated["integration_modality"] == "PG Universal", f"Modality should be updated"
-        assert updated["integrator_status"] == "Certificado", f"Status should be updated"
+        assert updated["integration_modality"] == "PG Universal", "Modality should be updated"
+        assert updated["integrator_status"] == "Certificado", "Status should be updated"
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)

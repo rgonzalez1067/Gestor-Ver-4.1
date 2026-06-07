@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Billing PDF Generation and Approve Endpoint - Iteration 138
 Tests:

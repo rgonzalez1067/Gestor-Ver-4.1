@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test suite for Iteration 14: Equipment Quotes Module
 Tests the new Equipment and Accessories quotation functionality
@@ -228,7 +229,7 @@ class TestEquipmentQuotesBackend:
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
         
-        print(f"PASS: Equipment quote has all required fields")
+        print("PASS: Equipment quote has all required fields")
     
     def test_06_generate_equipment_pdf_dispositivo(self, auth_headers):
         """Test POST /api/quotes/generate-equipment-pdf for Dispositivo type"""

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Tests for the new global Email Footer module (iteration 177).
 Covers GET/PUT/preview, admin RBAC, persistence, footer injection in send_email,

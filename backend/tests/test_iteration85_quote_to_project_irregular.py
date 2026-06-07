@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 85 - Quote to Project Conversion and Irregular Flow Testing
 
@@ -193,7 +194,7 @@ class TestSendToImplementationWithExceptionHeaders:
         
         # Verify quote was deleted
         quote_response = requests.get(f"{BASE_URL}/api/quotes/{quote_id}", headers=auth_headers)
-        assert quote_response.status_code == 404, f"Quote should be deleted after project creation"
+        assert quote_response.status_code == 404, "Quote should be deleted after project creation"
         print(f"Quote {quote_id} deleted after conversion to project - verified")
         
         return project

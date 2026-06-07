@@ -1,3 +1,4 @@
+# ruff: noqa
 """Iteration 19 — Validar que TODAS las variables documentadas en la
 acción "Enviar a Implementación" se resuelven correctamente en el motor
 dinámico de notificaciones.

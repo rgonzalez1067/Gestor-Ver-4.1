@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Quote to Project Conversion Bug Fix (Iteration 151)
 
@@ -193,7 +194,7 @@ class TestSendToImplementation:
         # Should require exception reason for irregular flow
         assert response.status_code == 422, f"Expected 422 for irregular flow without reason, got {response.status_code}: {response.text}"
         assert "IRREGULAR" in response.text or "motivo" in response.text.lower(), "Error should mention irregular flow"
-        print(f"Correctly rejected irregular flow without exception reason")
+        print("Correctly rejected irregular flow without exception reason")
     
     def test_send_to_implementation_nonexistent_quote(self, auth_session):
         """Test sending non-existent quote returns 404"""

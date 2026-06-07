@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 84 - Testing Irregular Administrative Flow for Quotes
 Tests:

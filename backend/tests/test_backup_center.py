@@ -1,3 +1,4 @@
+# ruff: noqa
 """Backup Center backend tests - validates 9-entity export/import flow"""
 import os
 import io

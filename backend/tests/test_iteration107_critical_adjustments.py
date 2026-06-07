@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 107 - MegaNexus Critical Adjustments
 =============================================================
@@ -173,8 +174,8 @@ class TestAjuste1AntiDuplicatesExcel:
         # Verify all valid, no errors
         assert data.get("has_errors") == False, f"has_errors should be False, got {data.get('has_errors')}"
         assert len(data.get("valid", [])) == 3, f"Should have 3 valid, got {len(data.get('valid', []))}"
-        assert len(data.get("not_found", [])) == 0, f"Should have 0 not_found"
-        assert len(data.get("internal_duplicates", [])) == 0, f"Should have 0 internal_duplicates"
+        assert len(data.get("not_found", [])) == 0, "Should have 0 not_found"
+        assert len(data.get("internal_duplicates", [])) == 0, "Should have 0 internal_duplicates"
         print(f"✓ All serials valid: {data['valid']}")
 
 
@@ -294,7 +295,7 @@ class TestAjuste2TransferPrecarga:
         
         if item_stock is None:
             # No stock record yet (all precarga) - this is valid
-            print(f"✓ No available stock in destination (all items in precarga) - PASS")
+            print("✓ No available stock in destination (all items in precarga) - PASS")
             return
         
         # quantity should be 0 (all in precarga)
@@ -463,7 +464,7 @@ class TestAjuste3DomesaCourier:
         
         if res.status_code == 200:
             data = res.json()
-            print(f"✓ Delivery with Domesa successful! Status: Entregada")
+            print("✓ Delivery with Domesa successful! Status: Entregada")
             if data.get("hoja_ruta_url"):
                 print(f"✓ PDF generated: {data['hoja_ruta_url']}")
         else:
@@ -472,7 +473,7 @@ class TestAjuste3DomesaCourier:
             # As long as it's not a 500 or explicit rejection of 'Domesa', this is OK
             assert "Domesa" not in res.text.lower() or "no reconocido" not in res.text.lower(), \
                 "Domesa should be a valid courier"
-            print(f"✓ Domesa courier_name accepted (no rejection)")
+            print("✓ Domesa courier_name accepted (no rejection)")
 
 
 class TestAjuste4PDFLayout:

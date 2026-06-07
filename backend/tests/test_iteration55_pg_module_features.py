@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 55: Payment Gateway Module Tests
 Tests for:

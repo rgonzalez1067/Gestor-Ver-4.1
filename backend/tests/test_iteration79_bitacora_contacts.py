@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 79 - Tests for Technical Contacts and Bitácora Module
 Features tested:
@@ -132,7 +133,7 @@ class TestIntegratorWithContacts(TestAuthentication):
         fetched = get_resp.json()
         assert len(fetched["contacts"]) == 3
         
-        print(f"PASSED: Updated integrator with 3 contacts")
+        print("PASSED: Updated integrator with 3 contacts")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)
@@ -155,7 +156,7 @@ class TestIntegratorWithContacts(TestAuthentication):
         contacts = data.get("contacts") or []
         assert len(contacts) == 0, f"Expected no contacts, got {len(contacts)}"
         
-        print(f"PASSED: Created integrator without contacts")
+        print("PASSED: Created integrator without contacts")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{data['integrator_id']}", headers=auth_headers)
@@ -189,7 +190,7 @@ class TestHasOverdueCommitments(TestAuthentication):
         assert "has_overdue_commitments" in test_intg, "has_overdue_commitments field missing"
         assert test_intg["has_overdue_commitments"] == False, f"Expected False, got {test_intg['has_overdue_commitments']}"
         
-        print(f"PASSED: Integrator without bitácora has has_overdue_commitments=False")
+        print("PASSED: Integrator without bitácora has has_overdue_commitments=False")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)
@@ -235,7 +236,7 @@ class TestHasOverdueCommitments(TestAuthentication):
         assert test_intg["has_overdue_commitments"] == True, \
             f"Expected True for overdue commitment, got {test_intg['has_overdue_commitments']}"
         
-        print(f"PASSED: Integrator with overdue commitment has has_overdue_commitments=True")
+        print("PASSED: Integrator with overdue commitment has has_overdue_commitments=True")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)
@@ -399,7 +400,7 @@ class TestBitacoraEndpoints(TestAuthentication):
         updated = patch_resp.json()
         assert updated["commitment_completed"] == True, f"Expected True, got {updated['commitment_completed']}"
         
-        print(f"PASSED: Bitácora entry marked as completed")
+        print("PASSED: Bitácora entry marked as completed")
     
     def test_delete_bitacora_entry(self, auth_headers, test_integrator_with_contacts):
         """DELETE /api/integrators/{id}/bitacora/{entry_id} removes entry"""
@@ -431,7 +432,7 @@ class TestBitacoraEndpoints(TestAuthentication):
         entry_ids = [e["entry_id"] for e in entries]
         assert entry_id not in entry_ids, "Deleted entry still exists"
         
-        print(f"PASSED: Bitácora entry deleted successfully")
+        print("PASSED: Bitácora entry deleted successfully")
     
     def test_delete_nonexistent_entry_returns_404(self, auth_headers, test_integrator_with_contacts):
         """DELETE non-existent bitácora entry returns 404"""
@@ -444,7 +445,7 @@ class TestBitacoraEndpoints(TestAuthentication):
         )
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
         
-        print(f"PASSED: DELETE non-existent entry returns 404")
+        print("PASSED: DELETE non-existent entry returns 404")
     
     def test_create_bitacora_nonexistent_integrator_returns_404(self, auth_headers):
         """POST bitácora for non-existent integrator returns 404"""
@@ -462,7 +463,7 @@ class TestBitacoraEndpoints(TestAuthentication):
         )
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
         
-        print(f"PASSED: POST bitácora for non-existent integrator returns 404")
+        print("PASSED: POST bitácora for non-existent integrator returns 404")
 
 
 class TestCompletedCommitmentNotOverdue(TestAuthentication):
@@ -505,7 +506,7 @@ class TestCompletedCommitmentNotOverdue(TestAuthentication):
         assert test_intg["has_overdue_commitments"] == False, \
             "Completed commitment should not flag as overdue"
         
-        print(f"PASSED: Completed commitment with past deadline not flagged as overdue")
+        print("PASSED: Completed commitment with past deadline not flagged as overdue")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)
@@ -575,7 +576,7 @@ class TestBitacoraEntryStructure(TestAuthentication):
         assert entry["commitment_completed"] == False
         assert entry["created_at"] is not None
         
-        print(f"PASSED: BitacoraEntry has all required fields with correct values")
+        print("PASSED: BitacoraEntry has all required fields with correct values")
         
         # Cleanup
         requests.delete(f"{BASE_URL}/api/integrators/{integrator_id}", headers=auth_headers)

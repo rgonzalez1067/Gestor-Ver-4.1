@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Tests para producto 'Link de Pago' (clon de Payment Gateway con anexo + subtítulo).
 Cubre:
@@ -119,7 +120,7 @@ class TestLinkPagoFlow:
         p1 = pages[0]
         assert "Link de Pagos" in p1 or "Link de Pago" in p1, \
             f"Subtitulo 'Link de Pagos' faltante en pagina 1. Encontrado: {p1[:300]}"
-        assert "Payment Gateway" in p1, f"'Payment Gateway' faltante en pagina 1"
+        assert "Payment Gateway" in p1, "'Payment Gateway' faltante en pagina 1"
         # Paginas 5-6: anexo (tarifario contiene '500' y '$50,00' o '50.00')
         anexo_text = (pages[4] + "\n" + pages[5]) if len(pages) > 5 else pages[4]
         # El anexo puede tener formato variable; basta verificar que NO es 'Terminos' y existen marcadores numericos del tarifario

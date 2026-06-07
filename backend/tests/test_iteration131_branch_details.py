@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Suite for Iteration 131: Branch Details (Detalle de Sucursales) Feature
 Tests:
@@ -80,7 +81,7 @@ class TestBranchDetailsFeature:
         assert response.status_code == 200, f"Login failed: {response.text}"
         data = response.json()
         assert "session_token" in data, "No session_token in response"
-        print(f"✓ Login successful, got session_token")
+        print("✓ Login successful, got session_token")
     
     def test_02_create_vpos_quote_with_branch_details(self):
         """Test creating a VPOS quote with branch_details field"""
@@ -236,7 +237,7 @@ class TestBranchDetailsFeature:
         assert quote["quote_type"] == "MPOS"
         assert len(quote["branch_details"]) == 2
         
-        print(f"✓ MPOS quote created with branch_details")
+        print("✓ MPOS quote created with branch_details")
     
     def test_05_create_fast_track_quote_with_branch_details(self):
         """Test creating a Fast Track quote with branch_details"""
@@ -294,7 +295,7 @@ class TestBranchDetailsFeature:
         assert quote["quote_type"] == "FAST_TRACK"
         assert len(quote["branch_details"]) == 2
         
-        print(f"✓ Fast Track quote created with branch_details")
+        print("✓ Fast Track quote created with branch_details")
     
     def test_06_create_quote_without_branch_details(self):
         """Test creating a quote without branch_details (should work, field is optional)"""
@@ -347,7 +348,7 @@ class TestBranchDetailsFeature:
         # branch_details should be empty array (default)
         assert quote.get("branch_details", []) == [], "branch_details should be empty"
         
-        print(f"✓ Quote created without branch_details (optional field works)")
+        print("✓ Quote created without branch_details (optional field works)")
     
     # ==================== TEST 2: PDF Generation with branch_details ====================
     
@@ -412,7 +413,7 @@ class TestBranchDetailsFeature:
             pdf_response = self.session.get(f"{BASE_URL}{pdf_url}")
             assert pdf_response.status_code == 200, f"PDF not accessible: {pdf_response.status_code}"
             assert pdf_response.headers.get("content-type") == "application/pdf" or "pdf" in pdf_response.headers.get("content-type", "").lower()
-            print(f"✓ PDF is accessible and has correct content-type")
+            print("✓ PDF is accessible and has correct content-type")
         else:
             print("⚠ PDF URL not returned (may be expected if PDF generation is async)")
     
@@ -513,7 +514,7 @@ class TestBranchDetailsFeature:
         
         if project_response.status_code == 200:
             project_data = project_response.json()
-            print(f"✓ Project created from quote with branch_details")
+            print("✓ Project created from quote with branch_details")
             
             # Verify project is multistore
             if "project" in project_data:
@@ -578,7 +579,7 @@ class TestBranchDetailsFeature:
         quote = data["quote"]
         assert quote.get("branch_details", []) == [], "branch_details should be empty"
         
-        print(f"✓ Quote created with empty branch_details (will create single project)")
+        print("✓ Quote created with empty branch_details (will create single project)")
     
     # ==================== Cleanup ====================
     

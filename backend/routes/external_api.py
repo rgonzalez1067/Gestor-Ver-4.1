@@ -78,7 +78,7 @@ async def create_external_contact(
         raise HTTPException(status_code=422, detail="Email inválido")
     
     # Verificar duplicado por email o teléfono (últimas 24h)
-    yesterday = (datetime.now(timezone.utc).timestamp() - 86400)
+    _yesterday = (datetime.now(timezone.utc).timestamp() - 86400)
     existing = await db.initial_contacts.find_one({
         "$or": [
             {"email": data.email.strip().lower()},

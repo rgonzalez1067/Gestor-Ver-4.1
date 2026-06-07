@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 96: MPOS vs VPOS Segmentation
 Tests the new segmentation of quote types into separate VPOS and MPOS with independent flows.
@@ -278,7 +279,7 @@ class TestQuotesListDifferentiation:
             assert 'quote_type' in q, f"Quote {q.get('quote_id')} missing quote_type"
             print(f"  Quote {q.get('quote_number')}: type={q.get('quote_type')}")
         
-        print(f"✓ GET /api/quotes returns properly differentiated quote types")
+        print("✓ GET /api/quotes returns properly differentiated quote types")
 
 
 class TestMPOSVPNToggleHidden:
@@ -402,7 +403,7 @@ class TestIntegratorWithSinIntegradorOption:
         response = authenticated_session.post(f"{BASE_URL}/api/quotes/create-with-pdf", json=payload)
         assert response.status_code == 200, f"MPOS with None integrator should succeed: {response.text}"
         
-        print(f"✓ MPOS accepts null integrator_id")
+        print("✓ MPOS accepts null integrator_id")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 8 backend tests for:
 A) Admin serial management endpoints + blacklist + preassign blacklist guard

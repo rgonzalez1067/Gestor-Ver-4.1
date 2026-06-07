@@ -1,4 +1,5 @@
 """Route module: quotes.py"""
+# ruff: noqa: F403, F405
 from fastapi import APIRouter, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List, Optional
@@ -15,7 +16,6 @@ from models import *
 from services.pdf_generator import TemplateQuotePDFRequest, DynamicQuotePDFGenerator
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -1110,9 +1110,7 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     
     # Información del cliente
     quote_type_names = {
-        'VPOS': 'VPOS/MPOS (Cajas y Tablet)',
         'VPOS': 'VPOS (Cajas)',
-        'MPOS': 'MPOS (Tablet/Móvil)',
         'FAST_TRACK': 'POS Stand Alone (Fast Track)',
         'VPOS_MPOS': 'VPOS/MPOS',
         'GATEWAY': 'Payment Gateway',
@@ -1735,7 +1733,6 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
     user_sede = current_user.get("sede", "PYME")
     quote_number = await generate_quote_number(user_sede)
     fecha = now.strftime("%d/%m/%Y")
-    from datetime import timedelta
     vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
 
     # Cargar logo de la empresa si existe
@@ -1804,7 +1801,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
         # Resumen por modelo si hay repair_models
         models_summary = ""
         if data.repair_models:
-            total_units = sum(m.quantity for m in data.repair_models)
+            _total_units = sum(m.quantity for m in data.repair_models)
             models_rows = "".join(
                 f'<tr><td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px">{m.model_name}</td>'
                 f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{m.quantity}</td>'
@@ -2120,7 +2117,6 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
 
     now = datetime.now(timezone.utc)
     fecha = now.strftime("%d/%m/%Y")
-    from datetime import timedelta
     vence = (now + timedelta(days=15)).strftime("%d/%m/%Y")
 
     logo_html = '<div style="font-size:22px;font-weight:bold;color:#1e293b">Gestor - Work Flow</div>'
@@ -2153,7 +2149,7 @@ async def regenerate_equipment_pdf(quote_id: str, data: dict = {}, authorization
     if equipment_type == "Reparación" and repair_description:
         models_summary = ""
         if repair_models:
-            total_units = sum(m.get("quantity", 0) for m in repair_models)
+            _total_units = sum(m.get("quantity", 0) for m in repair_models)
             models_rows = "".join(
                 f'<tr><td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px">{m.get("model_name", "")}</td>'
                 f'<td style="padding:6px 10px;border-bottom:1px solid #fed7aa;font-size:12px;text-align:center">{m.get("quantity", 0)}</td>'

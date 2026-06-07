@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 169: Verificación de plantillas y acciones de reparación
 - repair-complete: Usa plantilla repair_complete_client_{sede} para AMBOS (admin y cliente)
@@ -35,7 +36,7 @@ class TestRepairTemplatesAndActions:
     def test_01_login_success(self):
         """Verificar que el login funciona"""
         assert hasattr(self, 'token') and self.token, "Token debe existir"
-        print(f"✓ Login exitoso, token obtenido")
+        print("✓ Login exitoso, token obtenido")
     
     def test_02_get_repair_quote(self):
         """Obtener cotización de reparación COT-2026-04-002-PYME"""
@@ -78,8 +79,8 @@ class TestRepairTemplatesAndActions:
             norm_sede = "PYME" if sede in ("TBP", "PYME", "Pymes", "pyme") else "CORP"
             expected_template = f"repair_complete_client_{norm_sede}"
             print(f"✓ Para sede '{sede}', se usaría plantilla: {expected_template}")
-            print(f"  - Código línea 566: rc_template = await db.email_templates.find_one({{\"template_id\": f\"repair_complete_client_{{norm_sede}}\"}}, {{\"_id\": 0}})")
-            print(f"  - Envía a: admin_email + client_email (ambos con misma plantilla)")
+            print("  - Código línea 566: rc_template = await db.email_templates.find_one({\"template_id\": f\"repair_complete_client_{norm_sede}\"}, {\"_id\": 0})")
+            print("  - Envía a: admin_email + client_email (ambos con misma plantilla)")
         else:
             print("⚠ No hay cotización de reparación para verificar")
     
@@ -89,27 +90,27 @@ class TestRepairTemplatesAndActions:
         # "reference": f"Factura: {repair_invoice_number or 'S/N'} | Cotización: {quote.get('quote_number', '')}"
         
         expected_format = "Factura: {invoice} | Cotización: {quote_number}"
-        print(f"✓ Formato de referencia verificado en código (línea 1963):")
+        print("✓ Formato de referencia verificado en código (línea 1963):")
         print(f"  - Formato: {expected_format}")
-        print(f"  - Código: \"reference\": f\"Factura: {{repair_invoice_number or 'S/N'}} | Cotización: {{quote.get('quote_number', '')}}\"")
+        print("  - Código: \"reference\": f\"Factura: {repair_invoice_number or 'S/N'} | Cotización: {quote.get('quote_number', '')}\"")
     
     def test_05_verify_repair_invoice_template_logic(self):
         """Verificar que invoice para repair usa repair_invoice_{sede}"""
         # Línea 938 de quote_actions.py:
         # template = await db.email_templates.find_one({"template_id": f"repair_invoice_{norm_sede}"}, {"_id": 0})
         
-        print(f"✓ Lógica de plantilla repair_invoice verificada en código (línea 938):")
-        print(f"  - Plantilla: repair_invoice_{{norm_sede}}")
-        print(f"  - Destino: operations_email (línea 1007)")
+        print("✓ Lógica de plantilla repair_invoice verificada en código (línea 938):")
+        print("  - Plantilla: repair_invoice_{norm_sede}")
+        print("  - Destino: operations_email (línea 1007)")
     
     def test_06_verify_repair_collect_template_logic(self):
         """Verificar que collect para repair usa repair_collect_warehouse_{sede}"""
         # Línea 1156 de quote_actions.py:
         # rw_template = await db.email_templates.find_one({"template_id": f"repair_collect_warehouse_{norm_sede}"}, {"_id": 0})
         
-        print(f"✓ Lógica de plantilla repair_collect_warehouse verificada en código (línea 1156):")
-        print(f"  - Plantilla: repair_collect_warehouse_{{norm_sede}}")
-        print(f"  - Destino: warehouse_email (línea 1123)")
+        print("✓ Lógica de plantilla repair_collect_warehouse verificada en código (línea 1156):")
+        print("  - Plantilla: repair_collect_warehouse_{norm_sede}")
+        print("  - Destino: warehouse_email (línea 1123)")
     
     def test_07_check_email_templates_in_db(self):
         """Verificar existencia de plantillas de reparación en BD"""
@@ -163,7 +164,7 @@ class TestRepairTemplatesAndActions:
         # Solo probar si está en estado Aprobada
         if status != "Aprobada":
             print(f"⚠ Cotización en estado '{status}', no se puede probar repair-complete")
-            print(f"  (Se requiere estado 'Aprobada' para ejecutar repair-complete)")
+            print("  (Se requiere estado 'Aprobada' para ejecutar repair-complete)")
             return
         
         # Probar endpoint con billing_data
@@ -182,7 +183,7 @@ class TestRepairTemplatesAndActions:
         
         if resp.status_code == 200:
             data = resp.json()
-            print(f"✓ repair-complete ejecutado exitosamente")
+            print("✓ repair-complete ejecutado exitosamente")
             print(f"  - Nuevo estado: {data.get('new_status')}")
             print(f"  - Emails enviados: {len(data.get('emails', []))}")
         else:
@@ -199,14 +200,14 @@ class TestRepairTemplatesAndActions:
         if repair_quote:
             billing_data = repair_quote.get("repair_billing_data")
             if billing_data:
-                print(f"✓ repair_billing_data guardado correctamente:")
+                print("✓ repair_billing_data guardado correctamente:")
                 print(f"  - exchange_rate: {billing_data.get('exchange_rate')}")
                 print(f"  - total_usd: {billing_data.get('total_usd')}")
                 print(f"  - total_bs: {billing_data.get('total_bs')}")
             else:
-                print(f"⚠ repair_billing_data no encontrado en cotización")
+                print("⚠ repair_billing_data no encontrado en cotización")
         else:
-            print(f"⚠ No hay cotización de reparación en estado 'Reparada'")
+            print("⚠ No hay cotización de reparación en estado 'Reparada'")
 
 
 class TestRepairDeliveryReference:
@@ -242,8 +243,8 @@ class TestRepairDeliveryReference:
                 for m in repair_movements[:3]:
                     print(f"  - {m.get('reference')}")
             else:
-                print(f"⚠ No hay movimientos con formato 'Factura: X | Cotización: Y'")
-                print(f"  (Se generan al ejecutar repair-deliver con insumos consumidos)")
+                print("⚠ No hay movimientos con formato 'Factura: X | Cotización: Y'")
+                print("  (Se generan al ejecutar repair-deliver con insumos consumidos)")
         else:
             print(f"⚠ Endpoint /api/inventory/movements no disponible ({resp.status_code})")
 

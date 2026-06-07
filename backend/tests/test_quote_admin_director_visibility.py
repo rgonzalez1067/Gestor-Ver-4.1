@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests para la regla de visibilidad por Sede (Administración) y Director.
 
 Cubre:

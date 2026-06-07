@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 149: Variable Resolution Bug Fix Tests
 
@@ -112,8 +113,8 @@ class TestVariableResolutionBugFix:
         html_content = latest.get("email_detail", {}).get("html_content", "")
         
         # CRITICAL: Variables should NOT appear literally
-        assert "{Nombre_Implementador}" not in html_content, f"Variable NOT resolved! Found literal {{Nombre_Implementador}}"
-        assert "{Correo_Implementador}" not in html_content, f"Variable NOT resolved! Found literal {{Correo_Implementador}}"
+        assert "{Nombre_Implementador}" not in html_content, "Variable NOT resolved! Found literal {Nombre_Implementador}"
+        assert "{Correo_Implementador}" not in html_content, "Variable NOT resolved! Found literal {Correo_Implementador}"
         
         # Actual values should appear
         expected_impl = self.template_vars.get("Nombre_Implementador", "Omar")
@@ -151,13 +152,13 @@ class TestVariableResolutionBugFix:
         html_content = latest.get("email_detail", {}).get("html_content", "")
         
         # CRITICAL: {Lista_VTID} should NOT appear literally
-        assert "{Lista_VTID}" not in html_content, f"Variable NOT resolved! Found literal {{Lista_VTID}}"
+        assert "{Lista_VTID}" not in html_content, "Variable NOT resolved! Found literal {Lista_VTID}"
         
         # The VTID table should contain actual VTID codes (REQ or SST prefixes based on project data)
         # Project has stores Centro (REQ001-REQ005) and Norte (SST001-SST005)
         assert "<table" in html_content or "VTID" in html_content or "REQ" in html_content or "SST" in html_content, \
-            f"VTID table content not found in resolved HTML"
-        print(f"✓ PASS: {{Lista_VTID}} resolved to HTML table")
+            "VTID table content not found in resolved HTML"
+        print("✓ PASS: {Lista_VTID} resolved to HTML table")
     
     # ==================== CRITICAL TEST 4: custom_html with {Contacto_Principal} ====================
     def test_custom_html_contacto_principal_resolved(self):
@@ -185,7 +186,7 @@ class TestVariableResolutionBugFix:
         latest = entries[-1] if entries else {}
         html_content = latest.get("email_detail", {}).get("html_content", "")
         
-        assert "{Contacto_Principal}" not in html_content, f"Variable NOT resolved! Found literal {{Contacto_Principal}}"
+        assert "{Contacto_Principal}" not in html_content, "Variable NOT resolved! Found literal {Contacto_Principal}"
         
         expected_contact = self.template_vars.get("Contacto_Principal", "")
         if expected_contact:
@@ -216,8 +217,8 @@ class TestVariableResolutionBugFix:
         subject = latest.get("email_detail", {}).get("subject", "")
         
         # CRITICAL: Variables in subject should be resolved
-        assert "{Nombre_Cliente}" not in subject, f"Variable NOT resolved in subject! Found literal {{Nombre_Cliente}}"
-        assert "{Nombre_Implementador}" not in subject, f"Variable NOT resolved in subject! Found literal {{Nombre_Implementador}}"
+        assert "{Nombre_Cliente}" not in subject, "Variable NOT resolved in subject! Found literal {Nombre_Cliente}"
+        assert "{Nombre_Implementador}" not in subject, "Variable NOT resolved in subject! Found literal {Nombre_Implementador}"
         
         expected_client = self.template_vars.get("Nombre_Cliente", "")
         expected_impl = self.template_vars.get("Nombre_Implementador", "")
@@ -261,7 +262,7 @@ class TestVariableResolutionBugFix:
         # Actual values should appear
         expected_client = self.template_vars.get("Nombre_Cliente", "MegaFarma")
         assert expected_client in html_content, f"Expected client '{expected_client}' not found after HTML cleaning"
-        print(f"✓ PASS: HTML tags inside braces cleaned and variable resolved")
+        print("✓ PASS: HTML tags inside braces cleaned and variable resolved")
     
     # ==================== TEST 7: Adhoc email variable resolution ====================
     def test_adhoc_email_variables_resolved(self):
@@ -312,7 +313,7 @@ class TestVariableResolutionBugFix:
         expected_client = self.template_vars.get("Nombre_Cliente", "")
         if expected_client:
             assert expected_client in html_content, f"Expected client '{expected_client}' not in adhoc email"
-        print(f"✓ PASS: Adhoc email variables resolved")
+        print("✓ PASS: Adhoc email variables resolved")
     
     # ==================== TEST 8: Normal flow (no custom_html) still works ====================
     def test_normal_flow_without_custom_html(self):
@@ -345,7 +346,7 @@ class TestVariableResolutionBugFix:
         
         # Some variables might legitimately be empty, but common ones should be resolved
         assert "{Nombre_Cliente}" not in html_content, "Nombre_Cliente not resolved in standard template"
-        print(f"✓ PASS: Normal flow (no custom_html) works correctly")
+        print("✓ PASS: Normal flow (no custom_html) works correctly")
     
     # ==================== TEST 9: Datos_Contacto returns full contact info ====================
     def test_datos_contacto_full_info(self):
@@ -454,7 +455,7 @@ class TestCleanHtmlInBraces:
         # Check that malformed variables are not present
         assert "{<b>" not in subject, "HTML in braces not cleaned in subject"
         assert "{<span>" not in html, "HTML in braces not cleaned in body"
-        print(f"✓ PASS: preview-adhoc-email cleans HTML in braces")
+        print("✓ PASS: preview-adhoc-email cleans HTML in braces")
 
 
 if __name__ == "__main__":

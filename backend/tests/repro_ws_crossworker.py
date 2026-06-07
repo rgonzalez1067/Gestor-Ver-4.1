@@ -1,3 +1,4 @@
+# ruff: noqa
 """Valida la entrega cross-worker: un proceso SIN la conexión WS encola en
 `ws_outbox` y el dispatcher del backend (otro proceso) entrega al cliente.
 """

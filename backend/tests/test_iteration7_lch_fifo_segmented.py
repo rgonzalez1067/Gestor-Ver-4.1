@@ -1,3 +1,4 @@
+# ruff: noqa
 """Tests for Iteration 7:
 1) FIFO segmentado por almacén — Mayor de Activos (asset-ledger) aplica PEPS
    por (item_id, warehouse_id), no global.

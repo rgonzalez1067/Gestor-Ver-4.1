@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 168: Verificación de reorganización de modales en flujo de reparaciones
 - ApprovalBillingModal simplificado para reparaciones (solo comprobante de aprobación)

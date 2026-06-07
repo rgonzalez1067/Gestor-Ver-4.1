@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 24: Delete Quote Functionality Verification
 
@@ -82,7 +83,7 @@ class TestDeleteQuoteFlow:
         # Step 5: Verify quote is removed from database
         verify_response = api_client.get(f"{BASE_URL}/api/quotes/{quote_id}")
         assert verify_response.status_code == 404, f"Quote still exists after deletion: {verify_response.text}"
-        print(f"Verified quote removed: 404 returned")
+        print("Verified quote removed: 404 returned")
         
         # Step 6: Verify quote not in list
         list_response = api_client.get(f"{BASE_URL}/api/quotes")
@@ -90,7 +91,7 @@ class TestDeleteQuoteFlow:
         quotes = list_response.json()
         quote_ids = [q['quote_id'] for q in quotes]
         assert quote_id not in quote_ids, "Deleted quote still appears in list"
-        print(f"Verified quote not in list")
+        print("Verified quote not in list")
     
     def test_delete_quote_in_enviada_state(self, api_client):
         """Test deletion of quote in Enviada state"""

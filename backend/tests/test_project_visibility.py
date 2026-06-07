@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Reglas de Visibilidad de la bandeja de Proyectos (Parte 4) — gobernanza P0.
 
@@ -63,7 +64,8 @@ async def _ids(client, token, my_ids):
 
 
 async def run():
-    c = AsyncIOMotorClient(MONGO_URL); db = c[DB_NAME]
+    c = AsyncIOMotorClient(MONGO_URL)
+    db = c[DB_NAME]
 
     pyme1 = _u("Ejecutivo", "Ventas Pyme", "PYME")
     pyme2 = _u("Ejecutivo", "Ventas Pyme", "PYME")

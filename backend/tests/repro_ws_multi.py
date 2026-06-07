@@ -1,3 +1,4 @@
+# ruff: noqa
 """Reproducción del bug: push WS a múltiples destinatarios.
 
 Crea sesiones directas en DB para 2 usuarios, conecta sus WS, envía un

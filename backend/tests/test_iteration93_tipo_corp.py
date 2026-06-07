@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 93 - Testing tipo_corp field in Services (Medios de Pago) module
 
@@ -167,7 +168,7 @@ class TestTipoCorp:
         assert update_resp.status_code == 200, f"Update failed: {update_resp.text}"
         data = update_resp.json()
         assert data["tipo_corp"] == "Apoyo Técnico", f"Expected 'Apoyo Técnico', got '{data.get('tipo_corp')}'"
-        print(f"PASS: Updated tipo_corp from 'Derecho de Uso' to 'Apoyo Técnico'")
+        print("PASS: Updated tipo_corp from 'Derecho de Uso' to 'Apoyo Técnico'")
         
         # Clean up
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=self.headers)
@@ -197,7 +198,7 @@ class TestTipoCorp:
         assert test_service is not None, "Test service not found in list"
         assert "tipo_corp" in test_service, "tipo_corp field missing from service"
         assert test_service["tipo_corp"] == "Soporte y Monitoreo"
-        print(f"PASS: GET /api/services includes tipo_corp field")
+        print("PASS: GET /api/services includes tipo_corp field")
         
         # Clean up
         requests.delete(f"{BASE_URL}/api/services/{service_id}", headers=self.headers)

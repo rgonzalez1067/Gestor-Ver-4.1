@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test C2P/Débito Inmediato Bug Fix - Iteration 139
 Tests for the critical bug where 'Pago con C2P o Débito Inmediato' was:
@@ -75,7 +76,7 @@ class TestC2PBugFix:
         assert len(banks_with_c2p) >= 10, f"Expected at least 10 banks with C2P, found {len(banks_with_c2p)}: {banks_with_c2p}"
         
         print(f"✓ {len(banks_with_c2p)} banks have correct 'Pago con C2P o Débito Inmediato' product")
-        print(f"✓ No banks have typo 'Imediato'")
+        print("✓ No banks have typo 'Imediato'")
     
     def test_service_catalog_has_c2p_with_correct_pricing(self):
         """Verify service catalog has 'Pago con C2P o Débito Inmediato' with correct pricing"""

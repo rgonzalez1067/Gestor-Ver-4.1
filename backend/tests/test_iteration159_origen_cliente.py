@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 159: Origen del Cliente (Referidor) System
 Tests the corrected referidor system with:
@@ -201,7 +202,7 @@ class TestCreateClientWithReferidor:
         assert created["referidor"] == "Correo de Ventas", f"Expected referidor='Correo de Ventas', got {created.get('referidor')}"
         assert created["referidor_tipo"] == "OTRO", f"Expected referidor_tipo='OTRO', got {created.get('referidor_tipo')}"
         
-        print(f"✓ Created client with simple origin: Correo de Ventas")
+        print("✓ Created client with simple origin: Correo de Ventas")
     
     def test_create_client_with_integrador(self):
         """POST /api/clients with referidor='Integrador' (simple origin, no secondary dropdown)"""
@@ -230,7 +231,7 @@ class TestCreateClientWithReferidor:
         # Verify referidor fields
         assert created["referidor"] == "Integrador", f"Expected referidor='Integrador', got {created.get('referidor')}"
         
-        print(f"✓ Created client with simple origin: Integrador")
+        print("✓ Created client with simple origin: Integrador")
 
 
 class TestUpdateClientReferidor:

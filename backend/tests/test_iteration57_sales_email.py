@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test iteration 57: Sales Email per Sede Feature
 
@@ -359,7 +360,7 @@ class TestCodeReviewVerification:
             for field in required_fields:
                 assert field in emails_by_sede[sede], f"Missing field {field} in sede {sede}"
         
-        print(f"✓ emails_by_sede structure is complete with all sedes and fields")
+        print("✓ emails_by_sede structure is complete with all sedes and fields")
 
 
 if __name__ == "__main__":

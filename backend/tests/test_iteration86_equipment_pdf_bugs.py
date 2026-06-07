@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 86 - Equipment Quote PDF Bug Fixes Tests
 Bug #1: PDF generated now saves to server and creates attachment automatically

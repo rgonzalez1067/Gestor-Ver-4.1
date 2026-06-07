@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test PDF Header/Footer Stamping - Iteration 163
 Tests that PDF generation includes header/footer on ALL pages including injected annexes.

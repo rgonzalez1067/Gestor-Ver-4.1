@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 185 — Tests for Phases 3-5 of "Evolución de Ficha de Implementación":
 - Document management (anexos) on Quote History (admin-only writes; admin/director reads)

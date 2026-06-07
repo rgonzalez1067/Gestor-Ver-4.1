@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 76 - Certification Matrix in Import/Export with Dynamic Product Columns
 Tests for:

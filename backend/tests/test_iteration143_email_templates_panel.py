@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Iteration 143: Test Email Templates Panel de Variables and Project Templates
 Tests:
@@ -67,7 +68,7 @@ class TestEmailTemplatesIteration143:
         assert "{Correo_Implementador}" in body_html or "Correo_Implementador" in body_html, "Missing Correo_Implementador variable"
         assert "{Telefono_Implementador}" in body_html or "Telefono_Implementador" in body_html, "Missing Telefono_Implementador variable"
         
-        print(f"PASS: project_notify_client template has Implementador variables")
+        print("PASS: project_notify_client template has Implementador variables")
     
     def test_get_project_notify_bank_template(self):
         """GET /api/email-templates/project_notify_bank returns template with Aplicativo_Integracion"""
@@ -81,7 +82,7 @@ class TestEmailTemplatesIteration143:
         body_html = template.get("body_html", "")
         assert "{Aplicativo_Integracion}" in body_html or "Aplicativo_Integracion" in body_html, "Missing Aplicativo_Integracion variable"
         
-        print(f"PASS: project_notify_bank template has Aplicativo_Integracion variable")
+        print("PASS: project_notify_bank template has Aplicativo_Integracion variable")
     
     def test_put_email_template_no_405_error(self):
         """PUT /api/email-templates/project_notify_client saves template successfully (no 405)"""
@@ -107,12 +108,12 @@ class TestEmailTemplatesIteration143:
         )
         
         # Critical: Must NOT be 405 Method Not Allowed
-        assert put_response.status_code != 405, f"ERROR: Got 405 Method Not Allowed - PUT endpoint not working"
+        assert put_response.status_code != 405, "ERROR: Got 405 Method Not Allowed - PUT endpoint not working"
         assert put_response.status_code == 200, f"PUT failed with {put_response.status_code}: {put_response.text}"
         
         result = put_response.json()
         assert "message" in result or "template_id" in result
-        print(f"PASS: PUT /api/email-templates/project_notify_client works (no 405 error)")
+        print("PASS: PUT /api/email-templates/project_notify_client works (no 405 error)")
     
     def test_post_email_template_creates_new(self):
         """POST /api/email-templates creates new templates"""
@@ -164,7 +165,7 @@ class TestEmailTemplatesIteration143:
         assert "Telefono_Implementador" in tag_keys, "Missing Telefono_Implementador in available_tags"
         assert "Aplicativo_Integracion" in tag_keys, "Missing Aplicativo_Integracion in available_tags"
         
-        print(f"PASS: template-variables includes all 4 new Implementador tags")
+        print("PASS: template-variables includes all 4 new Implementador tags")
         print(f"  - Nombre_Implementador: {variables.get('Nombre_Implementador', '(not resolved)')}")
         print(f"  - Correo_Implementador: {variables.get('Correo_Implementador', '(not resolved)')}")
         print(f"  - Telefono_Implementador: {variables.get('Telefono_Implementador', '(not resolved)')}")
@@ -192,7 +193,7 @@ class TestEmailTemplatesIteration143:
         assert "Telefono_Implementador" in variables, "Telefono_Implementador not in resolved variables"
         assert "Aplicativo_Integracion" in variables, "Aplicativo_Integracion not in resolved variables"
         
-        print(f"PASS: preview-notification resolves Implementador variables")
+        print("PASS: preview-notification resolves Implementador variables")
         print(f"  - Nombre_Implementador: {variables.get('Nombre_Implementador')}")
         print(f"  - Aplicativo_Integracion: {variables.get('Aplicativo_Integracion')}")
     
@@ -230,7 +231,7 @@ class TestEmailTemplatesIteration143:
             assert pt.get("sede") is None or pt.get("is_project_template") == True, \
                 f"Project template {pt.get('template_id')} should be global, not per-sede"
         
-        print(f"PASS: Project templates are global (not per-sede)")
+        print("PASS: Project templates are global (not per-sede)")
 
 
 class TestEmailTemplatesEditorVariables:

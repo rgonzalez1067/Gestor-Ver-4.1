@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test module: test_repair_collect_warehouse_template.py
 Tests for the 5th repair email template: repair_collect_warehouse (PYME + CORP = 2 templates)

@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Iteration 132: Multistore Inheritance and Distribution Validation
 Tests the 'Enviar a Implementación' flow with branch_details inheritance
@@ -295,7 +296,7 @@ class TestQuotesListAPI:
         if test_quote:
             assert "branch_details" in test_quote, "Quote in list should have branch_details field"
             assert len(test_quote.get("branch_details", [])) == 2, "Should have 2 branches"
-            print(f"✓ Quotes list includes branch_details for quo_ad9cb906804b")
+            print("✓ Quotes list includes branch_details for quo_ad9cb906804b")
         else:
             print("⚠ Test quote quo_ad9cb906804b not found in list (may have been sent to implementation)")
 

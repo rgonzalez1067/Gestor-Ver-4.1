@@ -1,3 +1,4 @@
+# ruff: noqa
 """
 Test Quote Naming Convention: COT-AAAA-MM-NNN-SEDE
 Tests the new definitive quotation naming system with:
@@ -297,7 +298,7 @@ class TestQuoteAttachmentNaming:
     def test_pagos_filename_with_numbered_suffix(self, tbp_session, test_quote):
         """Test 'Pagos' attachments get numbered suffix (_Pago_1, _Pago_2)"""
         quote_id = test_quote["quote_id"]
-        quote_number = test_quote["quote_number"]
+        _quote_number = test_quote["quote_number"]
         
         headers = {"Authorization": tbp_session.headers.get("Authorization")}
         
@@ -340,7 +341,7 @@ class TestQuoteAttachmentNaming:
     def test_otros_filename_with_numbered_suffix(self, tbp_session, test_quote):
         """Test 'Otros' attachments get numbered suffix"""
         quote_id = test_quote["quote_id"]
-        quote_number = test_quote["quote_number"]
+        _quote_number = test_quote["quote_number"]
         
         headers = {"Authorization": tbp_session.headers.get("Authorization")}
         
@@ -450,10 +451,10 @@ class TestDuplicateQuoteNaming:
         assert quote_resp.status_code == 200
         
         new_quote = quote_resp.json()
-        assert new_quote.get("sede") == "TBP", f"Duplicated quote sede should be TBP"
+        assert new_quote.get("sede") == "TBP", "Duplicated quote sede should be TBP"
         assert new_quote.get("quote_number", "").endswith("-TBP"), "Quote number should end with -TBP"
         
-        print(f"✓ Duplicated quote preserves sede: TBP")
+        print("✓ Duplicated quote preserves sede: TBP")
 
 
 class TestCreateWithPDFNaming:
