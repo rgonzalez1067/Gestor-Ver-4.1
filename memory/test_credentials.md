@@ -15,6 +15,12 @@
 - Role: admin
 - Name: Rafael González
 
+## Usuario Implementador (Jrojas)
+- Email: Jrojas@megasoft.com.ve
+- Password: Test1234!
+- Role: user / Cargo: Implementador
+- Nota: password reseteado por el agente (2026-06-07) al validar el fix RBAC de catálogos (Proyectos Directos). El hash previo estaba desactualizado.
+
 ## Admin de respaldo (parachute)
 - Email: ragg1008@gmail.com
 - Password: admin123

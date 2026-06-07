@@ -159,6 +159,16 @@ RBAC_EXEMPT_PREFIXES = [
 # Métodos HTTP que requieren nivel "edit"
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
+# Catálogos de SOLO LECTURA que un módulo de creación necesita consultar para operar.
+# Un usuario con acceso (read/edit) a la clave obtiene READ implícito (GET) sobre los
+# módulos-catálogo listados. Ej.: quien tiene "Proyectos Directos" debe poder leer el
+# catálogo de dispositivos/bancos/integradores aunque no tenga esos módulos asignados.
+MODULE_CATALOG_READ_GRANTS = {
+    "proyectos_directos": {"clientes", "bancos", "integradores", "dispositivos", "medios_pago"},
+    "cotizaciones": {"clientes", "bancos", "integradores", "dispositivos", "medios_pago"},
+    "proyectos": {"clientes", "bancos", "integradores", "dispositivos"},
+}
+
 
 @app.middleware("http")
 async def rbac_middleware(request: Request, call_next):
@@ -220,6 +230,13 @@ async def rbac_middleware(request: Request, call_next):
     special_perms = user.get("special_permissions", [])
 
     if user_level == "none":
+        # Lectura implícita de catálogos: si el usuario tiene un módulo de creación
+        # (p.ej. proyectos_directos) que depende de este catálogo, permitir el GET.
+        if method == "GET":
+            for owner_module, catalogs in MODULE_CATALOG_READ_GRANTS.items():
+                if target_module in catalogs and permissions.get(owner_module, "none") in ("read", "edit"):
+                    logging.info(f"RBAC catalog read-grant: user={user.get('email')} module={target_module} via={owner_module}")
+                    return await call_next(request)
         # Verificar si tiene un override especial para esta acción
         if method == "POST" and f"{target_module}:create" in special_perms:
             logging.info(f"RBAC override: user={user.get('email')} special_permission={target_module}:create")
