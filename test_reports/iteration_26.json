@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only validation of DirectProjectCreation (/direct-projects) for 4 requirements: (A) server-name option rename, (B) communication catalog with 'No aplica', (C+D) implementer-aware gate modal. All 4 checks PASS. Non-destructive: scenario A cancelled, scenario B closed with Escape; no test projects were created in the database.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (commitments table) and DirectProjectCreation (dp-boxes-grid)", "issues": ["React hydration warnings in console: <span> as direct child of <tbody>/<tr> (data-ve-dynamic wrapper). Not blocking but should be cleaned to avoid hydration errors. Out of scope for this iteration."]}
+    ]
+  },
+  "test_results": {
+    "TEST1_server_options": "PASS - options exactly ['Multicomercio MSC','Multicomercio MSC2','Otra']; 'Propio' NOT present; selecting 'Otra' reveals dp-server-name-custom input as expected.",
+    "TEST2_communication": "PASS - dp-comm-ssl, dp-comm-vpn, dp-comm-no_aplica all rendered; aria-checked toggles correctly when each is clicked.",
+    "SCENARIO_A_assigned": "PASS - With client 'ASTROCEL CELULARES, C.A.' + VPOS + 1 caja + Multicomercio MSC + SSL + Morefun R90 + box-grid row (bank+product), pressing 'Enviar a Implementación' opens dp-assign-modal with title 'Implementador asignado', dp-assign-modal-name = 'Rosdely Pereira', and only dp-assign-confirm-btn + dp-assign-cancel-btn present (no dp-assign-accept-btn). Cancel pressed -> no project created.",
+    "SCENARIO_B_unassigned": "PASS - With client 'GLOBAL MARKET H&J, C.A.' the modal opens with title 'Sin implementador asignado', body mentions estatus 'Por Asignar', and ONLY dp-assign-accept-btn is rendered (no confirm/cancel). Modal closed via Escape -> no project created."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DirectProjectCreation.jsx is 1120 lines — consider splitting (BoxesGrid, HardwareSection, TechConfig, AssignModal) for maintainability.",
+    "Hydration warning: <span data-ve-dynamic> wrapping <tr> inside <tbody> on dp-boxes-grid and Dashboard commitments table will produce hydration errors in production SSR. Unwrap the helper span for these table contexts.",
+    "handleSubmit catches ALL errors from GET /clients/{id} and silently falls back to 'unassigned' modal; consider distinguishing 404 vs network error so true backend failures don't masquerade as 'sin implementador'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Non-destructive run: Scenario A cancelled, Scenario B closed with Escape. No project documents created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 4 form-level requirements (rename to 'Otra', add 'No aplica', pinpad model persists in payload, implementer-aware modal A/B) are verified at the UI layer. Backend persistence already confirmed by main agent. If a deeper end-to-end test is required, confirm Scenario A and B by actually pressing 'Confirmar y Enviar' / 'Aceptar' once each and verifying the created project in /projects (assigned vs Por Asignar).",
+  "rca_of_the_issue": "n/a — feature validation, no bug found."
+}

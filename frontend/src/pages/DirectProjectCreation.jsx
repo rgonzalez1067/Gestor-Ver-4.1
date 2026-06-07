@@ -203,9 +203,9 @@ export default function DirectProjectCreation() {
     pinpad_model: '',
     pinpad_bank: '',
     fiscal_printer_model: '',
-    server_name: '',          // Configuración Técnica: Multicomercio MSC/MSC2/Propio
-    server_name_custom: '',   // Nombre libre cuando server_name === 'Propio'
-    communication_type: 'SSL', // SSL | VPN (preseleccionado SSL)
+    server_name: '',          // Configuración Técnica: Multicomercio MSC/MSC2/Otra
+    server_name_custom: '',   // Nombre libre cuando server_name === 'Otra'
+    communication_type: 'SSL', // SSL | VPN | NO_APLICA (preseleccionado SSL)
     pinpad_serials: [],
     is_multistore: false,
     stores: [],
@@ -216,6 +216,10 @@ export default function DirectProjectCreation() {
   // Patrocinio relacional: sub-modal de asociación Procesador → Banco (homologado
   // con el cotizador). Se abre cuando el Banco Patrocinante elegido es un Procesador.
   const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
+  // Modal de envío a Implementación: valida si el cliente ya tiene Implementador
+  // en su ficha para informar la herencia (Escenario A) o el estatus "Por Asignar"
+  // (Escenario B) antes de despachar el proyecto.
+  const [assignModal, setAssignModal] = useState({ open: false, scenario: null, name: '' });
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -244,18 +248,19 @@ export default function DirectProjectCreation() {
     fetchAll();
   }, []);
 
-  /* Auto-completar cliente */
-  useEffect(() => {
-    if (!form.client_id) return;
-    const c = clients.find((x) => x.client_id === form.client_id);
-    if (!c) return;
+  /* Auto-completar datos del cliente al seleccionarlo (en el handler de selección,
+     no en un effect, para evitar sincronización de estado derivada en efectos). */
+  const handleSelectClient = (clientId) => {
+    const c = clients.find((x) => x.client_id === clientId);
     set({
-      economic_group: c.economic_group || c.grupo_economico || '',
-      fantasy_name: c.fantasy_name || '',
-      sede: (c.client_segment || c.sede || 'PYME').toUpperCase(),
+      client_id: clientId,
+      ...(c ? {
+        economic_group: c.economic_group || c.grupo_economico || '',
+        fantasy_name: c.fantasy_name || '',
+        sede: (c.client_segment || c.sede || 'PYME').toUpperCase(),
+      } : {}),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.client_id]);
+  };
 
   /* Helpers grilla (reel) */
   const updateBox = (idx, patch) => {
@@ -378,13 +383,16 @@ export default function DirectProjectCreation() {
     }
     // Configuración Técnica (obligatoria)
     if (!form.server_name) errs.push('Debes seleccionar el Servidor de Instalación');
-    if (form.server_name === 'Propio' && !(form.server_name_custom || '').trim()) {
-      errs.push('Debes escribir el nombre del servidor (opción "Propio")');
+    if (form.server_name === 'Otra' && !(form.server_name_custom || '').trim()) {
+      errs.push('Debes escribir el nombre del servidor (opción "Otra")');
     }
     if (!form.communication_type) errs.push('Debes seleccionar el Tipo de Comunicación');
     return errs;
   }, [form, totalStoreBoxes]);
 
+  // Gate: al pulsar "Enviar a Implementación" no despachamos de inmediato.
+  // Consultamos la ficha del cliente para saber si tiene un Implementador
+  // asignado y mostramos el modal correspondiente (A: asignado / B: por asignar).
   const handleSubmit = async () => {
     if (errors.length) {
       toast.error(`Hay ${errors.length} error(es) en el formulario. Revisa.`);
@@ -392,10 +400,30 @@ export default function DirectProjectCreation() {
     }
     setSaving(true);
     try {
+      const { data: client } = await api.get(`/clients/${form.client_id}`);
+      const implName = (client?.implementer_name || '').trim();
+      const implId = client?.implementer_user_id || '';
+      if (implId && implName) {
+        setAssignModal({ open: true, scenario: 'assigned', name: implName });
+      } else {
+        setAssignModal({ open: true, scenario: 'unassigned', name: '' });
+      }
+    } catch (e) {
+      // Si no se puede leer la ficha, continuar con el flujo neutro "Por Asignar".
+      setAssignModal({ open: true, scenario: 'unassigned', name: '' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const doSubmit = async () => {
+    setAssignModal({ open: false, scenario: null, name: '' });
+    setSaving(true);
+    try {
       const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas) };
       delete payload.equipment_serials;
-      // Resolver Servidor de Instalación: si es "Propio" se envía el texto libre.
-      payload.server_name = form.server_name === 'Propio'
+      // Resolver Servidor de Instalación: si es "Otra" se envía el texto libre.
+      payload.server_name = form.server_name === 'Otra'
         ? (form.server_name_custom || '').trim()
         : form.server_name;
       delete payload.server_name_custom;
@@ -512,7 +540,7 @@ export default function DirectProjectCreation() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="md:col-span-1">
               <Label className="text-xs">Cliente *</Label>
-              <ClientCombobox ref={clientRef} clients={clients} value={form.client_id} onChange={(v) => set({ client_id: v })} />
+              <ClientCombobox ref={clientRef} clients={clients} value={form.client_id} onChange={handleSelectClient} />
             </div>
             <div>
               <Label className="text-xs">Grupo Económico</Label>
@@ -728,15 +756,15 @@ export default function DirectProjectCreation() {
           {/* Fila 1: Servidor de Instalación */}
           <div>
             <Label className="text-xs flex items-center gap-1.5"><Server size={12} className="text-cyan-600" /> Servidor de Instalación <span className="text-red-500">*</span></Label>
-            <Select value={form.server_name || ''} onValueChange={(v) => set({ server_name: v, server_name_custom: v === 'Propio' ? form.server_name_custom : '' })}>
+            <Select value={form.server_name || ''} onValueChange={(v) => set({ server_name: v, server_name_custom: v === 'Otra' ? form.server_name_custom : '' })}>
               <SelectTrigger className="h-10 mt-1" data-testid="dp-server-name"><SelectValue placeholder="Seleccionar servidor..." /></SelectTrigger>
               <SelectContent>
-                {['Multicomercio MSC', 'Multicomercio MSC2', 'Propio'].map((opt) => (
+                {['Multicomercio MSC', 'Multicomercio MSC2', 'Otra'].map((opt) => (
                   <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {form.server_name === 'Propio' && (
+            {form.server_name === 'Otra' && (
               <Input
                 value={form.server_name_custom}
                 onChange={(e) => set({ server_name_custom: e.target.value })}
@@ -751,21 +779,21 @@ export default function DirectProjectCreation() {
           <div>
             <Label className="text-xs flex items-center gap-1.5"><Network size={12} className="text-cyan-600" /> Tipo de Comunicación <span className="text-red-500">*</span></Label>
             <div className="flex gap-2 mt-1.5" role="radiogroup" aria-label="Tipo de Comunicación">
-              {['SSL', 'VPN'].map((opt) => (
+              {[{ val: 'SSL', label: 'SSL' }, { val: 'VPN', label: 'VPN' }, { val: 'NO_APLICA', label: 'No aplica' }].map((opt) => (
                 <button
-                  key={opt}
+                  key={opt.val}
                   type="button"
                   role="radio"
-                  aria-checked={form.communication_type === opt}
-                  onClick={() => set({ communication_type: opt })}
-                  data-testid={`dp-comm-${opt.toLowerCase()}`}
+                  aria-checked={form.communication_type === opt.val}
+                  onClick={() => set({ communication_type: opt.val })}
+                  data-testid={`dp-comm-${opt.val.toLowerCase()}`}
                   className={`px-5 py-2 rounded-md text-sm font-semibold border-2 transition ${
-                    form.communication_type === opt
+                    form.communication_type === opt.val
                       ? 'bg-cyan-600 text-white border-cyan-700 shadow-sm'
                       : 'bg-white text-slate-700 border-slate-200 hover:border-cyan-400'
                   }`}
                 >
-                  {opt}
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -978,6 +1006,53 @@ export default function DirectProjectCreation() {
         </Button>
       </div>
 
+      {/* Modal "Enviar a Implementación": Escenario A (asignado) / B (por asignar) */}
+      <Dialog open={assignModal.open} onOpenChange={(o) => !o && !saving && setAssignModal({ open: false, scenario: null, name: '' })}>
+        <DialogContent className="max-w-md" data-testid="dp-assign-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {assignModal.scenario === 'assigned' ? (
+                <><CheckCircle2 size={18} className="text-emerald-600" /> Implementador asignado</>
+              ) : (
+                <><AlertCircle size={18} className="text-amber-600" /> Sin implementador asignado</>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {assignModal.scenario === 'assigned' ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600" data-testid="dp-assign-modal-text">
+                Según la ficha del cliente, este proyecto será asignado automáticamente a{' '}
+                <strong className="text-emerald-700" data-testid="dp-assign-modal-name">{assignModal.name}</strong>{' '}
+                y pasará al área de operaciones como <strong>Asignado</strong>.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setAssignModal({ open: false, scenario: null, name: '' })} disabled={saving} data-testid="dp-assign-cancel-btn">
+                  Cancelar
+                </Button>
+                <Button onClick={doSubmit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="dp-assign-confirm-btn">
+                  {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Zap size={14} className="mr-1" />}
+                  Confirmar y Enviar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600" data-testid="dp-assign-modal-text">
+                El cliente no tiene un Implementador asignado en su ficha. El proyecto se enviará al área de
+                operaciones con estatus <strong className="text-amber-700">Por Asignar</strong>, en espera de
+                asignación técnica.
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={doSubmit} disabled={saving} className="bg-amber-600 hover:bg-amber-700 text-white" data-testid="dp-assign-accept-btn">
+                  {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                  Aceptar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Sub-modal de Asociación: Procesador → Banco vinculado (patrocinio relacional) */}
       <Dialog open={processorModal.open} onOpenChange={(o) => !o && setProcessorModal({ open: false, processor: null })}>
         <DialogContent className="max-w-md" data-testid="dp-processor-link-modal">
@@ -1000,7 +1075,7 @@ export default function DirectProjectCreation() {
                 return (
                   <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="dp-processor-link-empty">
                     No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
-                    (campo "Procesador") en el maestro de Bancos.
+                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
                   </div>
                 );
               }

@@ -296,9 +296,9 @@ async def _create_project_from_quote(
     # Tipo de Comunicación (red/conectividad) — se inyecta en la Ficha Técnica,
     # en la fila siguiente a "Servidor de Instalación". Para Proyectos Directos
     # viene explícito (SSL/VPN). Para el flujo de Cotizaciones se deduce de la
-    # respuesta "¿Requiere VPN?": NO → SSL, SÍ → VPN.
+    # respuesta "¿Requiere VPN?": NO → SSL, SÍ → VPN. "NO_APLICA" se respeta tal cual.
     comm = (communication_type or "").strip().upper()
-    if comm not in {"SSL", "VPN"}:
+    if comm not in {"SSL", "VPN", "NO_APLICA"}:
         comm = "VPN" if quote.get("requires_vpn", False) else "SSL"
     project["communication_type"] = comm
 
