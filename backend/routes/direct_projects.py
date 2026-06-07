@@ -184,9 +184,14 @@ async def create_direct_project(
         if not (box.product_name or "").strip():
             raise HTTPException(status_code=400, detail=f"Fila #{i+1}: producto requerido")
 
-    sede = (payload.sede or client.get("client_segment") or "PYME").upper()
-    if sede not in {"PYME", "CORP"}:
-        sede = "PYME"
+    # Segmento del cliente: se conserva desde la ficha del cliente (PYME/CORP).
+    client_segment = (client.get("client_segment") or "PYME").upper()
+    if client_segment not in {"PYME", "CORP"}:
+        client_segment = "PYME"
+    # Sede del proyecto: se hereda de la ficha del USUARIO en sesión (no editable
+    # por el operador) para evitar asignaciones a una sede que no le corresponde.
+    # La sede es el identificador de sucursal del usuario (ej. "TBP"), NO PYME/CORP.
+    sede = (user.get("sede") or "").strip()
 
     # ---- Construir "cotización fantasma" en memoria ----
     # Agrupar la grilla por (bank, product) → cantidad. Esto alimenta
@@ -234,7 +239,7 @@ async def create_direct_project(
         "quote_id": pseudo_quote_id,
         "quote_number": pseudo_quote_number,
         "client_id": payload.client_id,
-        "client_segment": sede,
+        "client_segment": client_segment,
         "sede": sede,
         "quote_category": "direct_project",  # mapeado por notification_engine._quote_to_biz_sub
         "quote_type": qtype,
@@ -326,6 +331,8 @@ async def create_direct_project(
         {"$set": {
             "origin": "direct",
             "direct_project": True,
+            # Sede heredada de la ficha del usuario en sesión (seguridad de perfiles).
+            "sede": sede,
             "pinpad_bank": payload.pinpad_bank,
             # Persistir la grilla original para auditoría / re-emisión
             "boxes_grid": [b.model_dump() for b in payload.boxes_grid],

@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only validation of DirectProjectCreation (/direct-projects) for 4 requirements: (1) Sede dropdown removed from UI, (2) Pinpad sponsor Procesador->Banco sub-modal mirrors 'Banco Patrocinante' logic, (3) Integrator with 1 app auto-fills and locks Application, (4) Integrator with 2+ apps shows mandatory Application drop-list with only that integrator's apps. ALL 4 CHECKS PASS. Non-destructive run: no project was submitted/created.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DirectProjectCreation modal (dp-pinpad-processor-link-modal)", "issues": ["Radix DialogContent emits warning 'Missing Description or aria-describedby={undefined}'. Add a DialogDescription (or aria-describedby) for accessibility. Not blocking."]},
+      {"screen": "Dashboard / table contexts (carried over from iter26)", "issues": ["React hydration error: <span data-ve-dynamic> wrapping <tr> inside <tbody>. Not caused by these changes but still present in console."]}
+    ]
+  },
+  "test_results": {
+    "TEST1_sede_removed": "PASS - [data-testid='dp-sede'] not found in DOM; zero <label>Sede</label> matches; confirmed both before and after rendering all form sections (client/quote-type selected -> Hardware + Integrator sections rendered).",
+    "TEST2_pinpad_processor_modal": "PASS - dp-pinpad-bank shows 'Platco · Procesador' option; selecting Platco opens dp-pinpad-processor-link-modal listing exactly 2 linked banks ('Banco Mercantil', 'BBVA Provincial') via dp-pinpad-processor-linked-bank-*. Clicking Banco Mercantil closes the modal and renders dp-pinpad-composite = 'Patrocinador: Platco — Banco Mercantil'. Re-opening dp-pinpad-bank and selecting a non-Procesador bank ('Banco de Venezuela') assigns directly without opening any modal.",
+    "TEST3_integrator_1app_auto_locked": "PASS - dp-integrator selecting 'Equinoccio Agency' auto-fills Application; only dp-integrator-app-locked is rendered (text='Odoo Versión 16'); dp-integrator-app Select is NOT rendered. Label counter shows '(1)'.",
+    "TEST4_integrator_2apps_mandatory_select": "PASS - dp-integrator selecting 'Epic Tecnology C.A.' renders dp-integrator-app Select (locked div NOT rendered). Label counter '(2)'. Dropdown contains exactly 2 apps: 'Odoo Versión 16', 'YOY en Odoo v16'."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "DialogContent inside dp-pinpad-processor-link-modal is missing DialogDescription / aria-describedby (Radix warning). Add an sr-only DialogDescription for a11y compliance.",
+    "DirectProjectCreation.jsx is now 1211 lines. Consider extracting BoxesGrid, HardwareSection, IntegratorPicker and the PinpadProcessorModal into separate files; current file size hurts maintainability.",
+    "appsForIntegrator/onValueChange of dp-integrator filters apps by ((i.app_name || '').trim()) which is correct, but logically 'apps.length === 1' auto-set should also write integrator_id (it does). However, when apps.length === 0 (integrator with no apps) the locked div displays 'Sin apps registradas' but allows submit; consider blocking submit when REQUIRES_HW and no app is set.",
+    "Linked-bank button label currently renders the bank name concatenated with its type pill text (text_content returned 'Banco MercantilBanco' / 'BBVA ProvincialBanco'). Visually fine due to layout, but consider adding a space/whitespace between name and type tag for cleaner screen-reader output."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. Non-destructive: form was not submitted. No data created or modified.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 3 form-level changes (Sede removed, Pinpad Procesador->Banco sub-modal, Integrator->App cascade 1-app/2+apps) are correctly implemented and visible at the UI layer. Verified data: Platco is wired to 'Banco Mercantil' + 'BBVA Provincial'; Equinoccio Agency has 1 app (Odoo Versión 16); Epic Tecnology C.A. has 2 apps (Odoo Versión 16, YOY en Odoo v16). Backend persistence of sede=user.sede was already confirmed by main agent and was NOT re-tested here.",
+  "rca_of_the_issue": "n/a — feature validation, no bug found."
+}

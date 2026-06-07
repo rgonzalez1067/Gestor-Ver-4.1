@@ -201,7 +201,10 @@ export default function DirectProjectCreation() {
     integrator_id: '',
     integrator_app_name: '',
     pinpad_model: '',
-    pinpad_bank: '',
+    pinpad_bank: '',          // Patrocinador de Pinpads (nombre del banco final)
+    pinpad_bank_id: '',       // bank_id seleccionado (para lógica relacional)
+    pinpad_processor_id: '',  // si el patrocinador de pinpads pasa por un Procesador
+    pinpad_processor_name: '',
     fiscal_printer_model: '',
     server_name: '',          // Configuración Técnica: Multicomercio MSC/MSC2/Otra
     server_name_custom: '',   // Nombre libre cuando server_name === 'Otra'
@@ -216,6 +219,8 @@ export default function DirectProjectCreation() {
   // Patrocinio relacional: sub-modal de asociación Procesador → Banco (homologado
   // con el cotizador). Se abre cuando el Banco Patrocinante elegido es un Procesador.
   const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
+  // Sub-modal análogo para el Patrocinador de los Pinpads (Procesador → Banco).
+  const [pinpadProcessorModal, setPinpadProcessorModal] = useState({ open: false, processor: null });
   // Modal de envío a Implementación: valida si el cliente ya tiene Implementador
   // en su ficha para informar la herencia (Escenario A) o el estatus "Por Asignar"
   // (Escenario B) antes de despachar el proyecto.
@@ -574,16 +579,6 @@ export default function DirectProjectCreation() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Sede</Label>
-              <Select value={form.sede} onValueChange={(v) => set({ sede: v })}>
-                <SelectTrigger className="h-10" data-testid="dp-sede"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PYME">PYME</SelectItem>
-                  <SelectItem value="CORP">CORP</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <Label className="text-xs">Cantidad de Cajas *</Label>
               <Input type="number" min="1" value={form.cantidad_cajas}
                      onChange={(e) => set({ cantidad_cajas: e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1) })}
@@ -611,10 +606,19 @@ export default function DirectProjectCreation() {
                 </p>
               )}
             </div>
-            {/* Cascada Integrador → App */}
+            {/* Cascada Integrador → App: 1 app = auto-selección; 2+ = drop-list obligatorio */}
             <div>
               <Label className="text-xs">Integrador</Label>
-              <Select value={form.integrator_name || ''} onValueChange={(v) => set({ integrator_name: v, integrator_app_name: '', integrator_id: '' })}>
+              <Select value={form.integrator_name || ''} onValueChange={(v) => {
+                // Evaluar apps del integrador para auto-seleccionar (Escenario A) o
+                // dejar pendiente la elección manual (Escenario B).
+                const apps = integrators.filter((i) => i.name === v && (i.app_name || '').trim());
+                if (apps.length === 1) {
+                  set({ integrator_name: v, integrator_id: apps[0].integrator_id, integrator_app_name: apps[0].app_name || '' });
+                } else {
+                  set({ integrator_name: v, integrator_id: '', integrator_app_name: '' });
+                }
+              }}>
                 <SelectTrigger className="h-10" data-testid="dp-integrator"><SelectValue placeholder="Sin integrador" /></SelectTrigger>
                 <SelectContent>
                   {integratorNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
@@ -623,21 +627,34 @@ export default function DirectProjectCreation() {
             </div>
             <div>
               <Label className="text-xs">Aplicación {form.integrator_name && <span className="text-amber-600">({appsForIntegrator.length})</span>}</Label>
-              <Select
-                value={form.integrator_id || ''}
-                onValueChange={(integratorId) => {
-                  const apt = integrators.find((i) => i.integrator_id === integratorId);
-                  set({ integrator_id: integratorId, integrator_app_name: apt?.app_name || '' });
-                }}
-                disabled={!form.integrator_name || appsForIntegrator.length === 0}
-              >
-                <SelectTrigger className="h-10" data-testid="dp-integrator-app">
-                  <SelectValue placeholder={!form.integrator_name ? 'Elige integrador primero' : (appsForIntegrator.length === 0 ? 'Sin apps registradas' : 'Seleccionar app...')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {appsForIntegrator.map((i) => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.app_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {appsForIntegrator.length >= 2 ? (
+                /* Escenario B: 2+ apps → drop-list obligatorio */
+                <Select
+                  value={form.integrator_id || ''}
+                  onValueChange={(integratorId) => {
+                    const apt = integrators.find((i) => i.integrator_id === integratorId);
+                    set({ integrator_id: integratorId, integrator_app_name: apt?.app_name || '' });
+                  }}
+                >
+                  <SelectTrigger className="h-10" data-testid="dp-integrator-app">
+                    <SelectValue placeholder="Seleccionar app..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {appsForIntegrator.map((i) => <SelectItem key={i.integrator_id} value={i.integrator_id}>{i.app_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                /* Escenario A (1 app, auto-rellenada) o sin apps: campo bloqueado */
+                <div
+                  className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-600"
+                  data-testid="dp-integrator-app-locked"
+                >
+                  {form.integrator_app_name
+                    || (!form.integrator_name
+                      ? 'Elige integrador primero'
+                      : 'Sin apps registradas')}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -672,13 +689,26 @@ export default function DirectProjectCreation() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">Banco del Pinpad</Label>
-                <Select value={form.pinpad_bank || ''} onValueChange={(v) => set({ pinpad_bank: v })}>
+                <Label className="text-xs">Patrocinador de Pinpads</Label>
+                <Select value={form.pinpad_bank_id || ''} onValueChange={(v) => {
+                  const b = banks.find((x) => x.bank_id === v);
+                  if (b && b.type === 'Procesador') {
+                    // Interceptar: designar el banco final vinculado al procesador.
+                    setPinpadProcessorModal({ open: true, processor: b });
+                    return;
+                  }
+                  set({ pinpad_bank_id: v, pinpad_bank: b?.name || '', pinpad_processor_id: '', pinpad_processor_name: '' });
+                }}>
                   <SelectTrigger className="h-10" data-testid="dp-pinpad-bank"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                   <SelectContent>
-                    {banks.map((b) => <SelectItem key={b.bank_id} value={b.name}>{b.name}</SelectItem>)}
+                    {banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {form.pinpad_processor_name && form.pinpad_bank && (
+                  <p className="text-[11px] text-emerald-700 mt-1 font-medium" data-testid="dp-pinpad-composite">
+                    Patrocinador: {form.pinpad_processor_name} — {form.pinpad_bank}
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Modelo Impresora Fiscal</Label>
@@ -1050,6 +1080,67 @@ export default function DirectProjectCreation() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Sub-modal de Asociación para Patrocinador de Pinpads: Procesador → Banco vinculado */}
+      <Dialog open={pinpadProcessorModal.open} onOpenChange={(o) => !o && setPinpadProcessorModal({ open: false, processor: null })}>
+        <DialogContent className="max-w-md" data-testid="dp-pinpad-processor-link-modal">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Landmark size={18} className="text-indigo-600" />
+              Banco vinculado al Procesador
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              El patrocinador de Pinpads <strong>{pinpadProcessorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
+              Seleccione el banco que operará la transacción para consolidar el patrocinio de hardware.
+            </p>
+            {(() => {
+              const linked = pinpadProcessorModal.processor
+                ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === pinpadProcessorModal.processor.name)
+                : [];
+              if (linked.length === 0) {
+                return (
+                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="dp-pinpad-processor-link-empty">
+                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
+                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+                  {linked.map((b) => (
+                    <button
+                      key={b.bank_id}
+                      type="button"
+                      onClick={() => {
+                        const proc = pinpadProcessorModal.processor;
+                        set({
+                          pinpad_bank_id: b.bank_id,
+                          pinpad_bank: b.name,
+                          pinpad_processor_id: proc?.bank_id || '',
+                          pinpad_processor_name: proc?.name || '',
+                        });
+                        setPinpadProcessorModal({ open: false, processor: null });
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                      data-testid={`dp-pinpad-processor-linked-bank-${b.bank_id}`}
+                    >
+                      <span>{b.name}</span>
+                      <span className="text-[10px] text-slate-400">{b.type}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="flex justify-end pt-1">
+              <Button variant="outline" size="sm" onClick={() => setPinpadProcessorModal({ open: false, processor: null })} data-testid="dp-pinpad-processor-link-cancel">
+                Cancelar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
