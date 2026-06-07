@@ -2135,12 +2135,24 @@ async def delete_project(project_id: str, authorization: Optional[str] = Header(
 # =====================================================================
 
 _TYPE_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment", "LINK": "Link de Pago"}
+# Etiqueta completa para encabezados de sección/resumen (no se trunca como el badge).
+_TYPE_FULL_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment Gateway", "LINK": "Link de Pago"}
 _TYPE_BADGE_CSS = {
     "VPOS":    ("#dbeafe", "#1e40af", "#bfdbfe"),
     "MPOS":    ("#d1fae5", "#065f46", "#a7f3d0"),
     "GATEWAY": ("#ede9fe", "#5b21b6", "#ddd6fe"),
     "LINK":    ("#f1f5f9", "#334155", "#e2e8f0"),
 }
+
+
+def _norm_type(qt: Optional[str]) -> str:
+    """Normaliza el quote_type a las 4 categorías canónicas (VPOS/MPOS/GATEWAY/LINK)."""
+    t = (qt or "").upper()
+    if t in ("LINK_PAGO", "LINK"):
+        return "LINK"
+    if t == "FAST_TRACK":
+        return "MPOS"
+    return t
 
 
 def _format_es_date(iso: Optional[str]) -> str:
@@ -2160,6 +2172,7 @@ async def projects_workload_pdf(
     status: Optional[List[str]] = Query(None, description="Filtrar por Estatus. Multi-select."),
     client: Optional[str] = Query(None, description="Búsqueda parcial por Razón Social o Nombre de Fantasía del cliente."),
     quote_type: Optional[List[str]] = Query(None, description="Filtrar por Tipo de Proyecto (VPOS, MPOS, GATEWAY, LINK). Multi-select."),
+    group_by: str = Query("implementer", description="Modo de agrupación del reporte: 'implementer' (por implementador, default) o 'type' (por Tipo de Proyecto)."),
 ):
     """PDF: carga de proyectos agrupados por implementador.
     Columnas: Cliente, Tipo (badge), Cajas (solo VPOS/MPOS), Implementador Original
@@ -2213,8 +2226,8 @@ async def projects_workload_pdf(
             if q not in haystack:
                 return False
         if quote_type:
-            qt = (p.get("quote_type") or "").upper()
-            wanted = [t.upper() for t in quote_type]
+            qt = _norm_type(p.get("quote_type"))
+            wanted = [_norm_type(t) for t in quote_type]
             if qt not in wanted:
                 return False
         return True
@@ -2360,6 +2373,109 @@ async def projects_workload_pdf(
         </div>
         """
 
+    group_label = "Implementador"
+
+    # ── Modo de agrupación alterno: por Tipo de Proyecto (group_by=type) ──
+    # Reconstruye las secciones agrupando por tipo y reemplaza el ranking de
+    # implementadores por un resumen del mix comercial. Los totales globales
+    # (total / total_cajas / total_pvv) son independientes de la agrupación.
+    if group_by == "type":
+        group_label = "Tipo de Proyecto"
+        type_groups: dict = {}
+        for p in projects:
+            type_groups.setdefault(_norm_type(p.get("quote_type")) or "SIN", []).append(p)
+        type_order = ["VPOS", "MPOS", "GATEWAY", "LINK"]
+        ordered_types = [t for t in type_order if t in type_groups] + [k for k in type_groups if k not in type_order]
+        section_html_parts = []
+        type_summary_data = []
+        for tkey in ordered_types:
+            items = type_groups[tkey]
+            tlabel = _TYPE_FULL_LABEL.get(tkey, "Sin Tipo")
+            n_t = len(items)
+            cajas_t = 0
+            pvv_t = 0
+            rows_html = ""
+            for p in items:
+                qtn = _norm_type(p.get("quote_type"))
+                label = _TYPE_LABEL.get(qtn, "—")
+                bg, fg, br = _TYPE_BADGE_CSS.get(qtn, ("#f8fafc", "#475569", "#e2e8f0"))
+                type_badge = (
+                    f'<span style="display:inline-block; padding:2px 6px; font-size:9px; font-weight:600; '
+                    f'border-radius:4px; background:{bg}; color:{fg}; border:1px solid {br};">{label}</span>'
+                    if label != "—" else '<span class="muted">—</span>'
+                )
+                if qtn in ("VPOS", "MPOS"):
+                    c = int(p.get("cantidad_cajas") or p.get("box_count") or 0)
+                    cajas_t += c
+                    cajas = str(c) if c else "—"
+                else:
+                    cajas = "—"
+                pvv_val = int(p.get("_pvv") or 0)
+                pvv_t += pvv_val
+                pvv_cell = str(pvv_val) if pvv_val > 0 else "—"
+                if p.get("assigned_to_name"):
+                    impl_html = f'<span style="color:#4338ca; font-weight:500;">{p.get("assigned_to_name")}</span>'
+                else:
+                    impl_html = '<span class="muted">Sin asignar</span>'
+                rows_html += f"""
+                <tr>
+                  <td>{p.get('client_name') or '—'}<div class="rif">{p.get('client_rif') or ''}</div></td>
+                  <td>{type_badge}</td>
+                  <td class="num">{cajas}</td>
+                  <td class="num pvv">{pvv_cell}</td>
+                  <td class="state">{p.get('status') or '—'}</td>
+                  <td>{impl_html}</td>
+                  <td class="date">{_format_es_date(p.get('assigned_at'))}</td>
+                  <td class="date">{_format_es_date(p.get('last_contact_at'))}</td>
+                </tr>
+                """
+            section_html_parts.append(f"""
+            <div class="group">
+              <div class="group-head" style="background:#f5f3ff; border-left-color:#7c3aed;">
+                <span class="impl" style="color:#6d28d9;">{tlabel}</span>
+                <span class="count" style="color:#7c3aed;">Nro de Proyectos {n_t} &nbsp;·&nbsp; Nro de Cajas {cajas_t} &nbsp;·&nbsp; <strong>Total PVV {pvv_t}</strong></span>
+              </div>
+              <table class="rep">
+                <colgroup>
+                  <col class="c-cliente" /><col class="c-tipo" /><col class="c-cajas" /><col class="c-pvv" />
+                  <col class="c-estado" /><col class="c-orig" /><col class="c-fasign" /><col class="c-ultcont" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Cliente</th><th>Tipo</th><th>Cajas</th><th>PVV</th>
+                    <th>Estado</th><th>Implementador</th>
+                    <th>Fecha Asignación</th><th>Último Contacto</th>
+                  </tr>
+                </thead>
+                <tbody>{rows_html}</tbody>
+              </table>
+            </div>
+            """)
+            type_summary_data.append((tlabel, n_t, cajas_t, pvv_t))
+
+        max_n = max((d[1] for d in type_summary_data), default=0) or 1
+        cards = []
+        for tlabel, n_t, cajas_t, pvv_t in type_summary_data:
+            bar_pct = int(round((n_t / max_n) * 100)) if max_n else 0
+            pct_total = int(round((n_t / total) * 100)) if total else 0
+            cards.append(f"""
+            <div style="background:#1e293b; border:1px solid #334155; border-radius:6px; padding:10px;">
+              <div style="font-size:11px; font-weight:700; color:#f1f5f9; margin-bottom:6px;">{tlabel}</div>
+              <div style="height:4px; background:#334155; border-radius:2px; overflow:hidden; margin-bottom:6px;">
+                <div style="height:100%; width:{bar_pct}%; background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div>
+              </div>
+              <div style="font-size:9px; color:#cbd5e1;"><strong style="color:#a78bfa; font-size:13px;">{n_t}</strong> proyecto(s) · {pct_total}% · {cajas_t} caja(s) · {pvv_t} PVV</div>
+            </div>
+            """)
+        ranking_html = f"""
+        <div class="ranking" style="background:#0f172a;">
+          <div class="ranking-title" style="color:#a78bfa;">Resumen del Mix por Tipo de Proyecto</div>
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+            {''.join(cards) if cards else '<span style="color:#cbd5e1; font-size:10px;">Sin proyectos.</span>'}
+          </div>
+        </div>
+        """
+
     # Construir resumen de filtros aplicados (si los hay)
     filters_chips: list[str] = []
     if assigned_to:
@@ -2472,7 +2588,7 @@ async def projects_workload_pdf(
     </head>
     <body>
       <h1>Reporte de Carga y Estatus de Proyectos</h1>
-      <div class="sub">Agrupado por Implementador · Total: {total} proyecto(s) · {total_cajas} caja(s) · <strong>{total_pvv} PVV</strong> · Generado: {now_str} · Por: {exec_name}</div>
+      <div class="sub">Agrupado por {group_label} · Total: {total} proyecto(s) · {total_cajas} caja(s) · <strong>{total_pvv} PVV</strong> · Generado: {now_str} · Por: {exec_name}</div>
       {filters_html}
       {''.join(section_html_parts) if section_html_parts else '<p style="color:#64748b;font-style:italic">No hay proyectos registrados.</p>'}
       {ranking_html}

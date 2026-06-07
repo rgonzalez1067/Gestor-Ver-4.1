@@ -33,6 +33,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
   const [statuses, setStatuses] = useState([]);
   const [types, setTypes] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
+  const [groupBy, setGroupBy] = useState('implementer'); // 'implementer' | 'type'
 
   useEffect(() => {
     if (!open) return;
@@ -55,7 +56,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
   }, [projects]);
 
   const resetFilters = () => {
-    setAssignedTo([]); setOriginalImpl([]); setStatuses([]); setTypes([]); setClientSearch('');
+    setAssignedTo([]); setOriginalImpl([]); setStatuses([]); setTypes([]); setClientSearch(''); setGroupBy('implementer');
   };
 
   const toggle = (arr, setArr, value) => {
@@ -71,6 +72,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
       statuses.forEach(v => params.append('status', v));
       types.forEach(v => params.append('quote_type', v));
       if (clientSearch.trim()) params.append('client', clientSearch.trim());
+      params.append('group_by', groupBy);
 
       const token = localStorage.getItem('session_token');
       const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -119,6 +121,33 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
           <div className="flex items-center justify-center py-10"><Loader2 size={22} className="animate-spin text-slate-400" /></div>
         ) : (
           <div className="space-y-4 mt-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <Label className="text-xs font-semibold text-slate-700">Agrupar el reporte por</Label>
+              <div className="flex gap-2 mt-1.5" data-testid="workload-groupby">
+                <button
+                  type="button"
+                  onClick={() => setGroupBy('implementer')}
+                  data-testid="groupby-implementer"
+                  className={`flex-1 px-3 py-2 rounded-md text-xs font-semibold border transition ${groupBy === 'implementer' ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'}`}
+                >
+                  Implementador
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupBy('type')}
+                  data-testid="groupby-type"
+                  className={`flex-1 px-3 py-2 rounded-md text-xs font-semibold border transition ${groupBy === 'type' ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'}`}
+                >
+                  Tipo de Proyecto
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {groupBy === 'type'
+                  ? 'El PDF se segmenta por Tipo de Proyecto (VPOS, MPOS, Payment Gateway, Link de Pago) con subtotales y un resumen del mix comercial.'
+                  : 'El PDF se agrupa por implementador con ranking de carga por PVV.'}
+              </p>
+            </div>
+
             <div>
               <Label className="text-xs font-semibold text-slate-700">Implementador Actual</Label>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
