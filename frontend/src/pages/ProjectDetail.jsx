@@ -1116,7 +1116,11 @@ const ProjectDetail = () => {
                   <Building2 size={18} className="text-blue-600 shrink-0" />
                   <div>
                     <p className="text-xs text-slate-500">Patrocinador de Pinpads</p>
-                    <p className="text-sm font-semibold text-slate-700" data-testid="sponsor-bank">{project.sponsor_bank_name || '—'}</p>
+                    <p className="text-sm font-semibold text-slate-700" data-testid="sponsor-bank">
+                      {project.sponsor_processor_name && project.sponsor_bank_name
+                        ? `${project.sponsor_processor_name} — ${project.sponsor_bank_name}`
+                        : (project.sponsor_bank_name || project.sponsor_processor_name || '—')}
+                    </p>
                   </div>
                 </div>
                 {/* Patrocinador de la Implementación (Implementación Patrocinada): Banco directo o Procesador — Banco */}

@@ -101,6 +101,10 @@ class DirectProjectCreate(BaseModel):
     # Hardware (solo VPOS / MPOS) — pinpad_model ahora viene del catálogo de hardware
     pinpad_model: Optional[str] = None
     pinpad_bank: Optional[str] = None
+    # Patrocinio relacional del Pinpad: si el Banco del Pinpad seleccionado es un
+    # Procesador, se designa el banco final vinculado (Procesador → Banco).
+    pinpad_processor_id: Optional[str] = None
+    pinpad_processor_name: Optional[str] = None
     fiscal_printer_model: Optional[str] = None
     pinpad_serials: list[DirectProjectSerial] = Field(default_factory=list)
 
@@ -253,6 +257,9 @@ async def create_direct_project(
         # Es independiente del Patrocinador de la Implementación.
         "sponsor_bank_id": None,
         "sponsor_bank_name": (payload.pinpad_bank or "").strip() or None,
+        # Procesador asociado al Patrocinador de Pinpads (Procesador → Banco).
+        "sponsor_processor_id": payload.pinpad_processor_id or None,
+        "sponsor_processor_name": (payload.pinpad_processor_name or "").strip() or None,
         # Patrocinador de la Implementación = "Banco Patrocinante" (Sección Definición
         # Comercial). Alimenta patrocinador_label ("Procesador — Banco" o solo "Banco")
         # y la columna de patrocinio del grid.

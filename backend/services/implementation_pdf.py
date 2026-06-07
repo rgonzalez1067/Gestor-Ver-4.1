@@ -163,11 +163,15 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(_section_banner("B. CONFIGURACION TECNICA (Hardware & Software)", styles))
     elements.append(Spacer(1, 6))
 
+    # Patrocinador de Pinpads: "Procesador - Banco" (compuesto) o solo "Banco".
+    _pp_bank = (quote.get('sponsor_bank_name') or "").strip()
+    _pp_proc = (quote.get('sponsor_processor_name') or "").strip()
+    pinpad_sponsor = (f"{_pp_proc} - {_pp_bank}" if _pp_proc and _pp_bank else (_pp_proc or _pp_bank))
     tech_pairs = [
         ("Nombre del Integrador", quote.get('integrator_name', 'N/A')),
         ("Nombre del Aplicativo", quote.get('integrator_app_name', 'N/A')),
         ("Modelo de Pinpad", quote.get('pinpad_model', 'N/A')),
-        ("Patrocinador de Pinpads", quote.get('sponsor_bank_name') or 'N/A'),
+        ("Patrocinador de Pinpads", pinpad_sponsor or 'N/A'),
     ]
     # Patrocinador de la Implementación (independiente del Patrocinador de Pinpads):
     # proviene de "¿Implementación patrocinada?" (cotizaciones) o "Banco Patrocinante"
