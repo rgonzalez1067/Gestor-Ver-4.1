@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Landmark, Server, Network } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Upload, FileSpreadsheet, Building2, Boxes, Loader2, FileDown, Search, X, CheckCircle2, AlertCircle, Zap, ShoppingBag, Cpu, Store, Layers, FileText, Server, Network } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -10,6 +10,7 @@ import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { ProcessorLinkBankModal } from '../components/shared/ProcessorLinkBankModal';
 import { toast } from 'sonner';
 import api from '../utils/api';
 import { usePermission } from '../hooks/usePermission';
@@ -1084,126 +1085,46 @@ export default function DirectProjectCreation() {
       </Dialog>
 
       {/* Sub-modal de Asociación para Patrocinador de Pinpads: Procesador → Banco vinculado */}
-      <Dialog open={pinpadProcessorModal.open} onOpenChange={(o) => !o && setPinpadProcessorModal({ open: false, processor: null })}>
-        <DialogContent className="max-w-md" data-testid="dp-pinpad-processor-link-modal">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Landmark size={18} className="text-indigo-600" />
-              Banco vinculado al Procesador
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              El patrocinador de Pinpads <strong>{pinpadProcessorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
-              Seleccione el banco que operará la transacción para consolidar el patrocinio de hardware.
-            </p>
-            {(() => {
-              const linked = pinpadProcessorModal.processor
-                ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === pinpadProcessorModal.processor.name)
-                : [];
-              if (linked.length === 0) {
-                return (
-                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="dp-pinpad-processor-link-empty">
-                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
-                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-                  {linked.map((b) => (
-                    <button
-                      key={b.bank_id}
-                      type="button"
-                      onClick={() => {
-                        const proc = pinpadProcessorModal.processor;
-                        set({
-                          pinpad_bank_id: b.bank_id,
-                          pinpad_bank: b.name,
-                          pinpad_processor_id: proc?.bank_id || '',
-                          pinpad_processor_name: proc?.name || '',
-                        });
-                        setPinpadProcessorModal({ open: false, processor: null });
-                      }}
-                      className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
-                      data-testid={`dp-pinpad-processor-linked-bank-${b.bank_id}`}
-                    >
-                      <span>{b.name}</span>
-                      <span className="text-[10px] text-slate-400">{b.type}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-            <div className="flex justify-end pt-1">
-              <Button variant="outline" size="sm" onClick={() => setPinpadProcessorModal({ open: false, processor: null })} data-testid="dp-pinpad-processor-link-cancel">
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ProcessorLinkBankModal
+        open={pinpadProcessorModal.open}
+        processor={pinpadProcessorModal.processor}
+        linkedBanks={pinpadProcessorModal.processor ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === pinpadProcessorModal.processor.name) : []}
+        onSelect={(b) => {
+          const proc = pinpadProcessorModal.processor;
+          set({
+            pinpad_bank_id: b.bank_id,
+            pinpad_bank: b.name,
+            pinpad_processor_id: proc?.bank_id || '',
+            pinpad_processor_name: proc?.name || '',
+          });
+          setPinpadProcessorModal({ open: false, processor: null });
+        }}
+        onClose={() => setPinpadProcessorModal({ open: false, processor: null })}
+        description={<>El patrocinador de Pinpads <strong>{pinpadProcessorModal.processor?.name}</strong> es un <strong>Procesador</strong>. Seleccione el banco que operará la transacción para consolidar el patrocinio de hardware.</>}
+        testid="dp-pinpad-processor-link"
+        linkedTestid="dp-pinpad-processor-linked-bank"
+      />
 
-      {/* Sub-modal de Asociación: Procesador → Banco vinculado (patrocinio relacional) */}
-      <Dialog open={processorModal.open} onOpenChange={(o) => !o && setProcessorModal({ open: false, processor: null })}>
-        <DialogContent className="max-w-md" data-testid="dp-processor-link-modal">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Landmark size={18} className="text-indigo-600" />
-              Banco vinculado al Procesador
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              El patrocinante <strong>{processorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
-              Seleccione el banco que operará la transacción para consolidar el patrocinio.
-            </p>
-            {(() => {
-              const linked = processorModal.processor
-                ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === processorModal.processor.name)
-                : [];
-              if (linked.length === 0) {
-                return (
-                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="dp-processor-link-empty">
-                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
-                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-                  {linked.map((b) => (
-                    <button
-                      key={b.bank_id}
-                      type="button"
-                      onClick={() => {
-                        const proc = processorModal.processor;
-                        set({
-                          sponsor_bank_id: b.bank_id,
-                          sponsor_bank_name: b.name,
-                          sponsor_processor_id: proc?.bank_id || '',
-                          sponsor_processor_name: proc?.name || '',
-                        });
-                        setProcessorModal({ open: false, processor: null });
-                      }}
-                      className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
-                      data-testid={`dp-processor-linked-bank-${b.bank_id}`}
-                    >
-                      <span>{b.name}</span>
-                      <span className="text-[10px] text-slate-400">{b.type}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-            <div className="flex justify-end pt-1">
-              <Button variant="outline" size="sm" onClick={() => setProcessorModal({ open: false, processor: null })} data-testid="dp-processor-link-cancel">
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Sub-modal de Asociación: Procesador → Banco vinculado (patrocinio relacional de implementación) */}
+      <ProcessorLinkBankModal
+        open={processorModal.open}
+        processor={processorModal.processor}
+        linkedBanks={processorModal.processor ? banks.filter((b) => b.type !== 'Procesador' && b.procesador === processorModal.processor.name) : []}
+        onSelect={(b) => {
+          const proc = processorModal.processor;
+          set({
+            sponsor_bank_id: b.bank_id,
+            sponsor_bank_name: b.name,
+            sponsor_processor_id: proc?.bank_id || '',
+            sponsor_processor_name: proc?.name || '',
+          });
+          setProcessorModal({ open: false, processor: null });
+        }}
+        onClose={() => setProcessorModal({ open: false, processor: null })}
+        description={<>El patrocinante <strong>{processorModal.processor?.name}</strong> es un <strong>Procesador</strong>. Seleccione el banco que operará la transacción para consolidar el patrocinio.</>}
+        testid="dp-processor-link"
+        linkedTestid="dp-processor-linked-bank"
+      />
     </div>
     </div>
   );

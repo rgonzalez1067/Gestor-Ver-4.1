@@ -3,7 +3,7 @@
  * Extraído de Quotes.jsx para reducir el tamaño del archivo principal.
  * Recibe un objeto `ctx` con todas las variables y funciones necesarias del padre.
  */
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -122,7 +122,7 @@ export const QuoteModals = ({ ctx }) => {
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Eliminar Cotización?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  ¿Está seguro de que desea eliminar la Cotización <strong>"{deleteQuoteData.number}"</strong> de forma permanente?
+                  ¿Está seguro de que desea eliminar la Cotización <strong>&quot;{deleteQuoteData.number}&quot;</strong> de forma permanente?
                   <br /><br />
                   <span className="text-red-600 font-medium">Esta acción no se puede deshacer.</span>
                 </AlertDialogDescription>
@@ -406,8 +406,8 @@ export const QuoteModals = ({ ctx }) => {
                               <span className="text-[10px] text-slate-400">{entry.created_at?.slice(0, 10)}</span>
                             </div>
                             <p className="text-sm text-slate-800 mb-2">
-                              El usuario <strong className="text-slate-900">{entry.user_name}</strong> ejecutó <strong>{ACTION_LABELS[entry.action]}</strong> sin haber completado el paso <strong>"{entry.expected_status}"</strong>.
-                              <span className="text-slate-500"> Estado en el momento: "{entry.actual_status}".</span>
+                              El usuario <strong className="text-slate-900">{entry.user_name}</strong> ejecutó <strong>{ACTION_LABELS[entry.action]}</strong> sin haber completado el paso <strong>&quot;{entry.expected_status}&quot;</strong>.
+                              <span className="text-slate-500"> Estado en el momento: &quot;{entry.actual_status}&quot;.</span>
                             </p>
                             <div className="bg-slate-50 rounded p-2.5 space-y-1.5">
                               <p className="text-xs"><span className="font-semibold text-slate-700">Motivo:</span> <span className="text-slate-600">{entry.exception_reason}</span></p>
@@ -599,7 +599,7 @@ export const QuoteModals = ({ ctx }) => {
                       <>
                         <p className="text-base font-semibold text-amber-700" data-testid="confirm-implementer-unassigned">Por asignar Implementador</p>
                         <p className="text-[11px] text-slate-500 mt-1">
-                          La ficha del cliente no tiene un implementador fijo. El proyecto quedará en estado "Pendiente por Asignar" para que el Coordinador lo asigne manualmente.
+                          La ficha del cliente no tiene un implementador fijo. El proyecto quedará en estado &quot;Pendiente por Asignar&quot; para que el Coordinador lo asigne manualmente.
                         </p>
                       </>
                     )}
@@ -839,7 +839,7 @@ export const QuoteModals = ({ ctx }) => {
               {multistorePhase === 'ask' && (
                 <div className="space-y-4 py-2" data-testid="multistore-ask-phase">
                   <p className="text-sm text-slate-600">¿Esta implementación es <strong>Multitienda</strong>?</p>
-                  <p className="text-xs text-slate-400">Si el proyecto incluye múltiples sucursales o tiendas, seleccione "Sí" para registrar los datos de cada una.</p>
+                  <p className="text-xs text-slate-400">Si el proyecto incluye múltiples sucursales o tiendas, seleccione &quot;Sí&quot; para registrar los datos de cada una.</p>
                   <div className="flex gap-3 justify-end pt-2">
                     <Button variant="outline" onClick={() => handleMultistoreAnswer(false)} data-testid="multistore-no-btn">
                       No, tienda única
@@ -1093,6 +1093,11 @@ export const QuoteModals = ({ ctx }) => {
                   <Landmark size={18} className="text-indigo-600" />
                   {serialsBankModal.processor ? 'Banco vinculado al Procesador' : 'Banco proveedor de seriales'}
                 </DialogTitle>
+                <DialogDescription>
+                  {serialsBankModal.processor
+                    ? 'Seleccione el banco final vinculado al procesador para registrar quién suministrará los seriales.'
+                    : 'Seleccione el banco o procesador que suministrará los seriales de los equipos.'}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
                 {!serialsBankModal.processor ? (

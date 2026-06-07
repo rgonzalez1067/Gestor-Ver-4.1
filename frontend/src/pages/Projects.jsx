@@ -109,13 +109,15 @@ const Projects = () => {
 
   const fetchProjects = useCallback(async () => {
     try {
-      const [projRes, statsRes, clientsRes] = await Promise.all([
+      const [projRes, statsRes, clientsRes, implRes] = await Promise.all([
         api.get('/projects'),
         api.get('/projects/stats'),
         api.get('/clients').catch(() => ({ data: [] })),
+        api.get('/projects/implementers/list').catch(() => ({ data: [] })),
       ]);
       setProjects(projRes.data);
       setStats(statsRes.data);
+      setImplementers(implRes.data || []);
       // Construir mapa cliente_id → {fantasy_name, legal_name} para tooltip
       const map = {};
       (clientsRes.data || []).forEach((c) => {
@@ -133,11 +135,6 @@ const Projects = () => {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
-  const fetchImplementers = async () => {
-    try { const res = await api.get('/projects/implementers/list'); setImplementers(res.data); }
-    catch { toast.error('Error cargando implementadores'); }
-  };
-
   // ==================== ASSIGN / REASSIGN ====================
   const openAssignDialog = (project) => {
     setAssignProject(project);
@@ -148,7 +145,6 @@ const Projects = () => {
       reassignment_comment: '',
       reassignment_date: isReassign ? new Date().toISOString().slice(0, 10) : ''
     });
-    fetchImplementers();
     setAssignDialogOpen(true);
   };
 
@@ -258,7 +254,7 @@ const Projects = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => { fetchImplementers(); setBulkReassignOpen(true); }}
+                  onClick={() => { setBulkReassignOpen(true); }}
                   data-testid="bulk-reassign-open-btn"
                   className="border-purple-300 text-purple-700 hover:bg-purple-50"
                   title="Reasignar múltiples proyectos entre implementadores"
@@ -831,7 +827,7 @@ const Projects = () => {
           <BulkReassignModal
             open={bulkReassignOpen}
             onClose={() => setBulkReassignOpen(false)}
-            onSuccess={() => { fetchProjects(); fetchStats(); }}
+            onSuccess={() => { fetchProjects(); }}
             implementadores={implementers.map(u => ({ user_id: u.user_id, full_name: u.full_name || `${u.first_name||''} ${u.last_name||''}`.trim() }))}
             projects={projects}
           />

@@ -18,6 +18,21 @@ const STATUS_OPTIONS = [
   'Finalizado / Producción',
 ];
 
+// Botón-chip de selección múltiple (módulo-level para no recrearlo en cada render).
+const Chip = ({ active, onClick, children, testid }) => (
+  <button
+    type="button" onClick={onClick}
+    data-testid={testid}
+    className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition ${
+      active
+        ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
+        : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400 hover:text-indigo-700'
+    }`}
+  >
+    {children}
+  </button>
+);
+
 /**
  * Modal de filtros para el Reporte de Carga PDF.
  * Soporta multi-selección en Implementador Actual, Implementador Original,
@@ -36,11 +51,21 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
   const [groupBy, setGroupBy] = useState('implementer'); // 'implementer' | 'type'
 
   useEffect(() => {
-    if (!open) return;
-    setLoadingMeta(true);
-    api.get('/projects').then(r => setProjects(r.data || []))
-      .catch(() => toast.error('Error cargando proyectos'))
-      .finally(() => setLoadingMeta(false));
+    if (!open) return undefined;
+    let cancelled = false;
+    const loadMeta = async () => {
+      setLoadingMeta(true);
+      try {
+        const r = await api.get('/projects');
+        if (!cancelled) setProjects(r.data || []);
+      } catch {
+        if (!cancelled) toast.error('Error cargando proyectos');
+      } finally {
+        if (!cancelled) setLoadingMeta(false);
+      }
+    };
+    loadMeta();
+    return () => { cancelled = true; };
   }, [open]);
 
   const assignedOptions = useMemo(() => {
@@ -90,20 +115,6 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
     } finally { setGenerating(false); }
   };
 
-  const Chip = ({ active, onClick, children, testid }) => (
-    <button
-      type="button" onClick={onClick}
-      data-testid={testid}
-      className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition ${
-        active
-          ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm'
-          : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400 hover:text-indigo-700'
-      }`}
-    >
-      {children}
-    </button>
-  );
-
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="workload-filters-modal">
@@ -113,7 +124,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
             Filtros — Reporte de Carga y Estatus
           </DialogTitle>
           <p className="text-xs text-slate-500 mt-1">
-            Seleccione uno o varios criterios. Los filtros se aplican con "Y" (intersección) entre categorías y con "O" (unión) dentro de la misma categoría.
+            Seleccione uno o varios criterios. Los filtros se aplican con &quot;Y&quot; (intersección) entre categorías y con &quot;O&quot; (unión) dentro de la misma categoría.
           </p>
         </DialogHeader>
 
