@@ -4,6 +4,20 @@
 Plataforma interna de gestión operativa para MegaNexus Venezuela.
 
 
+### Iteration 72: Proyectos Directos — Sede automática, patrocinio relacional de Pinpads y selección inteligente de Aplicativo — Jun 2026
+
+**Requerimiento:** (1) Eliminar el desplegable 'Sede' de la UI; la sede del proyecto se hereda del usuario en sesión (seguridad de perfiles). (2) 'Patrocinador de Pinpads': replicar la lógica relacional Procesador→Banco del 'Banco Patrocinante' (sub-modal con bancos vinculados). (3) Selección inteligente de Aplicativo: 1 app → auto-rellena y bloquea; 2+ apps → drop-list obligatorio.
+
+**Cambios:**
+- `routes/direct_projects.py`: `sede = (user.get("sede") or "").strip()` (ID de sucursal real, ej. "TBP", NO PYME/CORP); se persiste en la doc del proyecto vía `update_one`. `client_segment` se separa y conserva desde la ficha del cliente (antes ambos se igualaban a `payload.sede`). El `payload.sede` del formulario se ignora.
+- `pages/DirectProjectCreation.jsx`: (1) eliminado el `<Select dp-sede>`; (2) campo 'Patrocinador de Pinpads' (`dp-pinpad-bank`) ahora usa `pinpad_bank_id` y, si el banco es tipo 'Procesador', abre `pinpadProcessorModal` (`dp-pinpad-processor-link-modal`) que lista sólo los bancos vinculados (`b.procesador === proc.name`); muestra compuesto "Procesador — Banco" (`dp-pinpad-composite`); nuevos campos de form `pinpad_bank_id/pinpad_processor_id/pinpad_processor_name`. (3) `dp-integrator` onValueChange evalúa apps: 1 → auto-set `integrator_id`+`integrator_app_name`; 2+ → limpia para forzar elección. Render: `appsForIntegrator.length>=2` → `<Select dp-integrator-app>`, si no → `<div dp-integrator-app-locked>`.
+
+**QA:** testing_agent iteration_27.json → 4/4 frontend PASS (no destructivo): Sede ausente, modal Platco→[Banco Mercantil, BBVA Provincial], Equinoccio Agency (1 app→bloqueado 'Odoo Versión 16'), Epic Tecnology C.A. (2 apps→drop-list). Backend Sede validado por API: proyecto creado con `sede='TBP'` (del usuario) ignorando `payload.sede='CORP'`; `client_segment='PYME'` preservado; proyecto de prueba eliminado.
+**⚠️ En PREVIEW; requiere redeploy para producción.**
+**Pendiente (no bloqueante):** `dp-pinpad-processor-link-modal` sin `DialogDescription` (warning a11y de Radix); espaciado nombre/tipo en botones de banco vinculado; `DirectProjectCreation.jsx` ya >1200 líneas (candidato a refactor: BoxesGrid/HardwareSection/IntegratorPicker/PinpadProcessorModal); warning de hidratación recurrente.
+
+
+
 ### Iteration 71: Proyectos Directos — UI conectividad, persistencia Pinpad y herencia de Implementador con modales — Jun 2026
 
 **Requerimiento:** (A) 'Servidor de Instalación': renombrar opción 'Propio'→'Otra' (conserva campo de texto libre condicional). (B) 'Tipo de Comunicación': agregar 'No aplica' → SSL, VPN, No aplica (valor NO_APLICA homologado). (C) Auditar persistencia de 'Modelo de Pinpad' en Ficha Técnica. (D) Botón 'Enviar a Implementación' intercepta el envío: consulta la ficha del cliente y muestra modal — Escenario A (cliente con Implementador) informa el nombre y despacha ASIGNADO; Escenario B (sin Implementador) muestra 'Por Asignar' con único botón 'Aceptar'.
