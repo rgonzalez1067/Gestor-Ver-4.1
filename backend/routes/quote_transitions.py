@@ -190,6 +190,8 @@ async def _create_project_from_quote(
         "integrator_app_name": quote.get("integrator_app_name"),
         "pinpad_model": quote.get("pinpad_model"),
         "sponsor_bank_name": quote.get("sponsor_bank_name"),
+        # Nota de provisión de seriales por un tercero (Infraestructura/Cliente/Banco).
+        "serials_provider_note": quote.get("serials_provider_note") or None,
         # Procesador asociado al Patrocinador de Pinpads (Procesador → Banco).
         "sponsor_processor_id": quote.get("sponsor_processor_id") or None,
         "sponsor_processor_name": quote.get("sponsor_processor_name") or None,

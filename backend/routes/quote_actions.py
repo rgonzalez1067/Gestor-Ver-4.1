@@ -1423,6 +1423,9 @@ class SendToImplementationRequest(BaseModel):
     pinpad_serials: Optional[list] = None  # [{modelo, serial, movement_id}]
     implementation_instructions: Optional[str] = None  # HTML rich-text (máx 500 chars de texto visible)
     fiscal_printer_model: Optional[str] = None  # Modelo de impresora fiscal (capturado en el modal del wizard)
+    # Nota de provisión de seriales por un tercero (Infraestructura / Cliente / Banco)
+    # cuando el ejecutivo NO dispone de los seriales físicos al momento del despacho.
+    serials_provider_note: Optional[str] = None
 
 
 def _validate_instructions_length(html: Optional[str], max_chars: int = 500) -> Optional[str]:
@@ -1522,6 +1525,9 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
         quote["pinpad_serials"] = body.pinpad_serials
     if body and body.equipment_serials:
         quote["equipments"] = body.equipment_serials
+    # Nota de provisión de seriales por un tercero (se inyecta en la Ficha Técnica).
+    if body and body.serials_provider_note and body.serials_provider_note.strip():
+        quote["serials_provider_note"] = body.serials_provider_note
     # Instrucciones adicionales para el implementador (HTML rich-text, máx 500 chars visibles)
     impl_instructions = _validate_instructions_length(body.implementation_instructions if body else None, 500)
     quote["implementation_instructions"] = impl_instructions
@@ -1572,6 +1578,10 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
                 {"quote_id": quote_id},
                 {"$set": {"fiscal_printer_model": fp_model}},
             )
+        # Propagar la nota de provisión de seriales al proyecto (Ficha Técnica).
+        spn = quote.get("serials_provider_note")
+        if spn:
+            quote_for_project["serials_provider_note"] = spn
         await _create_project_from_quote(
             quote_for_project, quote_id, multistore_data, equipment_data,
             pt_impl, srv_name, pp_serials, eg, fn, ii,

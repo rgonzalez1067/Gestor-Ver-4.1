@@ -196,6 +196,7 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     pinpad_serials = quote.get("pinpad_serials") or []
     equipments = quote.get("equipments") or []
     all_serials = pinpad_serials + equipments
+    serials_provider_note = (quote.get("serials_provider_note") or "").strip()
     if all_serials:
         elements.append(_section_banner("C. SERIALES DE LOS EQUIPOS", styles))
         elements.append(Spacer(1, 6))
@@ -228,6 +229,24 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
                 eq_style.append(('BACKGROUND', (0, i), (-1, i), COLOR_GRIS))
         eq_table.setStyle(TableStyle(eq_style))
         elements.append(eq_table)
+        elements.append(Spacer(1, 14))
+    elif serials_provider_note:
+        # Sin seriales físicos: el ejecutivo delegó la provisión a un tercero.
+        # Se imprime el mensaje descriptivo capturado en el wizard.
+        elements.append(_section_banner("C. SERIALES DE LOS EQUIPOS", styles))
+        elements.append(Spacer(1, 6))
+        note_table = Table(
+            [[Paragraph(serials_provider_note, styles['SmallText'])]],
+            colWidths=[480],
+        )
+        note_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLOR_GRIS),
+            ('BOX', (0, 0), (-1, -1), 0.5, COLOR_BORDE),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(note_table)
         elements.append(Spacer(1, 14))
 
     # ==================== C.1 MODELO DE IMPRESORA FISCAL ====================

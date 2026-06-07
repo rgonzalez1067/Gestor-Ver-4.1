@@ -1197,6 +1197,17 @@ const ProjectDetail = () => {
                 </div>
               )}
 
+              {/* Provisión de seriales por un tercero (Infraestructura/Cliente/Banco) */}
+              {project.serials_provider_note && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3" data-testid="serials-provider-note-section">
+                  <Landmark size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Provisión de Seriales</p>
+                    <p className="text-sm font-semibold text-blue-800 mt-0.5" data-testid="serials-provider-note">{project.serials_provider_note}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Bloque 2.7: Pinpads desde Inventario (PYME) — Grid Horizontal con scroll cap (6 filas).
                   Iter40: limitado a max ~6 filas con barra de scroll para evitar que listas largas
                   empujen el resto del detalle hacia abajo. */}

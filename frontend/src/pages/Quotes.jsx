@@ -301,6 +301,10 @@ export const Quotes = () => {
   const [pymePinpadSerials, setPymePinpadSerials] = useState([]); // [{serial, modelo, movement_id, ...}]
   const [pymePinpadSerialsSelected, setPymePinpadSerialsSelected] = useState({}); // Map serial -> boolean
   const [pymePinpadLoading, setPymePinpadLoading] = useState(false);
+  // Sub-flujo "Sí, pero no dispongo de seriales — los suministra un tercero".
+  const [serialsByOther, setSerialsByOther] = useState(false); // muestra sub-opciones
+  const [serialsProviderNote, setSerialsProviderNote] = useState(''); // texto inyectado en Ficha Técnica
+  const [serialsBankModal, setSerialsBankModal] = useState({ open: false, processor: null });
   // Fase Impresora Fiscal (Feb 2026): se solicita después de pinpad y antes
   // de consolidated_data, para imprimir en la Ficha Técnica de la Implementación.
   const [fiscalPrinterFromClient, setFiscalPrinterFromClient] = useState(''); // valor pre-existente en cliente
@@ -2670,6 +2674,11 @@ export const Quotes = () => {
       if (finalFiscalModel) {
         body.fiscal_printer_model = finalFiscalModel;
       }
+      // Nota de provisión de seriales por un tercero (Infraestructura/Cliente/Banco).
+      // Se envía tal cual (puede contener espacios/guiones de formato intencionales).
+      if (serialsProviderNote && serialsProviderNote.trim()) {
+        body.serials_provider_note = serialsProviderNote;
+      }
       const response = await api.post(`/quotes/${quoteId}/send-to-implementation`, body, { headers });
       
       if (response.data.status === 'simulated') {
@@ -2706,6 +2715,10 @@ export const Quotes = () => {
     setPymePinpadSelectedModel('');
     setPymePinpadSerials([]);
     setPymePinpadSerialsSelected({});
+    // Reset sub-flujo seriales por tercero
+    setSerialsByOther(false);
+    setSerialsProviderNote('');
+    setSerialsBankModal({ open: false, processor: null });
     // Reset instrucciones y grupo/fantasía
     setImplInstructions('');
     setImplInstructionsLen(0);
@@ -2931,6 +2944,10 @@ export const Quotes = () => {
   };
 
   const handlePymePinpadAnswer = async (needsPinpads) => {
+    // Salir del sub-flujo "suministrado por otro" al elegir Sí/No explícitos.
+    setSerialsByOther(false);
+    setSerialsProviderNote('');
+    setSerialsBankModal({ open: false, processor: null });
     setPymeNeedsPinpads(needsPinpads);
     if (!needsPinpads) {
       // No pinpads → avanzar a Impresora Fiscal (luego sigue al modal consolidado)
@@ -2988,6 +3005,43 @@ export const Quotes = () => {
   const handlePymePinpadConfirm = () => {
     // Tras confirmar pinpads → Impresora Fiscal → modal consolidado
     goToFiscalPrinterPhase();
+  };
+
+  // ── Sub-flujo: Seriales suministrados por un tercero ──
+  // Avanza el flujo sin seriales físicos, guardando la nota descriptiva que
+  // se inyectará en la Ficha Técnica del proyecto.
+  const proceedSerialsByOther = (note) => {
+    setSerialsProviderNote(note);
+    setPymeNeedsPinpads(false);
+    // Limpiar cualquier serial seleccionado previamente.
+    setPymePinpadSerials([]);
+    setPymePinpadSerialsSelected({});
+    setSerialsBankModal({ open: false, processor: null });
+    goToFiscalPrinterPhase();
+  };
+
+  const handleSerialsProvider = (kind) => {
+    if (kind === 'infra') {
+      proceedSerialsByOther('Los Seriales de los Equipos serán suplidos por Infraestructura');
+    } else if (kind === 'client') {
+      proceedSerialsByOther('Los Seriales de los Equipos serán suplidos por el Cliente');
+    } else if (kind === 'bank') {
+      setSerialsBankModal({ open: true, processor: null });
+    }
+  };
+
+  // Selección de banco (nivel 1). Si es Procesador → abre nivel 2 (bancos vinculados).
+  const handleSerialsBankSelect = (bank) => {
+    if (bank.type === 'Procesador') {
+      setSerialsBankModal({ open: true, processor: bank });
+    } else {
+      proceedSerialsByOther(`Los Seriales de los Equipos serán suplidos por ${bank.name}`);
+    }
+  };
+
+  // Selección del banco final vinculado a un Procesador (nivel 2).
+  const handleSerialsLinkedBankSelect = (proc, bank) => {
+    proceedSerialsByOther(`Los Seriales de los Equipos serán suplidos por ${proc.name} - ${bank.name} - `);
   };
 
   // Avanzar desde consolidado: cargar implementer heredado del cliente → fase confirm
@@ -3983,6 +4037,11 @@ export const Quotes = () => {
             pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
             pymePinpadLoading, handlePymeServerContinue, handlePymePinpadAnswer,
             handlePymePinpadModelSelect, handlePymePinpadConfirm,
+            // Sub-flujo: seriales suministrados por un tercero
+            banks,
+            serialsByOther, setSerialsByOther, serialsProviderNote,
+            serialsBankModal, setSerialsBankModal,
+            handleSerialsProvider, handleSerialsBankSelect, handleSerialsLinkedBankSelect,
             // Fiscal Printer phase
             fiscalPrinterFromClient, fiscalPrinterModel, setFiscalPrinterModel, handleFiscalPrinterContinue,
             projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,

@@ -10,7 +10,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
-import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users, Landmark } from 'lucide-react';
 import { useRef, useState } from 'react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
@@ -80,6 +80,11 @@ export const QuoteModals = ({ ctx }) => {
     pymePinpadSerials, pymePinpadSerialsSelected, setPymePinpadSerialsSelected,
     pymePinpadLoading, handlePymeServerContinue, handlePymePinpadAnswer,
     handlePymePinpadModelSelect, handlePymePinpadConfirm,
+    // Sub-flujo: seriales suministrados por un tercero
+    banks,
+    serialsByOther, setSerialsByOther, serialsProviderNote,
+    serialsBankModal, setSerialsBankModal,
+    handleSerialsProvider, handleSerialsBankSelect, handleSerialsLinkedBankSelect,
     // Fiscal Printer phase
     fiscalPrinterFromClient, fiscalPrinterModel, setFiscalPrinterModel, handleFiscalPrinterContinue,
     // Equipment phase
@@ -620,19 +625,52 @@ export const QuoteModals = ({ ctx }) => {
               {multistorePhase === 'pinpad_question' && (
                 <div className="space-y-4 py-2" data-testid="pyme-pinpad-question-phase">
                   <p className="text-sm text-slate-600 font-medium">¿La implementación requiere Pinpads?</p>
-                  <p className="text-xs text-slate-400">Si requiere dispositivos POS o Pinpad, seleccione "Sí" para vincular los seriales desde el inventario.</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <p className="text-xs text-slate-400">Seleccione cómo se proveerán los seriales de los equipos.</p>
+                  <div className="space-y-2.5">
+                    {/* Opción 1: Sí (carga inmediata desde inventario) */}
                     <button onClick={() => handlePymePinpadAnswer(true)}
-                      className="p-4 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-center"
+                      className="w-full p-3.5 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left"
                       data-testid="pinpad-yes-btn">
                       <p className="text-sm font-bold text-emerald-700">Sí</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Seleccionar modelo y seriales</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Dispongo de los seriales: seleccionar modelo y vincular desde inventario.</p>
                     </button>
+
+                    {/* Opción 2: Sí, pero los suministra un tercero */}
+                    <button onClick={() => setSerialsByOther(v => !v)}
+                      className={`w-full p-3.5 rounded-lg border-2 transition-all text-left ${serialsByOther ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-blue-400 hover:bg-blue-50'}`}
+                      data-testid="pinpad-yes-other-btn">
+                      <p className="text-sm font-bold text-blue-700">Sí, pero no dispongo de la información de los seriales</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Serán suministrados por otro (Infraestructura, cliente o un banco).</p>
+                    </button>
+
+                    {/* Sub-opciones del tercero proveedor */}
+                    {serialsByOther && (
+                      <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-2 py-1" data-testid="serials-provider-suboptions">
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">¿Quién suministrará los seriales?</p>
+                        <button onClick={() => handleSerialsProvider('infra')}
+                          className="w-full p-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all text-left text-sm font-medium text-slate-700"
+                          data-testid="serials-provider-infra-btn">
+                          Infraestructura Mega Soft
+                        </button>
+                        <button onClick={() => handleSerialsProvider('client')}
+                          className="w-full p-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all text-left text-sm font-medium text-slate-700"
+                          data-testid="serials-provider-client-btn">
+                          El cliente
+                        </button>
+                        <button onClick={() => handleSerialsProvider('bank')}
+                          className="w-full p-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all text-left text-sm font-medium text-slate-700"
+                          data-testid="serials-provider-bank-btn">
+                          Un Banco
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Opción 3: No */}
                     <button onClick={() => handlePymePinpadAnswer(false)}
-                      className="p-4 rounded-lg border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all text-center"
+                      className="w-full p-3.5 rounded-lg border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all text-left"
                       data-testid="pinpad-no-btn">
                       <p className="text-sm font-bold text-slate-700">No</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Continuar sin equipos</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Continuar sin equipos.</p>
                     </button>
                   </div>
                   <div className="pt-2 border-t flex items-center justify-between">
@@ -1044,6 +1082,85 @@ export const QuoteModals = ({ ctx }) => {
                   })()}
                 </div>
               )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Sub-modal jerárquico: Banco proveedor de seriales (Procesador → Banco) */}
+          <Dialog open={serialsBankModal.open} onOpenChange={(o) => !o && setSerialsBankModal({ open: false, processor: null })}>
+            <DialogContent className="max-w-md" data-testid="serials-bank-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Landmark size={18} className="text-indigo-600" />
+                  {serialsBankModal.processor ? 'Banco vinculado al Procesador' : 'Banco proveedor de seriales'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                {!serialsBankModal.processor ? (
+                  <>
+                    <p className="text-sm text-slate-600">
+                      Seleccione el banco o procesador que suministrará los seriales de los equipos.
+                    </p>
+                    <div className="space-y-1.5 max-h-[340px] overflow-y-auto" data-testid="serials-bank-list">
+                      {(banks || []).map((b) => (
+                        <button
+                          key={b.bank_id}
+                          type="button"
+                          onClick={() => handleSerialsBankSelect(b)}
+                          className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                          data-testid={`serials-bank-${b.bank_id}`}
+                        >
+                          <span>{b.name}</span>
+                          <span className="text-[10px] text-slate-400">{b.type}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600">
+                      <strong>{serialsBankModal.processor.name}</strong> es un <strong>Procesador</strong>.
+                      Seleccione el banco final que operará la transacción.
+                    </p>
+                    {(() => {
+                      const linked = (banks || []).filter((b) => b.type !== 'Procesador' && b.procesador === serialsBankModal.processor.name);
+                      if (linked.length === 0) {
+                        return (
+                          <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="serials-bank-linked-empty">
+                            No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
+                            (campo &quot;Procesador&quot;) en el maestro de Bancos.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5 max-h-[320px] overflow-y-auto" data-testid="serials-bank-linked-list">
+                          {linked.map((b) => (
+                            <button
+                              key={b.bank_id}
+                              type="button"
+                              onClick={() => handleSerialsLinkedBankSelect(serialsBankModal.processor, b)}
+                              className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                              data-testid={`serials-bank-linked-${b.bank_id}`}
+                            >
+                              <span>{b.name}</span>
+                              <span className="text-[10px] text-slate-400">{b.type}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+                <div className="flex justify-between pt-1">
+                  {serialsBankModal.processor ? (
+                    <Button variant="outline" size="sm" onClick={() => setSerialsBankModal({ open: true, processor: null })} data-testid="serials-bank-back-btn">
+                      Atrás
+                    </Button>
+                  ) : <span />}
+                  <Button variant="outline" size="sm" onClick={() => setSerialsBankModal({ open: false, processor: null })} data-testid="serials-bank-cancel-btn">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
     </>
