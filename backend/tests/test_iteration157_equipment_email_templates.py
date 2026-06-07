@@ -13,7 +13,7 @@ import requests
 import os
 import json
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quote-wizard-homolog.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pinpad-processor-fix.preview.emergentagent.com').rstrip('/')
 
 # Expected equipment template IDs
 EXPECTED_EQUIPMENT_TEMPLATES = [
