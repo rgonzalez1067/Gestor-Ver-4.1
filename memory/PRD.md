@@ -3219,3 +3219,16 @@ Lint OK (JS). Backend sin cambios (reusa `/inbox/me/summary`).
 - Vista compuesta "Procesador — Banco" (orden confirmado por usuario): `ProjectDetail.jsx` (bloque "Detalle para Implementación", testid `sponsor-bank`) y PDF (`implementation_pdf.py`, fila "Patrocinador de Pinpads": "Procesador - Banco").
 - Incidencia B (Modelo de Pinpad): validado E2E que persiste y renderiza (PAX A920) en BD, UI y PDF.
 - Validado E2E: creación de proyecto directo PRY-2026-06-016-PRI → BD persiste sponsor_processor_name="Procesador Credicard"/sponsor_bank_name="Banco Mercantil"/pinpad_model="PAX A920"; UI muestra "Procesador Credicard — Banco Mercantil"; PDF muestra "Procesador Credicard - Banco Mercantil". Lint PY OK.
+
+**Reingeniería Modal "Enviar a Implementación" — Flujo condicional de provisión de seriales · 2026-06-07:**
+- Pantalla "¿La implementación requiere Pinpads?" ahora tiene 3 opciones (antes Sí/No): (1) Sí (carga inmediata de modelo+seriales desde inventario, sin cambios); (2) "Sí, pero no dispongo de la información de los seriales" (NUEVA, toggle que despliega sub-opciones); (3) No.
+- Sub-opciones de proveedor (opción 2): Infraestructura Mega Soft / El cliente / Un Banco. Cada una inyecta un texto en la Ficha Técnica (sección "C. Seriales de los Equipos", UI + PDF):
+  - Infraestructura → "Los Seriales de los Equipos serán suplidos por Infraestructura"
+  - Cliente → "Los Seriales de los Equipos serán suplidos por el Cliente"
+  - Banco directo → "Los Seriales de los Equipos serán suplidos por [Banco]"
+  - Procesador+Banco → "Los Seriales de los Equipos serán suplidos por [Procesador] - [Banco] - " (formato opción 'a' confirmado por usuario, con guion-espacio final)
+- "Un Banco" abre sub-modal relacional jerárquico (Procesador → Banco vinculado), reutilizando la lógica de bancos patrocinantes (bank.type==='Procesador' dispara nivel 2 con bancos donde b.procesador===nombre).
+- Backend: `SendToImplementationRequest.serials_provider_note` (quote_actions.py); se propaga a `quote_for_project` y se persiste en el doc del proyecto vía `_create_project_from_quote` (quote_transitions.py, campo `serials_provider_note`). PDF (`implementation_pdf.py`): rama elif imprime la nota cuando no hay seriales físicos.
+- Frontend: estado/handlers en Quotes.jsx (serialsByOther/serialsProviderNote/serialsBankModal, proceedSerialsByOther, handleSerialsProvider, handleSerialsBankSelect, handleSerialsLinkedBankSelect); UI en QuoteModals.jsx (fase pinpad_question + sub-modal serials-bank-modal); nota en ProjectDetail.jsx (serials-provider-note-section).
+- Validado: BACKEND pytest 3/3 (persistencia exacta + regresión sin nota + /api/banks expone Procesadores); PDF render OK; UI E2E confirmada por Playwright (3 opciones, sub-opciones toggle, sub-modal banco, nivel 2 Procesador "Consorcio CrediCard"→bancos vinculados). Test: /app/backend/tests/test_iteration194_serials_provider_note.py.
+- Pendiente menor (no bloqueante): warnings a11y Radix (DialogDescription) y 10 warnings eslint react/no-unescaped-entities PREEXISTENTES (comillas en "Sí") no relacionados.
