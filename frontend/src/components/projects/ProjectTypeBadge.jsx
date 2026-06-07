@@ -16,7 +16,7 @@ const TYPE_CONFIG = {
     className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   },
   GATEWAY: {
-    label: 'Payment',
+    label: 'Payment Gateway',
     icon: Globe,
     className: 'bg-purple-100 text-purple-800 border-purple-200',
   },
@@ -26,6 +26,9 @@ const TYPE_CONFIG = {
     className: 'bg-slate-100 text-slate-700 border-slate-200',
   },
 };
+
+// Normaliza variantes del backend a las claves canónicas del catálogo.
+const TYPE_ALIASES = { LINK_PAGO: 'LINK', LINK: 'LINK', FAST_TRACK: 'MPOS' };
 
 const FALLBACK = {
   label: '—',
@@ -40,7 +43,8 @@ const FALLBACK = {
  * @param {boolean} compact   true → solo texto, sin icono
  */
 export function ProjectTypeBadge({ quoteType, size = 'sm', compact = false }) {
-  const cfg = TYPE_CONFIG[(quoteType || '').toUpperCase()] || FALLBACK;
+  const key = (quoteType || '').toUpperCase();
+  const cfg = TYPE_CONFIG[TYPE_ALIASES[key] || key] || FALLBACK;
   const Icon = cfg.icon;
   const sizeClasses = size === 'xs'
     ? 'px-1.5 py-0.5 text-[10px]'

@@ -19,7 +19,7 @@ import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -52,6 +52,22 @@ const getPatrocinadorLabel = (p) => {
   return proc ? `${proc} — ${p.sponsoring_bank_name}` : p.sponsoring_bank_name;
 };
 
+// Normaliza el quote_type heredado a las 4 categorías canónicas para el filtro.
+const normalizeProjectType = (qt) => {
+  const t = (qt || '').toUpperCase();
+  if (t === 'LINK_PAGO' || t === 'LINK') return 'LINK';
+  if (t === 'FAST_TRACK') return 'MPOS';
+  return t; // VPOS | MPOS | GATEWAY
+};
+
+// Opciones del filtro "Tipo de Proyecto" (label legible → valor canónico).
+const PROJECT_TYPE_FILTERS = [
+  { value: 'VPOS', label: 'VPOS' },
+  { value: 'MPOS', label: 'MPOS' },
+  { value: 'GATEWAY', label: 'Payment Gateway' },
+  { value: 'LINK', label: 'Link de Pago' },
+];
+
 const Projects = () => {
   const { canEdit, user: currentUser } = usePermission('proyectos');
   // Coord/Gerente/Admin → acciones gerenciales (reasignación masiva + compromisos)
@@ -68,6 +84,7 @@ const Projects = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'VPOS' | 'MPOS' | 'GATEWAY' | 'LINK'
   const [sponsorFilter, setSponsorFilter] = useState('all');
   const [sponsorPickerOpen, setSponsorPickerOpen] = useState(false);
   const [sponsorSearch, setSponsorSearch] = useState('');
@@ -203,7 +220,8 @@ const Projects = () => {
       : sponsorFilter === '__none__'
         ? !sponsorLabel
         : sponsorLabel === sponsorFilter;
-    return matchSearch && matchStatus && matchSponsor;
+    const matchType = typeFilter === 'all' ? true : normalizeProjectType(p.quote_type) === typeFilter;
+    return matchSearch && matchStatus && matchSponsor && matchType;
   });
 
   // Lista de patrocinadores distintos (para el dropdown del filtro).
@@ -301,6 +319,21 @@ const Projects = () => {
                   <SelectItem value="all">Todos los estados</SelectItem>
                   {Object.keys(STATUS_CONFIG).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   <SelectItem value="irregular">Proceso Irregular</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Filtro por Tipo de Proyecto (heredado del Tipo de Cotización origen) */}
+            <div className="flex items-center gap-2">
+              <CreditCard size={16} className="text-slate-400" />
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className={`w-[190px] ${typeFilter !== 'all' ? 'border-indigo-400 text-indigo-700' : ''}`} data-testid="project-type-filter">
+                  <SelectValue placeholder="Todos los tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="project-type-option-all">Todos los tipos</SelectItem>
+                  {PROJECT_TYPE_FILTERS.map(t => (
+                    <SelectItem key={t.value} value={t.value} data-testid={`project-type-option-${t.value.toLowerCase()}`}>{t.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -501,7 +534,15 @@ const Projects = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <ProjectTypeBadge quoteType={project.quote_type} />
+                          <button
+                            type="button"
+                            onClick={() => setTypeFilter(prev => prev === normalizeProjectType(project.quote_type) ? 'all' : normalizeProjectType(project.quote_type))}
+                            title="Filtrar por este tipo de proyecto"
+                            className="cursor-pointer hover:opacity-80 transition-opacity"
+                            data-testid={`project-type-chip-${project.project_id}`}
+                          >
+                            <ProjectTypeBadge quoteType={project.quote_type} />
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">{project.client_sede || '—'}</td>
                         <td className="px-4 py-3">
