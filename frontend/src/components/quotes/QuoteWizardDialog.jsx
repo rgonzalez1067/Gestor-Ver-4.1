@@ -3,7 +3,7 @@
  * Extraído de Quotes.jsx para reducir el tamaño del archivo principal.
  * Recibe un objeto `ctx` con todas las variables y funciones necesarias del padre.
  */
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { ProcessorLinkBankModal } from '../shared/ProcessorLinkBankModal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
@@ -233,6 +233,9 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </span>
                   )}
                 </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Asistente para crear o editar una cotización: complete los datos del cliente, productos y condiciones comerciales.
+                </DialogDescription>
                 {isEditing && (
                   <p className="text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mt-2">
                     Está editando una cotización existente. Al guardar se creará una nueva versión con número correlativo diferente.
