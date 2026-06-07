@@ -69,6 +69,8 @@ export const QuoteWizardDialog = ({ ctx }) => {
   // Patrocinio relacional: sub-modal de asociación Procesador → Banco.
   // Se abre cuando en "Banco Patrocinante" se elige una entidad tipo Procesador.
   const [processorModal, setProcessorModal] = useState({ open: false, processor: null });
+  // Patrocinio relacional de Pinpads: sub-modal análogo para "Entidad Patrocinadora".
+  const [pinpadProcessorModal, setPinpadProcessorModal] = useState({ open: false, processor: null });
 
   // Resuelve la selección de "Banco Patrocinante":
   //  - Si es Procesador → abre el sub-modal para designar el banco vinculado.
@@ -165,6 +167,45 @@ export const QuoteWizardDialog = ({ ctx }) => {
   // Banco actualmente seleccionado como patrocinante (para mostrar etiqueta compuesta).
   const _processorLinkedBanks = processorModal.processor
     ? (banks || []).filter(b => b.type !== 'Procesador' && b.procesador === processorModal.processor.name)
+    : [];
+
+  // ── Entidad Patrocinadora de los Pinpads: misma lógica relacional Procesador → Banco ──
+  // Si la entidad elegida es un Procesador → abre el sub-modal para designar el banco
+  // vinculado. Si es banco tradicional (o "Sin Entidad") → guarda directo y limpia procesador.
+  const handlePinpadSponsorBankSelect = (value) => {
+    const sel = (banks || []).find(b => b.bank_id === value);
+    // Mantener limpieza de equipos Fast Track al cambiar de patrocinador.
+    if (isFastTrackType) {
+      const isMega = sel?.name?.toLowerCase().includes('mega soft') || sel?.name?.toLowerCase().includes('megasoft');
+      if (!isMega) setFtEquipmentItems([]);
+    }
+    if (sel && sel.type === 'Procesador') {
+      setPinpadProcessorModal({ open: true, processor: sel });
+      return; // espera la elección del banco vinculado en el sub-modal
+    }
+    setQuoteData({
+      ...quoteData,
+      sponsor_bank_id: value,
+      sponsor_bank_name: sel?.name || '',
+      sponsor_processor_id: '',
+      sponsor_processor_name: '',
+    });
+  };
+
+  const handlePinpadProcessorLinkedBankSelect = (bank) => {
+    const proc = pinpadProcessorModal.processor;
+    setQuoteData({
+      ...quoteData,
+      sponsor_bank_id: bank.bank_id,
+      sponsor_bank_name: bank.name,
+      sponsor_processor_id: proc?.bank_id || '',
+      sponsor_processor_name: proc?.name || '',
+    });
+    setPinpadProcessorModal({ open: false, processor: null });
+  };
+
+  const _pinpadProcessorLinkedBanks = pinpadProcessorModal.processor
+    ? (banks || []).filter(b => b.type !== 'Procesador' && b.procesador === pinpadProcessorModal.processor.name)
     : [];
 
   return (
@@ -848,15 +889,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </Label>
                     <Select 
                       value={quoteData.sponsor_bank_id} 
-                      onValueChange={(value) => {
-                        setQuoteData({ ...quoteData, sponsor_bank_id: value });
-                        // Si es Fast Track y cambia de patrocinador, limpiar equipos si no es Mega Soft
-                        if (isFastTrackType) {
-                          const bank = banks.find(b => b.bank_id === value);
-                          const isMega = bank?.name?.toLowerCase().includes('mega soft') || bank?.name?.toLowerCase().includes('megasoft');
-                          if (!isMega) setFtEquipmentItems([]);
-                        }
-                      }}
+                      onValueChange={handlePinpadSponsorBankSelect}
                     >
                       <SelectTrigger data-testid="select-sponsor-bank">
                         <SelectValue placeholder="Seleccione entidad..." />
@@ -870,6 +903,11 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {quoteData.sponsor_processor_name && quoteData.sponsor_bank_name && (
+                      <p className="mt-1.5 text-xs text-indigo-600 font-medium" data-testid="pinpad-sponsor-compound-label">
+                        Patrocinador: {quoteData.sponsor_processor_name} — {quoteData.sponsor_bank_name}
+                      </p>
+                    )}
                   </div>
                   )}
                 </div>
@@ -2270,7 +2308,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                 {_processorLinkedBanks.length === 0 ? (
                   <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="processor-link-empty">
                     No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
-                    (campo "Procesador") en el maestro de Bancos.
+                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
@@ -2290,6 +2328,50 @@ export const QuoteWizardDialog = ({ ctx }) => {
                 )}
                 <div className="flex justify-end pt-1">
                   <Button variant="outline" size="sm" onClick={() => setProcessorModal({ open: false, processor: null })} data-testid="processor-link-cancel">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Sub-modal de Asociación para Entidad Patrocinadora de Pinpads: Procesador → Banco vinculado */}
+          <Dialog open={pinpadProcessorModal.open} onOpenChange={(o) => !o && setPinpadProcessorModal({ open: false, processor: null })}>
+            <DialogContent className="max-w-md" data-testid="pinpad-processor-link-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Landmark size={18} className="text-indigo-600" />
+                  Banco vinculado al Procesador
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">
+                  La entidad patrocinadora de Pinpads <strong>{pinpadProcessorModal.processor?.name}</strong> es un <strong>Procesador</strong>.
+                  Seleccione el banco que operará la transacción para consolidar el patrocinio del equipo.
+                </p>
+                {_pinpadProcessorLinkedBanks.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-amber-700 bg-amber-50 rounded-lg" data-testid="pinpad-processor-link-empty">
+                    No hay bancos asociados a este procesador. Vincúlelos desde la ficha del banco
+                    (campo &quot;Procesador&quot;) en el maestro de Bancos.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+                    {_pinpadProcessorLinkedBanks.map((b) => (
+                      <button
+                        key={b.bank_id}
+                        type="button"
+                        onClick={() => handlePinpadProcessorLinkedBankSelect(b)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg border-2 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/60 transition-all text-sm font-medium text-slate-700 flex items-center justify-between"
+                        data-testid={`pinpad-processor-linked-bank-${b.bank_id}`}
+                      >
+                        <span>{b.name}</span>
+                        <span className="text-[10px] text-slate-400">{b.type}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end pt-1">
+                  <Button variant="outline" size="sm" onClick={() => setPinpadProcessorModal({ open: false, processor: null })} data-testid="pinpad-processor-link-cancel">
                     Cancelar
                   </Button>
                 </div>

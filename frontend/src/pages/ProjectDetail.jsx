@@ -973,13 +973,22 @@ const ProjectDetail = () => {
               {/* Bloque 1: Datos del Proyecto */}
               <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Datos del Proyecto</p>
-                {project.project_type_impl && (
+                {(project.quote_type || project.project_type_impl) && (
                   <div>
                     <p className="text-xs text-slate-500">Tipo de Proyecto</p>
                     <p className="text-sm font-semibold text-slate-700" data-testid="project-type-impl">
-                      {project.project_type_impl === 'pos_fast_track' ? 'POS Stand Alone / Fast Track' :
-                       project.project_type_impl === 'vpos_mpos' ? 'VPOS / MPOS' :
-                       project.project_type_impl === 'payment_gateway' ? 'Pasarela de Pago' : project.project_type_impl}
+                      {(() => {
+                        // Heredado obligatoriamente del "Tipo de Cotización" origen.
+                        const qt = (project.quote_type || '').toUpperCase();
+                        if (qt === 'VPOS') return 'VPOS';
+                        if (qt === 'MPOS' || qt === 'FAST_TRACK') return 'MPOS';
+                        if (qt === 'GATEWAY') return 'Payment Gateway';
+                        if (qt === 'LINK_PAGO' || qt === 'LINK') return 'Link de Pago';
+                        // Fallback legacy al project_type_impl si no hay quote_type mapeable.
+                        return project.project_type_impl === 'pos_fast_track' ? 'MPOS' :
+                               project.project_type_impl === 'vpos_mpos' ? 'VPOS' :
+                               project.project_type_impl === 'payment_gateway' ? 'Payment Gateway' : (project.project_type_impl || qt || '—');
+                      })()}
                     </p>
                   </div>
                 )}

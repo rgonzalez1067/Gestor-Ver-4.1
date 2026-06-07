@@ -80,6 +80,8 @@ async def create_quote(quote_data: QuoteCreate, authorization: Optional[str] = H
         pinpad_model=quote_data.pinpad_model,
         sponsor_bank_id=quote_data.sponsor_bank_id,
         sponsor_bank_name=quote_data.sponsor_bank_name,
+        sponsor_processor_id=quote_data.sponsor_processor_id,
+        sponsor_processor_name=quote_data.sponsor_processor_name,
         cantidad_cajas=quote_data.cantidad_cajas,
         cantidad_bancos=quote_data.cantidad_bancos,
         pg_setup_items=quote_data.pg_setup_items,
@@ -122,6 +124,9 @@ class QuoteCreateWithPDF(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional del Pinpad vía Procesador (Procesador → Banco final)
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
     # Implementación Patrocinada (banco que asume el costo de implementación)
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
@@ -366,6 +371,8 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
             pinpad_model=data.pinpad_model,
             sponsor_bank_id=data.sponsor_bank_id,
             sponsor_bank_name=data.sponsor_bank_name,
+            sponsor_processor_id=data.sponsor_processor_id,
+            sponsor_processor_name=data.sponsor_processor_name,
             sponsored_implementation=bool(data.sponsored_implementation),
             sponsoring_bank_id=data.sponsoring_bank_id if data.sponsored_implementation else None,
             sponsoring_bank_name=data.sponsoring_bank_name if data.sponsored_implementation else None,
@@ -805,6 +812,9 @@ class QuoteUpdate(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional del Pinpad vía Procesador (Procesador → Banco final)
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
     # Implementación Patrocinada
     sponsored_implementation: Optional[bool] = None
     sponsoring_bank_id: Optional[str] = None
@@ -1137,7 +1147,9 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
     if data.pinpad_model:
         info_data.append(["Modelo de Pinpad:", data.pinpad_model])
     if data.sponsor_bank_name:
-        info_data.append(["Entidad Patrocinadora:", data.sponsor_bank_name])
+        _pp_proc = (getattr(data, "sponsor_processor_name", "") or "").strip()
+        _pp_label = f"{_pp_proc} - {data.sponsor_bank_name}" if _pp_proc else data.sponsor_bank_name
+        info_data.append(["Entidad Patrocinadora:", _pp_label])
     
     info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
     info_table.setStyle(TableStyle([

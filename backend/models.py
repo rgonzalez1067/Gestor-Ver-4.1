@@ -510,6 +510,9 @@ class QuoteCreate(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional del Pinpad vía Procesador (Procesador → Banco final)
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
     # Implementación Patrocinada (banco que asume costo de implementación)
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
@@ -617,6 +620,9 @@ class Quote(BaseModel):
     pinpad_model: Optional[str] = None
     sponsor_bank_id: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional del Pinpad vía Procesador (Procesador → Banco final)
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
     # Implementación Patrocinada (banco que asume costo de implementación)
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
@@ -766,6 +772,9 @@ class Project(BaseModel):
     integrator_app_name: Optional[str] = None
     pinpad_model: Optional[str] = None
     sponsor_bank_name: Optional[str] = None
+    # Patrocinio relacional del Pinpad vía Procesador (heredado): Procesador → Banco final.
+    sponsor_processor_id: Optional[str] = None
+    sponsor_processor_name: Optional[str] = None
     # Implementación Patrocinada (heredado desde la cotización)
     sponsored_implementation: Optional[bool] = False
     sponsoring_bank_id: Optional[str] = None
@@ -817,6 +826,7 @@ class QuotePDFRequest(BaseModel):
     integrator_app_name: str = ""
     pinpad_model: str = ""
     sponsor_bank_name: str = ""
+    sponsor_processor_name: str = ""
     setup_items: List[QuotePDFItem] = []
     recurring_basic_items: List[QuotePDFItem] = []
     recurring_other_items: List[QuotePDFItem] = []
