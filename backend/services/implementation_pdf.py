@@ -138,12 +138,20 @@ def generate_implementation_pdf(quote: dict, client: dict, contacts: list, branc
     elements.append(_section_banner("A. IDENTIFICACION DEL PROYECTO", styles))
     elements.append(Spacer(1, 6))
 
+    # Mapeo estandarizado del Tipo de Proyecto (valores separados por tipo).
+    # "VPOS / MPOS" NO es un tipo de proyecto: cada tipo se muestra por separado.
+    #   VPOS              -> VPOS
+    #   MPOS / FAST_TRACK -> MPOS  (MPOS Imple+POS se consolida en MPOS)
+    #   GATEWAY           -> Payment Gateway
+    #   LINK_PAGO / LINK  -> Link de Pago
+    #   VPOS_MPOS (legacy)-> VPOS  (consistente con la Sección A de la UI)
     quote_type = quote.get('quote_type', 'N/A')
+    qt_upper = (quote_type or '').upper()
     tipo_display = (
-        'VPOS / MPOS' if quote_type in ('VPOS_MPOS', 'VPOS')
-        else 'Payment Gateway' if quote_type == 'GATEWAY'
-        else 'Link de Pago' if quote_type == 'LINK_PAGO'
-        else 'MPOS (Imple + POS)' if quote_type == 'FAST_TRACK'
+        'VPOS' if qt_upper in ('VPOS', 'VPOS_MPOS')
+        else 'MPOS' if qt_upper in ('MPOS', 'FAST_TRACK')
+        else 'Payment Gateway' if qt_upper == 'GATEWAY'
+        else 'Link de Pago' if qt_upper in ('LINK_PAGO', 'LINK')
         else quote_type
     )
 

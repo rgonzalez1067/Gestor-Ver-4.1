@@ -10,6 +10,7 @@ import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Checkbox } from '../components/ui/checkbox';
 import { ProcessorLinkBankModal } from '../components/shared/ProcessorLinkBankModal';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -213,7 +214,7 @@ export default function DirectProjectCreation() {
     pinpad_serials: [],
     is_multistore: false,
     stores: [],
-    boxes_grid: [{ quantity: 1, bank_name: '', product_name: '', store_name: '' }],
+    boxes_grid: [],
     implementation_instructions: '',
   };
   const [form, setForm] = useState(INITIAL_FORM);
@@ -281,22 +282,58 @@ export default function DirectProjectCreation() {
       return { ...f, boxes_grid: next };
     });
   };
-  const addBoxRow = () => set({ boxes_grid: [...form.boxes_grid, { quantity: 1, bank_name: '', product_name: '', store_name: '' }] });
   const removeBoxRow = (idx) => set({ boxes_grid: form.boxes_grid.filter((_, i) => i !== idx) });
+
+  /* ---- Reel de Distribución: selección múltiple de productos por banco ---- */
+  const [reelBank, setReelBank] = useState('');
+  const [reelChecked, setReelChecked] = useState({}); // { product_name: true }
+
+  const reelBankProducts = useMemo(() => {
+    if (!reelBank) return [];
+    const bank = banks.find((b) => b.name === reelBank);
+    if (!bank || !Array.isArray(bank.products)) return [];
+    const availField = AVAIL_FIELD(form.quote_type);
+    return bank.products.filter((p) => !!p[availField]);
+  }, [reelBank, banks, form.quote_type]);
+
+  const selectReelBank = (name) => {
+    setReelBank(name);
+    setReelChecked({});
+  };
+  const toggleReelProduct = (productName) => {
+    setReelChecked((prev) => ({ ...prev, [productName]: !prev[productName] }));
+  };
+  const reelSelectedCount = useMemo(
+    () => Object.values(reelChecked).filter(Boolean).length,
+    [reelChecked]
+  );
+
+  // Agrega al Reel todos los productos marcados del banco actual (selección múltiple).
+  // Si un par banco+producto ya existe en la grilla, suma 1 a su cantidad (merge).
+  const addSelectedProductsToReel = () => {
+    const chosen = reelBankProducts.filter((p) => reelChecked[p.product_name]);
+    if (!reelBank) { toast.error('Selecciona un banco primero'); return; }
+    if (chosen.length === 0) { toast.error('Marca al menos un producto'); return; }
+    setForm((f) => {
+      const next = [...f.boxes_grid];
+      chosen.forEach((p) => {
+        const existing = next.find((b) => b.bank_name === reelBank && b.product_name === p.product_name && !b.store_name);
+        if (existing) {
+          existing.quantity = (parseInt(existing.quantity) || 0) + 1;
+        } else {
+          next.push({ quantity: 1, bank_name: reelBank, product_name: p.product_name, store_name: '' });
+        }
+      });
+      return { ...f, boxes_grid: next };
+    });
+    toast.success(`${chosen.length} producto(s) agregado(s) al Reel (${reelBank})`);
+    setReelChecked({});
+  };
 
   const totalBoxesInGrid = useMemo(
     () => form.boxes_grid.reduce((acc, b) => acc + (parseInt(b.quantity) || 0), 0),
     [form.boxes_grid]
   );
-
-  /* Productos disponibles para una fila según banco seleccionado + tipo de proyecto */
-  const productsForBank = (bankName) => {
-    if (!bankName) return [];
-    const bank = banks.find((b) => b.name === bankName);
-    if (!bank || !Array.isArray(bank.products)) return [];
-    const availField = AVAIL_FIELD(form.quote_type);
-    return bank.products.filter((p) => !!p[availField]);
-  };
 
   /* Multitienda */
   const addStore = () => set({ stores: [...form.stores, { name: '', box_count: 1 }] });
@@ -428,6 +465,13 @@ export default function DirectProjectCreation() {
     try {
       const payload = { ...form, cantidad_cajas: Number(form.cantidad_cajas) };
       delete payload.equipment_serials;
+      // Modelo de Pinpad: cada serial (cargado por Excel, lote o manual) hereda
+      // el "Modelo Pinpad" general del proyecto cuando su fila no trae modelo,
+      // para que la Matriz de Seriales de la Ficha Técnica muestre el equipo.
+      payload.pinpad_serials = (form.pinpad_serials || []).map((s) => ({
+        ...s,
+        modelo: (s.modelo && String(s.modelo).trim()) ? s.modelo : (form.pinpad_model || ''),
+      }));
       // Resolver Servidor de Instalación: si es "Otra" se envía el texto libre.
       payload.server_name = form.server_name === 'Otra'
         ? (form.server_name_custom || '').trim()
@@ -572,7 +616,7 @@ export default function DirectProjectCreation() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Tipo de Proyecto *</Label>
-              <Select value={form.quote_type} onValueChange={(v) => set({ quote_type: v, boxes_grid: form.boxes_grid.map((b) => ({ ...b, product_name: '' })) })}>
+              <Select value={form.quote_type} onValueChange={(v) => { set({ quote_type: v, boxes_grid: [] }); setReelBank(''); setReelChecked({}); }}>
                 <SelectTrigger className="h-10" data-testid="dp-quote-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {QUOTE_TYPES.map((qt) => <SelectItem key={qt.id} value={qt.id}>{qt.label}</SelectItem>)}
@@ -915,7 +959,64 @@ export default function DirectProjectCreation() {
             </p>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+          {/* Selector por banco + selección múltiple de productos (estilo Cotizador) */}
+          <div className="border border-amber-200 rounded-md p-3 bg-amber-50/40 space-y-3" data-testid="dp-reel-selector">
+            <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3 items-start">
+              <div>
+                <Label className="text-xs text-amber-900">Banco</Label>
+                <Select value={reelBank} onValueChange={selectReelBank}>
+                  <SelectTrigger className="h-9 mt-1 bg-white" data-testid="dp-reel-bank-select">
+                    <SelectValue placeholder="Selecciona un banco..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {banks.map((bk) => <SelectItem key={bk.bank_id} value={bk.name}>{bk.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-amber-900">
+                  Productos disponibles {reelBank && <span className="text-amber-600">· {reelBankProducts.length}</span>}
+                </Label>
+                {!reelBank ? (
+                  <p className="text-xs text-slate-400 italic mt-2">Elige un banco para ver sus productos.</p>
+                ) : reelBankProducts.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic mt-2">Este banco no tiene productos disponibles para el tipo de proyecto seleccionado.</p>
+                ) : (
+                  <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-1" data-testid="dp-reel-products">
+                    {reelBankProducts.map((p) => (
+                      <label
+                        key={p.product_name}
+                        className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-2.5 py-1.5 cursor-pointer hover:bg-amber-50 transition-colors"
+                        data-testid={`dp-reel-product-${p.product_name}`}
+                      >
+                        <Checkbox
+                          checked={!!reelChecked[p.product_name]}
+                          onCheckedChange={() => toggleReelProduct(p.product_name)}
+                          data-testid={`dp-reel-check-${p.product_name}`}
+                        />
+                        <span className="text-xs text-slate-700">{p.product_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-amber-800/80">{reelSelectedCount} producto(s) marcado(s)</p>
+              <Button
+                size="sm"
+                onClick={addSelectedProductsToReel}
+                disabled={!reelBank || reelSelectedCount === 0}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                data-testid="dp-reel-add-selected"
+              >
+                <Plus size={14} className="mr-1" /> Agregar al Reel
+              </Button>
+            </div>
+          </div>
+
+          {/* Grilla resultante del Reel */}
           <div className="border border-slate-200 rounded-md overflow-hidden bg-white">
             <table className="w-full text-sm" data-testid="dp-boxes-grid">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -929,66 +1030,50 @@ export default function DirectProjectCreation() {
                 </tr>
               </thead>
               <tbody>
-                {form.boxes_grid.map((b, i) => {
-                  const products = productsForBank(b.bank_name);
-                  return (
-                    <tr key={i} className="border-b border-slate-100" data-testid={`dp-box-row-${i}`}>
-                      <td className="px-3 py-1.5 text-slate-400 font-mono">{i + 1}</td>
+                {form.boxes_grid.length === 0 ? (
+                  <tr>
+                    <td colSpan={form.is_multistore ? 6 : 5} className="px-3 py-6 text-center text-xs text-slate-400 italic" data-testid="dp-reel-empty">
+                      El Reel está vacío. Selecciona un banco arriba y marca sus productos para agregarlos.
+                    </td>
+                  </tr>
+                ) : form.boxes_grid.map((b, i) => (
+                  <tr key={i} className="border-b border-slate-100" data-testid={`dp-box-row-${i}`}>
+                    <td className="px-3 py-1.5 text-slate-400 font-mono">{i + 1}</td>
+                    <td className="px-3 py-1.5">
+                      <Input
+                        type="number" min="1"
+                        value={b.quantity}
+                        onChange={(e) => updateBox(i, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="h-8 text-sm w-20"
+                        data-testid={`dp-box-${i}-quantity`}
+                      />
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <span className="text-sm text-slate-700 font-medium" data-testid={`dp-box-${i}-bank`}>{b.bank_name}</span>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <span className="text-sm text-slate-700" data-testid={`dp-box-${i}-product`}>{b.product_name}</span>
+                    </td>
+                    {form.is_multistore && (
                       <td className="px-3 py-1.5">
-                        <Input
-                          type="number" min="1"
-                          value={b.quantity}
-                          onChange={(e) => updateBox(i, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                          className="h-8 text-sm w-20"
-                          data-testid={`dp-box-${i}-quantity`}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <Select value={b.bank_name} onValueChange={(v) => updateBox(i, { bank_name: v })}>
-                          <SelectTrigger className="h-8 text-sm" data-testid={`dp-box-${i}-bank`}><SelectValue placeholder="Banco..." /></SelectTrigger>
+                        <Select value={b.store_name || ''} onValueChange={(v) => updateBox(i, { store_name: v })}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="(opcional)" /></SelectTrigger>
                           <SelectContent>
-                            {banks.map((bk) => <SelectItem key={bk.bank_id} value={bk.name}>{bk.name}</SelectItem>)}
+                            {form.stores
+                              .filter((s) => (s.name || '').trim())
+                              .map((s, si) => <SelectItem key={si} value={s.name}>{s.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-3 py-1.5">
-                        <Select
-                          value={b.product_name}
-                          onValueChange={(v) => updateBox(i, { product_name: v })}
-                          disabled={!b.bank_name || products.length === 0}
-                        >
-                          <SelectTrigger className="h-8 text-sm" data-testid={`dp-box-${i}-product`}>
-                            <SelectValue placeholder={!b.bank_name ? 'Elige banco primero' : (products.length === 0 ? 'Sin productos disponibles' : 'Producto...')} />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-60">
-                            {products.map((p) => (
-                              <SelectItem key={p.product_name} value={p.product_name}>{p.product_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      {form.is_multistore && (
-                        <td className="px-3 py-1.5">
-                          <Select value={b.store_name || ''} onValueChange={(v) => updateBox(i, { store_name: v })}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="(opcional)" /></SelectTrigger>
-                            <SelectContent>
-                              {form.stores
-                                .filter((s) => (s.name || '').trim())
-                                .map((s, si) => <SelectItem key={si} value={s.name}>{s.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                      )}
-                      <td className="px-3 py-1.5">
-                        <Button size="sm" variant="ghost" onClick={() => removeBoxRow(i)} className="text-red-600" disabled={form.boxes_grid.length === 1} data-testid={`dp-box-${i}-remove`}><Trash2 size={14} /></Button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    )}
+                    <td className="px-3 py-1.5">
+                      <Button size="sm" variant="ghost" onClick={() => removeBoxRow(i)} className="text-red-600" data-testid={`dp-box-${i}-remove`}><Trash2 size={14} /></Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          <Button variant="outline" size="sm" onClick={addBoxRow} data-testid="dp-add-box-row"><Plus size={14} className="mr-1" /> Agregar fila</Button>
         </CardContent>
       </Card>
 

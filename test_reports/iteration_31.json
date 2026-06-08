@@ -1,0 +1,49 @@
+{
+  "summary": "Iter31 — Validados los 3 cambios solicitados: (1) Mapeo Tipo de Proyecto en Ficha Técnica PDF (8/8 tests pytest verde, incluyendo regresión 'VPOS / MPOS' ausente para MPOS/FAST_TRACK). (2) Reel de Distribución de Cajas con UX tipo Cotizador: selector banco + checkboxes + 'Agregar al Reel' funciona — agregó 2 productos del Banco de Venezuela a la grilla en una sola operación. (3) Inyección de pinpad_model en seriales validada por code-review (DirectProjectCreation.jsx líneas 471-474: payload.pinpad_serials map con fallback a form.pinpad_model).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/direct-projects (preexisting, no relacionado a Iter31)", "issues": ["Hydration warning '<tr> child of <span>' por wrapper Emergent data-ve-dynamic — preexistente desde iter29/30."]}
+    ]
+  },
+  "test_scenarios_results": [
+    {"scenario": "PDF: quote_type='VPOS' → 'VPOS' (sin 'VPOS / MPOS')", "result": "PASS"},
+    {"scenario": "PDF: quote_type='MPOS' → 'MPOS' (sin 'VPOS / MPOS')", "result": "PASS"},
+    {"scenario": "PDF: quote_type='FAST_TRACK' → 'MPOS' (sin 'VPOS / MPOS')", "result": "PASS"},
+    {"scenario": "PDF: quote_type='GATEWAY' → 'Payment Gateway'", "result": "PASS"},
+    {"scenario": "PDF: quote_type='LINK_PAGO' → 'Link de Pago'", "result": "PASS"},
+    {"scenario": "PDF: quote_type='LINK' → 'Link de Pago'", "result": "PASS"},
+    {"scenario": "PDF: quote_type='VPOS_MPOS' legacy → 'VPOS'", "result": "PASS"},
+    {"scenario": "PDF: regresión MPOS no contiene 'VPOS / MPOS'", "result": "PASS"},
+    {"scenario": "Reel /direct-projects: grilla inicia vacía (dp-reel-empty visible)", "result": "PASS"},
+    {"scenario": "Reel: dp-reel-bank-select muestra 33 bancos", "result": "PASS"},
+    {"scenario": "Reel: tras elegir 'Banco de Venezuela' aparecen 5 productos con dp-reel-check-*", "result": "PASS"},
+    {"scenario": "Reel: marcar 2 checkboxes + 'Agregar al Reel' (dp-reel-add-selected) agrega 2 filas a dp-boxes-grid (dp-box-row-0, dp-box-row-1)", "result": "PASS"},
+    {"scenario": "Reel: botón Agregar queda disabled cuando hay 0 productos marcados", "result": "PASS"},
+    {"scenario": "Code-review: pinpad_model fallback en doSubmit (DirectProjectCreation.jsx:471-474) — cada serial sin modelo hereda form.pinpad_model antes del POST", "result": "PASS"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iter31_implementation_pdf_type_mapping.py",
+    "/app/test_reports/pytest/iter31_pdf_type.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "implementation_pdf.py:148-156 — mapeo limpio y bien comentado. Lógica determinística por upper(quote_type); LINK / LINK_PAGO consolidados; VPOS_MPOS legacy preservado.",
+    "DirectProjectCreation.jsx:471-474 — fallback de modelo bien implementado: usa form.pinpad_model cuando la fila viene vacía. Compatible con las 3 vías de carga (Excel, lote textarea, manual) porque todas pasan por form.pinpad_serials antes del POST.",
+    "DirectProjectCreation.jsx ya supera ~1200 líneas — considerar split a sub-componentes (HardwareCard, ReelCard, TechConfigCard) en un próximo ciclo (>700 lines guideline).",
+    "direct_projects.py:178-181 — validación de boxes_grid.length==0 retorna 400 con mensaje claro; alineado con la UX que ahora inicia el grid vacío.",
+    "Reel UX: el flujo cumple el requerimiento — 1 banco a la vez, multi-select por checkbox, merge automático de duplicados (banco+producto suma quantity). Sólido."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter31_implementation_pdf_type_mapping.py (nuevo)"
+  ],
+  "success_rate": { "backend": "100% (8/8 pytest)", "frontend": "100% (6/6 escenarios Reel)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — login OK",
+  "seed_data_creation": "Ninguna en DB. El test de PDF construye 'quote fantasma' en memoria.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter31 cierra los 3 ajustes (mapeo tipo PDF / pinpad_model inheritance / Reel UX tipo Cotizador) sin regresiones. Tests reutilizables en /app/backend/tests/test_iter31_implementation_pdf_type_mapping.py (parametrizados por quote_type). El POST /api/direct-projects con un proyecto real no se ejecutó end-to-end por economía de tokens, pero la lógica de fallback en JS (líneas 471-474) está validada por code-review y los seriales se envían al backend que solo persiste lo recibido (no hay sobreescritura). El warning de hydration sigue siendo preexistente.",
+  "rca of the issue": "n/a — validación de features nuevas, sin bugs detectados."
+}
