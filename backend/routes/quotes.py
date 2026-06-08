@@ -1830,7 +1830,7 @@ async def generate_equipment_quote_pdf(data: EquipmentQuotePDFRequest, authoriza
                     <tbody>{models_rows}</tbody>
                     <tfoot><tr style="background:#fef3c7">
                         <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e">Total</td>
-                        <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e;text-align:center">{total_units}</td>
+                        <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e;text-align:center">{_total_units}</td>
                         <td style="padding:6px 10px;font-weight:bold;font-size:12px;color:#92400e;text-align:center">{sum(len(m.serials) for m in data.repair_models)}</td>
                     </tr></tfoot>
                 </table>"""

@@ -1,0 +1,47 @@
+{
+  "summary": "Iter33 — Validados los DOS bugs críticos reportados en producción tras el fix de backend (quotes.py linea 1833: {total_units} → {_total_units}). (A) POST /api/quotes/generate-equipment-pdf con repair_models retorna 200 + application/pdf (1061KB) sin NameError. (B) POST /api/quotes/create-with-pdf con quote_type=GATEWAY crea exitosamente cotización COT-2026-06-026-PYME con PDF $250 setup ASTROCEL CELULARES + Banco de Venezuela + Tarjeta de Crédito. (C) Regresión: cotización Reparación legacy (bulk_serials, sin repair_models) también funciona 200 + PDF. UI smoke confirma: login admin OK, /quotes carga sin errores, los 3 botones (Implementaciones/Equipos/Reparaciones) presentes, EquipmentQuoteWizard se abre desde 'Reparaciones' con segment-badge=Pyme, QuoteWizardDialog se abre desde Implementaciones→Pymes con select-quote-type listando 'Payment Gateway' como opción seleccionable. Ningún 500 durante la navegación. En la tabla aparecen las cotizaciones recién creadas COT-2026-06-026/027/028/029-PYME confirmando persistencia end-to-end.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/quotes", "issues": ["Hydration warning <tr>/<span> child of <tbody> por wrapper <span data-ve-dynamic> de Emergent en QuotesTable — preexistente desde iter29, no afecta funcionalidad ni los flujos de creación."]}
+    ]
+  },
+  "test_scenarios_results": [
+    {"scenario": "Backend Login admin rgonzalez@megasoft.com.ve — session_token devuelto", "result": "PASS"},
+    {"scenario": "POST /api/quotes/generate-equipment-pdf con repair_models (Morefun R90 x2, Newland N910 x1) → 200 application/pdf magic %PDF, 1KB+", "result": "PASS"},
+    {"scenario": "POST /api/quotes/generate-equipment-pdf legacy (bulk_serials sin repair_models) → 200 application/pdf", "result": "PASS"},
+    {"scenario": "POST /api/quotes/create-with-pdf quote_type=GATEWAY con pg_setup_items[Banco Venezuela/Tarjeta Crédito $250] → 200 con quote.quote_id=quo_426b5828fff8, quote_number=COT-2026-06-026-PYME, quote_pdf_url presente", "result": "PASS"},
+    {"scenario": "UI /quotes carga con data-testid='quotes-page' visible, KPIs (138 totales, 35 aprobadas, 103 pendientes)", "result": "PASS"},
+    {"scenario": "Botones create-quote-button (Impl), create-equipment-quote-button, create-repair-quote-button presentes", "result": "PASS"},
+    {"scenario": "Click 'Reparaciones' abre EquipmentQuoteWizard con segment-badge=Pyme y equipment-select-client visible — sin errores en consola", "result": "PASS"},
+    {"scenario": "Click 'Implementaciones' → 'Clientes Pymes' abre QuoteWizardDialog con select-quote-type listando 'Payment Gateway' (entre otras: VPOS, MPOS, MPOS Imple+POS, Link de Pago)", "result": "PASS"},
+    {"scenario": "Seleccionar 'Payment Gateway' en select-quote-type sin errores 500 ni console", "result": "PASS"},
+    {"scenario": "Cero respuestas HTTP 5xx durante toda la navegación UI", "result": "PASS"}
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_quotes_critical_fix.py",
+    "/app/test_reports/pytest/iter33_quotes.xml"
+  ],
+  "action_items": [
+    "Limpieza opcional en MongoDB: borrar cotizaciones de prueba creadas — COT-2026-06-026-PYME (quo_426b5828fff8, PG ASTROCEL Banco de Venezuela $250) además de cualquier COT-2026-06-02{7,8,9}-PYME ASTROCEL generadas por curl previo del agente principal."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/quotes.py:1833 — fix confirmado: f-string usa {_total_units} (variable correcta del scope), eliminando el NameError que rompía /generate-equipment-pdf para repair_models. Bloque legacy (else: bulk_serials/equipment_serial_number) intacto y funcional.",
+    "backend/routes/quotes.py:165-310 — /quotes/create-with-pdf rama GATEWAY (line 185-187, 260+) opera con pg_setup_items en formato dict, calcula subtotal_usd con item.get('costo',0); el PDF se genera vía DynamicQuotePDFGenerator y se hace append de páginas estáticas PG — flujo idempotente, retorna {quote, pdf_url, message}.",
+    "frontend/src/components/EquipmentQuoteWizard.jsx — el catch 'Error al generar la cotización. Verifique su conexión.' es genérico; sería útil exponer detail del backend (e.g., await response.text()) para acelerar el RCA de futuros 500. No bloqueante.",
+    "frontend/src/pages/Quotes.jsx:1589 handleSubmitPGQuote — mismo patrón: catch muestra 'Error al crear cotización Payment Gateway' sin detail. Recomendable incluir response.text() o status en el toast en modo dev.",
+    "Tamaño backend/routes/quotes.py = 2355 líneas — supera el umbral de 700 líneas; considerar split en sub-routers (equipment_pdf, gateway, repair, common) para reducir blast radius de bugs como el del NameError."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_quotes_critical_fix.py (creado — 3 pytest cases regresivos)"
+  ],
+  "success_rate": { "backend": "100% (3/3 pytest)", "frontend": "100% (10/10 smoke scenarios)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — OK (session_token)",
+  "seed_data_creation": "Creada COT-2026-06-026-PYME (quo_426b5828fff8) Payment Gateway ASTROCEL CELULARES C.A. + Banco de Venezuela + Tarjeta Crédito $250 — limpieza opcional.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter33 confirma cierre de los 2 bugs P0 reportados en producción: el fix de NameError en quotes.py:1833 ({_total_units}) eliminó el 500 que rompía /generate-equipment-pdf cuando había repair_models, y consecuentemente desbloqueó tanto el flujo de Reparaciones como evidenció que el flujo Payment Gateway nunca tuvo bug propio en este preview (probablemente el error en producción era colateral o ya resuelto). Selectors confirmados para futuros tests UI: create-repair-quote-button, create-quote-button (dropdown Implementaciones), new-impl-pyme, new-impl-corp, select-quote-type, select-client, equipment-select-client, equipment-segment-badge. Para tests E2E del flujo PG completo vía UI se necesitarían selectors adicionales en QuoteWizardDialog para añadir pg_setup_items (banco/medio de pago) y submit final — actualmente cubierto a nivel API. Test suite regresivo persistente: /app/backend/tests/test_quotes_critical_fix.py.",
+  "rca of the issue": "BUG: en backend/routes/quotes.py la f-string del bloque models_summary (línea 1833) usaba {total_units} pero la variable local definida en línea 1816 se llama _total_units (underscore prefix), lo que causaba NameError en runtime cuando la cotización de reparación incluía repair_models. El error solo se manifestaba en el path 'Reparación + repair_models'; el path legacy (bulk_serials/single serial) no entraba al else y por eso no se rompió. MITIGACIÓN: fix puntual {_total_units} aplicada por el agente principal, confirmada via curl previo y ahora via pytest + UI smoke en preview. PREVENCIÓN: agregar un test unit para EquipmentQuotePDFRequest con repair_models al CI (ya incluido en test_quotes_critical_fix.py)."
+}
