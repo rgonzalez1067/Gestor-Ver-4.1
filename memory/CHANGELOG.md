@@ -1,5 +1,24 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-08 — BUGFIX P0: Creación de Cotizaciones Reparaciones (y verificación PG)
+
+### Bug crítico Reparaciones (reportado en producción) ✅ FIXED
+- **Causa raíz:** `backend/routes/quotes.py` línea 1833 — la f-string del resumen por
+  modelo usaba `{total_units}` pero la variable definida (línea 1816) es `_total_units`
+  → `NameError` en runtime → HTTP 500 al crear cotización de Reparación CON `repair_models`
+  (POST /api/quotes/generate-equipment-pdf). El path legacy (bulk_serials) no entraba al
+  bloque y por eso no fallaba.
+- **Fix:** `{total_units}` → `{_total_units}`. Verificado: 200 + application/pdf con y sin repair_models.
+- Test regresivo: `/app/backend/tests/test_quotes_critical_fix.py` (3/3 PASS).
+- Testing agent Iter33: backend 3/3 pytest, frontend 10/10 smoke. Sin 5xx.
+
+### Payment Gateway — verificado sin bug propio en preview
+- POST /api/quotes/create-with-pdf con quote_type=GATEWAY crea cotización + PDF (200) en preview.
+- El error de PG en producción fue probablemente colateral del 500 de Reparaciones o ya resuelto.
+  Requiere **redeploy** para llevar el fix a producción.
+
+
+
 ## 2026-06-08 — Reel mejorado + verificación Patrocinante (Iter32)
 
 ### Reel de Distribución — mejoras UX (Proyectos Directos) ✅
