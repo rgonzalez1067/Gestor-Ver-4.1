@@ -1,5 +1,24 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-08 — Reel mejorado + verificación Patrocinante (Iter32)
+
+### Reel de Distribución — mejoras UX (Proyectos Directos) ✅
+- Nuevo campo "Número de cajas (por producto)" (`dp-reel-quantity`): se precarga con la
+  "Cantidad de Cajas" de la cabecera y se sincroniza mientras no se edite manualmente
+  (`reelQtyTouched` useRef); editable por lote.
+- Botón "Seleccionar todos / Quitar todos" (`dp-reel-select-all`).
+- "Agregar al Reel" ahora crea UNA línea por cada producto marcado, cada una con el
+  número de cajas indicado (sin merge). Tras agregar, limpia la selección y mantiene el
+  banco para continuar el siguiente lote.
+- Testing agent Iter32: 13/13 frontend PASS.
+
+### Verificación "Banco Patrocinante" (Definición Comercial) ✅ (sin bug en preview)
+- Reproducción E2E (UI→API→DB→ProjectDetail): al elegir Procesador y banco vinculado,
+  se guarda `patrocinador_label = "Procesador — Banco"` y se muestra completo en la Ficha
+  Técnica (`project-detail-patrocinador`) y en el PDF ("Patrocinador de la Implementacion").
+  No se detectó bug en preview. Si persiste en producción → requiere redeploy (código stale/caché).
+
+
 ## 2026-06-08 — Ajustes Proyectos Directos + Mapeo Tipo de Proyecto (Iter31)
 
 ### 1. Mapeo "Tipo de Proyecto" en Ficha Técnica (PDF) — P0 ✅
