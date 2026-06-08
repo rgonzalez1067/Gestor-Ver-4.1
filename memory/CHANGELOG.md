@@ -1,5 +1,36 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-08 — FIX bug fantasma "(failed)" al crear cotizaciones (PG + Reparaciones)
+
+### Causa raíz (confirmada por testing agent iter34-36)
+- El POST create-with-pdf se mostraba "(failed)" / `net::ERR_ABORTED` a ~1.12s aunque el
+  **backend SÍ creaba la cotización** (~2s, atómico server-side).
+- **Disparador:** `frontend/src/utils/api.js` → ante un 401 en CUALQUIER endpoint
+  concurrente (notifications/inbox polling, WS), `handleSessionExpired` ejecutaba
+  `window.location.href='/login'` a los 600ms → **navegaba y abortaba el XHR del submit en vuelo**.
+- El `toast.error` genérico hacía creer al usuario que falló → reintentaba → duplicados (COT-038..043).
+
+### Fixes aplicados (frontend)
+1. **`api.js`**: contador `inFlightCritical` (`markCriticalStart/End`, regex de endpoints
+   críticos). `redirectWhenIdle` **difiere** `window.location.href='/login'` hasta que terminen
+   los POST críticos (create-with-pdf / generate-equipment-pdf) o pasen 15s → ya no aborta el submit.
+2. **`EquipmentQuoteWizard.jsx`**: el `fetch` de generate-equipment-pdf se envuelve con
+   `markCriticalStart/End` (mismo blindaje para Reparaciones).
+3. **Mensajes claros**: en `Quotes.jsx` y `EquipmentQuoteWizard.jsx`, si `!error.response`
+   (conexión interrumpida) → `toast.warning('...la cotización pudo haberse creado, verifique el listado')`
+   en vez del error engañoso, + refresco automático.
+4. **Botón recurrentes**: `QuoteWizardDialog.jsx` L1218 — la sección "Costos Recurrentes" y su
+   botón ahora aparecen con `isPaymentGateway && isHeaderComplete && pgRecurringCostsTable`
+   (sin requerir setup items); el botón queda deshabilitado con hint si no hay medios de pago.
+
+### Pendiente / recomendación
+- 401 intermitentes durante sesión activa → revisar TTL del JWT / refresh proactivo (cambio de
+  auth — requiere integración dedicada).
+- Opcional: usar `navigate()` de react-router en vez de `window.location.href` para no abortar
+  tampoco los XHR no críticos.
+
+
+
 ## 2026-06-08 — Cont. BUGFIX Cotizaciones + diagnóstico mejorado
 
 ### Fix backend confirmado (repair con modelos)
