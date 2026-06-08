@@ -1586,6 +1586,119 @@ export const Quotes = () => {
   const pgFullRecurringTable = pgShowRecurringTable ? getPgFullRecurringTable() : [];
 
   // PG Submit handler
+  // Builder ÚNICO del payload de PDF (TemplateQuotePDFRequest) usado por
+  // Guardar (create-with-pdf vía pdf_data), Previsualizar y Exportar, para
+  // garantizar que las TRES generen EXACTAMENTE el mismo PDF (misma versión).
+  const buildTemplatePdfData = (quoteNumber = '') => {
+    const client = clients.find(c => c.client_id === quoteData.client_id) || selectedClient || {};
+    const integrator = integrators.find(i => i.integrator_id === quoteData.integrator_id);
+    const pinpad = (quoteData.quote_type === 'FAST_TRACK')
+      ? [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)
+      : pinpads.find(p => p.hardware_id === quoteData.pinpad_id);
+    const sponsorBank = banks.find(b => b.bank_id === quoteData.sponsor_bank_id);
+    const templateTypeMap = {
+      'VPOS': 'vpos_pyme', 'VPOS_MPOS': 'vpos_pyme', 'GATEWAY': 'payment_gateway',
+      'LINK_PAGO': 'payment_gateway', 'MPOS': 'mpos', 'LINK': 'vpos_pyme'
+    };
+    const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
+    return {
+      cliente_nombre: client.legal_name || client.commercial_name || client.fantasy_name || 'Cliente',
+      cliente_rif: client.rif || '',
+      cliente_contacto: client.contact_name || '',
+      cliente_address: client.address || '',
+      quote_type: quoteData.quote_type,
+      pricing_model: quoteData.pricing_model,
+      cantidad_cajas: quoteData.cantidad_cajas || 1,
+      quote_number: quoteNumber || '',
+      integrator_name: integrator?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
+      integrator_app_name: quoteData.integrator_app_name || '',
+      pinpad_model: pinpad?.name || '',
+      sponsor_bank_name: sponsorBank?.name || '',
+      template_type: templateType,
+      client_segment: quoteData.client_segment || 'PYME',
+      setup_items: [
+        ...quoteData.setup_items.map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+          tarifa: parseFloat(item.tarifa) || 0,
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+        })),
+        ...quoteData.additional_items.map(item => ({
+          concepto: `${item.medio_pago_name} - ${item.bank_name}`,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa_setup) || 0,
+          bank_name: item.bank_name || null,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+        }))
+      ],
+      recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
+        concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+        tarifa: parseFloat(item.tarifa) || 0,
+        bank_name: item.bank_name || null,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+      })),
+      recurring_other_items: quoteData.recurring_other_items.map(item => ({
+        concepto: item.medio_pago_name,
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
+        tarifa: parseFloat(item.tarifa) || 0,
+        bank_name: item.bank_name || null,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+      })),
+      additional_items: quoteData.additional_items
+        .filter(item => item.bank_name)
+        .map(item => ({
+          concepto: item.medio_pago_name,
+          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+          tarifa: parseFloat(item.tarifa_setup) || 0,
+          bank_name: item.bank_name,
+          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+        })),
+      descuento: quoteData.descuento || 0,
+      descuento_setup: quoteData.descuento_setup || 0,
+      descuento_recurrente: quoteData.descuento_recurrente || 0,
+      requires_pinpad_config: quoteData.requires_pinpad_config !== false,
+      requires_vpn: quoteData.requires_vpn !== false,
+      communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
+      notes: quoteData.notes || '',
+      is_production_client: isProductionClient,
+      pg_setup_items: pgSetupItems.map(item => ({
+        concepto: item.concepto, costo: item.costo || 0, banco: item.banco || '', observacion: item.observacion || ''
+      })),
+      production_items: productionItems.map(item => ({
+        concepto: item.medio_pago_name,
+        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
+        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
+        tarifa: parseFloat(item.tarifa) || 0,
+        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
+      })),
+      pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
+        num_products: Math.min(pgMediosPagoCount, 11),
+        rangos: getPgFullRecurringTable().map(r => ({
+          rango_label: r.label,
+          costo_base_total: r.base,
+          precio_tope: r.tope
+        }))
+      } : null,
+      branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
+      ft_equipment_items: (() => {
+        if (quoteData.quote_type !== 'FAST_TRACK') return [];
+        if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
+          const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
+          if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
+        }
+        return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
+      })(),
+      include_recurring: quoteData.include_recurring !== false
+    };
+  };
+
   const handleSubmitPGQuote = async () => {
     if (pgSetupItems.length === 0) {
       toast.error('Agregue al menos un concepto de setup');
@@ -1623,7 +1736,9 @@ export const Quotes = () => {
         pg_setup_items: pgSetupItems.map(({ fixed, ...item }) => item), // Remove fixed flag
         pg_recurring_cost: recurringData,
         pg_transaction_range: pgMediosPagoCount,
-        pdf_data: null
+        // Mismo payload de PDF que Previsualizar/Exportar → PDF idéntico (incluye
+        // tabla de recurrentes, setup por medio de pago/banco, resumen, etc.)
+        pdf_data: buildTemplatePdfData('')
       };
 
       await api.post('/quotes/create-with-pdf', payload);
@@ -1956,111 +2071,10 @@ export const Quotes = () => {
     const templateType = templateTypeMap[quoteData.quote_type] || 'vpos_pyme';
     const hasTemplate = templateAvailable[templateType]?.exists;
 
-    // Preparar datos para el PDF
-    const pdfData = {
-      cliente_nombre: client.legal_name || client.commercial_name || 'Cliente',
-      cliente_rif: client.rif || '',
-      cliente_contacto: client.contact_name || '',  // Persona de contacto
-      cliente_address: client.address || '',  // Dirección fiscal para el resumen
-      quote_type: quoteData.quote_type,
-      pricing_model: quoteData.pricing_model,
-      cantidad_cajas: quoteData.cantidad_cajas || 1,  // Total de cajas para el resumen
-      quote_number: editingQuoteId ? quotes.find(q => q.quote_id === editingQuoteId)?.quote_number : '',
-      // Nuevos campos de integración y hardware
-      integrator_name: integrator?.name || '',
-      integrator_app_name: quoteData.integrator_app_name || '',
-      pinpad_model: pinpad?.name || '',
-      sponsor_bank_name: sponsorBank?.name || '',
-      template_type: templateType,
-      client_segment: quoteData.client_segment || 'PYME',
-      setup_items: [
-        ...quoteData.setup_items.map(item => ({
-          concepto: item.medio_pago_name,
-          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0,
-          bank_name: item.bank_name || null,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
-        ...quoteData.additional_items.map(item => ({
-          concepto: `${item.medio_pago_name} - ${item.bank_name}`,
-          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-          tarifa: parseFloat(item.tarifa_setup) || 0,
-          bank_name: item.bank_name || null,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        }))
-      ],
-      recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
-        concepto: item.medio_pago_name + (item.linkedTo ? ` (vinculado a ${item.linkedTo})` : ''),
-        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-        tarifa: parseFloat(item.tarifa) || 0,
-        bank_name: item.bank_name || null,
-        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-      })),
-      recurring_other_items: quoteData.recurring_other_items.map(item => ({
-        concepto: item.medio_pago_name,
-        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-        cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-        tarifa: parseFloat(item.tarifa) || 0,
-        bank_name: item.bank_name || null,
-        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-      })),
-      // additional_items separado para el Resumen Ejecutivo (solo items con bank_name)
-      additional_items: quoteData.additional_items
-        .filter(item => item.bank_name)
-        .map(item => ({
-          concepto: item.medio_pago_name,
-          cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-          tarifa: parseFloat(item.tarifa_setup) || 0,
-          bank_name: item.bank_name,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
-      descuento: quoteData.descuento || 0,
-      descuento_setup: quoteData.descuento_setup || 0,
-      descuento_recurrente: quoteData.descuento_recurrente || 0,
-      requires_pinpad_config: quoteData.requires_pinpad_config !== false,
-      requires_vpn: quoteData.requires_vpn !== false,
-      communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
-      notes: quoteData.notes || '',
-      is_production_client: isProductionClient,
-      // PG setup items para el PDF de Payment Gateway
-      pg_setup_items: pgSetupItems.map(item => ({
-        concepto: item.concepto,
-        costo: item.costo || 0,
-        banco: item.banco || '',
-        observacion: item.observacion || ''
-      })),
-      production_items: productionItems.map(item => ({
-        concepto: item.medio_pago_name,
-        cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-        cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-        tarifa: parseFloat(item.tarifa) || 0,
-        tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-      })),
-      // PG Recurring costs (tabla de rangos)
-      pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
-        num_products: Math.min(pgMediosPagoCount, 11),
-        rangos: getPgFullRecurringTable().map(r => ({
-          rango_label: r.label,
-          costo_base_total: r.base,
-          precio_tope: r.tope
-        }))
-      } : null,
-      branch_details: branchDetails.filter(b => b.store_name && b.quantity > 0),
-      // Fast Track: equipo sincronizado desde Detalles de Integración
-      ft_equipment_items: (() => {
-        if (quoteData.quote_type !== 'FAST_TRACK') return [];
-        if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
-          const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-          if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
-        }
-        return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
-      })(),
-      include_recurring: quoteData.include_recurring !== false
-    };
+    // Preparar datos para el PDF (builder compartido → idéntico a Guardar/Previsualizar)
+    const pdfData = buildTemplatePdfData(
+      editingQuoteId ? (quotes.find(q => q.quote_id === editingQuoteId)?.quote_number || '') : ''
+    );
 
     try {
       const toastId = toast.loading(hasTemplate && useTemplateForPDF 
@@ -2169,107 +2183,8 @@ export const Quotes = () => {
     setPdfPreviewLoading(true);
     
     try {
-      const pdfData = {
-        cliente_nombre: client.legal_name || client.fantasy_name || '',
-        cliente_rif: client.rif || '',
-        cliente_contacto: client.contact_name || '',
-        cliente_address: client.address || '',
-        quote_type: quoteData.quote_type,
-        pricing_model: quoteData.pricing_model,
-        cantidad_cajas: quoteData.cantidad_cajas || 1,
-        quote_number: '',
-        template_type: isPaymentGateway ? 'payment_gateway' : 'vpos_pyme',
-        client_segment: quoteData.client_segment || 'PYME',
-        integrator_name: integrators.find(i => i.integrator_id === quoteData.integrator_id)?.name || (quoteData.integrator_id === 'sin_integrador' ? 'Sin integrador por el momento' : ''),
-        integrator_app_name: quoteData.integrator_app_name || '',
-        pinpad_model: (quoteData.pinpad_id && quoteData.pinpad_id !== 'none')
-          ? ([...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id)?.name || '')
-          : '',
-        sponsor_bank_name: (quoteData.sponsor_bank_id && quoteData.sponsor_bank_id !== 'none')
-          ? (banks.find(b => b.bank_id === quoteData.sponsor_bank_id)?.name || '')
-          : '',
-        // Setup: concepto base + items por medio de pago/banco (igual que Exportar PDF).
-        // Sin esta concatenación la sección "COSTOS DE IMPLEMENTACIÓN" sólo
-        // muestra las 4 tarifas auto-default y omite los medios de pago × banco
-        // que el usuario seleccionó (bug Feb 2026).
-        setup_items: [
-          ...quoteData.setup_items.map(item => ({
-            concepto: item.medio_pago_name,
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-            tarifa: parseFloat(item.tarifa) || 0,
-            bank_name: item.bank_name || null,
-            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
-          })),
-          ...quoteData.additional_items.map(item => ({
-            concepto: `${item.medio_pago_name} - ${item.bank_name}`,
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-            tarifa: parseFloat(item.tarifa_setup) || 0,
-            bank_name: item.bank_name || null,
-            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
-          })),
-        ],
-        recurring_basic_items: quoteData.recurring_basic_items.map(item => ({
-          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
-        recurring_other_items: quoteData.recurring_other_items.map(item => ({
-          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: item.lockBancos ? 1 : (parseInt(item.cantidad_bancos) || 1),
-          tarifa: parseFloat(item.tarifa) || 0,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
-        // `additional_items` también se manda por separado: el Resumen Ejecutivo
-        // (página 2) usa este array para poblar la tabla "Bancos / Productos /
-        // Cajas". Si va vacío, la página 2 muestra "No hay medios de pago
-        // seleccionados" (bug Feb 2026).
-        additional_items: quoteData.additional_items
-          .filter(item => item.bank_name)
-          .map(item => ({
-            concepto: item.medio_pago_name,
-            cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-            cantidad_bancos: parseInt(item.cantidad_bancos) || 1,
-            tarifa: parseFloat(item.tarifa_setup) || 0,
-            bank_name: item.bank_name,
-            tipo_corp: findServiceTipoCorp(item.medio_pago_name),
-          })),
-        pg_setup_items: pgSetupItems.map(item => ({
-          concepto: item.concepto, costo: item.costo || 0, banco: item.banco || '', observacion: item.observacion || ''
-        })),
-        production_items: productionItems.map(item => ({
-          concepto: item.medio_pago_name, cantidad_cajas: parseInt(item.cantidad_cajas) || 1,
-          cantidad_bancos: parseInt(item.cantidad_bancos) || 1, tarifa: parseFloat(item.tarifa) || 0,
-          tipo_corp: findServiceTipoCorp(item.medio_pago_name)
-        })),
-        descuento: quoteData.descuento || 0,
-        descuento_setup: quoteData.descuento_setup || 0,
-        descuento_recurrente: quoteData.descuento_recurrente || 0,
-        requires_pinpad_config: quoteData.requires_pinpad_config !== false,
-        requires_vpn: quoteData.requires_vpn !== false,
-        communication_type: quoteData.communication_type || (quoteData.requires_vpn ? 'VPN' : 'NO_APLICA'),
-        notes: quoteData.notes || '',
-        is_production_client: isProductionClient,
-        pg_recurring_cost: pgShowRecurringTable && pgMediosPagoCount > 0 ? {
-          num_products: Math.min(pgMediosPagoCount, 11),
-          rangos: getPgFullRecurringTable().map(r => ({
-            rango_label: r.label,
-            costo_base_total: r.base,
-            precio_tope: r.tope
-          }))
-        } : null,
-        ft_equipment_items: (() => {
-          if (quoteData.quote_type !== 'FAST_TRACK') return [];
-          if (quoteData.pinpad_id && quoteData.pinpad_id !== 'none') {
-            const hw = [...posDevices, ...pinpads].find(p => p.hardware_id === quoteData.pinpad_id);
-            if (hw) return [{ name: hw.name, hardware_type: hw.type || 'POS', quantity: parseInt(quoteData.cantidad_cajas) || 1, unit_price_usd: hw.price_bs_usd || hw.price_usd || 0 }];
-          }
-          return ftEquipmentItems.map(it => ({ name: it.name, hardware_type: it.hardware_type, quantity: it.quantity, unit_price_usd: it.unit_price_usd }));
-        })(),
-        include_recurring: quoteData.include_recurring !== false
-      };
+      // Builder compartido → PDF idéntico a Guardar y Exportar
+      const pdfData = buildTemplatePdfData('');
       
       const token = localStorage.getItem('session_token');
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
