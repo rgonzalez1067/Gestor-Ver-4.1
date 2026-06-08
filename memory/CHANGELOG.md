@@ -1,5 +1,25 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-08 — Cont. BUGFIX Cotizaciones + diagnóstico mejorado
+
+### Fix backend confirmado (repair con modelos)
+- `quotes.py` L1833: `{total_units}` → `{_total_units}` (NameError → 500). Verificado 200+PDF.
+
+### Diagnóstico del "error fantasma" (PG y Reparaciones)
+- Evidencia DIRECTA del navegador (testing agent Iter34): frontend y backend son **same-origin**
+  en el preview → **NO es CORS**. POST /api/quotes/create-with-pdf [GATEWAY] devuelve **200**
+  desde el navegador real (crea la cotización). El backend tiene éxito en ambos endpoints.
+- **Causa del mensaje de error visible:** los `catch` del frontend mostraban mensajes genéricos
+  ("Error al crear cotización Payment Gateway" / "Verifique su conexión") que **ocultaban el
+  error real** del backend (un 4xx/5xx o una excepción JS al procesar la respuesta/descarga).
+- **Fix aplicado:** ambos `catch` ahora exponen el detalle real:
+  - `Quotes.jsx` handleSubmitPGQuote → `error.response?.data?.detail || error.message`.
+  - `EquipmentQuoteWizard.jsx` → `error.message` (revela TypeError o interrupción de transferencia).
+- Deuda técnica conocida: CORS `allow_origins=['*']` + `allow_credentials=True` (inválido por spec,
+  pero inofensivo mientras sea same-origin). Considerar `allow_origin_regex='.*'`.
+
+
+
 ## 2026-06-08 — BUGFIX P0: Creación de Cotizaciones Reparaciones (y verificación PG)
 
 ### Bug crítico Reparaciones (reportado en producción) ✅ FIXED

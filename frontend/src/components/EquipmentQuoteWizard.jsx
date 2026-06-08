@@ -500,7 +500,8 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       onQuoteCreated && onQuoteCreated();
     } catch (error) {
       console.error('Error generando PDF:', error);
-      toast.error('Error al generar la cotización. Verifique su conexión.');
+      const detail = error?.message || 'Error desconocido';
+      toast.error(`Error al generar la cotización: ${detail}`);
     } finally {
       setLoading(false);
       resetWizard();

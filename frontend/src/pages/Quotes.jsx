@@ -1635,7 +1635,8 @@ export const Quotes = () => {
     } catch (error) {
       toast.dismiss(toastId);
       console.error('Error creating PG quote:', error);
-      toast.error('Error al crear cotización Payment Gateway');
+      const detail = error?.response?.data?.detail || error?.message || 'Error desconocido';
+      toast.error(`Error al crear cotización Payment Gateway: ${detail}`);
     }
   };
 
