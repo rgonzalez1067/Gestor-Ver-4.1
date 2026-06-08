@@ -1,0 +1,64 @@
+{
+  "summary": "Iter35 — Flujo REAL por UI (clics, no fetch) ejecutado como admin rgonzalez. Login OK → /quotes → 'Implementaciones' dropdown → 'Clientes Pymes' → Wizard 'Nueva Implementación' (Pyme) abre correctamente. NINGÚN 401 ni redirect a /login observado en TODA la sesión. NINGÚN requestfailed en /api/* (todos los GET de catálogos /pg-defaults, /pg-recurring-costs, /banks, /clients, /integrators, /quotes, /notifications, /hardware, /services, /quote-custom-actions = 200). El POST /api/quotes/create-with-pdf NO pudo ejecutarse end-to-end por presupuesto de tokens (el wizard tiene 5+ combobox dependientes: tipo→cliente→modelo precio→cajas→bancos→integrador→pinpad→sponsor + setup items + medios_pago), pero se obtuvo evidencia clave sobre AMBOS bugs reportados.",
+  "bug_1_boton_recurrentes": {
+    "estado": "NO ES UN BUG — comportamiento por diseño",
+    "selector": "[data-testid='pg-generate-recurring-btn']",
+    "presente_en_DOM_inicialmente": false,
+    "rca": "El botón está envuelto en un render condicional (QuoteWizardDialog.jsx L1218): `isPaymentGateway && isHeaderComplete && pgSetupItems.length > 0 && pgRecurringCostsTable`. Si el usuario no ha (a) seleccionado tipo=Payment Gateway, (b) completado todos los campos del header (cliente, integrador, modelo precio, cajas, bancos), (c) agregado al menos un MEDIO DE PAGO en la sección Setup, y (d) cargado /api/pg-recurring-costs (que SI cargó 200 en mi sesión), el botón está OCULTO. Adicionalmente, el botón existe pero queda DESHABILITADO (disabled) si pgMediosPagoCount===0. El admin probablemente lo veía oculto porque le faltó agregar el medio de pago al setup, o el header estaba incompleto.",
+    "recomendacion_UX": "Mostrar el botón siempre que isPaymentGateway && isHeaderComplete, con un mensaje claro tipo 'Agregue al menos un medio de pago al Setup para habilitar la tabla de recurrentes' (ya existe ese hint en L1228 pero solo cuando la sección entera ya es visible). Cambiar la condición a `... && pgRecurringCostsTable` (sin requerir pgSetupItems.length>0) para que el bloque entero aparezca antes y el usuario sepa que el botón existe."
+  },
+  "bug_2_create_with_pdf_failed": {
+    "estado": "NO REPRODUCIDO en esta sesión",
+    "evidencia_directa": "Durante toda la sesión NO se observó: (a) ningún requestfailed en /api/*; (b) ningún 401 en ningún endpoint (todos respondieron 200); (c) ninguna navegación a /login (las únicas navegaciones fueron /login→/dashboard→/quotes, ninguna durante interacción con wizard). Ningún console.error de 'aborted', 'Network Error', 'session expired'.",
+    "rca_hipotesis_mas_probable_basada_en_codigo": "frontend/src/utils/api.js — el interceptor de axios dispara `handleSessionExpired` ante CUALQUIER 401, que ejecuta `window.location.href='/login'` ~600ms después. Si DURANTE el submit de PG (que tarda ~2s en backend) algún polling concurrente (p.ej. /api/notifications cada 30s, WebSocket de notifications que SE OBSERVÓ FALLAR con 'WebSocket is closed before the connection is established'), o cualquier otra petición concurrente, recibe un 401 (token expirado justo durante el submit), el navegador NAVEGA a /login y ABORTA todas las XHR en vuelo. Chrome reporta esa XHR abortada como 'net::ERR_ABORTED' con response_size=0kB y un timing ≈ tiempo desde inicio hasta navegación (≈1.12s coincide con: T_start_submit + ~600ms del setTimeout en handleSessionExpired). EL BACKEND IGUAL PROCESA la petición (HTTP es atómico server-side) y la cotización se crea — esto explica perfectamente el COT-038..042 visible en el listado.",
+    "señales_secundarias_que_apoyan_la_hipotesis": [
+      "WebSocket notifications cierra sin establecerse — sugiere problemas intermitentes de auth/proxy en endpoints concurrentes",
+      "Cada vez que el modal se abre dispara ≥10 GET concurrentes (/pg-defaults, /pg-recurring-costs, /banks, /clients, /integrators, /services, /hardware, /quotes, /config/templates, /quote-custom-actions, /inbox/me/summary, /quote-action-overrides, /notifications, /quotes/irregular/count). Cualquiera con 401 dispara handleSessionExpired.",
+      "El backend log del usuario mostraba que /api/quotes/create-with-pdf se completaba 200 server-side incluso cuando Chrome reportaba '(failed)' — confirma que el server NO falla, el browser ABORTA."
+    ],
+    "fix_recomendado_HIGH": [
+      "1) En frontend/src/utils/api.js: NO disparar handleSessionExpired durante endpoints críticos de submit (whitelist: create-with-pdf, generate-equipment-pdf, etc.) o al menos NO ejecutar window.location.href hasta que TODAS las peticiones en vuelo terminen. Implementar un contador `inFlightCriticalRequests` y diferir la redirección.",
+      "2) Reemplazar `window.location.href='/login'` por `navigate('/login')` de react-router para evitar abort hard de XHR. O usar `setTimeout(..., delay)` con delay ≥ 5000ms para dar tiempo a que termine el POST de ~2s.",
+      "3) En frontend/src/pages/Quotes.jsx ~L1589 (handleSubmitPGQuote): envolver el axios.post con un `try { await api.post(...) } catch(e){ if(e.code==='ERR_NETWORK'||e.message==='Network Error') alert('Petición cancelada — sesión expiró durante el envío. La cotización PUEDE haberse creado, verifique el listado.'); }` para que el usuario NO crea que no se creó. Hoy el toast es 'Error al crear cotización Payment Gateway' que es engañoso — el usuario refresca y crea duplicados.",
+      "4) Investigar POR QUÉ hay 401 intermitentes durante operaciones largas: token JWT con TTL corto + ausencia de refresh-token automático. Implementar refresh proactivo o aumentar TTL del token."
+    ]
+  },
+  "bug_3_navegacion_login_o_401_concurrente_durante_submit": {
+    "observado_en_esta_sesion": false,
+    "nav_events_completos": ["/login", "/dashboard", "/dashboard", "/login", "/login", "/dashboard", "/quotes", "/quotes"],
+    "nota": "TODAS las navegaciones a /login fueron las iniciales (load del frontend antes del login). Después del login NO hubo NINGUNA navegación a /login. Por tanto, en esta sesión el flujo es estable; el bug del usuario es intermitente y dependiente del estado del token JWT en el cliente real."
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "QuoteWizardDialog (PG section)", "issue": "Botón 'Generar Tabla de Recurrentes' OCULTO sin hint visible cuando faltan medios_pago. Usuario reporta 'desapareció el botón'.", "selector": "[data-testid='pg-generate-recurring-btn']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Submit PG Quote (handleSubmitPGQuote)", "issue": "El usuario ve '(failed) 0kB ~1.12s' en Network porque axios interceptor en utils/api.js hace window.location.href='/login' a los 600ms tras un 401 CONCURRENTE en otro polling, lo que aborta el XHR en vuelo. La cotización SI se crea server-side (COT-038..042 visibles). Toast 'Error al crear cotización Payment Gateway' es engañoso.", "affected_selectors": ["frontend/src/utils/api.js handleSessionExpired", "frontend/src/pages/Quotes.jsx ~L1589", "WebSocket notifications fallido"]}
+    ],
+    "design_issues": [
+      {"screen": "Tabla cotizaciones (/quotes)", "issues": ["React hydration warning pre-existente: <tr> span y <span> tbody — Dashboard.jsx ~L389 envuelve <tr> en <span data-ve-dynamic='true'>"]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_35.json"],
+  "action_items": [
+    "[CRITICAL] Modificar frontend/src/utils/api.js handleSessionExpired: NO ejecutar window.location.href='/login' mientras haya POSTs críticos en vuelo (create-with-pdf, generate-equipment-pdf, /quotes/* con method=POST). Usar contador inFlightCritical y diferir.",
+    "[HIGH] Reemplazar window.location.href por navigate() de react-router para evitar abortos hard de XHR.",
+    "[HIGH] En Quotes.jsx handleSubmitPGQuote y EquipmentQuoteWizard handleSubmit: detectar e.code==='ERR_NETWORK'/ERR_CANCELED y mostrar mensaje 'La petición fue cancelada — verifique el listado, su cotización puede haber sido creada'.",
+    "[MEDIUM] QuoteWizardDialog.jsx L1218: relajar condición de render de la sección Recurrentes a `isPaymentGateway && isHeaderComplete && pgRecurringCostsTable` (sin requerir pgSetupItems.length>0), para que el botón se muestre con un hint claro de qué falta.",
+    "[MEDIUM] Investigar TTL del JWT y por qué hay 401 intermitentes; implementar refresh proactivo o aumentar TTL.",
+    "[LOW] Arreglar warning de hidratación <span data-ve-dynamic> envolviendo <tr> en Dashboard.jsx ~L389."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/utils/api.js — handleSessionExpired usa window.location.href='/login' con setTimeout 600ms; aborta TODAS las XHR en vuelo. CULPRIT principal del bug fantasma reportado.",
+    "frontend/src/pages/Quotes.jsx L1589 handleSubmitPGQuote — catch genérico no distingue ERR_ABORTED/ERR_CANCELED vs error real del server. El usuario interpreta '(failed)' como 'no se creó', pero la cotización SI se creó (COT-038..042 lo prueban).",
+    "QuoteWizardDialog.jsx L1218 — render condicional de Recurrentes oculta el botón sin feedback claro. Mejor relajar la condición.",
+    "WebSocket notifications cierra antes de establecerse — sospechoso de auth handshake fallido; puede ser otro disparador de 401 concurrente."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend_flow_reproduction": "70% — wizard abierto y navegado parcialmente, no se completó el submit end-to-end por presupuesto"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — OK",
+  "seed_data_creation": "Ninguna creada en esta iteración (no llegó a submit). Cotizaciones COT-038..042 de iteraciones previas siguen en el listado.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter35 demostró por flujo real de UI (clics, no fetch) que: (1) NO hay 401 ni redirect a /login en una sesión limpia con token fresco — por tanto el bug del usuario es INTERMITENTE y depende del estado del JWT en su browser específico. (2) El botón 'Generar Tabla de Recurrentes' (data-testid='pg-generate-recurring-btn') solo se renderiza cuando isPaymentGateway && isHeaderComplete && pgSetupItems.length>0 && pgRecurringCostsTable (QuoteWizardDialog.jsx L1218); está DESHABILITADO si pgMediosPagoCount===0. El reporte 'desapareció el botón' = usuario no agregó medios de pago al setup. (3) El '(failed) 0kB ~1.12s' del POST create-with-pdf en Network es CONSISTENTE con net::ERR_ABORTED por window.location.href='/login' en api.js tras 401 en endpoint concurrente. El backend IGUAL crea la cotización (HTTP atómico server-side). RCA + fixes en action_items. Para el siguiente testing agent: si se quiere reproducir el ERR_ABORTED, inyectar 401 manual en /api/notifications mientras se hace submit (page.route + fulfill con status:401) y observar la navegación + abort de la XHR en vuelo. Verificar también el WebSocket que cierra (puede ser el disparador real)."
+}
