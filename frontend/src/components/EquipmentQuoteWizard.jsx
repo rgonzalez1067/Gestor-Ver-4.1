@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Search, Plus, Trash2, Package, Cpu, FileText, CheckCircle2, Monitor, CreditCard, AlertCircle, Wrench, Calendar, Smartphone, Upload, X, ShieldCheck, ShieldAlert, ChevronRight, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
-import api from '../utils/api';
+import api, { markCriticalStart, markCriticalEnd } from '../utils/api';
 import { SerialsSelectorModal } from './SerialsSelectorModal';
 
 // Categorías principales - 4 categorías planas
@@ -452,15 +452,23 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       
       const backendUrl = process.env.REACT_APP_BACKEND_URL;
       
-      const response = await fetch(`${backendUrl}/api/quotes/generate-equipment-pdf`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/pdf'
-        },
-        body: JSON.stringify(pdfData)
-      });
+      // Marca como crítica para que un 401 concurrente NO aborte esta petición
+      // (~2s de generación de PDF) con una redirección a /login.
+      markCriticalStart();
+      let response;
+      try {
+        response = await fetch(`${backendUrl}/api/quotes/generate-equipment-pdf`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/pdf'
+          },
+          body: JSON.stringify(pdfData)
+        });
+      } finally {
+        markCriticalEnd();
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -500,8 +508,12 @@ export const EquipmentQuoteWizard = ({ open, onClose, onQuoteCreated, clients, h
       onQuoteCreated && onQuoteCreated();
     } catch (error) {
       console.error('Error generando PDF:', error);
-      const detail = error?.message || 'Error desconocido';
-      toast.error(`Error al generar la cotización: ${detail}`);
+      const isNetwork = error?.name === 'TypeError' || /fetch|network|load failed/i.test(error?.message || '');
+      if (isNetwork) {
+        toast.warning('La conexión se interrumpió durante la generación. Verifique el listado: la cotización pudo haberse creado.', { duration: 8000 });
+      } else {
+        toast.error(`Error al generar la cotización: ${error?.message || 'Error desconocido'}`);
+      }
     } finally {
       setLoading(false);
       resetWizard();

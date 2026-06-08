@@ -16,6 +16,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ---------------------------------------------------------------------------
+// Contador de peticiones CRÍTICAS en vuelo (generación de cotizaciones/PDFs).
+// Si una petición concurrente recibe un 401 mientras una de estas está en
+// curso, NO debemos redirigir (window.location.href) de inmediato porque eso
+// aborta el XHR en vuelo (el navegador lo marca como "(failed)") aunque el
+// backend SÍ complete la operación. Diferimos el redirect hasta que terminen.
+// ---------------------------------------------------------------------------
+let inFlightCritical = 0;
+const CRITICAL_URL_RE = /(create-with-pdf|generate-equipment-pdf|generate-pdf|create-with-equipment-pdf)/i;
+export const markCriticalStart = () => { inFlightCritical += 1; };
+export const markCriticalEnd = () => { inFlightCritical = Math.max(0, inFlightCritical - 1); };
+
+// Marca/Desmarca automáticamente peticiones axios críticas.
+api.interceptors.request.use((config) => {
+  if (CRITICAL_URL_RE.test(config.url || '')) {
+    config.__critical = true;
+    markCriticalStart();
+  }
+  return config;
+});
+
 // Flag global para evitar mostrar el toast multiple veces cuando varias requests
 // fallan simultáneamente con 401.
 let sessionExpiredHandled = false;
@@ -43,23 +64,37 @@ export const handleSessionExpired = ({ silent = false } = {}) => {
         localStorage.removeItem(k);
       }
     });
-  } catch {}
+  } catch { /* localStorage no disponible */ }
 
   if (!silent) {
     try {
       toast.error('Su sesión ha expirado. Por favor inicie sesión nuevamente.');
-    } catch {}
+    } catch { /* toast no disponible */ }
   }
 
-  // Pequeño delay para que el toast sea visible antes del redirect
-  setTimeout(() => {
+  // Pequeño delay para que el toast sea visible antes del redirect.
+  // Si hay peticiones CRÍTICAS en vuelo (generación de cotización/PDF, ~2s),
+  // esperamos a que terminen para NO abortarlas con la navegación.
+  const maxWaitMs = 15000;
+  const startedAt = Date.now();
+  const redirectWhenIdle = () => {
+    const elapsed = Date.now() - startedAt;
+    if (inFlightCritical > 0 && elapsed < maxWaitMs) {
+      setTimeout(redirectWhenIdle, 300);
+      return;
+    }
     window.location.href = '/login';
-  }, 600);
+  };
+  setTimeout(redirectWhenIdle, 600);
 };
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config && response.config.__critical) markCriticalEnd();
+    return response;
+  },
   (error) => {
+    if (error.config && error.config.__critical) markCriticalEnd();
     const status = error.response?.status;
     const url = error.config?.url || '';
     // No interferir con el flujo de login: errores 401 al intentar autenticar

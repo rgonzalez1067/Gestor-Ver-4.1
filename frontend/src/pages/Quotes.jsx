@@ -1635,8 +1635,15 @@ export const Quotes = () => {
     } catch (error) {
       toast.dismiss(toastId);
       console.error('Error creating PG quote:', error);
-      const detail = error?.response?.data?.detail || error?.message || 'Error desconocido';
-      toast.error(`Error al crear cotización Payment Gateway: ${detail}`);
+      if (!error?.response) {
+        // Sin respuesta del servidor = la petición se interrumpió/canceló
+        // (p.ej. sesión expirada durante el envío). El backend pudo haberla creado.
+        toast.warning('La conexión se interrumpió durante el envío. Verifique el listado: la cotización pudo haberse creado. Si no aparece, intente de nuevo.', { duration: 8000 });
+        fetchData();
+      } else {
+        const detail = error.response?.data?.detail || error.message || 'Error desconocido';
+        toast.error(`Error al crear cotización Payment Gateway: ${detail}`);
+      }
     }
   };
 

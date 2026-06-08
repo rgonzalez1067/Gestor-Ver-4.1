@@ -1215,7 +1215,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
               )}
 
               {/* ====== SECCIÓN PG: Costos Recurrentes ====== */}
-              {isPaymentGateway && isHeaderComplete && pgSetupItems.length > 0 && pgRecurringCostsTable && (
+              {isPaymentGateway && isHeaderComplete && pgRecurringCostsTable && (
                 <div className="bg-white rounded-lg p-5 border mt-4">
                   <h3 className="font-semibold text-lg text-slate-800 mb-4 flex items-center gap-2">
                     <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm">3</span>
