@@ -1,0 +1,45 @@
+{
+  "summary": "Iter32 — Validados los 2 features del request: (A) Reel de Distribución mejorado en /direct-projects: campo 'Número de cajas (por producto)' sincronizado con cabecera mientras no se edite manualmente, edición manual hace 'sticky' (touched), 'Seleccionar todos' marca todos los productos del banco (botón cambia a 'Quitar todos'), 'Agregar al Reel' crea UNA línea por producto seleccionado con la cantidad indicada, limpia selección post-add, sin merge al re-agregar el mismo producto, y disabled cuando no hay banco/0 productos. (B) Banco Patrocinante tipo Procesador abre dp-processor-link-modal, al elegir banco vinculado el composite 'dp-sponsor-composite' muestra 'Procesador — Banco', el proyecto creado guarda patrocinador_label='Consorcio CrediCard — Banco de Venezuela' (verificado en MongoDB) y ProjectDetail UI lo muestra en data-testid='project-detail-patrocinador'.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/direct-projects", "issues": ["Hydration warning '<tr>/<span> child of <tbody>' por wrapper Emergent data-ve-dynamic — preexistente desde iter29, no afecta funcionalidad."]}
+    ]
+  },
+  "test_scenarios_results": [
+    {"scenario": "T1 Reel inicia vacío (dp-reel-empty visible)", "result": "PASS"},
+    {"scenario": "T2 sync cabecera→reel-quantity (cantidad_cajas=3 → reel-quantity=3) sin touch", "result": "PASS"},
+    {"scenario": "T3 reel-quantity manual=5 hace touched: cambio cantidad_cajas=7 NO altera reel-quantity (sigue 5)", "result": "PASS"},
+    {"scenario": "T4 Banco de Venezuela carga 5 productos VPOS con dp-reel-check-*", "result": "PASS"},
+    {"scenario": "T5 Seleccionar todos marca los 5 (botón cambia a 'Quitar todos'); selected-info='5 producto(s) marcado(s) · 5 línea(s) de 5 caja(s)'", "result": "PASS"},
+    {"scenario": "T6 Agregar al Reel crea 5 dp-box-row-* con qty=5 cada uno; selección se limpia a 0", "result": "PASS"},
+    {"scenario": "T7 dp-reel-add-selected disabled cuando 0 productos marcados", "result": "PASS"},
+    {"scenario": "T8 No merge: agregar 1 producto duplicado crea nueva fila (6 filas totales)", "result": "PASS"},
+    {"scenario": "T9 dp-sponsor-bank Procesador 'Consorcio CrediCard' abre dp-processor-link-modal con 11 bancos vinculados", "result": "PASS"},
+    {"scenario": "T9 Elegir 'Banco de Venezuela' en modal → composite dp-sponsor-composite='Patrocinador: Consorcio CrediCard — Banco de Venezuela'", "result": "PASS"},
+    {"scenario": "T11 Submit completo (cliente, VPOS, 2 cajas, 1 producto reel, pinpad model Morefun R90, 2 seriales bulk, server Multicomercio MSC, SSL) crea proyecto PRY-2026-06-022-PRI", "result": "PASS"},
+    {"scenario": "T13 MongoDB persistió patrocinador_label='Consorcio CrediCard — Banco de Venezuela', sponsoring_processor_name='Consorcio CrediCard', sponsoring_bank_name='Banco de Venezuela', sponsored_implementation=True", "result": "PASS"},
+    {"scenario": "T14 ProjectDetail UI project-detail-patrocinador muestra 'Consorcio CrediCard — Banco de Venezuela'", "result": "PASS"}
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Limpieza opcional: borrar de la BD el proyecto de prueba PRY-2026-06-022-PRI (project_id=prj_631122caec1b) creado durante este test."
+  ],
+  "critical_code_review_comments": [
+    "DirectProjectCreation.jsx:287-347 — implementación del Reel limpia y bien comentada: reelQtyTouched useRef para distinguir sync inicial de override manual; addSelectedProductsToReel hace spread por producto seleccionado (sin merge); limpieza de selección post-add manteniendo banco para próximo lote.",
+    "DirectProjectCreation.jsx:650-668 — sponsor bank handler intercepta type='Procesador' y abre ProcessorLinkBankModal; setea sponsor_processor_id/name + sponsor_bank_id/name correctamente; composite condicional solo si ambos presentes.",
+    "ProcessorLinkBankModal data-testid mapping confirmado: dp-processor-link-modal / dp-processor-linked-bank-{bank_id} / dp-processor-link-cancel.",
+    "ProjectDetail.jsx:1140-1145 — render prioriza patrocinador_label del backend con fallback a sponsoring_processor_name — sponsoring_bank_name; el backend ya devuelve patrocinador_label pre-construido, render directo OK.",
+    "Tamaño DirectProjectCreation.jsx ~1260 líneas — sigue creciendo, recomendado split en futuro (HardwareCard/ReelCard/TechConfigCard/SponsorSection) pero no bloqueante."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (persistencia validada via MongoDB)", "frontend": "100% (13/13 escenarios)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — OK",
+  "seed_data_creation": "Proyecto PRY-2026-06-022-PRI (prj_631122caec1b) creado en colección 'projects' con cliente ABASTISIMO C.A, Procesador→Banco patrocinante, 1 fila de Reel, 2 seriales Pinpad. Recomendado limpiar.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter32 valida UI completa del Reel mejorado y del flujo Procesador→Banco patrocinante de extremo a extremo (UI→API→DB→ProjectDetail). Selectors verificados: dp-reel-empty, dp-reel-quantity, dp-reel-bank-select, dp-reel-check-*, dp-reel-select-all, dp-reel-add-selected, dp-reel-selected-info, dp-box-row-N, dp-cantidad-cajas, dp-sponsor-bank, dp-processor-link-modal, dp-processor-linked-bank-*, dp-sponsor-composite, project-detail-patrocinador. Submit btn id real: dp-submit-btn; bulk serials textarea: dp-bulk-serials-text + import dp-bulk-serials-import; server: dp-server-name. Persiste warning preexistente de hydration <tr>/<tbody> envuelto en <span data-ve-dynamic> de Emergent wrapper.",
+  "rca of the issue": "n/a — validación de features nuevas, sin bugs detectados."
+}

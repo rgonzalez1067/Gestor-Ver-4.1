@@ -284,9 +284,18 @@ export default function DirectProjectCreation() {
   };
   const removeBoxRow = (idx) => set({ boxes_grid: form.boxes_grid.filter((_, i) => i !== idx) });
 
-  /* ---- Reel de Distribución: selección múltiple de productos por banco ---- */
+  /* ---- Reel de Distribución: número de cajas + selección múltiple por banco ---- */
   const [reelBank, setReelBank] = useState('');
   const [reelChecked, setReelChecked] = useState({}); // { product_name: true }
+  // Número de cajas para el lote a agregar. Se precarga con la "Cantidad de Cajas"
+  // de la cabecera, pero es EDITABLE para casos en que el lote difiera.
+  const [reelQuantity, setReelQuantity] = useState(form.cantidad_cajas || 1);
+  // Mientras el operador no haya editado manualmente el número de cajas del Reel,
+  // se mantiene sincronizado con la "Cantidad de Cajas" de la cabecera.
+  const reelQtyTouched = useRef(false);
+  useEffect(() => {
+    if (!reelQtyTouched.current) setReelQuantity(form.cantidad_cajas || 1);
+  }, [form.cantidad_cajas]);
 
   const reelBankProducts = useMemo(() => {
     if (!reelBank) return [];
@@ -307,26 +316,33 @@ export default function DirectProjectCreation() {
     () => Object.values(reelChecked).filter(Boolean).length,
     [reelChecked]
   );
+  const reelAllSelected = reelBankProducts.length > 0 && reelSelectedCount === reelBankProducts.length;
+  const toggleSelectAllReel = () => {
+    if (reelAllSelected) {
+      setReelChecked({});
+    } else {
+      const all = {};
+      reelBankProducts.forEach((p) => { all[p.product_name] = true; });
+      setReelChecked(all);
+    }
+  };
 
-  // Agrega al Reel todos los productos marcados del banco actual (selección múltiple).
-  // Si un par banco+producto ya existe en la grilla, suma 1 a su cantidad (merge).
+  // Agrega al Reel: crea UNA línea por cada producto-banco marcado, con la
+  // cantidad de cajas definida para el lote. Luego limpia la selección para
+  // continuar cargando el siguiente lote (manteniendo banco y cantidad).
   const addSelectedProductsToReel = () => {
     const chosen = reelBankProducts.filter((p) => reelChecked[p.product_name]);
+    const qty = Math.max(1, parseInt(reelQuantity) || 1);
     if (!reelBank) { toast.error('Selecciona un banco primero'); return; }
     if (chosen.length === 0) { toast.error('Marca al menos un producto'); return; }
-    setForm((f) => {
-      const next = [...f.boxes_grid];
-      chosen.forEach((p) => {
-        const existing = next.find((b) => b.bank_name === reelBank && b.product_name === p.product_name && !b.store_name);
-        if (existing) {
-          existing.quantity = (parseInt(existing.quantity) || 0) + 1;
-        } else {
-          next.push({ quantity: 1, bank_name: reelBank, product_name: p.product_name, store_name: '' });
-        }
-      });
-      return { ...f, boxes_grid: next };
-    });
-    toast.success(`${chosen.length} producto(s) agregado(s) al Reel (${reelBank})`);
+    setForm((f) => ({
+      ...f,
+      boxes_grid: [
+        ...f.boxes_grid,
+        ...chosen.map((p) => ({ quantity: qty, bank_name: reelBank, product_name: p.product_name, store_name: '' })),
+      ],
+    }));
+    toast.success(`${chosen.length} línea(s) agregada(s) al Reel (${reelBank}, ${qty} caja(s) c/u)`);
     setReelChecked({});
   };
 
@@ -963,21 +979,46 @@ export default function DirectProjectCreation() {
           {/* Selector por banco + selección múltiple de productos (estilo Cotizador) */}
           <div className="border border-amber-200 rounded-md p-3 bg-amber-50/40 space-y-3" data-testid="dp-reel-selector">
             <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-3 items-start">
-              <div>
-                <Label className="text-xs text-amber-900">Banco</Label>
-                <Select value={reelBank} onValueChange={selectReelBank}>
-                  <SelectTrigger className="h-9 mt-1 bg-white" data-testid="dp-reel-bank-select">
-                    <SelectValue placeholder="Selecciona un banco..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {banks.map((bk) => <SelectItem key={bk.bank_id} value={bk.name}>{bk.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs text-amber-900">Número de cajas (por producto)</Label>
+                  <Input
+                    type="number" min="1"
+                    value={reelQuantity}
+                    onChange={(e) => { reelQtyTouched.current = true; setReelQuantity(Math.max(1, parseInt(e.target.value) || 1)); }}
+                    className="h-9 mt-1 bg-white"
+                    data-testid="dp-reel-quantity"
+                  />
+                  <p className="text-[10px] text-amber-700/70 mt-1">Precargado con la Cantidad de Cajas ({form.cantidad_cajas}). Editable por lote.</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-amber-900">Banco</Label>
+                  <Select value={reelBank} onValueChange={selectReelBank}>
+                    <SelectTrigger className="h-9 mt-1 bg-white" data-testid="dp-reel-bank-select">
+                      <SelectValue placeholder="Selecciona un banco..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {banks.map((bk) => <SelectItem key={bk.bank_id} value={bk.name}>{bk.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
-                <Label className="text-xs text-amber-900">
-                  Productos disponibles {reelBank && <span className="text-amber-600">· {reelBankProducts.length}</span>}
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-amber-900">
+                    Productos disponibles {reelBank && <span className="text-amber-600">· {reelBankProducts.length}</span>}
+                  </Label>
+                  {reelBank && reelBankProducts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllReel}
+                      className="text-[11px] font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
+                      data-testid="dp-reel-select-all"
+                    >
+                      {reelAllSelected ? 'Quitar todos' : 'Seleccionar todos'}
+                    </button>
+                  )}
+                </div>
                 {!reelBank ? (
                   <p className="text-xs text-slate-400 italic mt-2">Elige un banco para ver sus productos.</p>
                 ) : reelBankProducts.length === 0 ? (
@@ -1003,7 +1044,9 @@ export default function DirectProjectCreation() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-xs text-amber-800/80">{reelSelectedCount} producto(s) marcado(s)</p>
+              <p className="text-xs text-amber-800/80" data-testid="dp-reel-selected-info">
+                {reelSelectedCount} producto(s) marcado(s){reelSelectedCount > 0 ? ` · ${reelSelectedCount} línea(s) de ${Math.max(1, parseInt(reelQuantity) || 1)} caja(s)` : ''}
+              </p>
               <Button
                 size="sm"
                 onClick={addSelectedProductsToReel}
