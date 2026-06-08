@@ -1,5 +1,35 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-08 — FIX PDF Payment Gateway: recurrentes + paridad Guardar/Previsualizar/Exportar
+
+### Bugs reportados
+1. La tabla de "Costos Recurrentes Mensuales" NO se insertaba en el PDF al GUARDAR.
+2. El PDF al Guardar difería del de Previsualizar y Exportar (versiones distintas).
+
+### Causa raíz
+- `handleSubmitPGQuote` (Quotes.jsx) enviaba `pdf_data: null` a `create-with-pdf`, cayendo en
+  la rama backend MÍNIMA (custom, sin la tabla rica) en vez de la rama canónica `data.pdf_data`.
+- Previsualizar y Exportar construían cada uno su propio `pdfData` con campos distintos
+  (Preview sin `branch_details`/`(vinculado a)`; etc.) → 3 PDFs diferentes.
+
+### Fix (frontend, DRY)
+- **Nuevo `buildTemplatePdfData(quoteNumber)`** en Quotes.jsx: único builder del payload
+  `TemplateQuotePDFRequest` (incluye `pg_recurring_cost.rangos` desde `getPgFullRecurringTable()`).
+- **Guardar** ahora envía `pdf_data: buildTemplatePdfData('')` → cae en la rama canónica del
+  backend (DynamicQuotePDFGenerator + append_pg_static_pages + stamp).
+- **Previsualizar** y **Exportar** reusan el mismo `buildTemplatePdfData()` → eliminan el drift.
+
+### Verificación (curl + extracción de texto del PDF + testing agent iter37)
+- PDF guardado, preview y export: los TRES contienen "COSTOS RECURRENTES MENSUALES".
+- Preview y Export: **bytes idénticos** (1,058,188), 8 páginas → output idéntico garantizado.
+- UI: Previsualizar retornó 200, 0 errores de runtime tras el refactor.
+
+### Nota
+- Deuda de lint pre-existente en Quotes.jsx (react-hooks/immutability, set-state-in-effect) NO
+  relacionada con este cambio; la app compila OK (webpack). Pendiente refactor dedicado.
+
+
+
 ## 2026-06-08 — FIX bug fantasma "(failed)" al crear cotizaciones (PG + Reparaciones)
 
 ### Causa raíz (confirmada por testing agent iter34-36)
