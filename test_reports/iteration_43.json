@@ -1,0 +1,42 @@
+{
+  "summary": "RETEST iter42 (frontend only) sobre prj_826643491b64 → Matriz de Bancos/Productos en notif-body-editor. ✅ SCOPE corregido: exactamente 3 papeleras 'matrix-row-delete' y SÓLO en la tabla matriz (matrixTrash=3, nonMatrixTrash=0, matrixDataRows=3) — antes había 16 en todas las tablas. ✅ HOVER ROJO funcional: con cursor sobre la fila, computedStyle(.rte-row-del).color = rgb(239,68,68) = #ef4444. La regla CSS '.rte-actions .ProseMirror tr.rte-row-actionable:hover' está presente en document.styleSheets (movida correctamente a index.css). ✅ SIN confirmación: ningún diálogo nativo aparece (dialogs=[]). ❌ BLOQUEANTE crítico: el BORRADO sigue sin funcionar. Tras click(force=True) en la primera papelera, matrixDataRows permanece en 3 (esperado 2); tras un segundo click, sigue en 3. La consola muestra repetidamente: '[matrix] row delete failed RangeError: Position -1 out of range' en ResolvedPos.resolve. El nuevo console.warn introducido en el fix expone la falla: view.posAtDOM(trEl, 0) devuelve -1, y view.state.doc.resolve(-1) lanza RangeError. La causa: el widget de la papelera se inserta con Decoration.widget(pos+1, ..., {side:-1}), por lo que el <button> es el PRIMER hijo DOM del <tr>; al pedir posAtDOM(tr,0) ProseMirror intenta resolver la posición anterior al widget (no mapeable a una posición PM) y retorna -1. Vista Previa no se pudo invocar porque el proyecto exige un destinatario principal ('Agregue al menos un destinatario principal antes de generar la vista previa'); esto es UX esperada y no parte del retest. La integridad de BD no se pudo verificar porque nada se borró.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "RichTextEditor → _buildRowDeleteButton (RichTextEditor.jsx L39-70)",
+        "issue": "El borrado de fila falla con 'RangeError: Position -1 out of range'. La línea `const posInRow = view.posAtDOM(trEl, 0);` devuelve -1 porque el widget de la papelera (Decoration.widget con side:-1) se renderiza como PRIMER hijo DOM del <tr> y posAtDOM(tr, offset=0) intenta resolver la posición previa al widget — que no tiene mapping en el documento PM. Como resultado, `view.state.doc.resolve(-1)` lanza inmediatamente, el catch ahora loggea el error (correcto), pero la fila nunca se borra. Mitigación recomendada: (a) usar `view.posAtDOM(trEl.querySelector('td, th'), 0)` apuntando a la primera celda real, o (b) pasar offset = trEl.children.length (último hijo + bias=-1), o (c) lo más simple — guardar `pos` recibido por la callback del widget en una closure cuando se construye el botón: `Decoration.widget(pos + 1, (view) => _buildRowDeleteButton(view, pos), …)` y dentro del handler usar `pos` (que ya apunta al inicio del tableRow) en vez de posAtDOM. Con cualquiera de estas, $pos.depth puede subir a tableRow y tr.delete(before, after) funcionará.",
+        "selector": "[data-testid='matrix-row-delete']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Borrado de filas + Vista Previa limpia",
+        "issue": "Sin borrado funcional, no es posible validar 'preview muestra solo filas conservadas'. Adicionalmente, el botón 'Vista Previa' está bloqueado por validación previa del proyecto: requiere al menos un destinatario principal (toast: 'Agregue al menos un destinatario principal antes de generar la vista previa'). Para futuros retests, marcar previamente un destinatario en la sección superior del modal (botón '+ Agregar' en TO) antes de invocar preview-next-notif.",
+        "affected_selectors": ["[data-testid='matrix-row-delete']", "[data-testid='preview-next-notif']"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "ProjectDetail notif modal", "issues": ["Hydration warnings preexistentes (<tr>/<span>/<tbody> + dup keys 'kgonzalez@megasoft.com.ve') siguen presentes — heredados de iter38+, no introducidos por este fix."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX CRÍTICO (E1): corregir _buildRowDeleteButton en /app/frontend/src/components/RichTextEditor.jsx. posAtDOM(trEl, 0) devuelve -1 cuando el widget es el primer hijo DOM del <tr>. Opciones (en orden de simplicidad): (1) capturar `pos` (la posición del tableRow) desde el closure de la decoración: cambiar `Decoration.widget(pos + 1, (view) => _buildRowDeleteButton(view), …)` por `Decoration.widget(pos + 1, (view) => _buildRowDeleteButton(view, pos), …)` y en el handler usar directamente `view.state.doc.resolve(pos + 1)` (ya está dentro del tableRow). (2) o llamar a posAtDOM sobre la primera celda: `const cell = trEl.querySelector('td,th'); const posInRow = view.posAtDOM(cell, 0);`. (3) Mantener el console.warn (excelente para diagnóstico futuro)."
+  ],
+  "critical_code_review_comments": [
+    "_buildRowDeleteButton recibe `view` pero no `pos`. Dado que la callback de Decoration.widget tiene acceso a la posición de inserción (parámetro de la firma de la decoración), conviene pasarla a la función para evitar el round-trip DOM → PM que está fallando.",
+    "Excelente decisión sustituir el catch noop por console.warn — gracias a eso el bug se diagnosticó en 1 ejecución (antes tomó 3 estrategias distintas en iter42).",
+    "El scope-down a la matriz vía MATRIX_HEADER_RE es elegante y funciona perfectamente (3/3). Considerar marcar la tabla con `data-matrix='true'` en injectMatrix para no depender del texto del encabezado (más robusto frente a traducciones o renombres futuros).",
+    "El CSS ahora vive en index.css con clase contenedora .rte-actions — patrón correcto y fácilmente debuggeable desde devtools."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "no testeado", "frontend": "67% — 4/6 ítems: SCOPE solo matriz (3 papeleras) ✅, HOVER ROJO #ef4444 ✅, sin diálogo ✅, no-regresión plantilla/matriz ✅; BORRADO efectivo ❌ (bloqueante), HTML preview/BD integridad ❌ (no verificables por dependencia con borrado)."},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login OK con press_sequentially)",
+  "seed_data_creation": "Ninguno. Solo lectura.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reusar script: login → /projects/prj_826643491b64 → click [data-testid='notif-bank-client-btn'] → esperar [data-testid='notif-body-editor'] → contar [data-testid='matrix-row-delete'] (deben ser 3) → click force=True en .first → comparar matrixDataRows antes/después dentro de la tabla cuyo textContent matchea /Producto\\s*\\/\\s*Servicio/i. Para validar preview tras el fix, agregar antes un destinatario principal con '+ Agregar' en TO; sin ese paso preview-next-notif muestra toast de error y no abre.",
+  "rca of the issue": "BORRADO: view.posAtDOM(trEl, 0) retorna -1. RCA: el widget Decoration.widget(pos+1,…,{side:-1}) se renderiza como primer hijo DOM del <tr>. Cuando se invoca posAtDOM(trEl, 0) ProseMirror intenta resolver la posición justo antes del widget en el documento; como los widgets no tienen mapping al modelo, retorna -1 (sentinel de 'no resoluble'). Luego state.doc.resolve(-1) lanza inmediatamente RangeError. El log del catch confirma el path. Fix: pasar `pos` (posición del nodo tableRow ya conocida en la decoración) al handler vía closure y resolver pos+1 directamente, evitando el round-trip DOM→PM. Alternativa: usar el primer <td> como ancla (`trEl.querySelector('td')`) para posAtDOM. HOVER y SCOPE quedaron corregidos en este iter (eran fallos de iter42)."
+}

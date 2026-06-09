@@ -33,54 +33,73 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const TRASH_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
+// Identifica la tabla de la Matriz de Bancos/Productos por su encabezado.
+const MATRIX_HEADER_RE = /Producto\s*\/\s*Servicio/i;
+
+function _buildRowDeleteButton(view) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'rte-row-del';
+  btn.contentEditable = 'false';
+  btn.setAttribute('data-testid', 'matrix-row-delete');
+  btn.setAttribute('title', 'Eliminar fila');
+  btn.innerHTML = TRASH_ICON_SVG;
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const trEl = btn.closest('tr');
+    if (!trEl) return;
+    trEl.classList.add('rte-row-removing'); // transición suave
+    window.setTimeout(() => {
+      try {
+        const posInRow = view.posAtDOM(trEl, 0);
+        const $pos = view.state.doc.resolve(posInRow);
+        let depth = $pos.depth;
+        while (depth > 0 && $pos.node(depth).type.name !== 'tableRow') depth--;
+        if (depth > 0) {
+          const from = $pos.before(depth);
+          const to = $pos.after(depth);
+          view.dispatch(view.state.tr.delete(from, to));
+        }
+      } catch (err) {
+        console.warn('[matrix] row delete failed', err);
+      }
+    }, 160);
+  });
+  return btn;
+}
+
 const TableRowActions = Extension.create({
   name: 'tableRowActions',
   addProseMirrorPlugins() {
-    const editor = this.editor;
     return [
       new Plugin({
         props: {
           decorations(state) {
+            // Solo decorar las filas de la Matriz de Bancos/Productos (no las tablas
+            // de Datos del Cliente/Banco/Implementación) para evitar borrados accidentales.
+            const matrixRanges = [];
+            state.doc.descendants((node, pos) => {
+              if (node.type.name === 'table' && MATRIX_HEADER_RE.test(node.textContent || '')) {
+                matrixRanges.push([pos, pos + node.nodeSize]);
+              }
+            });
+            if (matrixRanges.length === 0) return DecorationSet.empty;
+
             const decos = [];
             state.doc.descendants((node, pos) => {
               if (node.type.name !== 'tableRow') return;
+              if (!matrixRanges.some(([s, e]) => pos >= s && pos < e)) return;
               // Excluir filas de encabezado (no se pueden eliminar)
               const first = node.firstChild;
               if (first && first.type.name === 'tableHeader') return;
 
-              // Clase en la fila para hover/animación
               decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'rte-row-actionable' }));
-
-              // Widget: botón de papelera (no serializable)
               decos.push(
-                Decoration.widget(
-                  pos + 1,
-                  (view, getPos) => {
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'rte-row-del';
-                    btn.contentEditable = 'false';
-                    btn.setAttribute('data-testid', 'matrix-row-delete');
-                    btn.setAttribute('title', 'Eliminar fila');
-                    btn.innerHTML = TRASH_ICON_SVG;
-                    btn.addEventListener('mousedown', (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const tr = btn.closest('tr');
-                      if (tr) tr.classList.add('rte-row-removing');
-                      // Transición suave breve y luego borrado real (sin pop-up)
-                      setTimeout(() => {
-                        try {
-                          const p = typeof getPos === 'function' ? getPos() : null;
-                          if (p == null) return;
-                          editor.chain().focus().setTextSelection(p + 1).deleteRow().run();
-                        } catch (err) { /* noop */ }
-                      }, 160);
-                    });
-                    return btn;
-                  },
-                  { side: -1, ignoreSelection: true },
-                ),
+                Decoration.widget(pos + 1, (view) => _buildRowDeleteButton(view), {
+                  side: -1,
+                  ignoreSelection: true,
+                }),
               );
             });
             return DecorationSet.create(state.doc, decos);
@@ -306,7 +325,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
   );
 
   return (
-    <div className="border border-slate-300 rounded-md bg-white overflow-hidden" data-testid={testid}>
+    <div className={cn('border border-slate-300 rounded-md bg-white overflow-hidden', tableRowActions && 'rte-actions')} data-testid={testid}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-2 py-1">
         <Btn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrita (Ctrl+B)" tid={`${testid}-bold`}><Bold size={14} /></Btn>
@@ -413,23 +432,6 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         [data-testid="${testid}"] .ProseMirror th { background: #2c3e50; color: #fff; text-align: left; font-weight: 600; }
         [data-testid="${testid}"] .ProseMirror .selectedCell:after { background: rgba(99,102,241,0.18); content: ""; position: absolute; inset: 0; pointer-events: none; }
         [data-testid="${testid}"] .ProseMirror table p { margin: 0; }
-        ${tableRowActions ? `
-        /* Gutter para la columna de acción (papelera) — borrado fricción cero */
-        [data-testid="${testid}"] .ProseMirror { padding-right: 46px; }
-        [data-testid="${testid}"] .ProseMirror tr.rte-row-actionable { position: relative; transition: opacity .15s ease, background-color .15s ease; }
-        [data-testid="${testid}"] .ProseMirror tr.rte-row-actionable > td:first-child { position: static; }
-        [data-testid="${testid}"] .ProseMirror tr.rte-row-actionable:hover { background-color: rgba(254,226,226,0.35); }
-        [data-testid="${testid}"] .ProseMirror tr.rte-row-removing { opacity: 0 !important; }
-        [data-testid="${testid}"] .rte-row-del {
-          position: absolute; right: -38px; top: 0; height: 100%; width: 30px;
-          display: inline-flex; align-items: center; justify-content: center;
-          border: none; background: transparent; cursor: pointer;
-          color: #94a3b8; opacity: .55; padding: 0;
-          transition: color .15s ease, opacity .15s ease, transform .15s ease;
-        }
-        [data-testid="${testid}"] .ProseMirror tr.rte-row-actionable:hover .rte-row-del { color: #ef4444; opacity: 1; }
-        [data-testid="${testid}"] .rte-row-del:hover { color: #dc2626; opacity: 1; transform: scale(1.18); }
-        ` : ''}
       `}</style>
 
       {/* Editor */}

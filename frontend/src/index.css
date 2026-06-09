@@ -63,3 +63,35 @@
   overflow-x: hidden !important;
   overscroll-behavior: contain;
 }
+
+/* ===== Matriz de Bancos/Productos: borrado de filas "fricción cero" ===== */
+/* Gutter (columna de acción) para alojar la papelera por fila */
+.rte-actions .ProseMirror { padding-right: 46px; }
+.rte-actions .ProseMirror tr.rte-row-actionable {
+  position: relative;
+  transition: opacity .15s ease, background-color .15s ease;
+}
+/* La primera celda en estático para que la papelera se ancle a la FILA, no a la celda */
+.rte-actions .ProseMirror tr.rte-row-actionable > td:first-child { position: static; }
+.rte-actions .ProseMirror tr.rte-row-actionable:hover { background-color: rgba(254, 226, 226, .35); }
+.rte-actions .ProseMirror tr.rte-row-removing { opacity: 0 !important; }
+.rte-row-del {
+  position: absolute;
+  right: -38px;
+  top: 0;
+  height: 100%;
+  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #94a3b8;
+  opacity: .55;
+  padding: 0;
+  transition: color .15s ease, opacity .15s ease, transform .15s ease;
+}
+/* Hover sobre la fila => la papelera de esa fila se pone ROJA */
+.rte-actions .ProseMirror tr.rte-row-actionable:hover .rte-row-del { color: #ef4444; opacity: 1; }
+.rte-row-del:hover { color: #dc2626 !important; opacity: 1; transform: scale(1.18); }
