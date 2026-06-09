@@ -1,5 +1,37 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — P0 Homologación + Aislamiento RBAC del Motor de PDF (Opción A)
+
+### Requerimiento
+Previsualizar, Exportar y Guardar deben generar EL MISMO PDF para todos los modelos
+(VPOS, MPOS, Payment Gateway, Link de Pago), independientemente del RBAC del usuario.
+Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
+`buildTemplatePdfData` enviaba nombres vacíos → PDFs con campos en blanco.
+
+### Solución (server-side desde IDs)
+- **`pdf_generator.py`**: `TemplateQuotePDFRequest` ahora acepta IDs opcionales
+  (`client_id`, `integrator_id`, `pinpad_id`, `sponsor_bank_id`, `sponsor_processor_id`).
+- **`quotes.py`**: nueva función única `hydrate_pdf_request(data)` que resuelve los
+  nombres AUTORITATIVOS desde Mongo (`clients`, `integrators`, `hardware`, `banks`)
+  usando los IDs. Se invoca en los 3 disparadores: `preview-pdf-with-template`,
+  `generate-pdf-with-template` y `create-with-pdf` (rama `data.pdf_data`, con relleno
+  de IDs desde el top-level de la cotización).
+- **`Quotes.jsx`**: `buildTemplatePdfData` ahora incluye SIEMPRE los IDs en el payload
+  (además de los nombres como fallback legacy).
+
+### Verificación
+- 4 pytest unitarios `tests/test_pdf_hydration_rbac.py` (hidratación, convergencia
+  admin==RBAC, no-op sin IDs, etiqueta "Sin integrador") → PASS.
+- E2E: payload con nombres VACÍOS + IDs → PDF contiene cliente/banco/integrador/pinpad reales.
+- Previsualizar vs Exportar: 9 páginas, texto idéntico (difieren solo en IDs internos de
+  subset de fuentes de ReportLab, invisibles para el usuario).
+- Testing agent Iter38: backend 7/7, frontend smoke OK, sin regresiones, `retest_needed:false`.
+
+### Pendiente menor (cosmético, fuera de alcance P0)
+- `create-with-pdf` puede retornar `client_name` con commercial vs legal_name en el JSON
+  (el PDF sale correcto). Warning de hidratación `data-ve-dynamic` en QuotesTable (preexistente).
+
+
 ## 2026-06-08 — FIX PDF Payment Gateway: recurrentes + paridad Guardar/Previsualizar/Exportar
 
 ### Bugs reportados
