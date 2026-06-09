@@ -134,7 +134,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false, codeBlock: false, blockquote: false, horizontalRule: false }),
+      StarterKit.configure({ heading: false, codeBlock: false, blockquote: false, horizontalRule: false, link: false, underline: false }),
       Underline,
       TableKit.configure({ table: { resizable: false, HTMLAttributes: { class: 'rte-table' } } }),
       TextStyle,
@@ -172,6 +172,21 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
+
+  // Forzar re-render de la toolbar al cambiar la selección/contenido (TipTap v3 no
+  // re-renderiza por sí solo), para que los estados activos y los controles de
+  // tabla (Agregar/Eliminar fila) aparezcan al situar el cursor dentro de la matriz.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!editor) return;
+    const bump = () => forceTick((t) => t + 1);
+    editor.on('selectionUpdate', bump);
+    editor.on('transaction', bump);
+    return () => {
+      editor.off('selectionUpdate', bump);
+      editor.off('transaction', bump);
+    };
+  }, [editor]);
 
   // Exponemos métodos imperativos para que el padre pueda insertar texto
   // (ej. variables {token}) en la posición exacta del cursor.
@@ -294,14 +309,10 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         <Btn onClick={() => editor.chain().focus().undo().run()} title="Deshacer (Ctrl+Z)" tid={`${testid}-undo`}><Undo2 size={14} /></Btn>
         <Btn onClick={() => editor.chain().focus().redo().run()} title="Rehacer (Ctrl+Y)" tid={`${testid}-redo`}><Redo2 size={14} /></Btn>
 
-        {/* Controles de tabla — visibles solo dentro de una tabla (ej. Matriz de Bancos/Productos) */}
-        {editor.isActive('table') && (
-          <>
-            <span className="mx-1 h-4 w-px bg-slate-300" />
-            <Btn onClick={() => editor.chain().focus().addRowAfter().run()} title="Agregar fila debajo" tid={`${testid}-table-add-row`}><Rows3 size={14} /></Btn>
-            <Btn onClick={() => editor.chain().focus().deleteRow().run()} title="Eliminar fila" tid={`${testid}-table-del-row`}><Trash2 size={14} /></Btn>
-          </>
-        )}
+        {/* Controles de tabla — para la Matriz de Bancos/Productos (activos dentro de una tabla) */}
+        <span className="mx-1 h-4 w-px bg-slate-300" />
+        <Btn disabled={!editor.can().addRowAfter?.()} onClick={() => editor.chain().focus().addRowAfter().run()} title="Agregar fila debajo" tid={`${testid}-table-add-row`}><Rows3 size={14} /></Btn>
+        <Btn disabled={!editor.can().deleteRow?.()} onClick={() => editor.chain().focus().deleteRow().run()} title="Eliminar fila" tid={`${testid}-table-del-row`}><Trash2 size={14} /></Btn>
 
         {showPreview && (
           <>

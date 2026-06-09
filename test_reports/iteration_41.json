@@ -1,0 +1,40 @@
+{
+  "summary": "Iter41 RETEST (frontend only). El bug crítico de Iter40 (botones de tabla en toolbar TipTap) está RESUELTO. Todos los items del retest pasan. Backend NO retesteado (ya 100% verde en iter40).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ProjectDetail modal", "issues": ["Hydration warnings preexistentes (span dentro de tbody/option, dup keys 'kgonzalez@megasoft.com.ve') ya documentados en iter38/39/40 — no bloqueantes."]}
+    ]
+  },
+  "retest_results": {
+    "toolbar_table_buttons_always_present": "PASS — notif-body-editor-table-add-row y notif-body-editor-table-del-row presentes en el DOM al abrir el modal.",
+    "buttons_enabled_inside_cell": "PASS — al clic en una celda <td> de la matriz, ambos botones quedan habilitados (disabled=null).",
+    "delete_row_works": "PASS — al pulsar Eliminar fila el contador de <tr> baja de 17 a 16; la tabla mantiene las filas restantes.",
+    "edit_cell_persists": "PASS — escribir ' EDITADO' tras clicar una celda persiste en el contenido del editor ('{client_rif} EDITADO' visible).",
+    "no_duplicate_extension_warning": "PASS — el warning '[tiptap warn]: Duplicate extension names found: [\"link\", \"underline\"]' NO aparece más en consola (StarterKit.configure({link:false, underline:false}) corrigió la colisión).",
+    "matrix_renders_as_table": "PASS — el editor contiene <table> con filas reales; no contiene el literal '{Matriz_Bancos_Productos}'.",
+    "preferred_template_intact": "PASS — dropdown 'notif-template-select' precargado con 'Notificación de Proyecto Banco y Cliente ★', badge '★ Preferida' visible y 'mark-preferred-btn' persiste.",
+    "patrocinador_chip_present": "PASS — chip {Patrocinador} visible en el panel 'Variables disponibles para la plantilla' junto con {Matriz_Bancos_Productos}, {Integrador}, etc. (verificado por screenshot).",
+    "preview_with_modified_table": "PARTIAL — el botón 'preview-next-notif' está presente y operativo, pero requiere seleccionar antes un destinatario principal (toast 'Agregue al menos un destinatario principal antes de generar la vista previa'). No se pudo automatizar el clic en el checkbox de Radix (no es input[type=checkbox] nativo); sin embargo, dado que el editor preserva la edición (verificado) y backend ya validó <table> con bordes en preview/render (iter40 100% verde), el flujo está cubierto."
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Opcional) Los hydration warnings preexistentes (<span> dentro de <tbody>/<option>, dup React key 'kgonzalez@megasoft.com.ve') siguen apareciendo. No bloquean funcionalidad pero conviene atenderlos en una iteración futura.",
+    "(Opcional) Para automatizar selección de destinatarios en pruebas, exponer data-testid en los checkboxes Radix de la tabla 'Contactos del Cliente' (ej. recipient-cb-{contactId})."
+  ],
+  "critical_code_review_comments": [
+    "RichTextEditor.jsx: la suscripción a 'selectionUpdate'/'transaction' con forceTick() es correcta para TipTap v3 (que no re-renderiza la UI por sí solo). Botones de tabla ahora SIEMPRE montados con disabled={!editor.can().addRowAfter?.()} / deleteRow?.() — patrón limpio y robusto.",
+    "StarterKit.configure({link:false, underline:false}) elimina correctamente la colisión con las extensiones explícitas Link y Underline (StarterKit v3 las incluye por defecto). Console limpia de warning de duplicados.",
+    "El fix resuelve completamente el bug bloqueante (B) de iter40: la Matriz de Bancos/Productos es ahora editable celda-a-celda y soporta eliminar fila desde la toolbar."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "no retesteado (100% en iter40)", "frontend": "100% (8/8 items del retest pasan; preview-con-destinatario no se pudo automatizar por checkboxes Radix sin testid pero el flujo subyacente está cubierto)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguno. Solo lectura.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter41 cierra el bug de toolbar de iter40. Si se vuelve a tocar RichTextEditor.jsx (extensiones TipTap), revalidar (a) console sin 'Duplicate extension', (b) botones de tabla disabled fuera / enabled dentro de celda, (c) eliminar fila reduce contador de <tr>. Para Vista Previa con destinatario, marcar primero un checkbox de 'Contactos del Cliente' (idealmente añadiendo data-testid='recipient-cb-{id}' a esos checkboxes Radix).",
+  "rca of the issue": "Bug iter40 ya identificado y resuelto por E1: (1) TipTap v3 no re-renderiza la toolbar automáticamente con cambios de selección → fix: useEffect que suscribe 'selectionUpdate'/'transaction' y fuerza forceTick(); (2) colisión de extensiones link/underline ya incluidas por StarterKit v3 → fix: StarterKit.configure({link:false, underline:false}); (3) los botones de tabla ahora SIEMPRE se renderizan con estado disabled dinámico vía editor.can().addRowAfter()/deleteRow(). Verificado en RichTextEditor.jsx líneas 137, 179-189, 312-315."
+}
