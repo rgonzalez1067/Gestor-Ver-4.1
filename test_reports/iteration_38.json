@@ -1,0 +1,40 @@
+{
+  "summary": "Iter38 — Homologación motor de PDF (Previsualizar / Exportar / Guardar). Validados los 3 disparadores con payload de RBAC limitado (nombres vacíos + IDs válidos). Backend hidrata cliente/integrador/pinpad/banco desde Mongo y los 3 endpoints producen el MISMO PDF. Smoke UI: login admin + página Cotizaciones renderiza OK. Sin regresiones.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/quotes/create-with-pdf", "issue": "El campo client_name en la respuesta es sobrescrito por el backend (no usa el client_name del payload). El PDF y la fila en la tabla UI muestran el legal_name correcto ('10 DE NOVIEMBRE, C.A.'), pero el JSON de respuesta puede mostrar otro campo (commercial_name) en lugar del legal. Cosmético — no afecta hidratación P0."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "QuotesTable", "issues": ["Hydration warning preexistente: <span data-ve-dynamic> envuelve a <tr> dentro de <tbody> (React: <span> cannot be a child of <tbody>). No bloqueante; aparece como console warning."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pdf_homologation_iter38.py",
+    "/app/backend/tests/test_pdf_hydration_rbac.py",
+    "/app/test_reports/pytest/iter38_pdf_homologation.xml"
+  ],
+  "action_items": [
+    "(opcional, baja prioridad) Limpiar el wrapper <span data-ve-dynamic> que envuelve los <tr> en QuotesTable.jsx para eliminar el warning de hidratación.",
+    "(opcional) Confirmar si en la respuesta de create-with-pdf debería retornarse legal_name o commercial_name del cliente — el PDF se ve OK, es solo el campo client_name del JSON."
+  ],
+  "critical_code_review_comments": [
+    "hydrate_pdf_request resuelve correctamente client/integrator/pinpad/sponsor_bank desde Mongo cuando los nombres vienen vacíos pero los IDs son válidos. Paridad Previsualizar==Exportar verificada a nivel de texto Y de bytes (mismo tamaño 1,194,214 B en ambas respuestas desde la sesión UI).",
+    "create-with-pdf también ejecuta hydrate_pdf_request sobre data.pdf_data, por lo que el PDF guardado en /uploads/ contiene los nombres reales y la tabla de Costos Recurrentes Mensuales para GATEWAY.",
+    "TemplateQuotePDFRequest acepta opcionalmente client_id/integrator_id/pinpad_id/sponsor_bank_id/sponsor_processor_id sin romper flujos legacy (test_hydration_no_ids_is_noop OK)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pdf_homologation_iter38.py (NUEVO)"
+  ],
+  "success_rate": {"backend": "100% (7/7: 4 unit hydration + 3 e2e endpoint)", "frontend": "100% smoke (login + Cotizaciones render + fetch a preview/generate desde sesión UI)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (session_token en respuesta login)",
+  "seed_data_creation": "Se creó una cotización GATEWAY de prueba (COT-2026-06-048-PYME / quo_47df4c0f482c) para validar create-with-pdf — el test la intenta eliminar al final (best-effort). En la UI aparece la fila con cliente '10 DE NOVIEMBRE, C.A.'.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend: ejecutar pytest /app/backend/tests/test_pdf_homologation_iter38.py -v y /app/backend/tests/test_pdf_hydration_rbac.py -v para confirmar paridad de los 3 disparadores. Los PDFs guardados se sirven bajo /api/uploads/{filename} (no /uploads/...). El endpoint /api/quotes/{quote_id}/pdf es un generador legacy distinto y NO retorna el PDF homologado guardado.",
+  "rca of the issue": "No hubo bug a investigar — esta iteración valida la solución implementada por el agente principal (hydrate_pdf_request resuelve nombres autoritativos desde Mongo). Confirmado: preview y generate retornan PDF de tamaño idéntico (1,194,214 B) y mismo texto extraído; create-with-pdf produce el mismo PDF en /api/uploads/. PDF contiene '10 DE NOVIEMBRE', 'Equinoccio', 'Morefun', 'Venezuela' aun con payload de nombres vacíos."
+}

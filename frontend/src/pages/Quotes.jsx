@@ -1606,6 +1606,13 @@ export const Quotes = () => {
       cliente_rif: client.rif || '',
       cliente_contacto: client.contact_name || '',
       cliente_address: client.address || '',
+      // IDs para hidratación server-side (aislamiento de RBAC): el backend resuelve
+      // los nombres autoritativos desde Mongo → Previsualizar/Exportar/Guardar idénticos.
+      client_id: quoteData.client_id || null,
+      integrator_id: quoteData.integrator_id || null,
+      pinpad_id: quoteData.pinpad_id || null,
+      sponsor_bank_id: quoteData.sponsor_bank_id || null,
+      sponsor_processor_id: quoteData.sponsor_processor_id || null,
       quote_type: quoteData.quote_type,
       pricing_model: quoteData.pricing_model,
       cantidad_cajas: quoteData.cantidad_cajas || 1,

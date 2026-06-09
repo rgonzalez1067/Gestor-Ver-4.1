@@ -63,6 +63,15 @@ class TemplateQuotePDFRequest(BaseModel):
     client_segment: str = "PYME"  # "PYME" o "CORP"
     # Cliente exento de IVA — suprime impuesto en cálculos del PDF y herencia a facturación
     iva_exempt: bool = False
+    # ====== IDs para hidratación server-side (aislamiento de RBAC) ======
+    # El backend resuelve los nombres autoritativos desde Mongo usando estos IDs,
+    # garantizando que Previsualizar/Exportar/Guardar produzcan el MISMO documento
+    # sin depender de los catálogos que el frontend (limitado por permisos) tenga cargados.
+    client_id: Optional[str] = None
+    integrator_id: Optional[str] = None
+    pinpad_id: Optional[str] = None
+    sponsor_bank_id: Optional[str] = None
+    sponsor_processor_id: Optional[str] = None
 
 
 # ==================== CLASE PARA PDF CON FLUJO DINÁMICO ====================

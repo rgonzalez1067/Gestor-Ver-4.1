@@ -221,6 +221,15 @@ async def create_quote_with_pdf(data: QuoteCreateWithPDF, authorization: Optiona
                 pdf_request.quote_number = quote_number
                 # Asegurar herencia del flag iva_exempt desde la cotización
                 pdf_request.iva_exempt = bool(data.iva_exempt)
+                # Aislamiento RBAC: garantizar IDs y hidratar nombres desde la BD,
+                # de modo que el PDF guardado sea idéntico a Previsualizar/Exportar.
+                pdf_request.client_id = pdf_request.client_id or data.client_id
+                pdf_request.integrator_id = pdf_request.integrator_id or data.integrator_id
+                pdf_request.pinpad_id = pdf_request.pinpad_id or data.pinpad_id
+                pdf_request.sponsor_bank_id = pdf_request.sponsor_bank_id or data.sponsor_bank_id
+                pdf_request.sponsor_processor_id = pdf_request.sponsor_processor_id or data.sponsor_processor_id
+                await hydrate_pdf_request(pdf_request)
+                await _enrich_tipo_corp_from_db(pdf_request)
                 
                 # Obtener logo si existe
                 logo_path = None
@@ -1548,6 +1557,58 @@ async def generate_quote_pdf_from_data(data: QuotePDFRequest, authorization: Opt
 
 # ==================== GENERADOR DE PDF CON PLANTILLA ====================
 
+async def hydrate_pdf_request(data: TemplateQuotePDFRequest):
+    """Aísla la generación de PDF de la sesión/RBAC del usuario.
+
+    Si el request trae IDs, resuelve los nombres AUTORITATIVOS desde Mongo
+    (clients, integrators, hardware, banks) y los sobrescribe. Esto garantiza que
+    Previsualizar / Exportar / Guardar produzcan EXACTAMENTE el mismo documento
+    sin importar qué catálogos tenga cargados el frontend del usuario (un usuario
+    con permisos limitados antes generaba PDFs con campos en blanco).
+
+    Se aplica a TODOS los modelos (VPOS, MPOS, Payment Gateway, Link de Pago).
+    """
+    # --- Cliente ---
+    if getattr(data, "client_id", None):
+        client = await db.clients.find_one({"client_id": data.client_id}, {"_id": 0})
+        if client:
+            data.cliente_nombre = client.get("legal_name") or client.get("fantasy_name") or data.cliente_nombre
+            data.cliente_rif = client.get("rif") or data.cliente_rif
+            data.cliente_address = client.get("address") or data.cliente_address
+            contacts = client.get("contacts") or []
+            if contacts:
+                c0 = contacts[0] or {}
+                contact_name = c0.get("full_name") or c0.get("name") or ""
+                if contact_name:
+                    data.cliente_contacto = contact_name
+
+    # --- Integrador ---
+    if getattr(data, "integrator_id", None):
+        if data.integrator_id == "sin_integrador":
+            data.integrator_name = data.integrator_name or "Sin integrador por el momento"
+        else:
+            integ = await db.integrators.find_one(
+                {"integrator_id": data.integrator_id}, {"_id": 0, "name": 1}
+            )
+            if integ and integ.get("name"):
+                data.integrator_name = integ["name"]
+
+    # --- Pinpad / Hardware (VPOS/MPOS y POS de Fast Track viven en `hardware`) ---
+    if getattr(data, "pinpad_id", None) and data.pinpad_id not in ("none", ""):
+        hw = await db.hardware.find_one({"hardware_id": data.pinpad_id}, {"_id": 0, "name": 1})
+        if hw and hw.get("name"):
+            data.pinpad_model = hw["name"]
+
+    # --- Banco patrocinante ---
+    if getattr(data, "sponsor_bank_id", None):
+        bank = await db.banks.find_one({"bank_id": data.sponsor_bank_id}, {"_id": 0, "name": 1})
+        if bank and bank.get("name"):
+            data.sponsor_bank_name = bank["name"]
+
+    return data
+
+
+
 async def _enrich_tipo_corp_from_db(data: TemplateQuotePDFRequest):
     """Enriquece items con tipo_corp desde la BD para clientes CORP.
     Busca en la colección services el tipo_corp autoritativo por nombre de concepto."""
@@ -1590,6 +1651,8 @@ async def generate_quote_pdf_with_template(data: TemplateQuotePDFRequest, author
     await get_current_user(authorization)
     
     try:
+        # Aislamiento RBAC: hidratar nombres desde la BD usando los IDs
+        await hydrate_pdf_request(data)
         # Enriquecer items con tipo_corp desde la BD para clientes CORP
         await _enrich_tipo_corp_from_db(data)
         
@@ -1642,6 +1705,8 @@ async def preview_quote_pdf_with_template(data: TemplateQuotePDFRequest, authori
     await get_current_user(authorization)
     
     try:
+        # Aislamiento RBAC: hidratar nombres desde la BD usando los IDs
+        await hydrate_pdf_request(data)
         # Enriquecer items con tipo_corp desde la BD para clientes CORP
         await _enrich_tipo_corp_from_db(data)
         
