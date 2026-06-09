@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Adjuntos en Notificaciones a Bancos/Clientes (iter49)
+
+Extensión solicitada: agregar Cargar Archivos / Cargar Imágenes / Adjuntar Matriz al flujo de Notificaciones a Cliente/Banco (antes solo en "Otras Notificaciones"). Verificado: testing agent iter49 100% frontend + backend por curl (envío real status 'sent' con adjunto + matriz).
+
+- `projects.py`: `POST /projects/{id}/send-notification` convertido a **multipart** (Form + `files` + `attach_matrix`). Helper `_send_sequential_notification` ahora acepta `extra_attachments` (los adjunta al correo vía `send_email`) y `attach_matrix` (agrega la tabla de la matriz al cuerpo HTML). Los adjuntos se guardan en `uploads/notif_emails/{id}` y se registra `attachments_count` en el historial.
+- `ProjectDetail.jsx`: estado `notifFiles`/`notifAttachMatrix` + `notifFileInputRef`; panel `notif-attachments-panel` en el modal de notificaciones (botones `notif-attach-files-btn`, `notif-attach-images-btn`, `notif-attach-matrix-btn`). `sendNotification` y el camino Vista Previa→Enviar (`sendFromPreview`, rama sequential) ahora usan FormData multipart para propagar adjuntos + matriz + `to_override`/`template_id`.
+
+
 ## 2026-06-09 — Paquete multidominio: Contactos, Canal Gateway, Mensajería, Branding (iter48)
 
 Verificado E2E (testing agent iter48: 9/9 backend, frontend 100%). Tests: `/app/backend/tests/test_iter48_meganexus_package.py`.

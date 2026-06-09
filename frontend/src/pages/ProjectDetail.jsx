@@ -807,17 +807,24 @@ const ProjectDetail = () => {
           .map(e => e.trim())
           .filter(e => e && e.includes('@'));
 
-        const res = await api.post(`/projects/${projectId}/send-notification`, {
-          target: previewContext.target,
-          bank_name: previewContext.bankName || null,
-          additional_recipients: ccList.length > 0 ? ccList : null,
-          custom_html: editedHtml,
-          custom_subject: editedSubject,
-        });
+        const formData = new FormData();
+        formData.append('target', previewContext.target);
+        if (previewContext.bankName) formData.append('bank_name', previewContext.bankName);
+        if (mainRecipients && mainRecipients.length > 0) formData.append('to_override', JSON.stringify(mainRecipients));
+        formData.append('additional_recipients', JSON.stringify(ccList));
+        if (selectedNotifTemplateId) formData.append('template_id', selectedNotifTemplateId);
+        formData.append('custom_html', editedHtml);
+        formData.append('custom_subject', editedSubject);
+        formData.append('attach_matrix', notifAttachMatrix ? 'true' : 'false');
+        notifFiles.forEach(f => formData.append('files', f));
+
+        const res = await api.post(`/projects/${projectId}/send-notification`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         toast.success(res.data.message);
         setPreviewOpen(false);
         setNotifDialogOpen(false);
         setAdditionalRecipients('');
+        setNotifFiles([]);
+        setNotifAttachMatrix(false);
         fetchProject();
       } else if (previewContext?.type === 'adhoc') {
         const validRecipients = emailForm.recipients.filter(r => r.trim());
