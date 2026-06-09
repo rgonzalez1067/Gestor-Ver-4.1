@@ -54,6 +54,7 @@ const ProjectDetail = () => {
   const [notifPreferences, setNotifPreferences] = useState({ client: '', bank: '', bank_client: '' });
   const [selectedNotifTemplateId, setSelectedNotifTemplateId] = useState('');
   const [notifBody, setNotifBody] = useState('');
+  const [projectMatrixHtml, setProjectMatrixHtml] = useState('');
   const [resolvedRecipients, setResolvedRecipients] = useState([]);
 
   // Otras Notificaciones (ad-hoc avanzado)
@@ -416,40 +417,52 @@ const ProjectDetail = () => {
   };
 
   // ==================== SEQUENTIAL NOTIFICATIONS ====================
+  // Sustituye el token {Matriz_Bancos_Productos} por la tabla real para que sea
+  // editable dentro del editor enriquecido (edición de celdas + eliminar fila).
+  const injectMatrix = (html, matrixHtml) => {
+    const m = matrixHtml !== undefined ? matrixHtml : projectMatrixHtml;
+    if (!html || !m) return html || '';
+    return String(html).replace(/\{\s*Matriz_Bancos_Productos\s*\}/g, m);
+  };
+
   const openNotifDialog = async (type, bankName) => {
     setNotifTarget({ type, bankName });
     setAdditionalRecipients('');
     setMainRecipients([]);
     setResolvedRecipients([]);
     fetchSuggestedContacts();
-    // Cargar Plantillas de Proyecto (Texto Enriquecido) + preferencias y precargar la preferida
+    // Cargar Plantillas de Proyecto (Texto Enriquecido) + preferencias + matriz y precargar la preferida
     try {
-      const [tplRes, prefRes] = await Promise.all([
+      const [tplRes, prefRes, varsRes] = await Promise.all([
         api.get('/email-templates?context=IMPLEMENTACION'),
         api.get('/project-notification-preferences'),
+        api.get(`/projects/${projectId}/template-variables`),
       ]);
       const tpls = tplRes.data || [];
       const prefs = prefRes.data || {};
+      const matrixHtml = varsRes.data?.matrix_html || '';
       setEmailTemplates(tpls);
       setNotifPreferences(prefs);
+      setProjectMatrixHtml(matrixHtml);
       const preferredId = prefs[type];
       const preferred = tpls.find(t => t.template_id === preferredId) || tpls[0] || null;
       setSelectedNotifTemplateId(preferred?.template_id || '');
-      setNotifBody(preferred?.body_html || '');
+      setNotifBody(injectMatrix(preferred?.body_html || '', matrixHtml));
     } catch (err) {
       console.error('Error cargando plantillas/preferencias:', err);
       setEmailTemplates([]);
       setSelectedNotifTemplateId('');
       setNotifBody('');
+      setProjectMatrixHtml('');
     }
     setNotifDialogOpen(true);
   };
 
-  // Cambiar la plantilla seleccionada en el modal → recarga el cuerpo en el editor
+  // Cambiar la plantilla seleccionada en el modal → recarga el cuerpo (con matriz inyectada) en el editor
   const handleNotifTemplateChange = (templateId) => {
     setSelectedNotifTemplateId(templateId);
     const tpl = emailTemplates.find(t => t.template_id === templateId);
-    setNotifBody(tpl?.body_html || '');
+    setNotifBody(injectMatrix(tpl?.body_html || ''));
   };
 
   // Marcar la plantilla seleccionada como Preferida para el destino actual
@@ -2017,7 +2030,7 @@ const ProjectDetail = () => {
                           <ClipboardList size={12} />Variables disponibles para la plantilla
                         </summary>
                         <div className="px-3 pb-2 flex flex-wrap gap-1">
-                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                             <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                               title={`Clic para copiar ${v}`}>{v}</span>
@@ -2151,7 +2164,7 @@ const ProjectDetail = () => {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
                 <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                     <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                       className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
                       title={`Insertar ${v}`}>{v}</button>

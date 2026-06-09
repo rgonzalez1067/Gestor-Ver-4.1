@@ -21,6 +21,7 @@ const VAR_GROUPS = [
     { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
     { token: 'Ticket_Nro', desc: 'Número de ticket (se carga al desbloquear el proyecto)' },
     { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
+    { token: 'Patrocinador', desc: 'Banco patrocinador (o Banco - Procesador); si no hay, Nombre de Fantasía del cliente' },
     { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
     { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },
     { token: 'Cantidad_Cajas', desc: 'Cantidad de cajas' },

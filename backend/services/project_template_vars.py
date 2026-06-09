@@ -240,6 +240,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
     client_name = project.get("client_name", "")
     client_id = project.get("client_id")
     razon_social = client_name  # fallback
+    client_fantasy = project.get("fantasy_name", "") or ""
     contacto_principal = ""
     contacto_telefono = ""
     contacto_email = ""
@@ -255,6 +256,8 @@ async def resolve_project_template_vars(project: dict) -> dict:
                 or client.get("name")
                 or client_name
             )
+            if not client_fantasy:
+                client_fantasy = client.get("fantasy_name") or client.get("nombre_comercial") or ""
             # {Contacto_Principal} — primer contacto
             contacts = client.get("contacts", [])
             if contacts:
@@ -312,6 +315,16 @@ async def resolve_project_template_vars(project: dict) -> dict:
     matrix = project.get("implementation_matrix", {})
     project_services = project.get("services", []) or []
     matriz_html = _build_matrix_html(matrix, services=project_services)
+
+    # === {Patrocinador} — variable lógica condicional ===
+    # SÍ patrocinada: nombre del Banco (o "Banco - Procesador"). NO patrocinada: Nombre de Fantasía del cliente.
+    sponsored = project.get("sponsored_implementation")
+    sponsoring_bank = (project.get("sponsoring_bank_name") or "").strip()
+    sponsoring_processor = (project.get("sponsoring_processor_name") or "").strip()
+    if sponsored and sponsoring_bank:
+        patrocinador = f"{sponsoring_bank} - {sponsoring_processor}" if sponsoring_processor else sponsoring_bank
+    else:
+        patrocinador = client_fantasy or razon_social or client_name
 
     # === {Lista_VTID} ===
     # Combine project-level + store-level VTIDs
@@ -382,6 +395,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Correo_Implementador": correo_implementador,
         "Telefono_Implementador": telefono_implementador,
         "Matriz_Bancos_Productos": matriz_html,
+        "Patrocinador": patrocinador,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,
         "Modelo_Seriales_POS": modelo_seriales_pos_html,

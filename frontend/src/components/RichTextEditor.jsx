@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import { TableKit } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
@@ -11,6 +12,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Palette, Highlighter, Link as LinkIcon, Eye, X, Undo2, Redo2,
+  Rows3, Trash2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -84,6 +86,7 @@ const DEFAULT_EXAMPLE_VALUES = {
   Modelo_Equipo: 'Verifone P400',
   Cantidad: '5',
   Banco_Destino: 'Banco Mercantil',
+  Patrocinador: 'Banco Mercantil',
 };
 
 /** Reemplaza tokens {{var}} y {var} con valores de ejemplo (o [var] si no existe). */
@@ -133,6 +136,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
     extensions: [
       StarterKit.configure({ heading: false, codeBlock: false, blockquote: false, horizontalRule: false }),
       Underline,
+      TableKit.configure({ table: { resizable: false, HTMLAttributes: { class: 'rte-table' } } }),
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
@@ -290,6 +294,15 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         <Btn onClick={() => editor.chain().focus().undo().run()} title="Deshacer (Ctrl+Z)" tid={`${testid}-undo`}><Undo2 size={14} /></Btn>
         <Btn onClick={() => editor.chain().focus().redo().run()} title="Rehacer (Ctrl+Y)" tid={`${testid}-redo`}><Redo2 size={14} /></Btn>
 
+        {/* Controles de tabla — visibles solo dentro de una tabla (ej. Matriz de Bancos/Productos) */}
+        {editor.isActive('table') && (
+          <>
+            <span className="mx-1 h-4 w-px bg-slate-300" />
+            <Btn onClick={() => editor.chain().focus().addRowAfter().run()} title="Agregar fila debajo" tid={`${testid}-table-add-row`}><Rows3 size={14} /></Btn>
+            <Btn onClick={() => editor.chain().focus().deleteRow().run()} title="Eliminar fila" tid={`${testid}-table-del-row`}><Trash2 size={14} /></Btn>
+          </>
+        )}
+
         {showPreview && (
           <>
             <span className="flex-1" />
@@ -306,6 +319,15 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
           </>
         )}
       </div>
+
+      {/* Estilos de tabla dentro del editor (Matriz de Bancos/Productos editable) */}
+      <style>{`
+        [data-testid="${testid}"] .ProseMirror table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; table-layout: fixed; overflow: hidden; }
+        [data-testid="${testid}"] .ProseMirror td, [data-testid="${testid}"] .ProseMirror th { border: 1px solid #d1d5db; padding: 6px 10px; vertical-align: top; position: relative; }
+        [data-testid="${testid}"] .ProseMirror th { background: #2c3e50; color: #fff; text-align: left; font-weight: 600; }
+        [data-testid="${testid}"] .ProseMirror .selectedCell:after { background: rgba(99,102,241,0.18); content: ""; position: absolute; inset: 0; pointer-events: none; }
+        [data-testid="${testid}"] .ProseMirror table p { margin: 0; }
+      `}</style>
 
       {/* Editor */}
       <EditorContent editor={editor} />

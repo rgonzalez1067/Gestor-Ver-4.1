@@ -491,34 +491,55 @@ def _render_vars(template_str: str, variables: dict) -> str:
     return result
 
 
-def _clean_html_in_braces(html: str) -> str:
-    """Limpia etiquetas HTML que el editor rico pueda insertar dentro de variables {Variable}.
-    Ej: <span>{</span><b>Nombre_Cliente</b><span>}</span> → {Nombre_Cliente}
+def _style_email_tables(html: str) -> str:
+    """Aplica estilos email-safe (bordes/padding) a tablas sin estilo.
+
+    El editor enriquecido (TipTap) puede serializar la Matriz de Bancos/Productos
+    sin sus estilos inline; este post-procesado garantiza que el destinatario
+    reciba una tabla legible con bordes. No altera tablas que ya traen `style`.
     """
-    # Pattern: find sequences that look like a variable with HTML tags mixed in
-    # This handles: {<span>Nombre_Cliente</span>}, <b>{</b>Nombre<b>}</b>, etc.
-    html_tag = r'(?:<[^>]*>)*'
-    pattern = re.compile(
-        r'(' + html_tag + r'\{' + html_tag + r')'  # Opening brace with possible tags
-        r'([A-Za-z_][A-Za-z0-9_]*)'                 # Variable name (clean)
-        r'(' + html_tag + r'\}' + html_tag + r')',   # Closing brace with possible tags
-    )
+    if not html or '<table' not in html:
+        return html
 
+    def _style_table(m):
+        tag = m.group(0)
+        if 'style=' in tag.lower():
+            return tag
+        return tag[:-1] + ' style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:8px 0;">'
+
+    def _style_cell(m):
+        tag = m.group(0)
+        name = m.group(1)
+        attrs = m.group(2) or ''
+        if 'style=' in attrs.lower():
+            return tag
+        is_header = name.lower() == 'th'
+        base = 'padding:8px 12px;border:1px solid #e9ecef;'
+        if is_header:
+            base = 'padding:10px 12px;border:1px solid #ddd;text-align:left;background:#2c3e50;color:#ffffff;'
+        return f'<{name}{attrs} style="{base}">'
+
+    html = re.sub(r'<table[^>]*>', _style_table, html)
+    html = re.sub(r'<(td|th)([^>]*)>', _style_cell, html)
+    return html
+
+
+def _clean_html_in_braces(html: str) -> str:
+    """Limpia etiquetas HTML que el editor rico pueda insertar DENTRO de variables {Variable}.
+    Ej: {<span>Nombre</span>_Cliente} → {Nombre_Cliente}
+
+    Solo opera sobre el contenido encerrado entre llaves (sin anidar). NO consume
+    etiquetas adyacentes fuera de las llaves, evitando corromper estructuras como
+    tablas que sigan inmediatamente a una variable (ej. {Patrocinador}<table>...).
+    """
     def replacer(m):
-        var_name = m.group(2)
-        return '{' + var_name + '}'
+        inner = re.sub(r'<[^>]*>', '', m.group(1)).strip()
+        if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', inner):
+            return '{' + inner + '}'
+        return m.group(0)  # no parece una variable → dejar intacto
 
-    # Also handle cases where the variable name itself has HTML tags in it
-    # e.g., {<span>Nombre</span>_<span>Cliente</span>}
-    inner_tag_pattern = re.compile(r'\{([^}]*<[^>]*>[^}]*)\}')
-
-    def clean_inner(m):
-        inner = re.sub(r'<[^>]*>', '', m.group(1))
-        return '{' + inner.strip() + '}'
-
-    result = inner_tag_pattern.sub(clean_inner, html)
-    result = pattern.sub(replacer, result)
-    return result
+    # Captura {...} sin llaves anidadas
+    return re.sub(r'\{([^{}]*)\}', replacer, html)
 
 
 async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], send_count: int, template_vars: dict, override_template_id: Optional[str] = None) -> dict:
@@ -785,6 +806,8 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     # CRITICAL: Re-apply variable replacement on custom_html (user may have inserted variables in editor)
     if custom_html:
         html = _render_vars(html, template_vars)
+        # Re-aplicar estilos a tablas (la matriz editada en el editor puede perder estilos inline)
+        html = _style_email_tables(html)
     if custom_subject:
         subject = _render_vars(subject, template_vars)
 
@@ -937,6 +960,7 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
     html = email_data["html"]
     if body.custom_html:
         html = _render_vars(body.custom_html, template_vars)
+        html = _style_email_tables(html)
     if body.custom_subject:
         prefix_label = NOTIFICATION_PREFIXES[min(send_count, len(NOTIFICATION_PREFIXES) - 1)]
         raw = _render_vars(body.custom_subject, template_vars)

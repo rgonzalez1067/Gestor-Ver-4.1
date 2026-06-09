@@ -1,0 +1,58 @@
+{
+  "summary": "Iter40 — Matrix editable + {Patrocinador}. Backend 100% verde (15/15 pytest + 3/3 HTTP nuevos). Frontend: matriz renderiza como TABLA real (no literal) con Banco Activo + 3 productos, {Patrocinador} chip presente (visible al expandir Variables). BUG CRÍTICO: los botones de toolbar para tabla 'notif-body-editor-table-add-row' y 'notif-body-editor-table-del-row' NO se muestran cuando el cursor está dentro de la matriz (toolbar solo expone B/I/U/S, listas, alineación, emoji, link, undo/redo). Esto bloquea el requerimiento (B) — la matriz NO es realmente editable (eliminar fila) desde la UI. Además TipTap warning: 'Duplicate extension names ['link','underline']' (TableKit reimporta extensiones ya presentes).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "RichTextEditor (TipTap) — modal de notificación",
+        "issue": "Los botones de tabla 'Agregar fila' y 'Eliminar fila' (data-testid='notif-body-editor-table-add-row' / '...-table-del-row') NO se renderizan en la toolbar aún cuando el cursor está DENTRO de una celda de la matriz (verificado clic en td 'Banco Activo' y editor.isActive('table') esperado=true). La toolbar visible solo muestra: B I U S, listas, alineación, emoji, color, link, undo/redo. Sin estos controles, el requerimiento (B) ‘matriz editable + eliminar fila’ no se cumple desde UI. Posible causa: TableKit no se cargó (Duplicate extension warning), o el render condicional no detecta la tabla, o los testids fueron definidos pero el bloque condicional nunca se monta.",
+        "selector": "[data-testid='notif-body-editor-table-add-row'] / [data-testid='notif-body-editor-table-del-row']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "RichTextEditor — carga de TipTap",
+        "issue": "Console warning: '[tiptap warn]: Duplicate extension names found: [\"link\", \"underline\"]'. Indica que se está montando StarterKit + Link/Underline + TableKit donde TableKit (o StarterKit nuevo) ya trae link/underline. Puede degradar el comportamiento del editor (configuraciones perdidas).",
+        "selector": "RichTextEditor.jsx (extensions list)",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Matriz editable — eliminar fila",
+        "issue": "No se pudo ejecutar el flujo de eliminar/editar fila porque los botones de toolbar no existen. Requerimiento (B) bloqueado hasta que se exponga la UI de control de tabla.",
+        "affected_selectors": ["notif-body-editor-table-add-row", "notif-body-editor-table-del-row"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "ProjectDetail modal", "issues": ["Hydration warnings preexistentes (span dentro de tbody/option) ya documentados en iter38/39 — no bloqueantes."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter40_matrix_patrocinador_http.py",
+    "/app/backend/tests/test_matrix_and_patrocinador.py",
+    "/app/test_reports/pytest/iter40_matrix_patrocinador.xml"
+  ],
+  "action_items": [
+    "Frontend: verificar el bloque condicional que renderiza los botones de tabla en RichTextEditor.jsx — actualmente NO se muestran aunque el cursor esté dentro de una <table class='rte-table'>. Posibles causas: (a) TableKit no efectivamente cargado por colisión con Link/Underline ya presentes en StarterKit; (b) el wrapper que monta los botones usa editor.isActive('table') pero la condición se evalúa una sola vez al montar y no se re-evalúa con onSelectionUpdate; (c) los data-testid fueron definidos en código muerto. Recomendación: añadir useEffect(() => {}, [editor.state.selection]) y forzar setForceUpdate, o usar editor.on('selectionUpdate', ...) para re-render. Validar con devtools que los botones existan en DOM.",
+    "Frontend: resolver warning 'Duplicate extension names [link, underline]'. TipTap StarterKit v3 ya incluye link/underline; eliminar imports duplicados de @tiptap/extension-link y @tiptap/extension-underline, o usar StarterKit.configure({link:false, underline:false}).",
+    "Cosmético: chip {Patrocinador} aparece en panel colapsado 'Variables disponibles para la plantilla'. Considerar pre-expandir o que las chips de Patrocinador y Matriz_Bancos_Productos estén siempre visibles para descubribilidad."
+  ],
+  "critical_code_review_comments": [
+    "Backend (_clean_html_in_braces, _style_email_tables, _render_vars, resolve_project_template_vars): pruebas unitarias + HTTP validan que (a) variables fragmentadas por el editor se colapsan SIN consumir tags adyacentes, (b) tablas <table> preservadas tras renderizar {Patrocinador} y (c) bordes 1px solid se aplican email-safe vía _style_email_tables. CAFE EUROPA (no patrocinado) resuelve {Patrocinador} a fantasy/client_name; proyecto patrocinado (sponsoring_bank_name set) resuelve al banco. Endpoint GET /projects/{id}/template-variables devuelve matrix_html con <table> + Banco Activo poblado.",
+    "Frontend OK parcial: matriz se inyecta como tabla real (matrix_html sustituye {Matriz_Bancos_Productos} en injectMatrix), 4 filas (header + 3 productos), chip {Patrocinador} listado. FALTA UI de edición de filas; sin ello la entrega (B) está incompleta.",
+    "Resend no configurado → send-notification responde sin 500 (graceful). OK por diseño en QA."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter40_matrix_patrocinador_http.py (NUEVO — 3 tests HTTP)"
+  ],
+  "success_rate": {"backend": "100% (12/12 unit previos + 3/3 HTTP nuevos = 15/15)", "frontend": "60% (render OK, chip OK; edición de tabla NO funciona — bug crítico de toolbar)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (POST /api/auth/login → session_token)",
+  "seed_data_creation": "Ninguno. Solo lectura.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend 100% verde, NO retestear. Foco: una vez E1 arregle el render de botones de tabla en toolbar (data-testid notif-body-editor-table-add-row y -table-del-row), revalidar: (1) clic en celda matriz hace aparecer los botones, (2) clic en 'Eliminar fila' elimina la fila del editor, (3) clic en 'Vista Previa' (con destinatario seleccionado) muestra tabla modificada con bordes, (4) Enviar responde sin 500. Para validar Vista Previa: marcar primero un checkbox de destinatario en 'Contactos del Cliente' (modal muestra error 'Agregue al menos un destinatario principal' si no se selecciona). El proyecto patrocinado para validar variante sponsored existe en BD (verified via /api/projects scan + sponsored_implementation=true + sponsoring_bank_name).",
+  "rca of the issue": "Los botones de tabla en el editor TipTap no aparecen porque el bloque condicional que los monta no se re-renderiza con el cambio de selección, O TableKit no se cargó realmente debido a colisión con extensiones ya presentes (warning 'Duplicate extension names [link, underline]'). Reproducción: 1) login admin, 2) abrir /projects/prj_826643491b64, 3) clic en 'Notificación Única (Cliente y Banco)' → modal, 4) hacer clic dentro de la celda 'Banco Activo' de la tabla matriz en el editor → ningún botón de tabla en toolbar. Mitigación sugerida: a) En RichTextEditor.jsx eliminar imports duplicados de Link/Underline (StarterKit v3 ya los incluye), b) usar editor.on('selectionUpdate', () => forceUpdate()) para re-renderizar la toolbar cuando cambia la selección, c) asegurar que los testids estén dentro del bloque condicional {editor?.isActive('table') && (...)} y que ese bloque se evalúe en cada render."
+}
