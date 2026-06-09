@@ -475,6 +475,77 @@ async def set_notification_preference(body: NotificationPreferenceUpdate, author
     return {"message": "Plantilla preferida actualizada", "destination": body.destination, "template_id": body.template_id}
 
 
+@router.get("/projects/{project_id}/ficha-tecnica")
+async def download_ficha_tecnica(project_id: str, authorization: Optional[str] = Header(None)):
+    """Genera y descarga al vuelo la Ficha Técnica de Implementación (Sección A + B)
+    de un proyecto, reutilizando el generador de PDF. Construye un dict tipo-cotización
+    desde el proyecto (y complementa desde la cotización origen si existe)."""
+    await get_current_user(authorization)
+    project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    from services.implementation_pdf import generate_implementation_pdf
+
+    def pick(*vals):
+        for v in vals:
+            if v not in (None, ""):
+                return v
+        return ""
+
+    # Base: cotización origen si existe; luego se sobreescribe con datos del proyecto
+    quote_like = {}
+    if project.get("quote_id"):
+        q = await db.quotes.find_one({"quote_id": project["quote_id"]}, {"_id": 0})
+        if q:
+            quote_like = dict(q)
+
+    client = {}
+    if project.get("client_id"):
+        client = await db.clients.find_one({"client_id": project["client_id"]}, {"_id": 0}) or {}
+
+    quote_like.update({
+        "quote_number": pick(project.get("quote_number"), quote_like.get("quote_number"), project.get("project_number")),
+        "quote_type": pick(project.get("quote_type"), quote_like.get("quote_type")),
+        "cantidad_cajas": project.get("box_count") or quote_like.get("cantidad_cajas") or 0,
+        "economic_group": pick(project.get("economic_group"), quote_like.get("economic_group")),
+        "fantasy_name": pick(project.get("fantasy_name"), quote_like.get("fantasy_name"), client.get("fantasy_name"), project.get("client_name")),
+        "integrator_name": pick(project.get("integrator_name"), quote_like.get("integrator_name")),
+        "integrator_app_name": pick(project.get("integrator_app_name"), quote_like.get("integrator_app_name")),
+        "pinpad_model": pick(project.get("pinpad_model"), quote_like.get("pinpad_model")),
+        "server_name": pick(project.get("server_name"), quote_like.get("server_name")),
+        "communication_type": pick(project.get("communication_type"), quote_like.get("communication_type")),
+        "sponsor_bank_name": pick(project.get("sponsor_bank_name"), quote_like.get("sponsor_bank_name")),
+        "sponsor_processor_name": pick(project.get("sponsor_processor_name"), quote_like.get("sponsor_processor_name")),
+        "sponsored_implementation": project.get("sponsored_implementation", quote_like.get("sponsored_implementation")),
+        "sponsoring_bank_name": pick(project.get("sponsoring_bank_name"), quote_like.get("sponsoring_bank_name")),
+        "sponsoring_processor_name": pick(project.get("sponsoring_processor_name"), quote_like.get("sponsoring_processor_name")),
+        "pinpad_serials": project.get("pinpad_serials") or quote_like.get("pinpad_serials") or [],
+        "equipments": project.get("equipments") or quote_like.get("equipments") or [],
+        "serials_provider_note": pick(project.get("serials_provider_note"), quote_like.get("serials_provider_note")),
+        "fiscal_printer_model": pick(project.get("fiscal_printer_model"), quote_like.get("fiscal_printer_model")),
+        "client_segment": pick(project.get("client_segment"), quote_like.get("client_segment"), "PYME"),
+        "client_name": pick(project.get("client_name"), quote_like.get("client_name")),
+        "client_rif": pick(project.get("client_rif"), quote_like.get("client_rif")),
+    })
+
+    contacts = client.get("contacts", []) if client else []
+    branches = quote_like.get("branch_details") or project.get("branch_details") or []
+    if not branches and project.get("stores"):
+        branches = [
+            {"store_name": s.get("name", ""), "quantity": s.get("box_count", 0)}
+            for s in project.get("stores", [])
+        ]
+
+    pdf_bytes = generate_implementation_pdf(quote_like, client, contacts, branches)
+    safe_num = str(quote_like.get("quote_number") or project_id).replace("/", "_").replace(" ", "_")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="ficha_tecnica_{safe_num}.pdf"'},
+    )
+
+
 def _render_vars(template_str: str, variables: dict) -> str:
     """Renderiza variables {key} y {{key}} en una plantilla.
     También maneja el caso donde el editor HTML inyecta tags dentro de las llaves.
@@ -522,6 +593,19 @@ def _style_email_tables(html: str) -> str:
     html = re.sub(r'<table[^>]*>', _style_table, html)
     html = re.sub(r'<(td|th)([^>]*)>', _style_cell, html)
     return html
+
+
+def _adhoc_message_to_html(message: str) -> str:
+    """Cuerpo del correo ad-hoc → HTML.
+
+    Si el mensaje ya viene como HTML (editor de Texto Enriquecido), se respeta tal
+    cual y se estilizan sus tablas. Si es texto plano (legacy), se aplica nl2br
+    dentro de un párrafo. Evita envolver HTML de bloque dentro de un <p> inválido.
+    """
+    msg = message or ""
+    if re.search(r'<[a-zA-Z][^>]*>', msg):
+        return _style_email_tables(msg)
+    return f"<p>{msg.replace(chr(10), '<br>')}</p>"
 
 
 def _clean_html_in_braces(html: str) -> str:
@@ -1012,13 +1096,13 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     ticket = project.get("ticket_number", "")
     ticket_label = f"[Ticket {ticket}] " if ticket else ""
 
-    message_html = rendered_message.replace("\n", "<br>")
+    message_html = _adhoc_message_to_html(rendered_message)
     matrix_section = ""
     if body.include_matrix:
         matrix_section = f"<hr>{template_vars.get('Matriz_Bancos_Productos', '')}"
 
     html = f"""<div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
-        <p>{message_html}</p>
+        {message_html}
         {matrix_section}
         <hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | {f'Ticket: {ticket} | ' if ticket else ''}Cliente: {template_vars.get('Nombre_Cliente', project.get("client_name", ""))}</p>
     </div>"""
@@ -1307,7 +1391,8 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
 class BatchMatrixUpdate(BaseModel):
     phase: str
     bank_name: str
-    product_name: str
+    product_name: Optional[str] = None  # legacy (un solo producto)
+    product_names: Optional[list] = None  # multi-select (varios medios de pago)
     store_ids: list
     reason: Optional[str] = ""
 
@@ -1321,6 +1406,12 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
         raise HTTPException(status_code=400, detail=f"Fase inválida. Válidas: {STORE_PHASES}")
     if not body.store_ids:
         raise HTTPException(status_code=400, detail="Debe seleccionar al menos una tienda")
+
+    # Medios de pago: multi-select (product_names) con compat. legacy (product_name)
+    products = body.product_names if body.product_names else ([body.product_name] if body.product_name else [])
+    products = [p for p in products if p]
+    if not products:
+        raise HTTPException(status_code=400, detail="Debe seleccionar al menos un medio de pago/producto")
 
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
@@ -1353,24 +1444,26 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
         matrix = store.get("implementation_matrix", {})
         if body.bank_name not in matrix:
             matrix[body.bank_name] = {}
-        if body.product_name not in matrix[body.bank_name]:
-            matrix[body.bank_name][body.product_name] = {}
-
-        old_data = matrix[body.bank_name][body.product_name].get(body.phase, {})
-        expected = old_data.get("expected", store.get("box_count", 0)) or store.get("box_count", 0)
-        matrix[body.bank_name][body.product_name][body.phase] = {
-            "completed": expected > 0,
-            "expected": expected,
-            "processed": expected,
-            "updated_at": now,
-            "updated_by": user_name,
-            "batch_updated": True,
-        }
+        store_expected_total = 0
+        for product_name in products:
+            if product_name not in matrix[body.bank_name]:
+                matrix[body.bank_name][product_name] = {}
+            old_data = matrix[body.bank_name][product_name].get(body.phase, {})
+            expected = old_data.get("expected", store.get("box_count", 0)) or store.get("box_count", 0)
+            matrix[body.bank_name][product_name][body.phase] = {
+                "completed": expected > 0,
+                "expected": expected,
+                "processed": expected,
+                "updated_at": now,
+                "updated_by": user_name,
+                "batch_updated": True,
+            }
+            store_expected_total += expected
         await db.projects.update_one(
             {"project_id": project_id, "stores.store_id": sid},
             {"$set": {"stores.$.implementation_matrix": matrix, "updated_at": now}}
         )
-        processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": expected})
+        processed_stores.append({"store_id": sid, "name": store.get("name", sid), "expected": store_expected_total})
 
     if not processed_stores:
         raise HTTPException(status_code=404, detail="Ninguna de las tiendas seleccionadas existe en el proyecto")
@@ -1388,7 +1481,7 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
     bitacora_text = (
         f"[ACTUALIZACIÓN MASIVA DE ESTATUS]\n"
         f"Fase actualizada: {body.phase}\n"
-        f"Producto: {body.product_name}\n"
+        f"Productos ({len(products)}): {', '.join(products)}\n"
         f"Ente bancario: {body.bank_name}\n"
         f"Tiendas procesadas ({len(processed_stores)}): {', '.join(store_names)}\n"
         f"Total de unidades completadas: {total_procesado}\n"
@@ -1406,7 +1499,7 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
         "batch_meta": {
             "phase": body.phase,
             "bank_name": body.bank_name,
-            "product_name": body.product_name,
+            "product_names": products,
             "reason": reason,
             "stores": processed_stores,
             "total_stores": len(processed_stores),
@@ -1650,13 +1743,13 @@ async def send_adhoc_email(
             })
 
     # Construir email HTML
-    message_html = message.replace("\n", "<br>")
+    message_html = _adhoc_message_to_html(message)
     full_subject = f"{ticket_label}{subject}"
     # Incluir matrix_html si fue enviada (separada del conteo de caracteres)
     matrix_section = f"<hr>{matrix_html}" if matrix_html.strip() else ""
     html = f"""
     <div style="font-family: Arial, sans-serif; width: 95%; max-width: 900px; margin: 0 auto;">
-        <p>{message_html}</p>
+        {message_html}
         {matrix_section}
         {f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Ticket: {ticket} | Cliente: {project.get("client_name", "")}</p>' if ticket else f'<hr><p style="color: #666; font-size: 11px;">Proyecto: {project.get("project_number", "")} | Cliente: {project.get("client_name", "")}</p>'}
     </div>
@@ -1665,6 +1758,7 @@ async def send_adhoc_email(
     # Resolve variables in adhoc emails too
     template_vars = await resolve_project_template_vars(project)
     html = _render_vars(html, template_vars)
+    html = _style_email_tables(html)
     full_subject = _render_vars(full_subject, template_vars)
 
     # Process base64 images → upload to storage
