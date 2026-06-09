@@ -273,7 +273,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         await _push_notify(
             event_type="project_assigned_to_me",
             title=f"Proyecto {project.get('project_number','')} asignado a ti",
-            message=f"Cliente {project.get('client_name','')} · Total USD ${project.get('total_usd',0):,.2f}",
+            message=f"Cliente {project.get('client_name','')}",
             context={
                 "assignee_user_id": assignment.assigned_to_user_id,
                 "sede": project.get("client_sede"),
