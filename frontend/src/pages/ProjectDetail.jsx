@@ -15,7 +15,7 @@ import {
   ArrowLeft, CreditCard, Building2, CheckCircle2, Circle, Clock,
   FileText, Send, Calendar, User, Store, Bell, BellRing, Lock, BarChart3, Mail,
   Plus, X, Paperclip, Image, Ticket, ChevronDown, Eye, Megaphone, ClipboardList,
-  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark
+  Hash, Trash2, AlertCircle, Shield, Edit3, Copy, ImagePlus, Server, Network, Edit2, Layers, FileBarChart, Flag, Landmark, FileDown
 } from 'lucide-react';
 
 import { SingleBankSection } from '../components/projects/SingleBankSection';
@@ -66,17 +66,18 @@ const ProjectDetail = () => {
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchPhase, setBatchPhase] = useState('');
   const [batchBank, setBatchBank] = useState('');
-  const [batchProduct, setBatchProduct] = useState('');
+  const [batchProducts, setBatchProducts] = useState([]);
   const [batchStoreIds, setBatchStoreIds] = useState([]);
   const [batchReason, setBatchReason] = useState('Recepción de información masiva por parte del Banco/Cliente');
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [fichaDownloading, setFichaDownloading] = useState(false);
 
   const openBatchModal = () => {
     setBatchPhase(STORE_PHASES[0]);
     const firstBank = Object.keys(project?.implementation_matrix || {})[0] || '';
     setBatchBank(firstBank);
-    const firstProduct = firstBank ? Object.keys((project?.implementation_matrix || {})[firstBank] || {})[0] || '' : '';
-    setBatchProduct(firstProduct);
+    const prods = firstBank ? Object.keys((project?.implementation_matrix || {})[firstBank] || {}) : [];
+    setBatchProducts(prods);
     setBatchStoreIds([]);
     setBatchReason('Recepción de información masiva por parte del Banco/Cliente');
     setBatchModalOpen(true);
@@ -86,26 +87,36 @@ const ProjectDetail = () => {
     setBatchStoreIds(prev => prev.includes(storeId) ? prev.filter(s => s !== storeId) : [...prev, storeId]);
   };
 
+  const toggleBatchProduct = (prod) => {
+    setBatchProducts(prev => prev.includes(prod) ? prev.filter(p => p !== prod) : [...prev, prod]);
+  };
+
+  // Al cambiar de banco en el modal, preseleccionar todos sus medios de pago.
+  const handleBatchBankChange = (bank) => {
+    setBatchBank(bank);
+    setBatchProducts(Object.keys((project?.implementation_matrix || {})[bank] || {}));
+  };
+
   const toggleAllBatchStores = () => {
     const all = (project?.stores || []).map(s => s.store_id);
     setBatchStoreIds(prev => prev.length === all.length ? [] : all);
   };
 
   const submitBatchUpdate = async () => {
-    if (!batchPhase || !batchBank || !batchProduct) {
-      toast.error('Seleccione fase, banco y producto'); return;
+    if (!batchPhase || !batchBank || batchProducts.length === 0) {
+      toast.error('Seleccione fase, banco y al menos un producto'); return;
     }
     if (batchStoreIds.length === 0) {
       toast.error('Seleccione al menos una tienda'); return;
     }
-    const confirmMsg = `Se actualizará la fase "${batchPhase}" del producto "${batchProduct}" (banco ${batchBank}) en ${batchStoreIds.length} tienda(s). ¿Continuar?`;
+    const confirmMsg = `Se actualizará la fase "${batchPhase}" de ${batchProducts.length} producto(s) (banco ${batchBank}) en ${batchStoreIds.length} tienda(s). ¿Continuar?`;
     if (!window.confirm(confirmMsg)) return;
     setBatchSubmitting(true);
     try {
       const res = await api.post(`/projects/${projectId}/matrix/batch-update`, {
         phase: batchPhase,
         bank_name: batchBank,
-        product_name: batchProduct,
+        product_names: batchProducts,
         store_ids: batchStoreIds,
         reason: batchReason,
       });
@@ -549,8 +560,8 @@ const ProjectDetail = () => {
     }
     const tpl = emailTemplates.find(t => t.template_id === templateId);
     if (tpl) {
-      // Use body field if available, otherwise use empty string (body_html is for system templates)
-      const messageBody = tpl.body || '';
+      // Las plantillas de proyecto almacenan el contenido enriquecido en body_html.
+      const messageBody = tpl.body_html || tpl.body || '';
       setEmailForm(prev => ({ ...prev, templateId: templateId, subject: tpl.subject || '', message: messageBody }));
     }
   };
@@ -609,7 +620,6 @@ const ProjectDetail = () => {
     if (!validRecipients.length) { toast.error('Agregue al menos un destinatario'); return; }
     if (!emailForm.subject.trim()) { toast.error('El asunto es obligatorio'); return; }
     if (!emailForm.message.trim()) { toast.error('El mensaje es obligatorio'); return; }
-    if (emailForm.message.length > 1000) { toast.error('Máximo 1000 caracteres'); return; }
 
     setEmailSending(true);
     try {
@@ -808,6 +818,27 @@ const ProjectDetail = () => {
     setTemplatesDialogOpen(true);
   };
 
+  // ==================== FICHA TÉCNICA (PDF on-the-fly) ====================
+  const downloadFichaTecnica = async () => {
+    setFichaDownloading(true);
+    try {
+      const res = await api.get(`/projects/${projectId}/ficha-tecnica`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ficha_tecnica_${project?.project_number || projectId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Ficha Técnica descargada');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al descargar la Ficha Técnica');
+    } finally {
+      setFichaDownloading(false);
+    }
+  };
+
   // ==================== SECURITY LOCK: TICKET NUMBER ====================
   const handleSaveTicket = async () => {
     if (!ticketInput.trim()) { toast.error('Ingrese el Número de Ticket'); return; }
@@ -979,6 +1010,9 @@ const ProjectDetail = () => {
                       </Button>
                     );
                   })()}
+                  <Button variant="outline" size="sm" onClick={downloadFichaTecnica} disabled={fichaDownloading} className="text-xs gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-7 px-2" data-testid="download-ficha-tecnica-btn">
+                    <FileDown size={12} />{fichaDownloading ? 'Generando...' : 'Ficha Técnica'}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={openTemplatesAdmin} className="text-xs gap-1 border-slate-200 text-slate-600 hover:bg-slate-50 h-7 px-2" data-testid="manage-templates-btn">
                     <ClipboardList size={12} />Plantillas
                   </Button>
@@ -2124,13 +2158,18 @@ const ProjectDetail = () => {
 
               {/* Mensaje */}
               <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Mensaje <span className="text-red-500">*</span></Label>
-                  <span className={`text-[10px] ${(emailForm.message?.length || 0) > 1000 ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>{emailForm.message?.length || 0}/1000</span>
-                </div>
-                <Textarea placeholder="Escriba su mensaje aquí..." value={emailForm.message}
-                  onChange={e => setEmailForm(prev => ({ ...prev, message: e.target.value }))}
-                  className="mt-1 text-sm min-h-[180px] resize-y" maxLength={1000} data-testid="email-message" />
+                <Label className="text-sm font-medium">Mensaje <span className="text-red-500">*</span></Label>
+                <RichTextEditor
+                  value={emailForm.message}
+                  onChange={(html) => setEmailForm(prev => ({ ...prev, message: html }))}
+                  maxChars={20000}
+                  hardLimit={false}
+                  placeholder="Escriba su mensaje aquí. Al elegir una plantilla se cargará con su formato."
+                  testid="email-message"
+                  showPreview
+                  minHeight={180}
+                  maxHeight={360}
+                />
               </div>
 
               {/* Adjuntos + Matriz */}
@@ -2236,9 +2275,9 @@ const ProjectDetail = () => {
           batchPhase={batchPhase}
           setBatchPhase={setBatchPhase}
           batchBank={batchBank}
-          setBatchBank={setBatchBank}
-          batchProduct={batchProduct}
-          setBatchProduct={setBatchProduct}
+          setBatchBank={handleBatchBankChange}
+          batchProducts={batchProducts}
+          toggleBatchProduct={toggleBatchProduct}
           batchStoreIds={batchStoreIds}
           batchReason={batchReason}
           setBatchReason={setBatchReason}

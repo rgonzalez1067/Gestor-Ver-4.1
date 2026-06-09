@@ -19,7 +19,7 @@ export const BatchUpdateModal = ({
   project,
   batchPhase, setBatchPhase,
   batchBank, setBatchBank,
-  batchProduct, setBatchProduct,
+  batchProducts, toggleBatchProduct,
   batchStoreIds,
   batchReason, setBatchReason,
   batchSubmitting,
@@ -29,6 +29,7 @@ export const BatchUpdateModal = ({
 }) => {
   const stores = project?.stores || [];
   const banks = Object.keys(project?.implementation_matrix || {});
+  const bankProducts = batchBank ? Object.keys((project?.implementation_matrix || {})[batchBank] || {}) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -39,13 +40,13 @@ export const BatchUpdateModal = ({
             Actualización Masiva de Estatus
           </DialogTitle>
           <p className="text-xs text-slate-500 mt-1">
-            Marca al 100% una fase + producto + banco para varias tiendas a la vez.
+            Marca al 100% una fase para uno o varios medios de pago de un banco, en varias tiendas a la vez.
             Se registra en la bitácora del proyecto.
           </p>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs font-semibold">Fase</Label>
               <Select value={batchPhase} onValueChange={setBatchPhase}>
@@ -57,27 +58,39 @@ export const BatchUpdateModal = ({
             </div>
             <div>
               <Label className="text-xs font-semibold">Banco / Ente</Label>
-              <Select value={batchBank} onValueChange={(v) => {
-                setBatchBank(v);
-                const firstProd = Object.keys(project?.implementation_matrix?.[v] || {})[0] || '';
-                setBatchProduct(firstProd);
-              }}>
+              <Select value={batchBank} onValueChange={setBatchBank}>
                 <SelectTrigger className="text-sm" data-testid="batch-bank-select"><SelectValue placeholder="Banco..." /></SelectTrigger>
                 <SelectContent>
                   {banks.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs font-semibold">Producto</Label>
-              <Select value={batchProduct} onValueChange={setBatchProduct}>
-                <SelectTrigger className="text-sm" data-testid="batch-product-select"><SelectValue placeholder="Producto..." /></SelectTrigger>
-                <SelectContent>
-                  {batchBank && Object.keys((project?.implementation_matrix || {})[batchBank] || {}).map(p =>
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+          </div>
+
+          {/* Medios de pago (productos) del banco — selección múltiple */}
+          <div>
+            <Label className="text-xs font-semibold">
+              Medios de Pago <span className="text-amber-600">({batchProducts.length}/{bankProducts.length})</span>
+            </Label>
+            <div className="border rounded-lg p-3 mt-1.5 bg-slate-50" data-testid="batch-products-list">
+              {!batchBank ? (
+                <p className="text-xs text-slate-400 text-center py-2">Seleccione un banco para ver sus medios de pago</p>
+              ) : bankProducts.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-2">Este banco no tiene medios de pago configurados</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {bankProducts.map(prod => (
+                    <label key={prod} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white cursor-pointer" data-testid={`batch-product-${prod}`}>
+                      <Checkbox
+                        checked={batchProducts.includes(prod)}
+                        onCheckedChange={() => toggleBatchProduct(prod)}
+                        data-testid={`batch-product-checkbox-${prod}`}
+                      />
+                      <span className="flex-1 min-w-0 font-medium text-slate-700 truncate">{prod}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -124,7 +137,7 @@ export const BatchUpdateModal = ({
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
             <p className="font-semibold mb-1">Resumen:</p>
             <p>
-              Se completará <b>{batchPhase || '—'}</b> del producto <b>{batchProduct || '—'}</b> (banco <b>{batchBank || '—'}</b>)
+              Se completará <b>{batchPhase || '—'}</b> de <b>{batchProducts.length}</b> medio(s) de pago (banco <b>{batchBank || '—'}</b>)
               en <b>{batchStoreIds.length}</b> tienda(s). Esta acción queda registrada en la bitácora.
             </p>
           </div>
@@ -134,7 +147,7 @@ export const BatchUpdateModal = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
             onClick={submitBatchUpdate}
-            disabled={batchSubmitting || batchStoreIds.length === 0}
+            disabled={batchSubmitting || batchStoreIds.length === 0 || batchProducts.length === 0}
             className="bg-amber-500 hover:bg-amber-600 text-white"
             data-testid="batch-submit-btn"
           >

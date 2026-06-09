@@ -17,9 +17,10 @@ import { ProjectTypeBadge } from '../components/projects/ProjectTypeBadge';
 import { BulkReassignModal } from '../components/BulkReassignModal';
 import { CommitmentModal } from '../components/CommitmentModal';
 import { WorkloadReportFiltersModal } from '../components/WorkloadReportFiltersModal';
+import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
 import {
   FolderKanban, Search, UserCheck, Clock, CheckCircle2, Pause,
-  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard
+  FileText, Filter, Paperclip, Eye, RefreshCw, X, UserPlus, AlertTriangle, Store, BarChart3, Ticket, Trash2, UserCog, Flag, Zap, Landmark, ChevronDown, CreditCard, ClipboardList
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -106,6 +107,66 @@ const Projects = () => {
   const [statusProject, setStatusProject] = useState(null);
   const [statusForm, setStatusForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
   const [statusLoading, setStatusLoading] = useState(false);
+
+  // Gestor global de Plantillas de Correo (acceso desde el maestro de Proyectos)
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [templateForm, setTemplateForm] = useState({ name: '', subject: '', body: '' });
+  const [templateSaving, setTemplateSaving] = useState(false);
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await api.get('/email-templates?context=IMPLEMENTACION');
+      setEmailTemplates(res.data || []);
+    } catch (err) {
+      toast.error('Error al cargar las plantillas de correo');
+      setEmailTemplates([]);
+    }
+  };
+
+  const openTemplatesAdmin = () => {
+    fetchTemplates();
+    setTemplateForm({ name: '', subject: '', body: '' });
+    setEditingTemplateId(null);
+    setTemplatesDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateForm.name.trim() || !templateForm.subject.trim()) { toast.error('Nombre y asunto son obligatorios'); return; }
+    setTemplateSaving(true);
+    try {
+      const tid = editingTemplateId || `tpl_${Date.now()}`;
+      const payload = {
+        template_id: tid,
+        name: templateForm.name,
+        subject: templateForm.subject,
+        body_html: templateForm.body,
+        context: 'IMPLEMENTACION',
+      };
+      if (editingTemplateId) {
+        await api.put(`/email-templates/${editingTemplateId}`, payload);
+        toast.success('Plantilla actualizada');
+      } else {
+        await api.post('/email-templates', payload);
+        toast.success('Plantilla creada');
+      }
+      setTemplateForm({ name: '', subject: '', body: '' });
+      setEditingTemplateId(null);
+      fetchTemplates();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Error guardando plantilla'); }
+    finally { setTemplateSaving(false); }
+  };
+
+  const handleDeleteTemplate = async (tid) => {
+    if (!window.confirm('¿Está seguro de eliminar esta plantilla? Esta acción no se puede deshacer.')) return;
+    try {
+      await api.delete(`/email-templates/${tid}`);
+      toast.success('Plantilla eliminada');
+      if (editingTemplateId === tid) { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }
+      fetchTemplates();
+    } catch { toast.error('Error eliminando plantilla'); }
+  };
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -250,6 +311,19 @@ const Projects = () => {
               <p className="text-slate-600">Seguimiento de implementaciones post-venta</p>
             </div>
             <div className="flex items-center gap-2">
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openTemplatesAdmin}
+                  data-testid="projects-templates-btn"
+                  className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                  title="Gestionar plantillas de correo de implementación (acceso global)"
+                >
+                  <ClipboardList size={14} className="mr-1.5" />
+                  Plantillas
+                </Button>
+              )}
               {canManage && (
                 <Button
                   variant="outline"
@@ -849,6 +923,20 @@ const Projects = () => {
             onClose={() => setWorkloadFiltersOpen(false)}
           />
         )}
+
+        {/* ==================== TEMPLATES ADMIN DIALOG (acceso global) ==================== */}
+        <TemplatesAdminDialog
+          open={templatesDialogOpen}
+          onOpenChange={setTemplatesDialogOpen}
+          emailTemplates={emailTemplates}
+          editingTemplateId={editingTemplateId}
+          setEditingTemplateId={setEditingTemplateId}
+          templateForm={templateForm}
+          setTemplateForm={setTemplateForm}
+          templateSaving={templateSaving}
+          handleSaveTemplate={handleSaveTemplate}
+          handleDeleteTemplate={handleDeleteTemplate}
+        />
       </main>
     </div>
   );
