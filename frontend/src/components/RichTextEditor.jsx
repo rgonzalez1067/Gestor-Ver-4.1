@@ -36,7 +36,7 @@ const TRASH_ICON_SVG =
 // Identifica la tabla de la Matriz de Bancos/Productos por su encabezado.
 const MATRIX_HEADER_RE = /Producto\s*\/\s*Servicio/i;
 
-function _buildRowDeleteButton(view) {
+function _buildRowDeleteButton(view, getPos) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'rte-row-del';
@@ -48,18 +48,17 @@ function _buildRowDeleteButton(view) {
     e.preventDefault();
     e.stopPropagation();
     const trEl = btn.closest('tr');
-    if (!trEl) return;
-    trEl.classList.add('rte-row-removing'); // transición suave
+    if (trEl) trEl.classList.add('rte-row-removing'); // transición suave
     window.setTimeout(() => {
       try {
-        const posInRow = view.posAtDOM(trEl, 0);
-        const $pos = view.state.doc.resolve(posInRow);
-        let depth = $pos.depth;
-        while (depth > 0 && $pos.node(depth).type.name !== 'tableRow') depth--;
-        if (depth > 0) {
-          const from = $pos.before(depth);
-          const to = $pos.after(depth);
-          view.dispatch(view.state.tr.delete(from, to));
+        // getPos() = posición viva del widget (pos+1, dentro de la fila);
+        // el inicio del nodo tableRow es getPos()-1.
+        const widgetPos = typeof getPos === 'function' ? getPos() : null;
+        if (widgetPos == null) return;
+        const rowStart = widgetPos - 1;
+        const node = view.state.doc.nodeAt(rowStart);
+        if (node && node.type.name === 'tableRow') {
+          view.dispatch(view.state.tr.delete(rowStart, rowStart + node.nodeSize));
         }
       } catch (err) {
         console.warn('[matrix] row delete failed', err);
@@ -96,7 +95,7 @@ const TableRowActions = Extension.create({
 
               decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'rte-row-actionable' }));
               decos.push(
-                Decoration.widget(pos + 1, (view) => _buildRowDeleteButton(view), {
+                Decoration.widget(pos + 1, (view, getPos) => _buildRowDeleteButton(view, getPos), {
                   side: -1,
                   ignoreSelection: true,
                 }),
