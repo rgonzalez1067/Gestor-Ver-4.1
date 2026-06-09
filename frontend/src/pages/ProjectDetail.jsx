@@ -2020,6 +2020,7 @@ const ProjectDetail = () => {
                             testid="notif-body-editor"
                             minHeight={180}
                             maxHeight={340}
+                            tableRowActions={true}
                           />
                         </div>
                       </div>

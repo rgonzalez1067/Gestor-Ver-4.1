@@ -1,0 +1,56 @@
+{
+  "summary": "Iter42 (frontend-only) — Verificación de fricción cero por fila en {Matriz_Bancos_Productos}. PARCIAL. ✅ Trash widgets aparecen por fila de datos (16) y NO en encabezado (header trash=False). ✅ Un clic NO dispara ningún diálogo de confirmación (dialog_ever_appeared=False). ✅ Preview/HTML serializado queda limpio (sin [data-testid='matrix-row-delete'], sin tr.rte-row-actionable). ✅ BD intacta tras refrescar (16 filas actionables vuelven). ✅ No-regresión: dropdown notif-template-select, badge ★ Preferida y mark-preferred-btn presentes; botones de toolbar de tabla siguen montados. ❌ BLOQUEANTE: el clic en la papelera NO elimina la fila (probado con click force=True, con dispatchEvent('mousedown') manual y con page.mouse.down/up real sobre el bbox — en los 3 casos el contador de filas actionables se queda en 16; el preview también devuelve las 3 filas originales del Matriz). ❌ HIGH: el icono NO se pone ROJO en hover (computedStyle.color = rgb(15,23,42) slate-900, no #ef4444); document.styleSheets no contiene ninguna regla con selector 'rte-row' (`rules: []`). ⚠️ Observación: el TableRowActions decora TODOS los <tr> de TODAS las tablas del editor (Datos del Cliente, Datos del Banco, Datos de Implementación, Matriz). Para el caso de uso (matriz puntualmente) genera 16 papeleras en lugar de 3 — descubrimiento de UX a confirmar con producto.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "RichTextEditor → TableRowActions (Plugin ProseMirror)",
+        "issue": "Un solo clic en [data-testid='matrix-row-delete'] NO elimina la fila. El handler de mousedown se registra (e.preventDefault + e.stopPropagation se ejecutan), pero el editor.chain().focus().setTextSelection(p+1).deleteRow().run() dentro del setTimeout(160ms) no produce ningún efecto observable. Verificado con 3 estrategias independientes: (a) Playwright click(force=True), (b) dispatchEvent('mousedown',{bubbles:true,button:0}), (c) page.mouse.move + down + up sobre el bbox real del botón. En todos los casos el contador de tr.rte-row-actionable permanece en 16 y la matriz del preview sigue mostrando las 3 filas originales (Tarjeta de Crédito/Débito, Cambio Pago Movil, Verificación Pago Movil). Posibles causas: (1) el try/catch alrededor de deleteRow().run() está tragando un error silenciosamente (recomendado: console.warn(err) en lugar de noop); (2) editor.chain().focus() puede estar moviendo la selección antes de que setTextSelection se aplique, o (3) p = getPos() para un widget con side:-1 en pos+1 puede no resolverse a una posición válida dentro de la fila al momento de ejecutar (la fila ya tiene la clase rte-row-removing y la decoración puede haberse re-mapeado). Sugerencia: usar onclick (en lugar de mousedown) con setTimeout(0) o llamar a deleteRow inmediatamente sin focus/setTextSelection, resolviendo la fila por DOM-to-PM (view.posAtDOM(tr,0)).",
+        "selector": "[data-testid='matrix-row-delete']",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "RichTextEditor → estilos inyectados para tableRowActions",
+        "issue": "Las reglas CSS específicas de tableRowActions (rte-row-actionable, rte-row-del, rte-row-removing, hover ROJO #ef4444) NO están presentes en document.styleSheets (búsqueda por selectorText.includes('rte-row') => rules: []). En consecuencia, al hacer hover el icono queda con color heredado rgb(15,23,42) (slate-900) en vez del rojo #ef4444 requerido. La clase rte-row-actionable sí se aplica al <tr> (verificado), por lo que la extensión carga; lo que falla es la INYECCIÓN del bloque de estilos. Causa probable: el bloque ${tableRowActions ? `…` : ''} dentro del <style> template literal en RichTextEditor.jsx no se está concatenando correctamente al CSS montado (verificar que el componente que monta el <style> incluya ese tramo, o que `testid` no contenga caracteres que rompan el selector).",
+        "selector": "[data-testid='notif-body-editor'] .ProseMirror tr.rte-row-actionable:hover .rte-row-del",
+        "priority": "HIGH"
+      },
+      {
+        "component": "RichTextEditor → alcance del TableRowActions",
+        "issue": "TableRowActions añade papelera a TODAS las filas de datos de TODAS las tablas del editor (16 trash buttons aparecen: 5 filas de Datos del Cliente + 4 de Datos del Banco + 4 de Datos de Implementación + 3 de la Matriz). El requerimiento habla específicamente de 'fricción cero en la {Matriz_Bancos_Productos}'. Convalidar con producto si esto es deseado (potencia uniforme en todo el cuerpo) o si debería limitarse a la tabla con clase/marcador de matriz (por ejemplo, table.rte-table[data-matrix='true']).",
+        "selector": "[data-testid='notif-body-editor'] table tr.rte-row-actionable",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Borrado de filas + Vista Previa limpia",
+        "issue": "Como el clic en papelera no elimina la fila, no se pudo verificar 'preview muestra solo filas conservadas'. Lo que SÍ se validó es que el HTML serializado del preview (campo accesible vía DOM del modal de Vista Previa) NO contiene la columna de papelera ni elementos con rte-row-actionable / matrix-row-delete (decorations no se serializan correctamente). En cuanto el bug de eliminación se arregle, este flujo quedará verde end-to-end.",
+        "affected_selectors": ["[data-testid='matrix-row-delete']", "[data-testid='preview-next-notif']"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "ProjectDetail notif modal", "issues": ["Hydration warnings preexistentes (<span> dentro de <tbody>/<option>, dup keys 'kgonzalez@megasoft.com.ve') siguen apareciendo — documentados desde iter38."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX CRÍTICO (E1): hacer que click sobre [data-testid='matrix-row-delete'] efectivamente elimine la fila. Recomendación de RCA: en RichTextEditor.jsx línea ~66-79, reemplazar el try/catch noop por log de error (`catch (err) { console.warn('row-delete failed', err); }`) y/o cambiar la estrategia: resolver la fila vía view.posAtDOM(btn.closest('tr'), 0) y llamar a editor.commands.deleteRow() sin chain encadenado a focus()/setTextSelection() (el setTextSelection a una posición que ya está siendo re-mapeada por la decoración puede invalidarse). Alternativa probada en otros editores: usar 'click' en vez de 'mousedown' con stopImmediatePropagation y una llamada síncrona a deleteRow.",
+    "FIX (E1): asegurar que el bloque CSS del tableRowActions (líneas ~415-430 de RichTextEditor.jsx) se inyecte realmente en el DOM. document.styleSheets no encontró ninguna regla con selector 'rte-row'. Verificar (a) que el <style> que contiene esas reglas se monte cuando tableRowActions=true, (b) que ${testid} se interpole correctamente, (c) en devtools de Chrome buscar 'rte-row-actionable' bajo Sources → Styles.",
+    "DECISIÓN producto (E1): el TableRowActions decora TODAS las tablas del editor (16 papeleras). ¿Limitar SOLO a la matriz (p.ej. añadir data-matrix='true' a la tabla insertada por injectMatrix y filtrar dentro del plugin)?"
+  ],
+  "critical_code_review_comments": [
+    "RichTextEditor.jsx: el try/catch silencioso alrededor de editor.chain().focus().setTextSelection(p+1).deleteRow().run() oculta el motivo del fallo. SIEMPRE loggear o exponer el error (al menos en dev). Esto habría acelerado el diagnóstico.",
+    "El bloque de estilos para tableRowActions debería estar en un .css importado o en un <style> JSX-styled con un id estable (ej. <style id='rte-row-actions-styles'>) para poder validar su montaje desde DOM. Hoy las reglas con selector 'rte-row' están AUSENTES de document.styleSheets aunque la extensión esté activa.",
+    "Buenas prácticas observadas: (a) Decoration.widget(... { side:-1, ignoreSelection:true }) impide serialización al HTML (verificado: el preview no contiene los botones), (b) exclusión de filas de tableHeader correcta, (c) addEventListener en mousedown con preventDefault evita que ProseMirror robe el foco — todo bien diseñado conceptualmente.",
+    "Considerar añadir un fallback de keyboard: si el foco está en una fila actionable, [Delete]+[Shift] o un atajo equivalente para usuarios sin mouse."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "no testeado (iter40/41 verde)", "frontend": "55% — 5/9 items: papeleras por fila ✅, no header ✅, sin pop-up ✅, HTML serializado limpio ✅, BD intacta ✅, no-regresión ✅. FALLAN: borrado efectivo ❌, hover rojo ❌, transición visible ❌, alcance limitado a matriz ❓"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login funcional vía press_sequentially en el email)",
+  "seed_data_creation": "Ninguno. Solo lectura.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El componente TableRowActions en /app/frontend/src/components/RichTextEditor.jsx está CARGADO (decoraciones aplicadas, clase rte-row-actionable en cada tableRow, botones matrix-row-delete renderizados — 16 botones para Cafe Europa 2015 prj_826643491b64) PERO: (1) el clic no llega a ejecutar deleteRow efectivamente — error silenciado por catch noop — verificar con dev tools removiendo el try/catch y mirando consola; (2) las reglas CSS del bloque hover rojo / transición no están en document.styleSheets (rules con selector 'rte-row' = []) por lo que sospechar de la condición ${tableRowActions ? `…` : ''} en el style block. La prueba se puede re-correr fácilmente reusando el script de browser_automation con el endpoint 'matrix-row-delete' y comparando el contador de tr.rte-row-actionable antes/después del clic.",
+  "rca of the issue": "Para el borrado: el handler de mousedown está atado y se ejecuta (verificado vía dispatchEvent y mouse físico), pero la cadena editor.chain().focus().setTextSelection(getPos()+1).deleteRow().run() está envuelta en un try/catch { /* noop */ } que enmascara la falla. Hipótesis principal: getPos() para un widget con side:-1 anclado en pos+1 al momento del setTimeout(160ms) ya no apunta a una posición válida dentro del tableRow (la propia decoración pudo re-mapear posiciones tras la transacción de focus()), por lo que setTextSelection cae en una pos no resoluble como celda → deleteRow no encuentra fila → run() retorna false silenciosamente. Mitigación recomendada: resolver la fila desde el DOM al momento del clic, ANTES del setTimeout (const tr = btn.closest('tr'); const pos = view.posAtDOM(tr,0)) y guardar `pos` en una variable de cierre, luego dentro del setTimeout llamar editor.chain().setTextSelection(pos+1).deleteRow().run() sin focus() previo. También quitar el catch silencioso para detectar el fallo en futuras regresiones. Para el hover rojo: el bloque de estilos condicional (${tableRowActions ? ...}) probablemente no está siendo montado por el componente, o el selector está mal interpolado; document.styleSheets devuelve 0 reglas con 'rte-row' aunque la extensión esté operativa."
+}
