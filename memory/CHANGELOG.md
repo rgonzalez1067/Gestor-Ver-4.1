@@ -1,5 +1,34 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Borrado de filas "fricción cero" en {Matriz_Bancos_Productos}
+
+### Requerimiento
+Eliminación ágil de filas de la matriz dentro del editor de notificación: icono de
+papelera por fila, hover en rojo, un solo clic sin confirmación, transición suave,
+borrado local/efímero (jamás la BD), y HTML limpio (sin la papelera) en el correo.
+
+### Implementación (`RichTextEditor.jsx` + `index.css`)
+- Nueva extensión ProseMirror `TableRowActions` (activada por prop `tableRowActions`):
+  - **Widget decorations**: una papelera (`matrix-row-delete`) por fila de datos —
+    nunca se serializa en `getHTML()`, por lo que no viaja en el correo.
+  - **Scope a la matriz**: solo decora la tabla cuyo encabezado contiene
+    "Producto / Servicio" (no las tablas de Datos del Cliente/Banco/Implementación);
+    excluye la fila de encabezado.
+  - **Borrado fiable vía event delegation** (`handleDOMEvents.mousedown`): el handler
+    resuelve el rango PM de la fila **síncronamente** (posAtDOM sobre la última celda,
+    sin widget) y lo captura en closure; tras 160 ms de transición despacha
+    `tr.delete(from, to)`. Esto resolvió 4 causas raíz sucesivas (listener del widget
+    recreado por PM, `posAtDOM(tr)=-1`, `trEl` huérfano post-recomposición).
+  - CSS global (`.rte-actions`): gutter para la columna de acción, hover de fila en
+    rojo (#ef4444), animación `rte-row-removing`.
+
+### Verificación
+- Testing agent iter46: **frontend 100% de criterios críticos**, `retest_needed:False`.
+  Borrado 3→2→1, scope solo matriz (3 papeleras), hover rojo, un clic sin diálogo,
+  sin errores de consola, integridad de BD (recarga→3 filas), Vista Previa con solo
+  las filas conservadas. Iteraciones 42-45 documentan la depuración del borrado.
+
+
 ## 2026-06-09 — {Matriz_Bancos_Productos} editable + variable {Patrocinador}
 
 ### Requerimiento
