@@ -428,8 +428,10 @@ class DynamicQuotePDFGenerator:
         ]))
         return table
     
-    def _create_items_table(self, items, title, header_color, show_tax=True):
-        """Crear tabla de items de cotización con desglose fiscal"""
+    def _create_items_table(self, items, title, header_color, show_tax=True, discount_pct=0):
+        """Crear tabla de items de cotización con desglose fiscal.
+        discount_pct: % de descuento a aplicar sobre el subtotal ANTES del IVA
+        (se muestra el % y el monto descontado, restándose del total)."""
         elements = []
         
         # Título de la sección
@@ -496,17 +498,28 @@ class DynamicQuotePDFGenerator:
         if show_tax:
             _iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
             _iva_label = "IVA (Exento):" if getattr(self.data, 'iva_exempt', False) else "IVA (16%):"
-            iva = subtotal * _iva_rate
-            total_con_iva = subtotal + iva
-            
-            totals_data = [
-                ['Subtotal:', f"${subtotal:.2f}"],
-                [_iva_label, f"${iva:.2f}"],
-                ['Total:', f"${total_con_iva:.2f}"]
-            ]
-            
+            disc_pct = discount_pct or 0
+            # El descuento se aplica sobre el subtotal ANTES del IVA
+            if disc_pct > 100:
+                monto_descuento = disc_pct  # compatibilidad: valor absoluto
+                disc_label_pct = ""
+            else:
+                monto_descuento = subtotal * (disc_pct / 100.0)
+                disc_label_pct = f" ({disc_pct:g}%)"
+            base_imponible = subtotal - monto_descuento
+            iva = base_imponible * _iva_rate
+            total_con_iva = base_imponible + iva
+
+            has_discount = bool(disc_pct and disc_pct > 0)
+            totals_data = [['Subtotal:', f"${subtotal:.2f}"]]
+            if has_discount:
+                totals_data.append([f"Descuento{disc_label_pct}:", f"-${monto_descuento:.2f}"])
+                totals_data.append(['Subtotal Neto:', f"${base_imponible:.2f}"])
+            totals_data.append([_iva_label, f"${iva:.2f}"])
+            totals_data.append(['Total:', f"${total_con_iva:.2f}"])
+
             totals_table = Table(totals_data, colWidths=[405, 75])
-            totals_table.setStyle(TableStyle([
+            _ts = [
                 ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
@@ -516,7 +529,11 @@ class DynamicQuotePDFGenerator:
                 ('LINEABOVE', (0, 0), (-1, 0), 1, header_color),
                 ('BACKGROUND', (0, -1), (-1, -1), header_color),
                 ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
-            ]))
+            ]
+            if has_discount:
+                # Resaltar la fila de descuento (índice 1) en verde
+                _ts.append(('TEXTCOLOR', (0, 1), (-1, 1), colors.HexColor("#16A34A")))
+            totals_table.setStyle(TableStyle(_ts))
             elements.append(totals_table)
         
         elements.append(Spacer(1, 10))
@@ -1417,7 +1434,8 @@ class DynamicQuotePDFGenerator:
             self.data.setup_items,
             "COSTOS DE IMPLEMENTACIÓN (SETUP)",
             self.COLOR_AZUL,
-            show_tax=True
+            show_tax=True,
+            discount_pct=(getattr(self.data, 'descuento_setup', 0) or 0)
         )
         elements.extend(setup_elements)
         
@@ -1426,7 +1444,8 @@ class DynamicQuotePDFGenerator:
             all_recurring,
             "COSTOS RECURRENTES MENSUALES",
             self.COLOR_VERDE,
-            show_tax=True
+            show_tax=True,
+            discount_pct=(getattr(self.data, 'descuento_recurrente', 0) or 0)
         )
         elements.extend(recurring_elements)
         

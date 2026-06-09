@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Descuentos en PDF de cotizaciones Corporativas
+
+Solicitud: en cotizaciones de clientes Corporativos, reflejar en las matrices de Setup y Recurrente el % de descuento y el monto calculado, restándolo del total (antes no aparecían en el PDF).
+
+- `services/pdf_generator.py`: `_create_items_table` ahora acepta `discount_pct`. Cuando hay descuento, el bloque de totales muestra: Subtotal → **Descuento (X%)** (monto negativo, resaltado en verde) → **Subtotal Neto** → IVA (16%, calculado sobre el neto) → Total. `generate_vpos_corp` (Página 4) pasa `descuento_setup` y `descuento_recurrente` a las tablas SETUP y RECURRENTES MENSUALES.
+- El frontend ya enviaba `descuento_setup`/`descuento_recurrente` en `pdf_data` (`buildTemplatePdfData`) y la descarga los lee del registro, por lo que el descuento aparece tanto en vista previa como en el PDF descargado.
+- Verificado: render de Página 4 muestra Setup $318→-$31.80(10%)→$286.20 neto→IVA $45.79→Total $331.99 y Recurrente con 5%. Tests: `tests/test_corp_quote_discount_pdf.py` (2 passed). Sin cambios para PYME (default `discount_pct=0`).
+
+
 ## 2026-06-09 — Nuevas variables de plantillas de Proyectos
 
 Solicitud: crear variables para Nombre/Email del Implementador y una Matriz de Sucursales.
