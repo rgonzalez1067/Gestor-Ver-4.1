@@ -305,6 +305,26 @@ async def delete_message(message_id: str, authorization: Optional[str] = Header(
     return {"status": "deleted", "message_id": message_id}
 
 
+class BatchDeleteRequest(BaseModel):
+    message_ids: list[str] = Field(default_factory=list)
+
+
+@router.post("/inbox/batch-delete")
+async def batch_delete_messages(body: BatchDeleteRequest, authorization: Optional[str] = Header(None)):
+    """Borrado masivo/selectivo (soft-delete) de mensajes del usuario.
+    Solo afecta mensajes que pertenecen al usuario autenticado y que no estén ya
+    eliminados; se preservan en DB para auditoría."""
+    user = await get_current_user(authorization)
+    ids = [m for m in (body.message_ids or []) if m]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No se proporcionaron mensajes para eliminar")
+    res = await db.inbox_messages.update_many(
+        {"message_id": {"$in": ids}, "user_id": user["user_id"], "deleted_at": None},
+        {"$set": {"deleted_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"status": "deleted", "deleted_count": res.modified_count, "requested": len(ids)}
+
+
 
 @router.get("/inbox/{message_id}/attachments/{index}")
 async def download_attachment(

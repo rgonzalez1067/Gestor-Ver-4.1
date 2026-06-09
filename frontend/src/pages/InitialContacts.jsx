@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { Plus, Phone, Mail, Building2, User, Search, BookOpen, UserPlus, ArrowRightLeft, Rocket, ChevronDown, ChevronUp, Filter, Trash2, Send, XCircle, MessageSquare, RotateCcw } from 'lucide-react';
+import { Plus, Phone, Mail, Building2, User, Search, BookOpen, UserPlus, ArrowRightLeft, Rocket, ChevronDown, ChevronUp, Filter, Trash2, Send, XCircle, MessageSquare, RotateCcw, Pencil } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { InitialContactEmailDialog } from '../components/InitialContactEmailDialog';
@@ -79,6 +79,12 @@ export const InitialContacts = () => {
   // Delete (admin only)
   const [deleteContact, setDeleteContact] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Edit (admin only) — corrección de datos capturados
+  const [editOpen, setEditOpen] = useState(false);
+  const [editContact, setEditContact] = useState(null);
+  const [editForm, setEditForm] = useState({ contact_name: '', legal_name: '', phone: '', email: '', sede: 'PYME', interest_notes: '' });
+  const [editing, setEditing] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -168,6 +174,38 @@ export const InitialContacts = () => {
       setConvertConfirmOpen(false);
       fetchData();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al convertir'); }
+  };
+
+  const openEdit = (c) => {
+    setEditContact(c);
+    setEditForm({
+      contact_name: c.contact_name || '',
+      legal_name: c.legal_name || '',
+      phone: c.phone || '',
+      email: c.email || '',
+      sede: c.sede === 'CORP' ? 'CORP' : 'PYME',
+      interest_notes: c.interest_notes || '',
+    });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editContact) return;
+    if (!editForm.contact_name.trim() || !editForm.legal_name.trim()) {
+      toast.error('Nombre del contacto y Razón Social son obligatorios'); return;
+    }
+    setEditing(true);
+    try {
+      await api.put(`/initial-contacts/${editContact.contact_id}`, editForm);
+      toast.success('Contacto actualizado');
+      setEditOpen(false);
+      setEditContact(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al editar contacto');
+    } finally {
+      setEditing(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -400,6 +438,15 @@ export const InitialContacts = () => {
                           </Button>
                         )}
                         {isAdmin && (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600"
+                            title="Editar (solo Admin)"
+                            onClick={() => openEdit(c)}
+                            data-testid={`edit-btn-${c.contact_id}`}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
+                        {isAdmin && (
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
                             title="Eliminar (solo Admin)"
                             onClick={() => setDeleteContact(c)}
@@ -483,6 +530,59 @@ export const InitialContacts = () => {
                 <Button type="submit" className="bg-green-600 hover:bg-green-700" data-testid="submit-contact-btn">Crear Contacto</Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Modal (admin only) */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="max-w-md" data-testid="edit-contact-modal">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Pencil size={20} className="text-blue-600" /> Editar Contacto Inicial</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label>Nombre del Contacto *</Label>
+                <Input value={editForm.contact_name} onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })} placeholder="Persona que atiende" data-testid="edit-contact-name" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Telefono</Label>
+                  <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="+58 412 1234567" data-testid="edit-phone" />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="correo@empresa.com" data-testid="edit-email" />
+                </div>
+              </div>
+              <div>
+                <Label>Nombre Juridico (Razon Social) *</Label>
+                <Input value={editForm.legal_name} onChange={(e) => setEditForm({ ...editForm, legal_name: e.target.value })} placeholder="Razon social" data-testid="edit-legal-name" />
+              </div>
+              <div>
+                <Label>Sede</Label>
+                <Select value={editForm.sede} onValueChange={(v) => setEditForm({ ...editForm, sede: v })}>
+                  <SelectTrigger data-testid="edit-sede-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PYME">PYME</SelectItem>
+                    <SelectItem value="CORP">CORP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Aspectos de Interes para el Contacto</Label>
+                <Textarea
+                  value={editForm.interest_notes}
+                  onChange={(e) => setEditForm({ ...editForm, interest_notes: e.target.value.slice(0, 300) })}
+                  placeholder="Notas relevantes del contacto..."
+                  rows={4}
+                  className="resize-y"
+                  data-testid="edit-interest-notes"
+                />
+                <p className="text-xs text-slate-400 mt-1 text-right">{(editForm.interest_notes || '').length}/300</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={editing}>Cancelar</Button>
+                <Button type="button" onClick={handleEdit} disabled={editing} className="bg-blue-600 hover:bg-blue-700" data-testid="submit-edit-btn">{editing ? 'Guardando…' : 'Guardar Cambios'}</Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

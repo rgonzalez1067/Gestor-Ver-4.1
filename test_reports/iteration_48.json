@@ -1,0 +1,56 @@
+{
+  "summary": "Iter48 - Verificación E2E del paquete de 5 tareas MegaNexus (CRM Gestor - Mega Soft). 9/9 tests backend pasan (1 skipped por inbox vacío del usuario srubio). Frontend smoke-tests confirman las 4 tareas UI. Encontré y corregí un BUG CRÍTICO COLATERAL: el decorador `@router.post('/initial-contacts/{contact_id}/assign')` fue accidentalmente eliminado al añadir el nuevo PUT en la misma iteración del main agent, lo que dejaba sin ruta la funcionalidad de asignación de contactos iniciales. Restauré el decorador y agregué test de regresión. RESULTADOS: A) Quote channel CORP/PYME via _resolve_client_segment ✅ (CORP para cliente Corporativo+GATEWAY, PYME para cliente Pymes+LINK_PAGO). B) InboxCenter borrado masivo ✅ (inbox-select-all, 50 checkboxes inbox-select-{id}, botón inbox-bulk-delete-btn disabled→enabled al seleccionar, modal inbox-bulk-delete-dialog con conteo correcto, endpoint POST /api/inbox/batch-delete devuelve 400 con lista vacía y 200 con deleted_count). C) RBAC Edit InitialContacts ✅ (srubio non-admin: 0 edit-btn visibles; admin rgonzalez: 7 edit-btn visibles, abre edit-contact-modal con submit-edit-btn; PUT 403 non-admin, 200 admin con entrada 'edited' en bitácora; 400 con sede inválida). D) Adhoc email modal homologado ✅ (14/14 testids presentes: adhoc-email-dialog, adhoc-contacts-table, adhoc-toggle-all-contacts, adhoc-contact-checkbox-{i} x4, adhoc-recipients-chips, adhoc-manual-email-input, adhoc-add-recipient-btn, template-select, email-subject, email-message, attach-files-btn, attach-images-btn, attach-matrix-btn, preview-adhoc-email-btn, send-adhoc-email-btn; seleccionar checkbox agrega chip 'ragg1008@gmail.com'; agregar correo manual agrega chip; preview funciona). E) Branding ✅ (document.title='CRM Gestor - Mega Soft', #emergent-badge ausente del DOM).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ProjectDetail - Adhoc email dialog",
+        "issues": [
+          "React warning 'Encountered two children with the same key' al abrir adhoc-email-dialog. Probablemente lista de destinatarios o variables duplica una clave; no bloquea funcionalidad pero polución de logs. Revisar key generation en map() de chips/contactos."
+        ]
+      },
+      {
+        "screen": "Global (preexistente)",
+        "issues": [
+          "Hydration warnings <tr>/<span>, <span>/<tbody>, <th>/<span>: heredado desde iter38+; causado por el instrumentador <span data-ve-dynamic='true' style='display:contents'> de Emergent. No relacionado con esta iteración."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter48_meganexus_package.py",
+    "/app/test_reports/pytest/iter48_results.xml"
+  ],
+  "action_items": [
+    "(P0 ya corregido por testing agent) Restauré `@router.post('/initial-contacts/{contact_id}/assign')` en /app/backend/routes/initial_contacts.py:265 — el main agent lo había borrado por accidente al agregar el nuevo PUT /initial-contacts/{id}. Sin este fix, asignar contactos iniciales devolvía 405. Confirmar con QA manual que el flujo Asignar/Reasignar contactos sigue operativo.",
+    "(P3 polish) Agregar key único en el .map() de chips/contactos del adhoc-email-dialog (ProjectDetail.jsx ~línea 2096) para eliminar warning 'Encountered two children with the same key'."
+  ],
+  "critical_code_review_comments": [
+    "(P0 FIX APLICADO) /app/backend/routes/initial_contacts.py — al añadir el nuevo PUT /initial-contacts/{id} para edición admin-only, el decorador POST /initial-contacts/{id}/assign quedó borrado, dejando la función `assign_initial_contact` como función plana de módulo (sin ruta). git diff lo confirma. Lo restauré.",
+    "_resolve_client_segment (quotes.py:28-42): lógica correcta — deriva CORP del campo segment='Corporativo' del cliente para GATEWAY/LINK_PAGO, mantiene fallback para otros tipos. La línea 36 tiene un paréntesis curioso `(client.get('segment') if client else '' or '')` que funciona por precedencia pero es ilegible; sugerir refactor a `(client.get('segment') if client else '') or ''`.",
+    "POST /inbox/batch-delete (inbox.py:312): soft-delete correcto, filtra por user_id del autenticado (aislamiento por usuario), idempotente (no re-elimina ya eliminados via filtro deleted_at:None). Devuelve 200 con deleted_count cuando los IDs no existen — comportamiento aceptable (no leak de existencia de mensajes ajenos).",
+    "PUT /initial-contacts/{id} (initial_contacts.py:203): RBAC correcto (403 non-admin), valida sede en (PYME,CORP), trunca interest_notes a 300 chars, registra bitacora con action='edited' incluyendo deltas legibles por campo. No-op si no hay cambios (return contacto sin modificar) — OK.",
+    "Frontend InboxCenter.jsx: 'Seleccionar todo' y 50 inbox-select-{id} renderizan correctamente; barra inbox-bulk-toolbar muestra contador '2 seleccionados'; botón papelera correctamente disabled al 0 seleccionados.",
+    "Frontend InitialContacts.jsx: edit-btn gated por role==='admin' a nivel de render (no se filtra solo desde backend), buena defensa en profundidad junto con el 403 del PUT.",
+    "Frontend ProjectDetail.jsx adhoc-email-dialog: panel 'Destinatarios del Proyecto' renderiza tabla, checkboxes funcionan, chips se agregan en tiempo real, plantillas cargan body_html al cambiar, capacidades Cargar Archivos/Imágenes/Matriz preservadas, preview-adhoc-email-btn abre dialog secundario."
+  ],
+  "updated_files": [
+    "/app/backend/routes/initial_contacts.py (restaurado decorador @router.post /initial-contacts/{id}/assign)",
+    "/app/backend/tests/test_iter48_meganexus_package.py (nuevo, 10 tests pytest)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 ejecutados, 1 skipped por falta de seed de inbox)",
+    "frontend": "100% de testids y flujos críticos verificados para B/C/D/E"
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 — No-admin: srubio@megasoft.com.ve / Test1234!",
+  "seed_data_creation": "Se creó 1 cotización TEST_iter48 GATEWAY-CORP y 1 TEST_iter48 LINK_PAGO-PYME (validación de canal). Se creó 1 contacto inicial TEST_iter48 (admin lo editó dejando bitácora con action='edited'). No se borraron — pueden depurarse con WHERE notes LIKE 'TEST_iter48%' / contact_name LIKE 'TEST_iter48%'.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El paquete iter48 (5 tareas MegaNexus) está verificado E2E. El bug colateral del decorador POST /initial-contacts/{id}/assign fue corregido por mí. Test file: /app/backend/tests/test_iter48_meganexus_package.py es regression-safe (idempotente, prefija TEST_). Proyecto de pruebas para adhoc-email: prj_c90431389574. Importante: el endpoint de login devuelve `session_token` (no `token`) y el frontend lo persiste como Bearer. Para futuras pruebas de Select Radix dentro del adhoc-dialog, los items se renderizan en portal — usar role='option'.",
+  "rca of the issue": "BUG COLATERAL ENCONTRADO POR TESTING: al añadir el nuevo endpoint PUT /initial-contacts/{id} en initial_contacts.py, el commit eliminó por accidente la línea `@router.post('/initial-contacts/{contact_id}/assign')` que decoraba `assign_initial_contact`. git diff confirma `-@router.post(...)` sin reemplazo. Esto convirtió `assign_initial_contact` en función plana sin ruta, rompiendo la funcionalidad de asignar/reasignar Contactos Iniciales (devolvería 405 Method Not Allowed para cualquier POST a /assign). MITIGACIÓN: restauré el decorador en el lugar correcto. PREVENCIÓN: en futuros refactors de routes/, usar `git diff --stat` antes de commitear para detectar líneas de decoradores eliminadas."
+}

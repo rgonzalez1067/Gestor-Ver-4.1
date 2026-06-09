@@ -4,6 +4,7 @@ import { Inbox, Trash2, Mail, MailOpen, ChevronDown, ChevronUp, RefreshCw, Paper
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
+import { Checkbox } from './ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import {
   AlertDialog,
@@ -225,6 +226,10 @@ export function InboxCenter() {
   const [expandedIds, setExpandedIds] = useState({}); // { msg_id: true }
   const [deletingTarget, setDeletingTarget] = useState(null); // {message_id, subject}
   const [refreshing, setRefreshing] = useState(false);
+  // Borrado masivo/selectivo: selección por fila + modal de confirmación.
+  const [selected, setSelected] = useState({}); // { rowKey: {id, type} }
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -293,6 +298,62 @@ export function InboxCenter() {
       toast.error(`No se pudo eliminar: ${detail}`);
     } finally {
       setDeletingTarget(null);
+    }
+  };
+
+  // ==================== SELECCIÓN MÚLTIPLE / BORRADO MASIVO ====================
+  const rowKeyOf = (msg) => (msg.type === 'conversation' ? msg.conversation_id : msg.message_id);
+
+  const toggleSelect = (msg) => {
+    const key = rowKeyOf(msg);
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (next[key]) {
+        delete next[key];
+      } else {
+        next[key] = { id: key, type: msg.type === 'conversation' ? 'conversation' : 'message' };
+      }
+      return next;
+    });
+  };
+
+  const allSelected = messages.length > 0 && messages.every((m) => selected[rowKeyOf(m)]);
+  const selectedCount = Object.keys(selected).length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelected({});
+    } else {
+      const next = {};
+      messages.forEach((m) => {
+        const key = rowKeyOf(m);
+        next[key] = { id: key, type: m.type === 'conversation' ? 'conversation' : 'message' };
+      });
+      setSelected(next);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    const entries = Object.values(selected);
+    if (entries.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const messageIds = entries.filter((e) => e.type === 'message').map((e) => e.id);
+      const convIds = entries.filter((e) => e.type === 'conversation').map((e) => e.id);
+      if (messageIds.length > 0) {
+        await api.post('/inbox/batch-delete', { message_ids: messageIds });
+      }
+      // Las conversaciones se archivan con su endpoint dedicado.
+      await Promise.all(convIds.map((id) => api.delete(`/inbox/conversations/${id}`)));
+      setSelected({});
+      setBulkConfirmOpen(false);
+      await load();
+      toast.success(`${entries.length} mensaje${entries.length === 1 ? '' : 's'} eliminado${entries.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      const detail = err.response?.data?.detail || err.message || 'Error';
+      toast.error(`No se pudieron eliminar los mensajes: ${detail}`);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -499,6 +560,37 @@ export function InboxCenter() {
         </div>
       </div>
 
+      {/* Barra de selección múltiple / borrado masivo */}
+      {messages.length > 0 && (
+        <div className="flex items-center justify-between px-6 py-2.5 bg-slate-50 border-b border-slate-200" data-testid="inbox-bulk-toolbar">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={toggleSelectAll}
+              data-testid="inbox-select-all"
+            />
+            Seleccionar todo
+            {selectedCount > 0 && (
+              <span className="text-indigo-600 font-semibold" data-testid="inbox-selected-count">
+                · {selectedCount} seleccionado{selectedCount === 1 ? '' : 's'}
+              </span>
+            )}
+          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={selectedCount === 0}
+            onClick={() => setBulkConfirmOpen(true)}
+            className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40 gap-1.5"
+            data-testid="inbox-bulk-delete-btn"
+            title={selectedCount === 0 ? 'Seleccione al menos un mensaje' : `Eliminar ${selectedCount} mensaje(s)`}
+          >
+            <Trash2 size={14} />
+            Eliminar
+          </Button>
+        </div>
+      )}
+
       {/* Listado */}
       {messages.length === 0 ? (
         <div className="px-6 py-10 text-center" data-testid="inbox-empty">
@@ -526,6 +618,12 @@ export function InboxCenter() {
                   data-type="conversation"
                 >
                   <div className="px-6 py-4 flex items-start gap-4">
+                    <Checkbox
+                      className="mt-1 shrink-0"
+                      checked={!!selected[msg.conversation_id]}
+                      onCheckedChange={() => toggleSelect(msg)}
+                      data-testid={`inbox-select-${msg.conversation_id}`}
+                    />
                     <button
                       type="button"
                       onClick={() => openChatThread(msg.conversation_id)}
@@ -602,6 +700,12 @@ export function InboxCenter() {
                 data-sla={msg.sla_color}
               >
                 <div className="px-6 py-4 flex items-start gap-4">
+                  <Checkbox
+                    className="mt-1 shrink-0"
+                    checked={!!selected[msg.message_id]}
+                    onCheckedChange={() => toggleSelect(msg)}
+                    data-testid={`inbox-select-${msg.message_id}`}
+                  />
                   <button
                     type="button"
                     onClick={() => toggleExpand(msg)}
@@ -745,6 +849,28 @@ export function InboxCenter() {
               data-testid="inbox-delete-confirm"
             >
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkConfirmOpen} onOpenChange={(o) => !bulkDeleting && setBulkConfirmOpen(o)}>
+        <AlertDialogContent data-testid="inbox-bulk-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar mensajes seleccionados</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Desea eliminar los <strong>{selectedCount}</strong> mensaje{selectedCount === 1 ? '' : 's'} seleccionado{selectedCount === 1 ? '' : 's'}? Esta acción no podrá deshacerse desde esta pantalla.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="inbox-bulk-delete-cancel" disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmBulkDelete(); }}
+              className="bg-rose-600 hover:bg-rose-700"
+              data-testid="inbox-bulk-delete-confirm"
+              disabled={bulkDeleting}
+            >
+              {bulkDeleting ? 'Eliminando…' : `Eliminar ${selectedCount}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

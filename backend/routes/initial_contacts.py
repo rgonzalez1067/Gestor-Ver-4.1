@@ -38,6 +38,16 @@ class InitialContactTransfer(BaseModel):
     target_user_id: str
     comment: Optional[str] = None
 
+class InitialContactEdit(BaseModel):
+    """Edición de datos capturados (solo Administrador). Todos los campos son
+    opcionales; se actualiza únicamente lo que venga informado."""
+    contact_name: Optional[str] = None
+    legal_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    sede: Optional[str] = None
+    interest_notes: Optional[str] = None
+
 # --- Helpers ---
 HIERARCHY_CAN_ASSIGN = {
     "Director": ["Gerente"],
@@ -188,6 +198,71 @@ async def create_initial_contact(data: InitialContactCreate, authorization: Opti
         pass
 
     return contact
+
+
+@router.put("/initial-contacts/{contact_id}")
+async def edit_initial_contact(contact_id: str, data: InitialContactEdit, authorization: Optional[str] = Header(None)):
+    """Editar los datos capturados de un Contacto Inicial.
+
+    RBAC: EXCLUSIVO para Administradores. Cualquier otro rol recibe 403.
+    Registra la traza de auditoría (quién editó y qué campos cambiaron) en la
+    bitácora del contacto."""
+    current_user = await get_current_user(authorization)
+    if (current_user.get("role") or "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Solo el Administrador puede editar contactos iniciales")
+
+    contact = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contacto no encontrado")
+
+    FIELD_LABELS = {
+        "contact_name": "Nombre de contacto",
+        "legal_name": "Razón social / Empresa",
+        "phone": "Teléfono",
+        "email": "Correo",
+        "sede": "Sede",
+        "interest_notes": "Notas",
+    }
+
+    updates = {}
+    changes = []
+    incoming = data.model_dump(exclude_unset=True)
+    for field, raw in incoming.items():
+        if raw is None:
+            continue
+        new_val = str(raw).strip()
+        if field == "interest_notes":
+            new_val = new_val[:300]
+        if field == "sede":
+            if new_val not in ("PYME", "CORP"):
+                raise HTTPException(status_code=400, detail="Sede inválida (use PYME o CORP)")
+        if field in ("contact_name", "legal_name") and not new_val:
+            raise HTTPException(status_code=400, detail=f"{FIELD_LABELS[field]} no puede quedar vacío")
+        old_val = (contact.get(field) or "")
+        if new_val != old_val:
+            updates[field] = new_val
+            changes.append(f"{FIELD_LABELS[field]}: «{old_val or '—'}» → «{new_val or '—'}»")
+
+    if not updates:
+        return contact
+
+    now = datetime.now(timezone.utc).isoformat()
+    editor_name = user_display(current_user)
+    updates["updated_at"] = now
+    entry = {
+        "entry_id": f"be_{uuid.uuid4().hex[:8]}",
+        "action": "edited",
+        "description": f"Editado por {editor_name}. Cambios: " + "; ".join(changes),
+        "user_id": current_user["user_id"],
+        "user_name": editor_name,
+        "timestamp": now,
+    }
+    await db.initial_contacts.update_one(
+        {"contact_id": contact_id},
+        {"$set": updates, "$push": {"bitacora": entry}},
+    )
+    updated = await db.initial_contacts.find_one({"contact_id": contact_id}, {"_id": 0})
+    return updated
 
 
 @router.post("/initial-contacts/{contact_id}/assign")

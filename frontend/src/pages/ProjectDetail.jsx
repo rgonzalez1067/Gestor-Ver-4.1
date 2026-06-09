@@ -60,6 +60,7 @@ const ProjectDetail = () => {
   // Otras Notificaciones (ad-hoc avanzado)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({ recipients: [''], subject: '', message: '', templateId: '' });
+  const [adhocManualEmail, setAdhocManualEmail] = useState('');
   const [internalUsers, setInternalUsers] = useState([]);
 
   // Batch update (actualización masiva multitienda)
@@ -535,7 +536,8 @@ const ProjectDetail = () => {
 
   // ==================== OTRAS NOTIFICACIONES (AD-HOC) ====================
   const openEmailDialog = () => {
-    setEmailForm({ recipients: [''], subject: '', message: '', templateId: '' });
+    setEmailForm({ recipients: [], subject: '', message: '', templateId: '' });
+    setAdhocManualEmail('');
     setEmailFiles([]);
     setAttachMatrix(false);
     fetchSuggestedContacts();
@@ -551,6 +553,29 @@ const ProjectDetail = () => {
     if (!emailForm.recipients.includes(email)) {
       setEmailForm(prev => ({ ...prev, recipients: [...prev.recipients.filter(r => r.trim()), email] }));
     }
+  };
+
+  // Homologación con Notificaciones a Bancos/Clientes: alternar destinatario por checkbox.
+  const toggleAdhocRecipient = (email) => {
+    if (!email) return;
+    const lower = email.toLowerCase();
+    setEmailForm(prev => {
+      const cleaned = prev.recipients.filter(r => r.trim());
+      const exists = cleaned.some(r => r.toLowerCase() === lower);
+      return { ...prev, recipients: exists ? cleaned.filter(r => r.toLowerCase() !== lower) : [...cleaned, email] };
+    });
+  };
+
+  const addAdhocManualRecipient = () => {
+    const emails = (adhocManualEmail || '').split(/[,;]/).map(e => e.trim()).filter(e => e && e.includes('@'));
+    if (emails.length === 0) { toast.error('Ingrese un correo válido'); return; }
+    setEmailForm(prev => {
+      const cleaned = prev.recipients.filter(r => r.trim());
+      const existing = cleaned.map(r => r.toLowerCase());
+      const toAdd = emails.filter(e => !existing.includes(e.toLowerCase()));
+      return { ...prev, recipients: [...cleaned, ...toAdd] };
+    });
+    setAdhocManualEmail('');
   };
 
   const handleTemplateSelect = (templateId) => {
@@ -2094,137 +2119,192 @@ const ProjectDetail = () => {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== OTRAS NOTIFICACIONES DIALOG ==================== */}
+        {/* ==================== OTRAS NOTIFICACIONES DIALOG (homologado) ==================== */}
         <Dialog open={emailDialogOpen} onOpenChange={(o) => { if (!emailSending) setEmailDialogOpen(o); }}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="adhoc-email-dialog">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="adhoc-email-dialog">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2"><Megaphone size={20} className="text-indigo-500" />Otras Notificaciones</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              {/* Contactos sugeridos */}
-              {suggestedContacts.length > 0 && (
-                <div>
-                  <Label className="text-xs font-medium text-slate-500 uppercase">Contactos del Proyecto</Label>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {suggestedContacts.map((c, i) => (
-                      <button key={i} onClick={() => addSuggestedContact(c.email)}
-                        className={`text-xs px-2.5 py-1.5 rounded-full border transition-all ${
-                          emailForm.recipients.includes(c.email) ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-indigo-200'
-                        }`} data-testid={`suggested-contact-${i}`} title={c.label}>
-                        {c.label.length > 30 ? c.label.slice(0, 30) + '...' : c.label}
-                      </button>
-                    ))}
-                  </div>
+            <div className="space-y-4 py-2">
+              {/* ============ DESTINATARIOS DEL PROYECTO (tabla con checkboxes) ============ */}
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Destinatarios del Proyecto</p>
+                  {suggestedContacts.length > 0 && (() => {
+                    const allEmails = suggestedContacts.map(c => (c.email || '').toLowerCase());
+                    const current = emailForm.recipients.map(x => x.trim().toLowerCase());
+                    const allSelected = allEmails.every(e => current.includes(e));
+                    return (
+                      <Button type="button" size="sm" variant="outline" className="h-7 text-xs" data-testid="adhoc-toggle-all-contacts"
+                        onClick={() => {
+                          setEmailForm(prev => {
+                            const cleaned = prev.recipients.filter(r => r.trim());
+                            if (allSelected) {
+                              return { ...prev, recipients: cleaned.filter(r => !allEmails.includes(r.toLowerCase())) };
+                            }
+                            const existing = cleaned.map(r => r.toLowerCase());
+                            const toAdd = suggestedContacts.map(c => c.email).filter(e => e && !existing.includes(e.toLowerCase()));
+                            return { ...prev, recipients: [...cleaned, ...toAdd] };
+                          });
+                        }}>
+                        {allSelected ? <><X size={12} className="mr-1" />Limpiar</> : <><CheckCircle2 size={12} className="mr-1" />Seleccionar todos</>}
+                      </Button>
+                    );
+                  })()}
                 </div>
-              )}
-
-              {/* Destinatarios */}
-              <div>
-                <Label className="text-sm font-medium">Destinatarios <span className="text-red-500">*</span></Label>
-                <div className="space-y-2 mt-1.5">
-                  {emailForm.recipients.map((r, idx) => (
-                    <InternalEmailInput
-                      key={idx}
-                      value={r}
-                      onChange={(v) => updateRecipient(idx, v)}
-                      onRemove={emailForm.recipients.length > 1 ? () => removeRecipient(idx) : null}
-                      placeholder="correo@ejemplo.com"
-                      testId={`email-recipient-${idx}`}
-                    />
-                  ))}
-                  <Button variant="ghost" size="sm" onClick={addRecipient} className="text-xs text-indigo-600" data-testid="add-recipient-btn"><Plus size={14} className="mr-1" />Agregar</Button>
-                </div>
-              </div>
-
-              {/* Plantilla predefinida / Hoja en blanco */}
-              <div>
-                <Label className="text-sm font-medium">Plantilla</Label>
-                <Select value={emailForm.templateId || 'blank'} onValueChange={handleTemplateSelect}>
-                  <SelectTrigger className="mt-1 h-9" data-testid="template-select"><SelectValue placeholder="Seleccionar plantilla..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="blank">Hoja en blanco</SelectItem>
-                    {emailTemplates.map(t => <SelectItem key={t.template_id} value={t.template_id}>{t.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Asunto */}
-              <div>
-                <Label className="text-sm font-medium">Asunto <span className="text-red-500">*</span></Label>
-                <Input placeholder="Asunto del correo..." value={emailForm.subject}
-                  onChange={e => setEmailForm(prev => ({ ...prev, subject: e.target.value }))}
-                  className="mt-1 h-9 text-sm" data-testid="email-subject" />
-              </div>
-
-              {/* Mensaje */}
-              <div>
-                <Label className="text-sm font-medium">Mensaje <span className="text-red-500">*</span></Label>
-                <RichTextEditor
-                  value={emailForm.message}
-                  onChange={(html) => setEmailForm(prev => ({ ...prev, message: html }))}
-                  maxChars={20000}
-                  hardLimit={false}
-                  placeholder="Escriba su mensaje aquí. Al elegir una plantilla se cargará con su formato."
-                  testid="email-message"
-                  showPreview
-                  minHeight={180}
-                  maxHeight={360}
-                />
-              </div>
-
-              {/* Adjuntos + Matriz */}
-              <div>
-                <Label className="text-sm font-medium">Adjuntos</Label>
-                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                  <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden" onChange={handleFileSelect} />
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs gap-1.5" data-testid="attach-files-btn"><Paperclip size={14} />Archivos</Button>
-                  <Button variant="outline" size="sm" onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/jpeg,image/png'; i.multiple = true; i.onchange = (ev) => setEmailFiles(prev => [...prev, ...Array.from(ev.target.files || [])]); i.click(); }}
-                    className="text-xs gap-1.5" data-testid="attach-images-btn"><Image size={14} />Imágenes</Button>
-                  <Button variant={attachMatrix ? 'default' : 'outline'} size="sm"
-                    onClick={() => setAttachMatrix(!attachMatrix)}
-                    className={`text-xs gap-1.5 ${attachMatrix ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
-                    data-testid="attach-matrix-btn">
-                    <BarChart3 size={14} />Adjuntar Matriz
-                  </Button>
-                </div>
-                {emailFiles.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {emailFiles.map((f, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-slate-50 rounded px-2.5 py-1.5 text-xs">
-                        <span className="truncate text-slate-700 flex-1">{f.name}</span>
-                        <button onClick={() => removeFile(idx)} className="ml-2 text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
-                      </div>
-                    ))}
+                {suggestedContacts.length === 0 ? (
+                  <p className="text-xs text-slate-400">No hay contactos registrados para este proyecto</p>
+                ) : (
+                  <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm" data-testid="adhoc-contacts-table">
+                      <thead className="bg-indigo-50 text-indigo-700 text-[10px] uppercase tracking-wide">
+                        <tr>
+                          <th className="px-3 py-2 text-left w-10"></th>
+                          <th className="px-3 py-2 text-left font-semibold">Nombre y Apellido</th>
+                          <th className="px-3 py-2 text-left font-semibold">Email</th>
+                          <th className="px-3 py-2 text-left font-semibold">Rol / Cargo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {suggestedContacts.map((c, i) => {
+                          const checked = emailForm.recipients.map(x => x.trim().toLowerCase()).includes((c.email || '').toLowerCase());
+                          return (
+                            <tr key={i} className={`border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors ${checked ? 'bg-emerald-50/40' : ''}`}
+                              data-testid={`adhoc-contact-row-${i}`} onClick={() => toggleAdhocRecipient(c.email)}>
+                              <td className="px-3 py-2.5 align-middle">
+                                <Checkbox checked={checked} onCheckedChange={() => toggleAdhocRecipient(c.email)} onClick={(e) => e.stopPropagation()} data-testid={`adhoc-contact-checkbox-${i}`} />
+                              </td>
+                              <td className="px-3 py-2.5 align-middle text-slate-800 font-medium whitespace-normal break-words">{c.name || c.label || '—'}</td>
+                              <td className="px-3 py-2.5 align-middle text-slate-600 font-mono text-xs whitespace-normal break-all">{c.email}</td>
+                              <td className="px-3 py-2.5 align-middle text-slate-500 whitespace-normal break-words">{c.contact_type || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
-                {attachMatrix && <p className="text-[10px] text-indigo-500 mt-1">Se adjuntará una tabla HTML con el estatus actual de la matriz de seguimiento</p>}
               </div>
 
-              {/* Variables disponibles */}
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                <p className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5">Variables disponibles (escriba en el mensaje para auto-inyectar)</p>
-                <div className="flex flex-wrap gap-1">
-                  {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
-                    <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-slate-300 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-all cursor-pointer"
-                      title={`Insertar ${v}`}>{v}</button>
-                  ))}
+              {/* ============ TARJETA DE COMPOSICIÓN (estilo unificado) ============ */}
+              <div className="p-4 rounded-lg border-2 bg-blue-50 border-blue-200" data-testid="adhoc-compose-card">
+                {/* Destinatarios (TO) */}
+                <div className="bg-white rounded-lg p-2.5 border border-slate-200 mb-3">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios (TO) <span className="text-red-500">*</span></p>
+                  <div className="flex flex-wrap gap-1.5 min-h-[28px]" data-testid="adhoc-recipients-chips">
+                    {emailForm.recipients.filter(r => r.trim()).length === 0 ? (
+                      <span className="text-xs text-amber-600 italic">Seleccione contactos arriba o agregue un correo manual abajo.</span>
+                    ) : emailForm.recipients.filter(r => r.trim()).map((email, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-emerald-50 border border-emerald-200 rounded text-emerald-700 font-mono" data-testid={`adhoc-recipient-${i}`}>
+                        {email}
+                        <button type="button" className="ml-1 text-emerald-500 hover:text-rose-600" title="Quitar" onClick={() => toggleAdhocRecipient(email)}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="text" value={adhocManualEmail} onChange={(e) => setAdhocManualEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAdhocManualRecipient(); } }}
+                      placeholder="Agregar correo manual: correo@empresa.com"
+                      className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                      data-testid="adhoc-manual-email-input" list="adhoc-internal-emails-datalist" />
+                    <Button type="button" size="sm" variant="outline" onClick={addAdhocManualRecipient} className="text-xs" data-testid="adhoc-add-recipient-btn"><Plus size={14} className="mr-1" />Agregar</Button>
+                    <datalist id="adhoc-internal-emails-datalist">
+                      {internalUsers.map(u => <option key={u.email} value={u.email}>{u.full_name} — {u.cargo}</option>)}
+                    </datalist>
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-3 border-t">
-                <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={emailSending}>Cancelar</Button>
-                <Button variant="outline" onClick={previewAdhocEmail}
-                  disabled={previewLoading || !emailForm.subject.trim() || !emailForm.message.trim()}
-                  className="border-blue-200 text-blue-600 hover:bg-blue-50 gap-1.5" data-testid="preview-adhoc-email-btn">
-                  <Eye size={14} />{previewLoading ? 'Cargando...' : 'Vista Previa'}
-                </Button>
-                <Button onClick={handleSendAdhocEmail}
-                  disabled={emailSending || !emailForm.subject.trim() || !emailForm.message.trim() || !emailForm.recipients.some(r => r.trim())}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5" data-testid="send-adhoc-email-btn">
-                  <Send size={14} />{emailSending ? 'Enviando...' : 'Enviar Correo'}
-                </Button>
+                {/* Plantilla + Asunto + Editor */}
+                <div className="bg-white rounded-lg p-3 border border-slate-200 mb-3 space-y-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">Plantilla</label>
+                    <Select value={emailForm.templateId || 'blank'} onValueChange={handleTemplateSelect}>
+                      <SelectTrigger className="h-9 text-sm" data-testid="template-select"><SelectValue placeholder="Seleccionar plantilla..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="blank">Hoja en blanco</SelectItem>
+                        {emailTemplates.map(t => <SelectItem key={t.template_id} value={t.template_id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">Asunto <span className="text-red-500">*</span></label>
+                    <Input placeholder="Asunto del correo..." value={emailForm.subject}
+                      onChange={e => setEmailForm(prev => ({ ...prev, subject: e.target.value }))}
+                      className="h-9 text-sm" data-testid="email-subject" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">Contenido del mensaje <span className="text-red-500">*</span></label>
+                    <RichTextEditor
+                      value={emailForm.message}
+                      onChange={(html) => setEmailForm(prev => ({ ...prev, message: html }))}
+                      maxChars={20000}
+                      hardLimit={false}
+                      placeholder="Escriba su mensaje aquí. Al elegir una plantilla se cargará con su formato."
+                      testid="email-message"
+                      showPreview
+                      minHeight={180}
+                      maxHeight={340}
+                      tableRowActions={true}
+                    />
+                  </div>
+                </div>
+
+                {/* Variables disponibles (colapsable homologado) */}
+                <details className="bg-indigo-50 rounded-lg border border-indigo-200 mb-3">
+                  <summary className="px-3 py-2 text-[10px] font-semibold text-indigo-700 cursor-pointer select-none flex items-center gap-1">
+                    <ClipboardList size={12} />Variables disponibles (clic para insertar en el mensaje)
+                  </summary>
+                  <div className="px-3 pb-2 flex flex-wrap gap-1">
+                    {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                      <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
+                        title={`Insertar ${v}`}>{v}</button>
+                    ))}
+                  </div>
+                </details>
+
+                {/* Adjuntos y Matriz (capacidades potentes conservadas) */}
+                <div className="bg-white rounded-lg p-3 border border-slate-200 mb-3">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1.5">Adjuntos y Matriz de Distribución</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden" onChange={handleFileSelect} />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs gap-1.5" data-testid="attach-files-btn"><Paperclip size={14} />Cargar Archivos</Button>
+                    <Button variant="outline" size="sm" onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/jpeg,image/png'; i.multiple = true; i.onchange = (ev) => setEmailFiles(prev => [...prev, ...Array.from(ev.target.files || [])]); i.click(); }}
+                      className="text-xs gap-1.5" data-testid="attach-images-btn"><Image size={14} />Cargar Imágenes</Button>
+                    <Button variant={attachMatrix ? 'default' : 'outline'} size="sm"
+                      onClick={() => setAttachMatrix(!attachMatrix)}
+                      className={`text-xs gap-1.5 ${attachMatrix ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                      data-testid="attach-matrix-btn">
+                      <BarChart3 size={14} />Adjuntar Matriz
+                    </Button>
+                  </div>
+                  {emailFiles.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {emailFiles.map((f, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-50 rounded px-2.5 py-1.5 text-xs">
+                          <span className="truncate text-slate-700 flex-1">{f.name}</span>
+                          <button onClick={() => removeFile(idx)} className="ml-2 text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {attachMatrix && <p className="text-[10px] text-indigo-500 mt-1">Se adjuntará una tabla HTML con el estatus actual de la matriz de seguimiento (con sus avances).</p>}
+                </div>
+
+                {/* Acciones */}
+                <div className="flex items-center justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={emailSending} className="h-8 text-xs">Cancelar</Button>
+                  <Button size="sm" variant="outline" onClick={previewAdhocEmail}
+                    disabled={previewLoading || !emailForm.subject.trim() || !emailForm.message.trim()}
+                    className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50 gap-1.5" data-testid="preview-adhoc-email-btn">
+                    <Eye size={14} />{previewLoading ? 'Cargando...' : 'Vista Previa'}
+                  </Button>
+                  <Button size="sm" onClick={handleSendAdhocEmail}
+                    disabled={emailSending || !emailForm.subject.trim() || !emailForm.message.trim() || !emailForm.recipients.some(r => r.trim())}
+                    className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white gap-1.5" data-testid="send-adhoc-email-btn">
+                    <Send size={14} />{emailSending ? 'Enviando...' : 'Enviar Correo'}
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogContent>
