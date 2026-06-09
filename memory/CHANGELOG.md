@@ -1,5 +1,39 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — {Matriz_Bancos_Productos} editable + variable {Patrocinador}
+
+### Requerimiento
+(A) Corregir que `{Matriz_Bancos_Productos}` no se poblaba; (B) hacerla editable en
+el editor enriquecido de la notificación (editar celdas + eliminar fila), local sin
+tocar la BD; (C) nueva variable condicional `{Patrocinador}`.
+
+### Implementación
+- **Backend (`project_template_vars.py`)**: nueva variable `{Patrocinador}` — si el
+  proyecto es patrocinado (`sponsored_implementation` + `sponsoring_bank_name`) →
+  `Banco` o `Banco - Procesador`; si no → Nombre de Fantasía del cliente (fallback a
+  nombre/razón social).
+- **Backend (`projects.py`)**:
+  - **Bug fix crítico** en `_clean_html_in_braces`: el limpiador consumía etiquetas HTML
+    adyacentes a las variables, corrompiendo tablas que seguían a una variable
+    (ej. `{Patrocinador}<table>`). Reescrito para limpiar solo DENTRO de las llaves.
+  - `_style_email_tables`: re-aplica bordes email-safe a tablas sin estilo (la matriz
+    editada en TipTap pierde estilos inline). Aplicado en send y preview.
+- **Frontend (`RichTextEditor.jsx`)**: añadido `TableKit` (@tiptap/extension-table) →
+  las tablas se renderizan y editan; toolbar con "Agregar fila"/"Eliminar fila"; CSS de
+  tabla; `StarterKit` con `link:false, underline:false` (evita duplicados en TipTap v3);
+  re-render de toolbar en `selectionUpdate`/`transaction` (v3 no re-renderiza solo).
+- **Frontend (`ProjectDetail.jsx`)**: `injectMatrix()` sustituye el token
+  `{Matriz_Bancos_Productos}` por la tabla real (matrix_html de `/template-variables`) al
+  abrir/cambiar plantilla, volviéndola editable in-situ. Chips `{Patrocinador}` añadidos.
+- **TemplatesAdminDialog**: `{Patrocinador}` agregado al diccionario de variables.
+
+### Verificación
+- 15 pytest PASS (incl. `tests/test_matrix_and_patrocinador.py`).
+- Testing agent Iter40 (backend 100%) + Iter41 RETEST frontend 100% (8/8): matriz
+  renderiza como tabla poblada, controles de tabla presentes, eliminar/editar fila
+  funcionan, preview con tabla modificada, sin warning de duplicados. `retest_needed:False`.
+
+
 ## 2026-06-09 — Plantilla Preferida + Texto Enriquecido en Notificaciones de Proyecto
 
 ### Requerimiento
