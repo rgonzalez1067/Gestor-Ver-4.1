@@ -1,5 +1,30 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Manejo de Proyectos: 4 requerimientos Frontend (iter47)
+
+Backend ya estaba listo (sesiones previas). Esta sesión implementó el Frontend y validó E2E (testing agent iter47: 5/5 backend + flujos frontend al 100%).
+
+### T1 (P0) — Bug "Otras Notificaciones": cuerpo en blanco al elegir plantilla
+- `ProjectDetail.jsx`: `handleTemplateSelect` ahora lee `tpl.body_html || tpl.body || ''` (antes leía `tpl.body`, vacío para plantillas de proyecto).
+- Reemplazado el `<Textarea>` del mensaje por `<RichTextEditor>` (data-testid `email-message`), con `maxChars=20000`, `hardLimit={false}`. Removido el límite legacy de 1000 caracteres en `handleSendAdhocEmail`. El backend ya respeta el HTML vía `_adhoc_message_to_html`.
+
+### T2 (P1) — Botón global "Plantillas" en `Projects.jsx`
+- Montado `TemplatesAdminDialog` + estado/funciones (emailTemplates, fetchTemplates, openTemplatesAdmin, handleSaveTemplate, handleDeleteTemplate) en `Projects.jsx`.
+- Botón en cabecera (data-testid `projects-templates-btn`) gated por `canEdit` (admin o usuarios con edición total en proyectos), según decisión del usuario.
+- Se DEJÓ también el botón en el Detalle del Proyecto (`manage-templates-btn`) — el usuario pidió mantenerlo en ambos.
+
+### T3 (P1) — Descarga de Ficha Técnica
+- `ProjectDetail.jsx`: nuevo botón en cabecera (data-testid `download-ficha-tecnica-btn`) + handler `downloadFichaTecnica` que hace `GET /api/projects/{id}/ficha-tecnica` con `responseType: 'blob'` y dispara la descarga del PDF.
+
+### T4 (P1) — Multiselect de medios de pago en Actualización Masiva
+- `BatchUpdateModal.jsx`: el producto único (string) pasó a checkboxes múltiples (`batch-products-list`, `batch-product-checkbox-{prod}`) dependientes del banco seleccionado.
+- `ProjectDetail.jsx`: estado `batchProduct` → `batchProducts` (array), `toggleBatchProduct`, `handleBatchBankChange` (preselecciona todos los medios del banco). Payload envía `product_names` (array) al endpoint que ya lo soporta.
+
+### Notas
+- Las URLs de preview viejas del handoff están dormidas; URL correcta del entorno: `https://tech-spec-downloader.preview.emergentagent.com`.
+- Pendiente opcional (a11y polish): agregar `<DialogDescription>` a `templates-dialog` y `batch-update-dialog`. Hydration warnings preexistentes del instrumentador (no del código).
+
+
 ## 2026-06-09 — Borrado de filas "fricción cero" en {Matriz_Bancos_Productos}
 
 ### Requerimiento
