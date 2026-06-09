@@ -33,8 +33,7 @@ async def _resolve_client_segment(client_id: Optional[str], quote_type: str, fal
     if quote_type not in ("GATEWAY", "LINK_PAGO") or not client_id:
         return fallback
     client = await db.clients.find_one({"client_id": client_id}, {"_id": 0, "segment": 1})
-    seg = (client.get("segment") if client else "" or "")
-    seg = (seg or "").strip().lower()
+    seg = ((client.get("segment") if client else "") or "").strip().lower()
     if seg in ("corporativo", "corp", "corporate"):
         return "CORP"
     if seg in ("pymes", "pyme", "emprendedor", "mixto"):

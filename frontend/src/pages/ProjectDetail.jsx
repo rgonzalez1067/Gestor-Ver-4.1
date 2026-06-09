@@ -2209,7 +2209,7 @@ const ProjectDetail = () => {
                       data-testid="adhoc-manual-email-input" list="adhoc-internal-emails-datalist" />
                     <Button type="button" size="sm" variant="outline" onClick={addAdhocManualRecipient} className="text-xs" data-testid="adhoc-add-recipient-btn"><Plus size={14} className="mr-1" />Agregar</Button>
                     <datalist id="adhoc-internal-emails-datalist">
-                      {internalUsers.map(u => <option key={u.email} value={u.email}>{u.full_name} — {u.cargo}</option>)}
+                      {internalUsers.map((u, ui) => <option key={`${u.email}-${ui}`} value={u.email}>{u.full_name} — {u.cargo}</option>)}
                     </datalist>
                   </div>
                 </div>

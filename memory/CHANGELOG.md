@@ -1,5 +1,31 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Paquete multidominio: Contactos, Canal Gateway, Mensajería, Branding (iter48)
+
+Verificado E2E (testing agent iter48: 9/9 backend, frontend 100%). Tests: `/app/backend/tests/test_iter48_meganexus_package.py`.
+
+### A) Bug fix — Canal de Cotizaciones Gateway Corporativo
+- `quotes.py`: nuevo helper `_resolve_client_segment(client_id, quote_type, fallback)`. Para `GATEWAY`/`LINK_PAGO` el segmento se hereda de la ficha del CLIENTE (`segment='Corporativo'` → `CORP`), no de la sede del ejecutivo. Aplicado en `create_quote` y `create_quote_with_pdf`. Solo afecta cotizaciones NUEVAS (sin migración de históricas).
+
+### B) Borrado masivo/selectivo en Centro de Mensajes
+- `inbox.py`: nuevo `POST /api/inbox/batch-delete` (soft-delete por `message_ids`, aislado por usuario).
+- `InboxCenter.jsx`: checkbox por fila (`inbox-select-{id}`), 'Seleccionar todo' (`inbox-select-all`), barra con botón papelera (`inbox-bulk-delete-btn`, activo solo con ≥1 selección) y modal de confirmación con conteo (`inbox-bulk-delete-dialog`).
+
+### C) Edición admin-only en 'Contacto Inicial'
+- `initial_contacts.py`: nuevo `PUT /api/initial-contacts/{id}` (RBAC: solo admin → 403 a otros). Edita contacto/empresa/teléfono/email/sede/notas, valida sede, registra traza en `bitacora` (action='edited' con deltas).
+- `InitialContacts.jsx`: botón 'Editar' (`edit-btn-{id}`) visible solo si `role==='admin'` + modal `edit-contact-modal`.
+
+### D) Homologación de 'Otras Notificaciones'
+- `ProjectDetail.jsx`: el modal adhoc se rediseñó para clonar el look & feel del flujo de Notificaciones a Bancos/Clientes (tabla de contactos con checkboxes + 'Seleccionar todos', tarjeta azul de composición, chips TO, input de correo manual, selector de plantilla que carga `body_html`, editor enriquecido con `tableRowActions`, variables colapsables). **Se conservaron** las capacidades potentes: Cargar Archivos, Cargar Imágenes y Adjuntar Matriz de Distribución.
+
+### E) Branding white-label
+- `public/index.html`: título → `CRM Gestor - Mega Soft`; removido el badge 'Made with Emergent' (`#emergent-badge`) y meta description actualizada.
+
+### Nota / bug colateral corregido
+- Al añadir el PUT de edición se había borrado por accidente el decorador `@router.post('/initial-contacts/{id}/assign')`; el testing agent lo restauró. Verificado.
+- Pendiente opcional (sugerido por el usuario): agregar Cargar Archivos/Imágenes/Matriz también al flujo de Notificaciones a Bancos/Clientes (requiere cambios en `send-notification` backend).
+
+
 ## 2026-06-09 — Manejo de Proyectos: 4 requerimientos Frontend (iter47)
 
 Backend ya estaba listo (sesiones previas). Esta sesión implementó el Frontend y validó E2E (testing agent iter47: 5/5 backend + flujos frontend al 100%).
