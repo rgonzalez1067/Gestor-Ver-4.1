@@ -36,7 +36,10 @@ const TRASH_ICON_SVG =
 // Identifica la tabla de la Matriz de Bancos/Productos por su encabezado.
 const MATRIX_HEADER_RE = /Producto\s*\/\s*Servicio/i;
 
-function _buildRowDeleteButton(view, getPos) {
+function _buildRowDeleteButton() {
+  // Botón visual únicamente. La lógica de borrado se maneja por DELEGACIÓN de
+  // eventos en el plugin (handleDOMEvents), porque ProseMirror recrea el DOM del
+  // widget en cada actualización de decoraciones y descartaría un addEventListener.
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'rte-row-del';
@@ -44,28 +47,31 @@ function _buildRowDeleteButton(view, getPos) {
   btn.setAttribute('data-testid', 'matrix-row-delete');
   btn.setAttribute('title', 'Eliminar fila');
   btn.innerHTML = TRASH_ICON_SVG;
-  btn.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const trEl = btn.closest('tr');
-    if (trEl) trEl.classList.add('rte-row-removing'); // transición suave
-    window.setTimeout(() => {
-      try {
-        // getPos() = posición viva del widget (pos+1, dentro de la fila);
-        // el inicio del nodo tableRow es getPos()-1.
-        const widgetPos = typeof getPos === 'function' ? getPos() : null;
-        if (widgetPos == null) return;
-        const rowStart = widgetPos - 1;
-        const node = view.state.doc.nodeAt(rowStart);
-        if (node && node.type.name === 'tableRow') {
-          view.dispatch(view.state.tr.delete(rowStart, rowStart + node.nodeSize));
-        }
-      } catch (err) {
-        console.warn('[matrix] row delete failed', err);
-      }
-    }, 160);
-  });
   return btn;
+}
+
+function _deleteRowFromButton(view, btn) {
+  const trEl = btn.closest('tr');
+  if (!trEl) return;
+  trEl.classList.add('rte-row-removing'); // transición suave
+  window.setTimeout(() => {
+    try {
+      // Resolver la posición de la fila desde una celda SIN widget (la última),
+      // ya que la primera celda contiene el botón (posAtDOM ahí devuelve -1).
+      const cellEl = trEl.querySelector('td:last-child') || trEl.querySelector('td, th');
+      if (!cellEl) return;
+      const pos = view.posAtDOM(cellEl, 0);
+      if (pos < 0) return;
+      const $pos = view.state.doc.resolve(pos);
+      let depth = $pos.depth;
+      while (depth > 0 && $pos.node(depth).type.name !== 'tableRow') depth--;
+      if (depth > 0) {
+        view.dispatch(view.state.tr.delete($pos.before(depth), $pos.after(depth)));
+      }
+    } catch (err) {
+      console.warn('[matrix] row delete failed', err);
+    }
+  }, 160);
 }
 
 const TableRowActions = Extension.create({
@@ -74,6 +80,17 @@ const TableRowActions = Extension.create({
     return [
       new Plugin({
         props: {
+          handleDOMEvents: {
+            mousedown(view, event) {
+              const target = event.target;
+              const btn = target && target.closest && target.closest('[data-testid="matrix-row-delete"]');
+              if (!btn) return false;
+              event.preventDefault();
+              event.stopPropagation();
+              _deleteRowFromButton(view, btn);
+              return true;
+            },
+          },
           decorations(state) {
             // Solo decorar las filas de la Matriz de Bancos/Productos (no las tablas
             // de Datos del Cliente/Banco/Implementación) para evitar borrados accidentales.
@@ -95,7 +112,7 @@ const TableRowActions = Extension.create({
 
               decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'rte-row-actionable' }));
               decos.push(
-                Decoration.widget(pos + 1, (view, getPos) => _buildRowDeleteButton(view, getPos), {
+                Decoration.widget(pos + 1, () => _buildRowDeleteButton(), {
                   side: -1,
                   ignoreSelection: true,
                 }),
