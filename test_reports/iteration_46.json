@@ -1,0 +1,41 @@
+{
+  "summary": "RETEST FIX iter46 (frontend only) sobre prj_826643491b64 — Matriz Bancos/Productos en notif-body-editor. ✅ BORRADO EFECTIVO CONFIRMADO. El nuevo patrón en RichTextEditor.jsx (_resolveRowRange resuelve {from,to} PM SÍNCRONAMENTE en el handler mousedown sobre la última celda; el setTimeout(160ms) solo dispatchea view.dispatch(view.state.tr.delete(from,to)) usando posiciones numéricas cerradas en closure) resuelve la RCA de iter45 (trEl huérfano post-recomposición PM). Resultados medidos: papeleras = 3 → 2 → 1 (esperando 300ms post-clic). Consola SIN 'row delete failed' ni 'resolve row failed' ni warnings de matriz. Hover color #dc2626 (rgb(220,38,38) = Tailwind red-600). Scope correcto: 3 papeleras solo en la Matriz (test-id matrix-row-delete) — las tablas de Datos del Cliente/Banco/Implementación NO tienen papeleras. Sin confirmación / sin diálogo (un clic basta). No-regresión Plantilla Preferida ✅ (badge ★ Preferida sigue visible). INTEGRIDAD BD ✅: tras recargar /projects/prj_826643491b64 y reabrir el modal, la matriz vuelve a tener 3 filas/papeleras → borrado solo local. VISTA PREVIA ✅: con destinatario TO añadido (vía contact-checkbox-client-0), preview-next-notif abre el 'Editor de Envío Final' con la tabla matriz reducida a 1 fila de datos (+1 header) — refleja exactamente las filas conservadas tras los 2 borrados.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Editor de Envío Final (preview)",
+        "issues": [
+          "El 'Editor de Envío Final' abierto por [data-testid='preview-next-notif'] sigue siendo un editor TipTap editable y por tanto SIGUE mostrando la papelera (.rte-row-del / matrix-row-delete) en la fila superviviente de la matriz (count=1 en el preview). Esto es coherente con que el usuario pueda seguir editando antes de enviar (la fila se elimina solo del HTML local y el getHTML() final no incluye el botón porque es widget decoration, no parte del doc). Sin embargo el spec del request pide 'tabla del preview … sin papeleras' — si la intención es una vista PURAMENTE no editable, considerar renderizar el preview con un EmailHtmlFrame readonly o con tableRowActions={false}. Funcionalmente NO bloquea el envío ni contamina el HTML enviado.",
+          "Hover color es #dc2626 (red-600) en lugar del #ef4444 (red-500) que se mencionaba en specs previas. Diferencia menor de tono — alinear si se busca consistencia exacta.",
+          "Hydration warnings preexistentes (<tr>/<span>, <span>/<tbody>, <span>/<option>) y dup keys 'kgonzalez@megasoft.com.ve' — heredados desde iter38+, no relacionados con este fix. Bug histórico de los wrappers <span data-ve-dynamic=true style='display:contents'> insertados por el instrumentador de Emergent sobre filas de tablas/options."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Opcional, design polish) Decidir si el 'Editor de Envío Final' debe ser totalmente readonly. Si SÍ: pasar tableRowActions={false} al RichTextEditor del preview, o renderizar como HTML readonly. Si NO (queda como editor): el comportamiento actual es correcto — el spec textual ('sin papeleras' en preview) puede ajustarse o documentarse.",
+    "(Opcional, polish) Alinear hover color a #ef4444 (red-500) si se requiere coincidencia exacta con la guía; hoy es #dc2626 (red-600).",
+    "(Opcional, robustez de futuro) En ProjectDetail.jsx, marcar la <table> de la matriz con `data-matrix='true'` en injectMatrix para no depender del texto del encabezado para identificar la matriz (MATRIX_HEADER_RE en RichTextEditor.jsx)."
+  ],
+  "critical_code_review_comments": [
+    "FIX iter46 correcto y mínimo: _resolveRowRange usa la ÚLTIMA celda (sin widget) para posAtDOM y resuelve from/to ANTES de cualquier transacción de PM. Las posiciones numéricas son estables porque la transacción de selección no altera el doc. Patrón limpio.",
+    "Buena defensa-en-profundidad: los warnings `[matrix] resolve row failed` y `[matrix] row delete failed` ya están presentes en los try/catch — si la matriz cambia de estructura en el futuro, quedaría rastro. Verificado SIN ocurrencias en este retest.",
+    "Decoraciones de widget son no-serializables (no viajan en getHTML()): el HTML enviado por correo no incluye <button class='rte-row-del'>. Esto está correcto.",
+    "Consideración: añadir `data-matrix='true'` en la <table> al hacer injectMatrix (ProjectDetail.jsx) — sustituiría el match por texto (MATRIX_HEADER_RE) por un atributo robusto, evitando falsos positivos si en el futuro otra tabla contiene literal 'Producto / Servicio'."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "no testeado (frontend only)",
+    "frontend": "100% de criterios críticos: BORRADO ✅ (3→2→1), scope solo matriz ✅ (3 papeleras), hover rojo ✅, sin diálogo ✅, sin errores consola ✅, no-regresión plantilla ✅, integridad BD ✅ (reload→3 filas), Vista Previa muestra solo filas conservadas ✅. Único matiz: preview es editor editable, conserva papelera en la fila restante (diseño, no bug)."
+  },
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguno. Solo lectura. El borrado es local (no impacta BD).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "FIX VERIFICADO. La papelera de filas en la matriz funciona: un clic borra la fila sin confirmación, scope solo en la matriz, hover rojo, animación 160ms, integridad BD preservada (al recargar la matriz vuelve a 3 filas). El preview ('Editor de Envío Final', data-testid='preview-next-notif') refleja correctamente las filas conservadas. Si en el futuro se requiere preview READONLY puro, pasar tableRowActions={false} al editor del preview. Credenciales y proyecto: rgonzalez@megasoft.com.ve / admin123 → /projects/prj_826643491b64 → click [data-testid='notif-bank-client-btn'] → seleccionar TO via [data-testid='contact-checkbox-client-0'] → click cualquier [data-testid='matrix-row-delete'] (esperar 300ms) → [data-testid='preview-next-notif'].",
+  "rca of the issue": "RESUELTO. iter45 RCA: el handler de mousedown llamaba _deleteRowFromButton que añadía clase al <tr> y programaba setTimeout(160ms), pero PM disparaba transacción de selección sobre el widget contentEditable=false que recomponía decoraciones y reemplazaba el <tr>. La referencia DOM (trEl/cellEl) quedaba detached, posAtDOM(cellEl,0) retornaba -1 dentro del timeout, y el guard abortaba silenciosamente. FIX iter46 (correcto): mover la resolución de posiciones PM al handler mousedown SÍNCRONAMENTE (DOM aún conectado), usando la última celda (sin widget) en lugar de la primera (que contiene el botón). _resolveRowRange retorna {from,to} numéricos resueltos vía $pos.before(depth)/$pos.after(depth) sobre el nodo tableRow. Estos números permanecen válidos a través de la transacción de selección porque dicha transacción no altera el doc (solo la selección). El setTimeout simplemente dispatcha view.dispatch(view.state.tr.delete(from,to)). Patrón general aplicable: para callbacks asíncronos en PM, capturar SIEMPRE primitivos (posiciones), nunca referencias DOM que PM puede invalidar."
+}

@@ -50,28 +50,21 @@ function _buildRowDeleteButton() {
   return btn;
 }
 
-function _deleteRowFromButton(view, btn) {
+function _resolveRowRange(view, btn) {
+  // Resuelve el rango PM de la fila de forma SÍNCRONA (DOM aún conectado), usando
+  // la última celda (sin widget; la primera celda contiene el botón y posAtDOM ahí
+  // devuelve -1). Debe llamarse ANTES de que PM recomponga las decoraciones.
   const trEl = btn.closest('tr');
-  if (!trEl) return;
-  trEl.classList.add('rte-row-removing'); // transición suave
-  window.setTimeout(() => {
-    try {
-      // Resolver la posición de la fila desde una celda SIN widget (la última),
-      // ya que la primera celda contiene el botón (posAtDOM ahí devuelve -1).
-      const cellEl = trEl.querySelector('td:last-child') || trEl.querySelector('td, th');
-      if (!cellEl) return;
-      const pos = view.posAtDOM(cellEl, 0);
-      if (pos < 0) return;
-      const $pos = view.state.doc.resolve(pos);
-      let depth = $pos.depth;
-      while (depth > 0 && $pos.node(depth).type.name !== 'tableRow') depth--;
-      if (depth > 0) {
-        view.dispatch(view.state.tr.delete($pos.before(depth), $pos.after(depth)));
-      }
-    } catch (err) {
-      console.warn('[matrix] row delete failed', err);
-    }
-  }, 160);
+  if (!trEl) return null;
+  const cellEl = trEl.querySelector('td:last-child') || trEl.querySelector('td, th');
+  if (!cellEl) return null;
+  const pos = view.posAtDOM(cellEl, 0);
+  if (pos < 0) return null;
+  const $pos = view.state.doc.resolve(pos);
+  let depth = $pos.depth;
+  while (depth > 0 && $pos.node(depth).type.name !== 'tableRow') depth--;
+  if (depth <= 0) return null;
+  return { trEl, from: $pos.before(depth), to: $pos.after(depth) };
 }
 
 const TableRowActions = Extension.create({
@@ -87,7 +80,25 @@ const TableRowActions = Extension.create({
               if (!btn) return false;
               event.preventDefault();
               event.stopPropagation();
-              _deleteRowFromButton(view, btn);
+              // 1) Resolver el rango de la fila YA (antes de cualquier recomposición).
+              let range;
+              try {
+                range = _resolveRowRange(view, btn);
+              } catch (err) {
+                console.warn('[matrix] resolve row failed', err);
+                return true;
+              }
+              if (!range) return true;
+              // 2) Transición suave sobre la fila viva.
+              if (range.trEl) range.trEl.classList.add('rte-row-removing');
+              // 3) Borrar usando posiciones capturadas (la selección no altera el doc).
+              window.setTimeout(() => {
+                try {
+                  view.dispatch(view.state.tr.delete(range.from, range.to));
+                } catch (err) {
+                  console.warn('[matrix] row delete failed', err);
+                }
+              }, 160);
               return true;
             },
           },
