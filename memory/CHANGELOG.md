@@ -1,5 +1,43 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Plantilla Preferida + Texto Enriquecido en Notificaciones de Proyecto
+
+### Requerimiento
+Migrar las notificaciones de Manejo de Proyectos al motor de Texto Enriquecido y
+precargar la "Plantilla Preferida" por destino al abrir cada uno de los 3 botones
+(Cliente / Banco / Cliente+Banco), manteniendo el dropdown activo para override.
+
+### Implementación
+- **Backend (`projects.py`)**:
+  - `_resolve_notification_email(..., override_template_id)`: la plantilla seleccionada
+    controla asunto y cuerpo en las 3 ramas (client/bank/bank_client). El prefijo por
+    conteo (`[Primer Envío]`, etc.) se conserva.
+  - `_get_notification_template`: resuelve la plantilla desde la BD o desde los defaults
+    de Proyecto (Texto Enriquecido).
+  - `send-notification` y `preview-notification` aceptan `template_id` + `custom_html`
+    (cuerpo editado) y re-renderizan variables `{Variable}`.
+  - **Preferencias por destino** en `db.config` (`type='project_notification_preferences'`):
+    `GET/PUT /api/project-notification-preferences` (solo una preferida por destino).
+- **Backend (`seed_and_templates.py`)**: `GET /api/email-templates?context=IMPLEMENTACION`
+  ahora incluye las plantillas de Proyecto por defecto (`project_notify_*`).
+- **Frontend (`ProjectDetail.jsx`)**: el modal de notificación secuencial ahora trae un
+  Dropdown de plantillas (`notif-template-select`) precargado con la preferida (badge
+  `★ Preferida`), un editor enriquecido editable (`notif-body-editor`) que se actualiza al
+  cambiar de plantilla, y un botón `Marcar preferida` (`mark-preferred-btn`). Vista Previa
+  y Enviar usan el contenido del editor + `template_id`.
+
+### Verificación
+- 5 pytest `tests/test_project_notification_preferred.py` PASS.
+- Testing agent Iter39: backend 100% (5/5 unit + 7/7 HTTP e2e), frontend 100% en flujos
+  validados (modal único Cliente+Banco, dropdown, cambio de plantilla actualiza editor,
+  marcar preferida persiste y se precarga al reabrir). Sin bugs críticos/menores.
+
+### Nota
+- En proyectos con UN solo banco, el botón "Notificaciones a Cliente" (`notifications-btn`)
+  se reemplaza por "Notificación Única (Cliente y Banco)" (`notif-bank-client-btn`) — diseño
+  preexistente. Warnings de hidratación `data-ve-dynamic` son preexistentes (plataforma).
+
+
 ## 2026-06-09 — P0 Homologación + Aislamiento RBAC del Motor de PDF (Opción A)
 
 ### Requerimiento
