@@ -140,6 +140,10 @@ const ProjectDetail = () => {
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [attachMatrix, setAttachMatrix] = useState(false);
   const fileInputRef = useRef(null);
+  // Adjuntos para Notificaciones a Bancos/Clientes (Cargar Archivos/Imágenes + Matriz)
+  const [notifFiles, setNotifFiles] = useState([]);
+  const [notifAttachMatrix, setNotifAttachMatrix] = useState(false);
+  const notifFileInputRef = useRef(null);
 
   // Bitácora email detail viewer
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
@@ -442,6 +446,8 @@ const ProjectDetail = () => {
     setAdditionalRecipients('');
     setMainRecipients([]);
     setResolvedRecipients([]);
+    setNotifFiles([]);
+    setNotifAttachMatrix(false);
     fetchSuggestedContacts();
     // Cargar Plantillas de Proyecto (Texto Enriquecido) + preferencias + matriz y precargar la preferida
     try {
@@ -517,22 +523,30 @@ const ProjectDetail = () => {
         .map(e => e.trim())
         .filter(e => e && e.includes('@'));
 
-      const res = await api.post(`/projects/${projectId}/send-notification`, {
-        target: notifTarget.type,
-        bank_name: notifTarget.bankName || null,
-        to_override: mainRecipients,
-        additional_recipients: ccList.length > 0 ? ccList : null,
-        template_id: selectedNotifTemplateId || null,
-        custom_html: notifBody || null,
-      });
+      const formData = new FormData();
+      formData.append('target', notifTarget.type);
+      if (notifTarget.bankName) formData.append('bank_name', notifTarget.bankName);
+      formData.append('to_override', JSON.stringify(mainRecipients));
+      formData.append('additional_recipients', JSON.stringify(ccList));
+      if (selectedNotifTemplateId) formData.append('template_id', selectedNotifTemplateId);
+      if (notifBody) formData.append('custom_html', notifBody);
+      formData.append('attach_matrix', notifAttachMatrix ? 'true' : 'false');
+      notifFiles.forEach(f => formData.append('files', f));
+
+      const res = await api.post(`/projects/${projectId}/send-notification`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(res.data.message);
       setAdditionalRecipients('');
       setMainRecipients([]);
+      setNotifFiles([]);
+      setNotifAttachMatrix(false);
       fetchProject();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Error al enviar notificación');
     } finally { setNotifSending(null); }
   };
+
+  const handleNotifFileSelect = (e) => { setNotifFiles(prev => [...prev, ...Array.from(e.target.files || [])]); };
+  const removeNotifFile = (idx) => setNotifFiles(prev => prev.filter((_, i) => i !== idx));
 
   // ==================== OTRAS NOTIFICACIONES (AD-HOC) ====================
   const openEmailDialog = () => {
@@ -2097,6 +2111,34 @@ const ProjectDetail = () => {
                           ))}
                         </div>
                       </details>
+
+                      {/* Adjuntos y Matriz (homologado con Otras Notificaciones) */}
+                      <div className="bg-white rounded-lg p-3 border border-slate-200 mb-3" data-testid="notif-attachments-panel">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1.5">Adjuntos y Matriz de Distribución</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input ref={notifFileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden" onChange={handleNotifFileSelect} />
+                          <Button variant="outline" size="sm" onClick={() => notifFileInputRef.current?.click()} className="text-xs gap-1.5" data-testid="notif-attach-files-btn"><Paperclip size={14} />Cargar Archivos</Button>
+                          <Button variant="outline" size="sm" onClick={() => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/jpeg,image/png'; i.multiple = true; i.onchange = (ev) => setNotifFiles(prev => [...prev, ...Array.from(ev.target.files || [])]); i.click(); }}
+                            className="text-xs gap-1.5" data-testid="notif-attach-images-btn"><Image size={14} />Cargar Imágenes</Button>
+                          <Button variant={notifAttachMatrix ? 'default' : 'outline'} size="sm"
+                            onClick={() => setNotifAttachMatrix(!notifAttachMatrix)}
+                            className={`text-xs gap-1.5 ${notifAttachMatrix ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                            data-testid="notif-attach-matrix-btn">
+                            <BarChart3 size={14} />Adjuntar Matriz
+                          </Button>
+                        </div>
+                        {notifFiles.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {notifFiles.map((f, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-slate-50 rounded px-2.5 py-1.5 text-xs" data-testid={`notif-file-${idx}`}>
+                                <span className="truncate text-slate-700 flex-1">{f.name}</span>
+                                <button onClick={() => removeNotifFile(idx)} className="ml-2 text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {notifAttachMatrix && <p className="text-[10px] text-indigo-500 mt-1">Se adjuntará al cuerpo una tabla con el estatus actual de la matriz de seguimiento (con sus avances).</p>}
+                      </div>
 
                       {/* Botones de acción */}
                       <div className="flex items-center justify-end gap-2">

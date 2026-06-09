@@ -405,15 +405,45 @@ class SequentialNotifyRequest(BaseModel):
 
 
 @router.post("/projects/{project_id}/send-notification")
-async def send_sequential_notification(project_id: str, body: SequentialNotifyRequest, authorization: Optional[str] = Header(None)):
-    """Enviar notificación al cliente o banco. El prefijo se calcula automáticamente por conteo."""
+async def send_sequential_notification(
+    project_id: str,
+    target: str = Form(...),
+    bank_name: str = Form(default=""),
+    additional_recipients: str = Form(default="[]"),
+    to_override: str = Form(default="[]"),
+    custom_html: str = Form(default=""),
+    custom_subject: str = Form(default=""),
+    template_id: str = Form(default=""),
+    attach_matrix: str = Form(default="false"),
+    files: List[UploadFile] = File(default=[]),
+    authorization: Optional[str] = Header(None),
+):
+    """Enviar notificación al cliente o banco (multipart: soporta adjuntos + matriz).
+    El prefijo se calcula automáticamente por conteo."""
+    def _parse_list(raw):
+        try:
+            v = json.loads(raw) if raw else []
+            return [e for e in v if e] if isinstance(v, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    cc = _parse_list(additional_recipients)
+    to_ov = _parse_list(to_override)
+    extra_attachments = []
+    for f in files:
+        if f.filename:
+            content = await f.read()
+            extra_attachments.append({"filename": f.filename, "content": content, "content_type": f.content_type})
+
     return await _send_sequential_notification(
-        project_id, body.target, body.bank_name, authorization,
-        additional_recipients=body.additional_recipients,
-        custom_html=body.custom_html,
-        custom_subject=body.custom_subject,
-        to_override=body.to_override,
-        template_id=body.template_id,
+        project_id, target, (bank_name or None), authorization,
+        additional_recipients=(cc or None),
+        custom_html=(custom_html or None),
+        custom_subject=(custom_subject or None),
+        to_override=(to_ov or None),
+        template_id=(template_id or None),
+        extra_attachments=extra_attachments,
+        attach_matrix=(str(attach_matrix).lower() == "true"),
     )
 
 
@@ -818,7 +848,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
-async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None, to_override: Optional[List[str]] = None, template_id: Optional[str] = None):
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None, to_override: Optional[List[str]] = None, template_id: Optional[str] = None, extra_attachments: Optional[List[dict]] = None, attach_matrix: bool = False):
     """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
     
     El cuerpo del correo siempre viene de la plantilla configurada.
@@ -895,14 +925,41 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     if custom_subject:
         subject = _render_vars(subject, template_vars)
 
+    # Adjuntar tabla de la matriz de distribución al cuerpo si se solicitó (botón "Adjuntar Matriz")
+    if attach_matrix:
+        _matrix = template_vars.get("Matriz_Bancos_Productos", "")
+        if _matrix:
+            html = f"{html}<hr>{_style_email_tables(_matrix)}"
+
     # Process base64 images → upload to storage for email compatibility
     html = await _replace_base64_images(html, current_user.get("user_id", "system"))
+
+    # Preparar adjuntos (Cargar Archivos / Imágenes): se guardan en disco (registro) y
+    # se adjuntan al correo saliente.
+    saved_files = []
+    email_attachments = None
+    if extra_attachments:
+        email_attachments = []
+        upload_dir = f"/app/backend/uploads/notif_emails/{project_id}"
+        os.makedirs(upload_dir, exist_ok=True)
+        for att in extra_attachments:
+            content = att.get("content", b"")
+            fname = att.get("filename", "adjunto")
+            safe_name = f"{uuid.uuid4().hex[:8]}_{fname}"
+            file_path = os.path.join(upload_dir, safe_name)
+            try:
+                save_pdf_dual(file_path, content, f"notif_emails/{project_id}/{safe_name}")
+            except Exception:
+                pass
+            saved_files.append({"filename": fname, "url": f"/uploads/notif_emails/{project_id}/{safe_name}", "size": len(content), "content_type": att.get("content_type")})
+            email_attachments.append({"filename": fname, "content": content})
 
     email_result = await send_email(
         to=to_list, subject=subject, html=html,
         action=f"notification_{target}_{prefix_label.replace(' ', '_').lower()}",
         quote_id=project.get("quote_id"), quote_number=project.get("quote_number"),
         cc=additional_recipients,
+        attachments=email_attachments,
     )
 
     # CC list for logging
@@ -917,6 +974,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         "recipients": to_list,
         "cc": cc_list,
         "subject": subject,
+        "attachments_count": len(saved_files),
         "email_status": email_result.get("status"),
     }
     entity_history.append(entry)
