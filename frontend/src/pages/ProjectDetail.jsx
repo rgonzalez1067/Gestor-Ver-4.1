@@ -2111,7 +2111,7 @@ const ProjectDetail = () => {
                           <ClipboardList size={12} />Variables disponibles para la plantilla
                         </summary>
                         <div className="px-3 pb-2 flex flex-wrap gap-1">
-                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                             <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                               title={`Clic para copiar ${v}`}>{v}</span>
@@ -2304,7 +2304,7 @@ const ProjectDetail = () => {
                     <ClipboardList size={12} />Variables disponibles (clic para insertar en el mensaje)
                   </summary>
                   <div className="px-3 pb-2 flex flex-wrap gap-1">
-                    {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                    {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                       <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                         className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                         title={`Insertar ${v}`}>{v}</button>

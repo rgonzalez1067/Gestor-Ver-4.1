@@ -222,6 +222,52 @@ def _build_stores_summary(stores: list) -> tuple:
     )
 
 
+def _build_stores_matrix_html(stores: list, fallback_name: str = "Sede Principal", fallback_cajas=None) -> str:
+    """Genera tabla HTML 'Matriz de Sucursales': columnas Sucursal | Cantidad de Cajas,
+    una fila por cada sucursal del proyecto + fila Total cuando hay más de una.
+    Para proyectos sin sucursales explícitas (flujo PYME) usa el fallback provisto."""
+    rows = []
+    if stores:
+        for s in stores:
+            rows.append((s.get("name", "Sucursal"), s.get("box_count", 0) or 0))
+    elif fallback_cajas not in (None, "", "—"):
+        rows.append((fallback_name or "Sede Principal", fallback_cajas))
+
+    if not rows:
+        return "<p><em>Sin sucursales definidas.</em></p>"
+
+    html = (
+        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">'
+        '<thead><tr style="background:#2c3e50;color:white;">'
+        '<th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Sucursal</th>'
+        '<th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Cantidad de Cajas</th>'
+        '</tr></thead><tbody>'
+    )
+    total = 0
+    for idx, (name, cajas) in enumerate(rows):
+        bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+        try:
+            total += int(cajas)
+        except (TypeError, ValueError):
+            pass
+        html += (
+            f'<tr style="background:{bg};">'
+            f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{name}</td>'
+            f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{cajas}</td>'
+            f'</tr>'
+        )
+    if len(rows) > 1:
+        html += (
+            '<tr style="background:#eef2f7;font-weight:bold;">'
+            '<td style="padding:8px 12px;border:1px solid #e9ecef;">Total</td>'
+            f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{total}</td>'
+            '</tr>'
+        )
+    html += '</tbody></table>'
+    return html
+
+
+
 async def resolve_project_template_vars(project: dict) -> dict:
     """Resuelve todas las variables dinámicas de un proyecto para inyectar en plantillas.
     
@@ -292,6 +338,11 @@ async def resolve_project_template_vars(project: dict) -> dict:
         if services:
             cajas = max((s.get("cantidad_cajas", 0) for s in services), default=0)
             cantidad_cajas = str(cajas) if cajas else "—"
+
+    # === {Matriz_Sucursales} — tabla Sucursal | Cantidad de Cajas ===
+    matriz_sucursales_html = _build_stores_matrix_html(
+        stores, fallback_name=nombre_sucursal, fallback_cajas=cantidad_cajas
+    )
 
     # === {Integrador} ===
     integrador = project.get("integrator_name", "—")
@@ -389,6 +440,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Email_Contacto": contacto_email,
         "Nombre_Sucursal": nombre_sucursal,
         "Cantidad_Cajas": cantidad_cajas,
+        "Matriz_Sucursales": matriz_sucursales_html,
         "Integrador": integrador,
         "Aplicativo_Integracion": aplicativo_integracion,
         "Nombre_Implementador": nombre_implementador,

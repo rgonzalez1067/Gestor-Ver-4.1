@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-09 — Nuevas variables de plantillas de Proyectos
+
+Solicitud: crear variables para Nombre/Email del Implementador y una Matriz de Sucursales.
+
+- **`{Nombre_Implementador}`** y **`{Correo_Implementador}`**: YA existían (resueltas desde el usuario asignado al proyecto). Se confirmaron operativas.
+- **`{Matriz_Sucursales}` (NUEVA):** tabla HTML con columnas *Sucursal* y *Cantidad de Cajas* por cada sucursal del proyecto (+ fila Total si hay más de una). Fallback a Sede Principal/cajas de servicios para proyectos PYME sin sucursales explícitas.
+  - Backend: `services/project_template_vars.py` — helper `_build_stores_matrix_html()` + clave `Matriz_Sucursales` en `resolve_project_template_vars`. Registrada en `template-variables` y excluida del panel plano de variables (como `Matriz_Bancos_Productos`).
+  - Frontend: agregada a los chips de variables de "Otras Notificaciones" y Notificaciones a Bancos/Clientes, al picker de `TemplatesAdminDialog`, a `ALL_TOKENS` (projectConstants) y al `exampleValues` de `RichTextEditor` (preview en editor).
+- Verificado por curl: `Matriz_Sucursales` aparece en available_tags y `preview-adhoc` la renderiza como tabla (token reemplazado).
+
+
 ## 2026-06-09 — Adjuntos en Notificaciones a Bancos/Clientes (iter49)
 
 Extensión solicitada: agregar Cargar Archivos / Cargar Imágenes / Adjuntar Matriz al flujo de Notificaciones a Cliente/Banco (antes solo en "Otras Notificaciones"). Verificado: testing agent iter49 100% frontend + backend por curl (envío real status 'sent' con adjunto + matriz).

@@ -1125,7 +1125,7 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
         "entity_label": email_data["entity_label"],
         "prefix": NOTIFICATION_PREFIXES[prefix_idx],
         "send_number": send_count + 1,
-        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
     }
 
@@ -1168,7 +1168,7 @@ async def preview_adhoc_email(project_id: str, body: PreviewAdhocRequest, author
     return {
         "subject": f"{ticket_label}{rendered_subject}",
         "html": html,
-        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
     }
 
 
@@ -1182,7 +1182,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
 
     template_vars = await resolve_project_template_vars(project)
     return {
-        "variables": {k: v for k, v in template_vars.items() if k != "Matriz_Bancos_Productos"},
+        "variables": {k: v for k, v in template_vars.items() if k not in ("Matriz_Bancos_Productos", "Matriz_Sucursales")},
         "matrix_html": template_vars.get("Matriz_Bancos_Productos", ""),
         "available_tags": [
             {"key": "Nombre_Cliente", "label": "Nombre del Cliente", "source": "Clientes.razon_social"},
@@ -1190,6 +1190,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Datos_Contacto", "label": "Datos del Contacto (nombre, tel, email)", "source": "Contactos.full_info"},
             {"key": "Nombre_Sucursal", "label": "Nombre de Sucursal", "source": "Sucursales.nombre"},
             {"key": "Cantidad_Cajas", "label": "Cantidad de Cajas", "source": "Sucursales.nro_cajas"},
+            {"key": "Matriz_Sucursales", "label": "Tabla de Sucursales (Sucursal / Cantidad de Cajas)", "source": "Proyecto.stores"},
             {"key": "Integrador", "label": "Integrador", "source": "Proyecto.integrador"},
             {"key": "Matriz_Bancos_Productos", "label": "Tabla Bancos/Productos (HTML)", "source": "Proyecto.implementation_matrix"},
             {"key": "project_number", "label": "Nro. Proyecto", "source": "Proyecto.project_number"},

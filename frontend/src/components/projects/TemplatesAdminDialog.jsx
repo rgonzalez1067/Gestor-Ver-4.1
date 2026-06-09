@@ -25,6 +25,7 @@ const VAR_GROUPS = [
     { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
     { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },
     { token: 'Cantidad_Cajas', desc: 'Cantidad de cajas' },
+    { token: 'Matriz_Sucursales', desc: 'Tabla de Sucursales (Sucursal / Cantidad de Cajas)' },
   ]},
   { cat: 'Infraestructura', icon: <Server size={14} className="text-emerald-500" />, vars: [
     { token: 'Servidor_Instalacion', desc: 'Servidor asignado' },

@@ -189,6 +189,7 @@ const DEFAULT_EXAMPLE_VALUES = {
   Aplicativo_Integracion: 'A2 Softway POS',
   Nombre_Sucursal: 'Sede Norte',
   Cantidad_Cajas: '5',
+  Matriz_Sucursales: '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Sucursal</th><th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Cantidad de Cajas</th></tr></thead><tbody><tr style="background:#f8f9fa;"><td style="padding:8px 12px;border:1px solid #e9ecef;">Sede Norte</td><td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">5</td></tr><tr><td style="padding:8px 12px;border:1px solid #e9ecef;">Sede Sur</td><td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">3</td></tr><tr style="background:#eef2f7;font-weight:bold;"><td style="padding:8px 12px;border:1px solid #e9ecef;">Total</td><td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">8</td></tr></tbody></table>',
   project_number: 'PRY-2026-03-001-PRI',
   ticket_number: '56785',
   Nro_Proyecto: 'PRY-2026-03-001-PRI',

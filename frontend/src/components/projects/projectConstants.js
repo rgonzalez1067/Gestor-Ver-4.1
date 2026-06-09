@@ -15,5 +15,5 @@ export const ALL_TOKENS = [
   'Nombre_Cliente', 'Rif_Cliente', 'Contacto_Principal', 'Datos_Contacto', 'Telefono_Contacto', 'Email_Contacto',
   'Nro_Proyecto', 'Ticket_Nro', 'Tipo_Proyecto', 'Fecha_Asignacion', 'Nombre_Sucursal', 'Cantidad_Cajas',
   'Servidor_Instalacion', 'Nombre_Implementador', 'Correo_Implementador', 'Integrador', 'Aplicativo_Integracion',
-  'Modelo_Seriales_POS', 'Modelo_Seriales_Equipos', 'Lista_VTID', 'Matriz_Bancos_Productos',
+  'Modelo_Seriales_POS', 'Modelo_Seriales_Equipos', 'Lista_VTID', 'Matriz_Bancos_Productos', 'Matriz_Sucursales',
 ];
