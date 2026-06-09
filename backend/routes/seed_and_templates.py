@@ -802,6 +802,15 @@ async def get_email_templates(context: Optional[str] = None, authorization: Opti
 
     templates = await db.email_templates.find(query, {"_id": 0}).to_list(200)
 
+    # Para el módulo de Implementación (Plantillas de Proyectos), incluir las
+    # plantillas de Proyecto por defecto (Texto Enriquecido) que aún no estén
+    # persistidas, para que el dropdown del modal de notificaciones las liste.
+    if context and context.upper() == "IMPLEMENTACION":
+        existing_ids = {t["template_id"] for t in templates}
+        for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
+            if template_id not in existing_ids:
+                templates.append(default_template)
+
     # Si no hay filtro de contexto, incluir plantillas predeterminadas que falten
     if not context:
         template_ids = [t["template_id"] for t in templates]

@@ -401,6 +401,7 @@ class SequentialNotifyRequest(BaseModel):
     to_override: Optional[List[str]] = None  # Si se envía, reemplaza el TO auto-resuelto desde DB
     custom_html: Optional[str] = None  # Editable preview override
     custom_subject: Optional[str] = None  # Editable subject override
+    template_id: Optional[str] = None  # Plantilla de Proyecto seleccionada en el modal (override del default)
 
 
 @router.post("/projects/{project_id}/send-notification")
@@ -412,7 +413,66 @@ async def send_sequential_notification(project_id: str, body: SequentialNotifyRe
         custom_html=body.custom_html,
         custom_subject=body.custom_subject,
         to_override=body.to_override,
+        template_id=body.template_id,
     )
+
+
+# ==================== PLANTILLA PREFERIDA (Preferencias de Notificación) ====================
+# Mapeo destino → template_id preferido para precargar en el modal de notificaciones.
+# Se almacena en db.config (type='project_notification_preferences').
+NOTIF_PREF_DOC = {"type": "project_notification_preferences"}
+VALID_NOTIF_DESTINATIONS = ("client", "bank", "bank_client")
+
+
+async def _get_notification_template(template_id: Optional[str]) -> Optional[dict]:
+    """Obtiene una plantilla por id desde la BD; si no está persistida, recurre a los
+    defaults de Plantillas de Proyecto / por sede / legacy (Texto Enriquecido)."""
+    if not template_id:
+        return None
+    tpl = await db.email_templates.find_one({"template_id": template_id}, {"_id": 0})
+    if tpl:
+        return tpl
+    from routes.seed_and_templates import (
+        PROJECT_EMAIL_TEMPLATES, EMAIL_TEMPLATES_BY_SEDE, DEFAULT_EMAIL_TEMPLATES,
+    )
+    for d in (PROJECT_EMAIL_TEMPLATES, EMAIL_TEMPLATES_BY_SEDE, DEFAULT_EMAIL_TEMPLATES):
+        if template_id in d:
+            return d[template_id]
+    return None
+
+
+@router.get("/project-notification-preferences")
+async def get_notification_preferences(authorization: Optional[str] = Header(None)):
+    """Devuelve el template_id preferido por destino: {client, bank, bank_client}."""
+    await get_current_user(authorization)
+    doc = await db.config.find_one(NOTIF_PREF_DOC, {"_id": 0})
+    return {
+        "client": (doc or {}).get("client") or "project_notify_client",
+        "bank": (doc or {}).get("bank") or "project_notify_bank",
+        "bank_client": (doc or {}).get("bank_client") or "project_notify_bank_client",
+    }
+
+
+class NotificationPreferenceUpdate(BaseModel):
+    destination: str  # "client" | "bank" | "bank_client"
+    template_id: str
+
+
+@router.put("/project-notification-preferences")
+async def set_notification_preference(body: NotificationPreferenceUpdate, authorization: Optional[str] = Header(None)):
+    """Marca una plantilla como Preferida para un destino concreto (solo una por destino)."""
+    await get_current_user(authorization)
+    if body.destination not in VALID_NOTIF_DESTINATIONS:
+        raise HTTPException(status_code=400, detail="Destino inválido")
+    tpl = await _get_notification_template(body.template_id)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    await db.config.update_one(
+        NOTIF_PREF_DOC,
+        {"$set": {body.destination: body.template_id, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"message": "Plantilla preferida actualizada", "destination": body.destination, "template_id": body.template_id}
 
 
 def _render_vars(template_str: str, variables: dict) -> str:
@@ -461,7 +521,7 @@ def _clean_html_in_braces(html: str) -> str:
     return result
 
 
-async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], send_count: int, template_vars: dict) -> dict:
+async def _resolve_notification_email(project: dict, target: str, bank_name: Optional[str], send_count: int, template_vars: dict, override_template_id: Optional[str] = None) -> dict:
     """Resuelve destinatarios, asunto y HTML de una notificación de proyecto.
     El asunto se prefija automáticamente según el conteo de envíos.
     Returns: {to_list, subject, html, entity_label, prefix}
@@ -508,8 +568,8 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
 
         entity_label = f"Cliente ({client_name})"
 
-        # Siempre usar plantilla del DB
-        template = await db.email_templates.find_one({"template_id": "project_notify_client"}, {"_id": 0})
+        # Plantilla del DB (preferida/seleccionada o default de Texto Enriquecido)
+        template = await _get_notification_template(override_template_id or "project_notify_client")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "Implementación: {project_number}"), template_vars)
             subject = f"[{prefix_label}] {raw_subject}"
@@ -579,7 +639,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         if client:
             template_vars["client_rif"] = client.get("rif", client.get("tax_id", ""))
 
-        template = await db.email_templates.find_one({"template_id": "project_notify_bank_client"}, {"_id": 0})
+        template = await _get_notification_template(override_template_id or "project_notify_bank_client")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "{bank_name} — {Nombre_Cliente} — {project_number}"), template_vars)
             subject = f"[{prefix_label}] {raw_subject}"
@@ -625,8 +685,8 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template_vars["bank_name"] = bank_name
         template_vars["bank_products"] = ", ".join(bank_products)
 
-        # Siempre usar plantilla del DB
-        template = await db.email_templates.find_one({"template_id": "project_notify_bank"}, {"_id": 0})
+        # Siempre usar plantilla del DB (preferida/seleccionada o default)
+        template = await _get_notification_template(override_template_id or "project_notify_bank")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "{bank_name} — {project_number}"), template_vars)
             subject = f"[{prefix_label}] {raw_subject}"
@@ -653,7 +713,7 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
     return {"to_list": to_list, "subject": subject, "html": html, "entity_label": entity_label, "prefix": prefix_label}
 
 
-async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None, to_override: Optional[List[str]] = None):
+async def _send_sequential_notification(project_id: str, target: str, bank_name: Optional[str], authorization: str, level: str = None, additional_recipients: Optional[List[str]] = None, custom_html: Optional[str] = None, custom_subject: Optional[str] = None, to_override: Optional[List[str]] = None, template_id: Optional[str] = None):
     """Lógica de notificaciones con prefijos dinámicos por conteo de envíos.
     
     El cuerpo del correo siempre viene de la plantilla configurada.
@@ -708,7 +768,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
     template_vars = await resolve_project_template_vars(project)
 
     # Construir email con plantilla + prefijo dinámico
-    email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars)
+    email_data = await _resolve_notification_email(project, target, bank_name, send_count, template_vars, override_template_id=template_id)
     # Si el usuario seleccionó destinatarios manualmente desde el panel, sustituir TO
     if to_override:
         valid_to = [e.strip() for e in to_override if e and '@' in e]
@@ -847,6 +907,9 @@ class PreviewNotificationRequest(BaseModel):
     target: str  # "client" or "bank"
     bank_name: Optional[str] = None
     to_override: Optional[List[str]] = None  # destinatarios manuales seleccionados
+    template_id: Optional[str] = None  # Plantilla seleccionada en el modal
+    custom_html: Optional[str] = None  # Cuerpo editado en el editor enriquecido
+    custom_subject: Optional[str] = None  # Asunto editado (opcional)
 
 
 @router.post("/projects/{project_id}/preview-notification")
@@ -866,8 +929,18 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
     # Resolver variables del proyecto
     template_vars = await resolve_project_template_vars(project)
 
-    # Construir email (sin enviar) con prefijo basado en conteo
-    email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars)
+    # Construir email (sin enviar) con prefijo basado en conteo y plantilla seleccionada
+    email_data = await _resolve_notification_email(project, body.target, body.bank_name, send_count, template_vars, override_template_id=body.template_id)
+
+    # Overrides editables del modal (cuerpo / asunto). Se re-renderizan las variables.
+    subject = email_data["subject"]
+    html = email_data["html"]
+    if body.custom_html:
+        html = _render_vars(body.custom_html, template_vars)
+    if body.custom_subject:
+        prefix_label = NOTIFICATION_PREFIXES[min(send_count, len(NOTIFICATION_PREFIXES) - 1)]
+        raw = _render_vars(body.custom_subject, template_vars)
+        subject = raw if raw.strip().startswith("[") else f"[{prefix_label}] {raw}"
 
     # Si hay destinatarios manuales, sustituir el TO en la respuesta
     to_list = email_data["to_list"]
@@ -880,8 +953,8 @@ async def preview_notification(project_id: str, body: PreviewNotificationRequest
     prefix_idx = min(send_count, len(NOTIFICATION_PREFIXES) - 1)
 
     return {
-        "subject": email_data["subject"],
-        "html": email_data["html"],
+        "subject": subject,
+        "html": html,
         "recipients": to_list,
         "entity_label": email_data["entity_label"],
         "prefix": NOTIFICATION_PREFIXES[prefix_idx],

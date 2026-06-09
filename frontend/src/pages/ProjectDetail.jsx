@@ -28,6 +28,7 @@ import { ProjectProgressReportDialog } from '../components/ProjectProgressReport
 import { BatchUpdateModal } from '../components/projects/BatchUpdateModal';
 import { EmailDetailViewer } from '../components/projects/EmailDetailViewer';
 import { TemplatesAdminDialog } from '../components/projects/TemplatesAdminDialog';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { EmailPreviewDialog } from '../components/projects/EmailPreviewDialog';
 import { CommitmentModal } from '../components/CommitmentModal';
 import { ImplementerAlertsModal } from '../components/ImplementerAlertsModal';
@@ -49,6 +50,10 @@ const ProjectDetail = () => {
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [notifTarget, setNotifTarget] = useState(null); // {type: 'client'|'bank', bankName?}
   const [notifSending, setNotifSending] = useState(null); // level string being sent
+  // Plantilla Preferida + editor enriquecido dentro del modal de notificaciones
+  const [notifPreferences, setNotifPreferences] = useState({ client: '', bank: '', bank_client: '' });
+  const [selectedNotifTemplateId, setSelectedNotifTemplateId] = useState('');
+  const [notifBody, setNotifBody] = useState('');
   const [resolvedRecipients, setResolvedRecipients] = useState([]);
 
   // Otras Notificaciones (ad-hoc avanzado)
@@ -417,7 +422,49 @@ const ProjectDetail = () => {
     setMainRecipients([]);
     setResolvedRecipients([]);
     fetchSuggestedContacts();
+    // Cargar Plantillas de Proyecto (Texto Enriquecido) + preferencias y precargar la preferida
+    try {
+      const [tplRes, prefRes] = await Promise.all([
+        api.get('/email-templates?context=IMPLEMENTACION'),
+        api.get('/project-notification-preferences'),
+      ]);
+      const tpls = tplRes.data || [];
+      const prefs = prefRes.data || {};
+      setEmailTemplates(tpls);
+      setNotifPreferences(prefs);
+      const preferredId = prefs[type];
+      const preferred = tpls.find(t => t.template_id === preferredId) || tpls[0] || null;
+      setSelectedNotifTemplateId(preferred?.template_id || '');
+      setNotifBody(preferred?.body_html || '');
+    } catch (err) {
+      console.error('Error cargando plantillas/preferencias:', err);
+      setEmailTemplates([]);
+      setSelectedNotifTemplateId('');
+      setNotifBody('');
+    }
     setNotifDialogOpen(true);
+  };
+
+  // Cambiar la plantilla seleccionada en el modal → recarga el cuerpo en el editor
+  const handleNotifTemplateChange = (templateId) => {
+    setSelectedNotifTemplateId(templateId);
+    const tpl = emailTemplates.find(t => t.template_id === templateId);
+    setNotifBody(tpl?.body_html || '');
+  };
+
+  // Marcar la plantilla seleccionada como Preferida para el destino actual
+  const markNotifTemplatePreferred = async () => {
+    if (!selectedNotifTemplateId || !notifTarget) return;
+    try {
+      await api.put('/project-notification-preferences', {
+        destination: notifTarget.type,
+        template_id: selectedNotifTemplateId,
+      });
+      setNotifPreferences(prev => ({ ...prev, [notifTarget.type]: selectedNotifTemplateId }));
+      toast.success('Plantilla marcada como preferida para este destino');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'No se pudo marcar como preferida');
+    }
   };
 
   const getEntityHistory = (target) => {
@@ -450,6 +497,8 @@ const ProjectDetail = () => {
         bank_name: notifTarget.bankName || null,
         to_override: mainRecipients,
         additional_recipients: ccList.length > 0 ? ccList : null,
+        template_id: selectedNotifTemplateId || null,
+        custom_html: notifBody || null,
       });
       toast.success(res.data.message);
       setAdditionalRecipients('');
@@ -580,6 +629,8 @@ const ProjectDetail = () => {
         target: target || 'client',
         bank_name: bankName || null,
         to_override: mainRecipients,
+        template_id: selectedNotifTemplateId || null,
+        custom_html: notifBody || null,
       });
       setPreviewData(res.data);
       setPreviewSubject(res.data.subject || '');
@@ -1859,7 +1910,10 @@ const ProjectDetail = () => {
                           <div>
                             <p className="text-sm font-semibold text-slate-800">Próximo envío: [{nextPrefix}]</p>
                             <p className="text-xs text-slate-500">
-                              Plantilla: <span className="font-medium">{notifTarget?.type === 'client' ? 'Notificación de Proyecto — Cliente' : notifTarget?.type === 'bank_client' ? 'Notificación de Proyecto Banco y Cliente' : 'Notificación de Proyecto — Banco'}</span>
+                              Plantilla: <span className="font-medium">{emailTemplates.find(t => t.template_id === selectedNotifTemplateId)?.name || '—'}</span>
+                              {selectedNotifTemplateId && notifPreferences[notifTarget?.type] === selectedNotifTemplateId && (
+                                <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200" data-testid="preferred-badge">★ Preferida</span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -1909,6 +1963,51 @@ const ProjectDetail = () => {
                           <p className="text-[10px] text-slate-400 mt-1">
                             Estos correos recibirán copia (CC). Escriba para autocompletar usuarios internos.
                           </p>
+                        </div>
+                      </div>
+
+                      {/* ===== Plantilla de Proyecto (Texto Enriquecido) — precargada con la Preferida ===== */}
+                      <div className="bg-white rounded-lg p-3 border border-slate-200 mb-3 space-y-2" data-testid="notif-template-panel">
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">Plantilla</label>
+                            <Select value={selectedNotifTemplateId || ''} onValueChange={handleNotifTemplateChange}>
+                              <SelectTrigger className="h-9 text-sm" data-testid="notif-template-select">
+                                <SelectValue placeholder="Seleccionar plantilla..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {emailTemplates.map(t => (
+                                  <SelectItem key={t.template_id} value={t.template_id} data-testid={`notif-template-option-${t.template_id}`}>
+                                    {t.name}{notifPreferences[notifTarget?.type] === t.template_id ? ' ★' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            type="button" size="sm" variant="outline"
+                            className={`h-9 text-xs gap-1 ${notifPreferences[notifTarget?.type] === selectedNotifTemplateId ? 'border-amber-300 text-amber-600 bg-amber-50' : 'border-slate-200 text-slate-600'}`}
+                            disabled={!selectedNotifTemplateId || notifPreferences[notifTarget?.type] === selectedNotifTemplateId}
+                            onClick={markNotifTemplatePreferred}
+                            data-testid="mark-preferred-btn"
+                            title="Marcar esta plantilla como preferida para este destino"
+                          >
+                            ★ {notifPreferences[notifTarget?.type] === selectedNotifTemplateId ? 'Preferida' : 'Marcar preferida'}
+                          </Button>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">Contenido del mensaje</label>
+                          <RichTextEditor
+                            key={`notif-editor-${selectedNotifTemplateId}`}
+                            value={notifBody}
+                            onChange={(html) => setNotifBody(html)}
+                            maxChars={20000}
+                            hardLimit={false}
+                            placeholder="Contenido del correo. Puede editarlo antes de enviar."
+                            testid="notif-body-editor"
+                            minHeight={180}
+                            maxHeight={340}
+                          />
                         </div>
                       </div>
 

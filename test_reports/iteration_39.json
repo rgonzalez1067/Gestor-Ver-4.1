@@ -1,0 +1,41 @@
+{
+  "summary": "Iter39 — Plantilla Preferida + Texto Enriquecido en Notificaciones de Proyecto. Validado backend (GET/PUT preferencias, dropdown IMPLEMENTACION lista 6 plantillas incluidas las 4 defaults de Proyecto, preview con template_id+custom_html renderiza variables y asunto con [Primer Envío], send-notification no devuelve 500) y UI completa del modal 'Notificación Única (Cliente y Banco)' con todos los data-testids requeridos. Cambio de plantilla en el dropdown actualiza el editor; Marcar preferida persiste y se precarga al reabrir.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ProjectDetail / Modal de notificación", "issues": ["Hydration warnings (no bloqueantes) preexistentes: 'span cannot be a child of tbody' y 'span cannot be a child of option' — provienen del wrapper <span data-ve-dynamic> que el sistema envuelve sobre <tr>/<SelectItem>. Mismo warning ya reportado en iter38. No afecta funcionalidad."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter39_notif_preferred_endpoints.py",
+    "/app/backend/tests/test_project_notification_preferred.py",
+    "/app/test_reports/pytest/iter39_notif_preferred.xml"
+  ],
+  "action_items": [
+    "Aclaración (no bug): para proyectos Single con UN solo banco (como prj_826643491b64), el botón con data-testid='notifications-btn' (Notificaciones a Cliente) está OCULTO por diseño (ProjectDetail.jsx L1396) y es REEMPLAZADO por el botón 'Notificación Única (Cliente y Banco)' (data-testid='notif-bank-client-btn'). Por lo tanto, la verificación frontend del review_request sobre 'notifications-btn' en prj_826643491b64 se cumplió usando 'notif-bank-client-btn' (que abre el mismo notif-dialog con destino bank_client y plantilla preferida precargada). Si E1 prefiere también exponer 'notifications-btn' en este escenario, podría agregar el data-testid al botón especial o reflejarlo en la doc/test.",
+    "(opcional) Limpiar wrappers <span data-ve-dynamic> que provocan hydration warnings en Dashboard/CommitmentList y en SelectItem para silenciar la consola."
+  ],
+  "critical_code_review_comments": [
+    "Backend OK: GET /project-notification-preferences devuelve los 3 destinos con defaults; PUT con destination inválido => 422 (FastAPI Pydantic) ó 400; template_id inexistente => 404. Persistencia en db.config (NOTIF_PREF_DOC) confirmada (read-after-write).",
+    "preview-notification respeta override_template_id: asunto con prefijo [Primer Envío] proveniente de la plantilla seleccionada; variables {Nombre_Cliente}/{project_number} resueltas (no quedan literales).",
+    "send-notification con Resend no configurado responde sin 500 (graceful). No se intentó envío real para evitar spam.",
+    "GET /email-templates?context=IMPLEMENTACION mergea defaults de Proyecto: confirmadas project_notify_client, project_notify_bank, project_notify_bank_client, new_integration_project (6 ids visibles en el dropdown del modal).",
+    "UI: el modal 'Notificación Única' precarga la preferida (badge ★ visible), el cambio de plantilla en el dropdown actualiza el body del editor TipTap inmediatamente, 'Marcar preferida' dispara toast 'Plantilla marcada como preferida para este destino', mueve el badge ★ a la nueva plantilla y al cerrar/reabrir queda la nueva como precargada (persistencia confirmada)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter39_notif_preferred_endpoints.py (NUEVO)",
+    "/app/test_reports/iteration_39.json (NUEVO)"
+  ],
+  "success_rate": {"backend": "100% (5/5 unit + 7/7 HTTP e2e)", "frontend": "100% en flujos validados (modal único + dropdown + mark preferred + persistencia al reabrir)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login devuelve session_token)",
+  "seed_data_creation": "No se creó seed adicional. Se modificó temporalmente la preferencia 'bank_client' durante la prueba UI (mark preferred a 'Notificación de Proyecto — Cliente') y se RESTAURÓ al final a 'project_notify_bank_client' vía PUT directo. Estado final de preferencias: client=project_notify_client, bank=project_notify_bank, bank_client=project_notify_bank_client (defaults).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para Single project con 1 banco (prj_826643491b64), 'notifications-btn' NO se renderiza por diseño; usar 'notif-bank-client-btn' (Notificación Única) que abre el mismo modal con destino bank_client. Si E1 cambia esto, recordar reabrir caso. Las plantillas de Proyecto por default tienen ids: project_notify_client, project_notify_bank, project_notify_bank_client, new_integration_project. El endpoint de envío usa Resend (sin API key configurada en QA — no genera 500, solo respuesta informativa).",
+  "rca of the issue": "No es bug — esta iteración validó la implementación de E1 (motor de Plantillas + Preferida por destino + RichTextEditor en modal de notificaciones). Todos los criterios del review_request fueron verificados a nivel API y UI. La única observación es que el testid 'notifications-btn' no aplica a Single+1-banco por diseño (lo reemplaza 'notif-bank-client-btn'), lo cual es correcto según el código (ProjectDetail.jsx L1383-1401)."
+}
