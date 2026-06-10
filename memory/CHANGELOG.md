@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Campo "Bancos o Entes" editable en Item 1 (Suscripción PDV/Banco)
+
+Requerimiento del usuario (Setup del asistente de Cotización). Antes el Item 1 "Suscripción PDV/Banco" mostraba la columna "Bancos o Entes" como SOLO LECTURA (heredaba el número de bancos del header "Bancos/Entes" de la solicitud original). Por dinámica del negocio ahora debe ser editable.
+
+- `QuoteWizardDialog.jsx` (rama `item.inheritBancos` del Setup, ~línea 1392): se reemplazó el `<div>` de solo lectura por un `<Input>` editable (`data-testid=setup-bancos-inherit-<index>`). Default = valor heredado del header. Al editar manualmente un valor distinto, se marca `item.bancosManual=true` (borde/ícono ámbar, override) y se limpia `totalOverride` para recalcular Total (tarifa × cajas × bancos). Si se reescribe el valor del header, vuelve a estado heredado (azul).
+- `Quotes.jsx` (useEffect de propagación header→items, ~línea 630): se agregó `&& !item.bancosManual` para que los cambios del header NO pisen una edición manual del Item 1.
+- Alcance: solo el Item 1 del Setup. El item recurrente equivalente ("Derecho de uso de plataforma MServer por PDV / Banco") permanece de solo lectura (no estaba en el requerimiento).
+- Probado por testing_agent (iteration_51): 7/7 aserciones PASS (editable, herencia default, propagación mientras no hay override, override manual con indicador ámbar, recálculo de Total, header no pisa el override, reescribir valor del header re-hereda).
+
+
 ## 2026-06-10 — Destinatarios Dinámicos por Sesión + Acción "Respuesta del Implementador"
 
 Requerimiento de 2 partes (P0). Ambas partes completadas y probadas (backend curl end-to-end + frontend testing agent iteration_50, 100% PASS).
