@@ -4,7 +4,7 @@ import { Input } from '../ui/input';
 import { Edit3, Send, ImagePlus, ClipboardList } from 'lucide-react';
 
 const QUICK_VARS = [
-  '{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}',
+  '{Nombre_Cliente}', '{Nombre_Fantasia}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}',
   '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}',
   '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}',
   '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}',

@@ -293,6 +293,7 @@ async def _build_template_vars(quote: dict) -> dict:
         "client_name": legal_name,
         "Nombre_Cliente": legal_name,
         "nombre_cliente": legal_name,
+        "Nombre_Fantasia": client_fantasy or legal_name,
         "client_rif": rif,
         "Rif_Cliente": rif,
         "client_address": address,

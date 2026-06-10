@@ -1,0 +1,68 @@
+{
+  "summary": "Frontend-only validation of 3 changes in MegaNexus Gestor: (1) Flexible Ticket validation w/ duplicate warning dialog showing Nombre_Fantasia of other client; (2) Alphabetical ordering of Bancos dropdown in /direct-projects; (3) New {Nombre_Fantasia} variable in cotizacion templates. All 3 features PASS end-to-end via real UI interaction with admin user.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global app shell (pre-existing, not caused by this change)",
+        "issues": [
+          "Console hydration warnings repeating across /dashboard, /direct-projects, /settings: '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>'. Pre-existing from prior iteration; NOT related to the 3 features tested."
+        ]
+      }
+    ]
+  },
+  "test_results_detail": {
+    "T1_ticket_flexible_dialog": {
+      "security_lock_banner_present": true,
+      "ticket_input_present": true,
+      "save_btn_present": true,
+      "ticket_duplicate_dialog_appeared_on_409": true,
+      "dup_message_text": "El Número de Ticket '56776' ya está asociado al cliente \"Pasteleria Fressier \" (proyecto PRY-2026-05-006-PRI). ¿Desea continuar y asignarlo también a este proyecto?",
+      "mentions_Pasteleria_Fressier": true,
+      "cancel_btn_present": true,
+      "confirm_btn_present": true,
+      "dialog_closes_on_cancel": true,
+      "banner_still_visible_after_cancel_no_save": true,
+      "result": "PASS"
+    },
+    "T2_banks_alphabetical_direct_projects": {
+      "route": "/direct-projects",
+      "dropdown_testid": "dp-sponsor-bank",
+      "total_options": 33,
+      "first_12": ["100% Banco","Amerant","Bancamiga","Bancaribe","Banco Activo","Banco de Venezuela","Banco del Tesoro","Banco Digital de los Trabajadores","Banco Exterior","Banco Fondo Común (BFC)","Banco Mercantil","Banco Nacional de Crédito (BNC)"],
+      "is_sorted_case_insensitive": true,
+      "result": "PASS"
+    },
+    "T3_Nombre_Fantasia_template_variable": {
+      "route": "/settings",
+      "section_expanded": "Plantillas Sede Pyme",
+      "template_opened": "edit-template-quote_sent_PYME",
+      "master_var_chip_present": true,
+      "master_var_testid": "master-var-Nombre_Fantasia",
+      "spec_var_chip_present": false,
+      "spec_var_note": "Review request stated 'master-var-Nombre_Fantasia y/o spec-var-Nombre_Fantasia' (either or both). For the quote_sent_PYME template the variable is exposed via the shared/master panel ('Cliente' category) which is the documented behavior per SHARED_VARS in EmailTemplatesEditor.jsx — acceptable.",
+      "click_chip_inserts_placeholder_in_body": true,
+      "body_length_before": 4316,
+      "body_length_after": 4333,
+      "delta_chars": 17,
+      "placeholder_inserted": "{Nombre_Fantasia}",
+      "result": "PASS"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-existing hydration warnings on multiple pages ('<tr> cannot be a child of <span>' / '<span> cannot be a child of <tbody>'). Carried over from iter_52; recommend tracing the offending layout/sidebar table component as a separate cleanup task.",
+    "DirectProjectCreation.jsx (>1260 lines) is large and would benefit from being split into smaller sub-components for maintainability (not blocking)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "skipped (validated by main agent via curl)", "frontend": "100% (3/3 features PASS)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None. T1 only opened+cancelled duplicate dialog; ticket NOT saved (banner remained visible after Cancel). T2 only opened dropdown read-only. T3 inserted placeholder into in-memory editor but template NOT saved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Routes: bloqueado project = /projects/prj_9e9f74389b43; direct project creation = /direct-projects (plural, not /direct-project); templates = /settings then expand 'Plantillas Sede Pyme' and click [data-testid=edit-template-quote_sent_PYME]. Test ticket '56776' triggers duplicate (Pasteleria Fressier, project PRY-2026-05-006-PRI). For variable chip insertion test, focus the body textarea first then click the chip.",
+  "rca of the issue": "N/A — all features work as specified."
+}

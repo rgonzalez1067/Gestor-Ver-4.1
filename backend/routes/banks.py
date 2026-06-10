@@ -261,6 +261,9 @@ async def get_banks(authorization: Optional[str] = Header(None)):
             bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
         # Migrate legacy contact fields → contacts[] (in-memory only)
         ensure_bank_contacts(bank)
+    # Orden alfabético por nombre (homologa todos los selectores de Bancos
+    # en la app: Cotizaciones, Proyectos Directos, etc.).
+    banks.sort(key=lambda b: (b.get("name") or "").strip().casefold())
     return banks
 
 @router.put("/banks/{bank_id}", response_model=Bank)

@@ -222,6 +222,7 @@ async def send_workflow_notification(
         "client_name": client_legal_name,
         "Nombre_Cliente": client_legal_name,
         "nombre_cliente": client_legal_name,
+        "Nombre_Fantasia": client_fantasy or client_legal_name,
         "client_rif": client_rif_val,
         "Rif_Cliente": client_rif_val,
         "quote_type": quote.get("quote_type", "N/A"),

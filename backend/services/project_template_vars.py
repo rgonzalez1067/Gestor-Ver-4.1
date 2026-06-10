@@ -433,6 +433,7 @@ async def resolve_project_template_vars(project: dict) -> dict:
     variables = {
         # Variables nuevas (Diccionario Técnico)
         "Nombre_Cliente": razon_social,
+        "Nombre_Fantasia": client_fantasy or razon_social or client_name,
         "Rif_Cliente": format_rif(project.get("client_rif", "")),
         "Contacto_Principal": contacto_principal,
         "Datos_Contacto": f"{contacto_principal} | Tel: {contacto_telefono} | Email: {contacto_email}" if contacto_principal else "—",

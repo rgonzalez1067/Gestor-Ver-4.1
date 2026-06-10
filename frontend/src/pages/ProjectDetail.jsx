@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from '../components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
@@ -169,6 +170,7 @@ const ProjectDetail = () => {
   // Security Lock: ticket number
   const [ticketInput, setTicketInput] = useState('');
   const [ticketSaving, setTicketSaving] = useState(false);
+  const [ticketDupWarning, setTicketDupWarning] = useState(null);
 
   // VTID Generator
   const [vtidPrefix, setVtidPrefix] = useState('');
@@ -886,15 +888,24 @@ const ProjectDetail = () => {
   };
 
   // ==================== SECURITY LOCK: TICKET NUMBER ====================
-  const handleSaveTicket = async () => {
+  const handleSaveTicket = async (confirmDuplicate = false) => {
     if (!ticketInput.trim()) { toast.error('Ingrese el Número de Ticket'); return; }
     setTicketSaving(true);
     try {
-      await api.put(`/projects/${projectId}/ticket`, { ticket_number: ticketInput.trim() });
+      await api.put(`/projects/${projectId}/ticket`, { ticket_number: ticketInput.trim(), confirm_duplicate: confirmDuplicate });
       toast.success('Ticket registrado exitosamente');
       setTicketInput('');
+      setTicketDupWarning(null);
       fetchProject();
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error al registrar ticket'); }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 409 && detail && typeof detail === 'object' && detail.code === 'ticket_duplicate') {
+        // Ticket ya asociado a otro proyecto → pedir confirmación al usuario.
+        setTicketDupWarning(detail);
+      } else {
+        toast.error((typeof detail === 'string' ? detail : detail?.message) || 'Error al registrar ticket');
+      }
+    }
     finally { setTicketSaving(false); }
   };
 
@@ -1444,7 +1455,7 @@ const ProjectDetail = () => {
                       />
                     </div>
                     <Button
-                      onClick={handleSaveTicket}
+                      onClick={() => handleSaveTicket()}
                       disabled={ticketSaving || !ticketInput.trim()}
                       className="h-9 bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
                       data-testid="security-lock-save-btn"
@@ -1456,6 +1467,28 @@ const ProjectDetail = () => {
               </div>
             </div>
           )}
+
+          {/* Confirmación: Ticket ya asociado a otro proyecto (carga flexible) */}
+          <AlertDialog open={!!ticketDupWarning} onOpenChange={(o) => { if (!o) setTicketDupWarning(null); }}>
+            <AlertDialogContent data-testid="ticket-duplicate-dialog">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Ticket ya asociado a otro proyecto</AlertDialogTitle>
+                <AlertDialogDescription data-testid="ticket-duplicate-message">
+                  {ticketDupWarning?.message}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="ticket-duplicate-cancel">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleSaveTicket(true)}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  data-testid="ticket-duplicate-confirm"
+                >
+                  Sí, asignar de todos modos
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* ============ NOTIFICATION SECTION ============ */}
           <div className="mb-6">
@@ -2111,7 +2144,7 @@ const ProjectDetail = () => {
                           <ClipboardList size={12} />Variables disponibles para la plantilla
                         </summary>
                         <div className="px-3 pb-2 flex flex-wrap gap-1">
-                          {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                          {['{Nombre_Cliente}', '{Nombre_Fantasia}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                             <span key={v} onClick={() => { navigator.clipboard.writeText(v); toast.success(`${v} copiado`); }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                               title={`Clic para copiar ${v}`}>{v}</span>
@@ -2304,7 +2337,7 @@ const ProjectDetail = () => {
                     <ClipboardList size={12} />Variables disponibles (clic para insertar en el mensaje)
                   </summary>
                   <div className="px-3 pb-2 flex flex-wrap gap-1">
-                    {['{Nombre_Cliente}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
+                    {['{Nombre_Cliente}', '{Nombre_Fantasia}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}', '{Cantidad_Cajas}', '{Patrocinador}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}', '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Matriz_Sucursales}', '{Lista_VTID}', '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}'].map(v => (
                       <button key={v} type="button" onClick={() => setEmailForm(prev => ({ ...prev, message: prev.message + ` ${v}` }))}
                         className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 cursor-pointer transition-all"
                         title={`Insertar ${v}`}>{v}</button>

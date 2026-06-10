@@ -474,6 +474,7 @@ const VARIABLE_CATEGORIES = [
     iconColor: 'text-blue-500',
     vars: [
       { key: 'Nombre_Cliente', label: 'Razón social del cliente' },
+      { key: 'Nombre_Fantasia', label: 'Nombre de fantasía del cliente' },
       { key: 'Rif_Cliente', label: 'RIF del cliente' },
       { key: 'Contacto_Principal', label: 'Nombre del contacto' },
       { key: 'Datos_Contacto', label: 'Contacto + Tel + Email' },
@@ -816,6 +817,7 @@ export const EmailTemplatesEditor = () => {
       Email_Ejecutivo: 'rgonzalez@megasoft.com.ve',
       // Variables de Proyecto
       Nombre_Cliente: 'MegaFarma, C.A.',
+      Nombre_Fantasia: 'MegaFarma',
       Contacto_Principal: 'Pedro Pérez',
       Nombre_Sucursal: 'Norte, Sur, Este',
       Cantidad_Cajas: 'Norte: 5 | Sur: 2 | Este: 3 (Total: 10)',

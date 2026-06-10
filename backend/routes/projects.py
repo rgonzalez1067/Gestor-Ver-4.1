@@ -42,6 +42,7 @@ class ProjectAssign(BaseModel):
 
 class TicketNumberUpdate(BaseModel):
     ticket_number: str
+    confirm_duplicate: bool = False
 
 
 class VTIDGenerateRequest(BaseModel):
@@ -2061,10 +2062,41 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
     # acción dinámica "Respuesta del Implementador".
     prev_ticket = (project.get("ticket_number") or "").strip()
 
-    # Verificar unicidad del ticket
-    existing = await db.projects.find_one({"ticket_number": ticket, "project_id": {"$ne": project_id}}, {"_id": 0, "project_id": 1})
-    if existing:
-        raise HTTPException(status_code=400, detail=f"El Número de Ticket '{ticket}' ya está asignado a otro proyecto")
+    # Verificar unicidad del ticket — FLEXIBLE: si el ticket ya existe en otro
+    # proyecto y el usuario NO ha confirmado, devolvemos una advertencia (409)
+    # con el Nombre de Fantasía del cliente del otro proyecto para que el
+    # usuario decida si desea continuar (hay casos de negocio donde un mismo
+    # ticket aplica a varios proyectos).
+    existing = await db.projects.find_one(
+        {"ticket_number": ticket, "project_id": {"$ne": project_id}},
+        {"_id": 0, "project_id": 1, "project_number": 1, "client_id": 1, "client_name": 1},
+    )
+    if existing and not body.confirm_duplicate:
+        fantasy = ""
+        if existing.get("client_id"):
+            cdoc = await db.clients.find_one(
+                {"client_id": existing["client_id"]},
+                {"_id": 0, "fantasy_name": 1, "legal_name": 1},
+            )
+            if cdoc:
+                fantasy = cdoc.get("fantasy_name") or cdoc.get("legal_name") or ""
+        if not fantasy:
+            fantasy = existing.get("client_name") or "otro cliente"
+        existing_pnum = existing.get("project_number", "") or ""
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ticket_duplicate",
+                "existing_client_fantasy": fantasy,
+                "existing_project_number": existing_pnum,
+                "message": (
+                    f"El Número de Ticket '{ticket}' ya está asociado al cliente "
+                    f"\"{fantasy}\""
+                    + (f" (proyecto {existing_pnum})" if existing_pnum else "")
+                    + ". ¿Desea continuar y asignarlo también a este proyecto?"
+                ),
+            },
+        )
 
     now = datetime.now(timezone.utc).isoformat()
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
