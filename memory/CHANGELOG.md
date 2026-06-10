@@ -1,5 +1,24 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Destinatarios Dinámicos por Sesión + Acción "Respuesta del Implementador"
+
+Requerimiento de 2 partes (P0). Ambas partes completadas y probadas (backend curl end-to-end + frontend testing agent iteration_50, 100% PASS).
+
+**Parte 1 — Destinatarios Dinámicos por Sesión**
+- Dos nuevos tipos de destinatario en los selectores de configuración de notificaciones:
+  - `session_user` ("Usuario generador") → el usuario web activo que dispara la acción (sesión `current_user`).
+  - `session_executive` ("Ejecutivo generador") → el ejecutivo creador de la cotización/proyecto (`created_by_user_id`).
+- Backend `notification_engine.try_dispatch`: resuelve `session_user` desde `current_user` y `session_executive` desde el creador de la cotización (fallback a `Email_Ejecutivo`). Canal inbox válido cuando hay `user_id` interno.
+- Backend `other_actions_engine.dispatch_other_action`: nuevo param `executive_user_id`; resuelve ambos tipos; inbox sólo con `user_id`.
+- Validaciones relajadas en `routes/action_notifications.py` (client_field/user/session_user/session_executive) y `routes/other_actions_config.py` (user/session_user/session_executive; user_id sólo exigido para type=user).
+- Frontend: `ActionNotificationsConfig.jsx` (selector Tipo con 4 opciones; canal disponible para tipos de sesión) y `OtherActionsConfig.jsx` (nuevo selector Tipo con 3 opciones; user_id sólo requerido para "Usuario interno").
+
+**Parte 2 — Acción "Respuesta del Implementador" (id=implementer_response)**
+- Registrada en `OTHER_ACTIONS` (`routes/other_actions_config.py`) → aparece en *Configuración de Otras Acciones*.
+- Disparador en background en `PUT /api/projects/{id}/ticket` (`routes/projects.py`): helper `_dispatch_implementer_response`. Se dispara sólo en transición de `ticket_number` vacío → valor y cuando el ejecutor es Implementador (admin permitido para QA). Usa `asyncio.create_task` (no bloquea la respuesta). El "Ejecutivo generador" se resuelve al `created_by_user_id` del proyecto.
+- Verificado: registrar ticket despachó `sent_count=2` (session_user=quien registra vía email, session_executive=creador vía inbox). Si el admin no configura la acción, `dispatch_other_action` no envía nada (cero regresión).
+
+
 ## 2026-06-10 — Multi-remitente extendido a todas las áreas
 
 A solicitud del usuario, el esquema de remitente por área (que existía solo para Proyectos e Integradores) se amplió a TODAS las áreas que envían correo, configurables desde *Configuración → Remitentes de Correo*.
