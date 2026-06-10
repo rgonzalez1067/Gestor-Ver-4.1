@@ -72,6 +72,16 @@ OTHER_ACTIONS = [
             "segmento", "monto_total_usd", "ejecutivo", "usuario_ejecutor", "fecha_sistema",
         ],
     },
+    {
+        "id": "implementer_response",
+        "label": "Respuesta del Implementador",
+        "description": "Se dispara automáticamente (en background) cuando un usuario con rol de Implementador registra el 'Nro de Ticket' en un Proyecto (transición de vacío a un valor) y guarda el formulario.",
+        "variables": [
+            "project_number", "Nro_Proyecto", "ticket_number", "Nro_Ticket",
+            "client_name", "Nombre_Cliente", "Nombre_Implementador", "Correo_Implementador",
+            "assigned_to", "quote_number", "usuario_ejecutor", "fecha_sistema",
+        ],
+    },
 ]
 OTHER_ACTION_IDS = {a["id"] for a in OTHER_ACTIONS}
 
@@ -164,11 +174,12 @@ async def upsert_config(payload: OtherActionConfigPayload, authorization: Option
     if payload.action_id not in OTHER_ACTION_IDS:
         raise HTTPException(status_code=400, detail=f"action_id inválido. Válidos: {sorted(OTHER_ACTION_IDS)}")
 
+    ALLOWED_RECIPIENT_TYPES = {"user", "session_user", "session_executive"}
     for r in payload.recipients:
-        if r.type != "user":
-            raise HTTPException(status_code=400, detail="Sólo se permiten destinatarios de tipo 'user' (usuarios internos)")
-        if not r.user_id:
-            raise HTTPException(status_code=400, detail="user_id requerido para cada fila")
+        if r.type not in ALLOWED_RECIPIENT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
+        if r.type == "user" and not r.user_id:
+            raise HTTPException(status_code=400, detail="user_id requerido para destinatarios de tipo 'user'")
         if r.delivery_channel not in ("email", "inbox"):
             raise HTTPException(status_code=400, detail=f"delivery_channel inválido: {r.delivery_channel}")
 

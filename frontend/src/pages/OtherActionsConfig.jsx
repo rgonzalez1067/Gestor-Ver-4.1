@@ -16,24 +16,37 @@ function RecipientRow({ row, users, templates, onChange, onRemove }) {
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50">
       <td className="px-3 py-2 align-middle">
-        <div className="flex items-center gap-2 text-sm text-slate-700 font-medium">
-          <span role="img" aria-label="user">👤</span> Usuario interno
-        </div>
-      </td>
-      <td className="px-3 py-2 align-middle">
-        <Select value={row.user_id || ''} onValueChange={(v) => update({ user_id: v })}>
-          <SelectTrigger className="h-9 w-64" data-testid={`oa-row-user-${row.row_id}`}>
-            <SelectValue placeholder="Seleccionar usuario..." />
+        <Select value={row.type || 'user'} onValueChange={(v) => update({ type: v, user_id: v === 'user' ? row.user_id : null })}>
+          <SelectTrigger className="h-9 w-52" data-testid={`oa-row-type-${row.row_id}`}>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {users.map((u) => (
-              <SelectItem key={u.user_id} value={u.user_id}>
-                {u.label}
-                <span className="text-xs text-slate-400 ml-2">{u.departamento || u.cargo || u.email}</span>
-              </SelectItem>
-            ))}
+            <SelectItem value="user">👤 Usuario interno</SelectItem>
+            <SelectItem value="session_user">⚡ Usuario generador</SelectItem>
+            <SelectItem value="session_executive">🧑‍💼 Ejecutivo generador</SelectItem>
           </SelectContent>
         </Select>
+      </td>
+      <td className="px-3 py-2 align-middle">
+        {(!row.type || row.type === 'user') ? (
+          <Select value={row.user_id || ''} onValueChange={(v) => update({ user_id: v })}>
+            <SelectTrigger className="h-9 w-64" data-testid={`oa-row-user-${row.row_id}`}>
+              <SelectValue placeholder="Seleccionar usuario..." />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((u) => (
+                <SelectItem key={u.user_id} value={u.user_id}>
+                  {u.label}
+                  <span className="text-xs text-slate-400 ml-2">{u.departamento || u.cargo || u.email}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm text-slate-500 italic">
+            {row.type === 'session_user' ? '— usuario que ejecuta la acción —' : '— ejecutivo creador —'}
+          </span>
+        )}
       </td>
       <td className="px-3 py-2 align-middle">
         <Select value={row.template_id || ''} onValueChange={(v) => update({ template_id: v })}>
@@ -106,7 +119,7 @@ function ActionCard({ action, users, templates, existingCfg, onSaved }) {
 
   const handleSave = async () => {
     for (const r of rows) {
-      if (!r.user_id) { toast.error('Cada fila debe tener un usuario seleccionado'); return; }
+      if ((!r.type || r.type === 'user') && !r.user_id) { toast.error('Cada fila de tipo "Usuario interno" debe tener un usuario seleccionado'); return; }
     }
     setSaving(true);
     try {

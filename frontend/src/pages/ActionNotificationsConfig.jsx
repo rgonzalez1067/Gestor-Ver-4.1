@@ -49,13 +49,15 @@ function MatrixRow({ row, users, templates, onChange, onRemove }) {
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50">
       <td className="px-3 py-2 align-middle">
-        <Select value={row.type} onValueChange={(v) => update({ type: v, user_id: v === 'client_field' ? null : row.user_id })}>
-          <SelectTrigger className="h-9 w-44" data-testid={`row-type-${row.row_id}`}>
+        <Select value={row.type} onValueChange={(v) => update({ type: v, user_id: v === 'user' ? row.user_id : null })}>
+          <SelectTrigger className="h-9 w-52" data-testid={`row-type-${row.row_id}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="client_field">📧 Correo del Cliente</SelectItem>
             <SelectItem value="user">👤 Usuario interno</SelectItem>
+            <SelectItem value="session_user">⚡ Usuario generador</SelectItem>
+            <SelectItem value="session_executive">🧑‍💼 Ejecutivo generador</SelectItem>
           </SelectContent>
         </Select>
       </td>
@@ -75,7 +77,13 @@ function MatrixRow({ row, users, templates, onChange, onRemove }) {
             </SelectContent>
           </Select>
         ) : (
-          <span className="text-sm text-slate-500 italic">— se resuelve al ejecutar la acción —</span>
+          <span className="text-sm text-slate-500 italic">
+            {row.type === 'session_user'
+              ? '— usuario que ejecuta la acción —'
+              : row.type === 'session_executive'
+              ? '— ejecutivo creador de la cotización —'
+              : '— se resuelve al ejecutar la acción —'}
+          </span>
         )}
       </td>
       <td className="px-3 py-2 align-middle">
@@ -109,9 +117,9 @@ function MatrixRow({ row, users, templates, onChange, onRemove }) {
         />
       </td>
       <td className="px-3 py-2 align-middle">
-        {/* Canal de entrega — solo aplica a destinatarios de tipo "user".
-            Para "client_field" el canal se fuerza a Email (cliente externo). */}
-        {row.type === 'user' ? (
+        {/* Canal de entrega — aplica a usuarios internos y a destinatarios
+            dinámicos de sesión. Para "client_field" se fuerza Email (cliente externo). */}
+        {row.type !== 'client_field' ? (
           <Select
             value={row.delivery_channel || 'email'}
             onValueChange={(v) => update({ delivery_channel: v })}

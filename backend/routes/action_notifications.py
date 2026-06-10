@@ -325,7 +325,7 @@ async def upsert_config(payload: ActionConfigPayload, authorization: Optional[st
             )
 
     for r in payload.recipients:
-        if r.type not in ("client_field", "user"):
+        if r.type not in ("client_field", "user", "session_user", "session_executive"):
             raise HTTPException(status_code=400, detail=f"Tipo de destinatario inválido: {r.type}")
         if r.type == "user" and not r.user_id:
             raise HTTPException(status_code=400, detail="user_id requerido para destinatarios de tipo 'user'")

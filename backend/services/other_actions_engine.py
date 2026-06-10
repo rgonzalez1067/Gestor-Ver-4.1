@@ -37,6 +37,7 @@ async def dispatch_other_action(
     template_vars: dict,
     current_user: Optional[dict] = None,
     fallback_subject: str = "",
+    executive_user_id: Optional[str] = None,
 ) -> dict:
     """Despacha la acción según la config dinámica. Ver reglas en el docstring
     del módulo."""
@@ -59,14 +60,38 @@ async def dispatch_other_action(
     skipped: list[dict] = []
 
     for row in recipients:
-        if row.get("type") != "user":
-            skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {row.get('type')}"})
+        rtype = row.get("type", "user")
+        rcpt_email, rcpt_name, rcpt_user_id = "", "", None
+        if rtype == "user":
+            resolved = await _resolve_user_email(row.get("user_id", ""))
+            if not resolved:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Usuario no encontrado o inactivo"})
+                continue
+            rcpt_email, rcpt_name = resolved
+            rcpt_user_id = row.get("user_id")
+        elif rtype == "session_user":
+            # "Usuario generador": el usuario web activo que dispara la acción.
+            se = (current_user or {}).get("email")
+            if not se:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Sin usuario de sesión (Usuario generador)"})
+                continue
+            rcpt_email = se
+            rcpt_name = (
+                f"{(current_user or {}).get('first_name', '')} {(current_user or {}).get('last_name', '')}".strip()
+                or se
+            )
+            rcpt_user_id = (current_user or {}).get("user_id")
+        elif rtype == "session_executive":
+            # "Ejecutivo generador": el ejecutivo que originó el registro (cotización/proyecto).
+            resolved = await _resolve_user_email(executive_user_id or "")
+            if not resolved:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Ejecutivo generador no encontrado"})
+                continue
+            rcpt_email, rcpt_name = resolved
+            rcpt_user_id = executive_user_id
+        else:
+            skipped.append({"row_id": row.get("row_id"), "reason": f"tipo no soportado: {rtype}"})
             continue
-        resolved = await _resolve_user_email(row.get("user_id", ""))
-        if not resolved:
-            skipped.append({"row_id": row.get("row_id"), "reason": "Usuario no encontrado o inactivo"})
-            continue
-        rcpt_email, rcpt_name = resolved
 
         tpl = await _load_template(row.get("template_id"))
         if not tpl:
@@ -77,10 +102,13 @@ async def dispatch_other_action(
         body = _render(tpl.get("body_html", "") or tpl.get("body", ""), template_vars)
 
         channel = (row.get("delivery_channel") or "email").lower()
+        # El canal "inbox" requiere un usuario interno (user_id).
+        if not rcpt_user_id:
+            channel = "email"
         try:
             if channel == "inbox":
                 await deliver_to_inbox(
-                    user_id=row.get("user_id"),
+                    user_id=rcpt_user_id,
                     recipient_email=rcpt_email,
                     recipient_name=rcpt_name,
                     subject=subject or fallback_subject or "Notificación",

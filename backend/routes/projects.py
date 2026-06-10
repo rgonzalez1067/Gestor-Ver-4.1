@@ -2016,6 +2016,35 @@ async def migrate_project_matrices(authorization: Optional[str] = Header(None)):
 
 # ==================== TICKET NUMBER (SECURITY LOCK) ====================
 
+async def _dispatch_implementer_response(project_id: str, ticket: str, current_user: dict):
+    """Background: despacha la acción dinámica 'Respuesta del Implementador' al
+    registrarse el Nro de Ticket de un proyecto. Si el admin no configuró la
+    acción (o está desactivada), `dispatch_other_action` simplemente no envía nada."""
+    try:
+        from services.other_actions_engine import dispatch_other_action
+        from services.project_template_vars import resolve_project_template_vars
+        project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
+        if not project:
+            return
+        tvars = await resolve_project_template_vars(project)
+        tvars["ticket_number"] = ticket
+        tvars["Nro_Ticket"] = ticket
+        tvars["usuario_ejecutor"] = (
+            f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+            or current_user.get("email", "")
+        )
+        tvars["fecha_sistema"] = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        await dispatch_other_action(
+            action_id="implementer_response",
+            template_vars=tvars,
+            current_user=current_user,
+            fallback_subject=f"Respuesta del Implementador — Ticket {ticket}",
+            executive_user_id=project.get("created_by_user_id"),
+        )
+    except Exception as e:
+        logger.warning(f"[ticket] dispatch implementer_response failed: {e}")
+
+
 @router.put("/projects/{project_id}/ticket")
 async def update_ticket_number(project_id: str, body: TicketNumberUpdate, authorization: Optional[str] = Header(None)):
     """Permite al implementador registrar el Número de Ticket para desbloquear la ejecución del proyecto."""
@@ -2027,6 +2056,10 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
     ticket = body.ticket_number.strip()
     if not ticket:
         raise HTTPException(status_code=400, detail="El Número de Ticket es obligatorio")
+
+    # Valor anterior: detecta la transición vacío → valor para disparar la
+    # acción dinámica "Respuesta del Implementador".
+    prev_ticket = (project.get("ticket_number") or "").strip()
 
     # Verificar unicidad del ticket
     existing = await db.projects.find_one({"ticket_number": ticket, "project_id": {"$ne": project_id}}, {"_id": 0, "project_id": 1})
@@ -2064,6 +2097,14 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
         {"project_id": project_id},
         {"$set": update_set, "$push": {"notes": note}}
     )
+
+    # Disparar "Respuesta del Implementador" en background SOLO cuando el ticket
+    # pasa de vacío → valor y el ejecutor es Implementador (admin permitido para QA).
+    cargo_l = (current_user.get("cargo") or "").lower()
+    is_impl = ("implementador" in cargo_l) or (current_user.get("role") == "admin")
+    if not prev_ticket and ticket and is_impl:
+        import asyncio
+        asyncio.create_task(_dispatch_implementer_response(project_id, ticket, current_user))
 
     return {"message": f"Ticket '{ticket}' registrado exitosamente", "ticket_number": ticket, "direct_unlock": bool(project.get("direct_project"))}
 

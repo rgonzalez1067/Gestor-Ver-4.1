@@ -478,6 +478,31 @@ async def try_dispatch(
                 continue
             rcpt_email, rcpt_name = resolved
             rcpt_user_id = row.get("user_id")
+        elif row.get("type") == "session_user":
+            # "Usuario generador": el usuario web activo que dispara la acción.
+            se = (current_user or {}).get("email")
+            if not se:
+                skipped.append({"row_id": row.get("row_id"), "reason": "Sin usuario de sesión (Usuario generador)"})
+                continue
+            rcpt_email = se
+            rcpt_name = (
+                f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+                or se
+            )
+            rcpt_user_id = current_user.get("user_id")
+        elif row.get("type") == "session_executive":
+            # "Ejecutivo generador": el ejecutivo que creó la cotización.
+            resolved = await _resolve_user_email(quote.get("created_by_user_id", ""))
+            if resolved:
+                rcpt_email, rcpt_name = resolved
+                rcpt_user_id = quote.get("created_by_user_id")
+            else:
+                ee = tpl_vars.get("Email_Ejecutivo") or ""
+                if not ee or "@" not in ee:
+                    skipped.append({"row_id": row.get("row_id"), "reason": "Ejecutivo generador no encontrado"})
+                    continue
+                rcpt_email = ee
+                rcpt_name = tpl_vars.get("Nombre_Ejecutivo") or ee
         else:
             skipped.append({"row_id": row.get("row_id"), "reason": f"tipo desconocido: {row.get('type')}"})
             continue
@@ -516,7 +541,9 @@ async def try_dispatch(
         # `client_field` se fuerza `email` (no podemos mostrar bandeja a
         # un cliente externo).
         channel = (row.get("delivery_channel") or "email").lower()
-        if row.get("type") != "user" or not rcpt_user_id:
+        # El canal "inbox" sólo es válido para destinatarios internos (con user_id).
+        # Cliente externo o destinatarios sin user_id → se fuerza email.
+        if not rcpt_user_id:
             channel = "email"
 
         try:
