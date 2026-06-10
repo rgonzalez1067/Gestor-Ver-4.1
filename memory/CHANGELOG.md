@@ -541,3 +541,16 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Se agregaron 3 variables que faltaban: `Nro_Proyecto`, `Tipo_Proyecto`, `Fecha_Asignacion`.
 - Resultado (Testing agent Iter57): paridad EXACTA 100% — 67 chips idénticos en ambos paneles,
   mismos 6 grupos y mismo orden. Cualquier variable nueva debe agregarse SOLO en templateVariables.js.
+
+## 2026-06 — Buscador de variables + inserción según cursor (mejora UX)
+- Ambos editores de plantillas (Configuración y Proyectos) tienen ahora un BUSCADOR
+  que filtra los chips por key/label/categoría (data-testid `master-var-search` y `var-search`),
+  con mensaje "sin resultados" cuando no hay coincidencias.
+- INSERCIÓN POR CURSOR: la variable se inserta en el campo activo (Asunto o Cuerpo) en la
+  posición exacta del cursor. Antes siempre caía en el cuerpo.
+  - Configuración: `activeField` controlado por onFocus de subject/body (textarea + input).
+  - Proyectos: subject Input (id `project-tpl-subject`) + `onFocusCapture` sobre el wrapper
+    del RichTextEditor (TipTap). `insertVar()` inserta en asunto (selectionStart) o en el
+    editor TipTap (insertText en el cursor).
+  - Indicador visual "Insertando en: Asunto/Cuerpo" en ambos paneles.
+- Verificado por testing agent (Iter58): 100% frontend. Paridad 67 vars/6 grupos intacta.
