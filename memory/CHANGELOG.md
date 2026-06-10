@@ -531,3 +531,13 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 ### Deuda técnica pendiente
 - `DirectProjectCreation.jsx` > 1200 líneas → considerar split (HardwareCard, ReelCard, TechConfigCard).
 - `QuoteWizardDialog.jsx` > 2300 líneas → fragmentar por fases.
+
+## 2026-06 — Paridad absoluta de variables en editores de plantillas (P0)
+- Creado `/app/frontend/src/components/email/templateVariables.js` como FUENTE ÚNICA DE VERDAD:
+  exporta `VARIABLE_CATEGORIES` (6 grupos, 67 variables), `VARIABLE_ICON_MAP` y `VARIABLE_PREVIEW_HTML`.
+- `EmailTemplatesEditor.jsx` (Configuración) y `projects/TemplatesAdminDialog.jsx` (Proyectos)
+  ahora importan el catálogo compartido; se eliminaron las listas locales duplicadas/desfasadas
+  (`VARIABLE_CATEGORIES` y `VAR_GROUPS`).
+- Se agregaron 3 variables que faltaban: `Nro_Proyecto`, `Tipo_Proyecto`, `Fecha_Asignacion`.
+- Resultado (Testing agent Iter57): paridad EXACTA 100% — 67 chips idénticos en ambos paneles,
+  mismos 6 grupos y mismo orden. Cualquier variable nueva debe agregarse SOLO en templateVariables.js.
