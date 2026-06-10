@@ -498,6 +498,9 @@ const VARIABLE_CATEGORIES = [
       { key: 'Monto_Total', label: 'Monto total USD (equipos)' },
       { key: 'invoice_number', label: 'Número de factura' },
       { key: 'Referencia_Factura', label: 'Referencia de factura (equipos)' },
+      { key: 'approved_date', label: 'Fecha de aprobación' },
+      { key: 'abreviaturas_medios_pago', label: 'Medios de pago (abreviaturas /)' },
+      { key: 'Banco_Patrocinador', label: 'Banco patrocinador' },
       { key: 'sede_name', label: 'Sede (PYME / CORP)' },
       { key: 'company_name', label: 'Nombre de la empresa' },
       { key: 'items_table', label: 'Tabla HTML de productos' },
@@ -539,6 +542,21 @@ const VARIABLE_CATEGORIES = [
       { key: 'ticket_number', label: 'Nro. de ticket (alias)' },
       { key: 'integrator_name', label: 'Integrador (alias)' },
       { key: 'pinpad_model', label: 'Modelo de pinpad' },
+      { key: 'Modelo_Pinpad', label: 'Modelo de pinpad (alias)' },
+    ],
+  },
+  {
+    cat: 'Despacho / Reparación / Equipos',
+    icon: 'Box',
+    iconColor: 'text-rose-500',
+    vars: [
+      { key: 'Modelo_Equipo', label: 'Modelo de POS / PINPAD' },
+      { key: 'Cantidad', label: 'Cantidad de equipos' },
+      { key: 'Lista_Seriales', label: 'Lista de seriales preasignados' },
+      { key: 'lista_modelos_seriales', label: 'Lista de modelos y seriales (HTML)' },
+      { key: 'lista_equipos_seriales', label: 'Lista de equipos y seriales (HTML)' },
+      { key: 'modelos_resumen', label: 'Resumen de modelos' },
+      { key: 'almacen_custodia', label: 'Almacén de custodia' },
     ],
   },
   {
@@ -559,7 +577,7 @@ const VARIABLE_CATEGORIES = [
 ];
 
 // Mapa de iconos para renderización
-const ICON_MAP = { Building2, CreditCard, Users, Server, Package };
+const ICON_MAP = { Building2, CreditCard, Users, Server, Package, Box };
 
 // HTML de ejemplo para variables de tipo TABLA/HTML. Se usa en el mini-preview
 // que aparece al pasar el mouse sobre la variable en el panel del editor, para

@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Fix homologación: variables faltantes en el panel categorizado del editor
+
+El usuario reportó que NO veía variables de Cotizaciones (ej. `abreviaturas_medios_pago`) en las plantillas de Proyectos. Causa: la homologación previa llenó la sección "Variables de esta plantilla" (`getTemplateVariables`), pero el panel categorizado prominente ("Panel de Variables" / `VARIABLE_CATEGORIES`) no listaba esas variables.
+
+- `components/EmailTemplatesEditor.jsx` `VARIABLE_CATEGORIES`:
+  - Categoría "Financiero (Ventas)": agregadas `approved_date`, `abreviaturas_medios_pago`, `Banco_Patrocinador`.
+  - Categoría "Implementación (Técnico)": agregado alias `Modelo_Pinpad` (ya tenía Matriz_Sucursales y Patrocinador).
+  - Nueva categoría "Despacho / Reparación / Equipos" (icono Box): `Modelo_Equipo`, `Cantidad`, `Lista_Seriales`, `lista_modelos_seriales`, `lista_equipos_seriales`, `modelos_resumen`, `almacen_custodia`.
+  - `ICON_MAP` ampliado con `Box`.
+- Nota: la variable correcta es `{abreviaturas_medios_pago}` (plural). El backend ya la resuelve en proyectos (verificado: `TDC-TDD/C2P/C@mbioP2C`). El panel categorizado es el mismo para Cotizaciones y Proyectos, por lo que ambos cuerpos quedan homologados también en la vista categorizada.
+
 ## 2026-06-10 — Homologación de variables Cotizaciones ↔ Proyectos en plantillas
 
 Requerimiento del usuario: inyectar todas las variables de las plantillas de Cotizaciones en las de Proyectos y dejar ambos cuerpos homologados.
