@@ -587,6 +587,19 @@ const MiniPreview = ({ varKey, children }) => {
   );
 };
 
+// Catálogo HOMOLOGADO: unión de TODAS las variables definidas para cualquier
+// plantilla (Cotizaciones + Proyectos) + el diccionario maestro del panel
+// lateral. Garantiza que AMBOS cuerpos de plantilla (Cotizaciones y Proyectos)
+// expongan exactamente el mismo conjunto de variables (homologación solicitada).
+const HOMOLOGATED_VARS = (() => {
+  const out = [];
+  const seen = new Set();
+  const push = (v) => { if (v && v.key && !seen.has(v.key)) { seen.add(v.key); out.push(v); } };
+  Object.values(BASE_TEMPLATE_VARIABLES).forEach((arr) => (arr || []).forEach(push));
+  VARIABLE_CATEGORIES.forEach((g) => (g.vars || []).forEach(push));
+  return out;
+})();
+
 // Función para obtener variables de una plantilla específica
 const getTemplateVariables = (templateId) => {
   if (!templateId) return [];
@@ -598,6 +611,7 @@ const getTemplateVariables = (templateId) => {
   // patrocinador) para que estén disponibles también en plantillas de Cotizaciones.
   const SHARED_VARS = [
     { key: 'abreviaturas_medios_pago', label: 'Medios de Pago (abreviaturas, separados por /)' },
+    { key: 'Nombre_Fantasia', label: 'Nombre de Fantasía del Cliente' },
     { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
     { key: 'Matriz_Sucursales', label: 'Tabla de Sucursales / Cajas (HTML)' },
     { key: 'Patrocinador', label: 'Patrocinador (Banco/Procesador o Cliente)' },
@@ -605,7 +619,16 @@ const getTemplateVariables = (templateId) => {
   // Dedupe por key (las variables base de la plantilla tienen prioridad).
   const seen = new Set(baseVars.map((v) => v.key));
   const merged = [...baseVars];
+  // 1) Variables compartidas / dinámicas
   for (const v of SHARED_VARS) {
+    if (!seen.has(v.key)) {
+      merged.push(v);
+      seen.add(v.key);
+    }
+  }
+  // 2) HOMOLOGACIÓN Cotizaciones ↔ Proyectos: inyectar el resto del catálogo
+  //    completo para que ambos cuerpos de plantilla expongan el mismo conjunto.
+  for (const v of HOMOLOGATED_VARS) {
     if (!seen.has(v.key)) {
       merged.push(v);
       seen.add(v.key);

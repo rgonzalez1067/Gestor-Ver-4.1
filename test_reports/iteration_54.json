@@ -1,0 +1,87 @@
+{
+  "summary": "Frontend-only validation of variable homologation between Cotizaciones and Proyectos email template editors in /settings. ALL 5 features PASS end-to-end with admin user.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global app shell (pre-existing, NOT caused by this change)",
+        "issues": [
+          "Hydration console errors '<tr> cannot be a child of <span>' and '<span> cannot be a child of <tbody>' still present (carried from prior iterations)."
+        ]
+      }
+    ]
+  },
+  "test_results_detail": {
+    "project_template_homologation": {
+      "route": "/settings",
+      "section_expanded": "Plantillas de Proyecto (Implementación) (5 templates)",
+      "template_opened": "edit-template-project_notify_client",
+      "total_spec_var_chips": 73,
+      "expected_quote_vars_in_project_template": {
+        "spec-var-Cotizacion_Nro": "PRESENT",
+        "spec-var-Nombre_Ejecutivo": "PRESENT",
+        "spec-var-Email_Ejecutivo": "PRESENT",
+        "spec-var-Monto_Total": "PRESENT",
+        "spec-var-Nombre_Fantasia": "PRESENT",
+        "spec-var-abreviaturas_medios_pago": "PRESENT"
+      },
+      "missing_quote_vars": [],
+      "result": "PASS"
+    },
+    "quote_template_homologation": {
+      "section_expanded": "Plantillas Sede Pyme (20 templates)",
+      "template_opened": "edit-template-quote_sent_PYME",
+      "total_spec_var_chips": 73,
+      "expected_project_vars_in_quote_template": {
+        "spec-var-Nombre_Implementador": "PRESENT",
+        "spec-var-Correo_Implementador": "PRESENT",
+        "spec-var-Matriz_Bancos_Productos": "PRESENT",
+        "spec-var-Nombre_Fantasia": "PRESENT",
+        "spec-var-Lista_VTID": "PRESENT"
+      },
+      "missing_project_vars": [],
+      "result": "PASS"
+    },
+    "click_chip_inserts_placeholder_project": {
+      "template": "project_notify_client",
+      "chip_clicked": "spec-var-Cotizacion_Nro",
+      "body_length_before": 18815,
+      "body_length_after": 18831,
+      "delta": 16,
+      "placeholder_present_in_body": true,
+      "inserted_text": "{Cotizacion_Nro}",
+      "result": "PASS"
+    },
+    "click_chip_inserts_placeholder_quote": {
+      "template": "quote_sent_PYME",
+      "chip_clicked": "spec-var-Nombre_Implementador",
+      "body_length_before": 4372,
+      "body_length_after": 4394,
+      "delta": 22,
+      "placeholder_present_in_body": true,
+      "inserted_text": "{Nombre_Implementador}",
+      "result": "PASS"
+    },
+    "hover_preview_Matriz_Bancos_Productos": {
+      "in_project_template": "PRESENT (var-preview-Matriz_Bancos_Productos rendered on hover)",
+      "in_quote_template": "PRESENT (var-preview-Matriz_Bancos_Productos rendered on hover, sample Bank/Producto/Cantidad table visible in screenshot)",
+      "result": "PASS"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailTemplatesEditor.jsx HOMOLOGATED_VARS implementation correctly unifies BASE_TEMPLATE_VARIABLES + VARIABLE_CATEGORIES via dedup by .key. getTemplateVariables merges baseVars + SHARED_VARS + HOMOLOGATED_VARS → 73 chips on BOTH project and quote templates (same count, same set, confirmed via DOM enumeration).",
+    "Pre-existing hydration warnings ('<tr> cannot be a child of <span>') unrelated to this change but still pending cleanup from earlier iterations."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "skipped (validated by main agent)", "frontend": "100% (5/5 checks PASS)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None. Templates were NOT saved — only opened, chips inspected, in-memory body modified, then closed/cancelled.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Variable homologation between Cotizaciones and Proyectos templates is fully functional. To open project templates in /settings, scroll to 'Plantillas de Correo Electrónico' section and click the collapsed header 'Plantillas de Proyecto (Implementación)' (5 templates: project_notify_client, project_notify_bank, project_notify_bank_client, plus 2 more). For quote templates, click 'Plantillas Sede Pyme' (20 templates). Both editors expose 73 spec-var-<key> chips (deduplicated union of BASE_TEMPLATE_VARIABLES + VARIABLE_CATEGORIES). Body textarea has data-testid='template-body-input'. Click chip while textarea is focused → placeholder inserted. Hover any chip → var-preview-<key> tooltip appears (Matriz_Bancos_Productos shows sample table).",
+  "rca of the issue": "N/A — homologation feature works as specified in both directions."
+}

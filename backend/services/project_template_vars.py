@@ -479,4 +479,20 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "sede_name": project.get("client_segment", "PYME"),
     }
 
-    return variables
+    # === HOMOLOGACIÓN Cotizaciones ↔ Proyectos ===
+    # Las plantillas de Proyectos deben disponer de TODAS las variables del
+    # entorno de Cotizaciones. Se construyen desde la cotización original
+    # (quote_id) y, para Proyectos Directos sin cotización, desde el propio
+    # proyecto (best-effort). Las variables del proyecto tienen prioridad sobre
+    # las de la cotización en las claves compartidas (valores más actuales).
+    quote_vars = {}
+    try:
+        from services.notification_engine import _build_template_vars
+        source = None
+        if project.get("quote_id"):
+            source = await db.quotes.find_one({"quote_id": project["quote_id"]}, {"_id": 0})
+        quote_vars = await _build_template_vars(source or project)
+    except Exception:
+        quote_vars = {}
+
+    return {**quote_vars, **variables}
