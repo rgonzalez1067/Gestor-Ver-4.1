@@ -19,7 +19,7 @@ import base64
 from config import db, get_current_user, UPLOADS_DIR, SENDER_EMAIL, generate_quote_number, render_email_template, inject_custom_message
 from services.pdf_storage import save_pdf_dual
 from models import BaseModel, InventoryMovement, QUOTE_STATUSES, QUOTE_TRANSITIONS, SERIALIZED_TYPES
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_quote
 from services.workflow_notifications import send_workflow_notification
 from services.hoja_ruta_pdf import generate_nota_entrega_pdf
 from routes.quote_helpers import (
@@ -834,10 +834,10 @@ async def approve_quote(
         ra_subject = render_email_template(ra_template["subject"], ra_vars)
         ra_html = render_email_template(ra_template["body_html"], ra_vars)
 
-        r = await send_email(to=[client_email], subject=ra_subject, html=ra_html, action="repair_approved_client", quote_id=quote_id, quote_number=quote.get('quote_number'))
+        r = await send_email(to=[client_email], subject=ra_subject, html=ra_html, action="repair_approved_client", quote_id=quote_id, quote_number=quote.get('quote_number'), sender=await resolve_sender_for_quote(quote))
         email_results.append(r)
         for cc in cc_emails:
-            r = await send_email(to=[cc], subject=f"[CC] {ra_subject}", html=ra_html, action="repair_approved_cc", quote_id=quote_id, quote_number=quote.get('quote_number'))
+            r = await send_email(to=[cc], subject=f"[CC] {ra_subject}", html=ra_html, action="repair_approved_cc", quote_id=quote_id, quote_number=quote.get('quote_number'), sender=await resolve_sender_for_quote(quote))
             email_results.append(r)
     else:
         # Cargar PDF de la cotización para adjuntar
@@ -999,10 +999,10 @@ async def configure_quote(quote_id: str, authorization: Optional[str] = Header(N
         ft_config_html = inject_custom_message(ft_config_html, custom_message, user_name, max_chars=500)
 
     email_results = []
-    r = await send_email(to=[warehouse_email], subject=ft_config_subject, html=ft_config_html, action="configure_ft_warehouse", quote_id=quote_id, quote_number=quote.get("quote_number"))
+    r = await send_email(to=[warehouse_email], subject=ft_config_subject, html=ft_config_html, action="configure_ft_warehouse", quote_id=quote_id, quote_number=quote.get("quote_number"), sender=await resolve_sender_for_quote(quote))
     email_results.append(r)
     for cc in cc_emails:
-        r = await send_email(to=[cc], subject=f"[CC] {ft_config_subject}", html=ft_config_html, action="configure_ft_cc", quote_id=quote_id, quote_number=quote.get("quote_number"))
+        r = await send_email(to=[cc], subject=f"[CC] {ft_config_subject}", html=ft_config_html, action="configure_ft_cc", quote_id=quote_id, quote_number=quote.get("quote_number"), sender=await resolve_sender_for_quote(quote))
         email_results.append(r)
 
     return {
@@ -1183,17 +1183,17 @@ async def repair_complete(quote_id: str, body: dict = None, authorization: Optio
     # Enviar con plantilla Reparación Finalizada a Admin + Cliente
     email_results = []
     if admin_email:
-        r = await send_email(to=[admin_email], subject=rc_subject, html=rc_html, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
+        r = await send_email(to=[admin_email], subject=rc_subject, html=rc_html, action="repair_complete_admin", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments, sender=await resolve_sender_for_quote(quote))
         email_results.append(r)
     if sales_email:
-        r = await send_email(to=[sales_email], subject=f"[VENTAS] {rc_subject}", html=rc_html, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
+        r = await send_email(to=[sales_email], subject=f"[VENTAS] {rc_subject}", html=rc_html, action="repair_complete_sales", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments, sender=await resolve_sender_for_quote(quote))
         email_results.append(r)
     if not admin_email and not sales_email:
-        r = await send_email(to=["admin@sede.local"], subject=rc_subject, html=rc_html, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments)
+        r = await send_email(to=["admin@sede.local"], subject=rc_subject, html=rc_html, action="repair_complete_no_config", quote_id=quote_id, quote_number=quote.get("quote_number"), attachments=admin_attachments, sender=await resolve_sender_for_quote(quote))
         email_results.append(r)
 
     # Enviar al cliente — SIN attachments (el PDF de cálculos es interno)
-    r = await send_email(to=[client_email], subject=rc_subject, html=rc_html, action="repair_complete_client", quote_id=quote_id, quote_number=quote.get("quote_number"))
+    r = await send_email(to=[client_email], subject=rc_subject, html=rc_html, action="repair_complete_client", quote_id=quote_id, quote_number=quote.get("quote_number"), sender=await resolve_sender_for_quote(quote))
     email_results.append(r)
 
     for cc in cc_emails:

@@ -8,7 +8,7 @@ import io
 
 from config import db, get_current_user, UPLOADS_DIR
 from models import Warehouse, WarehouseCreate, InventoryMovement, SERIALIZED_TYPES
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_area
 from services.transfer_note_pdf import generate_transfer_note_pdf
 from services.pdf_storage import save_pdf_dual
 
@@ -1095,6 +1095,7 @@ async def check_stock_alert(warehouse_id: str, item_id: str, item_name: str):
                 subject=subject,
                 html=html,
                 action="stock_alert",
+                sender=await resolve_sender_for_area("inventarios"),
             )
             logger.info(f"Alerta de stock mínimo enviada: {item_name} en {wh_name} (actual: {current_qty}, min: {min_stock})")
     except Exception as e:

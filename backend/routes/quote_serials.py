@@ -16,7 +16,7 @@ import uuid
 import logging
 
 from config import db, get_current_user, render_email_template
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_quote
 from services.notification_engine import try_dispatch as _ne_try_dispatch
 from routes.quote_helpers import get_email_template
 
@@ -519,6 +519,7 @@ async def preassign_serials(quote_id: str, request: dict, authorization: Optiona
                     to=[ops_email], subject=subject, html=html,
                     action="preassign_serials", quote_id=quote_id,
                     quote_number=quote.get("quote_number"),
+                    sender=await resolve_sender_for_quote(quote),
                 )
                 email_results.append(r)
                 email_sent = bool((r or {}).get("status") in ("sent", "queued") or (r or {}).get("id"))

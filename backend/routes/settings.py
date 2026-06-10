@@ -208,10 +208,16 @@ async def preview_email_footer(
 
 ALLOWED_SENDER_DOMAIN = SENDER_EMAIL.split("@")[-1] if "@" in SENDER_EMAIL else ""
 
-# Áreas donde el remitente se fija automáticamente (Proyectos e Integradores).
+# Áreas donde el remitente se fija automáticamente.
 EMAIL_SENDER_AREAS = [
     {"key": "proyectos", "label": "Proyectos (notificaciones a Clientes/Bancos y Otras Notificaciones)"},
     {"key": "integradores", "label": "Integradores (comunicaciones a integradores)"},
+    {"key": "cotizaciones_pyme", "label": "Cotizaciones PYME"},
+    {"key": "cotizaciones_corp", "label": "Cotizaciones Corporativas"},
+    {"key": "comunicaciones_clientes", "label": "Comunicaciones a Clientes"},
+    {"key": "contactos_iniciales", "label": "Contactos Iniciales"},
+    {"key": "nuevos_productos", "label": "Nuevos Productos"},
+    {"key": "inventarios", "label": "Inventarios"},
 ]
 
 

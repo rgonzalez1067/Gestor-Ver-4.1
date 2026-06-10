@@ -1,5 +1,17 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Multi-remitente extendido a todas las áreas
+
+A solicitud del usuario, el esquema de remitente por área (que existía solo para Proyectos e Integradores) se amplió a TODAS las áreas que envían correo, configurables desde *Configuración → Remitentes de Correo*.
+
+- Nuevas áreas: **Cotizaciones PYME**, **Cotizaciones Corporativas**, **Comunicaciones a Clientes**, **Contactos Iniciales**, **Nuevos Productos**, **Inventarios** (además de Proyectos e Integradores).
+- `email_service.py`: helper `resolve_sender_for_quote(quote)` elige `cotizaciones_corp` o `cotizaciones_pyme` según `client_segment`.
+- Cableado: `quote_actions.py` (8 envíos: repair/FT config/repair complete) y `quote_serials.py` usan el remitente de Cotizaciones por segmento; `client_communications.py` → comunicaciones_clientes; `initial_contact_communications.py` → contactos_iniciales; `new_products.py` → nuevos_productos; `inventory.py` → inventarios.
+- `settings.py`: `EMAIL_SENDER_AREAS` con las 8 áreas. La UI las renderiza dinámicamente (sin cambios de estructura).
+- Verificado: GET lista 8 áreas; asignar Cotizaciones Corp resuelve al alias y PYME al default; 4 tests `tests/test_email_senders.py` (incl. `resolve_sender_for_quote` por segmento). Config dejada vacía (default) hasta que el admin configure direcciones reales.
+- Nota de infraestructura (sigue vigente): con Gmail/Workspace, cada dirección debe estar verificada como "Enviar como" o ser alias de la cuenta SMTP autenticada, de lo contrario Gmail reescribe el From.
+
+
 ## 2026-06-10 — Múltiples remitentes de correo por área (multi-sender)
 
 Solicitud: poder enviar desde más de una dirección remitente. Decisión del usuario: mismo dominio @megasoft.com.ve, remitente fijado automáticamente por área (Proyectos e Integradores), administrado solo por Admin.

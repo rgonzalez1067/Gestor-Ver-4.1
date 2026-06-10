@@ -122,8 +122,9 @@ export const EmailSendersConfig = () => {
             </h1>
             <p className="text-slate-600 mt-1 text-sm">
               Define varias direcciones remitentes y asígnalas automáticamente por área.
-              Los correos de <strong>Proyectos</strong> e <strong>Integradores</strong> saldrán desde la dirección
-              que indiques aquí; el resto usa el remitente institucional por defecto.
+              Cada área (Proyectos, Integradores, Cotizaciones, Comunicaciones a Clientes, Contactos Iniciales,
+              Nuevos Productos e Inventarios) puede salir desde la dirección que indiques aquí;
+              si no asignas ninguna, usa el remitente institucional por defecto.
             </p>
             {updatedAt && (
               <p className="text-xs text-slate-500 mt-2" data-testid="senders-last-updated">

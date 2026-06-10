@@ -10,7 +10,7 @@ import logging
 
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual, load_attachment_bytes, storage_name_from_upload_url
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_area
 
 router = APIRouter()
 
@@ -235,6 +235,7 @@ async def send_client_email(
         html=html,
         action="client_communication",
         attachments=email_attachments if email_attachments else None,
+        sender=await resolve_sender_for_area("comunicaciones_clientes"),
     )
 
     # Registrar en bitácora del cliente

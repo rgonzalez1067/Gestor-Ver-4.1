@@ -11,7 +11,7 @@ import logging
 
 from config import db, get_current_user
 from services.pdf_storage import save_pdf_dual
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_area
 
 router = APIRouter()
 
@@ -128,6 +128,7 @@ async def send_initial_contact_email(
         html=html,
         action="initial_contact_communication",
         attachments=email_attachments if email_attachments else None,
+        sender=await resolve_sender_for_area("contactos_iniciales"),
     )
 
     # Registrar en bitácora del contacto

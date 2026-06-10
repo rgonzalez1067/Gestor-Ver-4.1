@@ -38,3 +38,19 @@ def test_resolver_ignores_inactive_sender():
     })
     assert asyncio.get_event_loop().run_until_complete(es.resolve_sender_for_area("proyectos")) == SENDER_EMAIL
     es.invalidate_senders_cache()
+
+
+def test_quote_resolver_by_segment():
+    _set_cache({
+        "senders": [
+            {"email": "pyme@megasoft.com.ve", "active": True},
+            {"email": "corp@megasoft.com.ve", "active": True},
+        ],
+        "assignments": {"cotizaciones_pyme": "pyme@megasoft.com.ve", "cotizaciones_corp": "corp@megasoft.com.ve"},
+    })
+    loop = asyncio.get_event_loop()
+    assert loop.run_until_complete(es.resolve_sender_for_quote({"client_segment": "CORP"})) == "corp@megasoft.com.ve"
+    assert loop.run_until_complete(es.resolve_sender_for_quote({"client_segment": "PYME"})) == "pyme@megasoft.com.ve"
+    # Sin segmento -> tratado como PYME
+    assert loop.run_until_complete(es.resolve_sender_for_quote({})) == "pyme@megasoft.com.ve"
+    es.invalidate_senders_cache()

@@ -514,12 +514,13 @@ async def update_new_product_status(product_id: str, body: dict, authorization: 
         """
 
         if recipients and not dynamic_result.get("dispatched"):
-            from services.email_service import send_email
+            from services.email_service import send_email, resolve_sender_for_area
             await send_email(
                 to=recipients,
                 subject=f"Actualización de Nuevos Proyectos - Producto: {service_name} - Banco: {bank_name}",
                 html=email_html,
-                action="new_product_status_change"
+                action="new_product_status_change",
+                sender=await resolve_sender_for_area("nuevos_productos"),
             )
             logging.info(f"[NP] Email de actualización enviado a {len(recipients)} destinatarios para {service_name}/{bank_name} → {new_status}")
         elif dynamic_result.get("dispatched"):

@@ -117,6 +117,16 @@ async def resolve_sender_for_area(area: str) -> str:
     return SENDER_EMAIL
 
 
+async def resolve_sender_for_quote(quote: dict) -> str:
+    """Remitente para correos del módulo de Cotizaciones, según el segmento del
+    cliente: Corporativo → área 'cotizaciones_corp'; PYME → 'cotizaciones_pyme'."""
+    segment = ""
+    if isinstance(quote, dict):
+        segment = (quote.get("client_segment") or "").strip().upper()
+    area = "cotizaciones_corp" if segment == "CORP" else "cotizaciones_pyme"
+    return await resolve_sender_for_area(area)
+
+
 def _append_footer_to_html(html: str, footer_html: str) -> str:
     """Anexa el footer global al final del cuerpo HTML, manteniendo integridad visual."""
     if not footer_html:
