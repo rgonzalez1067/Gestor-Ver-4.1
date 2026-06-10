@@ -1,5 +1,24 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Ticket flexible (duplicados con confirmación) + Bancos alfabéticos + variable {Nombre_Fantasia}
+
+Tres requerimientos del usuario. Los 3 probados por testing_agent (iteration_53): 3/3 PASS.
+
+**1) Flexibilizar unicidad del Nro de Ticket de Proyecto**
+- Antes `PUT /api/projects/{id}/ticket` bloqueaba con error 400 si el ticket ya existía en otro proyecto.
+- Ahora: `TicketNumberUpdate.confirm_duplicate: bool = False`. Si el ticket existe en otro proyecto y `confirm_duplicate=false` → HTTP 409 con `detail={code:'ticket_duplicate', existing_client_fantasy, existing_project_number, message}` (incluye el Nombre de Fantasía del cliente del otro proyecto). Con `confirm_duplicate=true` permite guardar.
+- Frontend `ProjectDetail.jsx`: `handleSaveTicket(confirmDuplicate)` captura el 409 y abre un `AlertDialog` (`ticket-duplicate-dialog`) con el mensaje y nombre de fantasía; "Sí, asignar de todos modos" reenvía con `confirm_duplicate=true`. (testids: ticket-duplicate-message/cancel/confirm).
+
+**2) Dropdowns de Bancos en orden alfabético**
+- `routes/banks.py` `get_banks`: `banks.sort(key=name.casefold())` antes de devolver. Como TODOS los selectores consumen `/banks`, quedan ordenados globalmente (Cotizaciones, Proyectos Directos, etc.). Verificado: 33 bancos alfabéticos.
+
+**3) Nueva variable {Nombre_Fantasia}**
+- Carga el campo `fantasy_name` del cliente. Agregada en los 3 motores: `notification_engine.py` y `workflow_notifications.py` (cotizaciones) y `project_template_vars.py` (proyectos), con fallback a la razón social si no hay fantasía.
+- Frontend `EmailTemplatesEditor.jsx`: `Nombre_Fantasia` en `SHARED_VARS` (picker de todas las plantillas) + categoría "Cliente" + ejemplo del preview. También añadida a las listas inline de variables en `ProjectDetail.jsx` (2 lugares) y `EmailPreviewDialog.jsx`.
+
+Nota: persisten warnings de hydration preexistentes (`<tr>`/`<span>`/`<tbody>`) NO relacionados — backlog.
+
+
 ## 2026-06-10 — Mini-preview por hover de variables tipo tabla en el editor de plantillas
 
 Mejora solicitada por el usuario. En el editor de Plantillas de Correo (`EmailTemplatesEditor.jsx`, dentro de `/settings`), al pasar el mouse sobre los chips de variables de tipo tabla/HTML aparece una mini-vista previa de la tabla con datos de ejemplo.
