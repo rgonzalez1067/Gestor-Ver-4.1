@@ -1,5 +1,20 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Fix: espaciado correo vs Vista Previa + borrado de plantillas
+
+Dos problemas reportados (PREVIEW). Ambos probados por testing_agent (iteration_56): 4/4 PASS.
+
+**1) Espaciado entre líneas (Gmail) ≠ Vista Previa**
+- Causa: las plantillas usan `<p>` y `<p></p>`; la Vista Previa usaba `prose prose-sm` (Tailwind, compacto) pero el correo se enviaba como HTML crudo y Gmail aplica márgenes grandes por defecto a `<p>`.
+- Backend `services/email_service.py`: nueva `normalize_email_html(html)` que inyecta `style="margin:0 0 10px 0;line-height:1.5"` en línea a cada `<p>` (sin pisar estilos existentes) y envuelve el cuerpo con tipografía base (Arial 14px, line-height 1.5). Aplicada en `send_email` antes del footer.
+- Frontend: nueva clase `.email-render` en `index.css` (mismo espaciado). Los contenedores de Vista Previa (`RichTextEditor.jsx` preview body y `EmailPreviewDialog.jsx`) y el canvas del editor (`.ProseMirror p`) usan ahora ese espaciado en lugar de `prose prose-sm`. Vista Previa y correo quedan homologados (margin 0 0 10px, line-height 1.5). [El render real en Gmail no se puede validar automáticamente].
+
+**2) No se podían eliminar plantillas**
+- Causa: las plantillas por defecto (semilla) NO existen en BD; al borrarlas `delete_one` devolvía 0 → 404 → "Error eliminando plantilla".
+- Backend `routes/seed_and_templates.py`: `delete_email_template` ahora, si la plantilla no está en BD pero es una semilla conocida (PROJECT_EMAIL_TEMPLATES/EMAIL_TEMPLATES_BY_SEDE/DEFAULT_EMAIL_TEMPLATES), registra un tombstone en `deleted_default_templates` y devuelve 200. `get_email_templates` excluye las tombstoned. `create`/`update`/`reset` limpian el tombstone (permite re-agregarlas). `reset` ahora también contempla PROJECT_EMAIL_TEMPLATES.
+- Verificado: borrado de plantilla por defecto (`project_notify_bank`) y custom funcionan, desaparecen y no reaparecen tras refrescar.
+
+
 ## 2026-06-10 — Fix URGENTE: variables de Cotización faltaban en el editor de plantillas del MÓDULO PROYECTOS
 
 El usuario seguía sin ver variables de Cotización (ej. `abreviaturas_medios_pago`) en plantillas de Proyectos. **Causa raíz**: el módulo de Proyectos (botón "Plantillas" en `/projects`) usa un editor DISTINTO — `components/projects/TemplatesAdminDialog.jsx` con su PROPIO diccionario `VAR_GROUPS` — separado del editor de `/settings` (`EmailTemplatesEditor.jsx`) que sí se había homologado. `VAR_GROUPS` no tenía ninguna variable de Cotización.
