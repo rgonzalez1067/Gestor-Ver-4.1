@@ -1,6 +1,16 @@
 # CHANGELOG — MegaNexus
 
-## 2026-06-10 — Fix homologación: variables faltantes en el panel categorizado del editor
+## 2026-06-10 — Fix URGENTE: variables de Cotización faltaban en el editor de plantillas del MÓDULO PROYECTOS
+
+El usuario seguía sin ver variables de Cotización (ej. `abreviaturas_medios_pago`) en plantillas de Proyectos. **Causa raíz**: el módulo de Proyectos (botón "Plantillas" en `/projects`) usa un editor DISTINTO — `components/projects/TemplatesAdminDialog.jsx` con su PROPIO diccionario `VAR_GROUPS` — separado del editor de `/settings` (`EmailTemplatesEditor.jsx`) que sí se había homologado. `VAR_GROUPS` no tenía ninguna variable de Cotización.
+
+- `TemplatesAdminDialog.jsx` `VAR_GROUPS`: ahora 6 grupos (49 variables). Nuevos: **"Cotización / Ventas"** (Cotizacion_Nro, quote_number, quote_type, total_usd, Monto_Total, invoice_number, approved_date, abreviaturas_medios_pago, Banco_Patrocinador, company_name, sede_name, Nombre_Ejecutivo, Email_Ejecutivo) y **"Despacho / Equipos / Reparación"** (Modelo_Equipo, Cantidad, Modelo_Pinpad, items_table, services_table, Direccion_Entrega, Lista_Seriales, lista_modelos_seriales, lista_equipos_seriales, modelos_resumen, almacen_custodia). Se agregó `Nombre_Fantasia` y `client_address` al grupo Cliente.
+- `projectConstants.js` `ALL_TOKENS` (autocompletado al escribir `{` en TemplateBodyEditor): homologado con todas las variables de Cotización.
+- `ProjectDetail.jsx`: las 2 listas inline de "Otras Notificaciones" ahora usan `ALL_TOKENS` (homologación automática).
+- `EmailPreviewDialog.jsx`: `QUICK_VARS` ahora deriva de `ALL_TOKENS`.
+- Probado por testing_agent (iteration_55): 5/5 PASS. Diálogo "Plantillas" de /projects muestra 49 chips en 6 grupos; click en `abreviaturas_medios_pago` inserta `{abreviaturas_medios_pago}`.
+
+
 
 El usuario reportó que NO veía variables de Cotizaciones (ej. `abreviaturas_medios_pago`) en las plantillas de Proyectos. Causa: la homologación previa llenó la sección "Variables de esta plantilla" (`getTemplateVariables`), pero el panel categorizado prominente ("Panel de Variables" / `VARIABLE_CATEGORIES`) no listaba esas variables.
 
