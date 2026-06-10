@@ -1,0 +1,57 @@
+{
+  "summary": "Frontend-only parity test of email template variable panels. Logged in as admin, opened (1) Settings > Plantillas de Correo > expanded Sede Pyme > Editar 'Envío de Cotización a Cliente (Sede Pyme)' and (2) Proyectos > 'Plantillas' (Gestionar Plantillas de Correo). Programmatically extracted every data-testid='master-var-*' (Configuración) and 'var-token-*' (Proyectos). Both editors return EXACTLY 67 chips, in identical order, grouped under the same 6 categories: Cliente, Financiero (Ventas), Ejecutivo, Implementación (Técnico), Despacho / Reparación / Equipos, Nuevos Productos. 100% parity verified.",
+  "parity_validation": {
+    "configuracion_editor": {
+      "chip_count": 67,
+      "categories_found": ["Cliente", "Financiero (Ventas)", "Ejecutivo", "Implementación (Técnico)", "Despacho / Reparación / Equipos", "Nuevos Productos"],
+      "testid_pattern": "master-var-{key}"
+    },
+    "proyectos_editor": {
+      "chip_count": 67,
+      "categories_found": ["Cliente", "Financiero (Ventas)", "Ejecutivo", "Implementación (Técnico)", "Despacho / Reparación / Equipos", "Nuevos Productos"],
+      "testid_pattern": "var-token-{key}"
+    },
+    "diff": {
+      "only_in_configuracion": [],
+      "only_in_proyectos": [],
+      "match_percentage": "100%"
+    },
+    "explicitly_required_variables_present_in_both": [
+      "Nombre_Fantasia",
+      "Matriz_Bancos_Productos",
+      "Matriz_Sucursales",
+      "Patrocinador",
+      "client_name",
+      "Servidor_Instalacion",
+      "nombre_producto",
+      "nueva_fase",
+      "fase_actual",
+      "tipo_evento",
+      "Nro_Proyecto",
+      "Tipo_Proyecto",
+      "Fecha_Asignacion"
+    ],
+    "shared_source_confirmed": "Both EmailTemplatesEditor.jsx and projects/TemplatesAdminDialog.jsx import VARIABLE_CATEGORIES (and VARIABLE_ICON_MAP) from /app/frontend/src/components/email/templateVariables.js — single source of truth."
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Centralización correctamente aplicada: ambos componentes consumen el mismo módulo compartido (templateVariables.js). Cualquier nueva variable se agregará en un solo lugar.",
+    "Recordatorio: la categoría 'Cliente' contiene tanto claves 'Camel_Case' (Nombre_Cliente) como aliases en snake_case (client_name, client_rif, client_address). Está intencional según el catálogo, pero podría documentarse en el archivo para evitar duplicaciones lógicas futuras.",
+    "Console warnings de hidratación (<tr> como hijo de <span>, <span> dentro de <tbody>) en Dashboard — NO bloqueante para esta tarea pero recomendable corregir (no relacionado con el cambio de plantillas)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped", "frontend": "100%"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (de /app/memory/test_credentials.md)",
+  "seed_data_creation": "Ninguna. Solo se abrieron diálogos de lectura.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "El test confirma paridad EXACTA entre los paneles de variables de Configuración (master-var-*) y Proyectos (var-token-*). Si se agregan variables nuevas, deben tocarse ÚNICAMENTE en /app/frontend/src/components/email/templateVariables.js (VARIABLE_CATEGORIES). Para abrir el editor de Proyectos: /projects → botón data-testid='projects-templates-btn' → diálogo data-testid='templates-dialog'. Para Configuración: /settings → expandir 'Plantillas Sede Pyme' → botón Editar de cualquier plantilla.",
+  "rca of the issue": "N/A — no se encontraron defectos. La homologación solicitada por el usuario (opción a: unión total en 6 grupos unificados) está aplicada y se reflejan los 67 chips esperados en ambos editores."
+}

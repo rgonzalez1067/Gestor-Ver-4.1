@@ -4,73 +4,10 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ClipboardList, Building2, FileText, Server, CreditCard, Sparkles } from 'lucide-react';
+import { ClipboardList, FileText, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { RichTextEditor, getExampleValue } from '../RichTextEditor';
-
-const VAR_GROUPS = [
-  { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
-    { token: 'Nombre_Cliente', desc: 'Razón social del cliente' },
-    { token: 'Nombre_Fantasia', desc: 'Nombre de fantasía del cliente' },
-    { token: 'Rif_Cliente', desc: 'RIF del cliente' },
-    { token: 'Contacto_Principal', desc: 'Nombre del contacto' },
-    { token: 'Datos_Contacto', desc: 'Contacto + Tel + Email' },
-    { token: 'Telefono_Contacto', desc: 'Teléfono del contacto' },
-    { token: 'Email_Contacto', desc: 'Correo del contacto' },
-    { token: 'client_address', desc: 'Dirección del cliente' },
-  ]},
-  { cat: 'Cotización / Ventas', icon: <Sparkles size={14} className="text-violet-500" />, vars: [
-    { token: 'Cotizacion_Nro', desc: 'Número de cotización' },
-    { token: 'quote_number', desc: 'Número de cotización (alias)' },
-    { token: 'quote_type', desc: 'Tipo de cotización' },
-    { token: 'total_usd', desc: 'Total en USD' },
-    { token: 'Monto_Total', desc: 'Monto total USD' },
-    { token: 'invoice_number', desc: 'Número de factura' },
-    { token: 'approved_date', desc: 'Fecha de aprobación' },
-    { token: 'abreviaturas_medios_pago', desc: 'Medios de pago (abreviaturas /)' },
-    { token: 'Banco_Patrocinador', desc: 'Banco patrocinador' },
-    { token: 'company_name', desc: 'Nombre de la empresa' },
-    { token: 'sede_name', desc: 'Sede (PYME / CORP)' },
-    { token: 'Nombre_Ejecutivo', desc: 'Nombre del ejecutivo' },
-    { token: 'Email_Ejecutivo', desc: 'Correo del ejecutivo' },
-  ]},
-  { cat: 'Proyecto', icon: <FileText size={14} className="text-indigo-500" />, vars: [
-    { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
-    { token: 'Ticket_Nro', desc: 'Número de ticket (se carga al desbloquear el proyecto)' },
-    { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
-    { token: 'Patrocinador', desc: 'Banco patrocinador (o Banco - Procesador); si no hay, Nombre de Fantasía del cliente' },
-    { token: 'Fecha_Asignacion', desc: 'Fecha de asignación' },
-    { token: 'Nombre_Sucursal', desc: 'Sucursal del cliente' },
-    { token: 'Cantidad_Cajas', desc: 'Cantidad de cajas' },
-    { token: 'Matriz_Sucursales', desc: 'Tabla de Sucursales (Sucursal / Cantidad de Cajas)' },
-  ]},
-  { cat: 'Infraestructura', icon: <Server size={14} className="text-emerald-500" />, vars: [
-    { token: 'Servidor_Instalacion', desc: 'Servidor asignado' },
-    { token: 'Nombre_Implementador', desc: 'Implementador asignado' },
-    { token: 'Correo_Implementador', desc: 'Correo del implementador' },
-    { token: 'Integrador', desc: 'Nombre del integrador' },
-    { token: 'Aplicativo_Integracion', desc: 'App de integración' },
-  ]},
-  { cat: 'Hardware', icon: <CreditCard size={14} className="text-amber-500" />, vars: [
-    { token: 'Modelo_Seriales_POS', desc: 'Tabla de POS/Pinpad' },
-    { token: 'Modelo_Seriales_Equipos', desc: 'Tabla de equipos' },
-    { token: 'Lista_VTID', desc: 'Lista de VTIDs' },
-    { token: 'Matriz_Bancos_Productos', desc: 'Matriz de bancos' },
-  ]},
-  { cat: 'Despacho / Equipos / Reparación', icon: <ClipboardList size={14} className="text-rose-500" />, vars: [
-    { token: 'Modelo_Equipo', desc: 'Modelo de POS / PINPAD' },
-    { token: 'Cantidad', desc: 'Cantidad de equipos' },
-    { token: 'Modelo_Pinpad', desc: 'Modelo de pinpad (alias)' },
-    { token: 'items_table', desc: 'Tabla HTML de productos' },
-    { token: 'services_table', desc: 'Tabla de servicios' },
-    { token: 'Direccion_Entrega', desc: 'Dirección de entrega' },
-    { token: 'Lista_Seriales', desc: 'Lista de seriales preasignados' },
-    { token: 'lista_modelos_seriales', desc: 'Lista de modelos y seriales (HTML)' },
-    { token: 'lista_equipos_seriales', desc: 'Lista de equipos y seriales (HTML)' },
-    { token: 'modelos_resumen', desc: 'Resumen de modelos' },
-    { token: 'almacen_custodia', desc: 'Almacén de custodia' },
-  ]},
-];
+import { VARIABLE_CATEGORIES, VARIABLE_ICON_MAP } from '../email/templateVariables';
 
 /**
  * Diálogo de administración (CRUD) de plantillas de correo del proyecto.
@@ -185,26 +122,28 @@ export const TemplatesAdminDialog = ({
             <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para insertarla en el editor. Pasa el cursor sobre ella para ver una vista previa del dato.</p>
             <TooltipProvider delayDuration={150}>
               <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
-                {VAR_GROUPS.map(group => (
+                {VARIABLE_CATEGORIES.map(group => {
+                  const IconComp = VARIABLE_ICON_MAP[group.icon] || FileText;
+                  return (
                   <div key={group.cat}>
                     <div className="flex items-center gap-1.5 mb-1.5">
-                      {group.icon}
+                      <IconComp size={14} className={group.iconColor} />
                       <span className="text-xs font-bold text-slate-700">{group.cat}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {group.vars.map(v => {
-                        const demo = getExampleValue(v.token);
+                        const demo = getExampleValue(v.key);
                         return (
-                          <Tooltip key={v.token}>
+                          <Tooltip key={v.key}>
                             <TooltipTrigger asChild>
                               <button
                                 type="button"
-                                data-testid={`var-token-${v.token}`}
+                                data-testid={`var-token-${v.key}`}
                                 className="inline-flex items-center px-2 py-1 text-[11px] font-mono bg-slate-100 hover:bg-blue-100 hover:text-blue-700 border border-slate-200 hover:border-blue-300 rounded-md cursor-pointer transition-all group"
-                                onClick={() => insertVar(v.token)}
+                                onClick={() => insertVar(v.key)}
                               >
                                 <span className="text-slate-500 group-hover:text-blue-500">{'{'}</span>
-                                <span>{v.token}</span>
+                                <span>{v.key}</span>
                                 <span className="text-slate-500 group-hover:text-blue-500">{'}'}</span>
                               </button>
                             </TooltipTrigger>
@@ -212,11 +151,11 @@ export const TemplatesAdminDialog = ({
                               side="left"
                               align="start"
                               className="max-w-[260px] p-0 overflow-hidden bg-slate-900 text-white border-slate-800 shadow-xl"
-                              data-testid={`var-tooltip-${v.token}`}
+                              data-testid={`var-tooltip-${v.key}`}
                             >
                               <div className="px-3 pt-2 pb-1.5 border-b border-slate-700">
-                                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{v.desc}</p>
-                                <p className="text-[11px] font-mono text-blue-300 mt-0.5">{'{'}{v.token}{'}'}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">{v.label}</p>
+                                <p className="text-[11px] font-mono text-blue-300 mt-0.5">{'{'}{v.key}{'}'}</p>
                               </div>
                               <div className="px-3 py-2 bg-slate-950">
                                 <div className="flex items-center gap-1.5 mb-1">
@@ -224,7 +163,7 @@ export const TemplatesAdminDialog = ({
                                   <span className="text-[9px] uppercase tracking-wider text-amber-300 font-bold">Vista previa</span>
                                 </div>
                                 {demo ? (
-                                  <p className="text-[12px] text-white leading-snug break-words" data-testid={`var-demo-${v.token}`}>
+                                  <p className="text-[12px] text-white leading-snug break-words" data-testid={`var-demo-${v.key}`}>
                                     {demo}
                                   </p>
                                 ) : (
@@ -237,7 +176,8 @@ export const TemplatesAdminDialog = ({
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </TooltipProvider>
           </div>
