@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Homologación de variables Cotizaciones ↔ Proyectos en plantillas
+
+Requerimiento del usuario: inyectar todas las variables de las plantillas de Cotizaciones en las de Proyectos y dejar ambos cuerpos homologados.
+
+- **Backend (núcleo)** `services/project_template_vars.py` → `resolve_project_template_vars`: ahora hace `return {**quote_vars, **variables}`, donde `quote_vars = _build_template_vars(cotización_original or proyecto)`. Para proyectos regulares se construye desde la cotización (`quote_id` en `quotes`); para Proyectos Directos (`dq_*`, sin cotización en `quotes`) cae al propio proyecto (best-effort). Las variables del proyecto tienen prioridad en claves compartidas. Validado: `Cotizacion_Nro` (COT real), `Nombre_Ejecutivo`, `Email_Ejecutivo`, `Monto_Total`, `abreviaturas_medios_pago`, `company_name`, etc., ahora se resuelven en plantillas de Proyectos.
+- **Frontend** `components/EmailTemplatesEditor.jsx`: nueva const `HOMOLOGATED_VARS` (unión deduplicada de TODAS las `BASE_TEMPLATE_VARIABLES` + `VARIABLE_CATEGORIES`). `getTemplateVariables` ahora devuelve `baseVars + SHARED_VARS + HOMOLOGATED_VARS` (deduplicado), de modo que el picker "Variables de esta plantilla" muestra el MISMO conjunto (73 variables) en ambos cuerpos. Se corrigió además `Nombre_Fantasia` faltante en `SHARED_VARS`.
+- Probado por testing_agent (iteration_54): 5/5 PASS. Plantillas de Proyecto exponen variables de Cotización (Cotizacion_Nro, Nombre_Ejecutivo, Monto_Total, Nombre_Fantasia, abreviaturas_medios_pago) y las de Cotización exponen variables de Proyecto (Nombre_Implementador, Correo_Implementador, Matriz_Bancos_Productos, Lista_VTID). Click inserta placeholder y el hover-preview funciona en ambos. 73 chips idénticos en ambos.
+
+
 ## 2026-06-10 — Ticket flexible (duplicados con confirmación) + Bancos alfabéticos + variable {Nombre_Fantasia}
 
 Tres requerimientos del usuario. Los 3 probados por testing_agent (iteration_53): 3/3 PASS.
