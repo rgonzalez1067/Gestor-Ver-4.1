@@ -1,0 +1,67 @@
+{
+  "summary": "Frontend-only validation of the new hover preview (MiniPreview/HoverCard) for table-type variables in the Email Templates editor on /settings. Login (admin), expand 'Plantillas Sede Pyme', open 'edit-template-quote_sent_PYME', and verify hover behavior on chips. All 6 acceptance criteria from the review request PASS.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "App root (any /settings load)",
+        "issues": [
+          "Console hydration warnings: '<span> cannot be a child of <tbody>' and '<tr> cannot be a child of <span>'. Pre-existing — NOT caused by this change (it shows on settings BEFORE the templates editor is even opened). Likely from some other table in the layout/sidebar. Worth tracking but not blocking."
+        ]
+      }
+    ]
+  },
+  "test_results_detail": {
+    "T1_spec_var_Matriz_Bancos_Productos_hover": {
+      "preview_present": true,
+      "preview_visible": true,
+      "contains_table_tag": true,
+      "contains_Banco_Mercantil": true,
+      "contains_Banesco": true,
+      "contains_Producto_column": true,
+      "result": "PASS"
+    },
+    "T2_spec_var_Matriz_Sucursales_hover": {
+      "preview_present": true,
+      "preview_visible": true,
+      "contains_table_tag": true,
+      "contains_Sucursal_Norte": true,
+      "contains_Cantidad_de_Cajas_column": true,
+      "contains_Total_row": true,
+      "result": "PASS"
+    },
+    "T3_master_var_Matriz_Bancos_Productos_hover": {
+      "preview_present": true,
+      "preview_visible": true,
+      "result": "PASS"
+    },
+    "T4_Nombre_Cliente_no_preview": {
+      "preview_count": 0,
+      "expected": 0,
+      "result": "PASS (non-table variables correctly have no HoverCard)"
+    },
+    "T5_click_insertion_still_works": {
+      "body_changed_after_click": true,
+      "placeholder_inserted_in_body": "{Matriz_Bancos_Productos}",
+      "result": "PASS (hover did NOT break onClick)"
+    },
+    "T6_visual_evidence": "Screenshots confirm both HoverCards render as actual styled <table> with the example data (Banco Mercantil/Banesco rows; Sucursal Norte/Sur + Total row)."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailTemplatesEditor.jsx has VARIABLE_PREVIEW_HTML duplicated: once at module scope (L566-568) used by MiniPreview, and again inside a render block at L824-826 with slightly different padding/font-size. Recommend extracting to a single constant to avoid drift.",
+    "EmailTemplatesEditor.jsx is reaching a sizeable footprint (>1370 lines). Consider splitting MiniPreview, VARIABLE_PREVIEW_HTML and the variable-panel sub-tree into their own files.",
+    "Pre-existing hydration warnings on /settings (span inside tbody / tr inside span) are unrelated to this change but should be tracked separately."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "skipped", "frontend": "100% (6/6 acceptance checks PASS)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin)",
+  "seed_data_creation": "None — read-only hover validation. Click test inserted placeholder into editor body but dialog was not saved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Editor opens via [data-testid=edit-template-quote_sent_PYME] after expanding 'Plantillas Sede Pyme'. HoverCards exposed via data-testid=var-preview-<key>. Open delay ~150ms; use wait_for_timeout(500) after hover() to be safe. Note that hovering one chip then the next: move the mouse to (10,10) between hovers to let the previous HoverCard close.",
+  "rca of the issue": "N/A — feature works as specified."
+}

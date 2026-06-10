@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card';
 import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles, ChevronDown } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
@@ -558,6 +559,32 @@ const VARIABLE_CATEGORIES = [
 
 // Mapa de iconos para renderización
 const ICON_MAP = { Building2, CreditCard, Users, Server, Package };
+
+// HTML de ejemplo para variables de tipo TABLA/HTML. Se usa en el mini-preview
+// que aparece al pasar el mouse sobre la variable en el panel del editor, para
+// que el ejecutivo vea cómo se verá la tabla en el correo antes de enviarlo.
+const VARIABLE_PREVIEW_HTML = {
+  Matriz_Bancos_Productos: '<table style="border-collapse:collapse;width:100%;font-size:12px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:6px;border:1px solid #ddd;">Banco</th><th style="padding:6px;border:1px solid #ddd;">Producto / Servicio</th><th style="padding:6px;border:1px solid #ddd;text-align:center;">Cantidad</th></tr></thead><tbody><tr><td style="padding:6px;border:1px solid #ddd;">Banco Mercantil</td><td style="padding:6px;border:1px solid #ddd;">Tarjeta de Crédito/Débito</td><td style="padding:6px;border:1px solid #ddd;text-align:center;">2</td></tr><tr style="background:#f8f9fa;"><td style="padding:6px;border:1px solid #ddd;">Banesco</td><td style="padding:6px;border:1px solid #ddd;">C2P o Débito Inmediato</td><td style="padding:6px;border:1px solid #ddd;text-align:center;">1</td></tr></tbody></table>',
+  Matriz_Sucursales: '<table style="border-collapse:collapse;width:100%;font-size:12px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:6px;border:1px solid #ddd;">Sucursal</th><th style="padding:6px;border:1px solid #ddd;text-align:center;">Cantidad de Cajas</th></tr></thead><tbody><tr><td style="padding:6px;border:1px solid #ddd;">Sucursal Norte</td><td style="padding:6px;border:1px solid #ddd;text-align:center;">5</td></tr><tr style="background:#f8f9fa;"><td style="padding:6px;border:1px solid #ddd;">Sucursal Sur</td><td style="padding:6px;border:1px solid #ddd;text-align:center;">3</td></tr><tr style="background:#eef2f7;font-weight:bold;"><td style="padding:6px;border:1px solid #ddd;">Total</td><td style="padding:6px;border:1px solid #ddd;text-align:center;">8</td></tr></tbody></table>',
+  items_table: '<table style="border-collapse:collapse;width:100%;font-size:12px;"><tr style="background:#f3f4f6"><th style="padding:6px;border:1px solid #ddd">Producto</th><th style="padding:6px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:6px;border:1px solid #ddd">Terminal POS</td><td style="padding:6px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
+  services_table: '<table style="border-collapse:collapse;width:100%;font-size:12px;"><tr style="background:#f3f4f6"><th style="padding:6px;border:1px solid #ddd">Servicio</th><th style="padding:6px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:6px;border:1px solid #ddd">Setup Inicial</td><td style="padding:6px;border:1px solid #ddd;text-align:center">setup</td></tr></table>',
+};
+
+// Envuelve un chip de variable con un HoverCard de mini-preview cuando la
+// variable es de tipo tabla/HTML. Para el resto devuelve el hijo sin cambios.
+const MiniPreview = ({ varKey, children }) => {
+  const html = VARIABLE_PREVIEW_HTML[varKey];
+  if (!html) return children;
+  return (
+    <HoverCard openDelay={150} closeDelay={80}>
+      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
+      <HoverCardContent className="w-[360px] max-h-80 overflow-auto p-3" side="left" data-testid={`var-preview-${varKey}`}>
+        <p className="text-[10px] font-semibold text-slate-500 uppercase mb-2">Vista previa (datos de ejemplo)</p>
+        <div className="text-xs [&_table]:w-full" dangerouslySetInnerHTML={{ __html: html }} />
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
 
 // Función para obtener variables de una plantilla específica
 const getTemplateVariables = (templateId) => {
@@ -1304,8 +1331,8 @@ export const EmailTemplatesEditor = () => {
                       </div>
                       <div className="flex flex-wrap gap-1.5 mb-1">
                         {group.vars.map(v => (
+                          <MiniPreview key={v.key} varKey={v.key}>
                           <button
-                            key={v.key}
                             title={v.label}
                             data-testid={`master-var-${v.key}`}
                             className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-mono rounded-md cursor-pointer transition-all
@@ -1320,6 +1347,7 @@ export const EmailTemplatesEditor = () => {
                             <span>{`{${v.key}}`}</span>
                             <Copy size={10} className="opacity-40" />
                           </button>
+                          </MiniPreview>
                         ))}
                       </div>
                     </div>
@@ -1333,8 +1361,8 @@ export const EmailTemplatesEditor = () => {
                   <p className="text-[10px] font-semibold text-slate-500 uppercase mb-2">Variables de esta plantilla</p>
                   <div className="flex flex-wrap gap-1">
                     {getTemplateVariables(editingTemplate?.template_id).map(v => (
+                      <MiniPreview key={`spec-${v.key}`} varKey={v.key}>
                       <button
-                        key={`spec-${v.key}`}
                         title={v.label}
                         data-testid={`spec-var-${v.key}`}
                         className="px-1.5 py-0.5 text-[10px] font-mono rounded
@@ -1344,6 +1372,7 @@ export const EmailTemplatesEditor = () => {
                       >
                         {`{${v.key}}`}
                       </button>
+                      </MiniPreview>
                     ))}
                   </div>
                 </div>
