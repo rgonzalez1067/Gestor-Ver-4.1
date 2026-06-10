@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Fix: producto duplicado ("Débito Inmediato") en Productos por Banco (Proyectos Directos)
+
+El usuario reportó que en el reel de Distribución de Cajas (Proyectos Directos), "Débito Inmediato" aparecía duplicado en los bancos que lo tienen (y, en producción, en todos los bancos).
+
+- Causa: el array `products` de un banco podía contener el mismo `product_name` repetido (en preview: Banco de Venezuela, Banco Plaza, Bancaribe tenían un producto duplicado). El frontend renderiza `bank.products` sin deduplicar.
+- Backend `routes/banks.py`: nuevo helper `dedupe_bank_products(bank)` que fusiona productos por `product_name` (OR de banderas `vpos/gateway/mpos/link_available`, conserva primer valor no vacío del resto). Aplicado en `get_banks` y `get_bank_detail` (dedup en lectura → ninguna vista muestra duplicados, también en producción tras redeploy).
+- Frontend `DirectProjectCreation.jsx`: `reelBankProducts` ahora deduplica por `product_name` (guard defensivo).
+- Limpieza de datos (preview): se persistió la deduplicación en 3 bancos (Banco de Venezuela 8→7, Banco Plaza 10→9, Bancaribe 9→8). Verificado: 0 bancos con duplicados; "Débito Inmediato" solo en los 2 bancos que lo tienen (Banco Plaza, R4), no en todos.
+- Pendiente producción: el dedup en lectura oculta duplicados, pero si producción tiene "Débito Inmediato" agregado erróneamente como entrada ÚNICA en bancos que no deberían tenerlo, eso requiere limpieza de datos (quitarlo desde la ficha del banco) ya que no es posible saber automáticamente qué bancos deberían tenerlo.
+
+
 ## 2026-06-10 — PDF Payment Gateway: IVA y Total con IVA en la página 3
 
 Requerimiento del usuario: insertar en la página 3 (INVERSIÓN EN SETUP / ARRANQUE) del PDF de la cotización Payment Gateway el valor del IVA y el total después del IVA.

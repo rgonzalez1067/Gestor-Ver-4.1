@@ -302,7 +302,16 @@ export default function DirectProjectCreation() {
     const bank = banks.find((b) => b.name === reelBank);
     if (!bank || !Array.isArray(bank.products)) return [];
     const availField = AVAIL_FIELD(form.quote_type);
-    return bank.products.filter((p) => !!p[availField]);
+    // Filtrar por disponibilidad y deduplicar por nombre de producto (guard
+    // defensivo ante datos con productos repetidos en un mismo banco).
+    const seen = new Set();
+    return bank.products.filter((p) => {
+      if (!p[availField]) return false;
+      const key = (p.product_name || '').trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [reelBank, banks, form.quote_type]);
 
   const selectReelBank = (name) => {

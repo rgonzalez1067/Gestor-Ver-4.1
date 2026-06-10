@@ -246,6 +246,45 @@ def ensure_bank_contacts(bank: dict) -> dict:
         }]
     return bank
 
+def dedupe_bank_products(bank: dict) -> dict:
+    """Elimina productos duplicados (mismo product_name) dentro de un banco,
+    fusionando las banderas de disponibilidad (VPOS/Gateway/mPOS/Link) y
+    conservando el primer valor no vacío del resto de campos.
+
+    Corrige el bug donde un producto (ej. 'Debito Inmediato') aparecía duplicado
+    en la consulta de Productos por Banco (reel de Distribución de Cajas).
+    """
+    products = bank.get("products") or []
+    if not products:
+        return bank
+    _AVAIL = ("vpos_available", "gateway_available", "mpos_available", "link_available")
+    merged: dict = {}
+    order: list = []
+    for p in products:
+        key = (p.get("product_name") or "").strip().casefold()
+        if not key:
+            # Sin nombre: conservar tal cual con clave única
+            order.append(id(p))
+            merged[id(p)] = dict(p)
+            continue
+        if key not in merged:
+            merged[key] = dict(p)
+            order.append(key)
+        else:
+            base = merged[key]
+            # OR de las banderas de disponibilidad
+            for f in _AVAIL:
+                base[f] = bool(base.get(f)) or bool(p.get(f))
+            # Completar campos faltantes con el primer valor no vacío
+            for k, v in p.items():
+                if k in _AVAIL:
+                    continue
+                if not base.get(k) and v:
+                    base[k] = v
+    bank["products"] = [merged[k] for k in order]
+    return bank
+
+
 @router.get("/banks", response_model=List[Bank])
 async def get_banks(authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
@@ -261,6 +300,8 @@ async def get_banks(authorization: Optional[str] = Header(None)):
             bank["integrations"] = [migrate_integration_status(i) for i in bank["integrations"]]
         # Migrate legacy contact fields → contacts[] (in-memory only)
         ensure_bank_contacts(bank)
+        # Eliminar productos duplicados dentro del banco (fusiona disponibilidad)
+        dedupe_bank_products(bank)
     # Orden alfabético por nombre (homologa todos los selectores de Bancos
     # en la app: Cotizaciones, Proyectos Directos, etc.).
     banks.sort(key=lambda b: (b.get("name") or "").strip().casefold())
@@ -345,6 +386,10 @@ async def get_bank_detail(bank_id: str, authorization: Optional[str] = Header(No
         {"_id": 0}
     ).sort("created_at", -1).to_list(500)
     bank["pipeline_products"] = pipeline_products
+
+    # Eliminar productos duplicados (fusiona disponibilidad) para que el formulario
+    # de edición y el detalle no muestren entradas repetidas.
+    dedupe_bank_products(bank)
 
     return bank
 
