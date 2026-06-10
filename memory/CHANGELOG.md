@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — PDF Payment Gateway: IVA y Total con IVA en la página 3
+
+Requerimiento del usuario: insertar en la página 3 (INVERSIÓN EN SETUP / ARRANQUE) del PDF de la cotización Payment Gateway el valor del IVA y el total después del IVA.
+
+- `services/pdf_generator.py` `generate_pg()` (~L1752): la tabla de setup de la página 3 antes solo mostraba "TOTAL SETUP" (= subtotal sin IVA). Ahora muestra 3 filas de totales: **SUBTOTAL SETUP**, **IVA (16%)** (o **IVA (Exento)** $0.00 según `iva_exempt`) y **TOTAL SETUP (CON IVA)**. La fila de Total con IVA queda resaltada (azul claro); subtotal e IVA con fondo gris. Zebra de detalle ajustada para excluir las 3 filas de totales.
+- Validado generando el PDF PG en proceso (5 páginas): IVA 16% → Subtotal $150 / IVA $24 / Total $174; IVA exento → IVA $0 / Total $150.
+- Nota: el endpoint `POST /quotes/{id}/regenerate-pdf` falla (500) para cotizaciones antiguas con `pinpad_model`/`sponsor_bank_name` = None (error de validación Pydantic preexistente, ajeno a este cambio) — posible fix futuro: coaccionar None→"" en `regenerate_quote_pdf`.
+
+
 ## 2026-06-10 — Fix: espaciado correo vs Vista Previa + borrado de plantillas
 
 Dos problemas reportados (PREVIEW). Ambos probados por testing_agent (iteration_56): 4/4 PASS.

@@ -1749,7 +1749,14 @@ class DynamicQuotePDFGenerator:
                     Paragraph(obs, obs_style)
                 ])
             
-            pg_table_data.append(['', 'TOTAL SETUP', f"${subtotal_setup:.2f}", '', ''])
+            # Totales de la página 3: Subtotal, IVA y Total con IVA.
+            _iva_rate = 0.0 if getattr(self.data, 'iva_exempt', False) else 0.16
+            _iva_label = "IVA (Exento)" if getattr(self.data, 'iva_exempt', False) else "IVA (16%)"
+            iva_setup = subtotal_setup * _iva_rate
+            total_setup_con_iva = subtotal_setup + iva_setup
+            pg_table_data.append(['', 'SUBTOTAL SETUP', f"${subtotal_setup:.2f}", '', ''])
+            pg_table_data.append(['', _iva_label, f"${iva_setup:.2f}", '', ''])
+            pg_table_data.append(['', 'TOTAL SETUP (CON IVA)', f"${total_setup_con_iva:.2f}", '', ''])
             
             col_widths = [25, 165, 75, 115, 110]
             pg_table = Table(pg_table_data, colWidths=col_widths, repeatRows=1)
@@ -1770,12 +1777,16 @@ class DynamicQuotePDFGenerator:
                 ('TOPPADDING', (0, 1), (-1, -1), 3),
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#E0E0E0")),
+                # Filas de totales (Subtotal, IVA, Total con IVA) en negrita.
+                ('FONTNAME', (0, -3), (-1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, -3), (-1, -1), 8),
+                ('BACKGROUND', (0, -3), (-1, -2), self.COLOR_GRIS),
+                # Total con IVA resaltado.
                 ('BACKGROUND', (0, -1), (-1, -1), self.COLOR_AZUL_CLARO),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, -1), (-1, -1), 8),
             ]))
             
-            for i in range(1, len(pg_table_data) - 1):
+            # Zebra solo en filas de detalle (excluye las 3 filas de totales).
+            for i in range(1, len(pg_table_data) - 3):
                 if i % 2 == 0:
                     pg_table.setStyle(TableStyle([('BACKGROUND', (0, i), (-1, i), self.COLOR_GRIS)]))
             
