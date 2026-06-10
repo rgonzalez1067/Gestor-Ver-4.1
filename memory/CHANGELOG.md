@@ -1,5 +1,21 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Variables dinámicas de Cotización en plantillas (Matriz_Bancos_Productos, Matriz_Sucursales, Patrocinador)
+
+El usuario reportó que en las plantillas de Cotizaciones no se cargaba `{Matriz_Bancos_Productos}` y pidió que TODAS las variables que dependen de la cotización estén disponibles, en particular las nuevas `{Patrocinador}` y `{Matriz_Sucursales}`.
+
+Causa raíz: los dos motores que renderizan correos de cotización (`notification_engine._build_template_vars` dinámico y `workflow_notifications.py` legacy) no producían esas variables (solo existían en el entorno de Proyectos via `project_template_vars.py`).
+
+- Nuevo helper compartido `services/quote_template_vars.py` → `build_quote_dynamic_vars(quote, client_fantasy, client_legal)`. Reutiliza `_build_matrix_html` y `_build_stores_matrix_html` de `project_template_vars`. Construye:
+  - `Matriz_Bancos_Productos`: desde `additional_items` (o fallback `services[item_type=additional]`), agrupado banco→producto con cantidades.
+  - `Matriz_Sucursales`: desde `branch_details [{store_name, quantity}]`, con fila Total; fallback a Sede Principal + cantidad_cajas.
+  - `Patrocinador`: "Banco - Procesador" si es patrocinada; si no, nombre de fantasía del cliente (mismo criterio que Proyectos).
+- Inyectado en ambos motores: `notification_engine._build_template_vars` (captura `fantasy_name` y mergea las 3 vars) y `workflow_notifications.py` (idem). Resuelto end-to-end (verificado con cotizaciones reales).
+- Frontend `EmailTemplatesEditor.jsx`: las 3 variables se agregaron a `SHARED_VARS` (con dedupe por key, así aparecen en el picker de TODAS las plantillas sin duplicar las de Proyecto), a la categoría lateral "Implementación (Técnico)" y a los ejemplos del Preview.
+- Verificación de gap Cotizaciones vs Proyectos: el resto de variables exclusivas de Proyecto (Nombre/Correo/Telefono_Implementador, Lista_VTID, Modelo_Seriales_*, Servidor_Instalacion, project_number, ticket_number, etc.) son a nivel de Proyecto y no derivan de una cotización; no faltan variables de cotización adicionales.
+- Test de regresión: `backend/tests/test_quote_dynamic_vars.py` (5/5 PASS).
+
+
 ## 2026-06-10 — Campo "Bancos o Entes" editable en Item 1 (Suscripción PDV/Banco)
 
 Requerimiento del usuario (Setup del asistente de Cotización). Antes el Item 1 "Suscripción PDV/Banco" mostraba la columna "Bancos o Entes" como SOLO LECTURA (heredaba el número de bancos del header "Bancos/Entes" de la solicitud original). Por dinámica del negocio ahora debe ser editable.

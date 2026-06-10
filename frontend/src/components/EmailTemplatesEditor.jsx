@@ -530,6 +530,8 @@ const VARIABLE_CATEGORIES = [
       { key: 'Nombre_Sucursal', label: 'Sucursal(es)' },
       { key: 'Cantidad_Cajas', label: 'Cantidad de cajas' },
       { key: 'Matriz_Bancos_Productos', label: 'Tabla de bancos y productos' },
+      { key: 'Matriz_Sucursales', label: 'Tabla de sucursales / cajas' },
+      { key: 'Patrocinador', label: 'Patrocinador (banco/procesador o cliente)' },
       { key: 'project_number', label: 'Nro. de proyecto' },
       { key: 'Ticket_Nro', label: 'Nro. de ticket (se carga al desbloquear)' },
       { key: 'ticket_number', label: 'Nro. de ticket (alias)' },
@@ -563,11 +565,25 @@ const getTemplateVariables = (templateId) => {
   // Extraer el tipo base del template_id (ej: quote_sent_TBP -> quote_sent)
   const baseType = templateId.replace(/_PYME$|_CORP$/, '');
   const baseVars = BASE_TEMPLATE_VARIABLES[baseType] || [];
-  // Variables comunes disponibles en TODAS las plantillas de cotización/proyecto
+  // Variables comunes disponibles en TODAS las plantillas de cotización/proyecto.
+  // Incluye las variables dinámicas que dependen de la cotización (matrices y
+  // patrocinador) para que estén disponibles también en plantillas de Cotizaciones.
   const SHARED_VARS = [
     { key: 'abreviaturas_medios_pago', label: 'Medios de Pago (abreviaturas, separados por /)' },
+    { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
+    { key: 'Matriz_Sucursales', label: 'Tabla de Sucursales / Cajas (HTML)' },
+    { key: 'Patrocinador', label: 'Patrocinador (Banco/Procesador o Cliente)' },
   ];
-  return [...baseVars, ...SHARED_VARS];
+  // Dedupe por key (las variables base de la plantilla tienen prioridad).
+  const seen = new Set(baseVars.map((v) => v.key));
+  const merged = [...baseVars];
+  for (const v of SHARED_VARS) {
+    if (!seen.has(v.key)) {
+      merged.push(v);
+      seen.add(v.key);
+    }
+  }
+  return merged;
 };
 
 export const EmailTemplatesEditor = () => {
@@ -780,6 +796,8 @@ export const EmailTemplatesEditor = () => {
       Telefono_Implementador: '+58 412 555-0123',
       Matriz_Bancos_Productos: '<table style="border-collapse:collapse;width:100%;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:8px;border:1px solid #ddd;">Banco</th><th style="padding:8px;border:1px solid #ddd;">Producto / Servicio</th><th style="padding:8px;border:1px solid #ddd;text-align:center;">Cantidad</th></tr></thead><tbody><tr><td style="padding:8px;border:1px solid #ddd;">Banco Mercantil</td><td style="padding:8px;border:1px solid #ddd;">Tarjeta de Crédito/Débito</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr><tr style="background:#f8f9fa;"><td style="padding:8px;border:1px solid #ddd;">Banesco</td><td style="padding:8px;border:1px solid #ddd;">C2P o Débito Inmediato</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr></tbody></table>',
       project_number: 'PRY-2026-03-001-PRI',
+      Matriz_Sucursales: '<table style="border-collapse:collapse;width:100%;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:8px;border:1px solid #ddd;">Sucursal</th><th style="padding:8px;border:1px solid #ddd;text-align:center;">Cantidad de Cajas</th></tr></thead><tbody><tr><td style="padding:8px;border:1px solid #ddd;">Sucursal Norte</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">5</td></tr><tr style="background:#f8f9fa;"><td style="padding:8px;border:1px solid #ddd;">Sucursal Sur</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">3</td></tr><tr style="background:#eef2f7;font-weight:bold;"><td style="padding:8px;border:1px solid #ddd;">Total</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">8</td></tr></tbody></table>',
+      Patrocinador: 'Banco Mercantil - Megasoft',
       ticket_number: '56785',
       bank_name: 'Banco Mercantil',
       bank_products: 'Tarjeta de Crédito/Débito, C2P o Débito Inmediato',

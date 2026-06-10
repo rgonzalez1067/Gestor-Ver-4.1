@@ -120,6 +120,7 @@ async def _build_template_vars(quote: dict) -> dict:
     contact_name = quote.get("client_contact", "") or ""
     contact_email = quote.get("client_email", "") or ""
     contact_phone = quote.get("client_phone", "") or ""
+    client_fantasy = ""
     if quote.get("client_id"):
         c = await db.clients.find_one(
             {"client_id": quote["client_id"]},
@@ -132,6 +133,7 @@ async def _build_template_vars(quote: dict) -> dict:
             #   (legal_name). Antes se priorizaba fantasy_name, lo que generaba
             #   confusión legal en emails y documentos institucionales.
             legal_name = c.get("legal_name") or c.get("fantasy_name") or legal_name
+            client_fantasy = c.get("fantasy_name") or ""
             rif = rif or c.get("rif", "")
             address = c.get("address") or ""
             contacts = c.get("contacts") or []
@@ -262,7 +264,18 @@ async def _build_template_vars(quote: dict) -> dict:
     pinpad_model_val = quote.get("pinpad_model", "") or ""
     sponsor_bank_name_val = quote.get("sponsor_bank_name", "") or ""
 
-    return {
+    # 9) Variables dinámicas a nivel de cotización (Matriz de Bancos/Productos,
+    # Matriz de Sucursales y Patrocinador). Antes NO se resolvían en este motor,
+    # por lo que tokens como {Matriz_Bancos_Productos} llegaban vacíos al cliente.
+    try:
+        from services.quote_template_vars import build_quote_dynamic_vars
+        quote_dynamic_vars = build_quote_dynamic_vars(
+            quote, client_fantasy=client_fantasy, client_legal=legal_name
+        )
+    except Exception:
+        quote_dynamic_vars = {}
+
+    base_vars = {
         # ----- Cotización -----
         "quote_number": quote_number,
         "Cotizacion_Nro": quote_number,
@@ -330,6 +343,8 @@ async def _build_template_vars(quote: dict) -> dict:
         "Direccion_Entrega": direccion_entrega,
         "direccion_entrega": direccion_entrega,
     }
+    base_vars.update(quote_dynamic_vars)
+    return base_vars
 
 
 def _render(text: str, vars_: dict) -> str:

@@ -181,6 +181,7 @@ async def send_workflow_notification(
     client_legal_name = quote.get("client_name", "")
     client_rif_val = quote.get("client_rif", "")
     client_address = ""
+    client_fantasy = ""
     contact_name = quote.get("client_contact", "")
     contact_email = quote.get("client_email", "")
     contact_phone = quote.get("client_phone", "")
@@ -192,6 +193,7 @@ async def send_workflow_notification(
         )
         if client_doc:
             client_legal_name = client_doc.get("fantasy_name") or client_doc.get("legal_name") or client_legal_name
+            client_fantasy = client_doc.get("fantasy_name") or ""
             if not client_rif_val:
                 client_rif_val = client_doc.get("rif", "")
             client_address = client_doc.get("address") or ""
@@ -242,6 +244,15 @@ async def send_workflow_notification(
         "client_address": client_address,
         "Nombre_Sucursal": quote.get("sede", quote.get("client_segment", "PYME")),
     }
+    # Variables dinámicas a nivel de cotización (Matriz de Bancos/Productos,
+    # Matriz de Sucursales y Patrocinador) — antes ausentes en este motor legacy.
+    try:
+        from services.quote_template_vars import build_quote_dynamic_vars
+        template_vars.update(
+            build_quote_dynamic_vars(quote, client_fantasy=client_fantasy, client_legal=client_legal_name)
+        )
+    except Exception:
+        pass
     if extra_template_vars:
         template_vars.update(extra_template_vars)
 
