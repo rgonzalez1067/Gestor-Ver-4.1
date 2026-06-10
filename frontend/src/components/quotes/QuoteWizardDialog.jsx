@@ -1390,12 +1390,32 @@ export const QuoteWizardDialog = ({ ctx }) => {
                                   N/A
                                 </div>
                               ) : item.inheritBancos ? (
-                                <div
-                                  className="w-16 h-7 flex items-center justify-center text-sm mx-auto font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded"
-                                  title={`Heredado del campo Bancos/Entes del header (${quoteData.cantidad_bancos || 1})`}
-                                  data-testid={`setup-bancos-inherit-${index}`}
-                                >
-                                  {item.cantidad_bancos || 1}
+                                <div className="flex items-center justify-center gap-1">
+                                  {item.bancosManual && (
+                                    <Unlock size={12} className="text-amber-500" title="Valor editado manualmente (ya no hereda del header)" />
+                                  )}
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={item.cantidad_bancos}
+                                    onChange={(e) => {
+                                      const headerVal = quoteData.cantidad_bancos || 1;
+                                      const raw = e.target.value;
+                                      const val = raw === '' ? '' : (parseInt(raw) || 1);
+                                      const isManual = !(raw === '' || val === headerVal);
+                                      const updatedItems = [...quoteData.setup_items];
+                                      updatedItems[index] = {
+                                        ...updatedItems[index],
+                                        cantidad_bancos: val === '' ? headerVal : val,
+                                        bancosManual: isManual,
+                                        totalOverride: undefined,
+                                      };
+                                      setQuoteData({ ...quoteData, setup_items: updatedItems });
+                                    }}
+                                    className={`w-16 h-7 text-center text-sm mx-auto ${item.bancosManual ? 'border-amber-400 bg-amber-50' : 'border-blue-200 bg-blue-50 text-blue-700 font-medium'}`}
+                                    title={item.bancosManual ? 'Valor editado manualmente' : `Heredado del campo Bancos/Entes del header (${quoteData.cantidad_bancos || 1}). Editable.`}
+                                    data-testid={`setup-bancos-inherit-${index}`}
+                                  />
                                 </div>
                               ) : item.autoBancos ? (
                                 <div className="flex items-center justify-center gap-1">

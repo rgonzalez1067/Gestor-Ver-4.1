@@ -627,7 +627,7 @@ export const Quotes = () => {
         updated = { ...updated, cantidad_cajas: newCajas };
         needsUpdate = true;
       }
-      if (bancosChanged && item.inheritBancos && item.cantidad_bancos !== newBancos) {
+      if (bancosChanged && item.inheritBancos && !item.bancosManual && item.cantidad_bancos !== newBancos) {
         updated = { ...updated, cantidad_bancos: newBancos };
         needsUpdate = true;
       }
