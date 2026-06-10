@@ -127,6 +127,39 @@ async def resolve_sender_for_quote(quote: dict) -> str:
     return await resolve_sender_for_area(area)
 
 
+def normalize_email_html(html: str) -> str:
+    """Homologa el espaciado del correo con la Vista Previa de la app.
+
+    Los clientes de correo (Gmail) aplican márgenes grandes por defecto a los
+    párrafos <p>, por lo que el correo recibido se ve con más espacio entre
+    líneas que la Vista Previa (que usa CSS compacto). Aquí inyectamos estilos
+    en línea compactos en cada <p> y envolvemos el cuerpo con la tipografía
+    base, replicando exactamente la clase .email-render del frontend.
+    """
+    import re
+    if not html or "<" not in html:
+        return html
+
+    def style_p(m):
+        attrs = m.group(1) or ""
+        if "margin" in attrs.lower():
+            return m.group(0)
+        if re.search(r'style\s*=\s*["\']', attrs, re.IGNORECASE):
+            new_attrs = re.sub(
+                r'(style\s*=\s*["\'])',
+                r'\1margin:0 0 10px 0;line-height:1.5;',
+                attrs, count=1, flags=re.IGNORECASE,
+            )
+            return f"<p{new_attrs}>"
+        return f'<p{attrs} style="margin:0 0 10px 0;line-height:1.5;">'
+
+    body = re.sub(r"<p([^>]*)>", style_p, html, flags=re.IGNORECASE)
+    return (
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+        'line-height:1.5;color:#1f2937;">' + body + "</div>"
+    )
+
+
 def _append_footer_to_html(html: str, footer_html: str) -> str:
     """Anexa el footer global al final del cuerpo HTML, manteniendo integridad visual."""
     if not footer_html:
@@ -215,6 +248,13 @@ async def send_email(
     # Filter empty emails
     to = [e for e in to if e and e.strip() and '@' in e]
     cc = [e for e in (cc or []) if e and e.strip() and '@' in e]
+
+    # Homologar el espaciado del cuerpo con la Vista Previa (márgenes compactos
+    # en <p>) antes de anexar el footer y enviar.
+    try:
+        html = normalize_email_html(html)
+    except Exception as e:
+        logger.warning(f"[Normalize] No se pudo normalizar el HTML del correo: {e}")
 
     # Anexar footer global institucional al final del HTML (si hay configurado)
     try:

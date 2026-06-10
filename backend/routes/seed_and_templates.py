@@ -802,26 +802,32 @@ async def get_email_templates(context: Optional[str] = None, authorization: Opti
 
     templates = await db.email_templates.find(query, {"_id": 0}).to_list(200)
 
+    # Lápidas: plantillas por defecto que el usuario eliminó (no reaparecen).
+    tombstoned = {
+        d["template_id"]
+        async for d in db.deleted_default_templates.find({}, {"_id": 0, "template_id": 1})
+    }
+
     # Para el módulo de Implementación (Plantillas de Proyectos), incluir las
     # plantillas de Proyecto por defecto (Texto Enriquecido) que aún no estén
     # persistidas, para que el dropdown del modal de notificaciones las liste.
     if context and context.upper() == "IMPLEMENTACION":
         existing_ids = {t["template_id"] for t in templates}
         for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
-            if template_id not in existing_ids:
+            if template_id not in existing_ids and template_id not in tombstoned:
                 templates.append(default_template)
 
     # Si no hay filtro de contexto, incluir plantillas predeterminadas que falten
     if not context:
         template_ids = [t["template_id"] for t in templates]
         for template_id, default_template in EMAIL_TEMPLATES_BY_SEDE.items():
-            if template_id not in template_ids:
+            if template_id not in template_ids and template_id not in tombstoned:
                 templates.append(default_template)
         for template_id, default_template in PROJECT_EMAIL_TEMPLATES.items():
-            if template_id not in template_ids:
+            if template_id not in template_ids and template_id not in tombstoned:
                 templates.append(default_template)
         for template_id, default_template in DEFAULT_EMAIL_TEMPLATES.items():
-            if template_id not in template_ids:
+            if template_id not in template_ids and template_id not in tombstoned:
                 sede_version_exists = any(t["template_id"].startswith(template_id + "_") for t in templates)
                 if not sede_version_exists:
                     templates.append(default_template)
@@ -864,6 +870,8 @@ async def create_email_template(template: EmailTemplate, authorization: Optional
     template_data["is_custom"] = True  # Marcar siempre las creadas vía POST como personalizadas
 
     await db.email_templates.insert_one(template_data)
+    # Si era una plantilla por defecto previamente eliminada, quitar la lápida.
+    await db.deleted_default_templates.delete_one({"template_id": template.template_id})
     
     return {"message": "Plantilla creada exitosamente", "template_id": template.template_id}
 
@@ -884,6 +892,7 @@ async def update_email_template(template_id: str, template: EmailTemplate, autho
         {"$set": template_data},
         upsert=True
     )
+    await db.deleted_default_templates.delete_one({"template_id": template_id})
     
     return {"message": "Plantilla actualizada exitosamente", "template_id": template_id}
 
@@ -892,10 +901,12 @@ async def reset_email_template(template_id: str, authorization: Optional[str] = 
     """Restablece una plantilla a su valor predeterminado"""
     await get_current_user(authorization)
     
-    # Buscar primero en plantillas por sede, luego en legacy
+    # Buscar primero en plantillas por sede, luego en Proyecto (Implementación), luego legacy
     default_template = None
     if template_id in EMAIL_TEMPLATES_BY_SEDE:
         default_template = EMAIL_TEMPLATES_BY_SEDE[template_id].copy()
+    elif template_id in PROJECT_EMAIL_TEMPLATES:
+        default_template = PROJECT_EMAIL_TEMPLATES[template_id].copy()
     elif template_id in DEFAULT_EMAIL_TEMPLATES:
         default_template = DEFAULT_EMAIL_TEMPLATES[template_id].copy()
     
@@ -909,18 +920,39 @@ async def reset_email_template(template_id: str, authorization: Optional[str] = 
         {"$set": default_template},
         upsert=True
     )
+    await db.deleted_default_templates.delete_one({"template_id": template_id})
     
     return {"message": "Plantilla restablecida a valores predeterminados", "template": default_template}
 
 
 @router.delete("/email-templates/{template_id}")
 async def delete_email_template(template_id: str, authorization: Optional[str] = Header(None)):
-    """Elimina una plantilla de correo"""
+    """Elimina una plantilla de correo.
+
+    Las plantillas predeterminadas (semilla) no existen en la BD: se listan desde
+    el código. Para poder 'eliminarlas' se registra una lápida (tombstone) en
+    `deleted_default_templates` para que `get_email_templates` deje de incluirlas.
+    """
     await get_current_user(authorization)
     result = await db.email_templates.delete_one({"template_id": template_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
-    return {"message": "Plantilla eliminada exitosamente", "template_id": template_id}
+    if result.deleted_count > 0:
+        return {"message": "Plantilla eliminada exitosamente", "template_id": template_id}
+
+    # No estaba en BD: ¿es una plantilla por defecto conocida?
+    is_default = (
+        template_id in PROJECT_EMAIL_TEMPLATES
+        or template_id in EMAIL_TEMPLATES_BY_SEDE
+        or template_id in DEFAULT_EMAIL_TEMPLATES
+    )
+    if is_default:
+        await db.deleted_default_templates.update_one(
+            {"template_id": template_id},
+            {"$set": {"template_id": template_id, "deleted_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+        return {"message": "Plantilla eliminada exitosamente", "template_id": template_id}
+
+    raise HTTPException(status_code=404, detail="Plantilla no encontrada")
 
 
 # Función auxiliar para renderizar plantillas con variables

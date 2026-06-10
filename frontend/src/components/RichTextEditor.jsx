@@ -460,6 +460,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
         [data-testid="${testid}"] .ProseMirror th { background: #2c3e50; color: #fff; text-align: left; font-weight: 600; }
         [data-testid="${testid}"] .ProseMirror .selectedCell:after { background: rgba(99,102,241,0.18); content: ""; position: absolute; inset: 0; pointer-events: none; }
         [data-testid="${testid}"] .ProseMirror table p { margin: 0; }
+        [data-testid="${testid}"] .ProseMirror p { margin: 0 0 10px 0; line-height: 1.5; }
       `}</style>
 
       {/* Editor */}
@@ -493,7 +494,7 @@ export const RichTextEditor = forwardRef(function RichTextEditor({
             </DialogHeader>
             <div className="border rounded-lg p-4 bg-white max-h-[60vh] overflow-y-auto">
               <div
-                className="prose prose-sm max-w-none"
+                className="email-render max-w-none"
                 dangerouslySetInnerHTML={{ __html: substituteTokens(editor.getHTML(), exampleValues) }}
                 data-testid={`${testid}-preview-body`}
               />

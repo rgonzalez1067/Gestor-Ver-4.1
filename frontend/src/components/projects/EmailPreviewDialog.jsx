@@ -100,7 +100,7 @@ export const EmailPreviewDialog = ({
                 onPaste={handleEditorPaste}
                 onDrop={handleEditorDrop}
                 onDragOver={e => e.preventDefault()}
-                className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto prose prose-sm max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
+                className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
                 dangerouslySetInnerHTML={{ __html: previewData.html }}
                 data-testid="preview-editable-content"
               />

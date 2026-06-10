@@ -95,3 +95,14 @@
 /* Hover sobre la fila => la papelera de esa fila se pone ROJA */
 .rte-actions .ProseMirror tr.rte-row-actionable:hover .rte-row-del { color: #ef4444; opacity: 1; }
 .rte-row-del:hover { color: #dc2626 !important; opacity: 1; transform: scale(1.18); }
+
+/* ===== Render homologado de correo (Vista Previa == correo real) =====
+   Los clientes de correo (Gmail) aplican márgenes grandes por defecto a <p>.
+   Esta clase replica en la app el MISMO espaciado compacto que se inyecta en
+   línea al enviar el correo (services/email_service.py → normalize_email_html). */
+.email-render { font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.5; color: #1f2937; }
+.email-render p { margin: 0 0 10px 0; line-height: 1.5; }
+.email-render p:last-child { margin-bottom: 0; }
+.email-render a { color: #2563eb; }
+.email-render table { border-collapse: collapse; }
+.email-render table p { margin: 0; }

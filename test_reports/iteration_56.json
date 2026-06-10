@@ -1,0 +1,71 @@
+{
+  "summary": "Frontend-only validation of (1) plantilla DELETE in /projects TemplatesAdminDialog and (2) Vista Previa using email-render class. ALL 4 features in the request PASS end-to-end. Default seed template 'project_notify_bank' AND custom template 'tpl_1780977753096' (Avance de Proyecto) were both successfully deleted via the trash button, returned HTTP 200, displayed toast 'Plantilla eliminada', disappeared from the list, and did NOT reappear after a hard refresh (tombstone persisted). Vista Previa opens via project-tpl-editor-preview-btn, the body has data-testid project-tpl-editor-preview-body and uses the 'email-render' class (no 'prose'). Computed styles confirm font-size:14px, line-height:21px (1.5), font-family Arial/Helvetica, and every <p> has margin '0px 0px 10px' — matching the new normalize_email_html spec so the on-screen preview is compact and uniform.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global app shell (pre-existing, unrelated to this change)",
+        "issues": [
+          "Persistent hydration console errors '<tr> cannot be a child of <span>' / '<span> cannot be a child of <tbody>' (carried from iterations 53–55, NOT regressed)."
+        ]
+      }
+    ]
+  },
+  "test_results_detail": {
+    "login_and_navigation": "PASS — admin login + /projects navigation OK",
+    "open_templates_dialog": {
+      "trigger_selector": "[data-testid='projects-templates-btn']",
+      "dialog_selector": "[data-testid='templates-dialog']",
+      "templates_listed_initial": 8,
+      "result": "PASS"
+    },
+    "delete_default_template": {
+      "template_id": "project_notify_bank",
+      "name": "Notificación de Proyecto — Banco",
+      "delete_endpoint": "DELETE /api/email-templates/project_notify_bank",
+      "http_status": 200,
+      "toast": "Plantilla eliminada",
+      "removed_from_list": true,
+      "persists_after_hard_refresh": true,
+      "result": "PASS"
+    },
+    "delete_custom_template": {
+      "template_id": "tpl_1780977753096",
+      "name": "Avance de Proyecto",
+      "delete_endpoint": "DELETE /api/email-templates/tpl_1780977753096",
+      "http_status": 200,
+      "toast": "Plantilla eliminada",
+      "removed_from_list": true,
+      "persists_after_hard_refresh": true,
+      "result": "PASS"
+    },
+    "preview_email_render": {
+      "preview_btn_testid": "project-tpl-editor-preview-btn",
+      "preview_body_testid": "project-tpl-editor-preview-body",
+      "container_class": "email-render max-w-none",
+      "has_email_render_class": true,
+      "has_prose_class": false,
+      "container_computed_style": { "fontSize": "14px", "lineHeight": "21px", "fontFamily": "Arial, Helvetica, sans-serif" },
+      "first_paragraph_computed_style": { "margin": "0px 0px 10px", "lineHeight": "21px", "fontSize": "14px" },
+      "paragraph_count": 166,
+      "result": "PASS — preview body uses email-render with the compact paragraph spacing (margin 0 0 10px, line-height 1.5)"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "delete_email_template fix (tombstone for default templates) works end-to-end via UI: default + custom deletions both return 200, list refresh excludes them, and the exclusion persists across full page reloads.",
+    "RichTextEditor preview body correctly migrated from 'prose prose-sm' to 'email-render'. Computed paragraph margin (0 0 10px) and container line-height (1.5) match the new normalize_email_html injection, so on-screen preview is now consistent with what Gmail will render (assuming send_email applies normalize_email_html).",
+    "NOTE (out of automated scope): the actual Gmail rendering cannot be verified without sending a real email; only the in-app preview was validated as required by the request."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "skipped (request was frontend-only)", "frontend": "100% (4/4 checks PASS)" },
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123 (admin) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "None directly created. However, the test DELETED two real templates: (a) the default seed 'project_notify_bank' (now tombstoned — can be restored via reset endpoint if needed) and (b) the custom 'tpl_1780977753096' Avance de Proyecto. Main agent may want to restore them in the preview env if they were needed for other tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Project templates dialog: open via [data-testid='projects-templates-btn'] → [data-testid='templates-dialog']. Each row exposes [data-testid='template-item-{id}'], [data-testid='edit-template-{id}'], [data-testid='delete-template-{id}']. The delete button triggers window.confirm — Playwright must register page.on('dialog', d.accept()). DELETE always returns 200 now (default templates included) thanks to the tombstone fallback. Preview button: [data-testid='project-tpl-editor-preview-btn']; preview body: [data-testid='project-tpl-editor-preview-body'] with class 'email-render'. Two templates were removed during testing: project_notify_bank (default) and tpl_1780977753096 (custom Avance de Proyecto). Remaining templates after this run: project_notify_client, c, asig_proyec_integ, tpl_1781119469284, new_integration_project, project_notify_bank_client.",
+  "rca of the issue": "N/A — the two reported bugs are FIXED. (1) Plantilla DELETE works for both default (project_notify_bank) and custom (tpl_*) templates via tombstone logic. (2) Vista Previa now uses .email-render giving compact paragraph spacing (margin 0 0 10px, line-height 1.5) matching the email normalize_email_html output."
+}
