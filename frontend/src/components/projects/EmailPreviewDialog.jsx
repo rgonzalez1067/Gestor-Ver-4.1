@@ -2,13 +2,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Edit3, Send, ImagePlus, ClipboardList } from 'lucide-react';
+import { ALL_TOKENS } from './projectConstants';
 
-const QUICK_VARS = [
-  '{Nombre_Cliente}', '{Nombre_Fantasia}', '{Contacto_Principal}', '{Datos_Contacto}', '{Nombre_Sucursal}',
-  '{Cantidad_Cajas}', '{Integrador}', '{Aplicativo_Integracion}', '{Nombre_Implementador}',
-  '{Correo_Implementador}', '{Telefono_Implementador}', '{Matriz_Bancos_Productos}', '{Lista_VTID}',
-  '{Modelo_Seriales_Equipos}', '{project_number}', '{ticket_number}', '{quote_number}',
-];
+// Variables de inserción rápida — HOMOLOGADO con el entorno de Cotizaciones.
+const QUICK_VARS = ALL_TOKENS.map(t => `{${t}}`);
 
 /**
  * Editor final del correo antes de enviar. Permite ajustar asunto y cuerpo HTML

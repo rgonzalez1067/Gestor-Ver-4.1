@@ -11,13 +11,30 @@ import { RichTextEditor, getExampleValue } from '../RichTextEditor';
 const VAR_GROUPS = [
   { cat: 'Cliente', icon: <Building2 size={14} className="text-blue-500" />, vars: [
     { token: 'Nombre_Cliente', desc: 'Razón social del cliente' },
+    { token: 'Nombre_Fantasia', desc: 'Nombre de fantasía del cliente' },
     { token: 'Rif_Cliente', desc: 'RIF del cliente' },
     { token: 'Contacto_Principal', desc: 'Nombre del contacto' },
     { token: 'Datos_Contacto', desc: 'Contacto + Tel + Email' },
     { token: 'Telefono_Contacto', desc: 'Teléfono del contacto' },
     { token: 'Email_Contacto', desc: 'Correo del contacto' },
+    { token: 'client_address', desc: 'Dirección del cliente' },
   ]},
-  { cat: 'Proyecto', icon: <FileText size={14} className="text-violet-500" />, vars: [
+  { cat: 'Cotización / Ventas', icon: <Sparkles size={14} className="text-violet-500" />, vars: [
+    { token: 'Cotizacion_Nro', desc: 'Número de cotización' },
+    { token: 'quote_number', desc: 'Número de cotización (alias)' },
+    { token: 'quote_type', desc: 'Tipo de cotización' },
+    { token: 'total_usd', desc: 'Total en USD' },
+    { token: 'Monto_Total', desc: 'Monto total USD' },
+    { token: 'invoice_number', desc: 'Número de factura' },
+    { token: 'approved_date', desc: 'Fecha de aprobación' },
+    { token: 'abreviaturas_medios_pago', desc: 'Medios de pago (abreviaturas /)' },
+    { token: 'Banco_Patrocinador', desc: 'Banco patrocinador' },
+    { token: 'company_name', desc: 'Nombre de la empresa' },
+    { token: 'sede_name', desc: 'Sede (PYME / CORP)' },
+    { token: 'Nombre_Ejecutivo', desc: 'Nombre del ejecutivo' },
+    { token: 'Email_Ejecutivo', desc: 'Correo del ejecutivo' },
+  ]},
+  { cat: 'Proyecto', icon: <FileText size={14} className="text-indigo-500" />, vars: [
     { token: 'Nro_Proyecto', desc: 'Número del proyecto' },
     { token: 'Ticket_Nro', desc: 'Número de ticket (se carga al desbloquear el proyecto)' },
     { token: 'Tipo_Proyecto', desc: 'Tipo de implementación' },
@@ -39,6 +56,19 @@ const VAR_GROUPS = [
     { token: 'Modelo_Seriales_Equipos', desc: 'Tabla de equipos' },
     { token: 'Lista_VTID', desc: 'Lista de VTIDs' },
     { token: 'Matriz_Bancos_Productos', desc: 'Matriz de bancos' },
+  ]},
+  { cat: 'Despacho / Equipos / Reparación', icon: <ClipboardList size={14} className="text-rose-500" />, vars: [
+    { token: 'Modelo_Equipo', desc: 'Modelo de POS / PINPAD' },
+    { token: 'Cantidad', desc: 'Cantidad de equipos' },
+    { token: 'Modelo_Pinpad', desc: 'Modelo de pinpad (alias)' },
+    { token: 'items_table', desc: 'Tabla HTML de productos' },
+    { token: 'services_table', desc: 'Tabla de servicios' },
+    { token: 'Direccion_Entrega', desc: 'Dirección de entrega' },
+    { token: 'Lista_Seriales', desc: 'Lista de seriales preasignados' },
+    { token: 'lista_modelos_seriales', desc: 'Lista de modelos y seriales (HTML)' },
+    { token: 'lista_equipos_seriales', desc: 'Lista de equipos y seriales (HTML)' },
+    { token: 'modelos_resumen', desc: 'Resumen de modelos' },
+    { token: 'almacen_custodia', desc: 'Almacén de custodia' },
   ]},
 ];
 

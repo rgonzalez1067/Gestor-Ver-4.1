@@ -11,9 +11,19 @@ export const PHASE_COLORS = {
 };
 
 // Variables que pueden insertarse en plantillas de notificación de proyectos.
+// HOMOLOGADO con el entorno de Cotizaciones: incluye todas las variables de
+// cotización (ventas, ejecutivo, despacho/equipos) además de las de proyecto.
 export const ALL_TOKENS = [
-  'Nombre_Cliente', 'Rif_Cliente', 'Contacto_Principal', 'Datos_Contacto', 'Telefono_Contacto', 'Email_Contacto',
-  'Nro_Proyecto', 'Ticket_Nro', 'Tipo_Proyecto', 'Fecha_Asignacion', 'Nombre_Sucursal', 'Cantidad_Cajas',
-  'Servidor_Instalacion', 'Nombre_Implementador', 'Correo_Implementador', 'Integrador', 'Aplicativo_Integracion',
-  'Modelo_Seriales_POS', 'Modelo_Seriales_Equipos', 'Lista_VTID', 'Matriz_Bancos_Productos', 'Matriz_Sucursales',
+  // Cliente
+  'Nombre_Cliente', 'Nombre_Fantasia', 'Rif_Cliente', 'Contacto_Principal', 'Datos_Contacto', 'Telefono_Contacto', 'Email_Contacto', 'client_address',
+  // Cotización / Ventas
+  'Cotizacion_Nro', 'quote_number', 'quote_type', 'total_usd', 'Monto_Total', 'invoice_number', 'approved_date', 'abreviaturas_medios_pago', 'Banco_Patrocinador', 'company_name', 'sede_name', 'Nombre_Ejecutivo', 'Email_Ejecutivo',
+  // Proyecto
+  'Nro_Proyecto', 'project_number', 'Ticket_Nro', 'ticket_number', 'Tipo_Proyecto', 'Patrocinador', 'Fecha_Asignacion', 'Nombre_Sucursal', 'Cantidad_Cajas', 'Matriz_Sucursales',
+  // Infraestructura
+  'Servidor_Instalacion', 'Nombre_Implementador', 'Correo_Implementador', 'Telefono_Implementador', 'Integrador', 'Aplicativo_Integracion',
+  // Hardware
+  'Modelo_Seriales_POS', 'Modelo_Seriales_Equipos', 'Lista_VTID', 'Matriz_Bancos_Productos',
+  // Despacho / Equipos / Reparación
+  'Modelo_Equipo', 'Cantidad', 'Modelo_Pinpad', 'items_table', 'services_table', 'Direccion_Entrega', 'Lista_Seriales', 'lista_modelos_seriales', 'lista_equipos_seriales', 'modelos_resumen', 'almacen_custodia',
 ];
