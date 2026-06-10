@@ -797,6 +797,9 @@ export const EmailTemplatesEditor = () => {
     const variables = getTemplateVariables(editingTemplate?.template_id) || [];
     
     const exampleValues = {
+      // Tablas/HTML reutilizan la MISMA fuente que el mini-preview por hover
+      // (evita duplicar y mantener sincronizadas dos copias del HTML de ejemplo).
+      ...VARIABLE_PREVIEW_HTML,
       quote_number: 'COT-2024-001',
       client_name: 'Empresa Ejemplo C.A.',
       client_rif: 'J-12345678-9',
@@ -821,9 +824,7 @@ export const EmailTemplatesEditor = () => {
       Nombre_Implementador: 'Carlos Rodríguez',
       Correo_Implementador: 'crodriguez@meganexus.com',
       Telefono_Implementador: '+58 412 555-0123',
-      Matriz_Bancos_Productos: '<table style="border-collapse:collapse;width:100%;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:8px;border:1px solid #ddd;">Banco</th><th style="padding:8px;border:1px solid #ddd;">Producto / Servicio</th><th style="padding:8px;border:1px solid #ddd;text-align:center;">Cantidad</th></tr></thead><tbody><tr><td style="padding:8px;border:1px solid #ddd;">Banco Mercantil</td><td style="padding:8px;border:1px solid #ddd;">Tarjeta de Crédito/Débito</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr><tr style="background:#f8f9fa;"><td style="padding:8px;border:1px solid #ddd;">Banesco</td><td style="padding:8px;border:1px solid #ddd;">C2P o Débito Inmediato</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">1</td></tr></tbody></table>',
       project_number: 'PRY-2026-03-001-PRI',
-      Matriz_Sucursales: '<table style="border-collapse:collapse;width:100%;font-size:13px;"><thead><tr style="background:#2c3e50;color:white;"><th style="padding:8px;border:1px solid #ddd;">Sucursal</th><th style="padding:8px;border:1px solid #ddd;text-align:center;">Cantidad de Cajas</th></tr></thead><tbody><tr><td style="padding:8px;border:1px solid #ddd;">Sucursal Norte</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">5</td></tr><tr style="background:#f8f9fa;"><td style="padding:8px;border:1px solid #ddd;">Sucursal Sur</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">3</td></tr><tr style="background:#eef2f7;font-weight:bold;"><td style="padding:8px;border:1px solid #ddd;">Total</td><td style="padding:8px;border:1px solid #ddd;text-align:center;">8</td></tr></tbody></table>',
       Patrocinador: 'Banco Mercantil - Megasoft',
       ticket_number: '56785',
       bank_name: 'Banco Mercantil',
@@ -831,8 +832,6 @@ export const EmailTemplatesEditor = () => {
       notification_level: 'Primera Comunicación',
       notification_subject: 'Notificación de Implementación',
       assigned_to: 'Carlos Rodríguez',
-      items_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Producto</th><th style="padding:8px;border:1px solid #ddd">Cantidad</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Terminal POS</td><td style="padding:8px;border:1px solid #ddd;text-align:center">2</td></tr></table>',
-      services_table: '<table style="border-collapse:collapse;width:100%"><tr style="background:#f3f4f6"><th style="padding:8px;border:1px solid #ddd">Servicio</th><th style="padding:8px;border:1px solid #ddd">Categoría</th></tr><tr><td style="padding:8px;border:1px solid #ddd">Setup Inicial</td><td style="padding:8px;border:1px solid #ddd;text-align:center">setup</td></tr></table>',
       nro_cotizacion: 'COT-2024-001',
       nombre_cliente: 'Empresa Ejemplo C.A.',
       contacto_cliente: 'Juan Pérez',

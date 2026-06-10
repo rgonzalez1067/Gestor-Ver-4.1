@@ -1,5 +1,17 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Mini-preview por hover de variables tipo tabla en el editor de plantillas
+
+Mejora solicitada por el usuario. En el editor de Plantillas de Correo (`EmailTemplatesEditor.jsx`, dentro de `/settings`), al pasar el mouse sobre los chips de variables de tipo tabla/HTML aparece una mini-vista previa de la tabla con datos de ejemplo.
+
+- Nueva constante a nivel de módulo `VARIABLE_PREVIEW_HTML` con el HTML de ejemplo de: `Matriz_Bancos_Productos`, `Matriz_Sucursales`, `items_table`, `services_table`.
+- Nuevo componente `MiniPreview` que envuelve el chip con `HoverCard` (shadcn `./ui/hover-card`) solo cuando la variable tiene preview; el resto se renderiza igual. Aplicado en el panel categorizado (`master-var-*`) y en "Variables de esta plantilla" (`spec-var-*`). HoverCard expone `data-testid=var-preview-<key>`.
+- El clic del chip (insertar/copiar variable) sigue funcionando (HoverCardTrigger asChild no rompe el onClick).
+- Dedupe: `openPreview` (vista previa completa) ahora hace spread de `VARIABLE_PREVIEW_HTML` en `exampleValues` en lugar de mantener copias separadas del HTML (atiende comentario de code review sobre drift).
+- Probado por testing_agent (iteration_52): 6/6 aserciones PASS (preview de ambas matrices con tabla y datos, variables no-tabla sin preview, clic sigue insertando, sin regresiones).
+- Nota: persisten warnings de hydration preexistentes en `/settings` (`<span>` dentro de `<tbody>` / `<tr>` dentro de `<span>`) NO causados por este cambio — quedan en backlog.
+
+
 ## 2026-06-10 — Variables dinámicas de Cotización en plantillas (Matriz_Bancos_Productos, Matriz_Sucursales, Patrocinador)
 
 El usuario reportó que en las plantillas de Cotizaciones no se cargaba `{Matriz_Bancos_Productos}` y pidió que TODAS las variables que dependen de la cotización estén disponibles, en particular las nuevas `{Patrocinador}` y `{Matriz_Sucursales}`.
