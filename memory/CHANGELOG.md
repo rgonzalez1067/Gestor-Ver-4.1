@@ -9,6 +9,10 @@ Requerimiento del usuario (Setup del asistente de Cotización). Antes el Item 1 
 - Alcance: solo el Item 1 del Setup. El item recurrente equivalente ("Derecho de uso de plataforma MServer por PDV / Banco") permanece de solo lectura (no estaba en el requerimiento).
 - Probado por testing_agent (iteration_51): 7/7 aserciones PASS (editable, herencia default, propagación mientras no hay override, override manual con indicador ámbar, recálculo de Total, header no pisa el override, reescribir valor del header re-hereda).
 
+### Extensión (mismo día) — Recurrente también editable
+A solicitud del usuario, se aplicó el MISMO patrón editable al item recurrente "Derecho de uso de plataforma MServer por PDV / Banco" (rama `inheritBancos` de Recurrentes Básicos, `QuoteWizardDialog.jsx` ~L1644, `data-testid=recurring-basic-bancos-inherit-<index>`) y se añadió `&& !item.bancosManual` a la propagación de Recurrentes Básicos en `Quotes.jsx`. Ahora Setup y Recurrente quedan consistentes: ambos heredan por defecto del header y permiten override manual. Mismo patrón ya validado 7/7 para el Setup.
+
+
 
 ## 2026-06-10 — Destinatarios Dinámicos por Sesión + Acción "Respuesta del Implementador"
 
