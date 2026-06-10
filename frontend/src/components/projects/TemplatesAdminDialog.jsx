@@ -1,10 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ClipboardList, FileText, Sparkles } from 'lucide-react';
+import { ClipboardList, FileText, Sparkles, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { RichTextEditor, getExampleValue } from '../RichTextEditor';
 import { VARIABLE_CATEGORIES, VARIABLE_ICON_MAP } from '../email/templateVariables';
@@ -22,10 +22,32 @@ export const TemplatesAdminDialog = ({
   handleSaveTemplate, handleDeleteTemplate,
 }) => {
   const editorRef = useRef(null);
+  // Campo activo (donde se insertará la variable): 'subject' o 'body'.
+  const [activeField, setActiveField] = useState('body');
+  // Búsqueda dentro del panel de variables.
+  const [varSearch, setVarSearch] = useState('');
 
   const insertVar = (token) => {
     const tag = `{${token}}`;
-    // Inserta el token EN LA POSICIÓN DEL CURSOR del editor TipTap.
+    // Inserta en el ASUNTO si el cursor está allí.
+    if (activeField === 'subject') {
+      const el = document.getElementById('project-tpl-subject');
+      if (el) {
+        const start = el.selectionStart ?? (el.value?.length || 0);
+        const end = el.selectionEnd ?? (el.value?.length || 0);
+        const text = templateForm.subject || '';
+        const newText = text.substring(0, start) + tag + text.substring(end);
+        setTemplateForm(p => ({ ...p, subject: newText }));
+        setTimeout(() => {
+          el.focus();
+          const pos = start + tag.length;
+          el.setSelectionRange(pos, pos);
+        }, 50);
+        toast.success(`Insertado: ${tag}`);
+        return;
+      }
+    }
+    // Por defecto: inserta EN LA POSICIÓN DEL CURSOR del editor TipTap (cuerpo).
     if (editorRef.current?.insertText) {
       editorRef.current.insertText(tag);
       toast.success(`Insertado: ${tag}`);
@@ -84,11 +106,12 @@ export const TemplatesAdminDialog = ({
               </div>
               <div>
                 <Label className="text-sm">Asunto <span className="text-red-500">*</span></Label>
-                <Input placeholder="Asunto predeterminado del correo" value={templateForm.subject}
+                <Input id="project-tpl-subject" placeholder="Asunto predeterminado del correo" value={templateForm.subject}
                   onChange={e => setTemplateForm(p => ({ ...p, subject: e.target.value }))}
+                  onFocus={() => setActiveField('subject')}
                   className="h-9 text-sm mt-1" data-testid="template-subject" />
               </div>
-              <div>
+              <div onFocusCapture={() => setActiveField('body')}>
                 <Label className="text-sm">Cuerpo del mensaje</Label>
                 <RichTextEditor
                   ref={editorRef}
@@ -118,11 +141,46 @@ export const TemplatesAdminDialog = ({
 
           {/* Diccionario de variables */}
           <div className="col-span-3 border-l border-slate-200 pl-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Variables Disponibles</p>
-            <p className="text-[10px] text-slate-400 mb-3">Haz clic en una variable para insertarla en el editor. Pasa el cursor sobre ella para ver una vista previa del dato.</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Variables Disponibles</p>
+            <p className="text-[10px] text-slate-400 mb-2">
+              Clic en una variable para insertarla donde tengas el cursor (Asunto o Cuerpo). Pasa el cursor sobre ella para ver una vista previa.
+              <span className="block mt-0.5 font-semibold text-slate-500">
+                Insertando en: {activeField === 'subject' ? 'Asunto' : 'Cuerpo'}
+              </span>
+            </p>
+            <div className="relative mb-3">
+              <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={varSearch}
+                onChange={(e) => setVarSearch(e.target.value)}
+                placeholder="Buscar variable..."
+                className="h-8 pl-7 text-xs"
+                data-testid="var-search"
+              />
+            </div>
             <TooltipProvider delayDuration={150}>
-              <div className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
-                {VARIABLE_CATEGORIES.map(group => {
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                {(() => {
+                  const q = varSearch.trim().toLowerCase();
+                  const filtered = VARIABLE_CATEGORIES
+                    .map(group => ({
+                      ...group,
+                      vars: q
+                        ? group.vars.filter(v =>
+                            v.key.toLowerCase().includes(q) ||
+                            (v.label || '').toLowerCase().includes(q) ||
+                            group.cat.toLowerCase().includes(q))
+                        : group.vars,
+                    }))
+                    .filter(group => group.vars.length > 0);
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 text-center py-4" data-testid="var-no-results">
+                        No se encontraron variables para "{varSearch}".
+                      </p>
+                    );
+                  }
+                  return filtered.map(group => {
                   const IconComp = VARIABLE_ICON_MAP[group.icon] || FileText;
                   return (
                   <div key={group.cat}>
@@ -177,7 +235,8 @@ export const TemplatesAdminDialog = ({
                     </div>
                   </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             </TooltipProvider>
           </div>

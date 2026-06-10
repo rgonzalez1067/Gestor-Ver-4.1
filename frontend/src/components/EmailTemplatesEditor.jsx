@@ -6,7 +6,7 @@ import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card';
-import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles, ChevronDown } from 'lucide-react';
+import { Mail, FileText, Warehouse, Settings2, Edit, RotateCcw, Eye, Save, X, AlertCircle, CheckCircle, MapPin, Building2, CreditCard, Users, Server, Copy, Package, Box, Plus, Trash2, Sparkles, ChevronDown, Search } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import { VARIABLE_CATEGORIES, VARIABLE_ICON_MAP as ICON_MAP, VARIABLE_PREVIEW_HTML } from './email/templateVariables';
@@ -569,6 +569,10 @@ export const EmailTemplatesEditor = () => {
     subject: '',
     body_html: ''
   });
+  // Campo activo (donde se insertará la variable): 'subject' o 'body'.
+  const [activeField, setActiveField] = useState('body');
+  // Búsqueda dentro del panel de variables.
+  const [varSearch, setVarSearch] = useState('');
 
   useEffect(() => {
     fetchTemplates();
@@ -1173,6 +1177,7 @@ export const EmailTemplatesEditor = () => {
                   id="template-subject"
                   value={formData.subject}
                   onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+                  onFocus={() => setActiveField('subject')}
                   placeholder="Asunto del correo..."
                   className="mt-1"
                   data-testid="template-subject-input"
@@ -1199,6 +1204,7 @@ export const EmailTemplatesEditor = () => {
                   id="template-body"
                   value={formData.body_html}
                   onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
+                  onFocus={() => setActiveField('body')}
                   placeholder="Contenido HTML del correo..."
                   rows={18}
                   className="font-mono text-sm"
@@ -1239,11 +1245,46 @@ export const EmailTemplatesEditor = () => {
             {/* Col 3: Panel Diccionario de Variables (Sidebar) */}
             <div className="col-span-1 border-l border-slate-200 pl-4" data-testid="master-variables-sidebar">
               <p className="text-xs font-semibold text-slate-600 uppercase mb-1">Panel de Variables</p>
-              <p className="text-[10px] text-slate-400 mb-3">Clic en una variable para copiarla e insertarla en el cuerpo.</p>
+              <p className="text-[10px] text-slate-400 mb-2">
+                Clic en una variable para insertarla donde tengas el cursor (Asunto o Cuerpo).
+                <span className="block mt-0.5 font-semibold text-slate-500">
+                  Insertando en: {activeField === 'subject' ? 'Asunto' : 'Cuerpo'}
+                </span>
+              </p>
+              <div className="relative mb-3">
+                <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={varSearch}
+                  onChange={(e) => setVarSearch(e.target.value)}
+                  placeholder="Buscar variable..."
+                  className="h-8 pl-7 text-xs"
+                  data-testid="master-var-search"
+                />
+              </div>
               <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
-                {VARIABLE_CATEGORIES.map(group => {
-                  const IconComp = ICON_MAP[group.icon] || FileText;
-                  return (
+                {(() => {
+                  const q = varSearch.trim().toLowerCase();
+                  const filtered = VARIABLE_CATEGORIES
+                    .map(group => ({
+                      ...group,
+                      vars: q
+                        ? group.vars.filter(v =>
+                            v.key.toLowerCase().includes(q) ||
+                            (v.label || '').toLowerCase().includes(q) ||
+                            group.cat.toLowerCase().includes(q))
+                        : group.vars,
+                    }))
+                    .filter(group => group.vars.length > 0);
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 text-center py-4" data-testid="master-var-no-results">
+                        No se encontraron variables para "{varSearch}".
+                      </p>
+                    );
+                  }
+                  return filtered.map(group => {
+                    const IconComp = ICON_MAP[group.icon] || FileText;
+                    return (
                     <div key={group.cat}>
                       <div className="flex items-center gap-1.5 mb-2">
                         <IconComp size={14} className={group.iconColor} />
@@ -1261,7 +1302,7 @@ export const EmailTemplatesEditor = () => {
                             onClick={() => {
                               const tag = `{${v.key}}`;
                               try { navigator.clipboard?.writeText?.(tag).then(() => toast.success(`Copiado: ${tag}`), () => {}); } catch(e) { /* fallback */ }
-                              insertVariable(v.key, 'body');
+                              insertVariable(v.key, activeField);
                             }}
                           >
                             <span>{`{${v.key}}`}</span>
@@ -1271,8 +1312,9 @@ export const EmailTemplatesEditor = () => {
                         ))}
                       </div>
                     </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
 
               {/* Variables específicas de la plantilla actual */}
@@ -1288,7 +1330,7 @@ export const EmailTemplatesEditor = () => {
                         className="px-1.5 py-0.5 text-[10px] font-mono rounded
                           bg-[#EBF8FF] text-[#2C5282] border border-[#BEE3F8]
                           hover:bg-[#BEE3F8] hover:border-[#90CDF4] cursor-pointer transition-all"
-                        onClick={() => insertVariable(v.key, 'body')}
+                        onClick={() => insertVariable(v.key, activeField)}
                       >
                         {`{${v.key}}`}
                       </button>

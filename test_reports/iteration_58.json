@@ -1,0 +1,52 @@
+{
+  "summary": "Frontend-only testing of Iter58 features: (1) variable search input added to BOTH email template editors and (2) cursor-aware variable insertion (Subject vs Body). Both editors tested end-to-end against the public preview URL. All acceptance criteria PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global (login/dashboard)", "issues": ["Hydration warnings in console: '<span> cannot contain <tbody>' and '<tr> cannot be a child of <span>'. Not blocking and not related to Iter58, but should be cleaned up by main agent in a follow-up."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailTemplatesEditor.jsx: insertVariable() relies on document.getElementById('template-subject'/'template-body') and on selectionStart of the underlying DOM nodes. With shadcn Input/Textarea this works because they forward refs, but it would be safer to use refs. Acceptable in current scope.",
+    "TemplatesAdminDialog.jsx: onFocusCapture sets activeField='body' for the whole wrapper div around the RichTextEditor; the indicator switches correctly. insertVar() uses editorRef.insertText() for TipTap which respects cursor position. Verified working.",
+    "Both panels share VARIABLE_CATEGORIES from /components/email/templateVariables.js, so parity (67 vars / 6 groups) is structurally guaranteed. Confirmed at runtime: 67 unique chips in BOTH editors when search is empty.",
+    "Existing console hydration error (<tr> inside <span>, <span> as <tbody> child) is unrelated to Iter58 but should be addressed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "None. No test data persisted (no Save clicked).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter58 validated end-to-end through the public preview URL. Routes used: /settings (then click tab 'Plantillas de Correo'), expand data-testid='tpl-section-toggle-sede-PYME', click first edit-template button -> opens master-template-edit-dialog. For Projects editor: /projects -> data-testid='projects-templates-btn' -> templates-dialog. Subject input ID 'project-tpl-subject' for the Projects editor; TipTap body has data-testid='project-tpl-editor-content'.",
+  "test_results_detail": {
+    "settings_editor": {
+      "master-var-search exists": true,
+      "initial unique chips": 67,
+      "filter 'banco' -> chips": 4,
+      "filter 'banco' matches": ["Banco_Patrocinador", "Matriz_Bancos_Productos", "Patrocinador", "nombre_banco"],
+      "clear search restores": "67 chips",
+      "master-var-no-results visible for unknown query": true,
+      "indicator 'Insertando en: Asunto' when subject focused": true,
+      "click master-var-Nombre_Cliente while subject focused": "INSERTED IN SUBJECT, BODY UNCHANGED (value: '{Nombre_Cliente}Cotización #{quote_number} - ...')",
+      "indicator 'Insertando en: Cuerpo' when body focused": true,
+      "click master-var-Nombre_Ejecutivo while body focused": "INSERTED IN BODY, SUBJECT UNCHANGED"
+    },
+    "projects_editor": {
+      "projects-templates-btn opens templates-dialog": true,
+      "var-search exists": true,
+      "initial unique chips": 67,
+      "filter 'banco' -> chips": 4,
+      "var-no-results visible for unknown query": true,
+      "indicator 'Insertando en: Asunto' when project-tpl-subject focused": true,
+      "click var-token-Nombre_Cliente while subject focused": "INSERTED IN SUBJECT (final value 'Asunto base {Nombre_Cliente}')",
+      "indicator 'Insertando en: Cuerpo' when TipTap focused": true,
+      "click var-token-Nombre_Ejecutivo while body focused": "INSERTED IN TIPTAP BODY (<p>{Nombre_Ejecutivo}</p>), SUBJECT UNCHANGED"
+    },
+    "parity_regression": "PASS - 67 unique variables in BOTH editors when search is empty; search filter does not break the dataset (clear restores full set)."
+  }
+}
