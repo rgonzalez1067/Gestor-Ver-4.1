@@ -15,6 +15,7 @@ import { AssetLedgerReport } from './pages/AssetLedgerReport';
 import InvoicedExitsReport from './pages/InvoicedExitsReport';
 import { ClientTemplatesConfig } from './pages/ClientTemplatesConfig';
 import { EmailFooterConfig } from './pages/EmailFooterConfig';
+import { EmailSendersConfig } from './pages/EmailSendersConfig';
 import { CommercialCategories } from './pages/CommercialCategories';
 import { NotificationConfig } from './pages/NotificationConfig';
 import ActionNotificationsConfig from './pages/ActionNotificationsConfig';
@@ -197,6 +198,11 @@ function AppRouter() {
       <Route path="/settings/email-footer" element={
         <ProtectedRoute>
           <EmailFooterConfig />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings/email-senders" element={
+        <ProtectedRoute>
+          <EmailSendersConfig />
         </ProtectedRoute>
       } />
       <Route path="/commercial-categories" element={

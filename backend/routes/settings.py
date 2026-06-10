@@ -203,6 +203,107 @@ async def preview_email_footer(
     await get_current_user(authorization)
     return {"html": _resolve_footer_variables(payload.body_html or "")}
 
+
+# ==================== REMITENTES DE CORREO POR ÁREA (multi-sender) ====================
+
+ALLOWED_SENDER_DOMAIN = SENDER_EMAIL.split("@")[-1] if "@" in SENDER_EMAIL else ""
+
+# Áreas donde el remitente se fija automáticamente (Proyectos e Integradores).
+EMAIL_SENDER_AREAS = [
+    {"key": "proyectos", "label": "Proyectos (notificaciones a Clientes/Bancos y Otras Notificaciones)"},
+    {"key": "integradores", "label": "Integradores (comunicaciones a integradores)"},
+]
+
+
+class SenderItem(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    email: str
+    active: bool = True
+
+
+class EmailSendersPayload(BaseModel):
+    senders: List[SenderItem] = []
+    assignments: dict = {}
+
+
+@router.get("/config/email-senders")
+async def get_email_senders(authorization: Optional[str] = Header(None)):
+    """Lista de remitentes disponibles + asignación por área. Default = SENDER_EMAIL."""
+    await get_current_user(authorization)
+    doc = await db.config.find_one({"type": "email_senders"}, {"_id": 0}) or {}
+    return {
+        "senders": doc.get("senders", []),
+        "assignments": doc.get("assignments", {}),
+        "default_sender": SENDER_EMAIL,
+        "allowed_domain": ALLOWED_SENDER_DOMAIN,
+        "areas": EMAIL_SENDER_AREAS,
+        "updated_at": doc.get("updated_at"),
+        "updated_by": doc.get("updated_by"),
+    }
+
+
+@router.put("/config/email-senders")
+async def update_email_senders(payload: EmailSendersPayload, authorization: Optional[str] = Header(None)):
+    """Guarda los remitentes y su asignación por área. Solo administradores.
+    Restricción: todos los correos deben pertenecer al dominio institucional
+    (mismo dominio que SENDER_EMAIL) para evitar rechazo por SPF/anti-spoofing."""
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden configurar los remitentes")
+
+    cleaned = []
+    seen = set()
+    for s in payload.senders:
+        email = (s.email or "").strip().lower()
+        label = (s.label or "").strip()
+        if not email or "@" not in email:
+            raise HTTPException(status_code=400, detail=f"Correo inválido: '{s.email}'")
+        if ALLOWED_SENDER_DOMAIN and not email.endswith("@" + ALLOWED_SENDER_DOMAIN):
+            raise HTTPException(status_code=400, detail=f"Solo se permiten correos del dominio @{ALLOWED_SENDER_DOMAIN}")
+        if email in seen:
+            continue
+        seen.add(email)
+        cleaned.append({
+            "id": s.id or f"snd_{uuid.uuid4().hex[:8]}",
+            "label": label or email,
+            "email": email,
+            "active": bool(s.active),
+        })
+
+    valid_emails = {c["email"] for c in cleaned if c["active"]}
+    assignments = {}
+    for area in EMAIL_SENDER_AREAS:
+        k = area["key"]
+        v = ((payload.assignments or {}).get(k) or "").strip().lower()
+        if v and v in valid_emails:
+            assignments[k] = v
+
+    user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get("email", "")
+    update_doc = {
+        "type": "email_senders",
+        "senders": cleaned,
+        "assignments": assignments,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": user_name,
+    }
+    await db.config.update_one({"type": "email_senders"}, {"$set": update_doc}, upsert=True)
+
+    try:
+        from services.email_service import invalidate_senders_cache
+        invalidate_senders_cache()
+    except Exception:
+        pass
+
+    return {
+        "message": "Remitentes actualizados",
+        "senders": cleaned,
+        "assignments": assignments,
+        "updated_at": update_doc["updated_at"],
+        "updated_by": update_doc["updated_by"],
+    }
+
+
 # Endpoint para obtener plantillas de documentos por sede
 @router.get("/config/document-templates")
 async def get_document_templates(authorization: Optional[str] = Header(None)):

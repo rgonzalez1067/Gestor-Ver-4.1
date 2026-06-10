@@ -353,7 +353,7 @@ async def assign_integrator_manager(integrator_id: str, body: dict, authorizatio
     )
     
     # Notificación por email al implementador asignado
-    from services.email_service import send_email
+    from services.email_service import send_email, resolve_sender_for_area
     assigner_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip() or current_user.get('email', '')
     subject = f"Nuevo proyecto asignado: {integrator.get('name', '')} — {integrator.get('app_name', '')}"
     html = f"""
@@ -396,6 +396,7 @@ async def assign_integrator_manager(integrator_id: str, body: dict, authorizatio
         subject=subject,
         html=html,
         action="integrator_assignment",
+        sender=await resolve_sender_for_area("integradores"),
     )
     
     updated = await db.integrators.find_one({"integrator_id": integrator_id}, {"_id": 0})
@@ -1387,14 +1388,15 @@ async def notify_new_integration_project(
         cc_list = [e.strip() for e in x_additional_recipients.split(",") if e.strip() and "@" in e.strip()]
     
     try:
-        from services.email_service import send_email
+        from services.email_service import send_email, resolve_sender_for_area
         all_recipients = recipients + cc_list
         await send_email(
             to=all_recipients,
             subject=subject,
             html=body,
             action="new_integration_project",
-            quote_id=integrator_id
+            quote_id=integrator_id,
+            sender=await resolve_sender_for_area("integradores"),
         )
         return {"message": f"Notificacion enviada a {impl_manager_email}" + (f" y {len(cc_list)} destinatario(s) adicional(es)" if cc_list else ""), "sent_to": all_recipients}
     except Exception as e:

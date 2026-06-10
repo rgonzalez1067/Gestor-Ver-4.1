@@ -13,7 +13,7 @@ import re
 
 from config import db, get_current_user
 from models import PROJECT_STATUSES
-from services.email_service import send_email
+from services.email_service import send_email, resolve_sender_for_area
 from services.assignment_notifications import notify_project_assigned
 from services.project_template_vars import resolve_project_template_vars
 from services.object_storage import init_storage, put_object, get_object
@@ -960,6 +960,7 @@ async def _send_sequential_notification(project_id: str, target: str, bank_name:
         quote_id=project.get("quote_id"), quote_number=project.get("quote_number"),
         cc=additional_recipients,
         attachments=email_attachments,
+        sender=await resolve_sender_for_area("proyectos"),
     )
 
     # CC list for logging
@@ -1830,6 +1831,7 @@ async def send_adhoc_email(
         action="adhoc_project_email",
         quote_id=project.get("quote_id"),
         quote_number=project.get("quote_number"),
+        sender=await resolve_sender_for_area("proyectos"),
     )
 
     # Auto-registrar en bitácora con contenido completo

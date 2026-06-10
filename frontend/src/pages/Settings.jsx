@@ -608,6 +608,46 @@ export const Settings = () => {
             </div>
           </div>
 
+          {/* Remitentes de Correo (Admin) — multi-sender por área */}
+          {(() => {
+            let isAdminUser = false;
+            try {
+              const u = JSON.parse(localStorage.getItem('user') || '{}');
+              isAdminUser = u?.role === 'admin' || u?.is_admin === true;
+            } catch { /* noop */ }
+            if (!isAdminUser) return null;
+            return (
+            <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="email-senders-card">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Mail size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900 font-manrope">
+                      Remitentes de Correo
+                    </h2>
+                    <p className="text-sm text-slate-600 mt-1 max-w-2xl">
+                      Administra varias direcciones remitentes del dominio institucional y asígnalas
+                      automáticamente por área. Los correos de <strong>Proyectos</strong> e
+                      <strong> Integradores</strong> saldrán desde la dirección que definas aquí.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate('/settings/email-senders')}
+                  variant="outline"
+                  className="flex-shrink-0"
+                  data-testid="open-email-senders-btn"
+                >
+                  Configurar
+                  <ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            </div>
+            );
+          })()}
+
           {/* Notificaciones Push Section */}
           <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6" data-testid="notifications-config-card">
             <div className="flex items-start justify-between gap-4">

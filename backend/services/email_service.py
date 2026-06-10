@@ -70,6 +70,53 @@ async def _get_global_footer_html() -> str:
     return body
 
 
+# ==================== REMITENTES POR ÁREA (multi-sender) ====================
+
+_SENDERS_CACHE = {"doc": None, "fetched_at": 0.0}
+_SENDERS_TTL_SECONDS = 60
+
+
+def invalidate_senders_cache() -> None:
+    """Limpia el caché en memoria de la config de remitentes (al guardar)."""
+    _SENDERS_CACHE["doc"] = None
+    _SENDERS_CACHE["fetched_at"] = 0.0
+
+
+async def _get_email_senders_config() -> dict:
+    """Lee la config de remitentes (db.config type=email_senders) con caché ~60s."""
+    now = time.time()
+    cached = _SENDERS_CACHE["doc"]
+    if cached is not None and (now - _SENDERS_CACHE["fetched_at"]) < _SENDERS_TTL_SECONDS:
+        return cached
+    try:
+        doc = await db.config.find_one({"type": "email_senders"}, {"_id": 0}) or {}
+    except Exception as e:
+        logger.warning(f"[Senders] Error leyendo remitentes: {e}")
+        doc = {}
+    _SENDERS_CACHE["doc"] = doc
+    _SENDERS_CACHE["fetched_at"] = now
+    return doc
+
+
+async def resolve_sender_for_area(area: str) -> str:
+    """Devuelve el correo remitente configurado para un área (p.ej. 'proyectos',
+    'integradores'). Si no hay asignación válida/activa, retorna el remitente
+    institucional por defecto (SENDER_EMAIL)."""
+    try:
+        doc = await _get_email_senders_config()
+        active_emails = {
+            (s.get("email") or "").strip().lower()
+            for s in doc.get("senders", [])
+            if s.get("active", True) and s.get("email")
+        }
+        assigned = ((doc.get("assignments") or {}).get(area) or "").strip()
+        if assigned and assigned.lower() in active_emails:
+            return assigned
+    except Exception as e:
+        logger.warning(f"[Senders] No se pudo resolver remitente para '{area}': {e}")
+    return SENDER_EMAIL
+
+
 def _append_footer_to_html(html: str, footer_html: str) -> str:
     """Anexa el footer global al final del cuerpo HTML, manteniendo integridad visual."""
     if not footer_html:

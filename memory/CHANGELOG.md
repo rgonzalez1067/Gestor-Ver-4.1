@@ -1,5 +1,16 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-10 — Múltiples remitentes de correo por área (multi-sender)
+
+Solicitud: poder enviar desde más de una dirección remitente. Decisión del usuario: mismo dominio @megasoft.com.ve, remitente fijado automáticamente por área (Proyectos e Integradores), administrado solo por Admin.
+
+- `services/email_service.py`: `resolve_sender_for_area(area)` (con caché ~60s e `invalidate_senders_cache`) lee `db.config{type:email_senders}` y devuelve el remitente asignado al área o `SENDER_EMAIL` por defecto.
+- `routes/settings.py`: `GET/PUT /api/config/email-senders` (PUT solo Admin). Valida que todas las direcciones pertenezcan al dominio institucional (mismo que SENDER_EMAIL); guarda lista de remitentes + asignaciones por área.
+- Cableado: `routes/projects.py` (notificaciones a Cliente/Banco y Otras Notificaciones) usa `resolve_sender_for_area('proyectos')`; `routes/integrators.py` (asignación y nuevo proyecto de integración) usa `'integradores'`.
+- Frontend: nueva página `EmailSendersConfig.jsx` (`/settings/email-senders`) + tarjeta Admin en Settings. Gestión de direcciones (etiqueta/correo/activo) y selector de asignación por área.
+- Verificado: GET/PUT (incl. rechazo de dominio ajeno 400), resolver (3 tests `tests/test_email_senders.py`), y E2E real — una notificación de Proyectos salió desde el remitente asignado (registrado en `email_logs`). Config de prueba reseteada a vacío (default) para no forzar buzones inexistentes; el admin define las direcciones reales en la UI.
+
+
 ## 2026-06-09 — Descuentos en PDF de cotizaciones Corporativas
 
 Solicitud: en cotizaciones de clientes Corporativos, reflejar en las matrices de Setup y Recurrente el % de descuento y el monto calculado, restándolo del total (antes no aparecían en el PDF).
