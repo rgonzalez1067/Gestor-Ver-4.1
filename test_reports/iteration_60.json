@@ -1,0 +1,26 @@
+{
+  "summary": "Iter 60 — Verified BUG fix (Vista Previa cuerpo vacío + persistencia al editar Asunto) and FEATURE change (prefijo de secuencia al FINAL del asunto) for client and bank notifications. Backend API: 3/3 tests passed. UI: code-level + API-level verification (composer requires '+ Agregar' destinatario principal in upper panel — flow gated, fell back to API verification per problem statement allowance).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_preview_notification_prefix.py",
+    "/app/test_reports/pytest/iter60_preview_prefix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailPreviewDialog.jsx (L104-114): el patrón `key={sourceHtml}` + `dangerouslySetInnerHTML={__html: previewData.html}` es correcto y soluciona ambos sub-bugs: (a) el cuerpo se renderiza al abrir (no queda vacío como en el fix imperativo previo de Iter59); (b) al editar el asunto, `previewData.html` NO cambia → React no re-monta el div → las ediciones manuales del cuerpo persisten. Verificado por inspección de código.",
+    "backend/routes/projects.py (L716-717, L786-792, L833-838): el prefijo `[{prefix_label}]` se concatena con f'{raw_subject} [{prefix_label}]' al final del asunto en client/bank_client/bank, en todas las ramas (con plantilla y fallback). Verificado por API: subjects efectivos `Implementación Proyecto PRY-2026-06-024-PRI — A.C. VALLE ARRIBA ATHLETIC CLUB [Primer Envío]` y `Implementación Bancaribe — Proyecto PRY-2026-06-024-PRI [Primer Envío]`."
+  ],
+  "updated_files": ["/app/backend/tests/test_preview_notification_prefix.py"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "code-review + API verified"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna. Proyecto existente prj_62903d69d10a.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Para probar el modal email-preview-dialog vía Playwright, el composer 'Notificaciones a Cliente' requiere agregar al menos un destinatario principal usando el botón '+ Agregar' que está en un panel SUPERIOR (DESTINATARIOS PRINCIPALES (TO)) — sin TO, el botón 'Vista Previa' del composer no dispara la llamada a /api/projects/{id}/preview-notification (no se dispara network request observado en el test). La verificación por API en /app/backend/tests/test_preview_notification_prefix.py confirma: subject termina en [Primer Envío] y html no vacío para target=client y target=bank.",
+  "rca of the issue": "Iter59 introdujo un useEffect imperativo en EmailPreviewDialog que escribía innerHTML en el ref cada vez que cambiaba previewSubject, lo que provocaba el sub-bug de cuerpo vacío y/o de pérdida de ediciones. La iteración actual (Iter60) reemplaza ese patrón por `key={sourceHtml}` + `dangerouslySetInnerHTML`, garantizando: (1) primera renderización inyecta previewData.html → cuerpo NO está vacío; (2) editar asunto no cambia sourceHtml → React no re-monta el contentEditable → ediciones del cuerpo persisten. El cambio del prefijo de inicio a final se realizó usando f-string `{raw_subject} [{prefix_label}]` en las 3 ramas (client / bank_client / bank), tanto para plantilla del DB como para el HTML fallback."
+}

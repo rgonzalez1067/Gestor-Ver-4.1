@@ -714,10 +714,10 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template = await _get_notification_template(override_template_id or "project_notify_client")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "Implementación: {project_number}"), template_vars)
-            subject = f"[{prefix_label}] {raw_subject}"
+            subject = f"{raw_subject} [{prefix_label}]"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
-            subject = f"[{prefix_label}] Implementación: {project.get('project_number', '')}"
+            subject = f"Implementación: {project.get('project_number', '')} [{prefix_label}]"
             html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
 <h2 style="color:#2c3e50;">[{prefix_label}] Implementación</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
@@ -784,12 +784,12 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template = await _get_notification_template(override_template_id or "project_notify_bank_client")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "{bank_name} — {Nombre_Cliente} — {project_number}"), template_vars)
-            subject = f"[{prefix_label}] {raw_subject}"
+            subject = f"{raw_subject} [{prefix_label}]"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
             # Fallback: combina datos del cliente y banco
             products_html = "".join(f"<li>{p}</li>" for p in bank_products)
-            subject = f"[{prefix_label}] {bank_name} — {client_name} — {project.get('project_number', '')}"
+            subject = f"{bank_name} — {client_name} — {project.get('project_number', '')} [{prefix_label}]"
             html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
 <h2 style="color:#2c3e50;">[{prefix_label}] Implementación {bank_name} — {client_name}</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
@@ -831,11 +831,11 @@ async def _resolve_notification_email(project: dict, target: str, bank_name: Opt
         template = await _get_notification_template(override_template_id or "project_notify_bank")
         if template and template.get("body_html"):
             raw_subject = _render_vars(template.get("subject", "{bank_name} — {project_number}"), template_vars)
-            subject = f"[{prefix_label}] {raw_subject}"
+            subject = f"{raw_subject} [{prefix_label}]"
             html = _render_vars(template.get("body_html", ""), template_vars)
         else:
             products_html = "".join(f"<li>{p}</li>" for p in bank_products)
-            subject = f"[{prefix_label}] {bank_name} — {project.get('project_number', '')}"
+            subject = f"{bank_name} — {project.get('project_number', '')} [{prefix_label}]"
             html = f"""<div style="font-family:Arial,sans-serif;width:95%;max-width:900px;margin:0 auto;">
 <h2 style="color:#2c3e50;">[{prefix_label}] {bank_name}</h2>
 {f'<p><strong>Ticket:</strong> {ticket}</p>' if ticket else ''}
