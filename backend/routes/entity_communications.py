@@ -77,6 +77,73 @@ async def list_internal_emails(
     return result
 
 
+# ==================== GRUPOS DE DESTINATARIOS CC (reutilizables) ====================
+
+class CcGroupCreate(BaseModel):
+    name: str
+    emails: List[str] = []
+
+
+@router.get("/cc-groups")
+async def list_cc_groups(authorization: Optional[str] = Header(None)):
+    """Lista los grupos de destinatarios CC guardados (compartidos por el equipo)."""
+    await get_current_user(authorization)
+    groups = await db.cc_groups.find({}, {"_id": 0, "name_lower": 0}).to_list(500)
+    groups.sort(key=lambda g: (g.get("name") or "").lower())
+    return groups
+
+
+@router.post("/cc-groups")
+async def create_cc_group(body: CcGroupCreate, authorization: Optional[str] = Header(None)):
+    """Crea (o actualiza por nombre) un grupo reutilizable de destinatarios CC."""
+    user = await get_current_user(authorization)
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="El nombre del grupo es obligatorio")
+    emails, seen = [], set()
+    for e in (body.emails or []):
+        e = (e or "").strip()
+        if e and "@" in e and e.lower() not in seen:
+            seen.add(e.lower())
+            emails.append(e)
+    if not emails:
+        raise HTTPException(status_code=400, detail="El grupo debe tener al menos un correo válido")
+    now = datetime.now(timezone.utc).isoformat()
+    creator = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    existing = await db.cc_groups.find_one({"name_lower": name.lower()})
+    if existing:
+        await db.cc_groups.update_one(
+            {"group_id": existing["group_id"]},
+            {"$set": {"name": name, "emails": emails, "updated_at": now}},
+        )
+        existing.update({"name": name, "emails": emails, "updated_at": now})
+        existing.pop("_id", None)
+        existing.pop("name_lower", None)
+        return existing
+    group = {
+        "group_id": str(uuid.uuid4()),
+        "name": name,
+        "name_lower": name.lower(),
+        "emails": emails,
+        "created_by_user_id": user.get("user_id"),
+        "created_by_name": creator,
+        "created_at": now,
+    }
+    await db.cc_groups.insert_one({**group})
+    group.pop("name_lower", None)
+    return group
+
+
+@router.delete("/cc-groups/{group_id}")
+async def delete_cc_group(group_id: str, authorization: Optional[str] = Header(None)):
+    """Elimina un grupo de destinatarios CC."""
+    await get_current_user(authorization)
+    res = await db.cc_groups.delete_one({"group_id": group_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Grupo no encontrado")
+    return {"success": True}
+
+
 # ==================== DOCUMENTOS DE COMUNICACIÓN ====================
 
 @router.get("/entity-documents")

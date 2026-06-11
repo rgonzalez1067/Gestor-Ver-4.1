@@ -134,6 +134,7 @@ const ProjectDetail = () => {
 
   useEffect(() => {
     api.get('/users/internal-emails?profile=strategic').then(r => setInternalUsers(r.data || [])).catch(() => {});
+    api.get('/cc-groups').then(r => setCcGroups(r.data || [])).catch(() => {});
   }, []);
   const [emailFiles, setEmailFiles] = useState([]);
   const [emailSending, setEmailSending] = useState(false);
@@ -514,6 +515,43 @@ const ProjectDetail = () => {
   const [additionalRecipientsList, setAdditionalRecipientsList] = useState([]);
   const [ccNewEmail, setCcNewEmail] = useState('');
   const [toNewEmail, setToNewEmail] = useState('');
+  // Grupos de destinatarios CC reutilizables
+  const [ccGroups, setCcGroups] = useState([]);
+  const [ccGroupName, setCcGroupName] = useState('');
+  const [showSaveGroup, setShowSaveGroup] = useState(false);
+
+  const applyCcGroup = (g) => {
+    const merged = [...additionalRecipientsList];
+    (g.emails || []).forEach(e => {
+      if (e && !merged.map(x => x.toLowerCase()).includes(e.toLowerCase())) merged.push(e);
+    });
+    setAdditionalRecipientsList(merged);
+    toast.success(`Grupo "${g.name}" aplicado (${(g.emails || []).length} correos)`);
+  };
+  const saveCcGroup = async () => {
+    const name = (ccGroupName || '').trim();
+    if (!name) return;
+    if (additionalRecipientsList.length === 0) { toast.error('Agregue al menos un correo CC antes de guardar el grupo'); return; }
+    try {
+      await api.post('/cc-groups', { name, emails: additionalRecipientsList });
+      toast.success(`Grupo "${name}" guardado`);
+      setCcGroupName('');
+      setShowSaveGroup(false);
+      const r = await api.get('/cc-groups');
+      setCcGroups(r.data || []);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'No se pudo guardar el grupo');
+    }
+  };
+  const deleteCcGroup = async (id) => {
+    try {
+      await api.delete(`/cc-groups/${id}`);
+      setCcGroups(ccGroups.filter(g => g.group_id !== id));
+      toast.success('Grupo eliminado');
+    } catch (e) {
+      toast.error('No se pudo eliminar el grupo');
+    }
+  };
 
   // Agregar/quitar destinatarios CC como tokens (homologado con el cotizador).
   const addCcRecipient = () => {
@@ -2145,6 +2183,66 @@ const ProjectDetail = () => {
                           <p className="text-[10px] text-slate-400 mt-1">
                             Estos correos recibirán copia (CC). Haga clic en un usuario interno o agregue uno externo con el botón +.
                           </p>
+
+                          {/* Grupos de destinatarios CC reutilizables */}
+                          <div className="mt-2 pt-2 border-t border-slate-100">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">Grupos guardados</span>
+                              {additionalRecipientsList.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSaveGroup(s => !s)}
+                                  data-testid="cc-save-group-toggle"
+                                  className="text-[11px] text-blue-600 hover:underline"
+                                >
+                                  + Guardar selección como grupo
+                                </button>
+                              )}
+                            </div>
+                            {showSaveGroup && (
+                              <div className="flex gap-2 mb-2">
+                                <Input
+                                  value={ccGroupName}
+                                  onChange={(e) => setCcGroupName(e.target.value)}
+                                  placeholder="Nombre del grupo (ej: Equipo Implementación Banesco)"
+                                  className="h-8 text-xs"
+                                  data-testid="cc-group-name-input"
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveCcGroup(); } }}
+                                />
+                                <Button size="sm" variant="outline" onClick={saveCcGroup} disabled={!ccGroupName.trim()} data-testid="cc-save-group-btn" className="shrink-0">
+                                  Guardar
+                                </Button>
+                              </div>
+                            )}
+                            {ccGroups.length === 0 ? (
+                              <p className="text-[11px] text-slate-400 italic">Aún no hay grupos. Agregue correos arriba y guárdelos para reutilizarlos con un clic.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5" data-testid="cc-groups-list">
+                                {ccGroups.map(g => (
+                                  <span key={g.group_id} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 border border-slate-200 rounded-full pl-2 pr-1 py-0.5" data-testid={`cc-group-${g.group_id}`}>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyCcGroup(g)}
+                                      className="hover:text-blue-700 font-medium"
+                                      title={`Aplicar grupo (${(g.emails || []).length} correos)`}
+                                      data-testid={`apply-cc-group-${g.group_id}`}
+                                    >
+                                      {g.name} <span className="text-slate-400">({(g.emails || []).length})</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteCcGroup(g.group_id)}
+                                      className="text-slate-400 hover:text-red-500"
+                                      title="Eliminar grupo"
+                                      data-testid={`delete-cc-group-${g.group_id}`}
+                                    >
+                                      <X size={11} />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 

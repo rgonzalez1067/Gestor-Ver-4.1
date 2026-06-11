@@ -1,0 +1,34 @@
+{
+  "summary": "Iter 64 — CRUD de Grupos CC reutilizables en modal de Notificaciones de Proyectos. Backend (7/7 pytest) y Frontend E2E completos sin issues. Verificado: (a) GET /api/cc-groups devuelve lista ordenada por nombre, sin _id ni name_lower; (b) POST con dedupe case-insensitive (A@test.com + a@test.com → 1 correo); (c) POST con nombre vacío → 400; (d) POST sin correos válidos → 400; (e) POST con nombre existente actualiza el grupo (mismo group_id, emails reemplazados); (f) DELETE existente → 200, segundo DELETE → 404. UI E2E sobre prj_62903d69d10a: agregué 2 tokens CC, abrí form de guardado vía cc-save-group-toggle, escribí nombre 'TEST UI Iter64 {uuid}' y guardé → toast 'Grupo guardado' y chip cc-group-{group_id} en cc-groups-list con contador (2). Limpié tokens CC, apliqué grupo vía apply-cc-group-{group_id} → 2 chips restaurados; segundo apply NO duplicó (dedupe case-insensitive funcional). Recargué página y reabrí modal: el grupo persistió (GET al montar). Click en delete-cc-group-{group_id} eliminó el chip y mostró toast 'Grupo eliminado'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ProjectDetail — tabla de implementación (línea 1620-1633)", "issues": ["Warnings de hidratación heredados del wrapper visual-edit (<span data-ve-dynamic> envolviendo <th>/<tr>/<tbody>). Ya reportado en iter62/63. No afecta funcionalidad del feature actual."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cc_groups.py",
+    "/app/test_reports/pytest/iter64_cc_groups.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "entity_communications.py L82-134 — CRUD correcto: dedupe case-insensitive vía set(seen), name_lower indexado lógicamente para upsert por nombre, oculta _id y name_lower en respuestas. Validaciones 400 cubren los dos casos (nombre vacío, sin correos válidos). ✓",
+    "entity_communications.py L113 — La búsqueda upsert usa find_one({'name_lower': name.lower()}). Recomendaría agregar un índice único en cc_groups.name_lower para evitar race conditions si dos usuarios crean simultáneamente el mismo grupo (riesgo bajo, pero documentable).",
+    "entity_communications.py L137-144 delete_cc_group — Sin restricción de rol/permiso: cualquier usuario autenticado puede eliminar grupos compartidos. Dado que son 'compartidos por el equipo' es coherente, pero podría loggearse el created_by_user_id vs deleted_by para auditoría futura.",
+    "ProjectDetail.jsx L523-554 (applyCcGroup/saveCcGroup/deleteCcGroup) — Lógica limpia, dedupe case-insensitive en merge correcto, manejo de errores con toast.error y mensaje del backend (detail). ✓",
+    "ProjectDetail.jsx L137 — api.get('/cc-groups') en useEffect sin dependencia explícita (catch silencioso). Razonable porque el modal puede abrirse sin que el load esté completo y los grupos aparecen al refrescar. Para robustez se podría re-fetch al abrir el modal.",
+    "ProjectDetail.jsx L2192-2200 — El toggle 'cc-save-group-toggle' solo aparece cuando hay tokens CC (additionalRecipientsList.length > 0). UX coherente."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cc_groups.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100% (7/7 tests)", "frontend": "100% (guardar, listar con contador, aplicar con dedupe, persistencia tras reload, eliminar)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Grupos transitorios TEST_iter64_* creados y eliminados en pytest (fixture cleanup). En UI se creó un grupo 'TEST UI Iter64 {uuid}' y se eliminó al final del flujo (verificado via DELETE en UI). No quedó data residual.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reproducción: login admin → /projects/prj_62903d69d10a → click 'notifications-btn' → en card 'Destinatarios Adicionales (CC)' agregar ≥1 token CC para que aparezca 'cc-save-group-toggle' → click toggle → llenar 'cc-group-name-input' → click 'cc-save-group-btn'. Chips de grupo en 'cc-groups-list' con testids 'cc-group-{group_id}', 'apply-cc-group-{group_id}', 'delete-cc-group-{group_id}'. Endpoints: POST/GET/DELETE /api/cc-groups (colección db.cc_groups). Dedupe es case-insensitive tanto en POST (backend) como en applyCcGroup (frontend). Para limpiar tras pruebas manuales: GET /api/cc-groups y DELETE por group_id.",
+  "rca of the issue": "N/A — Feature funciona correctamente end-to-end. Sin bugs detectados."
+}
