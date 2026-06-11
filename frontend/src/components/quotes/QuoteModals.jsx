@@ -11,7 +11,7 @@ import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { AlertTriangle, CheckCircle, Mail, Paperclip, Plus, Send, Store, Trash2, X, Users, Landmark } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, useCallback, memo } from 'react';
 import api from '../../utils/api';
 import { toast } from 'sonner';
 import { EquipmentQuoteWizard } from '../EquipmentQuoteWizard';
@@ -25,6 +25,132 @@ import { PreassignSerialsModal } from './PreassignSerialsModal';
 import { InternalEmailInput } from '../InternalEmailInput';
 import { RichTextEditor } from '../RichTextEditor';
 import { ACTION_LABELS } from './constants';
+
+// ============================================================================
+// Inputs aislados para Multitienda (rendimiento de escritura).
+// El estado de las tiendas vive en el componente padre (Quotes.jsx, muy grande),
+// por lo que escribir en un <input> controlado por el padre re-renderizaba TODO
+// el modal en cada tecla, generando latencia. Estos componentes mantienen estado
+// LOCAL y propagan al padre con debounce (nombre) o al confirmar (formulario),
+// eliminando el re-render por tecla.
+// ============================================================================
+const MultistoreRow = memo(function MultistoreRow({ store, idx, onCommit, onRemove }) {
+  const [name, setName] = useState(store.name || '');
+  const [box, setBox] = useState(store.box_count ?? 1);
+  const timer = useRef(null);
+  const extName = useRef(store.name);
+  const extBox = useRef(store.box_count);
+
+  // Resincroniza si el valor cambia desde el padre (restaurar, reordenar, etc.)
+  useEffect(() => {
+    if (store.name !== extName.current) { extName.current = store.name; setName(store.name || ''); }
+  }, [store.name]);
+  useEffect(() => {
+    if (store.box_count !== extBox.current) { extBox.current = store.box_count; setBox(store.box_count ?? 1); }
+  }, [store.box_count]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const onNameChange = (e) => {
+    const v = e.target.value;
+    setName(v);
+    extName.current = v; // marca como propio para evitar reset por el efecto de sync
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => onCommit(idx, { name: v }), 200);
+  };
+  const onNameBlur = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    extName.current = name;
+    onCommit(idx, { name });
+  };
+  const onBoxBlur = () => {
+    const v = Math.max(1, parseInt(box) || 1);
+    setBox(v);
+    extBox.current = v;
+    onCommit(idx, { box_count: v });
+  };
+
+  return (
+    <tr className="border-b last:border-0" data-testid={`inherited-row-${idx}`}>
+      <td className="px-3 py-1.5 text-slate-400 font-mono">{idx + 1}</td>
+      <td className="px-3 py-1.5">
+        <input
+          type="text"
+          value={name}
+          onChange={onNameChange}
+          onBlur={onNameBlur}
+          className="w-full h-8 px-2 text-sm border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
+          data-testid={`inherited-name-${idx}`}
+        />
+      </td>
+      <td className="px-3 py-1.5">
+        <input
+          type="number"
+          min="1"
+          value={box}
+          onChange={(e) => setBox(e.target.value)}
+          onBlur={onBoxBlur}
+          className="w-full h-8 px-2 text-sm text-center border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
+          data-testid={`inherited-qty-${idx}`}
+        />
+      </td>
+      <td className="px-3 py-1.5 text-center">
+        <button
+          type="button"
+          onClick={() => onRemove(idx)}
+          className="text-red-500 hover:text-red-700 p-1"
+          title="Eliminar sucursal"
+          data-testid={`inherited-remove-${idx}`}
+        >
+          <Trash2 size={14} />
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+const MultistoreAddForm = memo(function MultistoreAddForm({ remaining, onAppend }) {
+  const [name, setName] = useState('');
+  const [box, setBox] = useState('');
+  const submit = () => {
+    const nm = name.trim();
+    const boxCount = parseInt(box) || 0;
+    if (!nm) { toast.error('Ingrese el nombre de la tienda'); return; }
+    if (boxCount <= 0) { toast.error('La cantidad de cajas debe ser mayor a 0'); return; }
+    if (boxCount > remaining) { toast.error(`Solo quedan ${remaining} caja(s) por asignar`); return; }
+    onAppend(nm, boxCount);
+    setName(''); setBox('');
+  };
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex-1">
+        <Label className="text-xs text-slate-500">Nombre de tienda</Label>
+        <Input
+          placeholder="Ej: Tienda Centro, Sucursal Norte..."
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          data-testid="multistore-store-name"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        />
+      </div>
+      <div className="w-24">
+        <Label className="text-xs text-slate-500">Cajas</Label>
+        <Input
+          type="number"
+          min="1"
+          max={remaining}
+          placeholder="Cant."
+          value={box}
+          onChange={(e) => setBox(e.target.value)}
+          data-testid="multistore-store-boxes"
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        />
+      </div>
+      <Button variant="outline" size="sm" onClick={submit} data-testid="multistore-add-store-btn" className="shrink-0">
+        <Plus size={14} className="mr-1" /> Agregar
+      </Button>
+    </div>
+  );
+});
 
 export const QuoteModals = ({ ctx }) => {
   const {
@@ -91,6 +217,37 @@ export const QuoteModals = ({ ctx }) => {
     projectTypeImpl, equipmentList, equipmentAvailable, equipmentLoading,
     equipmentSelected, setEquipmentSelected,
   } = ctx;
+
+  // Handlers estables para Multitienda (evitan romper el memo de las filas).
+  const commitStore = useCallback((idx, patch) => {
+    setMultistoreStores(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  }, [setMultistoreStores]);
+  const removeStore = useCallback((idx) => {
+    setMultistoreStores(prev => prev.filter((_, i) => i !== idx));
+  }, [setMultistoreStores]);
+  const appendStore = useCallback((name, box_count) => {
+    setMultistoreStores(prev => [...prev, { name, box_count }]);
+  }, [setMultistoreStores]);
+
+  // Instrucciones adicionales: propagación con debounce al padre para que escribir
+  // no re-renderice todo el modal en cada tecla. Se hace flush al perder el foco
+  // (p. ej. al pulsar "Continuar") para no perder los últimos caracteres.
+  const implTimerRef = useRef(null);
+  const implLatestRef = useRef({ html: implInstructions, len: implInstructionsLen });
+  const handleInstrChange = useCallback((html, len) => {
+    implLatestRef.current = { html, len };
+    if (implTimerRef.current) clearTimeout(implTimerRef.current);
+    implTimerRef.current = setTimeout(() => {
+      setImplInstructions(html);
+      setImplInstructionsLen(len);
+    }, 250);
+  }, [setImplInstructions, setImplInstructionsLen]);
+  const flushInstr = useCallback(() => {
+    if (implTimerRef.current) { clearTimeout(implTimerRef.current); implTimerRef.current = null; }
+    const { html, len } = implLatestRef.current;
+    setImplInstructions(html);
+    setImplInstructionsLen(len);
+  }, [setImplInstructions, setImplInstructionsLen]);
 
   return (
     <>
@@ -540,12 +697,12 @@ export const QuoteModals = ({ ctx }) => {
                     </div>
 
                     {/* Instrucciones adicionales (Rich Text, 500 chars) */}
-                    <div>
+                    <div onBlur={flushInstr}>
                       <Label className="text-sm font-medium">Instrucciones adicionales para el Implementador</Label>
                       <p className="text-[11px] text-slate-500 mt-0.5 mb-1.5">Máximo 500 caracteres de texto visible. Use negrita, cursiva, listas u otros formatos para destacar puntos clave.</p>
                       <RichTextEditor
                         value={implInstructions}
-                        onChange={(html, len) => { setImplInstructions(html); setImplInstructionsLen(len); }}
+                        onChange={handleInstrChange}
                         maxChars={500}
                         placeholder="Escriba aquí las indicaciones técnicas o comerciales que el implementador debe conocer…"
                         testid="impl-instructions-editor"
@@ -880,47 +1037,13 @@ export const QuoteModals = ({ ctx }) => {
                       </thead>
                       <tbody>
                         {multistoreStores.map((store, idx) => (
-                          <tr key={idx} className="border-b last:border-0" data-testid={`inherited-row-${idx}`}>
-                            <td className="px-3 py-1.5 text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="px-3 py-1.5">
-                              <input
-                                type="text"
-                                value={store.name}
-                                onChange={(e) => {
-                                  const next = [...multistoreStores];
-                                  next[idx] = { ...next[idx], name: e.target.value };
-                                  setMultistoreStores(next);
-                                }}
-                                className="w-full h-8 px-2 text-sm border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
-                                data-testid={`inherited-name-${idx}`}
-                              />
-                            </td>
-                            <td className="px-3 py-1.5">
-                              <input
-                                type="number"
-                                min="1"
-                                value={store.box_count}
-                                onChange={(e) => {
-                                  const next = [...multistoreStores];
-                                  next[idx] = { ...next[idx], box_count: Math.max(1, parseInt(e.target.value) || 1) };
-                                  setMultistoreStores(next);
-                                }}
-                                className="w-full h-8 px-2 text-sm text-center border border-slate-200 rounded focus:border-blue-400 focus:outline-none"
-                                data-testid={`inherited-qty-${idx}`}
-                              />
-                            </td>
-                            <td className="px-3 py-1.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setMultistoreStores(multistoreStores.filter((_, i) => i !== idx))}
-                                className="text-red-500 hover:text-red-700 p-1"
-                                title="Eliminar sucursal"
-                                data-testid={`inherited-remove-${idx}`}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
+                          <MultistoreRow
+                            key={idx}
+                            store={store}
+                            idx={idx}
+                            onCommit={commitStore}
+                            onRemove={removeStore}
+                          />
                         ))}
                       </tbody>
                       <tfoot>
@@ -1020,34 +1143,7 @@ export const QuoteModals = ({ ctx }) => {
 
                         {/* Formulario para agregar tienda */}
                         {remaining > 0 && (
-                          <div className="flex items-end gap-2">
-                            <div className="flex-1">
-                              <Label className="text-xs text-slate-500">Nombre de tienda</Label>
-                              <Input
-                                placeholder="Ej: Tienda Centro, Sucursal Norte..."
-                                value={multistoreNewStore.name}
-                                onChange={(e) => setMultistoreNewStore({ ...multistoreNewStore, name: e.target.value })}
-                                data-testid="multistore-store-name"
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMultistoreStore(); } }}
-                              />
-                            </div>
-                            <div className="w-24">
-                              <Label className="text-xs text-slate-500">Cajas</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                max={remaining}
-                                placeholder="Cant."
-                                value={multistoreNewStore.box_count}
-                                onChange={(e) => setMultistoreNewStore({ ...multistoreNewStore, box_count: e.target.value })}
-                                data-testid="multistore-store-boxes"
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMultistoreStore(); } }}
-                              />
-                            </div>
-                            <Button variant="outline" size="sm" onClick={addMultistoreStore} data-testid="multistore-add-store-btn" className="shrink-0">
-                              <Plus size={14} className="mr-1" /> Agregar
-                            </Button>
-                          </div>
+                          <MultistoreAddForm remaining={remaining} onAppend={appendStore} />
                         )}
 
                         {/* Botones de acción */}
