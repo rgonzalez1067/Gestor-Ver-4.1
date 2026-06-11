@@ -19,14 +19,12 @@ router = APIRouter()
 
 # Orden canónico de estados para el desglose.
 STATUS_ORDER = [
-    "Pendiente por Asignar",
-    "Asignado / En Proceso",
-    "En proceso/reasignado",
-    "Suspendido por Cliente",
-    "Suspendido por Banco",
-    "Finalizado / Producción",
-    "Finalizado",
-    "Cancelado",
+    "Por asignar",
+    "Asignado",
+    "En Gestión",
+    "Suspendido",
+    "Implementado parcial",
+    "Culminado",
 ]
 
 
@@ -89,7 +87,7 @@ async def _collect(date_from, date_to, sponsor):
         })
         g["project_count"] += 1
         g["total_usd"] += float(p.get("total_usd") or 0)
-        st = p.get("status") or "Pendiente por Asignar"
+        st = p.get("status") or "Por asignar"
         g["status_breakdown"][st] = g["status_breakdown"].get(st, 0) + 1
         g["projects"].append({
             "project_id": p.get("project_id"),

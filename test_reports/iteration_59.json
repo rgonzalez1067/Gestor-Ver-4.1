@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 59 — Project Lifecycle Re-engineering: tested backend status catalog, automations (assign→Asignado, ticket→En Gestión), manual status endpoint, {Estado_Proyecto} template variable, and frontend (status badges, stats chips, status dropdown options, Cambiar Estado modal with the 3 manual options, EmailPreviewDialog bug fix). 9/9 backend tests passing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/projects", "issues": ["Hydration warnings in console: <span> wrapping <tr> inside <tbody> due to the visual-editor data-ve-dynamic span. Cosmetic but produces a React error in console on every render — recommend wrapping injected spans with display:contents in a way that doesn't break tbody>tr semantics, or excluding tbody from the visual-editor instrumentation."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration59_project_lifecycle.py",
+    "/app/test_reports/pytest/iteration59_results.xml"
+  ],
+  "action_items": [
+    "Optional: silence visual-editor <span> wrappers around <tr>/<tbody> to avoid console hydration noise (not a blocker)."
+  ],
+  "critical_code_review_comments": [
+    "EmailPreviewDialog fix (lastHtmlRef + useEffect on sourceHtml) is correct: setting innerHTML imperatively only when sourceHtml changes prevents subject edits from re-rendering the body. Verified by source review.",
+    "PUT /api/projects/{id}/status validates new_status against PROJECT_STATUSES (the full catalog of 6), not just PROJECT_MANUAL_STATUSES — that is intentional and consistent with the modal that exposes only the 3 manual options, while still allowing future system flows to set automated states. The endpoint correctly returns 400 on invalid statuses.",
+    "Assign endpoint preserves 'En Gestión' when ticket already exists (verified by code: has_ticket gate). Good.",
+    "Ticket endpoint preserves manual statuses (Suspendido/Implementado parcial/Culminado) via PROJECT_MANUAL_STATUSES gate before forcing 'En Gestión'. Good.",
+    "Projects.jsx is 948 lines — borderline against the 700-line guideline; consider extracting the Cambiar Estado modal and the stats chips block into separate components."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration59_project_lifecycle.py"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "95% (UI bug fix verified via code review; status catalog, badges, stats chips, status dropdown, Cambiar Estado modal verified end-to-end via Playwright)"},
+  "test_credentials": "Admin: rgonzalez@megasoft.com.ve / admin123 (login returns session_token; used as Bearer).",
+  "seed_data_creation": "None. Tests reuse existing 76 migrated projects; manual status PUT reverts changes to 'En Gestión' after each parametrized run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest: /app/backend/tests/test_iteration59_project_lifecycle.py (9 tests, all pass). Cambiar Estado modal verified via UI: exactly 3 options (Suspendido, Implementado parcial, Culminado). Status filter dropdown lists all 6 new states + 'Proceso Irregular'. Project status badges only show new catalog values (no legacy labels found). EmailPreviewDialog bug fix verified via code review (lastHtmlRef pattern). UI verification of the bug fix end-to-end requires opening the adhoc Otras Notificaciones flow with To + Subject + non-empty message (contentEditable, not textarea) — the Vista Previa button is disabled until message is non-empty. Main agent can self-verify by manually opening the dialog and editing subject.",
+  "rca of the issue": "N/A — no defects found in this iteration's scope."
+}

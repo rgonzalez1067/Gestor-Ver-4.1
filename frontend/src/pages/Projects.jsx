@@ -24,20 +24,20 @@ import {
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
-  'Pendiente por Asignar': { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
-  'Asignado / En Proceso': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
-  'En proceso/reasignado': { color: 'bg-purple-100 text-purple-800 border-purple-200', icon: UserCog },
-  'Suspendido por Cliente': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
-  'Suspendido por Banco': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Pause },
-  'Finalizado / Producción': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
+  'Por asignar': { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Clock },
+  'Asignado': { color: 'bg-blue-100 text-blue-800 border-blue-200', icon: UserCheck },
+  'En Gestión': { color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: UserCog },
+  'Suspendido': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
+  'Implementado parcial': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: CheckCircle2 },
+  'Culminado': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
 };
 
+// Estados asignables MANUALMENTE por el usuario vía "Cambiar estado".
+// Los estados automáticos (Por asignar, Asignado, En Gestión) responden a triggers.
 const STATUS_TRANSITIONS = [
-  { id: 'Asignado / En Proceso', label: 'Asignado / En Proceso', icon: UserCheck, iconColor: 'text-blue-600' },
-  { id: 'En proceso/reasignado', label: 'En proceso/reasignado', icon: UserCog, iconColor: 'text-purple-600' },
-  { id: 'Suspendido por Cliente', label: 'Suspendido por Cliente', icon: Pause, iconColor: 'text-red-600' },
-  { id: 'Suspendido por Banco', label: 'Suspendido por Banco', icon: Pause, iconColor: 'text-orange-600' },
-  { id: 'Finalizado / Producción', label: 'Finalizado / Producción', icon: CheckCircle2, iconColor: 'text-emerald-600' },
+  { id: 'Suspendido', label: 'Suspendido', icon: Pause, iconColor: 'text-red-600' },
+  { id: 'Implementado parcial', label: 'Implementado parcial', icon: CheckCircle2, iconColor: 'text-orange-600' },
+  { id: 'Culminado', label: 'Culminado', icon: CheckCircle2, iconColor: 'text-emerald-600' },
 ];
 
 /**
@@ -270,8 +270,10 @@ const Projects = () => {
       : statusFilter === 'irregular'
         ? p.is_irregular === true
         : statusFilter === 'suspended'
-          ? (p.status === 'Suspendido por Cliente' || p.status === 'Suspendido por Banco')
-          : p.status === statusFilter;
+          ? p.status === 'Suspendido'
+          : statusFilter === 'in_progress'
+            ? ['Asignado', 'En Gestión', 'Implementado parcial'].includes(p.status)
+            : p.status === statusFilter;
     const matchSponsor = sponsorFilter === 'all'
       ? true
       : sponsorFilter === '__none__'
@@ -355,10 +357,10 @@ const Projects = () => {
           <div className="grid grid-cols-6 gap-4 mb-6">
             {[
               { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
-              { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Pendiente por Asignar' },
-              { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'Asignado / En Proceso' },
+              { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
+              { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'in_progress' },
               { label: 'Suspendidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
-              { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Finalizado / Producción' },
+              { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
               { label: 'P. Irregular', value: stats.irregular || 0, cls: 'bg-orange-50 border-orange-300 text-orange-700', filter: 'irregular' },
             ].map(s => (
               <div key={s.label}
@@ -498,7 +500,7 @@ const Projects = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filtered.map(project => {
-                    const stCfg = STATUS_CONFIG[project.status] || STATUS_CONFIG['Pendiente por Asignar'];
+                    const stCfg = STATUS_CONFIG[project.status] || STATUS_CONFIG['Por asignar'];
                     const StIcon = stCfg.icon;
                     const hasAssignee = !!project.assigned_to_name;
                     

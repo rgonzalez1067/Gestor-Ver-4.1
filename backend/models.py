@@ -720,7 +720,9 @@ class ExchangeRate(BaseModel):
 
 # ==================== PROJECT MODELS ====================
 
-PROJECT_STATUSES = ["Pendiente por Asignar", "Asignado / En Proceso", "En proceso/reasignado", "Suspendido por Cliente", "Suspendido por Banco", "Finalizado / Producción"]
+PROJECT_STATUSES = ["Por asignar", "Asignado", "En Gestión", "Suspendido", "Implementado parcial", "Culminado"]
+# Estados asignados ÚNICAMENTE de forma manual por el usuario (sin automatización).
+PROJECT_MANUAL_STATUSES = ["Suspendido", "Implementado parcial", "Culminado"]
 
 
 class ProjectCommitment(BaseModel):
@@ -789,7 +791,7 @@ class Project(BaseModel):
     total_usd: float = 0
     total_bs: float = 0
     # Estado y asignación
-    status: str = "Pendiente por Asignar"
+    status: str = "Por asignar"
     assigned_to_user_id: Optional[str] = None
     assigned_to_name: Optional[str] = None
     assigned_by_user_id: Optional[str] = None

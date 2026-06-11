@@ -208,7 +208,7 @@ async def _create_project_from_quote(
         "iva_exempt": bool(quote.get("iva_exempt", False)),
         "total_usd": quote.get("total_usd", 0),
         "total_bs": quote.get("total_bs", 0),
-        "status": "Pendiente por Asignar",
+        "status": "Por asignar",
         "priority": "Normal",
         "is_irregular": quote.get("is_irregular", False),
         "irregular_exceptions": quote.get("irregular_exceptions", []) or [],
@@ -234,15 +234,15 @@ async def _create_project_from_quote(
 
     # === Auto-asignación desde la ficha del cliente ===
     # Si el cliente tiene un Implementador fijado en su ficha, heredamos
-    # la asignación y dejamos el proyecto listo "Asignado / En Proceso".
-    # Si no tiene, mantenemos el estatus "Pendiente por Asignar".
+    # la asignación y dejamos el proyecto en estado "Asignado".
+    # Si no tiene, mantenemos el estado inicial "Por asignar".
     client_impl_user_id = (client or {}).get("implementer_user_id")
     client_impl_name = (client or {}).get("implementer_name")
     if client_impl_user_id and client_impl_name:
         project["assigned_to_user_id"] = client_impl_user_id
         project["assigned_to_name"] = client_impl_name
         project["assigned_at"] = now.isoformat()
-        project["status"] = "Asignado / En Proceso"
+        project["status"] = "Asignado"
         project["auto_assigned_from_client"] = True
         project["notes"].append({
             "note_id": f"pn_{uuid.uuid4().hex[:8]}",

@@ -86,6 +86,7 @@ export const VARIABLE_CATEGORIES = [
       { key: 'Patrocinador', label: 'Patrocinador (banco/procesador o cliente)' },
       { key: 'project_number', label: 'Nro. de proyecto' },
       { key: 'Nro_Proyecto', label: 'Nro. de proyecto (alias)' },
+      { key: 'Estado_Proyecto', label: 'Estado actual del proyecto' },
       { key: 'Tipo_Proyecto', label: 'Tipo de implementación' },
       { key: 'Fecha_Asignacion', label: 'Fecha de asignación' },
       { key: 'Ticket_Nro', label: 'Nro. de ticket (se carga al desbloquear)' },

@@ -1017,10 +1017,11 @@ const ProjectDetail = () => {
               <h1 className="text-2xl font-bold text-slate-900" data-testid="project-title">Detalle para Implementación del Proyecto</h1>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${
-                  project.status === 'Pendiente por Asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                  project.status === 'Asignado / En Proceso' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                  project.status === 'Suspendido por Cliente' ? 'bg-red-100 text-red-800 border-red-200' :
-                  project.status === 'Suspendido por Banco' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                  project.status === 'Por asignar' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                  project.status === 'Asignado' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                  project.status === 'En Gestión' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' :
+                  project.status === 'Suspendido' ? 'bg-red-100 text-red-800 border-red-200' :
+                  project.status === 'Implementado parcial' ? 'bg-orange-100 text-orange-800 border-orange-200' :
                   'bg-emerald-100 text-emerald-800 border-emerald-200'
                 }`} data-testid="project-status">{project.status}</span>
                 {isMultistore && (

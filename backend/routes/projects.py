@@ -160,10 +160,10 @@ async def get_project_stats(authorization: Optional[str] = Header(None)):
         return {"$and": [base, extra]} if base else extra
 
     total = await db.projects.count_documents(base)
-    pending = await db.projects.count_documents(_q({"status": "Pendiente por Asignar"}))
-    in_progress = await db.projects.count_documents(_q({"status": "Asignado / En Proceso"}))
-    blocked = await db.projects.count_documents(_q({"status": {"$in": ["Suspendido por Cliente", "Suspendido por Banco"]}}))
-    completed = await db.projects.count_documents(_q({"status": "Finalizado / Producción"}))
+    pending = await db.projects.count_documents(_q({"status": "Por asignar"}))
+    in_progress = await db.projects.count_documents(_q({"status": {"$in": ["Asignado", "En Gestión", "Implementado parcial"]}}))
+    blocked = await db.projects.count_documents(_q({"status": "Suspendido"}))
+    completed = await db.projects.count_documents(_q({"status": "Culminado"}))
     irregular = await db.projects.count_documents(_q({"is_irregular": True}))
     return {"total": total, "pending": pending, "in_progress": in_progress, "blocked": blocked, "completed": completed, "irregular": irregular}
 
@@ -218,6 +218,12 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
     assigner_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
     now = datetime.now(timezone.utc).isoformat()
 
+    # Gatillo de Asignación: al asignar un Implementador el estado pasa a "Asignado".
+    # Regla de negocio: si el proyecto YA tiene Nro de Ticket cargado (estaba "En
+    # Gestión"), una reasignación NO retrocede el estado — se mantiene "En Gestión".
+    has_ticket = bool((project.get("ticket_number") or "").strip())
+    new_status = "En Gestión" if has_ticket else "Asignado"
+
     update_data = {
         "assigned_to_user_id": assignment.assigned_to_user_id,
         "assigned_to_name": implementer_name,
@@ -225,7 +231,7 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
         "assigned_by_name": assigner_name,
         "assigned_at": now,
         "fecha_asignacion": now,
-        "status": "Asignado / En Proceso",
+        "status": new_status,
         "updated_at": now,
     }
     if assignment.estimated_delivery_date:
@@ -305,7 +311,7 @@ async def update_project_status(project_id: str, status_update: ProjectStatusUpd
 
     now = datetime.now(timezone.utc).isoformat()
     update_data = {"status": status_update.new_status, "updated_at": now}
-    if status_update.new_status == "Finalizado / Producción":
+    if status_update.new_status == "Culminado":
         update_data["completed_at"] = now
 
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
@@ -1203,6 +1209,7 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "integrator_app_name", "label": "Aplicativo", "source": "Proyecto.integrator_app_name"},
             {"key": "pinpad_model", "label": "Modelo Pinpad", "source": "Proyecto.pinpad_model"},
             {"key": "assigned_to", "label": "Asignado a", "source": "Proyecto.assigned_to_name"},
+            {"key": "Estado_Proyecto", "label": "Estado actual del proyecto", "source": "Proyecto.status"},
             {"key": "Aplicativo_Integracion", "label": "Aplicativo de Integración", "source": "Proyecto.integrator_app_name"},
             {"key": "Nombre_Implementador", "label": "Nombre del Implementador", "source": "Usuarios.nombre (asignado)"},
             {"key": "Correo_Implementador", "label": "Correo del Implementador", "source": "Usuarios.email (asignado)"},
@@ -2111,6 +2118,13 @@ async def update_ticket_number(project_id: str, body: TicketNumberUpdate, author
 
     update_set = {"ticket_number": ticket, "unblocked_at": now, "updated_at": now}
 
+    # Gatillo de Activación Operativa: al guardar el Nro de Ticket el estado pasa
+    # automáticamente a "En Gestión", salvo que el proyecto ya esté en un estado
+    # manual (Suspendido / Implementado parcial / Culminado), que se respeta.
+    from models import PROJECT_MANUAL_STATUSES
+    if (project.get("status") or "") not in PROJECT_MANUAL_STATUSES:
+        update_set["status"] = "En Gestión"
+
     # Proyectos Directos: el Nro. de Ticket es condición suficiente para desbloquear
     # la ejecución (matriz incluida). El envío de notificaciones por correo es
     # OPCIONAL para este tipo de proyectos (nacen fuera del cotizador comercial),
@@ -2611,7 +2625,7 @@ async def projects_workload_pdf(
             pvv_cell = str(pvv_val) if pvv_val > 0 else "—"
             # Implementador original (solo si reasignado)
             orig = p.get("reassigned_from_name") or ""
-            is_reassigned = (p.get("status") == "En proceso/reasignado") or bool(orig)
+            is_reassigned = bool(orig)
             orig_html = f'<span class="orig">{orig}</span>' if (is_reassigned and orig) else '<span class="muted">—</span>'
             rows_html += f"""
             <tr>
@@ -2981,6 +2995,7 @@ async def bulk_reassign_projects(body: BulkReassignBody, authorization: Optional
     for pid in body.project_ids:
         p = await db.projects.find_one({"project_id": pid}, {
             "_id": 0, "project_id": 1, "assigned_to_user_id": 1, "assigned_to_name": 1, "assigned_at": 1,
+            "ticket_number": 1, "status": 1,
         })
         if not p:
             skipped.append({"project_id": pid, "reason": "not_found"})
@@ -2988,6 +3003,10 @@ async def bulk_reassign_projects(body: BulkReassignBody, authorization: Optional
         if p.get("assigned_to_user_id") == body.to_user_id:
             skipped.append({"project_id": pid, "reason": "already_assigned"})
             continue
+
+        # Regla de negocio: una reasignación mantiene "En Gestión" si el proyecto
+        # ya tiene Nro de Ticket; si no, queda "Asignado".
+        reassign_status = "En Gestión" if (p.get("ticket_number") or "").strip() else "Asignado"
 
         history_entry = {
             "from_user_id": p.get("assigned_to_user_id"),
@@ -3004,7 +3023,7 @@ async def bulk_reassign_projects(body: BulkReassignBody, authorization: Optional
                     "assigned_to_user_id": body.to_user_id,
                     "assigned_to_name": to_name,
                     "assigned_at": now_iso,
-                    "status": "En proceso/reasignado",
+                    "status": reassign_status,
                     "reassigned_from_name": p.get("assigned_to_name"),
                     "reassigned_from_user_id": p.get("assigned_to_user_id"),
                     "updated_at": now_iso,

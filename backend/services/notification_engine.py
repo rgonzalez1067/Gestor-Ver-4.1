@@ -159,6 +159,16 @@ async def _build_template_vars(quote: dict) -> dict:
     )
     quote_number = quote.get("quote_number", "")
     invoice_number = quote.get("invoice_number", "") or ""
+
+    # === {Estado_Proyecto} — estado actual del proyecto derivado ===
+    # Disponible también en plantillas de Cotizaciones: si el registro base es un
+    # proyecto trae su status; si es una cotización, se busca el proyecto asociado.
+    estado_proyecto = quote.get("status") or ""
+    if not estado_proyecto and quote.get("quote_id"):
+        _proj = await db.projects.find_one({"quote_id": quote["quote_id"]}, {"_id": 0, "status": 1})
+        if _proj:
+            estado_proyecto = _proj.get("status") or ""
+
     approved_at = quote.get("approved_at") or quote.get("collected_at") or ""
     approved_date = ""
     if approved_at:
@@ -285,6 +295,7 @@ async def _build_template_vars(quote: dict) -> dict:
         "Monto_Total": f"{quote.get('total_usd', 0):.2f}",
         "invoice_number": invoice_number,
         "approved_date": approved_date,
+        "Estado_Proyecto": estado_proyecto,
         # ----- Medios de Pago: abreviaturas concatenadas con "/" -----
         "abreviaturas_medios_pago": abreviaturas_medios_pago,
         "Abreviaturas_Medios_Pago": abreviaturas_medios_pago,

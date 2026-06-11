@@ -28,12 +28,12 @@ export function BulkReassignModal({ open, onClose, onSuccess, implementadores = 
     }
   }, [open]);
 
-  // Proyectos activos del implementador origen (excluye Finalizados)
+  // Proyectos activos del implementador origen (excluye Culminados)
   const eligibleProjects = useMemo(() => {
     if (!fromUserId) return [];
     return projects.filter(p =>
       p.assigned_to_user_id === fromUserId &&
-      p.status !== 'Finalizado / Producción',
+      p.status !== 'Culminado',
     );
   }, [fromUserId, projects]);
 

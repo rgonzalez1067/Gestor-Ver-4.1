@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -19,6 +20,24 @@ export const EmailPreviewDialog = ({
   editorRef, handleEditorPaste, handleEditorDrop,
   handleInsertImage, insertVariableInEditor,
 }) => {
+  // FIX (pérdida de datos en Vista Previa): el cuerpo es un contentEditable. Si
+  // usáramos `dangerouslySetInnerHTML`, CUALQUIER re-render (p. ej. al editar el
+  // Asunto) re-aplicaría el HTML original y borraría las ediciones manuales del
+  // usuario. Por eso inicializamos el contenido de forma IMPERATIVA y SOLO cuando
+  // cambia el HTML de origen (nueva vista previa), no en cada render.
+  const lastHtmlRef = useRef(null);
+  const sourceHtml = previewData?.html ?? null;
+  useEffect(() => {
+    if (!open) {
+      lastHtmlRef.current = null;
+      return;
+    }
+    if (editorRef?.current && sourceHtml !== null && lastHtmlRef.current !== sourceHtml) {
+      editorRef.current.innerHTML = sourceHtml || '';
+      lastHtmlRef.current = sourceHtml;
+    }
+  }, [open, sourceHtml, editorRef]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="email-preview-dialog">
@@ -101,7 +120,6 @@ export const EmailPreviewDialog = ({
                 onDrop={handleEditorDrop}
                 onDragOver={e => e.preventDefault()}
                 className="p-4 bg-white min-h-[300px] max-h-[50vh] overflow-y-auto email-render max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:ring-inset"
-                dangerouslySetInnerHTML={{ __html: previewData.html }}
                 data-testid="preview-editable-content"
               />
               <div className="bg-amber-50 px-3 py-1.5 border-t border-amber-200">

@@ -79,13 +79,13 @@ async def job_taller_over_15_days() -> None:
 
 
 async def job_project_assigned_not_started() -> None:
-    """Proyectos con status != 'En Implementación' y con assignee definido por >2 días."""
+    """Proyectos en estado 'Asignado' (asignados sin iniciar gestión) por >2 días."""
     now = datetime.now(timezone.utc)
     threshold = now - timedelta(days=2)
     count = 0
     cursor = db.projects.find(
         {
-            "status": {"$nin": ["En Implementación", "Completado", "Cancelado"]},
+            "status": "Asignado",
             "assigned_to_user_id": {"$exists": True, "$ne": None},
         },
         {"_id": 0},
@@ -136,12 +136,12 @@ async def job_project_assigned_not_started() -> None:
 
 
 async def job_project_stalled_5_days() -> None:
-    """Proyectos 'En Implementación' sin cambios de status ni eventos en bitácora últimos 5 días."""
+    """Proyectos 'En Gestión' sin cambios de status ni eventos en bitácora últimos 5 días."""
     now = datetime.now(timezone.utc)
     threshold = now - timedelta(days=5)
     count = 0
     cursor = db.projects.find(
-        {"status": "En Implementación"},
+        {"status": "En Gestión"},
         {"_id": 0},
     )
     async for p in cursor:

@@ -455,6 +455,9 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Servidor_Instalacion": servidor_instalacion or "No asignado",
         "Tipo_Comunicacion": tipo_comunicacion or "No asignado",
 
+        # === Estado del proyecto (texto plano del estado actual) ===
+        "Estado_Proyecto": project.get("status", "") or "",
+
         # === Alias en PascalCase español (lo que muestra el panel lateral del editor) ===
         "Nro_Proyecto": project_number or "",
         "Ticket_Nro": ticket or "",
