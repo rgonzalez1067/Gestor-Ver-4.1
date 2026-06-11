@@ -599,3 +599,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - `InternalEmailInput` ahora acepta props `profile` (filtra fetch) y `onEnter`.
 - Verificado: testing agent Iter63 → backend 4/4, frontend flujo crítico 100%. Test nuevo: backend/tests/test_internal_emails_filter.py.
 - Pendiente menor: agregar data-testid al botón final de envío del modal para E2E.
+
+## 2026-06 — Grupos de destinatarios CC reutilizables (Modal Notificaciones Proyectos)
+- Nuevos endpoints (entity_communications.py, colección db.cc_groups): GET/POST/DELETE /api/cc-groups. POST deduplica emails (case-insensitive), exige ≥1 válido, 400 si nombre vacío; upsert por nombre (name_lower). Grupos compartidos por el equipo.
+- UI en la tarjeta CC del modal de notificación (ProjectDetail.jsx): enlace 'Guardar selección como grupo' (aparece con tokens CC) → input de nombre + Guardar; lista de chips de grupos (cc-group-{id}) con contador, aplicar (merge+dedupe) y eliminar. Carga vía GET al montar.
+- Verificado: testing agent Iter64 → backend 7/7 pytest, frontend E2E 100% (guardar/aplicar/persistencia/eliminar). Test: backend/tests/test_cc_groups.py.
+- Backlog menor (sugerencia QA): índice único en cc_groups.name_lower; re-fetch de grupos al abrir el modal.
