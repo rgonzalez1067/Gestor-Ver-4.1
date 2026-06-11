@@ -568,3 +568,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - **Bug fix Vista Previa (EmailPreviewDialog)**: el cuerpo era contentEditable con `dangerouslySetInnerHTML`; cualquier re-render (p.ej. editar Asunto) re-aplicaba el HTML original y borraba ediciones. Fix: `innerHTML` imperativo vía useEffect SOLO cuando cambia el html de origen (lastHtmlRef). Las ediciones del cuerpo ahora persisten al editar el Asunto.
 - Frontend: `Projects.jsx` (STATUS_CONFIG, STATUS_TRANSITIONS, matchStatus, stats chips), `ProjectDetail.jsx` (badge), `BulkReassignModal.jsx`, `templateVariables.js`.
 - Verificado: testing agent Iter59 → backend 9/9 pytest, frontend validado. Sin regresiones.
+
+## 2026-06 — Fix Vista Previa (cuerpo vacío) + prefijo al final del asunto
+- **Bug Vista Previa (EmailPreviewDialog):** el fix imperativo anterior (useEffect+innerHTML) dejaba el cuerpo VACÍO al abrir. Cambiado a `key={sourceHtml}` + `dangerouslySetInnerHTML={{__html: previewData.html}}`: el contenido se muestra al abrir/regenerar la vista previa, y como editar el Asunto NO cambia `previewData.html`, React no re-monta el contentEditable → las ediciones manuales del cuerpo persisten.
+- **Prefijo de secuencia al FINAL del asunto:** en notificaciones a Cliente y Banco, '[Primer Envío]'/'[Primer Recordatorio]'/etc. ahora se concatena al final: `f"{raw_subject} [{prefix_label}]"` (client, bank_client, bank — ramas plantilla y fallback en projects.py L716-838).
+- Verificado: testing agent Iter60 → backend 3/3 API, fix de UI confirmado por revisión de código.
