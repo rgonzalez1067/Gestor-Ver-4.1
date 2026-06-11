@@ -21,18 +21,47 @@ VALID_CONTEXTS = {"CLIENTES", "INTEGRADORES", "NUEVOS_PRODUCTOS"}
 
 # ==================== USUARIOS INTERNOS (Autocomplete) ====================
 
+# Perfiles estratégicos para el modal de Notificaciones de Proyectos.
+_STRATEGIC_DEPTS = {"Ventas Pyme", "Ventas Corporativas"}
+_IMPL_CARGOS = {"Implementador", "Coordinador", "Gerente"}
+
+
+def _is_strategic_profile(u: dict) -> bool:
+    """Incluye solo Ventas (Pyme/Corp), Directores e Implementación (Implementador/Coordinador/Gerente)."""
+    cargo = (u.get("cargo") or "").strip()
+    dept = (u.get("departamento") or "").strip()
+    if cargo == "Director":
+        return True
+    if dept in _STRATEGIC_DEPTS:
+        return True
+    if dept == "Implementación" and cargo in _IMPL_CARGOS:
+        return True
+    return False
+
+
 @router.get("/users/internal-emails")
-async def list_internal_emails(authorization: Optional[str] = Header(None)):
-    """Devuelve lista de usuarios activos para autocompletar destinatarios."""
+async def list_internal_emails(
+    profile: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """Devuelve lista de usuarios activos para autocompletar destinatarios.
+
+    Si `profile=strategic`, aplica el filtro forzado por roles estratégicos
+    (Ventas Pyme/Corp, Directores e Implementación) usado en el modal de
+    Notificaciones de Proyectos.
+    """
     await get_current_user(authorization)
     users = await db.users.find(
         {"is_active": {"$ne": False}},
-        {"_id": 0, "user_id": 1, "email": 1, "first_name": 1, "last_name": 1, "role": 1, "cargo": 1}
+        {"_id": 0, "user_id": 1, "email": 1, "first_name": 1, "last_name": 1, "role": 1, "cargo": 1, "departamento": 1}
     ).to_list(500)
+    strategic = (profile or "").strip().lower() == "strategic"
     result = []
     for u in users:
         email = (u.get("email") or "").strip()
         if not email or "@" not in email:
+            continue
+        if strategic and not _is_strategic_profile(u):
             continue
         full_name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip() or email
         result.append({
@@ -41,6 +70,7 @@ async def list_internal_emails(authorization: Optional[str] = Header(None)):
             "full_name": full_name,
             "role": u.get("role", ""),
             "cargo": u.get("cargo", ""),
+            "departamento": u.get("departamento", ""),
             "label": f"{full_name} ({email})",
         })
     result.sort(key=lambda x: x["full_name"].lower())

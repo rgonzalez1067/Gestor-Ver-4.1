@@ -133,7 +133,7 @@ const ProjectDetail = () => {
   };
 
   useEffect(() => {
-    api.get('/users/internal-emails').then(r => setInternalUsers(r.data || [])).catch(() => {});
+    api.get('/users/internal-emails?profile=strategic').then(r => setInternalUsers(r.data || [])).catch(() => {});
   }, []);
   const [emailFiles, setEmailFiles] = useState([]);
   const [emailSending, setEmailSending] = useState(false);
@@ -445,7 +445,9 @@ const ProjectDetail = () => {
 
   const openNotifDialog = async (type, bankName) => {
     setNotifTarget({ type, bankName });
-    setAdditionalRecipients('');
+    setAdditionalRecipientsList([]);
+    setCcNewEmail('');
+    setToNewEmail('');
     setMainRecipients([]);
     setResolvedRecipients([]);
     setNotifFiles([]);
@@ -509,7 +511,27 @@ const ProjectDetail = () => {
   };
 
   const NOTIFICATION_PREFIXES = ['Primer Envío', 'Primer Recordatorio', 'Segundo Recordatorio', 'Tercer Recordatorio'];
-  const [additionalRecipients, setAdditionalRecipients] = useState('');
+  const [additionalRecipientsList, setAdditionalRecipientsList] = useState([]);
+  const [ccNewEmail, setCcNewEmail] = useState('');
+  const [toNewEmail, setToNewEmail] = useState('');
+
+  // Agregar/quitar destinatarios CC como tokens (homologado con el cotizador).
+  const addCcRecipient = () => {
+    const e = (ccNewEmail || '').trim();
+    if (!e || !e.includes('@')) { toast.error('Ingrese un correo válido'); return; }
+    if (additionalRecipientsList.map(x => x.toLowerCase()).includes(e.toLowerCase())) { setCcNewEmail(''); return; }
+    setAdditionalRecipientsList([...additionalRecipientsList, e]);
+    setCcNewEmail('');
+  };
+  const removeCcRecipient = (email) => setAdditionalRecipientsList(additionalRecipientsList.filter(x => x !== email));
+  // Agregar/corregir el correo principal (TO) en caliente como token.
+  const addToRecipient = () => {
+    const e = (toNewEmail || '').trim();
+    if (!e || !e.includes('@')) { toast.error('Ingrese un correo válido'); return; }
+    if (mainRecipients.map(x => x.toLowerCase()).includes(e.toLowerCase())) { setToNewEmail(''); return; }
+    setMainRecipients([...mainRecipients, e]);
+    setToNewEmail('');
+  };
 
   const sendNotification = async () => {
     // Validar al menos un destinatario principal
@@ -519,11 +541,7 @@ const ProjectDetail = () => {
     }
     setNotifSending('sending');
     try {
-      // Parse additional recipients (comma or semicolon separated)
-      const ccList = additionalRecipients
-        .split(/[,;]/)
-        .map(e => e.trim())
-        .filter(e => e && e.includes('@'));
+      const ccList = additionalRecipientsList.filter(e => e && e.includes('@'));
 
       const formData = new FormData();
       formData.append('target', notifTarget.type);
@@ -537,7 +555,9 @@ const ProjectDetail = () => {
 
       const res = await api.post(`/projects/${projectId}/send-notification`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(res.data.message);
-      setAdditionalRecipients('');
+      setAdditionalRecipientsList([]);
+      setCcNewEmail('');
+      setToNewEmail('');
       setMainRecipients([]);
       setNotifFiles([]);
       setNotifAttachMatrix(false);
@@ -804,10 +824,7 @@ const ProjectDetail = () => {
 
     try {
       if (previewContext?.type === 'sequential') {
-        const ccList = additionalRecipients
-          .split(/[,;]/)
-          .map(e => e.trim())
-          .filter(e => e && e.includes('@'));
+        const ccList = additionalRecipientsList.filter(e => e && e.includes('@'));
 
         const formData = new FormData();
         formData.append('target', previewContext.target);
@@ -824,7 +841,9 @@ const ProjectDetail = () => {
         toast.success(res.data.message);
         setPreviewOpen(false);
         setNotifDialogOpen(false);
-        setAdditionalRecipients('');
+        setAdditionalRecipientsList([]);
+        setCcNewEmail('');
+        setToNewEmail('');
         setNotifFiles([]);
         setNotifAttachMatrix(false);
         fetchProject();
@@ -2049,10 +2068,10 @@ const ProjectDetail = () => {
                       {/* Destinatarios resueltos */}
                       <div className="mb-3 space-y-2">
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios Principales (TO) — Selecciónelos arriba</p>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Destinatarios Principales (TO)</p>
                           <div className="flex flex-wrap gap-1.5 min-h-[28px]" data-testid="main-recipients-chips">
                             {mainRecipients.length === 0 ? (
-                              <span className="text-xs text-amber-600 italic">Aún no hay destinatarios. Use el botón "+ Agregar" en el panel superior.</span>
+                              <span className="text-xs text-amber-600 italic">Aún no hay destinatarios. Selecciónelos arriba o agregue/corrija uno abajo.</span>
                             ) : (
                               mainRecipients.map((email, i) => (
                                 <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-emerald-50 border border-emerald-200 rounded text-emerald-700 font-mono" data-testid={`main-recipient-${i}`}>
@@ -2068,27 +2087,63 @@ const ProjectDetail = () => {
                               ))
                             )}
                           </div>
+                          {/* Agregar/Corregir correo principal en caliente */}
+                          <div className="flex gap-2 mt-2 items-start">
+                            <div className="flex-1">
+                              <InternalEmailInput
+                                value={toNewEmail}
+                                onChange={setToNewEmail}
+                                onEnter={addToRecipient}
+                                profile="strategic"
+                                placeholder="Agregar/corregir correo principal — o busque usuario interno"
+                                testId="notif-to-input"
+                              />
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={addToRecipient}
+                              disabled={!toNewEmail.trim() || !toNewEmail.includes('@')}
+                              data-testid="notif-add-to-btn" className="mt-0">
+                              <Plus size={14} />
+                            </Button>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">Si el correo precargado del Cliente/Banco es incorrecto, escriba aquí el correcto (solo afecta este envío).</p>
                         </div>
 
-                        {/* Campo de destinatarios adicionales (CC) */}
+                        {/* Destinatarios adicionales (CC) — componente de tokens homologado */}
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
                           <label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
-                            Destinatarios Adicionales (CC) — separados por coma
+                            Destinatarios Adicionales (CC)
                           </label>
-                          <input
-                            type="text"
-                            value={additionalRecipients}
-                            onChange={(e) => setAdditionalRecipients(e.target.value)}
-                            placeholder="gerente@empresa.com, compras@empresa.com"
-                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                            data-testid="additional-recipients-input"
-                            list="internal-emails-datalist"
-                          />
-                          <datalist id="internal-emails-datalist">
-                            {internalUsers.map(u => <option key={u.email} value={u.email}>{u.full_name} — {u.cargo}</option>)}
-                          </datalist>
+                          <div className="flex gap-2 items-start">
+                            <div className="flex-1">
+                              <InternalEmailInput
+                                value={ccNewEmail}
+                                onChange={setCcNewEmail}
+                                onEnter={addCcRecipient}
+                                profile="strategic"
+                                placeholder="correo@ejemplo.com — o busque usuario interno"
+                                testId="notif-cc-input"
+                              />
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={addCcRecipient}
+                              disabled={!ccNewEmail.trim() || !ccNewEmail.includes('@')}
+                              data-testid="notif-add-cc-btn" className="mt-0">
+                              <Plus size={14} />
+                            </Button>
+                          </div>
+                          {additionalRecipientsList.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2" data-testid="cc-recipients-chips">
+                              {additionalRecipientsList.map((email, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full" data-testid={`cc-recipient-${idx}`}>
+                                  {email}
+                                  <button type="button" onClick={() => removeCcRecipient(email)} className="hover:text-red-500 ml-0.5" data-testid={`remove-cc-recipient-${idx}`}>
+                                    <X size={12} />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <p className="text-[10px] text-slate-400 mt-1">
-                            Estos correos recibirán copia (CC). Escriba para autocompletar usuarios internos.
+                            Estos correos recibirán copia (CC). Haga clic en un usuario interno o agregue uno externo con el botón +.
                           </p>
                         </div>
                       </div>

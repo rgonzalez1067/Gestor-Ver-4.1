@@ -14,7 +14,7 @@ import api from '../utils/api';
  *   placeholder: string
  *   testId: string (ej: 'notif-to-0')
  */
-export const InternalEmailInput = ({ value, onChange, onRemove, placeholder = 'correo@ejemplo.com — o escriba para buscar usuario', testId }) => {
+export const InternalEmailInput = ({ value, onChange, onRemove, onEnter, placeholder = 'correo@ejemplo.com — o escriba para buscar usuario', testId, profile }) => {
   const [users, setUsers] = useState([]);
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState('');
@@ -22,11 +22,12 @@ export const InternalEmailInput = ({ value, onChange, onRemove, placeholder = 'c
 
   useEffect(() => {
     let cancelled = false;
-    api.get('/users/internal-emails')
+    const url = profile ? `/users/internal-emails?profile=${encodeURIComponent(profile)}` : '/users/internal-emails';
+    api.get(url)
       .then(r => { if (!cancelled) setUsers(r.data || []); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [profile]);
 
   const filtered = useMemo(() => {
     const q = (query || value || '').trim().toLowerCase();
@@ -51,6 +52,7 @@ export const InternalEmailInput = ({ value, onChange, onRemove, placeholder = 'c
       <Input
         value={value}
         onChange={handleChange}
+        onKeyDown={(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }}
         onFocus={() => { if (blurTimeout.current) clearTimeout(blurTimeout.current); setFocused(true); setQuery(value); }}
         onBlur={() => { blurTimeout.current = setTimeout(() => setFocused(false), 150); }}
         placeholder={placeholder}
