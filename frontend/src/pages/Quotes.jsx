@@ -1234,15 +1234,41 @@ export const Quotes = () => {
   };
 
   // Actualizar campo en setup_items
+  // === Sincronización reactiva Set Up → Costos Recurrentes Básicos ===
+  // Cuando cambia el "Número de Cajas" de un ítem de Set Up (concepto base o
+  // medio de pago adicional), se propaga automáticamente el mismo valor al ítem
+  // gemelo de Recurrentes Básicos identificado por su vínculo 1:1 (sourceServiceId
+  // / linkedTo / mismo nombre de producto). El flujo es UNIDIRECCIONAL.
+  const propagateBoxesToRecurring = (recurringItems, sourceItem, newCajas) => {
+    if (!Array.isArray(recurringItems) || !sourceItem) return recurringItems;
+    const srcName = sourceItem.medio_pago_name;
+    const srcId = sourceItem.id;
+    let changed = false;
+    const next = recurringItems.map(r => {
+      const isTwin =
+        (srcId && (r.sourceServiceId === srcId || r.sourceSetupId === srcId || r.linkedSetupId === srcId)) ||
+        (srcName && (r.linkedTo === srcName || r.medio_pago_name === srcName));
+      if (isTwin && r.cantidad_cajas !== newCajas) {
+        changed = true;
+        // Limpiamos totalOverride para que el subtotal se recalcule con las nuevas cajas.
+        return { ...r, cantidad_cajas: newCajas, totalOverride: undefined };
+      }
+      return r;
+    });
+    return changed ? next : recurringItems;
+  };
+
   const updateSetupItem = (index, field, value) => {
     const updatedItems = [...quoteData.setup_items];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa' 
-        ? (value === '' ? '' : parseFloat(value)) 
-        : value
-    };
-    setQuoteData({ ...quoteData, setup_items: updatedItems });
+    const parsed = field === 'cantidad_cajas' || field === 'cantidad_bancos' || field === 'tarifa'
+      ? (value === '' ? '' : parseFloat(value))
+      : value;
+    updatedItems[index] = { ...updatedItems[index], [field]: parsed };
+    const patch = { ...quoteData, setup_items: updatedItems };
+    if (field === 'cantidad_cajas' && parsed !== '' && Number.isFinite(parsed) && parsed > 0) {
+      patch.recurring_basic_items = propagateBoxesToRecurring(quoteData.recurring_basic_items, updatedItems[index], parsed);
+    }
+    setQuoteData(patch);
   };
 
   // Duplicar un concepto de Setup
@@ -1362,11 +1388,17 @@ export const Quotes = () => {
   // Actualizar campo en additional_items
   const updateAdditionalItem = (index, field, value) => {
     const updatedItems = [...quoteData.additional_items];
+    const parsed = parseFloat(value) || 0;
     updatedItems[index] = {
       ...updatedItems[index],
-      [field]: parseFloat(value) || 0
+      [field]: parsed
     };
-    setQuoteData({ ...quoteData, additional_items: updatedItems });
+    const patch = { ...quoteData, additional_items: updatedItems };
+    // Sincronización Set Up → Recurrentes: propagar Número de Cajas al ítem gemelo.
+    if (field === 'cantidad_cajas' && parsed > 0) {
+      patch.recurring_basic_items = propagateBoxesToRecurring(quoteData.recurring_basic_items, updatedItems[index], parsed);
+    }
+    setQuoteData(patch);
   };
 
   // Calcular total por fila: Tarifa * Cajas * Bancos
