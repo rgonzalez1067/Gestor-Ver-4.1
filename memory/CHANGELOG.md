@@ -554,3 +554,17 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
     editor TipTap (insertText en el cursor).
   - Indicador visual "Insertando en: Asunto/Cuerpo" en ambos paneles.
 - Verificado por testing agent (Iter58): 100% frontend. Paridad 67 vars/6 grupos intacta.
+
+## 2026-06 — Reingeniería del Ciclo de Vida de Proyectos (P0)
+- **Nuevo catálogo de estados** (reemplaza al anterior): Por asignar · Asignado · En Gestión · Suspendido · Implementado parcial · Culminado. `models.PROJECT_STATUSES` + `PROJECT_MANUAL_STATUSES`.
+- **Máquina de estados (automatización)**:
+  - Creación (cotización y directo) → 'Por asignar' (o 'Asignado' si la ficha del cliente trae Implementador).
+  - Asignar Implementador → 'Asignado' (mantiene 'En Gestión' si ya hay ticket — regla de reasignación).
+  - Guardar Nro de Ticket → 'En Gestión' (respeta estados manuales).
+  - Manuales: Suspendido / Implementado parcial / Culminado (botón 'Cambiar estado', solo estas 3).
+- **Auditoría de queries**: dashboard counts, filtros de grilla/stats, reportes HTML, `sponsor_reports.py`, `notification_scheduler.py` (assigned-not-started='Asignado', stalled='En Gestión'), bulk-reassign.
+- **Migración de datos**: `scripts/migrate_project_statuses.py` ejecutado → 76 proyectos remapeados (20 Por asignar, 35 Asignado, 21 En Gestión).
+- **Nueva variable {Estado_Proyecto}**: en diccionario compartido (Cotizaciones + Proyectos), `project_template_vars.py` y `notification_engine.py` (busca proyecto por quote_id). Inyecta texto plano del estado.
+- **Bug fix Vista Previa (EmailPreviewDialog)**: el cuerpo era contentEditable con `dangerouslySetInnerHTML`; cualquier re-render (p.ej. editar Asunto) re-aplicaba el HTML original y borraba ediciones. Fix: `innerHTML` imperativo vía useEffect SOLO cuando cambia el html de origen (lastHtmlRef). Las ediciones del cuerpo ahora persisten al editar el Asunto.
+- Frontend: `Projects.jsx` (STATUS_CONFIG, STATUS_TRANSITIONS, matchStatus, stats chips), `ProjectDetail.jsx` (badge), `BulkReassignModal.jsx`, `templateVariables.js`.
+- Verificado: testing agent Iter59 → backend 9/9 pytest, frontend validado. Sin regresiones.
