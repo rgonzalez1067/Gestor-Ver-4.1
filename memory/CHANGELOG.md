@@ -590,3 +590,12 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Flujo UNIDIRECCIONAL: `updateRecurringBasicItem` NO propaga de vuelta a Set Up.
 - Recálculo automático de subtotales/totales (son derivados reactivos de quoteData).
 - Verificado: testing agent Iter62 → sincronización + recálculo (subtotal $378→$408 al cambiar 10→25 cajas) + independencia + unidireccionalidad. 100%.
+
+## 2026-06 — Homologación de destinatarios + "Para" editable (Modal Notificaciones Proyectos)
+- **CC como tokens:** se reemplazó el campo CC de texto plano (comas) por el componente de tokens del cotizador: `InternalEmailInput` (lista buscable de usuarios internos) + botón "+" para externos (Enter o clic) + chips removibles. Estado nuevo `additionalRecipientsList` (array).
+- **"Para" (TO) editable en caliente:** input con autocompletar + "+" (`notif-to-input`/`notif-add-to-btn`) para agregar/corregir el correo principal como token, sin alterar el maestro de Cliente/Banco (efímero por envío).
+- **Filtro forzado por roles (backend):** `GET /users/internal-emails?profile=strategic` (helper `_is_strategic_profile`) incluye SOLO Directores (cualquier depto), Ventas Pyme/Corporativas, e Implementación (Implementador/Coordinador/Gerente). Aplica SOLO al modal de Proyectos (`InternalEmailInput profile="strategic"`); el cotizador queda sin filtrar. Verificado: 39 totales → 19 estratégicos.
+- **Entrega:** `send-notification` usa `to_override` como TO real (correo corregido) y `additional_recipients` como CC.
+- `InternalEmailInput` ahora acepta props `profile` (filtra fetch) y `onEnter`.
+- Verificado: testing agent Iter63 → backend 4/4, frontend flujo crítico 100%. Test nuevo: backend/tests/test_internal_emails_filter.py.
+- Pendiente menor: agregar data-testid al botón final de envío del modal para E2E.
