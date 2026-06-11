@@ -583,3 +583,10 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - **Fix Instrucciones (Enviar a Implementación):** `handleInstrChange` propaga al padre con debounce 250ms (cache en `implLatestRef`) + `flushInstr` síncrono en `onBlur` del contenedor del RichTextEditor → escribir ya no re-renderiza el modal por tecla y no se pierde texto al continuar.
 - Verificado: testing agent Iter61 → 100% frontend, funcionalidad intacta, sin pérdida de datos.
 - Deuda técnica menor: `addMultistoreStore`/`multistoreNewStore` en Quotes.jsx quedaron obsoletos (la UI usa MultistoreAddForm); eliminar en limpieza futura.
+
+## 2026-06 — Sincronización Set Up → Costos Recurrentes Básicos (cantidad de cajas)
+- Helper `propagateBoxesToRecurring` (Quotes.jsx): al cambiar "Número de Cajas" de un ítem de Set Up, propaga el valor al ítem gemelo de Recurrentes Básicos identificado por `sourceServiceId`/`linkedSetupId`/`linkedTo` (y, como fallback, mismo `medio_pago_name` solo para recurrentes SIN vínculo explícito).
+- `updateSetupItem` y `updateAdditionalItem` llaman al helper cuando field='cantidad_cajas' (>0), en un ÚNICO setState (sin parpadeo). Limpia `totalOverride` del gemelo para forzar recálculo.
+- Flujo UNIDIRECCIONAL: `updateRecurringBasicItem` NO propaga de vuelta a Set Up.
+- Recálculo automático de subtotales/totales (son derivados reactivos de quoteData).
+- Verificado: testing agent Iter62 → sincronización + recálculo (subtotal $378→$408 al cambiar 10→25 cajas) + independencia + unidireccionalidad. 100%.

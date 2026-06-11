@@ -1245,9 +1245,13 @@ export const Quotes = () => {
     const srcId = sourceItem.id;
     let changed = false;
     const next = recurringItems.map(r => {
-      const isTwin =
-        (srcId && (r.sourceServiceId === srcId || r.sourceSetupId === srcId || r.linkedSetupId === srcId)) ||
-        (srcName && (r.linkedTo === srcName || r.medio_pago_name === srcName));
+      // Prioridad 1: vínculo explícito por ID de origen o por producto vinculado.
+      const linkedById = srcId && (r.sourceServiceId === srcId || r.sourceSetupId === srcId || r.linkedSetupId === srcId);
+      const linkedByName = srcName && r.linkedTo === srcName;
+      // Prioridad 2 (fallback): mismo nombre, SOLO para recurrentes sin vínculo
+      // explícito (conceptos base), para no sobre-propagar a gemelos de otros productos.
+      const sameNameUnlinked = srcName && r.medio_pago_name === srcName && !r.linkedTo && !r.sourceServiceId;
+      const isTwin = linkedById || linkedByName || sameNameUnlinked;
       if (isTwin && r.cantidad_cajas !== newCajas) {
         changed = true;
         // Limpiamos totalOverride para que el subtotal se recalcule con las nuevas cajas.
