@@ -573,3 +573,13 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - **Bug Vista Previa (EmailPreviewDialog):** el fix imperativo anterior (useEffect+innerHTML) dejaba el cuerpo VACÍO al abrir. Cambiado a `key={sourceHtml}` + `dangerouslySetInnerHTML={{__html: previewData.html}}`: el contenido se muestra al abrir/regenerar la vista previa, y como editar el Asunto NO cambia `previewData.html`, React no re-monta el contentEditable → las ediciones manuales del cuerpo persisten.
 - **Prefijo de secuencia al FINAL del asunto:** en notificaciones a Cliente y Banco, '[Primer Envío]'/'[Primer Recordatorio]'/etc. ahora se concatena al final: `f"{raw_subject} [{prefix_label}]"` (client, bank_client, bank — ramas plantilla y fallback en projects.py L716-838).
 - Verificado: testing agent Iter60 → backend 3/3 API, fix de UI confirmado por revisión de código.
+
+## 2026-06 — Optimización de latencia de escritura (Multitienda + Instrucciones)
+- **Causa:** el estado vivía en Quotes.jsx (componente enorme); cada tecla en inputs controlados por el padre re-renderizaba todo el modal QuoteModals → latencia.
+- **Fix Multitienda:** nuevos componentes memo a nivel de módulo en QuoteModals.jsx:
+  - `MultistoreRow` (filas heredadas editables): estado LOCAL + debounce 200ms en el nombre + flush en blur; ref extName/extBox evita reset por sync.
+  - `MultistoreAddForm` (agregar tienda): estado LOCAL, propaga al padre solo al Agregar/Enter (callback `appendStore`).
+  - Handlers estables `commitStore`/`removeStore`/`appendStore` (functional updates).
+- **Fix Instrucciones (Enviar a Implementación):** `handleInstrChange` propaga al padre con debounce 250ms (cache en `implLatestRef`) + `flushInstr` síncrono en `onBlur` del contenedor del RichTextEditor → escribir ya no re-renderiza el modal por tecla y no se pierde texto al continuar.
+- Verificado: testing agent Iter61 → 100% frontend, funcionalidad intacta, sin pérdida de datos.
+- Deuda técnica menor: `addMultistoreStore`/`multistoreNewStore` en Quotes.jsx quedaron obsoletos (la UI usa MultistoreAddForm); eliminar en limpieza futura.
