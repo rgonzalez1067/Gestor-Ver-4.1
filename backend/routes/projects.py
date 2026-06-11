@@ -1489,12 +1489,17 @@ async def batch_update_multistore_matrix(project_id: str, body: BatchMatrixUpdat
     if not project.get("client_notified"):
         raise HTTPException(status_code=400, detail="Debe notificar al cliente primero antes de actualizar la matriz")
 
-    # Permisología: admin, implementador asignado o supervisor
+    # Permisología: admin, implementador asignado o supervisor.
+    # El implementador asignado se guarda en `assigned_to_user_id` (campo canónico).
     user_id = current_user.get("user_id", "")
     user_role = current_user.get("role", "")
     cargo = current_user.get("cargo", "")
     is_admin = user_role == "admin"
-    is_assigned = user_id == project.get("implementer_user_id") or user_id == project.get("implementer_id")
+    is_assigned = bool(user_id) and user_id in (
+        project.get("assigned_to_user_id"),
+        project.get("implementer_user_id"),  # compat. legacy
+        project.get("implementer_id"),       # compat. legacy
+    )
     is_supervisor = cargo in ("Gerente", "Director", "Supervisor")
     if not (is_admin or is_assigned or is_supervisor):
         raise HTTPException(status_code=403, detail="Solo el implementador asignado o su supervisor puede ejecutar actualización masiva")
