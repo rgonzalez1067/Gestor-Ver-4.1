@@ -1898,6 +1898,24 @@ async def send_adhoc_email(
 
 # ==================== SUGGESTED CONTACTS ====================
 
+# Emails/nombres placeholder heredados de importaciones masivas que NO deben
+# mostrarse como destinatarios reales (no existen en las fichas).
+PLACEHOLDER_CONTACT_EMAILS = {"na@na.com", "sin@email.com", "n/a", "noemail@noemail.com"}
+PLACEHOLDER_CONTACT_NAMES = {"n/a", "na", "sin nombre"}
+
+
+def _is_placeholder_contact(email: str, name: str = "") -> bool:
+    em = (email or "").strip().lower()
+    nm = (name or "").strip().lower()
+    if em in PLACEHOLDER_CONTACT_EMAILS:
+        return True
+    if "@" not in em:
+        return True  # email inválido → no es un destinatario utilizable
+    if nm in PLACEHOLDER_CONTACT_NAMES and em in PLACEHOLDER_CONTACT_EMAILS:
+        return True
+    return False
+
+
 @router.get("/projects/{project_id}/suggested-contacts")
 async def get_suggested_contacts(project_id: str, authorization: Optional[str] = Header(None)):
     """Obtener contactos sugeridos del Cliente y Bancos del proyecto."""
@@ -1991,6 +2009,9 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
     seen_keys = set()
     unique_contacts = []
     for c in contacts:
+        # Excluir contactos placeholder heredados (na@na.com, sin@email.com, N/A, etc.)
+        if _is_placeholder_contact(c.get("email", ""), c.get("name") or c.get("label", "")):
+            continue
         key = (c.get("email", "").lower(), c.get("source"), c.get("bank_name") or "")
         if key in seen_keys:
             continue
