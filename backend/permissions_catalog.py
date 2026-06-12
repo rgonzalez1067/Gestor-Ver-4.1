@@ -52,6 +52,7 @@ MODULES = [
     {"id": "proyectos",         "name": "Proyectos",          "group": "gestion_implementacion"},
     {"id": "proyectos_directos","name": "Proyectos Directos", "group": "gestion_implementacion"},
     {"id": "integradores",      "name": "Integradores",       "group": "gestion_implementacion"},
+    {"id": "datos_imple",       "name": "Datos de Imple",     "group": "gestion_implementacion"},
     # Nuevos Productos
     {"id": "nuevos_productos", "name": "Nuevos Productos", "group": "nuevos_productos"},
     # Administrativa

@@ -105,6 +105,20 @@ class Client(BaseModel):
     contact2: Optional[Contact] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class ImpleDataUpdate(BaseModel):
+    """Edición rápida de 'Datos de Imple' (módulo Implementación).
+    Solo los 5 campos permitidos. Se aplican en cascada a todas las
+    sucursales del mismo RIF. NO incluye Ejecutivo Propietario por diseño."""
+    tipo_servicio: List[str] = []          # "Componentes"
+    integrador_id: Optional[str] = None
+    integrador_name: Optional[str] = None
+    aplicativo: Optional[str] = None       # "Aplicación"
+    implementer_user_id: Optional[str] = None
+    implementer_name: Optional[str] = None
+    coordinator_user_id: Optional[str] = None
+    coordinator_name: Optional[str] = None
+
+
 class ClientLogCreate(BaseModel):
     client_id: str
     contact_date: Optional[str] = None

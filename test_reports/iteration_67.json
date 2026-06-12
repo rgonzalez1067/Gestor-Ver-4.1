@@ -1,0 +1,35 @@
+{
+  "summary": "Iter67 — Validación completa de 'Datos de Imple' (módulo Implementación) en backend + frontend. BACKEND: 3/3 tests pytest pasaron — (1) GET /api/implementation/default-coordinator retorna user_id no vacío y profile_found=true (perfil 'Coordinador de Administración' resuelto a Angel Rafael González). (2) GET /api/admin/permission-catalog contiene el módulo 'datos_imple'. (3) PUT /api/clients/{id}/imple-data aplicado al RIF J-505366220 (6 sucursales): respuesta { rif:'J505366220', modified:6, branches_count:6 }; otra sucursal del mismo RIF refleja los cambios (integrador, aplicativo, implementer_user_id, coordinator_user_id, tipo_servicio=['Componentes']); cliente con RIF distinto NO se modifica. FRONTEND: login admin OK → en sidebar grupo 'Gestión de Implementación' aparece 'Datos de Imple' (testid='nav-datos-de-imple', derivado del label). Click navega a /datos-imple, render OK con 'datos-imple-page' y 'datos-imple-table'. Búsqueda 'datos-imple-search' filtra por RIF (J505366220 → 6 filas), por nombre (Paramo → 8) y por implementador (Rafael → 7). Modal 'datos-imple-dialog' contiene EXACTAMENTE los 5 campos (datos-imple-componentes, -integrador, -aplicacion, -implementador, -coordinador) y NO contiene 'Ejecutivo Propietario'. La nota 'Predeterminado (Coordinación de Administración): Angel Rafael Gonzalez' está visible bajo el campo Coordinador. Tras seleccionar Equinoccio Agency (Aplicación se autocompletó a 'Odoo Versión 16'), marcar VPOS y hacer click en 'datos-imple-save' → toast verde 'Datos de implementación actualizados en 6 sucursal(es) del mismo RIF.' y las 6 filas de la grilla muestran los mismos valores (Equinoccio Agency / Odoo Versión 16 / Rafael González (Respaldo) / Kevin Malaguera). Cascada visual confirmada.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (heredado, no relacionado a Datos de Imple)", "issues": ["Hydration warnings de <span data-ve-dynamic> envolviendo <tr>/<tbody> también aparecen en DatosImple.jsx L217/221 (mismo patrón que Dashboard.jsx). No bloquea ninguna interacción ni la cascada — la grilla y el modal funcionan al 100%. Ya reportado en iters previos."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration67_datos_imple.py",
+    "/app/test_reports/pytest/iter67_datos_imple.xml"
+  ],
+  "action_items": [
+    "(Opcional, baja prioridad) El testid del item del sidebar es 'nav-datos-de-imple' (derivado de 'Datos de Imple'.toLowerCase().replace(/\\s+/g,'-')), no 'nav-datos-imple' como menciona el request. Para alinear con la convención, podría considerarse forzar testid='nav-datos-imple' en Sidebar.jsx, pero esto es cosmético — el item existe, es navegable y la página carga.",
+    "(Opcional) Limpiar el warning de hidratación (span/tr/tbody) en DatosImple.jsx removiendo el wrapper <span data-ve-dynamic> generado por el wrapper externo cuando se mapea sobre filas de tabla. No impacta funcionalidad."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/clients.py L321-340 — get_default_coordinator: resolución dinámica vía regex case-insensitive del perfil ('coordinad.*administraci'). Correcto y resiliente a tildes. Retorna estructura clara cuando no hay perfil o user. ✓",
+    "backend/routes/clients.py L343-387 — update_client_imple_data: usa update_many({rif}) — cascada atómica server-side correcta. require_permission('datos_imple','edit') aplicado. modified/matched/branches_count expuestos en la respuesta para auditoría. ✓",
+    "backend/models.py L108-119 — ImpleDataUpdate define exactamente los 5 campos permitidos; campos opcionales (None) para no romper actualizaciones parciales. ✓",
+    "frontend/pages/DatosImple.jsx — UI restringida correctamente a los 5 campos; muestra 'Se actualizarán N sucursales con este RIF' como confirmación visual antes de guardar; ítem 'Predeterminado (Coordinación de Administración): {nombre}' como ayuda al usuario sobre el origen del coordinador por defecto. ✓",
+    "Sidebar.jsx L70 — entrada '/datos-imple' agregada al grupo 'Gestión de Implementación'. ✓",
+    "permissions_catalog.py L55 — módulo 'datos_imple' en grupo 'gestion_implementacion'. ✓"
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration67_datos_imple.py"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (navegación, render, modal 5-campos, ausencia Ejecutivo Propietario, precarga Coordinador, búsqueda por nombre/RIF/implementador, guardar + cascada visual a 6 sucursales)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Se actualizaron los 6 clientes con RIF J-505366220 (Paramo Av Libertador, Paramo Caricuao, Paramo Coche, Paramo Prado De María, Paramo Ruiz Pineda, PARAMO LA URBINA): integrador=Equinoccio Agency, aplicativo='Odoo Versión 16', implementer=Rafael González (Respaldo), coordinator=Kevin Malaguera, tipo_servicio incluye 'Componentes' y 'VPOS'. Cliente control con RIF distinto NO fue alterado.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature Datos de Imple completa y funcional end-to-end. Testids clave: 'nav-datos-de-imple' (derivado del label, NO 'nav-datos-imple'), 'datos-imple-page', 'datos-imple-table', 'datos-imple-search', 'datos-imple-row-{id}', 'datos-imple-edit-{id}', 'datos-imple-dialog', 'datos-imple-componentes' (contiene chips/buttons VPOS/MPOS/Payment Gateway/Link de Pago), 'datos-imple-integrador', 'datos-imple-aplicacion', 'datos-imple-implementador', 'datos-imple-coordinador', 'datos-imple-save'. Para cascada usar RIF J-505366220 (6 sucursales). Backend prefijo: /api/implementation/default-coordinator y /api/clients/{id}/imple-data. Login devuelve campo 'session_token' (no 'token').",
+  "rca of the issue": "N/A — feature nueva, todas las verificaciones funcionales y de integración pasaron."
+}

@@ -67,6 +67,7 @@ const menuItems = [
       { path: '/projects', icon: FolderKanban, label: 'Proyectos' },
       { path: '/direct-projects', icon: Plus, label: 'Proyectos Directos' },
       { path: '/integrators', icon: UserCheck, label: 'Integradores' },
+      { path: '/datos-imple', icon: Wrench, label: 'Datos de Imple' },
     ]
   },
   { path: '/new-products', icon: FlaskConical, label: 'Nuevos Productos', groupId: 'nuevos_productos' },

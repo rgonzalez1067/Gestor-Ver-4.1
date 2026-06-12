@@ -41,6 +41,7 @@ import UserManagement from './pages/UserManagement';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import DirectProjectCreation from './pages/DirectProjectCreation';
+import DatosImple from './pages/DatosImple';
 import NewProducts from './pages/NewProducts';
 import Inventory from './pages/Inventory';
 import TallerEquipos from './pages/TallerEquipos';
@@ -118,6 +119,11 @@ function AppRouter() {
       <Route path="/direct-projects" element={
         <ProtectedRoute>
           <DirectProjectCreation />
+        </ProtectedRoute>
+      } />
+      <Route path="/datos-imple" element={
+        <ProtectedRoute>
+          <DatosImple />
         </ProtectedRoute>
       } />
       <Route path="/projects/:projectId" element={

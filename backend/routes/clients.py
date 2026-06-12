@@ -315,6 +315,79 @@ async def get_clients(authorization: Optional[str] = Header(None)):
     clients = await db.clients.find({}, {"_id": 0}).to_list(2000)
     return clients
 
+
+# ==================== DATOS DE IMPLE (edición rápida + cascada multisucursal) ====================
+
+@router.get("/implementation/default-coordinator")
+async def get_default_coordinator(authorization: Optional[str] = Header(None)):
+    """Coordinador por defecto para 'Datos de Imple': usuario ACTIVO cuyo PERFIL
+    de seguridad es 'Coordinador de Administración'. Se resuelve dinámicamente,
+    de modo que si cambia la persona asignada al perfil, la precarga se actualiza."""
+    await get_current_user(authorization)
+    profile = await db.profiles.find_one(
+        {"name": {"$regex": r"coordinad.*administraci", "$options": "i"}},
+        {"_id": 0, "profile_id": 1, "name": 1}
+    )
+    if not profile:
+        return {"user_id": "", "name": "", "profile_found": False}
+    user = await db.users.find_one(
+        {"profile_id": profile["profile_id"], "is_active": True},
+        {"_id": 0, "user_id": 1, "first_name": 1, "last_name": 1}
+    )
+    if not user:
+        return {"user_id": "", "name": "", "profile_found": True, "profile_name": profile.get("name")}
+    name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    return {"user_id": user["user_id"], "name": name, "profile_found": True, "profile_name": profile.get("name")}
+
+
+@router.put("/clients/{client_id}/imple-data")
+async def update_client_imple_data(client_id: str, payload: ImpleDataUpdate, authorization: Optional[str] = Header(None)):
+    """Edición rápida de datos de implementación. Aplica los 5 campos al cliente
+    seleccionado y los replica EN CASCADA a TODAS las sucursales del mismo RIF,
+    en una sola operación de actualización (update_many). Flujo unidireccional."""
+    await require_permission(authorization, "datos_imple", "edit")
+
+    client = await db.clients.find_one(
+        {"client_id": client_id},
+        {"_id": 0, "rif": 1, "legal_name": 1, "fantasy_name": 1}
+    )
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    rif = client.get("rif")
+    if not rif:
+        raise HTTPException(status_code=400, detail="El cliente no tiene RIF; no se puede aplicar la actualización multisucursal.")
+
+    update_fields = {
+        "tipo_servicio": payload.tipo_servicio or [],
+        "integrador_id": payload.integrador_id,
+        "integrador_name": payload.integrador_name,
+        "aplicativo": payload.aplicativo,
+        "implementer_user_id": payload.implementer_user_id,
+        "implementer_name": payload.implementer_name,
+        "coordinator_user_id": payload.coordinator_user_id,
+        "coordinator_name": payload.coordinator_name,
+        "imple_data_updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Cascada: todos los registros con el mismo RIF (todas las sucursales)
+    result = await db.clients.update_many({"rif": rif}, {"$set": update_fields})
+
+    branches = await db.clients.find(
+        {"rif": rif}, {"_id": 0, "client_id": 1, "sucursal": 1}
+    ).to_list(1000)
+
+    return {
+        "message": f"Datos de implementación actualizados en {result.modified_count} sucursal(es) del mismo RIF.",
+        "rif": rif,
+        "matched": result.matched_count,
+        "modified": result.modified_count,
+        "branches_count": len(branches),
+        "branches": branches,
+    }
+
+
+
 @router.get("/clients/search")
 async def search_clients(q: str = "", authorization: Optional[str] = Header(None)):
     """Búsqueda server-side de clientes por nombre o RIF"""
