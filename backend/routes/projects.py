@@ -1916,6 +1916,20 @@ def _is_placeholder_contact(email: str, name: str = "") -> bool:
     return False
 
 
+def _is_placeholder_for_deletion(email: str, name: str = "") -> bool:
+    """Más conservador que _is_placeholder_contact: usado para borrado FÍSICO.
+    Solo elimina el patrón placeholder real (email basura conocido o nombre N/A
+    sin email válido). NO borra contactos legítimos que simplemente no tengan
+    correo (pueden tener nombre/teléfono útiles en la ficha)."""
+    em = (email or "").strip().lower()
+    nm = (name or "").strip().lower()
+    if em in PLACEHOLDER_CONTACT_EMAILS:
+        return True
+    if nm in PLACEHOLDER_CONTACT_NAMES and ("@" not in em or em in PLACEHOLDER_CONTACT_EMAILS):
+        return True
+    return False
+
+
 @router.get("/projects/{project_id}/suggested-contacts")
 async def get_suggested_contacts(project_id: str, authorization: Optional[str] = Header(None)):
     """Obtener contactos sugeridos del Cliente y Bancos del proyecto."""
@@ -2019,6 +2033,68 @@ async def get_suggested_contacts(project_id: str, authorization: Optional[str] =
         unique_contacts.append(c)
 
     return unique_contacts
+
+
+@router.post("/admin/clean-placeholder-contacts")
+async def clean_placeholder_contacts(authorization: Optional[str] = Header(None)):
+    """[ADMIN] Purga física de contactos placeholder heredados de importaciones
+    masivas (legacy contact1/contact2 con N/A · na@na.com · sin@email.com, y
+    entradas inválidas en arrays contacts[] de clientes/bancos).
+
+    Idempotente: puede ejecutarse varias veces sin efectos secundarios.
+    Pensado para correrse una vez en producción tras el despliegue.
+    """
+    current_user = await get_current_user(authorization)
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ejecutar esta acción")
+
+    legacy_unset = 0
+    clients_arr_cleaned = 0
+    banks_arr_cleaned = 0
+
+    # 1) Clientes: legacy contact1/contact2 placeholder -> $unset + filtrar contacts[]
+    async for cl in db.clients.find({}, {"_id": 0, "client_id": 1, "contact1": 1, "contact2": 1, "contacts": 1}):
+        unset = {}
+        for k in ("contact1", "contact2"):
+            lg = cl.get(k)
+            if isinstance(lg, dict) and _is_placeholder_for_deletion(lg.get("email", ""), lg.get("name", "")):
+                unset[k] = ""
+        arr = cl.get("contacts") or []
+        new_arr = [c for c in arr if not _is_placeholder_for_deletion(
+            c.get("email", ""),
+            c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}",
+        )]
+        arr_changed = len(new_arr) != len(arr)
+
+        update = {}
+        if unset:
+            update["$unset"] = unset
+            legacy_unset += len(unset)
+        if arr_changed:
+            update.setdefault("$set", {})["contacts"] = new_arr
+            clients_arr_cleaned += (len(arr) - len(new_arr))
+        if update:
+            await db.clients.update_one({"client_id": cl["client_id"]}, update)
+
+    # 2) Bancos: filtrar contacts[] (defensivo)
+    async for bk in db.banks.find({}, {"_id": 0, "bank_id": 1, "name": 1, "contacts": 1}):
+        arr = bk.get("contacts") or []
+        new_arr = [c for c in arr if not _is_placeholder_for_deletion(
+            c.get("email", ""),
+            c.get("full_name") or f"{c.get('first_name', '')} {c.get('last_name', '')}",
+        )]
+        if len(new_arr) != len(arr):
+            banks_arr_cleaned += (len(arr) - len(new_arr))
+            await db.banks.update_one({"bank_id": bk.get("bank_id"), "name": bk.get("name")}, {"$set": {"contacts": new_arr}})
+
+    total = legacy_unset + clients_arr_cleaned + banks_arr_cleaned
+    return {
+        "message": f"Limpieza completada. {total} contacto(s) placeholder eliminado(s).",
+        "legacy_contacts_removed": legacy_unset,
+        "client_array_contacts_removed": clients_arr_cleaned,
+        "bank_array_contacts_removed": banks_arr_cleaned,
+    }
+
 
 
 # ==================== EMAIL TEMPLATES (CRUD) ====================
