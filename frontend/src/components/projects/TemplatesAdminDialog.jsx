@@ -105,7 +105,14 @@ export const TemplatesAdminDialog = ({
                         <FileText size={15} />
                       </div>
                       <div className="min-w-0 flex-1 py-0.5">
-                        <p className={`text-sm font-semibold truncate ${active ? 'text-blue-900' : 'text-slate-800'}`}>{t.name}</p>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className={`text-sm font-semibold truncate cursor-help ${active ? 'text-blue-900' : 'text-slate-800'}`} data-testid={`template-name-${t.template_id}`}>{t.name}</p>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" align="start" className="max-w-[280px] text-[11px] break-words" data-testid={`template-name-tooltip-${t.template_id}`}>
+                            {t.name}
+                          </TooltipContent>
+                        </Tooltip>
                         <p className="text-[11px] text-slate-500 truncate mt-0.5">{t.subject || 'Sin asunto'}</p>
                       </div>
                       {/* Acciones (aparecen al hover/focus) */}
