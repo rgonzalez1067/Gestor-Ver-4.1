@@ -544,6 +544,13 @@ async def download_ficha_tecnica(project_id: str, authorization: Optional[str] =
     quote_like.update({
         "quote_number": pick(project.get("quote_number"), quote_like.get("quote_number"), project.get("project_number")),
         "quote_type": pick(project.get("quote_type"), quote_like.get("quote_type")),
+        # Bancos/Productos del Resumen Ejecutivo: el proyecto es la fuente de verdad
+        # (la implementation_matrix se arma desde estos `services`). Para Proyectos
+        # Directos el quote_id es ficticio y no existe en `quotes`, por lo que sin
+        # esto la tabla salía vacía. Fallback a la cotización origen si el proyecto
+        # no los tuviera persistidos.
+        "services": project.get("services") or quote_like.get("services") or [],
+        "pg_setup_items": project.get("pg_setup_items") or quote_like.get("pg_setup_items") or [],
         "cantidad_cajas": project.get("box_count") or quote_like.get("cantidad_cajas") or 0,
         "economic_group": pick(project.get("economic_group"), quote_like.get("economic_group")),
         "fantasy_name": pick(project.get("fantasy_name"), quote_like.get("fantasy_name"), client.get("fantasy_name"), project.get("client_name")),
