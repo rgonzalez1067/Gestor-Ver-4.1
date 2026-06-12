@@ -65,6 +65,8 @@ ACTIONS = [
      "pdfs_default": []},
     {"id": "send_to_implementation", "label": "Enviar a Implementación",
      "pdfs_default": ["Ficha Técnica (PDF)"]},
+    {"id": "notify_infrastructure_pinpads", "label": "Aviso de Pinpads a Infraestructura",
+     "pdfs_default": ["Ficha Técnica (PDF)"]},
     {"id": "deliver", "label": "Marcar como entregada",
      "pdfs_default": ["Nota de Entrega (PDF)"]},
     {"id": "repair_complete", "label": "Reparada",
@@ -123,7 +125,7 @@ ALLOWED_ACTIONS_BY_BIZ_SUB = {
         "send_to_client", "approve", "repair_complete", "invoice", "collect", "deliver",
     ],
     ("proyectos_directos", None): [
-        "send_to_implementation",
+        "send_to_implementation", "notify_infrastructure_pinpads",
     ],
 }
 

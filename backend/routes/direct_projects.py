@@ -100,6 +100,8 @@ class DirectProjectCreate(BaseModel):
 
     # Hardware (solo VPOS / MPOS) — pinpad_model ahora viene del catálogo de hardware
     pinpad_model: Optional[str] = None
+    # Patrocinador de Pinpads: 'client' | 'infrastructure' | 'bank' (None = legacy → 'bank').
+    pinpad_provider: Optional[str] = None
     pinpad_bank: Optional[str] = None
     # Patrocinio relacional del Pinpad: si el Banco del Pinpad seleccionado es un
     # Procesador, se designa el banco final vinculado (Procesador → Banco).
@@ -239,6 +241,22 @@ async def create_direct_project(
     pseudo_quote_number = f"DIRECT-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
     pseudo_quote_id = f"dq_{uuid.uuid4().hex[:12]}"
 
+    # Patrocinador de Pinpads (3 opciones excluyentes). La fila "Patrocinador de
+    # Pinpads" de la Ficha Técnica usa sponsor_bank_name/sponsor_processor_name.
+    _pp_provider = (payload.pinpad_provider or "").strip().lower()
+    if not _pp_provider:
+        # Compatibilidad: si no llega 'pinpad_provider' pero hay banco, es 'bank'.
+        _pp_provider = "bank" if (payload.pinpad_bank or "").strip() else ""
+    if _pp_provider == "client":
+        _pp_bank_name = "Los Pinpads son suministrados por el Cliente"
+        _pp_processor_name = None
+    elif _pp_provider == "infrastructure":
+        _pp_bank_name = "Los Pinpads son suministrados por Infraestructura"
+        _pp_processor_name = None
+    else:  # 'bank' o vacío → comportamiento estándar (banco/procesador)
+        _pp_bank_name = (payload.pinpad_bank or "").strip() or None
+        _pp_processor_name = (payload.pinpad_processor_name or "").strip() or None
+
     synthetic_quote = {
         "quote_id": pseudo_quote_id,
         "quote_number": pseudo_quote_number,
@@ -256,10 +274,10 @@ async def create_direct_project(
         # Proyectos Directos proviene del campo "Banco del Pinpad" (pinpad_bank).
         # Es independiente del Patrocinador de la Implementación.
         "sponsor_bank_id": None,
-        "sponsor_bank_name": (payload.pinpad_bank or "").strip() or None,
+        "sponsor_bank_name": _pp_bank_name,
         # Procesador asociado al Patrocinador de Pinpads (Procesador → Banco).
-        "sponsor_processor_id": payload.pinpad_processor_id or None,
-        "sponsor_processor_name": (payload.pinpad_processor_name or "").strip() or None,
+        "sponsor_processor_id": payload.pinpad_processor_id if _pp_provider == "bank" else None,
+        "sponsor_processor_name": _pp_processor_name,
         # Patrocinador de la Implementación = "Banco Patrocinante" (Sección Definición
         # Comercial). Alimenta patrocinador_label ("Procesador — Banco" o solo "Banco")
         # y la columna de patrocinio del grid.
@@ -340,6 +358,7 @@ async def create_direct_project(
             "direct_project": True,
             # Sede heredada de la ficha del usuario en sesión (seguridad de perfiles).
             "sede": sede,
+            "pinpad_provider": _pp_provider or None,
             "pinpad_bank": payload.pinpad_bank,
             # Persistir la grilla original para auditoría / re-emisión
             "boxes_grid": [b.model_dump() for b in payload.boxes_grid],
@@ -380,6 +399,25 @@ async def create_direct_project(
             implementation_pdf_bytes=pdf_bytes,
         )
         notification_result = {"dispatched": bool(dispatched), "reason": "ok" if dispatched else "no_config"}
+
+        # Escenario B (Patrocinador de Pinpads = Infraestructura): aviso automático
+        # al equipo de Infraestructura, replicando el motor de notificaciones
+        # (acción configurable 'notify_infrastructure_pinpads') con la Ficha adjunta.
+        if _pp_provider == "infrastructure":
+            try:
+                infra_dispatched = await engine_try_dispatch(
+                    "notify_infrastructure_pinpads",
+                    notif_quote,
+                    user,
+                    implementation_pdf_bytes=pdf_bytes,
+                )
+                notification_result["infrastructure"] = {
+                    "dispatched": bool(infra_dispatched),
+                    "reason": "ok" if infra_dispatched else "no_config",
+                }
+            except Exception as e:
+                logger.warning(f"[direct-projects] Infra notification dispatch failed: {e}")
+                notification_result["infrastructure"] = {"dispatched": False, "reason": str(e)}
     except Exception as e:
         logger.warning(f"[direct-projects] Notification dispatch failed: {e}")
         notification_result = {"dispatched": False, "reason": str(e)}

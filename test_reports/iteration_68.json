@@ -1,0 +1,31 @@
+{
+  "summary": "Iter68 — Reingeniería 'Patrocinador de Pinpads' en Proyectos Directos validada end-to-end. BACKEND (5/5 pytest): (1) Catálogo /api/action-notifications/catalog incluye acción 'notify_infrastructure_pinpads' y está permitida bajo 'proyectos_directos|_'. (2) Config sembrada 'proyectos_directos|_|notify_infrastructure_pinpads' tiene >=1 recipient con delivery_channel='inbox' (Infraestructura: Martín Ochoa). (3) Escenario A (client): POST /api/direct-projects con pinpad_provider='client' crea proyecto, NO dispara infra notification, y la Ficha Técnica PDF contiene 'Los Pinpads son suministrados por el Cliente'. (4) Escenario B (infrastructure): proyecto creado, response.notification.infrastructure.dispatched=true, y Ficha contiene 'Los Pinpads son suministrados por Infraestructura'. (5) Escenario C (bank): proyecto creado con pinpad_bank='Banesco', NO dispara infra, Ficha contiene 'Banesco' y NO las glosas. Independencia verificada en (3) y (5). FRONTEND (UI Playwright): en /direct-projects con tipo VPOS, el campo 'Patrocinador de Pinpads' (data-testid='dp-pinpad-provider') muestra EXACTAMENTE las 3 opciones ['El cliente', 'Infraestructura', 'Un Banco']. Al elegir 'Infraestructura' aparece dp-pinpad-infra-note y se oculta dp-pinpad-bank. Al elegir 'El cliente' aparece dp-pinpad-client-note y se oculta dp-pinpad-bank. Al elegir 'Un Banco' aparece dp-pinpad-bank y desaparecen las notas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "DirectProjectCreation (heredado)", "issues": ["Warnings de hidratación HTML <span data-ve-dynamic> envolviendo <tr>/<tbody> en la grilla de cajas (líneas 1102-1116 de DirectProjectCreation.jsx). Mismo patrón ya reportado en Dashboard.jsx desde iters previas. NO bloquea ninguna interacción — el flujo del nuevo campo Patrocinador de Pinpads funciona al 100%."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration68_pinpad_provider.py",
+    "/app/test_reports/pytest/iter68.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/direct_projects.py L246-258 — Mapeo correcto de pinpad_provider (client/infrastructure/bank/legacy-vacío→bank). Para client/infrastructure se sustituye sponsor_bank_name por la glosa literal y se anula sponsor_processor_name; para bank se preserva el flujo estándar. Limpio y simétrico. ✓",
+    "backend/routes/direct_projects.py L404-420 — Dispatch condicional de 'notify_infrastructure_pinpads' SOLO cuando _pp_provider=='infrastructure', con try/except y reporte explícito en notification_result.infrastructure. La independencia (client/bank no disparan) está garantizada por el guard. ✓",
+    "backend/routes/action_notifications.py L68-69 + L127-129 — Acción 'notify_infrastructure_pinpads' añadida al catálogo ACTIONS y a ALLOWED_ACTIONS_BY_BIZ_SUB[('proyectos_directos', None)]. ✓",
+    "frontend/pages/DirectProjectCreation.jsx L762-811 — onValueChange limpia pinpad_bank_id/pinpad_bank/pinpad_processor_* al elegir client o infrastructure (evita estado inconsistente si el usuario cambia de banco→cliente). Las 3 notas/sub-selector tienen data-testid distintos (dp-pinpad-bank, dp-pinpad-infra-note, dp-pinpad-client-note) para facilitar QA. ✓",
+    "backend/routes/projects.py L562-563 — La Ficha Técnica re-genera al vuelo desde project (proyecto es fuente de verdad para sponsor_bank_name/sponsor_processor_name); para Proyectos Directos quote_id es ficticio pero los campos persisten en el proyecto vía _create_project_from_quote. Verificado por extracción de texto del PDF. ✓"
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration68_pinpad_provider.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (dropdown 3 opciones, transiciones note/bank en las 3 selecciones)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Cada test crea un Proyecto Directo VPOS multitienda (2 cajas, 2 sucursales) con economic_group='Grupo TEST' y fantasy_name='Fantasy TEST Iter68'. Las configs del motor de notificaciones ya estaban sembradas (notify_infrastructure_pinpads → canal inbox al usuario de Infraestructura).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature pinpad_provider en Proyectos Directos OK. Testids clave: dp-pinpad-provider (select 3-opciones), dp-pinpad-bank (sub-selector solo cuando provider='bank'), dp-pinpad-infra-note, dp-pinpad-client-note. Backend: POST /api/direct-projects con field 'pinpad_provider' ∈ {'client','infrastructure','bank'}; response.notification.infrastructure.dispatched solo cuando provider='infrastructure'. La Ficha Técnica es PDF (no JSON) — usar pdfplumber/PyPDF2 para extraer texto. Config key del motor: 'proyectos_directos|_|notify_infrastructure_pinpads'. Quote_type debe ser VPOS o MPOS para que el bloque pinpad sea relevante.",
+  "rca of the issue": "N/A — feature nueva, todas las verificaciones funcionales pasaron al primer intento."
+}

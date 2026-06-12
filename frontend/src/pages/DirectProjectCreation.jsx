@@ -203,7 +203,8 @@ export default function DirectProjectCreation() {
     integrator_id: '',
     integrator_app_name: '',
     pinpad_model: '',
-    pinpad_bank: '',          // Patrocinador de Pinpads (nombre del banco final)
+    pinpad_provider: '',      // Patrocinador de Pinpads: '' | 'client' | 'infrastructure' | 'bank'
+    pinpad_bank: '',          // Patrocinador de Pinpads (nombre del banco final) — solo si provider='bank'
     pinpad_bank_id: '',       // bank_id seleccionado (para lógica relacional)
     pinpad_processor_id: '',  // si el patrocinador de pinpads pasa por un Procesador
     pinpad_processor_name: '',
@@ -760,23 +761,52 @@ export default function DirectProjectCreation() {
               </div>
               <div>
                 <Label className="text-xs">Patrocinador de Pinpads</Label>
-                <Select value={form.pinpad_bank_id || ''} onValueChange={(v) => {
-                  const b = banks.find((x) => x.bank_id === v);
-                  if (b && b.type === 'Procesador') {
-                    // Interceptar: designar el banco final vinculado al procesador.
-                    setPinpadProcessorModal({ open: true, processor: b });
-                    return;
+                <Select value={form.pinpad_provider || ''} onValueChange={(v) => {
+                  if (v === 'bank') {
+                    set({ pinpad_provider: 'bank' });
+                  } else {
+                    // "El cliente" / "Infraestructura": no llevan banco asociado.
+                    set({ pinpad_provider: v, pinpad_bank_id: '', pinpad_bank: '', pinpad_processor_id: '', pinpad_processor_name: '' });
                   }
-                  set({ pinpad_bank_id: v, pinpad_bank: b?.name || '', pinpad_processor_id: '', pinpad_processor_name: '' });
                 }}>
-                  <SelectTrigger className="h-10" data-testid="dp-pinpad-bank"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                  <SelectTrigger className="h-10" data-testid="dp-pinpad-provider"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                   <SelectContent>
-                    {banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}</SelectItem>)}
+                    <SelectItem value="client">El cliente</SelectItem>
+                    <SelectItem value="infrastructure">Infraestructura</SelectItem>
+                    <SelectItem value="bank">Un Banco</SelectItem>
                   </SelectContent>
                 </Select>
-                {form.pinpad_processor_name && form.pinpad_bank && (
-                  <p className="text-[11px] text-emerald-700 mt-1 font-medium" data-testid="dp-pinpad-composite">
-                    Patrocinador: {form.pinpad_processor_name} — {form.pinpad_bank}
+                {form.pinpad_provider === 'bank' && (
+                  <div className="mt-2">
+                    <Select value={form.pinpad_bank_id || ''} onValueChange={(v) => {
+                      const b = banks.find((x) => x.bank_id === v);
+                      if (b && b.type === 'Procesador') {
+                        // Interceptar: designar el banco final vinculado al procesador.
+                        setPinpadProcessorModal({ open: true, processor: b });
+                        return;
+                      }
+                      set({ pinpad_bank_id: v, pinpad_bank: b?.name || '', pinpad_processor_id: '', pinpad_processor_name: '' });
+                    }}>
+                      <SelectTrigger className="h-10" data-testid="dp-pinpad-bank"><SelectValue placeholder="Seleccionar banco / procesador" /></SelectTrigger>
+                      <SelectContent>
+                        {banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.name}{b.type === 'Procesador' ? ' · Procesador' : ''}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {form.pinpad_processor_name && form.pinpad_bank && (
+                      <p className="text-[11px] text-emerald-700 mt-1 font-medium" data-testid="dp-pinpad-composite">
+                        Patrocinador: {form.pinpad_processor_name} — {form.pinpad_bank}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {form.pinpad_provider === 'infrastructure' && (
+                  <p className="text-[11px] text-amber-700 mt-1" data-testid="dp-pinpad-infra-note">
+                    Se enviará un aviso automático al equipo de Infraestructura al crear el proyecto.
+                  </p>
+                )}
+                {form.pinpad_provider === 'client' && (
+                  <p className="text-[11px] text-slate-500 mt-1" data-testid="dp-pinpad-client-note">
+                    Los Pinpads serán suministrados por el Cliente.
                   </p>
                 )}
               </div>
