@@ -14,7 +14,7 @@ import os
 import io
 from PyPDF2 import PdfReader
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://notif-engine-update.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://email-modal-upgrade-1.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "test_pdf@test.com"

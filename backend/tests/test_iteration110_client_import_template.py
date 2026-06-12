@@ -18,7 +18,7 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://notif-engine-update.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://email-modal-upgrade-1.preview.emergentagent.com').rstrip('/')
 TEST_TOKEN = "PXA_At3PzYL78Px_Q1bCq0wqMNOB9wMc-ez1LVvz_ro"
 
 def get_headers():

@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 if not BASE_URL:
-    BASE_URL = 'https://notif-engine-update.preview.emergentagent.com'
+    BASE_URL = 'https://email-modal-upgrade-1.preview.emergentagent.com'
 
 class TestEmailHeadersOnApprove:
     """Test x-custom-message and x-additional-recipients headers on /approve endpoint"""
