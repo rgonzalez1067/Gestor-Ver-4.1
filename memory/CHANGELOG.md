@@ -1,5 +1,18 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-12 — Gestión de Estados, Auditoría de Cierre/Suspensión y Optimización Visual de la Bandeja de Proyectos (P0)
+
+Reingeniería del módulo Proyectos. Reglas confirmadas por el usuario (incluida opción b: el modal de justificación también aplica al reactivar/reabrir):
+- **Estado "Anulado":** agregado a `PROJECT_STATUSES` y `PROJECT_MANUAL_STATUSES` (`backend/models.py`).
+- **Endpoint `PUT /api/projects/{id}/status` convertido a multipart/form-data** (`backend/routes/projects.py`): campos `new_status` (req), `note`, `change_date`, `file` (opcional). Ahora escribe nota corta (compat) + entrada de bitácora `type='status_change'` con `new_status` y `attachments` (anexo guardado vía `save_pdf_dual` en `/uploads/status_changes/{pid}/`). Modelo `ProjectStatusUpdate` eliminado (dead code).
+- **Modal de Justificación (`Projects.jsx`):** comentario OBLIGATORIO (botón Confirmar deshabilitado sin texto) + anexo OPCIONAL. Usa `FormData`. Opción "En Gestión (Reactivar)" visible solo para proyectos en estado cerrado/pausado.
+- **Toast recordatorio** "Recuerde cerrar el Ticket en el portal" + aviso ámbar dentro del modal al seleccionar Culminado/Anulado.
+- **Filtro por defecto "Activos (ocultar cerrados)"** oculta Suspendido/Culminado/Implementado parcial/Anulado. Opción "Todos los estados" disponible.
+- **Nueva columna "Envío a Imple"** (`sent_to_implementation_at`).
+- **Eliminación ABSOLUTA de "Proceso Irregular":** KPI card (ahora 5 cards), opción de filtro y badge de fila removidos.
+- **Validado:** testing_agent iter69 — backend 4/4 pytest (`test_iteration69_project_status_audit.py`), frontend 100% UI. Sin regresiones. Único pendiente: warnings de hidratación `data-ve-dynamic` (cosmético, sistémico, no bloqueante).
+
+
 ## 2026-06-10 — Fix: producto duplicado ("Débito Inmediato") en Productos por Banco (Proyectos Directos)
 
 El usuario reportó que en el reel de Distribución de Cajas (Proyectos Directos), "Débito Inmediato" aparecía duplicado en los bancos que lo tienen (y, en producción, en todos los bancos).
