@@ -1,0 +1,35 @@
+{
+  "summary": "Iter65 — Homologación modal 'Otras Notificaciones' (Adhoc) con CC + Grupos CC reutilizables. Backend 7/7 pytest PASS y E2E frontend completo OK. Verificado: (a) POST /api/projects/{id}/send-adhoc-email acepta additional_recipients (JSON array) y devuelve {recipients, cc:[], message: 'Correo enviado a N destinatario(s) ...'} con conteo TO+CC; retrocompatibilidad sin el campo (cc=[]); array vacío y filtrado de entradas inválidas (None/123/'noemail'); (b) bitácora registra email_detail.cc=cc_list y texto '[Otras Notificaciones] ... CC: a@x, b@x'; sin CC el texto NO contiene 'CC:'; (c) GET /api/users/internal-emails?profile=strategic responde 200. UI E2E sobre prj_5b405d16f6d9: adhoc-email-btn → adhoc-email-dialog con InternalEmailInput TO (sugerencias adhoc-manual-email-input-suggestions, 2 opciones para 'rafa') y CC (adhoc-cc-input-suggestions, 2 opciones). Botón + agregó chip CC, chips removibles. Toggle adhoc-cc-save-group-toggle aparece con tokens CC; guardado del grupo (TEST_iter65_*) → grupo en adhoc-cc-groups-list; aplicar grupo restauró chip CC tras quitarlo; delete-cc-group eliminó el grupo. Envío con send-adhoc-email-btn → POST 200, status=sent, recipients=['TEST_to_recipient@example.com'], cc=['TEST_external_cc@example.com'], message='Correo enviado a 2 destinatario(s) (sent)', toast Sonner mostrado.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard/Projects list", "issues": ["Warnings de hidratación heredados del wrapper <span data-ve-dynamic> envolviendo <tr>/<tbody>. Ya reportado en iter62/63/64. No afecta funcionalidad del feature actual."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_adhoc_email_cc.py",
+    "/app/test_reports/pytest/iter65_adhoc_cc.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "projects.py L1794-1799 — parseo robusto de additional_recipients con try/except y filtrado por '@' y tipo str. ✓",
+    "projects.py L1848-1857 — send_email recibe cc=(cc_list or None), correcto para no mandar lista vacía al proveedor SMTP. ✓",
+    "projects.py L1862-1865 — Texto de bitácora incluye 'CC: ...' solo cuando cc_list no vacío. El campo email_detail.cc siempre se persiste (incluso []) lo que facilita queries. ✓",
+    "projects.py L1887-1889 — total_recipients suma TO+CC para el mensaje devuelto. Consistente con UX del modal de Notificaciones. ✓",
+    "ProjectDetail.jsx L2449-2479 — Mismo componente InternalEmailInput con profile='strategic' en TO y CC; el patrón coincide con el modal de Notificaciones (homologación visual y funcional verificada). ✓",
+    "ProjectDetail.jsx L2503-2561 — Bloque Grupos CC reutiliza endpoint /api/cc-groups (compartido con Notificaciones) — testids 'adhoc-cc-group-{id}', 'adhoc-apply-cc-group-{id}', 'adhoc-delete-cc-group-{id}' bien prefijados para evitar colisiones con el modal de Notificaciones. ✓",
+    "Observación menor: el modal Adhoc y el modal de Notificaciones comparten estado (ccGroups, additionalRecipientsList, ccNewEmail, showSaveGroup, ccGroupName). Si en el futuro se permite abrir ambos modales simultáneamente, podría haber leakage de tokens. Recomendable resetear estado CC en openEmailDialog (ya se hace, según referencia ~L611) — verificado por la prueba de UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_adhoc_email_cc.py (nuevo, 7 tests)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (modal, chips TO/CC, sugerencias internas, grupos save/apply/delete, envío 200 con cc, toast)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Datos de prueba creados: bitácoras transitorias con asuntos 'TEST_iter65 ...' en el primer proyecto disponible (prj_5b405d16f6d9). Un grupo CC 'TEST_iter65_{hex6}' creado y eliminado durante el E2E. No queda data residual relevante.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reproducción: login admin → /projects/prj_5b405d16f6d9 → click 'adhoc-email-btn' → modal 'adhoc-email-dialog'. Testids: adhoc-manual-email-input (TO) + adhoc-add-recipient-btn; adhoc-cc-input + adhoc-add-cc-btn + adhoc-cc-recipients-chips; adhoc-cc-save-group-toggle + adhoc-cc-group-name-input + adhoc-cc-save-group-btn; adhoc-cc-groups-list con chips adhoc-cc-group-{group_id}/adhoc-apply-cc-group-{group_id}/adhoc-delete-cc-group-{group_id}. Las suggestions del InternalEmailInput exponen testid '{testId}-suggestions' y opciones '{testId}-opt-{email}'. Endpoint backend: POST /api/projects/{id}/send-adhoc-email (multipart/form-data) con campos: recipients (JSON array), additional_recipients (JSON array, opcional default '[]'), subject, message, matrix_html, files[]. Respuesta: {message, status, recipients, cc, subject, attachments_count, bitacora_entry_id}. Bitácora persistida en GET /api/projects/{id}/bitacora con type='adhoc_email' y email_detail.cc=array.",
+  "rca of the issue": "N/A — Feature funciona correctamente end-to-end. Sin bugs detectados."
+}

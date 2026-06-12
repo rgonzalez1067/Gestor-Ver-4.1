@@ -1769,6 +1769,7 @@ async def get_bitacora(project_id: str, authorization: Optional[str] = Header(No
 async def send_adhoc_email(
     project_id: str,
     recipients: str = Form(...),
+    additional_recipients: str = Form(default="[]"),
     subject: str = Form(...),
     message: str = Form(...),
     matrix_html: str = Form(default=""),
@@ -1789,6 +1790,13 @@ async def send_adhoc_email(
             raise ValueError()
     except (json.JSONDecodeError, ValueError):
         raise HTTPException(status_code=400, detail="Destinatarios inválidos. Envíe un array JSON de emails.")
+
+    # Parse CC (destinatarios adicionales) — homologado con send-notification
+    try:
+        cc_raw = json.loads(additional_recipients) if additional_recipients else []
+        cc_list = [e for e in cc_raw if e and isinstance(e, str) and '@' in e] if isinstance(cc_raw, list) else []
+    except (json.JSONDecodeError, ValueError, TypeError):
+        cc_list = []
 
     if not subject.strip():
         raise HTTPException(status_code=400, detail="El asunto es obligatorio")
@@ -1839,6 +1847,7 @@ async def send_adhoc_email(
 
     email_result = await send_email(
         to=to_list,
+        cc=(cc_list or None),
         subject=full_subject,
         html=html,
         action="adhoc_project_email",
@@ -1850,9 +1859,10 @@ async def send_adhoc_email(
     # Auto-registrar en bitácora con contenido completo
     attachments_text = f" ({len(saved_files)} adjunto(s))" if saved_files else ""
     matrix_tag = " [+Matriz]" if matrix_html.strip() else ""
+    cc_tag = f" | CC: {', '.join(cc_list)}" if cc_list else ""
     bitacora_entry = {
         "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
-        "text": f"[Otras Notificaciones] {subject}{attachments_text}{matrix_tag} → {', '.join(to_list)}",
+        "text": f"[Otras Notificaciones] {subject}{attachments_text}{matrix_tag} → {', '.join(to_list)}{cc_tag}",
         "execution_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "created_by": current_user.get("user_id", ""),
         "created_by_name": user_name,
@@ -1861,6 +1871,7 @@ async def send_adhoc_email(
         "email_detail": {
             "subject": full_subject,
             "recipients": to_list,
+            "cc": cc_list,
             "message": message,
             "html_content": html,
             "attachments": saved_files,
@@ -1873,10 +1884,12 @@ async def send_adhoc_email(
         {"$push": {"bitacora": bitacora_entry}}
     )
 
+    total_recipients = len(to_list) + len(cc_list)
     return {
-        "message": f"Correo enviado a {len(to_list)} destinatario(s) ({email_result.get('status', 'unknown')})",
+        "message": f"Correo enviado a {total_recipients} destinatario(s) ({email_result.get('status', 'unknown')})",
         "status": email_result.get("status"),
         "recipients": to_list,
+        "cc": cc_list,
         "subject": full_subject,
         "attachments_count": len(saved_files),
         "bitacora_entry_id": bitacora_entry["entry_id"],
