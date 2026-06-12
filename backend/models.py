@@ -734,9 +734,9 @@ class ExchangeRate(BaseModel):
 
 # ==================== PROJECT MODELS ====================
 
-PROJECT_STATUSES = ["Por asignar", "Asignado", "En Gestión", "Suspendido", "Implementado parcial", "Culminado"]
+PROJECT_STATUSES = ["Por asignar", "Asignado", "En Gestión", "Suspendido", "Implementado parcial", "Culminado", "Anulado"]
 # Estados asignados ÚNICAMENTE de forma manual por el usuario (sin automatización).
-PROJECT_MANUAL_STATUSES = ["Suspendido", "Implementado parcial", "Culminado"]
+PROJECT_MANUAL_STATUSES = ["Suspendido", "Implementado parcial", "Culminado", "Anulado"]
 
 
 class ProjectCommitment(BaseModel):

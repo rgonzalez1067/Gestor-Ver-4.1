@@ -1,0 +1,31 @@
+{
+  "summary": "Iter69 — Reingeniería del módulo de Proyectos: gestión de estados con auditoría, modal de justificación, filtro 'Activos' por defecto y eliminación absoluta de 'Proceso Irregular'. BACKEND (4/4 pytest passed on test_iteration69_project_status_audit.py): (1) PUT /api/projects/{id}/status con new_status inválido -> 400. (2) Cambio a 'Anulado' multipart con note y change_date crea bitácora type='status_change', new_status='Anulado', text con la justificación. (3) Cambio a 'Suspendido' con archivo adjunto multipart crea bitácora con attachments=[{filename:'evidencia_qa.txt', url:'/uploads/status_changes/...'}]. (4) Reactivación a 'En Gestión' OK (cleanup). FRONTEND (UI Playwright, todo verde): (a) Filtro por defecto = 'Activos (ocultar cerrados)' confirmado en /projects. (b) NO existe la palabra 'Irregular' en ningún lugar (ni KPI, ni filtro, ni badge). 5 KPI cards exactamente: Total, Pendientes, En Proceso, Suspendidos, Finalizados. (c) Columna 'Envío a Imple' presente en la grilla. (d) Modal de cambio de estado: botón Confirmar DESHABILITADO hasta que se escribe comentario; al elegir 'Anulado' (o 'Culminado') aparece el aviso ambar data-testid='status-ticket-reminder'. (e) Al confirmar Anulado con comentario aparecen 2 toasts: 'Estado: Anulado' y 'Recuerde cerrar el Ticket en el portal.'. El proyecto desaparece del listado por defecto. (f) Con filtro 'Todos los estados' el proyecto anulado vuelve a aparecer. (g) Reactivación 'En Gestión' visible solo para proyectos en estado cerrado/pausado y funcional. Cleanup: proyecto prj_a7368898fca6 devuelto a 'En Gestión'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Projects.jsx (tabla)", "issues": ["Persisten warnings de hidratación HTML <span data-ve-dynamic> envolviendo <tr>/<tbody> (líneas 520 y 566). Mismo patrón ya reportado en iters previas (Dashboard.jsx). NO bloquea ninguna interacción ni el flujo del nuevo modal; sólo ruido en consola en modo dev."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration69_project_status_audit.py",
+    "/app/test_reports/pytest/iter69.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/projects.py L296-364 — Endpoint convertido correctamente a multipart/form-data (Form/File). Validación de PROJECT_STATUSES OK, guarda adjunto en /app/backend/uploads/status_changes/{pid}/ con UUID prefix, save_pdf_dual mantiene réplica. Bitácora con type='status_change' + new_status + attachments. Limpio. ✓",
+    "backend/models.py L737-739 — PROJECT_STATUSES y PROJECT_MANUAL_STATUSES incluyen 'Anulado' coherentemente. ✓",
+    "frontend/pages/Projects.jsx L33-49 — STATUS_TRANSITIONS con 'En Gestión' reactivation:true y 'Anulado' como nuevo estado. HIDDEN_DEFAULT_STATES y TICKET_REMINDER_STATES claros y bien encapsulados. ✓",
+    "frontend/pages/Projects.jsx — handleStatusChange usa FormData; comentario obligatorio enforced en el frontend (confirm.disabled hasta hay note). Toasts duales en Anulado/Culminado (success + warning). ✓",
+    "frontend/pages/Projects.jsx — Persisten warnings de hidratación por <span data-ve-dynamic> envolviendo <tr>/<tbody> (problema sistémico de la herramienta de instrumentación dev). No es regresión de esta iteración."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration69_project_status_audit.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (todos los escenarios UI verificados)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Ninguna seed nueva. Se usó proyecto productivo prj_a7368898fca6 ('ASTROCEL CELULARES, C.A.'). Tras los tests, el proyecto fue revertido a 'En Gestión' (cleanup verificado tanto en backend como en UI).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Endpoint PUT /api/projects/{id}/status es multipart/form-data (no JSON). Campos: new_status (Form, required), note (Form, optional pero el frontend lo hace obligatorio), change_date (Form, optional ISO date), file (UploadFile, optional). Respuesta incluye bitacora_entry_id. Bitácora se consulta vía GET /api/projects/{id}/bitacora. Testids clave en Projects.jsx: project-status-filter (default 'active'), status-btn-{pid}, status-change-dialog, status-option-anulado/suspendido/culminado/implementado-parcial/en-gestión, status-ticket-reminder, status-change-comment, status-change-file, status-change-confirm-btn, project-sent-impl-{pid}. Las 5 KPI: stat-total, stat-pendientes, stat-en-proceso, stat-suspendidos, stat-finalizados. NO hay testid 'irregular' en ninguna parte. Cuidado al usar prj_a7368898fca6: revertir siempre a 'En Gestión' al terminar.",
+  "rca of the issue": "N/A — implementación correcta. Toasts dual ('Estado: Anulado' + 'Recuerde cerrar el Ticket en el portal.') aparecen como sonner toasts; capturables vía querySelectorAll('[data-sonner-toast]')."
+}

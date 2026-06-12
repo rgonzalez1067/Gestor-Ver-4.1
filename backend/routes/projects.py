@@ -27,12 +27,6 @@ STORE_PHASES = ["Recibido", "Configurado", "Testeado", "En Producción"]  # Sin 
 PROJECT_PRIORITIES = ["Alta", "Media", "Normal"]
 
 
-class ProjectStatusUpdate(BaseModel):
-    new_status: str
-    note: Optional[str] = None
-    change_date: Optional[str] = None
-
-
 class ProjectAssign(BaseModel):
     assigned_to_user_id: str
     estimated_delivery_date: Optional[str] = None
@@ -300,9 +294,16 @@ async def assign_project(project_id: str, assignment: ProjectAssign, authorizati
 
 
 @router.put("/projects/{project_id}/status")
-async def update_project_status(project_id: str, status_update: ProjectStatusUpdate, authorization: Optional[str] = Header(None)):
+async def update_project_status(
+    project_id: str,
+    new_status: str = Form(...),
+    note: Optional[str] = Form(None),
+    change_date: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    authorization: Optional[str] = Header(None),
+):
     current_user = await get_current_user(authorization)
-    if status_update.new_status not in PROJECT_STATUSES:
+    if new_status not in PROJECT_STATUSES:
         raise HTTPException(status_code=400, detail=f"Estado inválido. Válidos: {PROJECT_STATUSES}")
 
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
@@ -310,20 +311,57 @@ async def update_project_status(project_id: str, status_update: ProjectStatusUpd
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
     now = datetime.now(timezone.utc).isoformat()
-    update_data = {"status": status_update.new_status, "updated_at": now}
-    if status_update.new_status == "Culminado":
+    update_data = {"status": new_status, "updated_at": now}
+    if new_status == "Culminado":
         update_data["completed_at"] = now
 
     user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
-    note_text = f"Estado cambiado a '{status_update.new_status}'"
-    if status_update.change_date:
-        note_text += f" (Fecha: {status_update.change_date})"
-    if status_update.note:
-        note_text += f" — {status_update.note}"
 
-    note = {"note_id": f"pn_{uuid.uuid4().hex[:8]}", "text": note_text, "created_by": current_user.get("user_id", ""), "created_by_name": user_name, "created_at": now}
-    await db.projects.update_one({"project_id": project_id}, {"$set": update_data, "$push": {"notes": note}})
-    return {"message": f"Estado actualizado a '{status_update.new_status}'", "new_status": status_update.new_status}
+    # Guardar adjunto opcional de la justificación
+    attachment = None
+    if file and file.filename:
+        upload_dir = f"/app/backend/uploads/status_changes/{project_id}"
+        os.makedirs(upload_dir, exist_ok=True)
+        safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+        file_path = os.path.join(upload_dir, safe_name)
+        content = await file.read()
+        save_pdf_dual(file_path, content, f"status_changes/{project_id}/{safe_name}")
+        attachment = {
+            "filename": file.filename,
+            "url": f"/uploads/status_changes/{project_id}/{safe_name}",
+            "size": len(content),
+            "content_type": file.content_type,
+        }
+
+    # Nota corta (compatibilidad con historial existente)
+    note_text = f"Estado cambiado a '{new_status}'"
+    if change_date:
+        note_text += f" (Fecha: {change_date})"
+    if note:
+        note_text += f" — {note}"
+    pnote = {"note_id": f"pn_{uuid.uuid4().hex[:8]}", "text": note_text, "created_by": current_user.get("user_id", ""), "created_by_name": user_name, "created_at": now}
+
+    # Entrada de bitácora (auditoría de cierre/suspensión/reactivación)
+    bitacora_text = f"[Cambio de Estado] {new_status}"
+    if note:
+        bitacora_text += f" — {note}"
+    bitacora_entry = {
+        "entry_id": f"bit_{uuid.uuid4().hex[:8]}",
+        "text": bitacora_text,
+        "execution_date": change_date or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "created_by": current_user.get("user_id", ""),
+        "created_by_name": user_name,
+        "created_at": now,
+        "type": "status_change",
+        "new_status": new_status,
+        "attachments": [attachment] if attachment else [],
+    }
+
+    await db.projects.update_one(
+        {"project_id": project_id},
+        {"$set": update_data, "$push": {"notes": pnote, "bitacora": bitacora_entry}},
+    )
+    return {"message": f"Estado actualizado a '{new_status}'", "new_status": new_status, "bitacora_entry_id": bitacora_entry["entry_id"]}
 
 
 @router.put("/projects/{project_id}/priority")

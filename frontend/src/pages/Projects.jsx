@@ -30,14 +30,22 @@ const STATUS_CONFIG = {
   'Suspendido': { color: 'bg-red-100 text-red-800 border-red-200', icon: Pause },
   'Implementado parcial': { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: CheckCircle2 },
   'Culminado': { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
+  'Anulado': { color: 'bg-slate-200 text-slate-700 border-slate-300', icon: X },
 };
+
+// Estados que se ocultan por defecto en la bandeja (cerrados / pausados).
+const HIDDEN_DEFAULT_STATES = ['Suspendido', 'Implementado parcial', 'Culminado', 'Anulado'];
+// Estados que disparan recordatorio de cierre de ticket en el portal.
+const TICKET_REMINDER_STATES = ['Culminado', 'Anulado'];
 
 // Estados asignables MANUALMENTE por el usuario vía "Cambiar estado".
 // Los estados automáticos (Por asignar, Asignado, En Gestión) responden a triggers.
 const STATUS_TRANSITIONS = [
+  { id: 'En Gestión', label: 'En Gestión (Reactivar)', icon: UserCog, iconColor: 'text-indigo-600', reactivation: true },
   { id: 'Suspendido', label: 'Suspendido', icon: Pause, iconColor: 'text-red-600' },
   { id: 'Implementado parcial', label: 'Implementado parcial', icon: CheckCircle2, iconColor: 'text-orange-600' },
   { id: 'Culminado', label: 'Culminado', icon: CheckCircle2, iconColor: 'text-emerald-600' },
+  { id: 'Anulado', label: 'Anulado', icon: X, iconColor: 'text-slate-600' },
 ];
 
 /**
@@ -84,7 +92,7 @@ const Projects = () => {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'VPOS' | 'MPOS' | 'GATEWAY' | 'LINK'
   const [sponsorFilter, setSponsorFilter] = useState('all');
   const [sponsorPickerOpen, setSponsorPickerOpen] = useState(false);
@@ -106,6 +114,7 @@ const Projects = () => {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusProject, setStatusProject] = useState(null);
   const [statusForm, setStatusForm] = useState({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
+  const [statusFile, setStatusFile] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
 
   // Gestor global de Plantillas de Correo (acceso desde el maestro de Proyectos)
@@ -227,15 +236,25 @@ const Projects = () => {
   const openStatusDialog = (project) => {
     setStatusProject(project);
     setStatusForm({ new_status: '', note: '', change_date: new Date().toISOString().slice(0, 10) });
+    setStatusFile(null);
     setStatusDialogOpen(true);
   };
 
   const handleStatusChange = async () => {
     if (!statusForm.new_status) { toast.error('Seleccione un estado'); return; }
+    if (!statusForm.note.trim()) { toast.error('El comentario de justificación es obligatorio'); return; }
     setStatusLoading(true);
     try {
-      await api.put(`/projects/${statusProject.project_id}/status`, statusForm);
+      const fd = new FormData();
+      fd.append('new_status', statusForm.new_status);
+      fd.append('note', statusForm.note);
+      fd.append('change_date', statusForm.change_date || '');
+      if (statusFile) fd.append('file', statusFile);
+      await api.put(`/projects/${statusProject.project_id}/status`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(`Estado: ${statusForm.new_status}`);
+      if (TICKET_REMINDER_STATES.includes(statusForm.new_status)) {
+        toast.warning('Recuerde cerrar el Ticket en el portal.', { duration: 7000 });
+      }
       setStatusDialogOpen(false);
       fetchProjects();
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al cambiar estado'); }
@@ -267,8 +286,8 @@ const Projects = () => {
       sponsorLabel?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = statusFilter === 'all'
       ? true
-      : statusFilter === 'irregular'
-        ? p.is_irregular === true
+      : statusFilter === 'active'
+        ? !HIDDEN_DEFAULT_STATES.includes(p.status)
         : statusFilter === 'suspended'
           ? p.status === 'Suspendido'
           : statusFilter === 'in_progress'
@@ -354,14 +373,13 @@ const Projects = () => {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-5 gap-4 mb-6">
             {[
               { label: 'Total', value: stats.total || 0, cls: 'bg-slate-50 border-slate-200 text-slate-700', filter: 'all' },
               { label: 'Pendientes', value: stats.pending || 0, cls: 'bg-amber-50 border-amber-200 text-amber-700', filter: 'Por asignar' },
               { label: 'En Proceso', value: stats.in_progress || 0, cls: 'bg-blue-50 border-blue-200 text-blue-700', filter: 'in_progress' },
               { label: 'Suspendidos', value: stats.blocked || 0, cls: 'bg-red-50 border-red-200 text-red-700', filter: 'suspended' },
               { label: 'Finalizados', value: stats.completed || 0, cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', filter: 'Culminado' },
-              { label: 'P. Irregular', value: stats.irregular || 0, cls: 'bg-orange-50 border-orange-300 text-orange-700', filter: 'irregular' },
             ].map(s => (
               <div key={s.label}
                 className={`p-4 rounded-lg border cursor-pointer transition-all ${s.cls} ${statusFilter === s.filter ? 'ring-2 ring-offset-1 ring-current' : 'hover:shadow-sm'}`}
@@ -388,9 +406,9 @@ const Projects = () => {
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="active">Activos (ocultar cerrados)</SelectItem>
                   <SelectItem value="all">Todos los estados</SelectItem>
                   {Object.keys(STATUS_CONFIG).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  <SelectItem value="irregular">Proceso Irregular</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -492,6 +510,7 @@ const Projects = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Tipo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Sede</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Estado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Envío a Imple</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Implementador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Generador</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-600 uppercase">Patrocinador</th>
@@ -593,11 +612,6 @@ const Projects = () => {
                                 <Store size={10} />Multitienda ({project.stores?.length || 0})
                               </span>
                             )}
-                            {project.is_irregular && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 border border-orange-200" data-testid="project-irregular-badge">
-                                <AlertTriangle size={10} />Irregular
-                              </span>
-                            )}
                             {project.direct_project && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-700 border border-amber-300" data-testid="project-direct-badge" title="Proyecto creado desde el flujo Proyecto Directo">
                                 <Zap size={10} />Directo
@@ -624,6 +638,11 @@ const Projects = () => {
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${slaColor} text-white shadow-sm`}>
                             <StIcon size={12} className="text-white" />{project.status}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600" data-testid={`project-sent-impl-${project.project_id}`}>
+                          {project.sent_to_implementation_at
+                            ? new Date(project.sent_to_implementation_at).toLocaleDateString('es-VE')
+                            : <span className="text-slate-400 italic">—</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
                           {project.assigned_to_name ? (
@@ -715,7 +734,7 @@ const Projects = () => {
                       </tr>
                       {/* Fila SLA Semáforo */}
                       <tr className="border-b border-slate-200" data-testid={`sla-row-${project.project_id}`}>
-                        <td colSpan={7} className="px-4 py-1.5">
+                        <td colSpan={8} className="px-4 py-1.5">
                           <div className="flex items-center gap-3" title={`${slaLabel} — Avance: ${pct}%`}>
                             <div className="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
                               <div className={`h-full rounded-full transition-all duration-500 ${isSuspended ? 'bg-slate-400 bg-[length:20px_20px] bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)]' : slaColor}`} style={{ width: `${Math.max(Math.min(pct, 100), 5)}%` }} />
@@ -768,7 +787,12 @@ const Projects = () => {
                 <div>
                   <Label className="text-sm">Nuevo Estado</Label>
                   <div className="space-y-1.5 mt-1.5">
-                    {STATUS_TRANSITIONS.filter(t => t.id !== statusProject.status).map(t => {
+                    {STATUS_TRANSITIONS.filter(t => {
+                      if (t.id === statusProject.status) return false;
+                      // La opción de reactivar solo aplica a proyectos cerrados/pausados.
+                      if (t.reactivation) return HIDDEN_DEFAULT_STATES.includes(statusProject.status);
+                      return true;
+                    }).map(t => {
                       const TIcon = t.icon;
                       const selected = statusForm.new_status === t.id;
                       return (
@@ -784,9 +808,15 @@ const Projects = () => {
                   </div>
                 </div>
 
-                {/* Date + Comment */}
+                {/* Date + Comment (justificación obligatoria) */}
                 {statusForm.new_status && (
                   <div className="space-y-3 pt-2 border-t border-slate-200 animate-in fade-in-0 slide-in-from-top-1">
+                    {TICKET_REMINDER_STATES.includes(statusForm.new_status) && (
+                      <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-amber-800" data-testid="status-ticket-reminder">
+                        <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                        <span className="text-xs">Recuerde <strong>cerrar el Ticket</strong> en el portal al confirmar este estado.</span>
+                      </div>
+                    )}
                     <div>
                       <Label className="text-sm">Fecha del Cambio</Label>
                       <Input type="date" value={statusForm.change_date}
@@ -794,11 +824,21 @@ const Projects = () => {
                         className="mt-1" data-testid="status-change-date" />
                     </div>
                     <div>
-                      <Label className="text-sm">Comentario</Label>
+                      <Label className="text-sm">Comentario de Justificación <span className="text-red-500">*</span></Label>
                       <Textarea value={statusForm.note}
                         onChange={e => setStatusForm(p => ({ ...p, note: e.target.value }))}
-                        placeholder="Motivo o detalle del cambio de estado..."
+                        placeholder="Motivo o detalle del cambio de estado (obligatorio)..."
                         className="mt-1 min-h-[60px] text-sm" data-testid="status-change-comment" />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Anexo (opcional)</Label>
+                      <Input type="file" onChange={e => setStatusFile(e.target.files?.[0] || null)}
+                        className="mt-1 text-sm" data-testid="status-change-file" />
+                      {statusFile && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                          <Paperclip size={11} />{statusFile.name}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -806,7 +846,7 @@ const Projects = () => {
                 <div className="flex justify-end gap-3 pt-2 border-t">
                   <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancelar</Button>
                   <Button onClick={handleStatusChange}
-                    disabled={statusLoading || !statusForm.new_status}
+                    disabled={statusLoading || !statusForm.new_status || !statusForm.note.trim()}
                     className="bg-orange-600 hover:bg-orange-700 text-white"
                     data-testid="status-change-confirm-btn">
                     {statusLoading ? 'Actualizando...' : 'Confirmar Cambio'}
