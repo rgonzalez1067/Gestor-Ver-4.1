@@ -605,3 +605,8 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - UI en la tarjeta CC del modal de notificación (ProjectDetail.jsx): enlace 'Guardar selección como grupo' (aparece con tokens CC) → input de nombre + Guardar; lista de chips de grupos (cc-group-{id}) con contador, aplicar (merge+dedupe) y eliminar. Carga vía GET al montar.
 - Verificado: testing agent Iter64 → backend 7/7 pytest, frontend E2E 100% (guardar/aplicar/persistencia/eliminar). Test: backend/tests/test_cc_groups.py.
 - Backlog menor (sugerencia QA): índice único en cc_groups.name_lower; re-fetch de grupos al abrir el modal.
+
+## 2026-06-12 — Homologación modal "Otras Notificaciones" (Adhoc) con CC + Grupos CC
+- **Backend** (`projects.py` → `send_adhoc_email`): el endpoint `POST /api/projects/{id}/send-adhoc-email` ahora acepta `additional_recipients` (Form, JSON array) como CC; filtra inválidos, pasa `cc=(cc_list or None)` a `send_email`. Respuesta incluye `cc` y conteo TO+CC. Bitácora persiste `email_detail.cc` y el texto incluye `CC: ...` solo si hay CC. Retrocompatible (sin el campo → cc=[]).
+- **Frontend** (`ProjectDetail.jsx`): el modal Adhoc se homologó con el de Notificaciones — campo TO ahora usa `InternalEmailInput` (profile="strategic") en lugar de input plano+datalist; nueva sección CC con tokens (`adhoc-cc-input`), chips removibles y Grupos CC reutilizables (compartidos, endpoints `/api/cc-groups`). `openEmailDialog` resetea el estado CC; envío directo y desde Vista Previa incluyen `additional_recipients`. Se eliminó el estado `internalUsers` (ya no usado).
+- Verificado: testing agent Iter65 → backend 7/7 pytest, frontend E2E 100%. Test: `backend/tests/test_adhoc_email_cc.py`.
