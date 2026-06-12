@@ -1,0 +1,30 @@
+{
+  "summary": "Iter66 — Validación frontend del rediseño del panel IZQUIERDO del modal 'Gestionar Plantillas de Correo' (TemplatesAdminDialog.jsx). Login admin OK → /projects/prj_7b0fe78aaa65 → click 'manage-templates-btn' abre 'templates-dialog' (max-w-6xl). Lista renderizó 6 plantillas como tarjetas. (a) Click en la tarjeta completa (template-item-project_notify_client) cargó nombre='Notificación de Proyecto — Cliente' y asunto en los inputs 'template-name' / 'template-subject' y aplicó el estado activo (clase 'bg-blue-50' + ring azul + barra lateral). (b) Hover sobre la tarjeta mostró los íconos de acción 'edit-template-{id}' y 'delete-template-{id}' (container opacity transicionó de 0 → 1). (c) Botón '+ Nueva' (new-template-btn) limpió ambos inputs (name='' y subject=''). (d) Click en ícono lápiz (edit-template-{id}) recargó la plantilla en el formulario (mismo comportamiento que el clic en tarjeta). (e) Panel derecho de variables sigue funcionando: var-search filtró 12 tokens para 'cliente' e insertar 'var-token-Nombre_Cliente' funcionó. (f) Flujo CRUD íntegro: creó 'TEST_iter66_1781227155' con save-template-btn → apareció en la lista; hover → click delete-template-{id} → toast 'Plantilla eliminada' y la tarjeta desapareció (count=0). Sin regresiones detectadas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (no relacionado al modal)", "issues": ["Warnings de hidratación heredados del wrapper <span data-ve-dynamic> envolviendo <tr>/<tbody> en Dashboard.jsx ~L374/389. Ya reportado en iter62/63/64/65. NO afecta el modal de Plantillas."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TemplatesAdminDialog.jsx L94-101 — el clic en la tarjeta dispara loadTpl y aplica estilo activo correctamente; soporta Enter/Space (role='button' + tabIndex=0 + onKeyDown) — accesibilidad bien resuelta.",
+    "TemplatesAdminDialog.jsx L116-131 — e.stopPropagation() en ambos botones (edit/delete) evita doble disparo con el onClick del contenedor. Correcto.",
+    "TemplatesAdminDialog.jsx L112 — el contenedor de acciones usa opacity-0 group-hover:opacity-100 group-focus-within:opacity-100; en desktop con mouse la opacidad llega a 1 (verificado). Observación menor: en dispositivos táctiles sin :hover los íconos quedarían ocultos hasta enfocar; aceptable porque el tap sobre la tarjeta ya carga la plantilla y existe un botón 'Eliminar' equivalente en flujo, pero podría considerarse mostrar siempre los íconos en breakpoints sm/touch.",
+    "TemplatesAdminDialog.jsx L76 — el botón '+ Nueva' resetea editingTemplateId y templateForm, dejando el header del centro en 'Nueva Plantilla' (verificado, el centro muestra 'NUEVA PLANTILLA'). ✓",
+    "TemplatesAdminDialog.jsx L83/140/207/287 — uso de dos TooltipProvider (lista + variables); funcionalmente OK, pero podría unificarse en un único TooltipProvider envolviendo todo el DialogContent para reducir duplicación.",
+    "TemplatesAdminDialog.jsx L63 — DialogContent max-w-6xl aplicado; visualmente cómodo. ✓",
+    "TemplatesAdminDialog.jsx L84 — max-h-[500px] en la lista mientras min-h del grid es 480px; en caso de muchas plantillas el scroll funciona. ✓"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no se probó por requerimiento)", "frontend": "100% (apertura modal, lista de tarjetas, clic en tarjeta carga + activa, hover muestra edit/delete, +Nueva limpia form, edit-icon carga, panel variables busca/inserta, crear→eliminar end-to-end)"},
+  "test_credentials": "rgonzalez@megasoft.com.ve / admin123",
+  "seed_data_creation": "Plantilla transitoria 'TEST_iter66_1781227155' creada y eliminada durante la prueba en prj_7b0fe78aaa65. Sin data residual.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reproducción: login admin → /projects/prj_7b0fe78aaa65 → click 'manage-templates-btn' → modal 'templates-dialog'. Testids del rediseño: 'template-item-{id}' (tarjeta completa clickeable), 'edit-template-{id}' y 'delete-template-{id}' (íconos hover dentro de la tarjeta), 'new-template-btn' (+ Nueva arriba de la lista), 'template-name', 'template-subject', 'save-template-btn'. Panel derecho intacto: 'var-search', 'var-token-{key}', 'var-tooltip-{key}'. La opacidad del contenedor de acciones depende de :hover; en automation usar await locator.hover() antes de querer interactuar con los íconos, o click(force=True). El proyecto prj_7b0fe78aaa65 tiene 6 plantillas activas, sirve como sandbox.",
+  "rca of the issue": "N/A — Rediseño puramente visual del panel izquierdo; clic en tarjeta + íconos hover + botón Nueva funcionan correctamente y no hay regresión en crear/editar/eliminar plantilla ni en el panel de variables."
+}

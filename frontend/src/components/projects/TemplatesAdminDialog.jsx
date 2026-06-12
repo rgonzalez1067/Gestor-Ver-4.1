@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ClipboardList, FileText, Sparkles, Search } from 'lucide-react';
+import { ClipboardList, FileText, Sparkles, Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { RichTextEditor, getExampleValue } from '../RichTextEditor';
 import { VARIABLE_CATEGORIES, VARIABLE_ICON_MAP } from '../email/templateVariables';
@@ -60,38 +60,84 @@ export const TemplatesAdminDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl" data-testid="templates-dialog">
+      <DialogContent className="max-w-6xl" data-testid="templates-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><ClipboardList size={20} className="text-slate-600" />Gestionar Plantillas de Correo</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-12 gap-4 min-h-[400px]">
+        <div className="grid grid-cols-12 gap-4 min-h-[480px]">
           {/* Lista de plantillas */}
           <div className="col-span-3 border-r border-slate-200 pr-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Plantillas Registradas</p>
-            <div className="space-y-2 max-h-[450px] overflow-y-auto">
-              {emailTemplates.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">No hay plantillas registradas</p>
-              ) : emailTemplates.map(t => (
-                <div key={t.template_id}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all ${editingTemplateId === t.template_id ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                  data-testid={`template-item-${t.template_id}`}>
-                  <p className="text-sm font-semibold text-slate-800">{t.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">Asunto: {t.subject}</p>
-                  {t.body && <p className="text-xs text-slate-400 mt-1 line-clamp-2">{t.body.slice(0, 100)}{t.body.length > 100 ? '...' : ''}</p>}
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" data-testid={`edit-template-${t.template_id}`}
-                      onClick={() => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body_html || t.body || '' }); }}>
-                      Editar
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
-                      data-testid={`delete-template-${t.template_id}`}
-                      onClick={() => handleDeleteTemplate(t.template_id)}>
-                      Eliminar
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase">
+                Plantillas <span className="text-slate-300 mx-0.5">·</span> <span className="text-slate-400">{emailTemplates.length}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => { setEditingTemplateId(null); setTemplateForm({ name: '', subject: '', body: '' }); }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors"
+                data-testid="new-template-btn"
+              >
+                <Plus size={13} /> Nueva
+              </button>
             </div>
+            <TooltipProvider delayDuration={150}>
+              <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1 -mr-1">
+                {emailTemplates.length === 0 ? (
+                  <div className="text-center py-12 px-3">
+                    <div className="w-11 h-11 mx-auto rounded-full bg-slate-100 flex items-center justify-center mb-2.5">
+                      <FileText size={18} className="text-slate-400" />
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">Aún no hay plantillas.<br />Crea la primera con “Nueva”.</p>
+                  </div>
+                ) : emailTemplates.map(t => {
+                  const active = editingTemplateId === t.template_id;
+                  const loadTpl = () => { setEditingTemplateId(t.template_id); setTemplateForm({ name: t.name, subject: t.subject, body: t.body_html || t.body || '' }); };
+                  return (
+                    <div key={t.template_id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={loadTpl}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadTpl(); } }}
+                      className={`group relative flex items-start gap-2.5 p-2.5 pr-2 rounded-xl border cursor-pointer transition-all duration-150 ${active ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
+                      data-testid={`template-item-${t.template_id}`}>
+                      {active && <span className="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-full bg-blue-500" />}
+                      <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${active ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'}`}>
+                        <FileText size={15} />
+                      </div>
+                      <div className="min-w-0 flex-1 py-0.5">
+                        <p className={`text-sm font-semibold truncate ${active ? 'text-blue-900' : 'text-slate-800'}`}>{t.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{t.subject || 'Sin asunto'}</p>
+                      </div>
+                      {/* Acciones (aparecen al hover/focus) */}
+                      <div className="absolute right-1.5 top-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button"
+                              onClick={(e) => { e.stopPropagation(); loadTpl(); }}
+                              className="w-7 h-7 inline-flex items-center justify-center rounded-lg bg-white/80 backdrop-blur text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors"
+                              data-testid={`edit-template-${t.template_id}`} aria-label="Editar plantilla">
+                              <Pencil size={13} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[11px]">Editar</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(t.template_id); }}
+                              className="w-7 h-7 inline-flex items-center justify-center rounded-lg bg-white/80 backdrop-blur text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors"
+                              data-testid={`delete-template-${t.template_id}`} aria-label="Eliminar plantilla">
+                              <Trash2 size={13} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-[11px]">Eliminar</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
           </div>
 
           {/* Formulario */}
