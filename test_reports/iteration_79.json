@@ -1,0 +1,66 @@
+{
+  "summary": "FRONTEND-ONLY: validada la agrupación por equipo del desplegable de usuarios internos (InternalEmailInput) en el bloque 'Próximo envío' (next-send-block) del modal 'Notificación Única (Cliente y Banco)' del proyecto prj_e586608e3579. Navegación DENTRO de la app (login admin → sidebar/URL → /projects/prj_e586608e3579 → botón 'Notificación Única'). Se verificaron los 6 escenarios solicitados: TO con headers Dirección(2)/Ventas(6)/Implementación(11) y SIN sección 'Otros' (profile='strategic'); usuarios correctos bajo cada encabezado; CC con los mismos 3 headers y mismos conteos; filtro 'gonz' re-agrupa correctamente (Ventas:1, Implementación:2, sin secciones vacías, sin Dirección); selección de usuarios de Ventas (josedolande1@gmail.com) coloca el email en el input.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "InternalEmailInput.jsx (125 lineas) está bien estructurado: TEAM_SECTIONS constante a nivel módulo, useMemo para grouped, encabezados con clase 'sticky top-0' y conteo por sección. La función teamOf clasifica por dept (tolerante a acentos: 'Dirección'/'Direccion', 'Implementación'/'Implementacion') y por cargo='Director' como fallback. Manejo robusto.",
+    "Sugerencia menor (no bloqueante): el dropdown deja de mostrar coincidencias parciales si el query (incluido el value del input cuando es un email completo válido) coincide con muchos via includes — comportamiento aceptable.",
+    "Persisten warnings React de hidratación '<span> cannot be a child of <tr>/<tbody>/<th>' provenientes del instrumentador <span data-ve-dynamic> en Dashboard/ProjectDetail (heredado; ya reportado en iters previas; NO relacionado con este fix).",
+    "ProjectDetail.jsx sigue siendo muy grande; se recomienda extraer el modal 'Notificación Única' (sigue >2700 líneas en su archivo padre)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only por solicitud)",
+    "frontend": "100% — los 6 escenarios solicitados pasaron"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (de /app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se usó el proyecto existente prj_e586608e3579.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El componente InternalEmailInput.jsx ahora itera TEAM_SECTIONS y renderiza un wrapper <div data-testid='${testId}-group-<key>'> con su encabezado sticky por cada grupo no vacío. Las opciones de cada sección mantienen el patrón data-testid='${testId}-opt-<email-completo>'. Para profile='strategic', backend devuelve 19 usuarios distribuidos como 2 Dirección + 6 Ventas + 11 Implementación + 0 Otros, así que el grupo 'otros' NO se renderiza (condicional grouped[key].length===0 -> null). Rafael González (rgonzalez@megasoft.com.ve, Gerente) cae en Ventas porque su departamento backend es 'Ventas'.",
+  "evidence": {
+    "TO_groups_empty_query": {
+      "direccion": {"header": "Dirección (2)", "options": 2, "users": ["Antonio Castro", "Cesar Hernandez"]},
+      "ventas": {"header": "Ventas (6)", "options": 6, "users": ["Elizabeth Silva", "Jose Dolande", "Melissa Garcia", "Rafael González", "Ventas Pyme", "Vleidermi Salcedo"]},
+      "implementacion": {"header": "Implementación (11)", "options": 11, "users": ["Axel González", "Bryan Claro", "Carlos Hernández", "Doris Collazo", "Fernando Aloisi", "Franklin Fernandez", "Implementación Imple", "Kevin Malaguera", "Mauro Vasquez", "Rafael González (Respaldo)", "Rosdely Pereira"]},
+      "otros": "NOT RENDERED (correct for strategic profile)"
+    },
+    "TO_filter_gonz": {
+      "ventas": {"header": "Ventas (1)", "options": 1},
+      "implementacion": {"header": "Implementación (2)", "options": 2},
+      "direccion_absent": true,
+      "otros_absent": true,
+      "total_matches": 3,
+      "no_empty_headers": true
+    },
+    "TO_selection_test": {
+      "picked_from_section": "Ventas",
+      "picked_user": "Jose Dolande (josedolande1@gmail.com)",
+      "input_value_after_pick": "josedolande1@gmail.com"
+    },
+    "CC_groups_empty_query": {
+      "direccion": {"header": "Dirección (2)", "options": 2},
+      "ventas": {"header": "Ventas (6)", "options": 6},
+      "implementacion": {"header": "Implementación (11)", "options": 11},
+      "otros": "NOT RENDERED"
+    },
+    "CC_filter_gonz_total_matches": 3,
+    "sticky_headers_css_class": "sticky top-0 (verified in source line 97)",
+    "key_users_verified_in_correct_groups": {
+      "direccion_Antonio_Castro": true,
+      "direccion_Cesar_Hernandez": true,
+      "ventas_Jose_Dolande": true,
+      "ventas_Melissa_Garcia": true,
+      "ventas_Elizabeth_Silva": true,
+      "implementacion_Axel_Gonzalez": true,
+      "implementacion_Kevin_Malaguera": true,
+      "implementacion_Doris_Collazo": true
+    }
+  }
+}
