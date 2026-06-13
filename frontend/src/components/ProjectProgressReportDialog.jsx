@@ -107,7 +107,17 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
     if (!data?.rows) return [];
     const g = [];
     let lastStore = null;
+    let lastRif = null;
     for (const r of data.rows) {
+      // Encabezado de RIF (solo Multi-RIF): número de RIF + nombre del comercio
+      if (isMultirif) {
+        const rifKey = r.rif_id || r.rif;
+        if (rifKey !== lastRif) {
+          g.push({ type: 'rif', rif: r.rif, rifName: r.rif_name });
+          lastRif = rifKey;
+          lastStore = null;
+        }
+      }
       const storeKey = r.store_id || r.store_label;
       if (isMultistore && storeKey !== lastStore) {
         g.push({ type: 'store', label: r.store_label });
@@ -116,7 +126,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
       g.push({ type: 'data', row: r });
     }
     return g;
-  }, [data, isMultistore]);
+  }, [data, isMultistore, isMultirif]);
 
   const phaseCellClass = (info) => {
     if (info.expected === 0) return 'bg-slate-50 text-slate-300';
@@ -315,9 +325,15 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
                 <tbody>
                   {groupedRows.length === 0 ? (
                     <tr><td colSpan={6} className="text-center py-6 text-slate-400 italic">No hay datos para los filtros aplicados.</td></tr>
-                  ) : groupedRows.map((g, i) => g.type === 'store' ? (
+                  ) : groupedRows.map((g, i) => g.type === 'rif' ? (
+                    <tr key={`rif-${i}`} className="bg-sky-900" data-testid="report-rif-header">
+                      <td colSpan={6} className="px-3 py-2 font-extrabold text-white text-sm tracking-wide">
+                        🆔 RIF {g.rif || '—'} · {g.rifName || '—'}
+                      </td>
+                    </tr>
+                  ) : g.type === 'store' ? (
                     <tr key={`s-${i}`} className="bg-sky-50">
-                      <td colSpan={6} className="px-3 py-1.5 font-bold text-sky-900 text-sm">🏬 {g.label}</td>
+                      <td colSpan={6} className="px-3 py-1.5 pl-8 font-bold text-sky-900 text-sm">🏬 {g.label}</td>
                     </tr>
                   ) : (
                     <tr key={`r-${i}`} className="border-t border-slate-100">

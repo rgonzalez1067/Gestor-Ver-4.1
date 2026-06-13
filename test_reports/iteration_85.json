@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only validation of Reporte de Avance for Multi-RIF project prj_e586608e3579. Login via UI, opened modal, verified hierarchical grouping (RIF -> Stores -> Bank/Product rows), validated 3 RIF headers with format '🆔 RIF <numero> · <nombre comercio>', each grouping its own stores (Brasero -> Marquez+Centro, Barako -> Altamira, Carbon -> Altamira), no cross-RIF mixing. PDF downloads as application/pdf (33KB, %PDF header). RIF filter (Brasero) correctly narrows table to only that RIF with its 2 stores. All 7 requested checks PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Reporte de Avance modal & Project Detail page", "issues": ["React hydration warnings: <span> data-ve-dynamic wrappers (Visual Edit instrumentation) producing invalid HTML nesting (span as child of tr/tbody, td inside span). Non-blocking (UI still renders correctly) but spams console with hydration errors. Likely from x-source instrumentation, not production code."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Visual Edit data-ve-dynamic span wrappers cause invalid HTML nesting (span inside tr/tbody) producing React hydration errors in console on ProjectDetail and ProjectProgressReportDialog. Functional behaviour unaffected, but should be addressed in instrumentation layer.",
+    "Typo in seed data: 'Brasero El Marqúez' (Marqúez vs Marquéz). Cosmetic but should be verified with product owner.",
+    "DialogContent missing aria-describedby/Description for accessibility (Radix warning)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "100%"},
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 used via UI login.",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ProjectProgressReportDialog now renders type:'rif' headers (data-testid='report-rif-header') above each store block for multirif projects. Hierarchy validated end-to-end. PDF download works. RIF filter cascades to stores correctly. Only console noise comes from Visual Edit data-ve-dynamic wrappers (non-blocking).",
+  "rca of the issue": "N/A - feature working as designed."
+}

@@ -99,7 +99,8 @@ def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products:
     está vacía). Permite detectar inconsistencias entre fases visualmente.
     """
     rows = []
-    for label, matrix, fallback_box, store_id in matrices_with_fallback:
+    for label, matrix, fallback_box, meta in matrices_with_fallback:
+        meta = meta or {}
         for bank, bank_products in (matrix or {}).items():
             for prod, phases in (bank_products or {}).items():
                 # Solo descarta el producto si TODAS las fases dan expected=0 y no hay box_count
@@ -121,7 +122,10 @@ def _build_matrix_rows(matrices_with_fallback: list, banks: List[str], products:
                     continue
                 rows.append({
                     "store_label": label,
-                    "store_id": store_id,
+                    "store_id": meta.get("store_id"),
+                    "rif_id": meta.get("rif_id"),
+                    "rif": meta.get("rif"),
+                    "rif_name": meta.get("rif_name"),
                     "bank": bank,
                     "product": prod.strip(),
                     "phases": row_phases,
@@ -141,11 +145,20 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
 
     project_type = proj.get("project_type", "single")
 
-    # Recolectar matrices a evaluar: lista de (label, matrix, fallback_box_count)
+    # Mapa de RIF para enriquecer cada tienda (número de RIF + nombre del comercio)
+    rifs_meta = {rf.get("rif_id"): rf for rf in (proj.get("rifs") or []) if rf.get("rif_id")}
+    rif_order = {rf.get("rif_id"): idx for idx, rf in enumerate(proj.get("rifs") or [])}
+
+    # Recolectar matrices a evaluar: lista de (label, matrix, fallback_box_count, meta)
     # Multitienda y Multi-RIF comparten la estructura por tienda (proj.stores).
     matrices_by_label = []
     if project_type in ("multistore", "multirif"):
-        for st in (proj.get("stores") or []):
+        # En Multi-RIF, ordenar las tiendas agrupadas por su RIF para que el reporte
+        # muestre claramente qué tiendas corresponden a cada RIF.
+        store_list = list(proj.get("stores") or [])
+        if project_type == "multirif":
+            store_list.sort(key=lambda s: rif_order.get(s.get("rif_id"), 9999))
+        for st in store_list:
             if rifs_filter and st.get("rif_id") not in rifs_filter:
                 continue
             if stores_filter and st.get("store_id") not in stores_filter:
@@ -153,7 +166,14 @@ async def _load_project_with_filters(project_id: str, banks_csv: Optional[str], 
             label = st.get("name") or st.get("store_id") or "—"
             mat = _filter_matrix(st.get("implementation_matrix") or {}, banks_filter, products_filter)
             if mat:
-                matrices_by_label.append((label, mat, int(st.get("box_count") or 0), st.get("store_id")))
+                rf = rifs_meta.get(st.get("rif_id"), {})
+                meta = {
+                    "store_id": st.get("store_id"),
+                    "rif_id": st.get("rif_id"),
+                    "rif": rf.get("rif") or st.get("rif"),
+                    "rif_name": rf.get("client_name") or st.get("client_name"),
+                }
+                matrices_by_label.append((label, mat, int(st.get("box_count") or 0), meta))
     else:
         mat = _filter_matrix(proj.get("implementation_matrix") or {}, banks_filter, products_filter)
         if mat:
@@ -200,7 +220,7 @@ async def project_progress_report(
 
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([(m, fb) for _l, m, fb, _sid in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb, _meta in matrices_by_label])
 
     # Catálogos disponibles para popular la pantalla de filtros (no filtrados)
     available_banks = []
@@ -288,7 +308,7 @@ async def project_progress_report_pdf(
     proj, matrices_by_label, filters = await _load_project_with_filters(project_id, banks, products, stores_csv, rifs)
     header = _project_header(proj)
     rows = _build_matrix_rows(matrices_by_label, filters["banks"], filters["products"])
-    totals = _aggregate_phases([(m, fb) for _l, m, fb, _sid in matrices_by_label])
+    totals = _aggregate_phases([(m, fb) for _l, m, fb, _meta in matrices_by_label])
 
     # Helpers
     def fmt_dt(iso):
@@ -299,6 +319,7 @@ async def project_progress_report_pdf(
         except Exception:
             return str(iso)[:10]
 
+    is_multirif = proj.get("project_type") == "multirif"
     is_multi = proj.get("project_type") in ("multistore", "multirif")
 
     # Tabla principal
@@ -307,10 +328,19 @@ async def project_progress_report_pdf(
         body_rows_html = f'<tr><td colspan="{(7 if is_multi else 6)}" class="empty-row">No hay datos para los filtros aplicados.</td></tr>'
     else:
         last_store = None
+        last_rif = None
         for r in rows:
+            # Encabezado de RIF (solo Multi-RIF): número de RIF + nombre del comercio
+            if is_multirif:
+                rif_key = r.get("rif_id") or r.get("rif")
+                if rif_key != last_rif:
+                    rif_label = f'{r.get("rif") or "—"} · {r.get("rif_name") or "—"}'
+                    body_rows_html += f'<tr class="rif-row"><td colspan="6">🆔 RIF {rif_label}</td></tr>'
+                    last_rif = rif_key
+                    last_store = None
             store_key = r.get("store_id") or r["store_label"]
             if is_multi and store_key != last_store:
-                body_rows_html += f'<tr class="store-row"><td colspan="{6 if is_multi else 5}">🏬 {r["store_label"]}</td></tr>'
+                body_rows_html += f'<tr class="store-row"><td colspan="6">🏬 {r["store_label"]}</td></tr>'
                 last_store = store_key
             phase_cells = "".join(_phase_cell_html(r["phases"][ph]) for ph in PHASES)
             body_rows_html += (
@@ -379,7 +409,8 @@ async def project_progress_report_pdf(
   td.ph.low  {{ background: #fee2e2; color: #991b1b; }}
   td.ph.zero {{ background: #f1f5f9; color: #94a3b8; }}
   td.ph.empty {{ color: #cbd5e1; text-align: center; }}
-  tr.store-row td {{ background: #e0f2fe; color: #075985; font-weight: 700; padding: 4px 8px; font-size: 10px; }}
+  tr.rif-row td {{ background: #0c4a6e; color: #ffffff; font-weight: 800; padding: 5px 8px; font-size: 10.5px; letter-spacing: 0.3px; }}
+  tr.store-row td {{ background: #e0f2fe; color: #075985; font-weight: 700; padding: 4px 8px 4px 16px; font-size: 10px; }}
   td.empty-row {{ text-align: center; padding: 18px; color: #94a3b8; font-style: italic; }}
   .footer {{ margin-top: 12px; padding-top: 6px; border-top: 1px solid #e2e8f0; font-size: 8.5px; color: #94a3b8; text-align: center; }}
 </style></head>
