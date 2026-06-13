@@ -1,0 +1,73 @@
+{
+  "summary": "FRONTEND-ONLY: validado el fix del cap de 8 resultados en el autocomplete de usuarios internos (InternalEmailInput) del bloque 'Próximo envío' (data-testid='next-send-block') del modal 'Notificación Única (Cliente y Banco)' en el proyecto prj_e586608e3579. Navegación DENTRO de la app (login admin → /projects/prj_e586608e3579 → botón 'Notificación Única'). Resultado: el dropdown TO (data-testid='notif-to-input-suggestions') ahora muestra los 19 usuarios estratégicos (antes 8); el dropdown CC (data-testid='notif-cc-input-suggestions') idem 19; el contenedor tiene max-h-52 (208px) con scroll real (scrollHeight>clientHeight=true); el filtrado por 'gonz' devuelve las 3 coincidencias completas sin recorte; la selección de un usuario coloca el email en el input y el botón + agrega el chip correctamente.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "InternalEmailInput.jsx luce correcto y mínimo. Sugerencia menor: cuando query/value tiene un email completo válido el dropdown sigue mostrando la lista (porque 'q' coincide con varios via includes); aceptable, no es un bug.",
+    "Persisten warnings React de hidratación '<span> cannot be a child of <tr>/<tbody>/<th>' provenientes del instrumentador <span data-ve-dynamic> (heredado de iteraciones previas; no relacionado con este fix).",
+    "ProjectDetail.jsx sigue >2700 líneas; considerar extraer el bloque del modal 'Notificación Única' a un componente propio para mantenibilidad (se renderiza dentro del mismo archivo)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only por solicitud)",
+    "frontend": "100% — los 5 escenarios solicitados pasan (TO=19, CC=19, scroll real, filtro 'gonz'=3, selección + chip)"
+  },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (de /app/memory/test_credentials.md).",
+  "seed_data_creation": "Ninguna. Se usó el proyecto existente prj_e586608e3579.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El bloque 'next-send-block' NO es visible en el render base de /projects/<id>; vive DENTRO del modal que se abre con el botón 'Notificación Única (Cliente y Banco)' (también accesible vía el botón 'Notificaciones' por fila de banco en la matriz). Una vez abierto el modal, los inputs notif-to-input y notif-cc-input ya están en DOM y el dropdown abre con focus (~300-800ms). El backend devuelve 19 usuarios para profile='strategic' confirmado on-screen. Los testids para opciones siguen el patrón notif-{to,cc}-input-opt-<email-completo>.",
+  "evidence": {
+    "TO_dropdown_options_empty_query": 19,
+    "TO_users_observed": [
+      "Antonio Castro · acastro@megasoft.com.ve · Director",
+      "Axel González · agonzalez@megasoft.com.ve · Implementador",
+      "Bryan Claro · bclaro@megasoft.com.ve · Implementador",
+      "Carlos Hernández · cahernandez@megasoft.com.ve · Implementador",
+      "Cesar Hernandez · chernandez@megasoft.com.ve · Director",
+      "Doris Collazo · dcollazo@megasoft.com.ve · Gerente",
+      "Elizabeth Silva · esilva@megasoft.com.ve · Gerente",
+      "Fernando Aloisi · faloisi@megasoft.com.ve · Implementador",
+      "Franklin Fernandez · ffernandez@megasoft.com.ve · Implementador",
+      "Implementación Imple · impl_merchant@megasoft.com.ve · Gerente",
+      "Jose Dolande · josedolande1@gmail.com · Ejecutivo",
+      "Kevin Malaguera · kmalaguera@megasoft.com.ve · Coordinador",
+      "Mauro Vasquez · msanchez@megasoft.com.ve · Implementador",
+      "Melissa Garcia · mgarcia@megasoft.com.ve · Ejecutivo",
+      "Rafael González · rgonzalez@megasoft.com.ve · Gerente",
+      "Rafael González (Respaldo) · ragg1008@gmail.com · Implementador",
+      "Rosdely Pereira · rpereira@megasoft.com.ve · Implementador",
+      "Ventas Pyme · merchant_pyme@megasoft.com.ve · Ejecutivo",
+      "Vleidermi Salcedo · vsalcedo@megasoft.com.ve · Ejecutivo"
+    ],
+    "filter_gonz_count": 3,
+    "filter_gonz_matches": ["Axel González", "Rafael González", "Rafael González (Respaldo)"],
+    "CC_dropdown_options_empty_query": 19,
+    "CC_dropdown_height_px": 208,
+    "CC_dropdown_max_h_52_class": "max-h-52 (208px)",
+    "CC_dropdown_scrollable_runtime": true,
+    "selection_test": {
+      "picked": "josedolande1@gmail.com (Jose Dolande, Ventas/Ejecutivo)",
+      "TO_input_value_after_pick": "josedolande1@gmail.com",
+      "chip_text_after_plus_button": "josedolande1@gmail.com×",
+      "add_button_testid": "notif-add-to-btn"
+    },
+    "key_users_verified": {
+      "ventas_ejecutivo_Jose_Dolande": true,
+      "ventas_ejecutivo_Melissa_Garcia": true,
+      "ventas_gerente_Elizabeth_Silva": true,
+      "implementacion_Axel_Gonzalez": true,
+      "implementacion_Kevin_Malaguera_Coordinador": true,
+      "implementacion_Doris_Collazo_Gerente": true,
+      "director_Antonio_Castro": true,
+      "director_Cesar_Hernandez": true
+    }
+  },
+  "rca of the issue": "Root cause: InternalEmailInput.jsx tenía `.slice(0,8)` en el array `filtered` (línea ~32), por lo que aún cuando el backend devolvía 19 usuarios estratégicos (validado por curl/pytest en iters previas), el componente solo renderizaba 8 botones — el usuario percibía 'la lista es muy corta'. Fix aplicado por el main agent: eliminar `.slice(0,8)` y dejar que el contenedor (clase max-h-52 overflow-y-auto) gobierne la altura visible mediante scroll. Validado on-screen: con query vacío se ven 19 opciones, con filtro 'gonz' se ven 3 (todas las coincidencias), y la altura del dropdown es exactamente 208px (max-h-52) con scrollHeight>clientHeight=true. El bug está cerrado."
+}

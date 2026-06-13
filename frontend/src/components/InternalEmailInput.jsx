@@ -31,10 +31,12 @@ export const InternalEmailInput = ({ value, onChange, onRemove, onEnter, placeho
 
   const filtered = useMemo(() => {
     const q = (query || value || '').trim().toLowerCase();
-    if (!q) return users.slice(0, 8);
+    // Sin texto: mostrar TODA la lista (el contenedor tiene scroll). Antes se
+    // limitaba a 8 y la lista se veía "corta" aunque hubiese más usuarios.
+    if (!q) return users;
     return users.filter(u =>
       u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q)
-    ).slice(0, 8);
+    );
   }, [query, value, users]);
 
   const handleChange = (e) => {

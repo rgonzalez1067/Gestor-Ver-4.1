@@ -22,19 +22,23 @@ VALID_CONTEXTS = {"CLIENTES", "INTEGRADORES", "NUEVOS_PRODUCTOS"}
 # ==================== USUARIOS INTERNOS (Autocomplete) ====================
 
 # Perfiles estratégicos para el modal de Notificaciones de Proyectos.
-_STRATEGIC_DEPTS = {"Ventas Pyme", "Ventas Corporativas"}
-_IMPL_CARGOS = {"Implementador", "Coordinador", "Gerente"}
+# Equipo de Ventas (cualquier subárea: Pyme/Corporativas/...), Equipo de
+# Implementación (cualquier cargo) y Dirección/Directores.
 
 
 def _is_strategic_profile(u: dict) -> bool:
-    """Incluye solo Ventas (Pyme/Corp), Directores e Implementación (Implementador/Coordinador/Gerente)."""
-    cargo = (u.get("cargo") or "").strip()
-    dept = (u.get("departamento") or "").strip()
-    if cargo == "Director":
+    """Incluye TODO el Equipo de Ventas (cualquier subárea), TODO el Equipo de
+    Implementación (cualquier cargo) y Dirección/Directores."""
+    cargo = (u.get("cargo") or "").strip().lower()
+    dept = (u.get("departamento") or "").strip().lower()
+    # Dirección / Directores
+    if cargo == "director" or dept in ("dirección", "direccion"):
         return True
-    if dept in _STRATEGIC_DEPTS:
+    # Equipo de Ventas (Ventas Pyme, Ventas Corporativas, u otra subárea "Ventas ...")
+    if dept.startswith("ventas"):
         return True
-    if dept == "Implementación" and cargo in _IMPL_CARGOS:
+    # Equipo de Implementación (cualquier cargo)
+    if dept in ("implementación", "implementacion"):
         return True
     return False
 

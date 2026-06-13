@@ -50,30 +50,44 @@ class TestInternalEmailsFilter:
         assert len(strat_users) <= len(all_users), "strategic list must be subset"
         assert len(strat_users) < len(all_users), "strategic list should be strictly smaller than full"
 
-        # Reglas: cargo=Director OR depto in (Ventas Pyme, Ventas Corporativas)
-        # OR (depto=Implementación and cargo in (Implementador, Coordinador, Gerente))
-        strategic_depts = {"Ventas Pyme", "Ventas Corporativas"}
-        impl_cargos = {"Implementador", "Coordinador", "Gerente"}
+        # Reglas: cargo=Director/depto=Dirección OR depto empieza por "Ventas"
+        # OR depto=Implementación (cualquier cargo)
         for u in strat_users:
-            cargo = (u.get("cargo") or "").strip()
-            dept = (u.get("departamento") or "").strip()
-            ok = (cargo == "Director") or (dept in strategic_depts) or (dept == "Implementación" and cargo in impl_cargos)
+            cargo = (u.get("cargo") or "").strip().lower()
+            dept = (u.get("departamento") or "").strip().lower()
+            ok = (cargo == "director" or dept in ("dirección", "direccion")
+                  or dept.startswith("ventas")
+                  or dept in ("implementación", "implementacion"))
             assert ok, f"user {u.get('email')} cargo={cargo!r} dept={dept!r} should NOT be in strategic list"
+
+    def test_strategic_includes_all_three_teams(self, auth_headers):
+        """Debe incluir TODO Ventas, TODA Implementación y los Directores."""
+        r_all = requests.get(f"{BASE_URL}/api/users/internal-emails", headers=auth_headers, timeout=20)
+        r_strat = requests.get(f"{BASE_URL}/api/users/internal-emails?profile=strategic", headers=auth_headers, timeout=20)
+        all_users, strat_users = r_all.json(), r_strat.json()
+        strat_emails = {u.get("email") for u in strat_users}
+
+        def is_target(u):
+            cargo = (u.get("cargo") or "").strip().lower()
+            dept = (u.get("departamento") or "").strip().lower()
+            return (cargo == "director" or dept in ("dirección", "direccion")
+                    or dept.startswith("ventas")
+                    or dept in ("implementación", "implementacion"))
+
+        missing = [u.get("email") for u in all_users if is_target(u) and u.get("email") not in strat_emails]
+        assert not missing, f"usuarios de Ventas/Implementación/Dirección faltantes en strategic: {missing}"
 
     def test_strategic_excludes_non_strategic(self, auth_headers):
         r = requests.get(f"{BASE_URL}/api/users/internal-emails?profile=strategic", headers=auth_headers, timeout=20)
         assert r.status_code == 200
-        excluded_depts = {"Administración", "Desarrollo", "Infraestructura", "TI", "QA", "Operaciones"}
+        # Operaciones, Administración, Desarrollo, QA, Infraestructura NO entran (salvo Director)
+        excluded_depts = {"Administración", "Desarrollo", "Infraestructura", "TI",
+                          "Aseguramiento de Calidad", "QA", "Operaciones"}
         for u in r.json():
             dept = (u.get("departamento") or "").strip()
             cargo = (u.get("cargo") or "").strip()
-            # Solo se permite estos depts excluidos cuando cargo=Director (regla por rol)
             if dept in excluded_depts:
                 assert cargo == "Director", f"non-strategic user leaked: {u.get('email')} {dept}/{cargo}"
-            # Cargos Analista/Asistente/Tecnico del depto Implementación NO deben pasar
-            if dept == "Implementación":
-                assert cargo in {"Implementador", "Coordinador", "Gerente", "Director"}, \
-                    f"impl cargo not allowed: {u.get('email')} {cargo}"
 
 
 # ============ Envío con to_override y additional_recipients ============
