@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · Bypass del modal "¿Es Multitienda?" en Enviar a Implementación
+
+- **Frontend (`Quotes.jsx`)**: `openMultistoreDialog` ahora hace **early-return** cuando `quote_type === 'VPOS_MULTIRIF'`: omite el modal "¿Es Multitienda?" y llama directo a `handleSendToImplementation` (preservando `exceptionInfo` para el flujo irregular). Para el resto de tipos, el modal tradicional Sí/No se mantiene intacto.
+- **Integridad de payload**: para Multi-RIF, `handleSendToImplementation` declara `is_multirif:true` + `is_multistore:true` en el body (SIN `stores`), para no enrutar al multistore plano y conservar `project_type="multirif"`.
+- **Backend (`quote_actions.py`)**: `SendToImplementationRequest` acepta `is_multirif`; se preserva el `client_name` sintético del Banco para Multi-RIF. El backend solo arma multistore plano con `is_multistore && stores`, por lo que Multi-RIF mantiene su jerarquía de 3 niveles (lo construye `_create_project_from_quote` desde `multirif_distribution`).
+- **Validado E2E (backend)**: POST send-to-implementation con body de bypass → HTTP 200 y proyecto creado con `project_type="multirif"`, RIFs/sucursales correctos y nombre del Banco. QA #1 (avanza sin modal) y QA #3 (integridad jerarquía) ✓. QA #2 (modal tradicional preservado) por código sin cambios en esa rama.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · FASE 4: Variables de correo (Distribución + Avance)
 
 Dos variables dinámicas para las plantillas de correo (notificación inicial vs. avances):

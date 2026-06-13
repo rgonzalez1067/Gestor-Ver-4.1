@@ -2623,6 +2623,15 @@ export const Quotes = () => {
         body.is_multistore = true;
         body.stores = storesData;
       }
+      // VPOS Multi-RIF: declarar la condición multitienda (jerarquía de 3 niveles)
+      // en el payload aunque no se envíen `stores` (el backend la deriva de
+      // multirif_distribution). NO se envían `stores` para no enrutarlo al
+      // multistore plano y conservar project_type="multirif".
+      const _sendingQuote = quotes.find(q => q.quote_id === quoteId);
+      if ((_sendingQuote?.quote_type || '').toUpperCase() === 'VPOS_MULTIRIF') {
+        body.is_multirif = true;
+        body.is_multistore = true;
+      }
       if (projectTypeImpl) {
         body.project_type_impl = projectTypeImpl;
       }
@@ -2685,6 +2694,15 @@ export const Quotes = () => {
 
   // ==================== FLUJO MULTITIENDA ====================
   const openMultistoreDialog = (quoteId, exceptionInfo) => {
+    // VPOS Multi-RIF: por naturaleza es multitienda (jerarquía Global→RIF→Sucursal).
+    // Se OMITE el modal "¿Es Multitienda?" y se envía directo a implementación;
+    // el backend construye la estructura de 3 niveles desde multirif_distribution.
+    const _q = quotes.find(q => q.quote_id === quoteId);
+    if ((_q?.quote_type || '').toUpperCase() === 'VPOS_MULTIRIF') {
+      setProjectTypeImpl('vpos_mpos');
+      handleSendToImplementation(quoteId, exceptionInfo, null);
+      return;
+    }
     setMultistoreQuoteId(quoteId);
     setMultistoreExceptionInfo(exceptionInfo);
     setIsMultistore(null);

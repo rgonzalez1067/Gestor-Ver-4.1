@@ -1414,6 +1414,7 @@ async def send_quote_to_client(quote_id: str, authorization: Optional[str] = Hea
 
 class SendToImplementationRequest(BaseModel):
     is_multistore: Optional[bool] = False
+    is_multirif: Optional[bool] = False  # VPOS Multi-RIF: jerarquía multitienda de 3 niveles
     stores: Optional[list] = None
     project_type_impl: Optional[str] = None  # "pos_fast_track", "vpos_mpos", "payment_gateway"
     equipment_serials: Optional[list] = None  # [{modelo, serial, nota_entrega_id?}]
@@ -1489,6 +1490,9 @@ async def send_quote_to_implementation(quote_id: str, body: Optional[SendToImple
     
     client = await db.clients.find_one({"client_id": quote['client_id']}, {"_id": 0})
     client_name = client.get('fantasy_name') or client.get('legal_name') if client else 'Cliente'
+    # VPOS Multi-RIF: no hay cliente único; conservar el nombre sintético del Banco.
+    if quote.get("is_multirif"):
+        client_name = quote.get("client_name") or f"Lote {quote.get('sponsoring_bank_name', 'Banco')} (Multi-RIF)"
     quote["client_name"] = client_name
     quote["client_rif"] = client.get('rif', 'N/A') if client else 'N/A'
 
