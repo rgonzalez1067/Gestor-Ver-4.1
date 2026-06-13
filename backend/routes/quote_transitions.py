@@ -224,6 +224,7 @@ async def _create_project_from_quote(
             "created_at": now.isoformat(),
         }],
         "created_at": now.isoformat(),
+        "sent_to_implementation_at": now.isoformat(),
         "project_type": "single",
         "client_notified": False,
         "client_notified_at": None,

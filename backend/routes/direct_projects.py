@@ -301,6 +301,7 @@ async def create_direct_project(
         "iva_exempt": bool(client.get("iva_exempt", False)),
         "implementation_instructions": payload.implementation_instructions or None,
         "created_at": now_iso,
+        "sent_to_implementation_at": now_iso,
         "created_by_user_id": user.get("user_id"),
         "is_irregular": False,
         "irregular_exceptions": [],

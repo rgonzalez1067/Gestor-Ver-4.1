@@ -830,3 +830,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - El botón queda SOLO en el panel principal de Proyectos (Projects.jsx), ahora gateado por la nueva función especial 'proyectos:manage_email_templates' (label 'Gestionar Plantillas de Correo'): canManageTemplates = isAdmin || hasSpecial(flag).
 - Backend (permissions_catalog.py): agregado a SPECIAL_PERMISSIONS; se expone en GET /api/admin/permission-catalog y es asignable desde Perfiles de Seguridad (y AdminUsers lo hereda).
 - Verificado por testing_agent (iter86, frontend 100%, 6/6): botón removido del detalle, presente en panel principal solo con permiso, función visible/asignable en Perfiles, RBAC negativo (srubio no lo ve), resto del panel interno operativo.
+
+## 2026-06-13 · Bugfix: columna "Envío a Imple" (fecha cotización→proyecto) vacía
+- Causa raíz: Projects.jsx lee project.sent_to_implementation_at, pero ese timestamp solo se escribía en la cotización (que se elimina en el flujo normal). El proyecto solo tenía created_at → campo siempre vacío.
+- Fix backend: quote_transitions.py y direct_projects.py ahora guardan sent_to_implementation_at = now en el documento del proyecto al crearlo.
+- Backfill: 78 proyectos existentes actualizados con sent_to_implementation_at = created_at.
+- Verificado por curl: GET /api/projects devuelve la fecha poblada en 78/78 proyectos.
