@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · % de avance por RIF (modal Actualización Masiva + árbol)
+
+- **Modal "Actualización Masiva" (`BatchUpdateModal.jsx`)**: el Select de RIF ahora muestra un chip de % por opción (`batch-rif-pct-<rif_id>` y `batch-rif-pct-all`), una mini barra de avance del alcance seleccionado (`batch-rif-progress` / `batch-rif-progress-pct`) y un chip de % por cada tienda en la lista. Avance ponderado por cajas (mismo criterio que el backend/árbol).
+- **Árbol Multi-RIF (`MultiRifTree.jsx`)**: cada nodo RIF añade un chip de % con colores semáforo (`multirif-rif-pct-<rif_id>`) junto a la barra existente.
+- **Colores semáforo**: 0% rojo · <50% ámbar · ≥50% verde. Reutiliza `weightedProgress`/`calcStoreProgress`. Backend sin cambios.
+- **Validado (iteration_76)**: 100% — chips y barra renderizan con valores 0-100 y color correcto; regresión de filtrado Fase 5 intacta (proyecto con matriz vacía → todo 0%/rojo, correcto).
+
+
 ## 2026-06-13 — VPOS Multi-RIF · Fase 4.5 (corrección de bypass) + Ficha Técnica + Fase 5 (filtro RIF en Actualización Masiva)
 
 ### Corrección del bypass agresivo (Enviar a Implementación)
