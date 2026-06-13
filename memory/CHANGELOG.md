@@ -812,3 +812,9 @@ Antes, usuarios con permisos limitados no cargaban catálogos en el frontend →
 - Bug MEDIO adicional (hallado por testing_agent iter82): tiendas con mismo nombre ("Altamira" x2) colapsaban en un solo grupo por agrupar por label. Solucionado agrupando por `store_id` (backend `_build_matrix_rows` añade `store_id`; PDF y frontend `groupedRows` agrupan por store_id).
 - Validado: JSON avance (4 grupos distintos, 2 Altamira separadas), PDF 200/application/pdf (prj_e586608e3579 30KB, prj_5c3999532fcc 32KB, 2 headers Altamira confirmados por extracción), modal UI verificado por testing_agent (frontend 95%, store filter habilitado, agrupación por tienda OK).
 - Pendiente P3 (no bloqueante): hydration warnings `<span data-ve-dynamic>` dentro de <tbody>/<tr> (wrapper de instrumentación de plataforma) y warning a11y Radix en el dialog.
+
+## 2026-06-13 · Feature: Filtro por RIF en Reporte de Avance (Multi-RIF)
+- Añadido filtro 'RIF / Razón Social' en el modal Reporte de Avance (solo proyectos multirif), con cascada: al seleccionar uno o más RIF, la lista de Tiendas se reduce a las de esos RIF y la tabla/PDF solo muestran esas tiendas.
+- Backend (project_reports.py): `_load_project_with_filters` acepta `rifs_csv` y filtra stores por `rif_id`; endpoints avance y PDF aceptan `rifs`; avance expone `available.rifs` (rif_id/rif/client_name/box_count) y `available.stores` incluye `rif_id`; PDF agrega chip 'RIF:'.
+- Frontend (ProjectProgressReportDialog.jsx): estado selRifs, cascada storesAvail, toggleRif poda selStores, params.rifs en applyFilters+downloadPdf, reset en useEffect/Limpiar.
+- Bug HIGH (iter83): applyFilters no enviaba `rifs` → la vista previa no filtraba. Corregido (iter84 100% PASS: 2 grupos Marquez/Centro, cascada, reset, Limpiar, PDF OK).
