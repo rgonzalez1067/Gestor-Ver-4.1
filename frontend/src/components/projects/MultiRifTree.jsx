@@ -21,6 +21,10 @@ const weightedProgress = (stores) => {
   return Math.round(stores.reduce((s, st) => s + calcStoreProgress(st) * (st.box_count || 0), 0) / totalBoxes);
 };
 
+// Chip de avance con colores semáforo: 0% rojo · <50% ámbar · ≥50% verde.
+const pctChipClass = (pct) =>
+  pct === 0 ? 'bg-red-100 text-red-700' : pct < 50 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+
 const ProgressBar = ({ pct, size = 'md' }) => {
   const color = pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-blue-500' : 'bg-slate-300';
   return (
@@ -82,6 +86,7 @@ export const MultiRifTree = ({ project, canEditMatrix, onUpdateStoreQuantity, on
                   <Building2 size={16} className="text-indigo-500 shrink-0" />
                   <span className="font-semibold text-sm text-slate-800 truncate">{rif.client_name}</span>
                   <span className="text-xs text-slate-400 shrink-0">— {rif.rif} · {stores.length} suc. · {rif.box_count} caja(s)</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${pctChipClass(rifPct)}`} data-testid={`multirif-rif-pct-${rif.rif_id}`}>{rifPct}%</span>
                   {rifPct >= 100 && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}
                 </div>
                 <div className="shrink-0"><ProgressBar pct={rifPct} /></div>

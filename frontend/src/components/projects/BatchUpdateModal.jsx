@@ -7,6 +7,32 @@ import { Checkbox } from '../ui/checkbox';
 import { Layers } from 'lucide-react';
 import { STORE_PHASES } from './projectConstants';
 
+// Avance por tienda (% de fases completadas sobre el total de la matriz de la tienda).
+const calcStoreProgress = (store) => {
+  const sm = store.implementation_matrix || {};
+  let completed = 0, total = 0;
+  Object.values(sm).forEach(products => {
+    Object.values(products).forEach(phases => {
+      STORE_PHASES.forEach(p => { total++; if (phases[p]?.completed) completed++; });
+    });
+  });
+  return total > 0 ? Math.round((completed / total) * 100) : 0;
+};
+
+// Avance ponderado por cantidad de cajas (igual criterio que el backend / árbol Multi-RIF).
+const weightedProgress = (stores) => {
+  if (!stores || stores.length === 0) return 0;
+  const totalBoxes = stores.reduce((s, st) => s + (st.box_count || 0), 0);
+  if (totalBoxes === 0) return Math.round(stores.reduce((s, st) => s + calcStoreProgress(st), 0) / stores.length);
+  return Math.round(stores.reduce((s, st) => s + calcStoreProgress(st) * (st.box_count || 0), 0) / totalBoxes);
+};
+
+// Colores semáforo: 0% rojo · <50% ámbar · ≥50% verde.
+const pctChipClass = (pct) =>
+  pct === 0 ? 'bg-red-100 text-red-700' : pct < 50 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+const pctBarClass = (pct) =>
+  pct === 0 ? 'bg-red-400' : pct < 50 ? 'bg-amber-400' : 'bg-emerald-500';
+
 /**
  * Modal de Actualización Masiva: marca al 100% una fase + producto + banco
  * para varias tiendas a la vez en un proyecto multi-tienda.
@@ -36,9 +62,17 @@ export const BatchUpdateModal = ({
   const rifs = project?.rifs || [];
   const isMultiRif = rifs.length > 0;
   const rifLabel = (r) => `${r.client_name || 'Cliente'} — RIF: ${r.rif || ''}`;
+  const storesOfRif = (rifId) => stores.filter(s => s.rif_id === rifId);
+  const rifPct = (rifId) => weightedProgress(storesOfRif(rifId));
+  const globalPct = weightedProgress(stores);
   const filteredStores = (batchRif && batchRif !== '__ALL__')
     ? stores.filter(s => s.rif_id === batchRif)
     : stores;
+  // Avance del alcance actualmente visible (RIF seleccionado o global con "Todos").
+  const scopePct = (batchRif && batchRif !== '__ALL__') ? rifPct(batchRif) : globalPct;
+  const scopeLabel = (batchRif && batchRif !== '__ALL__')
+    ? (rifs.find(r => r.rif_id === batchRif)?.client_name || 'RIF')
+    : 'Todos los RIFs';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,21 +137,41 @@ export const BatchUpdateModal = ({
             </div>
           </div>
 
-          {/* Fase 5: Filtro en cascada por RIF (solo Multi-RIF) */}
+          {/* Fase 5: Filtro en cascada por RIF (solo Multi-RIF) con % de avance por RIF */}
           {isMultiRif && (
             <div>
               <Label className="text-xs font-semibold">RIF (Cliente) <span className="text-slate-400 font-normal">— filtra las tiendas</span></Label>
               <Select value={batchRif} onValueChange={setBatchRif}>
                 <SelectTrigger className="text-sm" data-testid="batch-rif-select"><SelectValue placeholder="RIF..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__ALL__" data-testid="batch-rif-all">Todos los RIFs</SelectItem>
-                  {rifs.map(r => (
-                    <SelectItem key={r.rif_id} value={r.rif_id} data-testid={`batch-rif-${r.rif_id}`}>
-                      {rifLabel(r)}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="__ALL__" data-testid="batch-rif-all">
+                    <span className="flex items-center gap-2">
+                      <span>Todos los RIFs</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${pctChipClass(globalPct)}`} data-testid="batch-rif-pct-all">{globalPct}%</span>
+                    </span>
+                  </SelectItem>
+                  {rifs.map(r => {
+                    const p = rifPct(r.rif_id);
+                    return (
+                      <SelectItem key={r.rif_id} value={r.rif_id} data-testid={`batch-rif-${r.rif_id}`}>
+                        <span className="flex items-center gap-2">
+                          <span>{rifLabel(r)}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${pctChipClass(p)}`} data-testid={`batch-rif-pct-${r.rif_id}`}>{p}%</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+
+              {/* Mini barra de avance del alcance seleccionado */}
+              <div className="flex items-center gap-2 mt-2" data-testid="batch-rif-progress">
+                <span className="text-[11px] text-slate-500 shrink-0 truncate max-w-[45%]">{scopeLabel}</span>
+                <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all duration-300 ${pctBarClass(scopePct)}`} style={{ width: `${scopePct}%` }} />
+                </div>
+                <span className={`text-[11px] font-bold tabular-nums shrink-0 ${scopePct === 0 ? 'text-red-600' : scopePct < 50 ? 'text-amber-600' : 'text-emerald-700'}`} data-testid="batch-rif-progress-pct">{scopePct}% completado</span>
+              </div>
             </div>
           )}
 
@@ -135,18 +189,24 @@ export const BatchUpdateModal = ({
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {filteredStores.map(s => (
-                    <label key={s.store_id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white cursor-pointer" data-testid={`batch-store-${s.store_id}`}>
-                      <Checkbox
-                        checked={batchStoreIds.includes(s.store_id)}
-                        onCheckedChange={() => toggleBatchStore(s.store_id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-slate-700 truncate">{s.name}</div>
-                        <div className="text-[10px] text-slate-400">{s.code || ''} · {s.box_count || 0} PDV</div>
-                      </div>
-                    </label>
-                  ))}
+                  {filteredStores.map(s => {
+                    const sp = calcStoreProgress(s);
+                    return (
+                      <label key={s.store_id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white cursor-pointer" data-testid={`batch-store-${s.store_id}`}>
+                        <Checkbox
+                          checked={batchStoreIds.includes(s.store_id)}
+                          onCheckedChange={() => toggleBatchStore(s.store_id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-slate-700 truncate">{s.name}</span>
+                            <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full shrink-0 ${pctChipClass(sp)}`}>{sp}%</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{s.code || ''} · {s.box_count || 0} PDV</div>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>

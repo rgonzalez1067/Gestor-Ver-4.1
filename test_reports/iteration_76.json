@@ -1,0 +1,54 @@
+{
+  "summary": "Validación FRONTEND-ONLY de la mejora VPOS Multi-RIF: chips de % por RIF en el árbol Multi-RIF y dentro del modal 'Actualización Masiva' (Select + mini barra de avance + chips por tienda), con colores semáforo (0%=rojo, <50%=ámbar, ≥50%=verde) y consistencia entre tree y modal. También se valida que la regresión Fase 5 (filtrado en cascada por RIF + reset de selección) sigue intacta. Navegación realizada DENTRO de la app: login admin → sidebar 'Gestión de Implementación' → 'Proyectos' → detail-btn-prj_e586608e3579 (sin deep-link). Proyecto prj_e586608e3579 ('PRY-2026-06-042-PRI', Lote Bancamiga Multi-RIF) actualmente con matriz vacía → todos los % son 0 y los chips se renderizan en rojo, como corresponde.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BatchUpdateModal.jsx y MultiRifTree.jsx duplican los helpers calcStoreProgress/weightedProgress/pctChipClass. Recomendable extraerlos a un util compartido (ej. projectProgressUtils.js) para evitar drift de criterios — ahora mismo coinciden y la consistencia tree ↔ modal se verificó en tiempo de ejecución.",
+    "Cuando el SelectValue del shadcn Select muestra la opción seleccionada en el trigger, los nodos con data-testid del SelectItem se renderizan DOS veces (uno en el trigger, otro en el listbox del portal). No es bug, pero conviene saberlo: cualquier futuro test que use `count() == 1` sobre `batch-rif-pct-all` (u otra opción seleccionada) fallará. Recomendado usar .first/.last o filtrar por ancestro [role='listbox'].",
+    "Persisten warnings de hidratación React por el instrumentador `<span data-ve-dynamic>` insertado dentro de <tbody>/<tr> en Dashboard.jsx (commitment table) — heredado de iteraciones previas, no es código de feature. No afecta a este feature ni a la regresión Fase 5.",
+    "MultiRifTree.jsx coloca el ProgressBar adicional dentro de un <button>, lo que produce un <div role-less> anidado dentro de un botón. Funciona, pero a futuro reemplazar el ProgressBar interno por elementos no interactivos puros (ya lo son, pero la nidación dentro de <button> es accesibilidad subóptima)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only)", "frontend": "100% (3/3 secciones, 12 aserciones)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — usado correctamente desde /app/memory/test_credentials.md.",
+  "seed_data_creation": "Ninguna. Sólo se leyó el proyecto existente prj_e586608e3579 con matriz vacía.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Para futuros tests sobre estos chips: en el árbol Multi-RIF cada chip [data-testid='multirif-rif-pct-<rif_id>'] es único; pero en el modal el chip [data-testid='batch-rif-pct-<id>'] de la opción ACTUALMENTE seleccionada del Select aparece DOS veces en el DOM (trigger + listbox). Usar .last o filtrar por listbox. Para poblar % >0 y validar transiciones de color (ámbar/verde) habría que completar fases en la matriz de alguna tienda; en este iter sólo se validaron valores 0% (rojo). Si se requiere validar ámbar/verde, marcar manualmente fases en el modal de matriz de la sucursal Marquez (Brasero) hasta superar 50% del total ponderado del RIF Brasero, luego re-verificar tree y modal.",
+  "evidence": {
+    "navigation_path": "/login → /dashboard → sidebar 'Gestión de Implementación' → /projects → detail-btn-prj_e586608e3579 → /projects/prj_e586608e3579",
+    "tree_chips": {
+      "multirif-rif-pct-rif_408f1f81 (Brasero)": "0% bg-red-100 OK",
+      "multirif-rif-pct-rif_fe660ab3 (Barako)": "0% bg-red-100 OK",
+      "multirif-rif-pct-rif_c4d25c69 (Carbon)": "0% bg-red-100 OK"
+    },
+    "modal_select_chips": {
+      "batch-rif-pct-all": "0% bg-red-100 OK (count=2: trigger+listbox, esperado)",
+      "batch-rif-pct-rif_408f1f81": "0% bg-red-100 OK",
+      "batch-rif-pct-rif_fe660ab3": "0% bg-red-100 OK",
+      "batch-rif-pct-rif_c4d25c69": "0% bg-red-100 OK",
+      "consistency_tree_vs_select": "match en los 3 RIFs"
+    },
+    "progress_bar": {
+      "default_Todos": "'0% completado' (matches batch-rif-pct-all)",
+      "Brasero_selected": "scope_label='Brasero El Marqúez', '0% completado' (matches rif chip)",
+      "Barako_selected": "'0% completado' (matches)",
+      "Carbon_selected": "'0% completado' (matches)"
+    },
+    "store_chips_Brasero": "Marquez 0%, Centro 0% — chips renderizados junto al nombre",
+    "regression_phase5": {
+      "Brasero": "2 tiendas, contador (0/2) tras cambio",
+      "Barako": "1 tienda, (0/1)",
+      "Carbon": "1 tienda, (0/1)",
+      "Todos": "4 tiendas, (0/4)",
+      "selection_reset_on_rif_change": true
+    }
+  },
+  "rca of the issue": "N/A — no se encontraron bugs. La mejora cumple lo especificado: chips con % entero (0-100) + colores semáforo en árbol Multi-RIF y en el Select/listado de tiendas del modal, mini barra de avance del alcance con scope_label dinámico, y la regresión Fase 5 sigue intacta."
+}
