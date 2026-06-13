@@ -19,6 +19,7 @@ export const BatchUpdateModal = ({
   project,
   batchPhase, setBatchPhase,
   batchBank, setBatchBank,
+  batchRif, setBatchRif,
   batchProducts, toggleBatchProduct,
   batchStoreIds,
   batchReason, setBatchReason,
@@ -30,6 +31,14 @@ export const BatchUpdateModal = ({
   const stores = project?.stores || [];
   const banks = Object.keys(project?.implementation_matrix || {});
   const bankProducts = batchBank ? Object.keys((project?.implementation_matrix || {})[batchBank] || {}) : [];
+
+  // Fase 5 VPOS Multi-RIF: filtro en cascada por RIF (solo aplica a proyectos Multi-RIF).
+  const rifs = project?.rifs || [];
+  const isMultiRif = rifs.length > 0;
+  const rifLabel = (r) => `${r.client_name || 'Cliente'} — RIF: ${r.rif || ''}`;
+  const filteredStores = (batchRif && batchRif !== '__ALL__')
+    ? stores.filter(s => s.rif_id === batchRif)
+    : stores;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,19 +103,39 @@ export const BatchUpdateModal = ({
             </div>
           </div>
 
+          {/* Fase 5: Filtro en cascada por RIF (solo Multi-RIF) */}
+          {isMultiRif && (
+            <div>
+              <Label className="text-xs font-semibold">RIF (Cliente) <span className="text-slate-400 font-normal">— filtra las tiendas</span></Label>
+              <Select value={batchRif} onValueChange={setBatchRif}>
+                <SelectTrigger className="text-sm" data-testid="batch-rif-select"><SelectValue placeholder="RIF..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ALL__" data-testid="batch-rif-all">Todos los RIFs</SelectItem>
+                  {rifs.map(r => (
+                    <SelectItem key={r.rif_id} value={r.rif_id} data-testid={`batch-rif-${r.rif_id}`}>
+                      {rifLabel(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <Label className="text-xs font-semibold">Tiendas a procesar <span className="text-amber-600">({batchStoreIds.length}/{stores.length})</span></Label>
+              <Label className="text-xs font-semibold">Tiendas a procesar <span className="text-amber-600">({batchStoreIds.length}/{filteredStores.length})</span></Label>
               <Button variant="ghost" size="sm" onClick={toggleAllBatchStores} className="text-xs text-amber-600" data-testid="batch-select-all">
-                {batchStoreIds.length === stores.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
+                {filteredStores.length > 0 && batchStoreIds.length === filteredStores.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
               </Button>
             </div>
             <div className="border rounded-lg p-3 max-h-60 overflow-y-auto bg-slate-50">
-              {stores.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-3">Este proyecto no tiene tiendas</p>
+              {filteredStores.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-3">
+                  {isMultiRif && batchRif !== '__ALL__' ? 'Este RIF no tiene tiendas' : 'Este proyecto no tiene tiendas'}
+                </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {stores.map(s => (
+                  {filteredStores.map(s => (
                     <label key={s.store_id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white cursor-pointer" data-testid={`batch-store-${s.store_id}`}>
                       <Checkbox
                         checked={batchStoreIds.includes(s.store_id)}
@@ -138,7 +167,8 @@ export const BatchUpdateModal = ({
             <p className="font-semibold mb-1">Resumen:</p>
             <p>
               Se completará <b>{batchPhase || '—'}</b> de <b>{batchProducts.length}</b> medio(s) de pago (banco <b>{batchBank || '—'}</b>)
-              en <b>{batchStoreIds.length}</b> tienda(s). Esta acción queda registrada en la bitácora.
+              {isMultiRif && <> · RIF: <b>{batchRif === '__ALL__' ? 'Todos' : (rifs.find(r => r.rif_id === batchRif)?.rif || '—')}</b></>}
+              {' '}en <b>{batchStoreIds.length}</b> tienda(s). Esta acción queda registrada en la bitácora.
             </p>
           </div>
         </div>

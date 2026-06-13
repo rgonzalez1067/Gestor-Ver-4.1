@@ -72,7 +72,16 @@ const ProjectDetail = () => {
   const [batchStoreIds, setBatchStoreIds] = useState([]);
   const [batchReason, setBatchReason] = useState('Recepción de información masiva por parte del Banco/Cliente');
   const [batchSubmitting, setBatchSubmitting] = useState(false);
+  // Fase 5 VPOS Multi-RIF: filtro en cascada por RIF. '__ALL__' = Todos los RIFs.
+  const [batchRif, setBatchRif] = useState('__ALL__');
   const [fichaDownloading, setFichaDownloading] = useState(false);
+
+  // Tiendas visibles en el modal según el filtro de RIF en cascada.
+  const getBatchFilteredStores = () => {
+    const stores = project?.stores || [];
+    if (!batchRif || batchRif === '__ALL__') return stores;
+    return stores.filter(s => s.rif_id === batchRif);
+  };
 
   const openBatchModal = () => {
     setBatchPhase(STORE_PHASES[0]);
@@ -81,6 +90,7 @@ const ProjectDetail = () => {
     const prods = firstBank ? Object.keys((project?.implementation_matrix || {})[firstBank] || {}) : [];
     setBatchProducts(prods);
     setBatchStoreIds([]);
+    setBatchRif('__ALL__');
     setBatchReason('Recepción de información masiva por parte del Banco/Cliente');
     setBatchModalOpen(true);
   };
@@ -99,9 +109,15 @@ const ProjectDetail = () => {
     setBatchProducts(Object.keys((project?.implementation_matrix || {})[bank] || {}));
   };
 
+  // Al cambiar el RIF, se reinicia la selección de tiendas (cambia el universo visible).
+  const handleBatchRifChange = (rif) => {
+    setBatchRif(rif);
+    setBatchStoreIds([]);
+  };
+
   const toggleAllBatchStores = () => {
-    const all = (project?.stores || []).map(s => s.store_id);
-    setBatchStoreIds(prev => prev.length === all.length ? [] : all);
+    const all = getBatchFilteredStores().map(s => s.store_id);
+    setBatchStoreIds(prev => (all.length > 0 && prev.length === all.length) ? [] : all);
   };
 
   const submitBatchUpdate = async () => {
@@ -2716,6 +2732,8 @@ const ProjectDetail = () => {
           setBatchPhase={setBatchPhase}
           batchBank={batchBank}
           setBatchBank={handleBatchBankChange}
+          batchRif={batchRif}
+          setBatchRif={handleBatchRifChange}
           batchProducts={batchProducts}
           toggleBatchProduct={toggleBatchProduct}
           batchStoreIds={batchStoreIds}

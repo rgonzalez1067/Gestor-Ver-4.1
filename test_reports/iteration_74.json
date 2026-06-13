@@ -1,0 +1,52 @@
+{
+  "summary": "Frontend-only test of VPOS Multi-RIF Fase 5 (Batch Update modal RIF cascade filter) on project prj_e586608e3579. CRITICAL: The 'Actualización Masiva' button (data-testid='batch-update-btn') is NOT rendered for Multi-RIF projects. The gating condition on ProjectDetail.jsx:1582 uses only `isMultistore` (project_type==='multistore') but this project is project_type==='multirif'. Consequently the entire Phase 5 enhancement (RIF cascade Select, filteredStores by rif_id, store reset on RIF change, Seleccionar todas scoped) is unreachable and cannot be exercised by the end user. The new code inside BatchUpdateModal.jsx and the new state/handlers in ProjectDetail.jsx (batchRif, handleBatchRifChange, getBatchFilteredStores, scoped toggleAllBatchStores) are correct in isolation, but never reached.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectDetail.jsx (Matriz de Implementación toolbar)",
+        "issue": "El botón 'Actualización Masiva' (data-testid='batch-update-btn') NO se renderiza en proyectos VPOS_MULTIRIF. La condición actual `{isMultistore && canEditMatrix && clientNotified && (...)}` en línea 1582 excluye proyectos multirif (project_type==='multirif'). Debe incluir también `isMultiRif`, por ejemplo: `{(isMultistore || isMultiRif) && canEditMatrix && clientNotified && (...)}`. Verificado en proyecto prj_e586608e3579 (project_type=multirif, client_notified=true, admin con canEditMatrix=true): la barra solo muestra 'Notificación Única (Cliente y Banco)' y 'Notificaciones a Cliente'; el botón de Actualización Masiva no aparece en el DOM (búsqueda por data-testid que contenga 'batch' o texto 'masiv' devuelve 0 elementos).",
+        "selector": "[data-testid='batch-update-btn']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "VPOS Multi-RIF Fase 5 — Filtro en cascada por RIF en modal de Actualización Masiva",
+        "issue": "No es posible alcanzar el modal (data-testid='batch-update-dialog') desde la UI en un proyecto Multi-RIF porque el botón disparador está oculto. Toda la funcionalidad nueva (batch-rif-select, batch-rif-all, batch-rif-rif_*, filtrado de batch-store-*, reset de selección, comportamiento de batch-select-all sobre tiendas visibles) no pudo ser verificada porque el flujo no se inicia.",
+        "affected_selectors": [
+          "[data-testid='batch-update-btn']",
+          "[data-testid='batch-update-dialog']",
+          "[data-testid='batch-rif-select']",
+          "[data-testid='batch-rif-all']",
+          "[data-testid='batch-rif-rif_408f1f81']",
+          "[data-testid='batch-rif-rif_fe660ab3']",
+          "[data-testid='batch-rif-rif_c4d25c69']",
+          "[data-testid^='batch-store-']",
+          "[data-testid='batch-select-all']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Ampliar la condición de renderizado del botón 'Actualización Masiva' en /app/frontend/src/pages/ProjectDetail.jsx línea 1582 para que también aplique a proyectos Multi-RIF. Cambiar `{isMultistore && canEditMatrix && clientNotified && (` por `{(isMultistore || isMultiRif) && canEditMatrix && clientNotified && (` (o reusar un helper como `isMultiStoreLike`).",
+    "Revisar otras secciones gateadas por `isMultistore` que también deban habilitarse para `multirif` (por ejemplo línea 1696 'Seguimiento por tiendas' — actualmente solo si isMultistore; en multirif el seguimiento se hace en 'Seguimiento Multi-RIF · 3 Niveles' que sí aparece, así que probablemente está OK, pero conviene auditar).",
+    "Tras el fix, re-testear el modal con el flujo descrito: 4 tiendas con 'Todos los RIFs', 2 al filtrar Brasero (rif_408f1f81), 1 al filtrar Barako (rif_fe660ab3), 1 al filtrar Carbon (rif_c4d25c69), reset del contador X=0 al cambiar de RIF, y 'Seleccionar todas' acotado a las tiendas visibles."
+  ],
+  "critical_code_review_comments": [
+    "ProjectDetail.jsx línea 1582: condicional acoplada a un único tipo de proyecto. Considerar un derivado `const isMultiStoreLike = isMultistore || isMultiRif;` y reusarlo en líneas 1582 (botón Actualización Masiva), 1593 (oculta Notificación Única para multi-cualquier-cosa) y 1605 para evitar regresiones similares.",
+    "BatchUpdateModal.jsx luce correcto: detecta Multi-RIF por `project?.rifs?.length > 0` (no acoplado a project_type), lo cual es robusto. Si se corrige el gating del botón, el modal funcionará para multirif.",
+    "Multiples warnings de hidratación React en consola (span no puede ser hijo de tr/thead/tbody/table) en Dashboard.jsx y ProjectDetail.jsx debido a wrappers `<span data-ve-dynamic ...>` insertados por un instrumentador (x-ve-dynamic). No bloquea funcionalidad pero contamina la consola y puede causar reconciliación incorrecta — pasar al equipo dueño del instrumentador.",
+    "ProjectDetail.jsx tiene 2794 líneas — supera el umbral recomendado (>700). Dividir en componentes (Matriz, Seguimiento Multi-RIF, Bitácora, Modales) para mantenibilidad."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "0% (flujo Fase 5 inalcanzable por gating del botón)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (session_token obtenido correctamente; GET /api/projects/prj_e586608e3579 confirma project_type='multirif', client_notified=true, 3 RIFs, 4 stores [Marquez+Centro→rif_408f1f81, Altamira→rif_fe660ab3, Altamira→rif_c4d25c69]).",
+  "seed_data_creation": "Ninguna — solo se consumió data existente del proyecto prj_e586608e3579.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Tras el fix del gating en ProjectDetail.jsx:1582, repetir el flujo: login admin → sidebar Proyectos → abrir PRY-2026-06-042-PRI (prj_e586608e3579) → clic data-testid='batch-update-btn' → verificar data-testid='batch-update-dialog' → verificar data-testid='batch-rif-select' presente con opciones batch-rif-all, batch-rif-rif_408f1f81, batch-rif-rif_fe660ab3, batch-rif-rif_c4d25c69 → contar elementos [data-testid^='batch-store-']: 4 con __ALL__, 2 con rif_408f1f81, 1 con rif_fe660ab3, 1 con rif_c4d25c69 → al cambiar RIF el contador 'Tiendas a procesar (X/Y)' debe quedar X=0 → 'Seleccionar todas' debe seleccionar solo las visibles. Para Select de Radix dentro del modal: click trigger → wait 300ms → click SelectItem con force=True.",
+  "rca of the issue": "RCA: El feature Phase 5 se construyó en BatchUpdateModal.jsx y en los handlers de ProjectDetail.jsx, pero NO se actualizó la condición de visibilidad del botón disparador. El proyecto seed prj_e586608e3579 fue creado con project_type='multirif' (campo persistido en MongoDB), mientras que la condición de renderizado del botón en ProjectDetail.jsx:1582 sigue siendo `isMultistore` (que evalúa project_type==='multistore'). Reproducción: 1) login admin, 2) abrir proyecto Multi-RIF, 3) observar que en la cabecera de 'Matriz de Implementación' solo se muestran los botones 'Notificación Única' y 'Notificaciones a Cliente', sin botón ámbar 'Actualización Masiva'. Mitigación: cambiar línea 1582 a `{(isMultistore || isMultiRif) && canEditMatrix && clientNotified && (`. No se aplicó el fix porque la regla del agente prohíbe modificar lógica de negocio/visibilidad, solo selectores y testids."
+}
