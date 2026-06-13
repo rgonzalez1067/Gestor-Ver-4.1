@@ -1,5 +1,11 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Fix: Actualizaciones individuales por tienda bloqueadas en Multi-RIF ("Este proyecto no es multitienda")
+
+- **Backend (`projects.py` · `update_store_matrix_phase`, línea ~1727)**: `PUT /projects/{id}/stores/{store_id}/matrix/phase` rechazaba `project_type != "multistore"` → "Este proyecto no es multitienda". Esto bloqueaba TODAS las ediciones por celda en el árbol Multi-RIF (cantidad, cascada, marcar fase, toggle), que usan ese mismo endpoint. Ahora acepta `("multistore", "multirif")`. El handler ya opera genéricamente sobre `stores` y recalcula rollup.
+- **Permisos**: este endpoint no tenía restricción de rol (solo exige `client_notified`), por lo que admin/implementador puede editar a cualquier nivel. La matriz principal sigue siendo de solo lectura en la UI (locks) para multitienda/Multi-RIF, por diseño.
+- **Validado (curl)**: PUT store matrix phase sobre prj_e586608e3579 (Marquez, Configurado, Tarjeta de Crédito/Débito 5/5) → HTTP 200 "Fase de tienda actualizada".
+
 ## 2026-06-13 — Fix: Actualización Masiva bloqueada en proyectos Multi-RIF ("Solo proyectos multitienda")
 
 - **Backend (`projects.py` · `batch_update_multistore_matrix`, línea ~1831)**: la validación rechazaba todo proyecto con `project_type != "multistore"`, devolviendo "Solo proyectos multitienda" al aplicar en un proyecto `multirif` (aunque el botón/modal ya se mostraban tras el fix de Fase 5). Ahora acepta `("multistore", "multirif")`. El resto de la lógica (matriz por tienda, rollup, bitácora) es genérica y funciona igual.

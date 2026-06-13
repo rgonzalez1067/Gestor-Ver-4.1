@@ -1724,8 +1724,8 @@ async def update_store_matrix_phase(project_id: str, store_id: str, phase_update
     project = await db.projects.find_one({"project_id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    if project.get("project_type") != "multistore":
-        raise HTTPException(status_code=400, detail="Este proyecto no es multitienda")
+    if project.get("project_type") not in ("multistore", "multirif"):
+        raise HTTPException(status_code=400, detail="Este proyecto no es multitienda ni Multi-RIF")
 
     # Hard stop: verificar que el cliente fue notificado
     if not project.get("client_notified"):
