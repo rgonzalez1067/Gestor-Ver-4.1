@@ -1578,8 +1578,8 @@ const ProjectDetail = () => {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-slate-900">Matriz de Implementación</h2>
               <div className="flex items-center gap-2">
-                {/* Actualización Masiva — solo proyectos multitienda */}
-                {isMultistore && canEditMatrix && clientNotified && (
+                {/* Actualización Masiva — proyectos multitienda y Multi-RIF */}
+                {(isMultistore || isMultiRif) && canEditMatrix && clientNotified && (
                   <Button
                     onClick={openBatchModal}
                     className="gap-2 bg-amber-500 hover:bg-amber-600 text-white"

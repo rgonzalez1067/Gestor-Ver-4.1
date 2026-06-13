@@ -1,0 +1,42 @@
+{
+  "summary": "RETEST de iteration_74 — VPOS Multi-RIF Fase 5 (filtro en cascada por RIF en modal de Actualización Masiva del detalle de Proyecto, prj_e586608e3579 'PRY-2026-06-042-PRI'). El fix aplicado por el main agent en ProjectDetail.jsx:1582 (`(isMultistore || isMultiRif) && canEditMatrix && clientNotified`) FUNCIONA. El botón 'Actualización Masiva' (data-testid='batch-update-btn') ahora se renderiza en proyectos Multi-RIF, abre el modal correctamente y todo el flujo de filtrado por RIF se comporta según especificación. Navegación realizada DENTRO de la app (login admin -> sidebar 'Proyectos' -> botón 'Detalle del Proyecto' del row -> /projects/prj_e586608e3579), NO via deep-link.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "BatchUpdateModal.jsx detecta Multi-RIF por `project?.rifs?.length > 0` (robusto, no acoplado a project_type) y el padre ahora gatea con `(isMultistore || isMultiRif)`. Consistente entre ambos componentes; el feature es alcanzable.",
+    "Sigue siendo recomendable consolidar `isMultiStoreLike = isMultistore || isMultiRif` para evitar regresiones similares en otras secciones (línea ~1605, 1696). No bloquea — sólo deuda técnica.",
+    "Persisten warnings de hidratación React por el instrumentador `<span data-ve-dynamic>` insertado dentro de <tbody>/<tr> en Dashboard.jsx y Projects.jsx. No bloquea funcionalidad ni este test, pero contamina la consola — pasar al equipo dueño del instrumentador (no es código de feature)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100% (todas las aserciones del flujo Fase 5 pasaron)" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 — usado correctamente.",
+  "seed_data_creation": "Ninguna — sólo se consumió data existente del proyecto prj_e586608e3579.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Para abrir el detalle del proyecto desde la grilla en Proyectos, usar el botón [data-testid='detail-btn-{project_id}'] (title='Detalle del Proyecto'). Clic sobre la fila o sobre la celda del nombre abre el modal de Compromisos en su lugar, no navega.",
+  "rca of the issue": "RCA bug iter74: el gating del botón usaba sólo `isMultistore` (project_type==='multistore') excluyendo proyectos `multirif`. Fix aplicado por el main agent en ProjectDetail.jsx:1582 ampliando la condición a `(isMultistore || isMultiRif)`. Validación E2E en este iteration confirma: (a) botón visible en Multi-RIF, (b) modal abre con Select de RIF + 'Todos los RIFs' + 3 RIFs (Brasero/Barako/Carbon), (c) Default 4 tiendas, Brasero=2 (Marquez, Centro), Barako=1 (Altamira 9PDV), Carbon=1 (Altamira 1PDV), volver a 'Todos los RIFs'=4, (d) contador X reseteado a 0 en cada cambio de RIF, (e) 'Seleccionar todas' acotado a las tiendas visibles del RIF activo (Brasero -> 2/2, Default -> 4/4).",
+  "evidence": {
+    "navigation_path": "/login -> /dashboard -> sidebar 'Proyectos' -> /projects -> detail-btn-prj_e586608e3579 -> /projects/prj_e586608e3579",
+    "batch_btn_visible": true,
+    "dialog_open": true,
+    "rif_select_present": true,
+    "options_present": {
+      "batch-rif-all": true,
+      "batch-rif-rif_408f1f81": true,
+      "batch-rif-rif_fe660ab3": true,
+      "batch-rif-rif_c4d25c69": true
+    },
+    "counter_default": "Tiendas a procesar (0/4)",
+    "select_all_default": "Tiendas a procesar (4/4)",
+    "brasero": { "stores": 2, "counter_after_change": "Tiendas a procesar (0/2)", "select_all_scoped": "Tiendas a procesar (2/2)", "X_reset_to_0": true },
+    "barako": { "stores": 1, "counter_after_change": "Tiendas a procesar (0/1)", "X_reset_to_0": true },
+    "carbon": { "stores": 1, "counter_after_change": "Tiendas a procesar (0/1)", "X_reset_to_0": true },
+    "back_to_all": { "stores": 4, "counter_after_change": "Tiendas a procesar (0/4)", "X_reset_to_0": true }
+  }
+}
