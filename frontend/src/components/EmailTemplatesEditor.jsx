@@ -510,6 +510,8 @@ const getTemplateVariables = (templateId) => {
     { key: 'Nombre_Fantasia', label: 'Nombre de Fantasía del Cliente' },
     { key: 'Matriz_Bancos_Productos', label: 'Tabla de Bancos y Productos (HTML)' },
     { key: 'Matriz_Sucursales', label: 'Tabla de Sucursales / Cajas (HTML)' },
+    { key: 'Matriz_MultiRif_Distribucion', label: 'Multi-RIF: Distribución (RIF → Sucursales → Cajas)' },
+    { key: 'Matriz_MultiRif_Avance', label: 'Multi-RIF: Distribución + Avance % (3 niveles)' },
     { key: 'Patrocinador', label: 'Patrocinador (Banco/Procesador o Cliente)' },
   ];
   // Dedupe por key (las variables base de la plantilla tienen prioridad).

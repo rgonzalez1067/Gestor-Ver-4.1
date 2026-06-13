@@ -1520,6 +1520,8 @@ async def get_project_template_variables(project_id: str, authorization: Optiona
             {"key": "Matriz_Sucursales", "label": "Tabla de Sucursales (Sucursal / Cantidad de Cajas)", "source": "Proyecto.stores"},
             {"key": "Integrador", "label": "Integrador", "source": "Proyecto.integrador"},
             {"key": "Matriz_Bancos_Productos", "label": "Tabla Bancos/Productos (HTML)", "source": "Proyecto.implementation_matrix"},
+            {"key": "Matriz_MultiRif_Distribucion", "label": "Tabla Multi-RIF: Distribución (Cliente/RIF → Sucursales → Cajas)", "source": "Proyecto.rifs"},
+            {"key": "Matriz_MultiRif_Avance", "label": "Tabla Multi-RIF: Distribución + Avance % (3 niveles)", "source": "Proyecto.rifs"},
             {"key": "project_number", "label": "Nro. Proyecto", "source": "Proyecto.project_number"},
             {"key": "quote_number", "label": "Nro. Cotización", "source": "Proyecto.quote_number"},
             {"key": "ticket_number", "label": "Nro. Ticket", "source": "Proyecto.ticket_number"},

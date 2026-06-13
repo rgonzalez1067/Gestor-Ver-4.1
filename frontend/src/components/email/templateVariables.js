@@ -83,6 +83,8 @@ export const VARIABLE_CATEGORIES = [
       { key: 'Cantidad_Cajas', label: 'Cantidad de cajas' },
       { key: 'Matriz_Bancos_Productos', label: 'Tabla de bancos y productos' },
       { key: 'Matriz_Sucursales', label: 'Tabla de sucursales / cajas' },
+      { key: 'Matriz_MultiRif_Distribucion', label: 'Multi-RIF: distribución (RIF → sucursales → cajas)' },
+      { key: 'Matriz_MultiRif_Avance', label: 'Multi-RIF: distribución + avance % (3 niveles)' },
       { key: 'Patrocinador', label: 'Patrocinador (banco/procesador o cliente)' },
       { key: 'project_number', label: 'Nro. de proyecto' },
       { key: 'Nro_Proyecto', label: 'Nro. de proyecto (alias)' },

@@ -1,5 +1,15 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · FASE 4: Variables de correo (Distribución + Avance)
+
+Dos variables dinámicas para las plantillas de correo (notificación inicial vs. avances):
+- **`{Matriz_MultiRif_Distribucion}`**: tabla HTML jerárquica Cliente (RIF) → Sucursales → Cajas + TOTAL GENERAL. Para la notificación inicial.
+- **`{Matriz_MultiRif_Avance}`**: misma tabla + columna **Avance %** por Sucursal, por RIF (ponderado por cajas) y Global. Para correos de avance.
+- Implementadas en `project_template_vars.py` (`_build_multirif_distribution_html(with_progress)`, `_multirif_store_progress`, `_multirif_weighted_progress`). Fases canónicas = Recibido/Configurado/Testeado/En Producción.
+- Catalogadas en el editor: `projects.py` (endpoint de variables), `templateVariables.js`, `EmailTemplatesEditor.jsx`. Fallback "No aplica" para proyectos no Multi-RIF.
+- **Validado:** render directo — jerarquía correcta, TOTAL GENERAL=10, avances 33%/50%/0%/Global 20% (coinciden con el árbol de Fase 3).
+
+
 ## 2026-06-13 — VPOS Multi-RIF · FASE 3: Proyecto "Multi-RIF" + tracking de 3 niveles (P0)
 
 - **Conversión (`quote_transitions._create_project_from_quote`)**: cuando la cotización tiene `is_multirif`, crea proyecto `project_type="multirif"` con: `rifs[]` (metadata del cliente jurídico: rif_id, client_id, rif, client_name, box_count) y `stores[]` **planos** etiquetados con `rif_id` (reutilizan los endpoints/UX multitienda existentes). Cada store recibe una copia profunda (`copy.deepcopy`) de la `implementation_matrix`. La matriz principal es la unión.

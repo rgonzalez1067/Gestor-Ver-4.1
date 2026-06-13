@@ -267,6 +267,96 @@ def _build_stores_matrix_html(stores: list, fallback_name: str = "Sede Principal
     return html
 
 
+# Fases canónicas de implementación por sucursal (deben coincidir con STORE_PHASES del frontend).
+_MULTIRIF_STORE_PHASES = ["Recibido", "Configurado", "Testeado", "En Producción"]
+
+
+def _multirif_store_progress(store: dict) -> int:
+    """Avance % de una sucursal = fases completadas / fases totales de su matriz."""
+    sm = store.get("implementation_matrix") or {}
+    completed = total = 0
+    for products in sm.values():
+        for phases in (products or {}).values():
+            for ph in _MULTIRIF_STORE_PHASES:
+                total += 1
+                if ((phases or {}).get(ph) or {}).get("completed"):
+                    completed += 1
+    return round(completed / total * 100) if total else 0
+
+
+def _multirif_weighted_progress(stores: list) -> int:
+    """Avance ponderado por cantidad de cajas sobre un conjunto de sucursales."""
+    if not stores:
+        return 0
+    total_boxes = sum(int(s.get("box_count") or 0) for s in stores)
+    if total_boxes == 0:
+        return round(sum(_multirif_store_progress(s) for s in stores) / len(stores))
+    return round(sum(_multirif_store_progress(s) * int(s.get("box_count") or 0) for s in stores) / total_boxes)
+
+
+def _build_multirif_distribution_html(project: dict, with_progress: bool = False) -> str:
+    """Tabla HTML jerárquica Multi-RIF: Cliente (RIF) -> Sucursales -> Cajas.
+    Si with_progress=True, agrega una columna 'Avance' (% por sucursal y por RIF)."""
+    rifs = project.get("rifs") or []
+    stores = project.get("stores") or []
+    if not rifs and not stores:
+        return "<p><em>No aplica: este proyecto no es Multi-RIF.</em></p>"
+
+    cols = 3 if with_progress else 2
+    th_avance = '<th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Avance</th>' if with_progress else ''
+    html = (
+        '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;">'
+        '<thead><tr style="background:#2c3e50;color:white;">'
+        '<th style="padding:10px 12px;text-align:left;border:1px solid #ddd;">Cliente (RIF) / Sucursal</th>'
+        '<th style="padding:10px 12px;text-align:center;border:1px solid #ddd;">Cajas</th>'
+        f'{th_avance}'
+        '</tr></thead><tbody>'
+    )
+    grand_boxes = 0
+    for rif in rifs:
+        rif_stores = [s for s in stores if s.get("rif_id") == rif.get("rif_id")]
+        rif_boxes = int(rif.get("box_count") or 0)
+        grand_boxes += rif_boxes
+        rif_av = _multirif_weighted_progress(rif_stores) if with_progress else None
+        av_cell = f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;font-weight:bold;color:#2c3e50;">{rif_av}%</td>' if with_progress else ''
+        html += (
+            '<tr style="background:#e3f2fd;font-weight:bold;color:#1565c0;">'
+            f'<td style="padding:8px 12px;border:1px solid #e9ecef;">{rif.get("client_name", "Cliente")} — RIF: {rif.get("rif", "")}</td>'
+            f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{rif_boxes}</td>'
+            f'{av_cell}'
+            '</tr>'
+        )
+        if not rif_stores:
+            html += (
+                f'<tr><td style="padding:6px 12px 6px 28px;border:1px solid #e9ecef;color:#888;"><em>(sin sucursales)</em></td>'
+                f'<td style="text-align:center;border:1px solid #e9ecef;">—</td>'
+                + ('<td style="text-align:center;border:1px solid #e9ecef;">—</td>' if with_progress else '')
+                + '</tr>'
+            )
+        for idx, s in enumerate(rif_stores):
+            bg = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+            s_av = f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{_multirif_store_progress(s)}%</td>' if with_progress else ''
+            html += (
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:8px 12px 8px 28px;border:1px solid #e9ecef;">{s.get("name", "Sucursal")}</td>'
+                f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{int(s.get("box_count") or 0)}</td>'
+                f'{s_av}'
+                '</tr>'
+            )
+    # Total general
+    total_av = f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{_multirif_weighted_progress(stores)}%</td>' if with_progress else ''
+    html += (
+        '<tr style="background:#eef2f7;font-weight:bold;">'
+        '<td style="padding:8px 12px;border:1px solid #e9ecef;">TOTAL GENERAL</td>'
+        f'<td style="padding:8px 12px;text-align:center;border:1px solid #e9ecef;">{grand_boxes}</td>'
+        f'{total_av}'
+        '</tr>'
+    )
+    html += '</tbody></table>'
+    return html
+
+
+
 
 async def resolve_project_template_vars(project: dict) -> dict:
     """Resuelve todas las variables dinámicas de un proyecto para inyectar en plantillas.
@@ -448,6 +538,8 @@ async def resolve_project_template_vars(project: dict) -> dict:
         "Correo_Implementador": correo_implementador,
         "Telefono_Implementador": telefono_implementador,
         "Matriz_Bancos_Productos": matriz_html,
+        "Matriz_MultiRif_Distribucion": _build_multirif_distribution_html(project, with_progress=False),
+        "Matriz_MultiRif_Avance": _build_multirif_distribution_html(project, with_progress=True),
         "Patrocinador": patrocinador,
         "Lista_VTID": lista_vtid,
         "Modelo_Seriales_Equipos": modelo_seriales_html,
