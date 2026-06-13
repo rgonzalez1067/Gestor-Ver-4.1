@@ -32,6 +32,7 @@ import { RepairDeliveryDialog } from '../components/quotes/RepairDeliveryDialog'
 import { RepairCompleteModal } from '../components/quotes/RepairCompleteModal';
 import { PreassignSerialsModal } from '../components/quotes/PreassignSerialsModal';
 import { QuoteWizardDialog } from '../components/quotes/QuoteWizardDialog';
+import { validateMultiRif } from '../components/quotes/MultiRifDistributionPanel';
 import { QuoteModals } from '../components/quotes/QuoteModals';
 import { QuotesBundleMigrationModal } from '../components/quotes/QuotesBundleMigrationModal';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS, RECURRING_BASIC_CONCEPTS, RECURRING_OTHER_CONCEPTS, STATUS_COLORS, STATUS_DISPLAY_NAMES, QUOTE_CATEGORY_LABELS, ACTION_LABELS } from '../components/quotes/constants';
@@ -1827,6 +1828,15 @@ export const Quotes = () => {
       }
     }
 
+    // VPOS Multi-RIF: el lote global debe estar distribuido al 100% (Reel de saldos).
+    if (isMultiRif) {
+      const v = validateMultiRif(quoteData.multirif_distribution, quoteData.cantidad_cajas);
+      if (!v.valid) {
+        toast.error(v.errors[0] || `Distribución Multi-RIF incompleta (${v.assigned}/${v.total} cajas). Distribuya el 100% antes de guardar.`);
+        return;
+      }
+    }
+
     const toastId = toast.loading('Guardando cotización y generando PDF...');
 
     try {
@@ -2006,6 +2016,7 @@ export const Quotes = () => {
       const payload = {
         client_id: quoteData.client_id || (isMultiRif ? null : quoteData.client_id),
         is_multirif: !!isMultiRif,
+        multirif_distribution: isMultiRif ? (quoteData.multirif_distribution || []) : null,
         client_segment: quoteData.client_segment || 'PYME',
         quote_category: quoteData.quote_type === 'FAST_TRACK' ? 'fast_track' : 'implementation',
         quote_type: quoteData.quote_type,

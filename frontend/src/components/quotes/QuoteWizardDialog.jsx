@@ -13,6 +13,7 @@ import { Button } from '../ui/button';
 import { Plus, Download, CreditCard, CheckCircle2, Copy, Cpu, Users, Landmark, Trash2, Building2, RefreshCw, Unlock, Eye, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { BranchDetailPanel } from '../BranchDetailPanel';
+import { MultiRifDistributionPanel } from './MultiRifDistributionPanel';
 import { MultiProductSelector } from '../MultiProductSelector';
 import { QUOTE_TYPES, PRICING_MODELS, SETUP_CONCEPTS } from './constants';
 import { toast } from 'sonner';
@@ -495,7 +496,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     />
                   </div>
 
-                  <div>
+                  <div className={isMultiRif ? 'hidden' : ''}>
                     <Label className="text-sm font-medium text-slate-700 mb-2 block">
                       Bancos/Entes
                     </Label>
@@ -738,6 +739,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                     </>)}
 
                     {/* Cliente exento de IVA — selector binario al lado de Implementación Patrocinada */}
+                    {!isMultiRif && (
                     <div className="flex-shrink-0 border-l border-slate-200 pl-4" data-testid="iva-exempt-block">
                       <Label className="text-sm font-semibold text-slate-800 block mb-2">
                         ¿Cliente exento de IVA?
@@ -781,6 +783,7 @@ export const QuoteWizardDialog = ({ ctx }) => {
                         </p>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2259,12 +2262,22 @@ export const QuoteWizardDialog = ({ ctx }) => {
                       className="mt-2"
                     />
 
-                    {/* Detalle de Sucursales (opcional para VPOS/MPOS/Fast Track) */}
-                    {(quoteData.quote_type === 'VPOS' || isMPOS || isFastTrackType) && (
+                    {/* Detalle de Sucursales (opcional para VPOS/MPOS/Fast Track y Multi-RIF) */}
+                    {(quoteData.quote_type === 'VPOS' || isMPOS || isFastTrackType || isMultiRif) && (
                       <BranchDetailPanel
                         branches={branchDetails}
                         onChange={setBranchDetails}
                         totalEquipment={parseInt(quoteData.cantidad_cajas) || 1}
+                      />
+                    )}
+
+                    {/* Motor de distribución anidada Multi-RIF (Global → RIF → Tienda) */}
+                    {isMultiRif && (
+                      <MultiRifDistributionPanel
+                        value={quoteData.multirif_distribution || []}
+                        onChange={(dist) => setQuoteData({ ...quoteData, multirif_distribution: dist })}
+                        globalBoxes={parseInt(quoteData.cantidad_cajas) || 0}
+                        clients={clients}
                       />
                     )}
 
