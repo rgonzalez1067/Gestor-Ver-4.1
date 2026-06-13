@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Fix: Reporte de Carga (PDF) de Proyectos no contemplaba Multi-RIF
+
+- **Causa (backend `projects.py` · `projects_workload_pdf`)**: los proyectos `quote_type='VPOS_MULTIRIF'` mostraban Cajas "—" (el gate era `qt in ("VPOS","MPOS")`), no sumaban a la carga del implementador, no tenían badge/etiqueta de tipo y no aparecían en la agrupación/filtro por Tipo. Además, en Multi-RIF `cantidad_cajas` viene vacío (el total vive en `rifs`/`stores`).
+- **Solución**: nuevos helpers `_counts_cajas` (incluye VPOS_MULTIRIF) y `_project_total_cajas` (cae a `box_count` y a la suma de `rifs.box_count`). Se mapeó VPOS_MULTIRIF en `_TYPE_LABEL`("VPOS-MR")/`_TYPE_FULL_LABEL`("VPOS Multi-RIF")/`_TYPE_BADGE_CSS` y se agregó al `type_order`. El PVV se calcula con el total de cajas correcto. La línea "Filtros aplicados: Tipo" usa la etiqueta completa.
+- **Frontend (`WorkloadReportFiltersModal.jsx`)**: el filtro "Tipo de Proyecto" ahora incluye "VPOS Multi-RIF" (chip `filter-type-VPOS_MULTIRIF`) con etiquetas amigables.
+- **Validado (curl/PDF)**: prj_e586608e3579 ahora aparece con Cajas=28, PVV=168, badge VPOS-MR; agrupación por Implementador y por Tipo correctas; filtro `quote_type=VPOS_MULTIRIF` OK.
+
+
 ## 2026-06-13 — Mejora: desplegable de usuarios To/CC agrupado por equipo
 
 - **Frontend (`InternalEmailInput.jsx`)**: el desplegable de usuarios internos ahora agrupa por equipo con encabezados sticky y conteo: **Dirección / Ventas / Implementación / Otros** (`TEAM_SECTIONS` + useMemo `grouped`). Solo se muestran las secciones no vacías; al filtrar por texto se re-agrupa. testids: `${testId}-group-<key>`.

@@ -2969,19 +2969,41 @@ async def delete_project(project_id: str, authorization: Optional[str] = Header(
 # REPORTE: Carga y Estatus agrupado por Implementador (PDF)
 # =====================================================================
 
-_TYPE_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment", "LINK": "Link de Pago"}
+_TYPE_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment", "LINK": "Link de Pago", "VPOS_MULTIRIF": "VPOS-MR"}
 # Etiqueta completa para encabezados de sección/resumen (no se trunca como el badge).
-_TYPE_FULL_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment Gateway", "LINK": "Link de Pago"}
+_TYPE_FULL_LABEL = {"VPOS": "VPOS", "MPOS": "MPOS", "GATEWAY": "Payment Gateway", "LINK": "Link de Pago", "VPOS_MULTIRIF": "VPOS Multi-RIF"}
 _TYPE_BADGE_CSS = {
-    "VPOS":    ("#dbeafe", "#1e40af", "#bfdbfe"),
-    "MPOS":    ("#d1fae5", "#065f46", "#a7f3d0"),
-    "GATEWAY": ("#ede9fe", "#5b21b6", "#ddd6fe"),
-    "LINK":    ("#f1f5f9", "#334155", "#e2e8f0"),
+    "VPOS":          ("#dbeafe", "#1e40af", "#bfdbfe"),
+    "MPOS":          ("#d1fae5", "#065f46", "#a7f3d0"),
+    "GATEWAY":       ("#ede9fe", "#5b21b6", "#ddd6fe"),
+    "LINK":          ("#f1f5f9", "#334155", "#e2e8f0"),
+    "VPOS_MULTIRIF": ("#cffafe", "#155e75", "#a5f3fc"),
 }
+
+# Tipos de proyecto que aportan "Cajas" (PDVs). VPOS Multi-RIF también las cuenta
+# (su total se distribuye entre RIFs/sucursales pero suma a la carga del implementador).
+_CAJAS_TYPES = {"VPOS", "MPOS", "VPOS_MULTIRIF"}
+
+
+def _counts_cajas(qt: Optional[str]) -> bool:
+    return (qt or "").upper() in _CAJAS_TYPES
+
+
+def _project_total_cajas(p: dict) -> int:
+    """Total de cajas de un proyecto. En Multi-RIF las cajas viven en rifs/stores,
+    por lo que `cantidad_cajas` puede venir vacío: se cae a `box_count` y, en último
+    término, a la suma de `box_count` de los RIFs."""
+    try:
+        c = int(p.get("cantidad_cajas") or p.get("box_count") or 0)
+    except (TypeError, ValueError):
+        c = 0
+    if c <= 0 and p.get("rifs"):
+        c = sum(int(r.get("box_count") or 0) for r in (p.get("rifs") or []))
+    return c
 
 
 def _norm_type(qt: Optional[str]) -> str:
-    """Normaliza el quote_type a las 4 categorías canónicas (VPOS/MPOS/GATEWAY/LINK)."""
+    """Normaliza el quote_type a las categorías canónicas (VPOS/MPOS/GATEWAY/LINK/VPOS_MULTIRIF)."""
     t = (qt or "").upper()
     if t in ("LINK_PAGO", "LINK"):
         return "LINK"
@@ -3030,12 +3052,16 @@ async def projects_workload_pdf(
             "reassigned_from_name": 1, "reassignment_history": 1,
             "fantasy_name": 1,
             "implementation_matrix": 1,  # Iter39: necesario para calcular PVV
+            "project_type": 1, "rifs": 1,  # Multi-RIF: total de cajas vive en rifs
         },
     ).to_list(5000)
 
     # Iter39: pre-calcular PVV por proyecto para no recalcular en cada uso.
     from services.project_pvv import compute_project_pvv
     for _p in projects:
+        # Total de cajas robusto (Multi-RIF incluido) y PVV consistente con ese total.
+        _p["_cajas"] = _project_total_cajas(_p)
+        _p["box_count"] = _p["_cajas"]
         _p["_pvv"] = compute_project_pvv(_p)
 
     # Aplicar filtros en memoria (dataset pequeño <5k)
@@ -3076,13 +3102,10 @@ async def projects_workload_pdf(
     for p in projects:
         impl = p.get("assigned_to_name") or "Sin asignar"
         groups.setdefault(impl, []).append(p)
-        # Sumar cajas solo de VPOS/MPOS (igual criterio que la columna "Cajas" del PDF)
+        # Sumar cajas solo de VPOS/MPOS/VPOS-MR (igual criterio que la columna "Cajas" del PDF)
         qt = (p.get("quote_type") or "").upper()
-        if qt in ("VPOS", "MPOS"):
-            try:
-                cajas_by_impl[impl] = cajas_by_impl.get(impl, 0) + int(p.get("cantidad_cajas") or p.get("box_count") or 0)
-            except (TypeError, ValueError):
-                pass
+        if _counts_cajas(qt):
+            cajas_by_impl[impl] = cajas_by_impl.get(impl, 0) + int(p.get("_cajas") or 0)
         else:
             cajas_by_impl.setdefault(impl, 0)
         # PVV se acumula SIEMPRE (todos los tipos de proyecto generan terminales virtuales).
@@ -3109,10 +3132,10 @@ async def projects_workload_pdf(
                 f'border-radius:4px; background:{bg}; color:{fg}; border:1px solid {br};">{label}</span>'
                 if label != "—" else '<span class="muted">—</span>'
             )
-            # Cajas solo para VPOS/MPOS
+            # Cajas para VPOS/MPOS/VPOS-MR (Multi-RIF suma su total distribuido)
             cajas = ""
-            if qt in ("VPOS", "MPOS"):
-                c = p.get("cantidad_cajas") or p.get("box_count") or 0
+            if _counts_cajas(qt):
+                c = p.get("_cajas") or 0
                 cajas = str(c) if c else "—"
             else:
                 cajas = "—"
@@ -3219,7 +3242,7 @@ async def projects_workload_pdf(
         type_groups: dict = {}
         for p in projects:
             type_groups.setdefault(_norm_type(p.get("quote_type")) or "SIN", []).append(p)
-        type_order = ["VPOS", "MPOS", "GATEWAY", "LINK"]
+        type_order = ["VPOS", "VPOS_MULTIRIF", "MPOS", "GATEWAY", "LINK"]
         ordered_types = [t for t in type_order if t in type_groups] + [k for k in type_groups if k not in type_order]
         section_html_parts = []
         type_summary_data = []
@@ -3239,8 +3262,8 @@ async def projects_workload_pdf(
                     f'border-radius:4px; background:{bg}; color:{fg}; border:1px solid {br};">{label}</span>'
                     if label != "—" else '<span class="muted">—</span>'
                 )
-                if qtn in ("VPOS", "MPOS"):
-                    c = int(p.get("cantidad_cajas") or p.get("box_count") or 0)
+                if _counts_cajas(qtn):
+                    c = int(p.get("_cajas") or 0)
                     cajas_t += c
                     cajas = str(c) if c else "—"
                 else:
@@ -3322,7 +3345,7 @@ async def projects_workload_pdf(
     if client:
         filters_chips.append(f"Cliente: {client}")
     if quote_type:
-        filters_chips.append(f"Tipo: {', '.join(t.upper() for t in quote_type)}")
+        filters_chips.append(f"Tipo: {', '.join(_TYPE_FULL_LABEL.get(t.upper(), t.upper()) for t in quote_type)}")
     filters_html = ""
     if filters_chips:
         chips = "".join(

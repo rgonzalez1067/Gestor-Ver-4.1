@@ -8,7 +8,8 @@ import { FileText, Filter, Loader2, X } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 
-const QUOTE_TYPES = ['VPOS', 'MPOS', 'GATEWAY', 'LINK'];
+const QUOTE_TYPES = ['VPOS', 'VPOS_MULTIRIF', 'MPOS', 'GATEWAY', 'LINK'];
+const TYPE_LABELS = { VPOS_MULTIRIF: 'VPOS Multi-RIF', GATEWAY: 'Payment Gateway', LINK: 'Link de Pago' };
 const STATUS_OPTIONS = [
   'Pendiente por Asignar',
   'Asignado / En Proceso',
@@ -196,7 +197,7 @@ export function WorkloadReportFiltersModal({ open, onClose }) {
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {QUOTE_TYPES.map(t => (
                   <Chip key={t} active={types.includes(t)} onClick={() => toggle(types, setTypes, t)}
-                    testid={`filter-type-${t}`}>{t}</Chip>
+                    testid={`filter-type-${t}`}>{TYPE_LABELS[t] || t}</Chip>
                 ))}
               </div>
             </div>
