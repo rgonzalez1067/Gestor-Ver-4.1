@@ -1,5 +1,14 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Edición Maestra (Super-Admin Overrides) en Módulo de Proyectos (P0)
+
+Función de edición global/permisiva exclusiva para rol Administrador:
+- **RBAC:** endpoint `PUT /api/projects/{id}/master-override` bloqueado con **403** para no-admin; icono de **lápiz** (`master-edit-btn-{id}`) visible solo si `isAdmin`, colocado **inmediatamente a la izquierda de la papelera** en la columna Acciones (`Projects.jsx`).
+- **Modal `MasterEditDialog.jsx`** (nuevo componente): todos los campos en modo escritura. Dropdowns dinámicos: **Estado** (catálogo 7 estados + valor legacy actual), **Tipo de Proyecto** (VPOS/MPOS/GATEWAY/LINK), **Banco Patrocinador** (catálogo `/banks`). Editor relacional **Banco↔Productos** con multi-selección de medios de pago **filtrados por el Tipo de Proyecto** (flags `vpos_available`/`mpos_available`/`gateway_available`/`link_available`). **Hardware** multi-select desde `/hardware`. **Multitienda**: pestañas por tienda.
+- **Override relacional consistente (backend):** reconstruye `banks[]`, `services[]` (items `additional`, preservando precios de los que coinciden) e `implementation_matrix` (preservando datos de fase de pares banco/producto sin cambios). En multitienda reconstruye cada `stores[].implementation_matrix` y la matriz principal como **unión** de las tiendas. Sin registros huérfanos; Ficha Técnica sigue generándose OK. Auditoría en `notes` + `bitacora` (`type='master_override'`).
+- **Validado:** testing_agent iter70 — backend 5/5 pytest, frontend 100% (RBAC, posición del icono, dropdowns, filtro de productos por tipo, impacto relacional single + multitienda, ficha técnica). Sin regresiones. Pendiente cosmético: warnings de hidratación `data-ve-dynamic` (preexistente).
+
+
 ## 2026-06-12 — Gestión de Estados, Auditoría de Cierre/Suspensión y Optimización Visual de la Bandeja de Proyectos (P0)
 
 Reingeniería del módulo Proyectos. Reglas confirmadas por el usuario (incluida opción b: el modal de justificación también aplica al reactivar/reabrir):
