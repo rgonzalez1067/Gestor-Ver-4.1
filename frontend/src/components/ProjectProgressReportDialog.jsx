@@ -49,7 +49,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
 
   useEffect(() => {
     if (open && projectId) {
-      setSelBanks([]); setSelProducts([]); setSelStores([]);
+      setSelBanks([]); setSelProducts([]); setSelStores([]); setSelRifs([]);
       fetchReport({});
     }
     // eslint-disable-next-line
@@ -60,6 +60,7 @@ export const ProjectProgressReportDialog = ({ open, onOpenChange, projectId }) =
     if (selBanks.length) params.banks = selBanks.join(',');
     if (selProducts.length) params.products = selProducts.join(',');
     if (selStores.length) params.stores = selStores.join(',');
+    if (selRifs.length) params.rifs = selRifs.join(',');
     fetchReport(params);
   };
 

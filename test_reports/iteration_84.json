@@ -1,0 +1,34 @@
+{
+  "summary": "RETEST after main agent's fix to ProjectProgressReportDialog (HIGH bug from iteration_83). All 5 acceptance criteria PASSED: (1) Vista previa now sends `rifs` param — table renders EXACTLY 2 store groups (🏬 Marquez, 🏬 Centro) when only RIF Brasero is selected (no more Altamira duplicates). (2) Visual cascade on Tienda list still works (only Marquez & Centro visible). (3) Reopening the modal correctly resets selRifs (Brasero checkbox is unchecked on reopen). (4) Limpiar button resets RIF selection. (5) PDF download with rif_408f1f81 selected returns a valid application/pdf attachment (filename: avance_PRY-2026-06-042-PRI_202606132241.pdf).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ProjectDetail / ProjectProgressReportDialog",
+        "issues": [
+          "React hydration warnings: visual-editor wrapper <span style={display:contents}> is being injected as a child of <thead>/<tbody>/<tr>, producing repeated 'cannot be a child of' warnings in console. Pre-existing, not a regression of this task — caused by the visual-edit dev tooling, not by app code.",
+          "DialogContent is missing aria-describedby/Description — accessibility warning."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/.screenshots/retest_table_filtered.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "applyFilters() and downloadPdf() still duplicate the params-building logic (4 identical lines each). Recommend extracting buildFilterParams() helper to prevent future drift — exactly the kind of mismatch that caused the iteration_83 HIGH bug.",
+    "Tienda list still shows two identical 'Altamira' labels when no RIF is filtered — consider appending RIF tag (e.g., 'Altamira · Barako') so users can disambiguate without using the RIF cascade.",
+    "Consider adding a small 'X de Y tiendas' counter beside the Vista previa button so users see at a glance how many stores will appear after filtering."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100%" },
+  "test_credentials": "Admin rgonzalez@megasoft.com.ve / admin123 (UI login OK).",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "HIGH bug from iteration_83 fully fixed and verified. ProjectProgressReportDialog.applyFilters now includes selRifs in params (line 63) and useEffect resets selRifs on open (line 52). All four UX flows (preview, cascade, reset, Limpiar, PDF) work. Project prj_e586608e3579: rif_408f1f81 Brasero → stores {Marquez, Centro}; rif_fe660ab3 Barako → Altamira; rif_c4d25c69 Carbon → Altamira. Note: there are hydration console errors caused by the dev visual-editor (<span style=display:contents> wrappers) — not application bugs.",
+  "rca of the issue": "RCA confirmed and resolved. The fix `if (selRifs.length) params.rifs = selRifs.join(',');` inside applyFilters (line 63) and `setSelRifs([])` inside the open-effect (line 52) restore parity between the inline preview and the PDF endpoint. Verified end-to-end with Playwright: 2 store groups rendered, cascade visible, reset working, PDF downloaded."
+}
