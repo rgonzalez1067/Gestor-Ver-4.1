@@ -153,6 +153,16 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
     return cur && !PROJECT_STATUSES.includes(cur) ? [cur, ...PROJECT_STATUSES] : PROJECT_STATUSES;
   }, [form?.status]);
 
+  // Hardware visible: solo Categoría Pinpad/POS y Clasificación 'Bien' (evita
+  // saturar la ventana). Se conservan los ya seleccionados aunque no cumplan
+  // el filtro, para no ocultar selecciones existentes.
+  const visibleHardware = useMemo(() => {
+    const selectedIds = new Set((form?.hardware || []).map(h => h.hardware_id));
+    return hardwareCatalog.filter(hw =>
+      (['Pinpad', 'POS'].includes(hw.type) && hw.asset_type === 'Bien') || selectedIds.has(hw.hardware_id)
+    );
+  }, [hardwareCatalog, form?.hardware]);
+
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
   const toggleHardware = (hw) => {
@@ -331,8 +341,8 @@ export const MasterEditDialog = ({ open, onOpenChange, project, onSaved }) => {
           <section>
             <h3 className="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2"><Cpu size={15} className="text-slate-500" />Hardware (Dispositivos)</h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-lg border border-slate-200 p-3" data-testid="master-hardware-list">
-              {hardwareCatalog.length === 0 && <p className="text-xs text-slate-400 italic col-span-2">Sin hardware en el catálogo.</p>}
-              {hardwareCatalog.map(hw => (
+              {visibleHardware.length === 0 && <p className="text-xs text-slate-400 italic col-span-2">Sin hardware (Pinpad/POS · Bien) en el catálogo.</p>}
+              {visibleHardware.map(hw => (
                 <label key={hw.hardware_id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
                   <Checkbox checked={form.hardware.some(x => x.hardware_id === hw.hardware_id)} onCheckedChange={() => toggleHardware(hw)}
                     data-testid={`master-hardware-${hw.hardware_id}`} />
