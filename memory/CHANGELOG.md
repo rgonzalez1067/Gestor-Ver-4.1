@@ -1,5 +1,18 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Variable {Matriz_Avance_Proyecto} + Pegado de imágenes en el editor enriquecido
+
+### Variable dinámica {Matriz_Avance_Proyecto}
+- **Backend (`project_template_vars.py`)**: nuevos `_phase_cell_value`, `_avance_phase_table`, `_avance_store_block`, `_build_avance_matrix_html`. Registrada en el dict de variables y en el catálogo (`projects.py`). Reglas por celda: Cumplida → `100%` · En proceso → `% real` (processed/expected) · No iniciada → `—`. Jerarquía: Estándar = Banco→Producto→Fases; Multitienda/Multi-RIF antepone Tienda/Sucursal (en Multi-RIF agrupa por RIF). Cabecera con KPI **Avance Global** = `rollup_progress.global_progress` (igual al dashboard). Excluida de los mapas simples de variables (es HTML grande) pero presente en el catálogo.
+- **Frontend**: agregada a `templateVariables.js` (+ preview HTML), `EmailTemplatesEditor.jsx` (4 listas de proyecto), `projectConstants.js` ALL_TOKENS (chip clickeable en notificaciones) y `RichTextEditor.jsx` DEFAULT_EXAMPLE_VALUES (Vista Previa de toolbar).
+- **Validado**: pytest `tests/test_matriz_avance_proyecto.py` (3/3) + curl `preview-adhoc-email` sobre prj_e586608e3579 (KPI 23%, bloques por RIF/Sucursal, celdas 100%/—) + testing agent (render correcto en Vista Previa del modal).
+
+### Pegado de imágenes (Ctrl+V / drag&drop / botón) en RichTextEditor
+- **Frontend (`RichTextEditor.jsx`)**: extensión TipTap `Image`; props `enableImagePaste`(default true) + `imageUploadUrl`(`/projects/upload-image`); `handlePaste`/`handleDrop` capturan el Blob, lo suben e insertan `<img>` con URL absoluta en el cursor; botón de imagen en la toolbar (`${testid}-image`) + input file (`${testid}-image-input`); toast de estado. Disponible en TODAS las plantillas (Notificaciones, Clientes, Cotizaciones, Integradores).
+- **Backend (`projects.py` · `upload_image`)**: nueva compresión ligera con Pillow (`_compress_image`): reescala a máx 1600px y recomprime (JPEG q82 / WEBP q82 / PNG optimize; GIF intacto) para aligerar correos.
+- **Validado**: curl upload (3000x2000 → ≤1600px, servido HTTP 200) + testing agent (inserción end-to-end 100%, `<img>` con src `/api/projects/images/...`).
+
+
 ## 2026-06-13 — Fix: Actualizaciones individuales por tienda bloqueadas en Multi-RIF ("Este proyecto no es multitienda")
 
 - **Backend (`projects.py` · `update_store_matrix_phase`, línea ~1727)**: `PUT /projects/{id}/stores/{store_id}/matrix/phase` rechazaba `project_type != "multistore"` → "Este proyecto no es multitienda". Esto bloqueaba TODAS las ediciones por celda en el árbol Multi-RIF (cantidad, cascada, marcar fase, toggle), que usan ese mismo endpoint. Ahora acepta `("multistore", "multirif")`. El handler ya opera genéricamente sobre `stores` y recalcula rollup.
