@@ -1,5 +1,13 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — VPOS Multi-RIF · FASE 3: Proyecto "Multi-RIF" + tracking de 3 niveles (P0)
+
+- **Conversión (`quote_transitions._create_project_from_quote`)**: cuando la cotización tiene `is_multirif`, crea proyecto `project_type="multirif"` con: `rifs[]` (metadata del cliente jurídico: rif_id, client_id, rif, client_name, box_count) y `stores[]` **planos** etiquetados con `rif_id` (reutilizan los endpoints/UX multitienda existentes). Cada store recibe una copia profunda (`copy.deepcopy`) de la `implementation_matrix`. La matriz principal es la unión.
+- **Nuevo componente `MultiRifTree.jsx`**: árbol colapsable de 3 niveles **Proyecto Global → RIF → Sucursal** con barras de **progreso fraccionado** (verde al 100%). Progreso ponderado por nº de cajas: store = fases completadas/4; RIF = Σ(store×cajas)/Σcajas; Global = ídem global. Cada sucursal se expande al editor de matriz reutilizando `StoreBankSection` (endpoint `/projects/{id}/stores/{storeId}/matrix/phase`).
+- **ProjectDetail**: `isMultiRif`; la matriz principal usa modo rollup (solo lectura) como multitienda; se renderiza `MultiRifTree` cuando `project_type==='multirif'` y el cliente fue notificado.
+- **Validado:** conversión backend (unit: multirif, 2 RIFs, 3 stores con rif_id e independencia de matrices) + UI (árbol renderizado, progreso 3 niveles correcto 20%/33%/50%, expansión y editor de matriz por sucursal). Pendiente cosmético: warning hidratación.
+
+
 ## 2026-06-13 — VPOS Multi-RIF · PDF de cotización (cliente=Banco + Detalle de Tiendas)
 
 Ajuste del PDF de cotización para Multi-RIF (previo a Fase 3):

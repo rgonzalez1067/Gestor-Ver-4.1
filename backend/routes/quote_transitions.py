@@ -7,6 +7,7 @@ gerente responsable.
 from datetime import datetime, timezone
 import logging
 import uuid
+import copy
 
 from config import db
 from services.assignment_notifications import notify_project_assigned
@@ -278,6 +279,45 @@ async def _create_project_from_quote(
         project["notes"].append({
             "note_id": f"pn_{uuid.uuid4().hex[:8]}",
             "text": f"Proyecto Multitienda con {len(stores_raw)} tienda(s): {', '.join(s.get('name', '') for s in stores_raw)}",
+            "created_by": "system",
+            "created_by_name": "Sistema",
+            "created_at": now.isoformat(),
+        })
+
+    # Soporte VPOS Multi-RIF: estructura de 3 niveles (Global → RIF → Tienda).
+    # Las tiendas se almacenan PLANAS en `stores` (etiquetadas con su rif_id) para
+    # reutilizar los endpoints/UX multitienda; `rifs` guarda la metadata del cliente
+    # jurídico (RIF) para agrupar el árbol y calcular el progreso por nivel.
+    if quote.get("is_multirif") and quote.get("multirif_distribution") and project["project_type"] != "multistore":
+        project["project_type"] = "multirif"
+        project["rifs"] = []
+        project["stores"] = []
+        for rif in quote.get("multirif_distribution", []):
+            rif_id = f"rif_{uuid.uuid4().hex[:8]}"
+            project["rifs"].append({
+                "rif_id": rif_id,
+                "client_id": rif.get("client_id"),
+                "rif": rif.get("rif"),
+                "client_name": rif.get("client_name"),
+                "box_count": int(rif.get("boxes") or 0),
+                "status": "Pendiente",
+            })
+            for st in rif.get("stores", []):
+                project["stores"].append({
+                    "store_id": f"st_{uuid.uuid4().hex[:8]}",
+                    "rif_id": rif_id,
+                    "rif": rif.get("rif"),
+                    "client_name": rif.get("client_name"),
+                    "name": st.get("name", ""),
+                    "box_count": int(st.get("boxes") or 0),
+                    "implementation_matrix": copy.deepcopy(implementation_matrix),
+                    "status": "Pendiente",
+                    "notes": [],
+                })
+        total_stores = len(project["stores"])
+        project["notes"].append({
+            "note_id": f"pn_{uuid.uuid4().hex[:8]}",
+            "text": f"Proyecto VPOS Multi-RIF con {len(project['rifs'])} RIF(s) y {total_stores} sucursal(es).",
             "created_by": "system",
             "created_by_name": "Sistema",
             "created_at": now.isoformat(),

@@ -22,6 +22,7 @@ import {
 import { SingleBankSection } from '../components/projects/SingleBankSection';
 import { MultistoreBankSection } from '../components/projects/MultistoreBankSection';
 import { StoreBankSection } from '../components/projects/StoreBankSection';
+import { MultiRifTree } from '../components/projects/MultiRifTree';
 import { InternalEmailInput } from '../components/InternalEmailInput';
 import { PHASES, STORE_PHASES, PHASE_COLORS, ALL_TOKENS } from '../components/projects/projectConstants';
 import { TemplateBodyEditor } from '../components/projects/TemplateBodyEditor';
@@ -1044,6 +1045,7 @@ const ProjectDetail = () => {
   }
 
   const isMultistore = project.project_type === 'multistore';
+  const isMultiRif = project.project_type === 'multirif';
   const isLocked = !!project.assigned_to_name && !project.ticket_number;
   const clientNotified = project.client_notified === true;
   const bankNotifications = project.bank_notifications || {};
@@ -1642,7 +1644,7 @@ const ProjectDetail = () => {
                           const products = Object.keys(matrix[bankName]);
                           const bankHistory = (project.notification_history || {})[`bank_${bankName}`] || [];
                           const bankExecutedLevels = bankHistory.map(h => h.level);
-                          return isMultistore ? (
+                          return (isMultistore || isMultiRif) ? (
                             <MultistoreBankSection key={bankName} bankName={bankName} products={products}
                               rollupBankData={rollup.bank_progress?.[bankName] || {}}
                               bankExecutedLevels={bankExecutedLevels} onOpenNotif={() => openNotifDialog('bank', bankName)} />
@@ -1662,6 +1664,17 @@ const ProjectDetail = () => {
               </>
             )}
           </div>
+
+          {/* ============ MULTI-RIF TREE (3 niveles) ============ */}
+          {isMultiRif && clientNotified && (project.rifs?.length > 0 || project.stores?.length > 0) && (
+            <MultiRifTree
+              project={project}
+              canEditMatrix={canEditMatrix}
+              onUpdateStoreQuantity={updateStoreMatrixQuantity}
+              onUpdateStoreCascade={updateStoreMatrixCascade}
+              onFillStorePhase={fillStorePhaseToExpected}
+            />
+          )}
 
           {/* ============ MULTISTORE STORES ============ */}
           {isMultistore && clientNotified && project.stores?.length > 0 && (
