@@ -1,5 +1,12 @@
 # CHANGELOG — MegaNexus
 
+## 2026-06-13 — Fix: lista de emails (To/CC) en Notificaciones de Proyecto venía corta
+
+- **Causa raíz (frontend `InternalEmailInput.jsx`)**: el dropdown de usuarios internos limitaba a **8** resultados (`.slice(0, 8)`), por lo que aunque el backend devolvía 19 usuarios estratégicos, solo se mostraban 8. Se eliminó el cap: con query vacío muestra TODA la lista y al escribir muestra TODAS las coincidencias (contenedor `max-h-52` con scroll).
+- **Backend (`entity_communications.py` · `_is_strategic_profile`)**: filtro `profile=strategic` ahora más robusto e inclusivo — TODO el Equipo de Ventas (cualquier subárea, `dept` empieza por "ventas"), TODA Implementación (cualquier cargo) y Dirección/Directores. Antes excluía Implementación con cargos fuera de {Implementador, Coordinador, Gerente}.
+- **Validado**: pytest `tests/test_internal_emails_filter.py` 4/4 + testing agent (iteration_78): TO=19, CC=19, scroll real, filtro 'gonz'=3 coincidencias, selección + chip OK.
+
+
 ## 2026-06-13 — Variable {Matriz_Avance_Proyecto} + Pegado de imágenes en el editor enriquecido
 
 ### Variable dinámica {Matriz_Avance_Proyecto}
